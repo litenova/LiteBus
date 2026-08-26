@@ -15,8 +15,12 @@ public enum MessageOutcome
     Succeeded = 0,
 
     /// <summary>
-    ///     A handler called <see cref="IExecutionContext.Abort(object?)" /> to short-circuit the pipeline.
+    ///     A short-circuiting pre-handler stopped the pipeline, so the main handler never ran.
     /// </summary>
+    /// <remarks>
+    ///     This is the outcome an audit trail records as a denial. It is reachable only from the pre-handler stage:
+    ///     suppressing post-handlers after the work has happened still reports <see cref="Succeeded" />.
+    /// </remarks>
     Aborted = 1,
 
     /// <summary>

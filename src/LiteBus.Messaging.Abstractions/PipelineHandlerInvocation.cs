@@ -19,27 +19,6 @@ internal static class PipelineHandlerInvocation
     private static readonly ConcurrentDictionary<(Type HandlerType, string MethodName), MethodInfo?> AsyncPipelineMethods = new();
 
     /// <summary>
-    ///     Invokes a pre-handler asynchronously with the supplied cancellation token.
-    /// </summary>
-    /// <param name="handler">The pre-handler instance.</param>
-    /// <param name="message">The message to pass to the pre-handler.</param>
-    /// <param name="cancellationToken">The cancellation token for the pre-handler invocation.</param>
-    /// <returns>A task representing the asynchronous pre-handler operation.</returns>
-    public static Task InvokePreHandlerAsync(
-        IMessagePreHandler handler,
-        object message,
-        CancellationToken cancellationToken)
-    {
-        return InvokeAsyncPipelineMethod(
-            handler,
-            "PreHandleAsync",
-            message,
-            () => handler.PreHandle(message),
-            [],
-            cancellationToken);
-    }
-
-    /// <summary>
     ///     Invokes a post-handler asynchronously with the supplied cancellation token.
     /// </summary>
     /// <param name="handler">The post-handler instance.</param>

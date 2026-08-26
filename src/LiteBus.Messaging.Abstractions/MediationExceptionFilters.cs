@@ -14,10 +14,13 @@ public static class MediationExceptionFilters
     /// <returns>
     ///     <see langword="true" /> when error handlers may run; <see langword="false" /> when the exception must propagate.
     /// </returns>
+    /// <remarks>
+    ///     Handler resolution failures are configuration errors rather than message failures, and cancellation is the
+    ///     caller's decision, so all three propagate unchanged.
+    /// </remarks>
     public static bool IsRecoverableMediationException(Exception exception)
     {
-        return exception is not LiteBusExecutionAbortedException
-            and not NoHandlerFoundException
+        return exception is not NoHandlerFoundException
             and not MultipleHandlerFoundException
             and not OperationCanceledException;
     }

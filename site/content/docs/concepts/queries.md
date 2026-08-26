@@ -128,27 +128,31 @@ Single-tag sugar: `await _queryMediator.QueryAsync(query, "Admin");`. See [Handl
 
 ## The Query Pipeline
 
-A query runs through the same stages as a command: pre-handlers, the single main handler, post-handlers, and error-handlers on failure. The interfaces are `IQueryPreHandler<TQuery>`, `IQueryPostHandler<TQuery, TResult>`, and `IQueryErrorHandler<TQuery>`, with the same method shapes as their command equivalents.
+A query runs through the same stages as a command: pre-handlers, the single main handler, post-handlers, error-handlers on failure, and completion handlers on every path. The interfaces are `IQueryPreHandler<TQuery>`, `IQueryPostHandler<TQuery, TResult>`, `IQueryErrorHandler<TQuery>`, and `IQueryCompletionHandler<TQuery>`, with the same method shapes as their command equivalents.
 
-The most useful query-side pattern is read-through caching. A pre-handler checks the cache and, on a hit, aborts the pipeline with the cached value so the main handler never runs:
+The most useful query-side pattern is read-through caching. A short-circuiting pre-handler checks the cache and, on a hit, returns the cached value so the main handler never runs:
 
 ```csharp
-public sealed class ProductCacheLookup : IQueryPreHandler<GetProductByIdQuery>
+public sealed class ProductCacheLookup : IQueryShortCircuitingPreHandler<GetProductByIdQuery>
 {
     private readonly IProductCache _cache;
 
     public ProductCacheLookup(IProductCache cache) => _cache = cache;
 
-    public async Task PreHandleAsync(GetProductByIdQuery query, CancellationToken cancellationToken = default)
+    public async Task<PipelineDirective> PreHandleAsync(
+        GetProductByIdQuery query,
+        CancellationToken cancellationToken = default)
     {
         var cached = await _cache.TryGetAsync(query.ProductId, cancellationToken);
-        if (cached is not null)
-            AmbientExecutionContext.Current.Abort(cached); // short-circuit with the cached result
+
+        return cached is null
+            ? PipelineDirective.Continue
+            : PipelineDirective.ShortCircuit(cached, "served from cache");
     }
 }
 ```
 
-`Abort(result)` ends mediation and returns the supplied value to the caller. How abort and the rest of the pipeline behave is on [The Handler Pipeline](handler-pipeline.md) and [Execution Context](execution-context.md).
+Returning `PipelineDirective.ShortCircuit(result)` from an `IQueryShortCircuitingPreHandler<TQuery>` ends mediation and returns the supplied value to the caller. How short-circuiting and the rest of the pipeline behave is on [The Handler Pipeline](handler-pipeline.md) and [Execution Context](execution-context.md).
 
 ## Shared Features
 
@@ -156,7 +160,7 @@ These mechanics apply to commands, queries, and events. Each has a dedicated pag
 
 - [Handler Priority](handler-priority.md): order pre- and post-handlers.
 - [Handler Filtering](handler-filtering.md): select handlers per call.
-- [Execution Context](execution-context.md): share state and abort with a result.
+- [Execution Context](execution-context.md): share state and override the result.
 - [Polymorphic Dispatch](polymorphic-dispatch.md): handle a base query type for derived queries.
 - [Generic Messages & Handlers](generic-messages-and-handlers.md) and [Open Generic Handlers](open-generic-handlers.md): reusable query handlers and cross-cutting steps such as caching or timing.
 

@@ -67,107 +67,29 @@ public class AuditPostHandler : ICommandPostHandler<CreateProductCommand>
 }
 ```
 
-### 2. Aborting Execution
+### 2. Suppressing Post-Handlers
 
-You can terminate the message pipeline at any point by calling `Abort()`. This is commonly used in pre-handlers for validation or caching.
-
-#### Aborting Without a Result
-
-When `Abort()` is called, LiteBus throws a `LiteBusExecutionAbortedException` internally, which stops the pipeline. No further handlers (main or post) will be executed, and error-handlers do not run either, because an abort is a clean stop rather than a failure. Completion handlers still run, with `MessageOutcome.Aborted`.
+`SuppressPostHandlers()` stops the post-handlers that have not run yet. Use it when the work turned out to be a no-op and the reactions to it should not fire.
 
 ```csharp
-public class PermissionPreHandler : ICommandPreHandler<DeleteProductCommand>
+if (_ledger.AlreadyProcessed(message.PaymentId))
 {
-    public Task PreHandleAsync(DeleteProductCommand command, CancellationToken cancellationToken = default)
-    {
-        if (!CurrentUserHasPermission())
-        {
-            // Stop processing immediately
-            AmbientExecutionContext.Current.Abort();
-        }
-        return Task.CompletedTask;
-    }
+    AmbientExecutionContext.Current.SuppressPostHandlers();
+    return Task.CompletedTask;
 }
 ```
 
-#### Recording Why the Pipeline Was Aborted
+It does not stop the calling handler, and it does not change the outcome: the mediation still reports `MessageOutcome.Succeeded`, because the main handler ran.
 
-An abort reaches neither post-handlers nor error-handlers, so without a reason a short-circuited mediation leaves no trace of its cause anywhere. Pass one:
-
-```csharp
-AmbientExecutionContext.Current.Abort(messageResult: null, reason: "caller is not a member of this tenant");
-```
-
-The reason is carried on `LiteBusExecutionAbortedException.Reason` and reaches completion handlers as `MessageCompletionContext.AbortReason`. It is what lets an audit trail record a refusal rather than silently recording nothing. See [The Handler Pipeline](handler-pipeline.md) for the completion stage.
-
-#### Aborting with a Result
-
-If the message expects a result (e.g., `IQuery<TResult>`), you must provide a result when aborting from a pre-handler. This pattern implements caching: a pre-handler returns a cached value and skips the main handler.
-
-```csharp
-public class CachingPreHandler : IQueryPreHandler<GetProductByIdQuery>
-{
-    public Task PreHandleAsync(GetProductByIdQuery query, CancellationToken cancellationToken = default)
-    {
-        if (_cache.TryGetValue(query.ProductId, out ProductDto cachedProduct))
-        {
-            // Abort the pipeline and provide the cached value as the result
-            AmbientExecutionContext.Current.Abort(cachedProduct);
-        }
-        return Task.CompletedTask;
-    }
-}
-```
-
-### 3. Accessing Tags
-
-The `Tags` collection contains the tags that were specified when the message was mediated. This allows handlers to dynamically change their behavior based on the context.
-
-```csharp
-public class ProductQueryHandler : IQueryHandler<GetProductQuery, ProductDto>
-{
-    public Task<ProductDto> HandleAsync(GetProductQuery query, CancellationToken cancellationToken = default)
-    {
-        var tags = AmbientExecutionContext.Current.Tags;
-
-        if (tags.Contains("IncludeExtraDetails"))
-        {
-            // Fetch and return a more detailed DTO
-        }
-        else
-        {
-            // Return a standard DTO
-        }
-    }
-}
-```
-
-### 4. Cancellation Token
-
-The `CancellationToken` for the operation is also available on the execution context, which is the same token passed to the handler methods.
+To stop the pipeline **before** the work happens, implement `ICommandShortCircuitingPreHandler<TCommand>` or `IQueryShortCircuitingPreHandler<TQuery>` and return `PipelineDirective.ShortCircuit(...)`. That is a return value rather than a context call, so the compiler requires the decision and nothing after it runs by accident. See [The Handler Pipeline](handler-pipeline.md).
 
 ### 5. `MessageResult`: Aborting and Post-Handler Override
 
-The `MessageResult` property (`object? MessageResult { get; set; }`) on `IExecutionContext` serves two distinct purposes:
+The `MessageResult` property (`object? MessageResult { get; set; }`) on `IExecutionContext` serves two purposes:
 
-#### Purpose 1: Carrying the Result Out of an Aborted Pipeline
+#### Purpose 1: Carrying a Result Set by the Main Handler
 
-When you call `executionContext.Abort(result)` from a pre-handler, LiteBus stores the supplied value in `MessageResult` and then terminates the pipeline. This is how the mediator knows what value to return when execution is aborted before the main handler runs.
-
-```csharp
-public class CachingPreHandler : IQueryPreHandler<GetProductByIdQuery>
-{
-    public Task PreHandleAsync(GetProductByIdQuery query, CancellationToken cancellationToken = default)
-    {
-        if (_cache.TryGetValue(query.ProductId, out ProductDto cachedProduct))
-        {
-            // Abort writes cachedProduct to MessageResult, then throws internally.
-            AmbientExecutionContext.Current.Abort(cachedProduct);
-        }
-        return Task.CompletedTask;
-    }
-}
-```
+The main handler's return value reaches the caller directly, so most handlers never touch this property. A short-circuiting pre-handler supplies its result through `PipelineDirective.ShortCircuit(result)` rather than through `MessageResult`, so the value is typed at the point of the decision and the pipeline can report a clear error when it does not match.
 
 #### Purpose 2: Replacing the Result from a Post-Handler
 

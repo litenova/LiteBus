@@ -21,6 +21,7 @@ public sealed class QueryModuleBuilder
         typeof(IQueryHandler<,>),
         typeof(IQueryPreHandler),
         typeof(IQueryPreHandler<>),
+        typeof(IQueryShortCircuitingPreHandler<>),
         typeof(IQueryPostHandler),
         typeof(IQueryPostHandler<>),
         typeof(IQueryPostHandler<,>),

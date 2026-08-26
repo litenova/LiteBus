@@ -20,7 +20,7 @@ Direct and indirect handlers run in a fixed order:
 - Error: indirect then direct.
 - Completion: direct then indirect.
 
-Single-handler strategies (commands and queries) support `Abort(...)`, optionally with a reason surfaced to completion handlers. Broadcast strategy (events) uses its own fan-out flow and does not use abort as a success path.
+Single-handler strategies (commands and queries) support short-circuiting from a pre-handler through `PipelineDirective`, optionally with a reason surfaced to completion handlers. Events have no short-circuiting contract. Any stage may call `IExecutionContext.SuppressPostHandlers()` to skip the remaining post-handlers without changing the outcome.
 
 The completion stage runs in a `finally` inside the ambient execution scope, so it observes success, abort, failure, and cancellation alike. It is the only stage guaranteed to run.
 

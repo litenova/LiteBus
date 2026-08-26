@@ -16,9 +16,14 @@ trail built on both. Persistence schemas and transport behavior are unchanged.
   actually ended. Recording an audit entry, emitting a metric, or closing a unit of work belongs here.
 - `MessageOutcome` distinguishes `Succeeded`, `Aborted`, `Failed`, and `Canceled`. An aborted or cancelled mediation
   previously left no trace in any stage.
-- `IExecutionContext.Abort(object?, string?)` records why a pipeline was short-circuited. The reason is carried on
-  `LiteBusExecutionAbortedException.Reason` and surfaces as `MessageCompletionContext.AbortReason`. The overload is a
-  default interface method, so existing implementors are unaffected.
+- Short-circuiting is a return value rather than an exception. `IShortCircuitingPreHandler<TMessage>`, with the axis
+  sugar `ICommandShortCircuitingPreHandler<TCommand>` and `IQueryShortCircuitingPreHandler<TQuery>`, returns a
+  `PipelineDirective` that either continues the pipeline or stops it with a result and a reason. The compiler requires
+  the decision, so nothing after it runs by accident, and an expected control-flow path stays off the exception path.
+  The reason surfaces as `MessageCompletionContext.AbortReason` and as the reason on an audit record.
+- `IExecutionContext.SuppressPostHandlers()` skips the post-handlers that have not run yet. Use it when the work turned
+  out to be a no-op and the reactions to it should not fire, such as an idempotent command that detects it already ran.
+  It does not stop the calling handler and does not change the outcome.
 - Declarative message metadata. `IMessageDescriptor.Metadata` exposes values resolved once at registration from
   attributes on the message type and from message definitions, so a pipeline stage reads a dictionary instead of
   reflecting on every dispatch.
@@ -42,11 +47,29 @@ trail built on both. Persistence schemas and transport behavior are unchanged.
 
 - `CommandModuleBuilder` and `QueryModuleBuilder` recognize completion handler contracts and message definitions as
   registrable constructs, so `RegisterFromAssembly` discovers them.
-- `AsyncBroadcastMediationStrategy` now observes aborts and cancellations so it can report them to the completion
-  stage. Both still propagate to the caller exactly as before.
+- `AsyncBroadcastMediationStrategy` now observes cancellations so it can report them to the completion stage, and
+  honors a pre-handler short-circuit by publishing to no handlers. Cancellation still propagates as before.
+- Pre-handlers are invoked through a virtual call instead of a per-type reflective method lookup. The lookup existed to
+  recover an explicit cancellation token from the synchronous entry point, which no longer exists.
 
 ### Breaking
 
+- `IExecutionContext.Abort` and `LiteBusExecutionAbortedException` are removed. A pre-handler that stopped the pipeline
+  now implements `ICommandShortCircuitingPreHandler<TCommand>` or `IQueryShortCircuitingPreHandler<TQuery>` and returns
+  `PipelineDirective.ShortCircuit(result, reason)`. The break is a compile error rather than a change in behavior, which
+  is deliberate: a flag that left `Abort()` compiling would have silently started running the statements after it.
+- Only a pre-handler can stop the pipeline. Short-circuiting means skipping the work, and once the main handler has run
+  there is nothing left to skip. A handler that previously aborted from a later stage calls `SuppressPostHandlers()`.
+- `MessageOutcome.Aborted` now means the main handler never ran. Previously an abort from a post-handler reported
+  `Aborted` even though the command had taken effect, which told an audit trail that an action was refused when it had
+  actually succeeded. Suppressing post-handlers reports `Succeeded`.
+- `IMessagePreHandler` no longer exposes the synchronous `object PreHandle(object)` entry point. Every pre-handler
+  dispatches through `Task<PipelineDirective> PreHandleAsync(object, CancellationToken)`, which the generic contracts
+  supply. `Task PreHandleAsync(TMessage, CancellationToken)` is unchanged, so handlers implementing
+  `ICommandPreHandler<TCommand>`, `IQueryPreHandler<TQuery>`, `ICommandValidator<TCommand>`, and their siblings compile
+  as they are. `IAsyncMessagePreHandler<TMessage>` remains as an alias.
+- `IExecutionContext` gained `PostHandlersSuppressed` and `SuppressPostHandlers()`. Custom implementations, including
+  test doubles, must add them.
 - `IMessageDescriptor` and `IMessageDependencies` gained members for the completion stage and for message metadata.
   Custom implementations of these interfaces must add them. Both are infrastructure contracts implemented by LiteBus
   itself; applications that only implement handlers are unaffected.

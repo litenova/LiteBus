@@ -49,10 +49,11 @@ public sealed class AmbientExecutionContextTests
 
         public object? MessageResult { get; set; }
 
-        public void Abort(object? messageResult = null)
+        public bool PostHandlersSuppressed { get; private set; }
+
+        public void SuppressPostHandlers()
         {
-            MessageResult = messageResult;
-            throw new LiteBusExecutionAbortedException();
+            PostHandlersSuppressed = true;
         }
     }
 }

@@ -20,7 +20,7 @@ namespace LiteBus.Commands.Abstractions;
 public interface ICommandValidator<in TCommand> : ICommandPreHandler<TCommand> where TCommand : ICommand
 {
     /// <inheritdoc />
-    Task IAsyncMessagePreHandler<TCommand>.PreHandleAsync(TCommand message, CancellationToken cancellationToken)
+    Task IMessagePreHandler<TCommand>.PreHandleAsync(TCommand message, CancellationToken cancellationToken)
     {
         return ValidateAsync(message, cancellationToken);
     }

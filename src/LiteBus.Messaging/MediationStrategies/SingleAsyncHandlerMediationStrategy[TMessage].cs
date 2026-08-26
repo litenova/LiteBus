@@ -12,10 +12,11 @@ namespace LiteBus.Messaging.MediationStrategies;
 /// <typeparam name="TMessage">The type of message being mediated.</typeparam>
 /// <remarks>
 ///     This strategy ensures that only one handler is registered for the message type and then:
-///     1. Executes pre-handlers.
+///     1. Executes pre-handlers, stopping early when one short-circuits.
 ///     2. Delegates the message processing to the registered handler.
-///     3. Executes post-handlers.
-///     In case of any exception during the process, it delegates the error handling to the registered error handlers.
+///     3. Executes post-handlers, unless the pipeline suppressed them.
+///     4. Routes exceptions to registered error handlers.
+///     5. Reports the outcome to completion handlers, on every path.
 /// </remarks>
 public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task>
     where TMessage : notnull
@@ -38,7 +39,8 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
     /// <remarks>
     ///     The mediation process includes executing pre-handlers, the main handler, and post-handlers in sequence.
     ///     If an exception occurs during any stage, the appropriate error handlers are executed.
-    ///     If a <see cref="LiteBusExecutionAbortedException" /> is caught, the mediation process is aborted without error.
+    ///     When a pre-handler short-circuits, the mediation ends with <see cref="MessageOutcome.Aborted" /> and the
+    ///     main handler never runs.
     /// </remarks>
     public async Task Mediate(
         TMessage message,
@@ -55,7 +57,16 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         {
             using (AmbientExecutionContext.CreateScope(executionContext))
             {
-                await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken).ConfigureAwait(false);
+                var directive = await messageDependencies
+                    .RunAsyncPreHandlers(message, executionContext.CancellationToken)
+                    .ConfigureAwait(false);
+
+                if (directive.IsShortCircuit)
+                {
+                    outcome = MessageOutcome.Aborted;
+                    abortReason = directive.Reason;
+                    return;
+                }
 
                 var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
 
@@ -69,11 +80,6 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
                     messageResult,
                     executionContext.CancellationToken).ConfigureAwait(false);
             }
-        }
-        catch (LiteBusExecutionAbortedException abortedException)
-        {
-            outcome = MessageOutcome.Aborted;
-            abortReason = abortedException.Reason;
         }
         catch (OperationCanceledException canceledException)
         {

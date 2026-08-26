@@ -68,7 +68,16 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
         try
         {
-            await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken).ConfigureAwait(false);
+            var directive = await messageDependencies
+                .RunAsyncPreHandlers(message, executionContext.CancellationToken)
+                .ConfigureAwait(false);
+
+            if (directive.IsShortCircuit)
+            {
+                outcome = MessageOutcome.Aborted;
+                abortReason = directive.Reason;
+                return;
+            }
 
             var allMainHandlers = messageDependencies.MainHandlers
                 .Concat(messageDependencies.IndirectMainHandlers)
@@ -93,12 +102,6 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
                 message,
                 executionTaskOfAllHandlers,
                 executionContext.CancellationToken).ConfigureAwait(false);
-        }
-        catch (LiteBusExecutionAbortedException abortedException)
-        {
-            outcome = MessageOutcome.Aborted;
-            abortReason = abortedException.Reason;
-            throw;
         }
         catch (OperationCanceledException canceledException)
         {

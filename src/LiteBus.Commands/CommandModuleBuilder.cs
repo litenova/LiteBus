@@ -22,6 +22,7 @@ public sealed class CommandModuleBuilder
         typeof(ICommandHandler<,>),
         typeof(ICommandPreHandler),
         typeof(ICommandPreHandler<>),
+        typeof(ICommandShortCircuitingPreHandler<>),
         typeof(ICommandPostHandler),
         typeof(ICommandPostHandler<>),
         typeof(ICommandPostHandler<,>),

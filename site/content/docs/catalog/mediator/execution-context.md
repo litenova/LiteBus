@@ -12,7 +12,7 @@
 - `Items` key-value data
 - `Tags`
 - `MessageResult`
-- `Abort(...)`
+- `SuppressPostHandlers()`
 
 `AmbientExecutionContext` stores the current context via `AsyncLocal<IExecutionContext?>`. Handlers access it statically inside mediation flow. `CreateScope` sets and restores ambient context for nested and async flows.
 
@@ -35,7 +35,8 @@ public sealed class ContextAwarePreHandler : ICommandPreHandler<CreateOrderComma
 | `IExecutionContext.Tags` | Effective routing tags |
 | `IExecutionContext.CancellationToken` | Effective cancellation token |
 | `IExecutionContext.MessageResult` | Result override/abort payload |
-| `IExecutionContext.Abort(object? result = null)` | Stops single-handler mediation |
+| `IExecutionContext.SuppressPostHandlers()` | Skips the post-handlers that have not run yet |
+| `PipelineDirective.ShortCircuit(result, reason)` | Stops a pipeline from a short-circuiting pre-handler |
 | `AmbientExecutionContext.Current` | Access current ambient context |
 | `AmbientExecutionContext.HasCurrent` | Presence check |
 | `AmbientExecutionContext.CreateScope(IExecutionContext)` | Scoped ambient context |

@@ -34,8 +34,8 @@ public sealed class MessageCompletionContext
     public Exception? Exception { get; init; }
 
     /// <summary>
-    ///     Gets the reason supplied to <see cref="IExecutionContext.Abort(object?, string?)" />, when
-    ///     <see cref="Outcome" /> is <see cref="MessageOutcome.Aborted" /> and a reason was given.
+    ///     Gets the reason supplied to <see cref="PipelineDirective.ShortCircuit" />, when <see cref="Outcome" /> is
+    ///     <see cref="MessageOutcome.Aborted" /> and a reason was given.
     /// </summary>
     public string? AbortReason { get; init; }
 

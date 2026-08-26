@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Extensions;
 using LiteBus.Messaging.Registry.Abstractions;
@@ -21,7 +22,11 @@ public sealed class PreHandlerDescriptorBuilder : IHandlerDescriptorBuilder
     /// <inheritdoc />
     public IEnumerable<IHandlerDescriptor> Build(Type type)
     {
-        var interfaces = type.GetInterfacesEqualTo(typeof(IMessagePreHandler<>));
+        // A pre-handler declares its message type through either contract. Both dispatch through IMessagePreHandler,
+        // so both produce the same descriptor kind, but the message type must be read from whichever it implements.
+        var interfaces = type.GetInterfacesEqualTo(typeof(IMessagePreHandler<>))
+            .Concat(type.GetInterfacesEqualTo(typeof(IShortCircuitingPreHandler<>)));
+
         var priority = type.GetPriorityFromAttribute();
         var tags = type.GetTagsFromAttribute();
 

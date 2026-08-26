@@ -56,7 +56,7 @@ LiteBus also ships pipeline handlers of its own, such as the audit record writer
 A command or query must resolve to exactly one main handler. If more than one is registered, mediation throws `MultipleHandlerFoundException` before running anything. The flow for a result-returning message is:
 
 ```
-RunAsyncPreHandlers(message)        // indirect pre, then direct pre
+directive = RunAsyncPreHandlers(message)  // indirect pre, then direct pre; stops on short-circuit
 result = handler.HandleAsync(...)   // the one main handler
 RunAsyncPostHandlers(message, result) // direct post, then indirect post
 RunAsyncCompletionHandlers(context)   // direct, then indirect, always, in a finally
@@ -105,29 +105,65 @@ public sealed class AuditFailure : ICommandErrorHandler<ProcessPaymentCommand>
 }
 ```
 
-## Short-Circuiting with Abort
+## Short-Circuiting the Pipeline
 
-Any handler in a command or query pipeline can stop mediation by calling `Abort` on the execution context. `Abort` throws an internal `LiteBusExecutionAbortedException` that the single-handler strategy catches and treats as a clean stop, not an error, so error-handlers do not run.
+A pre-handler can stop a command or query pipeline before the main handler runs. The decision is a return value rather than an exception, so the compiler requires it and nothing after the decision runs by accident.
 
-```csharp
-// In a query pre-handler: return a cached value and skip the main handler.
-AmbientExecutionContext.Current.Abort(cachedProduct);
-```
-
-The result rules for abort are:
-
-- For a void command (`ICommand`), `Abort()` ends the pipeline with no result.
-- For a result command or query, you must pass a value: `Abort(result)`. Aborting a result-returning message without a value throws `LiteBusConfigurationException`, because the caller is owed a result.
-
-`Abort` also accepts a reason, which is the only description of why the message ended, because an abort reaches neither post-handlers nor error-handlers:
+Implement `ICommandShortCircuitingPreHandler<TCommand>` or `IQueryShortCircuitingPreHandler<TQuery>` and return a `PipelineDirective`:
 
 ```csharp
-AmbientExecutionContext.Current.Abort(messageResult: null, reason: "caller is not a member of this tenant");
+public sealed class ReturnCachedProduct : IQueryShortCircuitingPreHandler<GetProductQuery>
+{
+    public async Task<PipelineDirective> PreHandleAsync(
+        GetProductQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var cached = await _cache.TryGetAsync(query.ProductId, cancellationToken);
+
+        return cached is null
+            ? PipelineDirective.Continue
+            : PipelineDirective.ShortCircuit(cached, "served from cache");
+    }
+}
 ```
 
-The reason reaches completion handlers as `MessageCompletionContext.AbortReason`. Without it, a short-circuited mediation leaves no trace of its cause anywhere.
+The rules:
 
-Abort is a single-handler concept. In an event broadcast, the abort exception is treated like any other exception and routed to error-handlers, so do not use `Abort` to skip event handlers; filter them instead with [Handler Filtering](handler-filtering.md).
+- Pre-handlers after the one that short-circuited **do not run**. Neither does the main handler, nor any post-handler.
+- For a message with a result type, the directive **must** supply a result. Omitting it, or supplying the wrong type, throws `LiteBusConfigurationException`.
+- The mediation reports `MessageOutcome.Aborted`, and the reason reaches completion handlers as `MessageCompletionContext.AbortReason`. Without a reason, a short-circuited mediation leaves no explanation anywhere, because it reaches neither post-handlers nor error handlers.
+- Error handlers do not run. A short-circuit is a clean stop, not a failure.
+
+Short-circuiting is a **capability**, which is why it lives in its own contract. A plain `ICommandPreHandler<TCommand>` cannot stop the pipeline, so a validator cannot skip the work by accident.
+
+For a stream query, a short-circuit ends the stream. Supplying an `IAsyncEnumerable<TResult>` as the directive result yields that stream instead of the handler's.
+
+## Suppressing Post-Handlers
+
+Short-circuiting skips the work. Once the work has happened there is nothing left to skip, but a handler may still want to stop the reactions to it. An idempotent command that detects it already ran should return the existing result without firing the post-handler that publishes its domain events:
+
+```csharp
+public Task HandleAsync(ProcessPaymentCommand message, CancellationToken cancellationToken = default)
+{
+    if (_ledger.AlreadyProcessed(message.PaymentId))
+    {
+        AmbientExecutionContext.Current.SuppressPostHandlers();
+        return Task.CompletedTask;
+    }
+
+    // ...
+}
+```
+
+Suppression differs from short-circuiting in three ways that matter:
+
+- It does **not** stop the calling handler. Everything after the call still runs, so there is no hidden control flow.
+- It can be called from the main handler or from a post-handler, in which case the remaining post-handlers are skipped.
+- The mediation still reports `MessageOutcome.Succeeded`, because the main handler ran.
+
+That last point is the invariant to remember: **`Aborted` means the main handler never ran.** Reporting it for a suppressed post-handler chain would tell an audit trail that a command was refused when it actually took effect.
+
+Events have no short-circuiting contract. A domain event has already happened by the time it is published, so refusing to publish it is not a meaningful operation; filter handlers with [Handler Filtering](handler-filtering.md) instead.
 
 ## Cancellation
 

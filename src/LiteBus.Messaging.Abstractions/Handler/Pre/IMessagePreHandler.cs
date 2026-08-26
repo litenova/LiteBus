@@ -1,28 +1,31 @@
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Represents an interface that defines a pre-handler to process messages before the primary handling takes place.
+///     The dispatch entry point the mediation pipeline uses to run a pre-handler.
 /// </summary>
 /// <remarks>
-///     This interface should be implemented by classes intended to define actions or transformations on messages before
-///     they undergo the primary handling process. This could encompass operations such as validation, sanitization, or
-///     augmentation of the message data.
+///     <para>
+///         Do not implement this interface directly. Implement <see cref="IMessagePreHandler{TMessage}" /> for a
+///         pre-handler that validates, authorizes, or enriches, or
+///         <see cref="IShortCircuitingPreHandler{TMessage}" /> for one that may stop the pipeline. Both supply this
+///         member for you.
+///     </para>
+///     <para>
+///         Every pre-handler returns a <see cref="PipelineDirective" /> through this entry point, which is what lets the
+///         pipeline invoke both kinds through one virtual call with no reflection. A pre-handler that cannot
+///         short-circuit always reports <see cref="PipelineDirective.Continue" />.
+///     </para>
 /// </remarks>
 public interface IMessagePreHandler
 {
     /// <summary>
-    ///     Executes the necessary pre-processing steps on a message before it undergoes the primary handling process. This can
-    ///     involve actions such as augmenting the message with additional data, transforming its format, or validating its
-    ///     contents.
+    ///     Runs the pre-handler and reports whether the pipeline should proceed.
     /// </summary>
-    /// <param name="message">
-    ///     The original message that is to be pre-processed. This parameter receives the message as it was
-    ///     before any handling process, providing the raw data that the pre-handler can operate on.
-    /// </param>
-    /// <returns>
-    ///     An object representing the outcome of the pre-processing steps, which might be a transformed version of the
-    ///     original message or other results of the pre-processing actions. This output is passed to subsequent
-    ///     processing steps.
-    /// </returns>
-    object PreHandle(object message);
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
+    /// <returns>The directive that tells the pipeline whether to continue.</returns>
+    Task<PipelineDirective> PreHandleAsync(object message, CancellationToken cancellationToken);
 }

@@ -50,42 +50,32 @@ public interface IExecutionContext
     /// </summary>
     /// <remarks>
     ///     This property can be set by handlers to provide a result for the mediation operation.
-    ///     It is typically set by the main handler, but can also be set by pre-handlers or post-handlers
-    ///     in certain scenarios, such as when aborting the execution.
+    ///     It is typically set by the main handler, and a post-handler may overwrite it to transform what the caller
+    ///     receives. A short-circuiting pre-handler supplies its result through
+    ///     <see cref="PipelineDirective.ShortCircuit" /> rather than through this property.
     /// </remarks>
     object? MessageResult { get; set; }
 
     /// <summary>
-    ///     Aborts the execution of the current mediation execution.
+    ///     Gets a value indicating whether post-handlers are suppressed for this mediation.
     /// </summary>
-    /// <param name="messageResult">
-    ///     The message result to set before aborting. This is required if the message has a specific
-    ///     result type and the execution is aborted in the pre-handler phase.
-    /// </param>
-    /// <remarks>
-    ///     This method allows handlers to abort the execution of the current mediation operation.
-    ///     When called, the execution is immediately aborted, and no further handlers are executed.
-    ///     If the message has a specific result type and the execution is aborted in the pre-handler phase,
-    ///     a message result must be provided to satisfy the result type requirement.
-    /// </remarks>
-    void Abort(object? messageResult = null);
+    bool PostHandlersSuppressed { get; }
 
     /// <summary>
-    ///     Aborts the execution of the current mediation execution, recording why.
+    ///     Suppresses the post-handlers that have not run yet.
     /// </summary>
-    /// <param name="messageResult">
-    ///     The message result to set before aborting. This is required if the message has a specific
-    ///     result type and the execution is aborted in the pre-handler phase.
-    /// </param>
-    /// <param name="reason">The reason the execution was aborted, surfaced to completion handlers.</param>
     /// <remarks>
-    ///     An abort does not reach post-handlers or error handlers, so the reason recorded here is the only description
-    ///     of why the message ended. Completion handlers read it from
-    ///     <see cref="MessageCompletionContext.AbortReason" />.
+    ///     <para>
+    ///         Use this when the work turned out to be a no-op and the reactions to it should not fire. An idempotent
+    ///         command that detects it already ran can return the existing result while suppressing the post-handler
+    ///         that publishes its domain events.
+    ///     </para>
+    ///     <para>
+    ///         Unlike short-circuiting, this does not stop the calling handler and does not change the outcome. The
+    ///         mediation still reports <see cref="MessageOutcome.Succeeded" />, because the main handler ran. To stop
+    ///         the pipeline before the work happens, implement
+    ///         <see cref="IShortCircuitingPreHandler{TMessage}" /> instead.
+    ///     </para>
     /// </remarks>
-    void Abort(object? messageResult, string? reason)
-    {
-        MessageResult = messageResult;
-        throw new LiteBusExecutionAbortedException(reason);
-    }
+    void SuppressPostHandlers();
 }

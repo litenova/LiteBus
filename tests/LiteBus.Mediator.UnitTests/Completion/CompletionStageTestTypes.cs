@@ -42,19 +42,18 @@ internal sealed class CompletionCommand : ICommand
 internal sealed class CompletionCommandWithResult : ICommand<string>;
 
 /// <summary>
-///     Aborts the pipeline with a reason when the command asks for it.
+///     Short-circuits the pipeline with a reason when the command asks for it.
 /// </summary>
-internal sealed class CompletionCommandPreHandler : ICommandPreHandler<CompletionCommand>
+internal sealed class CompletionCommandPreHandler : ICommandShortCircuitingPreHandler<CompletionCommand>
 {
     /// <inheritdoc />
-    public Task PreHandleAsync(CompletionCommand message, CancellationToken cancellationToken = default)
+    public Task<PipelineDirective> PreHandleAsync(CompletionCommand message, CancellationToken cancellationToken = default)
     {
-        if (message.ShouldAbort)
-        {
-            AmbientExecutionContext.Current.Abort(null, "not permitted");
-        }
+        ArgumentNullException.ThrowIfNull(message);
 
-        return Task.CompletedTask;
+        return message.ShouldAbort
+            ? Task.FromResult(PipelineDirective.ShortCircuit(reason: "not permitted"))
+            : Task.FromResult(PipelineDirective.Continue);
     }
 }
 

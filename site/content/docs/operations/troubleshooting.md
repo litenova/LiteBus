@@ -50,20 +50,25 @@ Fix:
 - Reduce the handler to a single type parameter, for example `ICommandPreHandler<T>`.
 - If you need the result type, read it inside the handler rather than as a second type parameter, or use a concrete handler. See [Open Generic Handlers](../concepts/open-generic-handlers.md).
 
-## LiteBusExecutionAbortedException
+## A Short-Circuit Did Not Stop the Pipeline
 
-Thrown internally when a handler calls `AmbientExecutionContext.Current.Abort(...)`. In a command or query pipeline the single-handler strategy catches it and ends mediation cleanly, so you should not see it escape. You will see it escape if you call `Abort` inside an event pipeline, where the broadcast strategy treats it as an ordinary exception and routes it to error-handlers (which rethrow if none are registered).
+Short-circuiting is a return value, not an exception. A pre-handler stops the pipeline only when it implements `ICommandShortCircuitingPreHandler<TCommand>` or `IQueryShortCircuitingPreHandler<TQuery>` and returns `PipelineDirective.ShortCircuit(...)`.
 
-Fix:
+Common causes when a short-circuit appears to be ignored:
 
-- Use `Abort` only in command and query pipelines, typically a pre-handler returning a cached result.
-- To skip event handlers, filter them with tags or a predicate instead. See [Handler Filtering](../concepts/handler-filtering.md).
+- The handler implements the plain `ICommandPreHandler<TCommand>` contract, which cannot short-circuit by design.
+- The handler was not registered. Both module builders gate assembly scanning on a handler-contract allowlist, so a handler implementing an unrecognized contract is skipped silently.
+- The directive was constructed but not returned.
 
-## InvalidOperationException When Aborting a Result Message
+For a message with a result type, `PipelineDirective.ShortCircuit()` must supply a result, or mediation throws `LiteBusConfigurationException` naming the expected type.
 
-Thrown when you call `Abort()` without a value on a result-returning command or query. The caller is owed a result, so an abort must supply one.
+To skip the post-handlers after the work has already run, call `IExecutionContext.SuppressPostHandlers()` instead. That reports `MessageOutcome.Succeeded`, because the main handler ran.
 
-Fix: pass the value, `Abort(result)`. For a void command (`ICommand`), `Abort()` with no argument is correct. See [Execution Context](../concepts/execution-context.md).
+## LiteBusConfigurationException When Short-Circuiting a Result Message
+
+Thrown when a short-circuiting pre-handler stops a result-returning command or query without supplying a result, or supplies one of the wrong type. The caller is owed a result, so the directive must carry it.
+
+Fix: pass the value, `PipelineDirective.ShortCircuit(result)`. For a message with no result (`ICommand`), `PipelineDirective.ShortCircuit()` with no argument is correct. The exception message names the expected type. See [The Handler Pipeline](../concepts/handler-pipeline.md).
 
 ## LB1004: Command with Result Scheduled to Inbox
 

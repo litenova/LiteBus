@@ -20,8 +20,8 @@ namespace LiteBus.Messaging.MediationStrategies;
 ///     execution of pre-handlers before the stream begins, processes each item in the stream,
 ///     and executes post-handlers after the stream completes.
 ///     Error handling is performed at multiple stages: during pre-handling, during stream enumeration,
-///     and during post-handling. If a <see cref="LiteBusExecutionAbortedException" /> is caught at any stage,
-///     the stream is terminated immediately.
+///     and during post-handling. When a pre-handler short-circuits, the main handler never runs and the stream
+///     yields whatever the directive supplied, or nothing.
 /// </remarks>
 public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
     IMessageMediationStrategy<TMessage, IAsyncEnumerable<TMessageResult>>
@@ -61,7 +61,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
     ///     The mediation process includes executing pre-handlers before starting the stream, obtaining the
     ///     stream from the handler, enumerating the stream and yielding each result, and executing post-handlers
     ///     after the stream completes. If an exception occurs during any stage, the appropriate error handlers are
-    ///     executed. If a <see cref="LiteBusExecutionAbortedException" /> is caught, the stream is terminated immediately.
+    ///     executed. When a pre-handler short-circuits, the mediation reports <see cref="MessageOutcome.Aborted" />.
     /// </remarks>
     public async IAsyncEnumerable<TMessageResult> Mediate(
         TMessage message,
@@ -81,20 +81,26 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
             {
                 using (AmbientExecutionContext.CreateScope(executionContext))
                 {
-                    await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken).ConfigureAwait(false);
+                    var directive = await messageDependencies
+                        .RunAsyncPreHandlers(message, executionContext.CancellationToken)
+                        .ConfigureAwait(false);
 
-                    var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
-                    messageResultAsyncEnumerable = HandlerInvocation.InvokeStreamHandler<TMessage, TMessageResult>(
-                        handler,
-                        message,
-                        executionContext.CancellationToken);
+                    if (directive.IsShortCircuit)
+                    {
+                        outcome = MessageOutcome.Aborted;
+                        abortReason = directive.Reason;
+                        shouldContinue = false;
+                        messageResultAsyncEnumerable = directive.Result as IAsyncEnumerable<TMessageResult>;
+                    }
+                    else
+                    {
+                        var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
+                        messageResultAsyncEnumerable = HandlerInvocation.InvokeStreamHandler<TMessage, TMessageResult>(
+                            handler,
+                            message,
+                            executionContext.CancellationToken);
+                    }
                 }
-            }
-            catch (LiteBusExecutionAbortedException abortedException)
-            {
-                outcome = MessageOutcome.Aborted;
-                abortReason = abortedException.Reason;
-                shouldContinue = false;
             }
             catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
             {
@@ -110,12 +116,14 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                 }
             }
 
-            if (!shouldContinue)
+            // A short-circuit may supply a replacement stream. When it supplies nothing, the stream is empty.
+            if (!shouldContinue && messageResultAsyncEnumerable is null)
             {
                 yield break;
             }
 
             messageResultAsyncEnumerable ??= Empty<TMessageResult>();
+            shouldContinue = true;
 
             IAsyncEnumerator<TMessageResult>? messageResultAsyncEnumerator = null;
 
@@ -126,12 +134,6 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                     messageResultAsyncEnumerator = messageResultAsyncEnumerable.GetAsyncEnumerator(_cancellationToken);
                 }
             }
-            catch (LiteBusExecutionAbortedException abortedException)
-            {
-                outcome = MessageOutcome.Aborted;
-                abortReason = abortedException.Reason;
-                shouldContinue = false;
-            }
             catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
             {
                 outcome = MessageOutcome.Failed;
@@ -144,11 +146,6 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                         ExceptionDispatchInfo.Capture(exception),
                         executionContext.CancellationToken).ConfigureAwait(false);
                 }
-            }
-
-            if (!shouldContinue)
-            {
-                yield break;
             }
 
             messageResultAsyncEnumerator ??= Empty<TMessageResult>().GetAsyncEnumerator(_cancellationToken);
@@ -167,14 +164,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                             hasResult = await messageResultAsyncEnumerator.MoveNextAsync().ConfigureAwait(false);
                             item = hasResult ? messageResultAsyncEnumerator.Current : default;
                         }
-                        catch (LiteBusExecutionAbortedException abortedException)
-                        {
-                            outcome = MessageOutcome.Aborted;
-                            abortReason = abortedException.Reason;
-                            shouldContinue = false;
-                            continue;
-                        }
-                        catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
+                                    catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
                         {
                             outcome = MessageOutcome.Failed;
                             failure = exception;
@@ -218,12 +208,6 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                         }
                     }
                 }
-                catch (LiteBusExecutionAbortedException abortedException)
-                {
-                    outcome = MessageOutcome.Aborted;
-                    abortReason = abortedException.Reason;
-                    // Stream items were already yielded; post-handler abort is ignored.
-                }
                 catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
                 {
                     outcome = MessageOutcome.Failed;
@@ -248,12 +232,6 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                         {
                             overrideEnumerator = overrideStream.GetAsyncEnumerator(_cancellationToken);
                         }
-                    }
-                    catch (LiteBusExecutionAbortedException abortedException)
-                    {
-                        outcome = MessageOutcome.Aborted;
-                        abortReason = abortedException.Reason;
-                        // The original stream has already completed, so an override abort ends enumeration.
                     }
                     catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
                     {
@@ -286,13 +264,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                                         hasOverrideResult = await overrideEnumerator.MoveNextAsync().ConfigureAwait(false);
                                         overrideItem = hasOverrideResult ? overrideEnumerator.Current : default;
                                     }
-                                    catch (LiteBusExecutionAbortedException abortedException)
-                                    {
-                                        outcome = MessageOutcome.Aborted;
-                                        abortReason = abortedException.Reason;
-                                        hasOverrideResult = false;
-                                    }
-                                    catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
+                                                            catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
                                     {
                                         outcome = MessageOutcome.Failed;
                                         failure = exception;

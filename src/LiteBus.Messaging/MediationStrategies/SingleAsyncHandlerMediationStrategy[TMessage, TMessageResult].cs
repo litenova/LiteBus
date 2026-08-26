@@ -14,10 +14,11 @@ namespace LiteBus.Messaging.MediationStrategies;
 /// <typeparam name="TMessageResult">The type of the result produced by the handler.</typeparam>
 /// <remarks>
 ///     This strategy ensures that only one handler is registered for the message type and then:
-///     1. Executes pre-handlers.
+///     1. Executes pre-handlers, stopping early when one short-circuits.
 ///     2. Delegates the message processing to the registered handler.
-///     3. Executes post-handlers.
-///     In case of any exception during the process, it delegates the error handling to the registered error handlers.
+///     3. Executes post-handlers, unless the pipeline suppressed them.
+///     4. Routes exceptions to registered error handlers.
+///     5. Reports the outcome to completion handlers, on every path.
 /// </remarks>
 public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult>
     : IMessageMediationStrategy<TMessage, Task<TMessageResult>>
@@ -30,6 +31,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         IExecutionContext executionContext)
     {
         ArgumentNullException.ThrowIfNull(messageDependencies);
+        ArgumentNullException.ThrowIfNull(executionContext);
 
         TMessageResult? messageResult = default;
         var startedAt = Stopwatch.GetTimestamp();
@@ -41,7 +43,17 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         {
             using (AmbientExecutionContext.CreateScope(executionContext))
             {
-                await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken).ConfigureAwait(false);
+                var directive = await messageDependencies
+                    .RunAsyncPreHandlers(message, executionContext.CancellationToken)
+                    .ConfigureAwait(false);
+
+                if (directive.IsShortCircuit)
+                {
+                    outcome = MessageOutcome.Aborted;
+                    abortReason = directive.Reason;
+                    messageResult = CoerceShortCircuitResult(directive);
+                    return messageResult;
+                }
 
                 var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
 
@@ -68,19 +80,6 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
             {
                 return (TMessageResult) executionContext.MessageResult;
             }
-        }
-        catch (LiteBusExecutionAbortedException abortedException)
-        {
-            outcome = MessageOutcome.Aborted;
-            abortReason = abortedException.Reason;
-
-            if (executionContext.MessageResult is null)
-            {
-                throw new LiteBusConfigurationException(
-                    $"A Message result of type '{typeof(TMessageResult).Name}' is required when the execution is aborted as this message has a specific result.");
-            }
-
-            return await Task.FromResult((TMessageResult) executionContext.MessageResult).ConfigureAwait(false);
         }
         catch (OperationCanceledException canceledException)
         {
@@ -123,5 +122,34 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         }
 
         return messageResult!;
+    }
+
+    /// <summary>
+    ///     Converts a short-circuit directive's result to the message result type.
+    /// </summary>
+    /// <param name="directive">The short-circuiting directive returned by a pre-handler.</param>
+    /// <returns>The result the caller receives.</returns>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     Thrown when the message has a result type and the directive supplied no value, or supplied one of the wrong
+    ///     type.
+    /// </exception>
+    private static TMessageResult CoerceShortCircuitResult(PipelineDirective directive)
+    {
+        if (directive.Result is TMessageResult typedResult)
+        {
+            return typedResult;
+        }
+
+        if (directive.Result is null)
+        {
+            throw new LiteBusConfigurationException(
+                $"A short-circuiting pre-handler for '{typeof(TMessage).Name}' must supply a result of type "
+                + $"'{typeof(TMessageResult).Name}', because the message has a result type. "
+                + "Pass it to PipelineDirective.ShortCircuit(result).");
+        }
+
+        throw new LiteBusConfigurationException(
+            $"A short-circuiting pre-handler for '{typeof(TMessage).Name}' supplied a result of type "
+            + $"'{directive.Result.GetType().Name}', but the message expects '{typeof(TMessageResult).Name}'.");
     }
 }

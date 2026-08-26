@@ -20,21 +20,36 @@ public static class MessageContextExtensions
     /// <param name="messageDependencies">The message dependencies encapsulating pre-handlers.</param>
     /// <param name="message">The message to be pre-handled.</param>
     /// <param name="cancellationToken">The cancellation token passed to each pre-handler invocation.</param>
-    /// <returns>A Task representing the asynchronous operation.</returns>
-    public static async Task RunAsyncPreHandlers(
+    /// <returns>
+    ///     The directive from the first pre-handler that short-circuited, or <see cref="PipelineDirective.Continue" />
+    ///     when every pre-handler let the pipeline proceed. Pre-handlers after a short-circuit do not run.
+    /// </returns>
+    public static async Task<PipelineDirective> RunAsyncPreHandlers(
         this IMessageDependencies messageDependencies,
         object message,
         CancellationToken cancellationToken)
     {
         foreach (var preHandler in messageDependencies.IndirectPreHandlers)
         {
-            await InvokePreHandlerAsync(preHandler.Handler.Value, message, cancellationToken).ConfigureAwait(false);
+            var directive = await preHandler.Handler.Value.PreHandleAsync(message, cancellationToken).ConfigureAwait(false);
+
+            if (directive.IsShortCircuit)
+            {
+                return directive;
+            }
         }
 
         foreach (var preHandler in messageDependencies.PreHandlers)
         {
-            await InvokePreHandlerAsync(preHandler.Handler.Value, message, cancellationToken).ConfigureAwait(false);
+            var directive = await preHandler.Handler.Value.PreHandleAsync(message, cancellationToken).ConfigureAwait(false);
+
+            if (directive.IsShortCircuit)
+            {
+                return directive;
+            }
         }
+
+        return PipelineDirective.Continue;
     }
 
     /// <summary>
@@ -102,13 +117,25 @@ public static class MessageContextExtensions
         object? messageResult,
         CancellationToken cancellationToken)
     {
+        var executionContext = AmbientExecutionContext.GetCurrentOrDefault();
+
         foreach (var postHandler in messageDependencies.PostHandlers)
         {
+            if (executionContext?.PostHandlersSuppressed == true)
+            {
+                return;
+            }
+
             await InvokePostHandlerAsync(postHandler.Handler.Value, message, messageResult, cancellationToken).ConfigureAwait(false);
         }
 
         foreach (var postHandler in messageDependencies.IndirectPostHandlers)
         {
+            if (executionContext?.PostHandlersSuppressed == true)
+            {
+                return;
+            }
+
             await InvokePostHandlerAsync(postHandler.Handler.Value, message, messageResult, cancellationToken).ConfigureAwait(false);
         }
     }
@@ -233,21 +260,6 @@ public static class MessageContextExtensions
         {
             // The mediation already ended in a fault, so the observer's failure is intentionally swallowed.
         }
-    }
-
-    /// <summary>
-    ///     Invokes a pre-handler using an explicit cancellation token when an asynchronous method is available.
-    /// </summary>
-    /// <param name="handler">The pre-handler instance.</param>
-    /// <param name="message">The message to pre-handle.</param>
-    /// <param name="cancellationToken">The cancellation token for the invocation.</param>
-    /// <returns>A task representing the asynchronous pre-handler operation.</returns>
-    private static Task InvokePreHandlerAsync(
-        IMessagePreHandler handler,
-        object message,
-        CancellationToken cancellationToken)
-    {
-        return PipelineHandlerInvocation.InvokePreHandlerAsync(handler, message, cancellationToken);
     }
 
     /// <summary>

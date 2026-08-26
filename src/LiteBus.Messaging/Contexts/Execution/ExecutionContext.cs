@@ -34,9 +34,11 @@ internal sealed class ExecutionContext : IExecutionContext
     public object? MessageResult { get; set; }
 
     /// <inheritdoc />
-    public void Abort(object? messageResult = null)
+    public bool PostHandlersSuppressed { get; private set; }
+
+    /// <inheritdoc />
+    public void SuppressPostHandlers()
     {
-        MessageResult = messageResult;
-        throw new LiteBusExecutionAbortedException();
+        PostHandlersSuppressed = true;
     }
 }

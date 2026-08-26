@@ -54,7 +54,7 @@ var id = await commandMediator.SendAsync(new CreateProductCommand("keyboard"), c
 
 - One main handler must resolve for each command after routing filters.
 - `ArgumentNullException` is thrown for `null` commands.
-- Result commands aborted in pre-stage must provide a result (`Abort(result)`), else `LiteBusConfigurationException` is thrown.
+- Result commands short-circuited in the pre stage must provide a result (`PipelineDirective.ShortCircuit(result)`), else `LiteBusConfigurationException` is thrown.
 - Post-handler result override applies to result commands only.
 
 ## Non-Goals
