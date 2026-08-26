@@ -51,6 +51,29 @@ public sealed class MessageModuleBuilder
     }
 
     /// <summary>
+    ///     Gets the optional audit outcome mapper exposed through dependency injection.
+    /// </summary>
+    internal IAuditOutcomeMapper? AuditOutcomeMapper { get; private set; }
+
+    /// <summary>
+    ///     Registers the <see cref="IAuditOutcomeMapper" /> used to classify how an audited action ended.
+    /// </summary>
+    /// <param name="auditOutcomeMapper">The mapper to register.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     LiteBus knows that a mediation failed but cannot know whether it failed because the actor was not permitted.
+    ///     Register a mapper so that an application refusal exception is recorded as <see cref="AuditOutcome.Denied" />.
+    ///     When omitted, <c>DefaultAuditOutcomeMapper</c> records an aborted mediation as a denial and every other
+    ///     failure as a failure.
+    /// </remarks>
+    public MessageModuleBuilder UseAuditOutcomeMapper(IAuditOutcomeMapper auditOutcomeMapper)
+    {
+        ArgumentNullException.ThrowIfNull(auditOutcomeMapper);
+        AuditOutcomeMapper = auditOutcomeMapper;
+        return this;
+    }
+
+    /// <summary>
     ///     Registers a message or handler type with the message registry.
     /// </summary>
     /// <typeparam name="T">The type to register.</typeparam>

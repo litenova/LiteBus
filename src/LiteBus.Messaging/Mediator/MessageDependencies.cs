@@ -53,6 +53,9 @@ internal sealed class MessageDependencies : IMessageDependencies
 
         ErrorHandlers = ResolveHandlers(descriptor.ErrorHandlers, handlerType => (IMessageErrorHandler) serviceProvider.GetRequiredService(handlerType));
         IndirectErrorHandlers = ResolveHandlers(descriptor.IndirectErrorHandlers, handlerType => (IMessageErrorHandler) serviceProvider.GetRequiredService(handlerType));
+
+        CompletionHandlers = ResolveHandlers(descriptor.CompletionHandlers, handlerType => (IMessageCompletionHandler) serviceProvider.GetRequiredService(handlerType));
+        IndirectCompletionHandlers = ResolveHandlers(descriptor.IndirectCompletionHandlers, handlerType => (IMessageCompletionHandler) serviceProvider.GetRequiredService(handlerType));
     }
 
     /// <inheritdoc />
@@ -78,6 +81,12 @@ internal sealed class MessageDependencies : IMessageDependencies
 
     /// <inheritdoc />
     public ILazyHandlerCollection<IMessageErrorHandler, IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
+
+    /// <inheritdoc />
+    public ILazyHandlerCollection<IMessageCompletionHandler, ICompletionHandlerDescriptor> CompletionHandlers { get; }
+
+    /// <inheritdoc />
+    public ILazyHandlerCollection<IMessageCompletionHandler, ICompletionHandlerDescriptor> IndirectCompletionHandlers { get; }
 
     /// <summary>
     ///     Resolves handlers from the provided descriptors and a handler resolution function.

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
@@ -31,6 +32,10 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         ArgumentNullException.ThrowIfNull(messageDependencies);
 
         TMessageResult? messageResult = default;
+        var startedAt = Stopwatch.GetTimestamp();
+        var outcome = MessageOutcome.Succeeded;
+        Exception? failure = null;
+        string? abortReason = null;
 
         try
         {
@@ -64,8 +69,11 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                 return (TMessageResult) executionContext.MessageResult;
             }
         }
-        catch (LiteBusExecutionAbortedException)
+        catch (LiteBusExecutionAbortedException abortedException)
         {
+            outcome = MessageOutcome.Aborted;
+            abortReason = abortedException.Reason;
+
             if (executionContext.MessageResult is null)
             {
                 throw new LiteBusConfigurationException(
@@ -74,8 +82,17 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
 
             return await Task.FromResult((TMessageResult) executionContext.MessageResult).ConfigureAwait(false);
         }
+        catch (OperationCanceledException canceledException)
+        {
+            outcome = MessageOutcome.Canceled;
+            failure = canceledException;
+            throw;
+        }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
+            outcome = MessageOutcome.Failed;
+            failure = e;
+
             MessageErrorContext errorContext;
 
             using (AmbientExecutionContext.CreateScope(executionContext))
@@ -91,6 +108,18 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
             {
                 return handledResult;
             }
+        }
+        finally
+        {
+            await messageDependencies.RunAsyncCompletionHandlers(
+                    message,
+                    executionContext,
+                    outcome,
+                    executionContext.MessageResult ?? messageResult,
+                    failure,
+                    abortReason,
+                    Stopwatch.GetElapsedTime(startedAt))
+                .ConfigureAwait(false);
         }
 
         return messageResult!;

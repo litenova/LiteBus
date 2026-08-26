@@ -69,4 +69,23 @@ public interface IExecutionContext
     ///     a message result must be provided to satisfy the result type requirement.
     /// </remarks>
     void Abort(object? messageResult = null);
+
+    /// <summary>
+    ///     Aborts the execution of the current mediation execution, recording why.
+    /// </summary>
+    /// <param name="messageResult">
+    ///     The message result to set before aborting. This is required if the message has a specific
+    ///     result type and the execution is aborted in the pre-handler phase.
+    /// </param>
+    /// <param name="reason">The reason the execution was aborted, surfaced to completion handlers.</param>
+    /// <remarks>
+    ///     An abort does not reach post-handlers or error handlers, so the reason recorded here is the only description
+    ///     of why the message ended. Completion handlers read it from
+    ///     <see cref="MessageCompletionContext.AbortReason" />.
+    /// </remarks>
+    void Abort(object? messageResult, string? reason)
+    {
+        MessageResult = messageResult;
+        throw new LiteBusExecutionAbortedException(reason);
+    }
 }

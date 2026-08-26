@@ -17,3 +17,4 @@
  LB1015  | LiteBus.Configuration | Warning  | Transactional storage without interceptor          
  LB1016  | LiteBus.Inbox         | Warning  | Transactional inbox without DbContext              
  LB1017  | LiteBus.Contracts     | Warning  | Explicit message contract registration recommended 
+ LB1018  | LiteBus.Auditing      | Warning  | Message states no audit position                   

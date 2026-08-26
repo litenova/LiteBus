@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -109,6 +110,128 @@ public static class MessageContextExtensions
         foreach (var postHandler in messageDependencies.IndirectPostHandlers)
         {
             await InvokePostHandlerAsync(postHandler.Handler.Value, message, messageResult, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Runs completion handlers for a mediation that has ended, on every outcome path.
+    /// </summary>
+    /// <param name="messageDependencies">The message dependencies encapsulating completion handlers.</param>
+    /// <param name="context">The completion context describing how the mediation ended.</param>
+    /// <param name="cancellationToken">The cancellation token passed to each completion handler invocation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Direct handlers run before indirect handlers, matching post-handler ordering, so that a globally registered
+    ///         observer sees the message last.
+    ///     </para>
+    ///     <para>
+    ///         When the mediation already ended in a fault, an exception raised by a completion handler is suppressed so
+    ///         that an observer bug cannot replace the original fault. When the mediation succeeded, the exception
+    ///         propagates.
+    ///     </para>
+    /// </remarks>
+    public static async Task RunAsyncCompletionHandlers(
+        this IMessageDependencies messageDependencies,
+        MessageCompletionContext context,
+        CancellationToken cancellationToken)
+    {
+        if (messageDependencies.CompletionHandlers.Count + messageDependencies.IndirectCompletionHandlers.Count == 0)
+        {
+            return;
+        }
+
+        var suppressFailures = context.Outcome != MessageOutcome.Succeeded;
+
+        foreach (var completionHandler in messageDependencies.CompletionHandlers)
+        {
+            await InvokeCompletionHandlerAsync(completionHandler.Handler.Value, context, suppressFailures, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        foreach (var completionHandler in messageDependencies.IndirectCompletionHandlers)
+        {
+            await InvokeCompletionHandlerAsync(completionHandler.Handler.Value, context, suppressFailures, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Builds a completion context and runs completion handlers inside the ambient execution scope.
+    /// </summary>
+    /// <param name="messageDependencies">The message dependencies encapsulating completion handlers.</param>
+    /// <param name="message">The message that was mediated.</param>
+    /// <param name="executionContext">The execution context used to scope the completion handlers.</param>
+    /// <param name="outcome">The outcome describing how the mediation ended.</param>
+    /// <param name="messageResult">The result observed before the mediation ended, when any.</param>
+    /// <param name="exception">The exception that ended the mediation, when any.</param>
+    /// <param name="abortReason">The reason the execution was aborted, when any.</param>
+    /// <param name="duration">The elapsed mediation time.</param>
+    /// <returns>A task representing the asynchronous completion stage.</returns>
+    public static async Task RunAsyncCompletionHandlers(
+        this IMessageDependencies messageDependencies,
+        object message,
+        IExecutionContext executionContext,
+        MessageOutcome outcome,
+        object? messageResult,
+        Exception? exception,
+        string? abortReason,
+        TimeSpan duration)
+    {
+        if (messageDependencies.CompletionHandlers.Count + messageDependencies.IndirectCompletionHandlers.Count == 0)
+        {
+            return;
+        }
+
+        var context = new MessageCompletionContext
+        {
+            Message = message,
+            Outcome = outcome,
+            MessageResult = messageResult,
+            Exception = exception,
+            AbortReason = abortReason,
+            Duration = duration
+        };
+
+        using (AmbientExecutionContext.CreateScope(executionContext))
+        {
+            await messageDependencies.RunAsyncCompletionHandlers(context, executionContext.CancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Invokes a completion handler, optionally suppressing its failure when the pipeline already faulted.
+    /// </summary>
+    /// <param name="handler">The completion handler instance.</param>
+    /// <param name="context">The completion context observed at the end of mediation.</param>
+    /// <param name="suppressFailures">Whether an exception raised by the handler is swallowed.</param>
+    /// <param name="cancellationToken">The cancellation token for the invocation.</param>
+    /// <returns>A task representing the asynchronous completion handler operation.</returns>
+    private static async Task InvokeCompletionHandlerAsync(
+        IMessageCompletionHandler handler,
+        MessageCompletionContext context,
+        bool suppressFailures,
+        CancellationToken cancellationToken)
+    {
+        if (!suppressFailures)
+        {
+            await PipelineHandlerInvocation.InvokeCompletionHandlerAsync(handler, context, cancellationToken)
+                .ConfigureAwait(false);
+
+            return;
+        }
+
+        try
+        {
+            await PipelineHandlerInvocation.InvokeCompletionHandlerAsync(handler, context, cancellationToken)
+                .ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // A completion handler observes the outcome and must never replace the original fault.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            // The mediation already ended in a fault, so the observer's failure is intentionally swallowed.
         }
     }
 

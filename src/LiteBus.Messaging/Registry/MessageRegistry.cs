@@ -34,6 +34,7 @@ internal sealed class MessageRegistry : IMessageRegistry
     private readonly List<IHandlerDescriptorBuilder> _descriptorBuilders =
     [
         new HandlerDescriptorBuilder(),
+        new CompletionHandlerDescriptorBuilder(),
         new ErrorHandlerDescriptorBuilder(),
         new PostHandlerDescriptorBuilder(),
         new PreHandlerDescriptorBuilder()
@@ -53,6 +54,11 @@ internal sealed class MessageRegistry : IMessageRegistry
     ///     Synchronizes mutations to registry collections and processed-type tracking.
     /// </summary>
     private readonly object _lock = new();
+
+    /// <summary>
+    ///     Metadata facets contributed by message definitions, applied to descriptors as they are created.
+    /// </summary>
+    private readonly List<MessageDefinitionFacet> _definitionFacets = [];
 
     /// <summary>
     ///     Open generic handler definitions waiting to be closed over concrete message types.
@@ -145,6 +151,16 @@ internal sealed class MessageRegistry : IMessageRegistry
             if (!_processedTypes.Add(type))
                 return;
 
+            // Message definitions declare metadata rather than behavior, so they never produce handler descriptors.
+            if (MessageDefinitionBinder.IsDefinition(type))
+            {
+                RegisterDefinition(type);
+                LinkHandlersToPendingMessages();
+                ApplyDefinitionsToPendingMessages();
+                CommitPendingMessages();
+                return;
+            }
+
             // Analyze the type using all available descriptor builders.
             var newDescriptors = _descriptorBuilders
                 .Where(builder => builder.CanBuild(type))
@@ -171,6 +187,9 @@ internal sealed class MessageRegistry : IMessageRegistry
 
             // Ensure pending messages are linked with all existing handlers.
             LinkHandlersToPendingMessages();
+
+            // Apply metadata declared by definitions registered before this message type was known.
+            ApplyDefinitionsToPendingMessages();
 
             // Commit any pending message descriptors.
             CommitPendingMessages();
@@ -199,6 +218,56 @@ internal sealed class MessageRegistry : IMessageRegistry
 
         // Link new handlers to existing committed messages.
         LinkHandlersToCommittedMessages(committedDescriptors);
+    }
+
+    /// <summary>
+    ///     Binds a message definition type and applies its facets to known and pending message descriptors.
+    /// </summary>
+    /// <param name="definitionType">The concrete message definition type.</param>
+    [RequiresUnreferencedCode("Message definition binding reads facet contracts via reflection.")]
+    private void RegisterDefinition(
+        [DynamicallyAccessedMembers(
+            DynamicallyAccessedMemberTypes.PublicConstructors
+            | DynamicallyAccessedMemberTypes.NonPublicConstructors
+            | DynamicallyAccessedMemberTypes.Interfaces)]
+        Type definitionType)
+    {
+        var facets = MessageDefinitionBinder.Bind(definitionType);
+
+        foreach (var facet in facets)
+        {
+            _definitionFacets.Add(facet);
+
+            // The described message may not have been registered yet.
+            RegisterMessageType(facet.MessageType);
+
+            if (_descriptorsByType.TryGetValue(facet.MessageType, out var committed))
+            {
+                committed.ApplyMetadata(facet.KeyType, facet.Value);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Applies every known definition facet to message descriptors awaiting commit.
+    /// </summary>
+    private void ApplyDefinitionsToPendingMessages()
+    {
+        if (_pendingMessages.Count == 0 || _definitionFacets.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var messageDescriptor in _pendingMessages)
+        {
+            foreach (var facet in _definitionFacets)
+            {
+                if (facet.MessageType == messageDescriptor.MessageType)
+                {
+                    messageDescriptor.ApplyMetadata(facet.KeyType, facet.Value);
+                }
+            }
+        }
     }
 
     /// <summary>

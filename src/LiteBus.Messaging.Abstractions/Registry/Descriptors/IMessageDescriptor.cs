@@ -28,6 +28,15 @@ public interface IMessageDescriptor
     bool IsGeneric { get; }
 
     /// <summary>
+    ///     Gets the declarative metadata resolved for this message type.
+    /// </summary>
+    /// <remarks>
+    ///     Metadata is populated once during registration, from attributes applied to the message type and from message
+    ///     definitions. Pipeline stages read it instead of reflecting over the message on every dispatch.
+    /// </remarks>
+    IMessageMetadata Metadata { get; }
+
+    /// <summary>
     ///     Gets a read-only collection of main handlers directly registered for this message type.
     /// </summary>
     /// <remarks>
@@ -74,6 +83,22 @@ public interface IMessageDescriptor
     ///     These are pre-handlers registered for a base type or interface that this message type implements.
     /// </remarks>
     IReadOnlyCollection<IPreHandlerDescriptor> IndirectPreHandlers { get; }
+
+    /// <summary>
+    ///     Gets a read-only collection of completion handlers directly registered for this message type.
+    /// </summary>
+    /// <remarks>
+    ///     These are completion handlers that were explicitly registered to observe this specific message type.
+    /// </remarks>
+    IReadOnlyCollection<ICompletionHandlerDescriptor> CompletionHandlers { get; }
+
+    /// <summary>
+    ///     Gets a read-only collection of completion handlers indirectly applicable to this message type.
+    /// </summary>
+    /// <remarks>
+    ///     These are completion handlers registered for a base type or interface that this message type implements.
+    /// </remarks>
+    IReadOnlyCollection<ICompletionHandlerDescriptor> IndirectCompletionHandlers { get; }
 
     /// <summary>
     ///     Gets a read-only collection of error handlers directly registered for this message type.

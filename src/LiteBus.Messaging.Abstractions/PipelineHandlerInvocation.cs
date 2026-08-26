@@ -80,6 +80,23 @@ internal static class PipelineHandlerInvocation
     }
 
     /// <summary>
+    ///     Invokes a completion handler asynchronously with the supplied cancellation token.
+    /// </summary>
+    /// <param name="handler">The completion handler instance.</param>
+    /// <param name="context">The completion context observed at the end of mediation.</param>
+    /// <param name="cancellationToken">The cancellation token for the completion handler invocation.</param>
+    /// <returns>A task representing the asynchronous completion handler operation.</returns>
+    public static Task InvokeCompletionHandlerAsync(
+        IMessageCompletionHandler handler,
+        MessageCompletionContext context,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(context);
+        return handler.HandleCompletionAsync(context, cancellationToken);
+    }
+
+    /// <summary>
     ///     Invokes an asynchronous pipeline method discovered on a handler interface when present.
     /// </summary>
     /// <param name="handler">The handler instance.</param>

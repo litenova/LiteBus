@@ -79,4 +79,9 @@ internal static class DiagnosticIds
     ///     Message type declares <c>[MessageContract]</c> but lacks explicit contract registration.
     /// </summary>
     internal const string ExplicitMessageContractRegistration = "LB1017";
+
+    /// <summary>
+    ///     Command or query type states no audit position.
+    /// </summary>
+    internal const string MissingAuditDeclaration = "LB1018";
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
@@ -60,6 +61,10 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         ArgumentNullException.ThrowIfNull(executionContext);
 
         var executionTaskOfAllHandlers = Task.CompletedTask;
+        var startedAt = Stopwatch.GetTimestamp();
+        var outcome = MessageOutcome.Succeeded;
+        Exception? failure = null;
+        string? abortReason = null;
 
         try
         {
@@ -89,13 +94,40 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
                 executionTaskOfAllHandlers,
                 executionContext.CancellationToken).ConfigureAwait(false);
         }
+        catch (LiteBusExecutionAbortedException abortedException)
+        {
+            outcome = MessageOutcome.Aborted;
+            abortReason = abortedException.Reason;
+            throw;
+        }
+        catch (OperationCanceledException canceledException)
+        {
+            outcome = MessageOutcome.Canceled;
+            failure = canceledException;
+            throw;
+        }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
+            outcome = MessageOutcome.Failed;
+            failure = e;
+
             await messageDependencies.RunAsyncErrorHandlers(
                 message,
                 executionTaskOfAllHandlers,
                 ExceptionDispatchInfo.Capture(e),
                 executionContext.CancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            await messageDependencies.RunAsyncCompletionHandlers(
+                    message,
+                    executionContext,
+                    outcome,
+                    executionTaskOfAllHandlers,
+                    failure,
+                    abortReason,
+                    Stopwatch.GetElapsedTime(startedAt))
+                .ConfigureAwait(false);
         }
     }
 

@@ -27,7 +27,9 @@ public sealed class CommandModuleBuilder
         typeof(ICommandPostHandler<,>),
         typeof(ICommandErrorHandler),
         typeof(ICommandErrorHandler<>),
-        typeof(ICommandErrorHandler<,>)
+        typeof(ICommandErrorHandler<,>),
+        typeof(ICommandCompletionHandler),
+        typeof(ICommandCompletionHandler<>)
     ];
 
     /// <summary>
@@ -51,6 +53,28 @@ public sealed class CommandModuleBuilder
     ///     Gets the message contract writer for persisted command contracts.
     /// </summary>
     public IContractWriter Contracts { get; }
+
+    /// <summary>
+    ///     Registers the LiteBus command audit writer, so every command mediation produces an audit record when the
+    ///     message declares one.
+    /// </summary>
+    /// <returns>The current <see cref="CommandModuleBuilder" /> instance for method chaining.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         The writer runs at the completion stage, so refusals, failures and cancellations are recorded as well as
+    ///         successes. A message is recorded only when it declares an audited position through
+    ///         <see cref="AuditedAttribute" /> or an <c>IAuditDefinition&lt;TMessage&gt;</c> facet.
+    ///     </para>
+    ///     <para>
+    ///         The application must register an <see cref="IAuditTrail" /> implementation. Registering an
+    ///         <see cref="IAuditOutcomeMapper" /> is optional and lets a refusal exception be recorded as
+    ///         <see cref="AuditOutcome.Denied" /> rather than <see cref="AuditOutcome.Failed" />.
+    ///     </para>
+    /// </remarks>
+    public CommandModuleBuilder EnableAuditing()
+    {
+        return Register<CommandAuditCompletionHandler>();
+    }
 
     /// <summary>
     ///     Registers a command type for the message registry.
@@ -113,7 +137,19 @@ public sealed class CommandModuleBuilder
 
         return type.GetInterfaces().Any(static contract =>
         {
-            var contractDefinition = contract.IsGenericType ? contract.GetGenericTypeDefinition() : contract;
+            if (!contract.IsGenericType)
+            {
+                return HandlerContracts.Contains(contract);
+            }
+
+            var contractDefinition = contract.GetGenericTypeDefinition();
+
+            // A message definition declares metadata for a command rather than implementing a handler contract.
+            if (contractDefinition == typeof(IMessageDefinition<,>))
+            {
+                return typeof(ICommand).IsAssignableFrom(contract.GetGenericArguments()[0]);
+            }
+
             return HandlerContracts.Contains(contractDefinition);
         });
     }

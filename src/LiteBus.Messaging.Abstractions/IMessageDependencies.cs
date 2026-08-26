@@ -81,4 +81,22 @@ public interface IMessageDependencies
     ///     The collection of indirect message error handlers.
     /// </value>
     ILazyHandlerCollection<IMessageErrorHandler, IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
+
+    /// <summary>
+    ///     Gets a lazy initialized read-only collection of direct completion handlers. These handlers are invoked once the
+    ///     mediation ends, on every path, allowing the outcome of the operation to be observed and recorded.
+    /// </summary>
+    /// <value>
+    ///     The collection of direct completion handlers.
+    /// </value>
+    ILazyHandlerCollection<IMessageCompletionHandler, ICompletionHandlerDescriptor> CompletionHandlers { get; }
+
+    /// <summary>
+    ///     Gets a lazy initialized read-only collection of indirect completion handlers. These handlers are invoked once the
+    ///     mediation ends, potentially observing a variety of different message types.
+    /// </summary>
+    /// <value>
+    ///     The collection of indirect completion handlers.
+    /// </value>
+    ILazyHandlerCollection<IMessageCompletionHandler, ICompletionHandlerDescriptor> IndirectCompletionHandlers { get; }
 }

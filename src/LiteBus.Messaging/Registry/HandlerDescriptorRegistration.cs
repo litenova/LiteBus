@@ -44,6 +44,14 @@ internal static class HandlerDescriptorRegistration
                 Tags = post.Tags,
                 HandlerType = post.HandlerType
             },
+            CompletionHandlerDescriptor completion => new CompletionHandlerDescriptor
+            {
+                MessageType = completion.MessageType,
+                Priority = completion.Priority,
+                RegistrationSequence = registrationSequence,
+                Tags = completion.Tags,
+                HandlerType = completion.HandlerType
+            },
             ErrorHandlerDescriptor error => new ErrorHandlerDescriptor
             {
                 MessageType = error.MessageType,

@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Audit;
 using LiteBus.Messaging.Mediator;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
@@ -51,7 +52,12 @@ public sealed class MessageModule : IModule
         _builder(moduleBuilder);
 
         // Register core messaging services.
-        RegisterMessagingServices(configuration, messageRegistry, messageContractRegistry, moduleBuilder.TimeProvider);
+        RegisterMessagingServices(
+            configuration,
+            messageRegistry,
+            messageContractRegistry,
+            moduleBuilder.TimeProvider,
+            moduleBuilder.AuditOutcomeMapper);
         RegisterNewHandlers(configuration, messageRegistry, startIndex);
     }
 
@@ -62,11 +68,13 @@ public sealed class MessageModule : IModule
     /// <param name="messageRegistry">The message registry instance.</param>
     /// <param name="messageContractRegistry">The message contract registry instance.</param>
     /// <param name="timeProvider">The optional time provider registered for messaging services.</param>
+    /// <param name="auditOutcomeMapper">The optional audit outcome mapper registered for the audit writer.</param>
     private static void RegisterMessagingServices(
         IModuleConfiguration configuration,
         IMessageRegistry messageRegistry,
         MessageContractRegistry messageContractRegistry,
-        TimeProvider? timeProvider)
+        TimeProvider? timeProvider,
+        IAuditOutcomeMapper? auditOutcomeMapper)
     {
         // Register message registry as singleton.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -101,11 +109,27 @@ public sealed class MessageModule : IModule
             typeof(TimeProvider),
             timeProvider ?? TimeProvider.System));
 
+        // The audit scope is stateless: it reads and writes the ambient execution context, so a singleton is correct
+        // and remains safe under concurrency because two mediations never share an execution context.
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IAuditScope),
+            new AmbientAuditScope()));
+
+        // Applications supply their own mapper to record a refusal exception as a denial rather than a failure.
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IAuditOutcomeMapper),
+            auditOutcomeMapper ?? new DefaultAuditOutcomeMapper()));
+
+        // Resolved only when an axis enables auditing, which also requires the application to register an IAuditTrail.
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(AuditRecordWriter),
+            typeof(AuditRecordWriter),
+            InstanceLifetime.Scoped));
+
         // Register message mediator as transient.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageMediator),
             typeof(MessageMediator)));
-
     }
 
     /// <summary>

@@ -15,6 +15,21 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     private readonly List<IErrorHandlerDescriptor> _errorHandlers = [];
 
     /// <summary>
+    ///     Declarative metadata resolved for <see cref="MessageType" />.
+    /// </summary>
+    private readonly MessageMetadata _metadata = new();
+
+    /// <summary>
+    ///     Direct completion handlers registered for <see cref="MessageType" />.
+    /// </summary>
+    private readonly List<ICompletionHandlerDescriptor> _completionHandlers = [];
+
+    /// <summary>
+    ///     Completion handlers registered for a base type or interface of <see cref="MessageType" />.
+    /// </summary>
+    private readonly List<ICompletionHandlerDescriptor> _indirectCompletionHandlers = [];
+
+    /// <summary>
     ///     Direct main handlers registered for <see cref="MessageType" />.
     /// </summary>
     private readonly List<IMainHandlerDescriptor> _handlers = [];
@@ -57,6 +72,28 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     {
         MessageType = messageType;
         IsGeneric = messageType.IsGenericType;
+
+        // Attributes are the lowest-precedence metadata source. Definitions applied later overwrite them.
+        foreach (var attribute in messageType.GetCustomAttributes(inherit: true))
+        {
+            if (attribute is Attribute typedAttribute)
+            {
+                _metadata.Set(typedAttribute.GetType(), typedAttribute);
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public IMessageMetadata Metadata => _metadata;
+
+    /// <summary>
+    ///     Applies a message definition facet value to this descriptor's metadata.
+    /// </summary>
+    /// <param name="keyType">The metadata key type contributed by the facet.</param>
+    /// <param name="value">The metadata value contributed by the facet.</param>
+    public void ApplyMetadata(Type keyType, object value)
+    {
+        _metadata.Set(keyType, value);
     }
 
     /// <inheritdoc />
@@ -89,6 +126,12 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// <inheritdoc />
     public IReadOnlyCollection<IErrorHandlerDescriptor> IndirectErrorHandlers => _indirectErrorHandlers;
 
+    /// <inheritdoc />
+    public IReadOnlyCollection<ICompletionHandlerDescriptor> CompletionHandlers => _completionHandlers;
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<ICompletionHandlerDescriptor> IndirectCompletionHandlers => _indirectCompletionHandlers;
+
     /// <summary>
     ///     Adds handler descriptors, routing each to direct or indirect collections.
     /// </summary>
@@ -111,6 +154,9 @@ internal sealed class MessageDescriptor : IMessageDescriptor
         {
             switch (descriptor)
             {
+                case ICompletionHandlerDescriptor completionHandlerDescriptor:
+                    _completionHandlers.Add(completionHandlerDescriptor);
+                    break;
                 case IErrorHandlerDescriptor errorHandlerDescriptor:
                     _errorHandlers.Add(errorHandlerDescriptor);
                     break;
@@ -129,6 +175,9 @@ internal sealed class MessageDescriptor : IMessageDescriptor
         {
             switch (descriptor)
             {
+                case ICompletionHandlerDescriptor completionHandlerDescriptor:
+                    _indirectCompletionHandlers.Add(completionHandlerDescriptor);
+                    break;
                 case IErrorHandlerDescriptor errorHandlerDescriptor:
                     _indirectErrorHandlers.Add(errorHandlerDescriptor);
                     break;
@@ -147,6 +196,9 @@ internal sealed class MessageDescriptor : IMessageDescriptor
         {
             switch (descriptor)
             {
+                case ICompletionHandlerDescriptor completionHandlerDescriptor:
+                    _indirectCompletionHandlers.Add(completionHandlerDescriptor);
+                    break;
                 case IErrorHandlerDescriptor errorHandlerDescriptor:
                     _indirectErrorHandlers.Add(errorHandlerDescriptor);
                     break;

@@ -179,4 +179,20 @@ public static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         true,
         customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     A command or query type states no audit position.
+    /// </summary>
+    /// <remarks>
+    ///     Disabled by default. Enable with <c>dotnet_diagnostic.LB1018.severity = warning</c> once the codebase has
+    ///     declared its position, since turning it on silently would break every existing compilation.
+    /// </remarks>
+    internal static readonly DiagnosticDescriptor MissingAuditDeclaration = new(
+        DiagnosticIds.MissingAuditDeclaration,
+        "Message states no audit position",
+        "Message type '{0}' declares neither [Audited] nor [AuditExempt] and has no IAuditDefinition facet. State the position explicitly so that an unaudited message is a recorded decision rather than an oversight.",
+        "LiteBus.Auditing",
+        DiagnosticSeverity.Warning,
+        false,
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 }
