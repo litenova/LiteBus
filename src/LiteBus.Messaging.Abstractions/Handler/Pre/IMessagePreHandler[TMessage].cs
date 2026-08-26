@@ -21,13 +21,6 @@ namespace LiteBus.Messaging.Abstractions;
 public interface IMessagePreHandler<in TMessage> : IMessagePreHandler
     where TMessage : notnull
 {
-    /// <inheritdoc />
-    async Task<PipelineDirective> IMessagePreHandler.PreHandleAsync(object message, CancellationToken cancellationToken)
-    {
-        await PreHandleAsync((TMessage) message, cancellationToken).ConfigureAwait(false);
-        return PipelineDirective.Continue;
-    }
-
     /// <summary>
     ///     Runs before the main handler.
     /// </summary>

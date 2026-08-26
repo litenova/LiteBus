@@ -49,6 +49,8 @@ Within each group, handlers run in ascending `[HandlerPriority]` order (default 
 
 This ordering is implemented in `MessageContextExtensions`: pre-handlers iterate indirect then direct, post-handlers and completion handlers iterate direct then indirect, and error-handlers iterate indirect then direct.
 
+Each pre-handler and post-handler is invoked through the closed contract recorded in its descriptor at registration, so one class may implement pipeline contracts for several message types and each dispatch reaches the right one.
+
 LiteBus also ships pipeline handlers of its own, such as the audit record writer. Those sit in a reserved priority band at or above `LiteBusHandlerPriority.FrameworkFloor`, so an application handler with no explicit priority always runs first. See [Handler Priority](handler-priority.md).
 
 ## Commands and Queries: The Single-Handler Pipeline

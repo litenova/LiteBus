@@ -49,8 +49,11 @@ trail built on both. Persistence schemas and transport behavior are unchanged.
   registrable constructs, so `RegisterFromAssembly` discovers them.
 - `AsyncBroadcastMediationStrategy` now observes cancellations so it can report them to the completion stage, and
   honors a pre-handler short-circuit by publishing to no handlers. Cancellation still propagates as before.
-- Pre-handlers are invoked through a virtual call instead of a per-type reflective method lookup. The lookup existed to
-  recover an explicit cancellation token from the synchronous entry point, which no longer exists.
+- Pre-handlers and post-handlers are invoked through the closed contract recorded in their descriptor at registration,
+  using a delegate built once per contract and cached. The previous dispatch searched a handler's interfaces for a
+  method by name on every invocation and called it reflectively, which is how a class implementing pipeline contracts
+  for several message types could have the wrong method selected. Choosing the contract from registration metadata
+  makes that class of bug structurally impossible rather than fixed case by case.
 
 ### Breaking
 
@@ -63,11 +66,11 @@ trail built on both. Persistence schemas and transport behavior are unchanged.
 - `MessageOutcome.Aborted` now means the main handler never ran. Previously an abort from a post-handler reported
   `Aborted` even though the command had taken effect, which told an audit trail that an action was refused when it had
   actually succeeded. Suppressing post-handlers reports `Succeeded`.
-- `IMessagePreHandler` no longer exposes the synchronous `object PreHandle(object)` entry point. Every pre-handler
-  dispatches through `Task<PipelineDirective> PreHandleAsync(object, CancellationToken)`, which the generic contracts
-  supply. `Task PreHandleAsync(TMessage, CancellationToken)` is unchanged, so handlers implementing
-  `ICommandPreHandler<TCommand>`, `IQueryPreHandler<TQuery>`, `ICommandValidator<TCommand>`, and their siblings compile
-  as they are. `IAsyncMessagePreHandler<TMessage>` remains as an alias.
+- The synchronous handler layer is removed. `IMessagePreHandler` and `IMessagePostHandler` no longer expose
+  `object PreHandle(object)` and `object PostHandle(object, object?)`; both are now markers used for discovery. The
+  typed members are unchanged, so handlers implementing `ICommandPreHandler<TCommand>`,
+  `IQueryPostHandler<TQuery, TResult>`, `ICommandValidator<TCommand>`, and their siblings compile as they are.
+  `IAsyncMessagePreHandler<TMessage>` and `IAsyncMessagePostHandler<TMessage>` remain as aliases.
 - `IExecutionContext` gained `PostHandlersSuppressed` and `SuppressPostHandlers()`. Custom implementations, including
   test doubles, must add them.
 - `IMessageDescriptor` and `IMessageDependencies` gained members for the completion stage and for message metadata.

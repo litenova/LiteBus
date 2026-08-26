@@ -1,57 +1,27 @@
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Represents a generic post-handler for messages that facilitates actions or operations to be performed after a
-///     message of a specified type has been handled, potentially utilizing and altering the results of the initial
-///     handling process.
+///     Represents a post-handler that runs after a message of type <typeparamref name="TMessage" /> has been handled.
 /// </summary>
-/// <typeparam name="TMessage">
-///     The type of the message being handled, allowing for messages of specific structures to be
-///     processed.
-/// </typeparam>
-/// <typeparam name="TMessageResult">
-///     The type of the result produced after the message is handled, facilitating operations
-///     on structured results.
-/// </typeparam>
-public interface IMessagePostHandler<in TMessage, in TMessageResult> : IMessagePostHandler where TMessage : notnull
+/// <typeparam name="TMessage">The type of the message that was handled.</typeparam>
+/// <typeparam name="TMessageResult">The type of the result produced by the main handler.</typeparam>
+/// <remarks>
+///     A post-handler may replace what the caller receives by writing to
+///     <see cref="IExecutionContext.MessageResult" />, and may skip the post-handlers that have not run yet by calling
+///     <see cref="IExecutionContext.SuppressPostHandlers" />.
+/// </remarks>
+public interface IMessagePostHandler<in TMessage, in TMessageResult> : IMessagePostHandler
+    where TMessage : notnull
 {
     /// <summary>
-    ///     Provides a default implementation for post-processing of messages by casting the non-generic parameters to their
-    ///     generic counterparts and delegating the operation to the generic
-    ///     <see cref="PostHandle(TMessage, TMessageResult)" /> method.
+    ///     Runs after the main handler has produced a result.
     /// </summary>
-    /// <param name="message">
-    ///     The original message that was handled, to be cast to the generic <typeparamref name="TMessage" />
-    ///     type.
-    /// </param>
-    /// <param name="messageResult">
-    ///     The result produced from the initial handling of the message, to be cast to the generic
-    ///     <typeparamref name="TMessageResult" /> type.
-    /// </param>
-    /// <returns>
-    ///     Any further processing result or a potentially modified version of the initial message result, conveyed as an
-    ///     object.
-    /// </returns>
-    object IMessagePostHandler.PostHandle(object message, object? messageResult)
-    {
-        return PostHandle((TMessage) message, (TMessageResult?) messageResult);
-    }
-
-    /// <summary>
-    ///     Facilitates the post-processing of a message following its initial handling, offering a way to manage the next
-    ///     steps in a message handling pipeline with a focus on the specified generic types for the message and its results.
-    /// </summary>
-    /// <param name="message">
-    ///     The original message that was handled, defined with a specific structure dictated by the
-    ///     <typeparamref name="TMessage" /> type.
-    /// </param>
-    /// <param name="messageResult">
-    ///     The result produced from the initial handling of the message, structured according to the
-    ///     <typeparamref name="TMessageResult" /> type.
-    /// </param>
-    /// <returns>
-    ///     An object representing any further processing result or a potentially modified version of the initial message
-    ///     result, allowing for specific post-handling operations based on the generic types.
-    /// </returns>
-    object PostHandle(TMessage message, TMessageResult? messageResult);
+    /// <param name="message">The message that was handled.</param>
+    /// <param name="messageResult">The result produced by the main handler, when any.</param>
+    /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
+    /// <returns>A task representing the asynchronous post-handling operation.</returns>
+    Task PostHandleAsync(TMessage message, TMessageResult? messageResult, CancellationToken cancellationToken = default);
 }

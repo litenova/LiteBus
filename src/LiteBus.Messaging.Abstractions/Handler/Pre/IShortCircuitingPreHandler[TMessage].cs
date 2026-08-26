@@ -25,12 +25,6 @@ namespace LiteBus.Messaging.Abstractions;
 public interface IShortCircuitingPreHandler<in TMessage> : IMessagePreHandler
     where TMessage : notnull
 {
-    /// <inheritdoc />
-    Task<PipelineDirective> IMessagePreHandler.PreHandleAsync(object message, CancellationToken cancellationToken)
-    {
-        return PreHandleAsync((TMessage) message, cancellationToken);
-    }
-
     /// <summary>
     ///     Runs before the main handler and decides whether the pipeline proceeds.
     /// </summary>

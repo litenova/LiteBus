@@ -31,7 +31,9 @@ public static class MessageContextExtensions
     {
         foreach (var preHandler in messageDependencies.IndirectPreHandlers)
         {
-            var directive = await preHandler.Handler.Value.PreHandleAsync(message, cancellationToken).ConfigureAwait(false);
+            var directive = await PipelineHandlerInvoker
+                .InvokePreHandlerAsync(preHandler.Handler.Value, preHandler.Descriptor, message, cancellationToken)
+                .ConfigureAwait(false);
 
             if (directive.IsShortCircuit)
             {
@@ -41,7 +43,9 @@ public static class MessageContextExtensions
 
         foreach (var preHandler in messageDependencies.PreHandlers)
         {
-            var directive = await preHandler.Handler.Value.PreHandleAsync(message, cancellationToken).ConfigureAwait(false);
+            var directive = await PipelineHandlerInvoker
+                .InvokePreHandlerAsync(preHandler.Handler.Value, preHandler.Descriptor, message, cancellationToken)
+                .ConfigureAwait(false);
 
             if (directive.IsShortCircuit)
             {
@@ -126,7 +130,9 @@ public static class MessageContextExtensions
                 return;
             }
 
-            await InvokePostHandlerAsync(postHandler.Handler.Value, message, messageResult, cancellationToken).ConfigureAwait(false);
+            await PipelineHandlerInvoker
+                .InvokePostHandlerAsync(postHandler.Handler.Value, postHandler.Descriptor, message, messageResult, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         foreach (var postHandler in messageDependencies.IndirectPostHandlers)
@@ -136,7 +142,9 @@ public static class MessageContextExtensions
                 return;
             }
 
-            await InvokePostHandlerAsync(postHandler.Handler.Value, message, messageResult, cancellationToken).ConfigureAwait(false);
+            await PipelineHandlerInvoker
+                .InvokePostHandlerAsync(postHandler.Handler.Value, postHandler.Descriptor, message, messageResult, cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 
@@ -260,23 +268,6 @@ public static class MessageContextExtensions
         {
             // The mediation already ended in a fault, so the observer's failure is intentionally swallowed.
         }
-    }
-
-    /// <summary>
-    ///     Invokes a post-handler using an explicit cancellation token when an asynchronous method is available.
-    /// </summary>
-    /// <param name="handler">The post-handler instance.</param>
-    /// <param name="message">The handled message.</param>
-    /// <param name="messageResult">The result produced by the main handler, if any.</param>
-    /// <param name="cancellationToken">The cancellation token for the invocation.</param>
-    /// <returns>A task representing the asynchronous post-handler operation.</returns>
-    private static Task InvokePostHandlerAsync(
-        IMessagePostHandler handler,
-        object message,
-        object? messageResult,
-        CancellationToken cancellationToken)
-    {
-        return PipelineHandlerInvocation.InvokePostHandlerAsync(handler, message, messageResult, cancellationToken);
     }
 
     /// <summary>
