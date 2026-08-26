@@ -55,6 +55,12 @@ trail built on both. Persistence schemas and transport behavior are unchanged.
   for several message types could have the wrong method selected. Choosing the contract from registration metadata
   makes that class of bug structurally impossible rather than fixed case by case.
 
+### Fixed
+
+- Handler discovery in the analyzers recognizes the two-parameter post-handler contracts and the stream query
+  post-handler contract. A handler implementing only those was invisible to LB1011 and LB1012, so an unused
+  `[HandlerTag]` on one was not reported.
+
 ### Breaking
 
 - `IExecutionContext.Abort` and `LiteBusExecutionAbortedException` are removed. A pre-handler that stopped the pipeline

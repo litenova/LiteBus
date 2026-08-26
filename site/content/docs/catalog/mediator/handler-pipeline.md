@@ -39,9 +39,12 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 
 | API | Role |
 | --- | --- |
-| `IAsyncMessagePreHandler<TMessage>` | Generic pre stage contract |
+| `IMessagePreHandler<TMessage>` | Pre stage contract |
+| `IShortCircuitingPreHandler<TMessage>` | Pre stage contract that may stop the pipeline |
+| `PipelineDirective` | Continue, or short-circuit with a result and a reason |
 | `IAsyncMessageHandler<TMessage>` / `IAsyncMessageHandler<TMessage, TResult>` | Main handler contracts |
-| `IAsyncMessagePostHandler<TMessage>` / `IAsyncMessagePostHandler<TMessage, TResult>` | Post stage contracts |
+| `IMessagePostHandler<TMessage, TResult>` | Post stage contract |
+| `IExecutionContext.SuppressPostHandlers()` | Skips the post-handlers that have not run yet |
 | `IAsyncMessageErrorHandler<TMessage, TResult>` | Error stage contract |
 | `MessageErrorContext<TMessage, TResult>` | Typed error data and shared recovery outcome |
 | `IMessageCompletionHandler` / `IMessageCompletionHandler<TMessage>` | Completion stage contracts |
@@ -52,6 +55,7 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | `SingleStreamHandlerMediationStrategy<TMessage, TResult>` | Stream query orchestration |
 | `AsyncBroadcastMediationStrategy<TMessage>` | Event broadcast orchestration |
 | `MessageContextExtensions.RunAsyncPreHandlers/RunAsyncPostHandlers/RunAsyncErrorHandlers/RunAsyncCompletionHandlers` | Stage execution helpers |
+| `PipelineHandlerInvoker` | Dispatches pre and post stages through the contract recorded at registration |
 
 ## Packages
 
@@ -75,6 +79,10 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 - Completion handlers cannot change the outcome; the context is read-only.
 - A completion handler that throws is suppressed when the mediation already faulted, and propagates when it succeeded.
 - Stream completion fires on enumerator disposal, so an unenumerated stream produces no completion record.
+- Only a pre-handler can short-circuit; `MessageOutcome.Aborted` means the main handler never ran.
+- Suppressing post-handlers reports `MessageOutcome.Succeeded`, because the main handler ran.
+- A short-circuit on a result-returning message must supply a result of the expected type, or mediation throws `LiteBusConfigurationException`.
+- One class may implement pipeline contracts for several message types; each dispatch reaches the contract recorded in its descriptor.
 
 ## Non-Goals
 
@@ -110,6 +118,13 @@ Operational alternatives:
 | `Completion_runs_with_Canceled_and_the_cancellation_still_propagates` | `LiteBus.Mediator.UnitTests` |
 | `Direct_completion_handlers_run_before_indirect_ones` | `LiteBus.Mediator.UnitTests` |
 | `A_failing_completion_handler_does_not_replace_the_original_fault` | `LiteBus.Mediator.UnitTests` |
+| `A_short_circuit_skips_the_main_handler_and_reports_Aborted` | `LiteBus.Mediator.UnitTests` |
+| `Suppressing_post_handlers_still_reports_Succeeded` | `LiteBus.Mediator.UnitTests` |
+| `A_short_circuit_supplies_the_result_the_caller_receives` | `LiteBus.Mediator.UnitTests` |
+| `A_short_circuit_without_a_required_result_is_a_configuration_error` | `LiteBus.Mediator.UnitTests` |
+| `Pre_handlers_after_a_short_circuit_do_not_run` | `LiteBus.Mediator.UnitTests` |
+| `Each_message_type_reaches_its_own_contract_on_a_shared_handler` | `LiteBus.Mediator.UnitTests` |
+| `A_result_returning_message_reaches_the_typed_post_handler_contract` | `LiteBus.Mediator.UnitTests` |
 
 ### Untested
 
