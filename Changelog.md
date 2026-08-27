@@ -66,6 +66,11 @@ unchanged.
 - `LiteBusMessageDeniedException` and `LiteBusMessageInvalidException` reach the caller when no refusal mapper covers
   the message. Both are excluded from the recoverable-exception filter, so error handlers never see a decision as a
   fault, and `LiteBusMessageInvalidException.Failures` carries every failure the validator stage collected.
+- `MediationOutcome` tracks how a mediation is ending and reports it to the completion stage. Every strategy carried
+  its own copy of that bookkeeping, and a custom mediation strategy had to reproduce it, including the rule that the
+  completion stage should see a post-handler's replacement result in preference to the handler's own. `Start`,
+  `RecordStop`, `RecordRefusal`, `RecordCancellation`, `RecordFaultAsync`, and `CompleteAsync` cover every path a
+  mediation can take, and it is a struct so it costs no allocation.
 - `MediationExceptionFilters.IsRefusal` and `IsRetryableDispatchException` classify a decision apart from a fault. The
   inbox and outbox processors use the second to dead-letter a refusal or a missing handler on the first attempt instead
   of spending the retry schedule on an answer that cannot change.
@@ -122,6 +127,18 @@ unchanged.
 - A decision on a stream query no longer runs post-handlers. Stopping the pipeline means the work did not happen, so
   the reactions to it do not fire; the caller still receives whatever stream the shortcut or the refusal mapper
   supplied.
+- A pre-stage role is declared in one place. `PipelineStage`, dispatch, the descriptor builder, and the stage runner all
+  read the contract, the stage, the invoker, and the aggregation policy from a single internal table, so adding the
+  validator stage no longer takes edits in nine files. The run order is read from the `PipelineStage` ordinals rather
+  than from a hand-written call sequence, which makes the order the enum documents the order that executes.
+- The stream mediation strategy routes every fault through one place instead of six, and enumerates the handler's
+  stream and a post-handler's replacement through one loop instead of two. It is a third shorter. One timing changes
+  with it: the handler's enumerator is released when its enumeration ends rather than when the whole mediation does, so
+  it is now disposed before post-handlers run rather than after. A post-handler receives the `IAsyncEnumerable` and
+  would enumerate it afresh, so nothing observes this beyond the resource being held for less time.
+- The inbox and outbox share one processor hook runner. They ran identical copies, and each built a fresh envelope
+  adapter in all five hook phases, so a single dispatch allocated five of them per axis. The adapter is now built once
+  per dispatch.
 - A pre stage that holds no handler is skipped without enumerating the shared descriptor collection.
   `IMessageDependencies.HasPreStageHandlers` answers from a mask computed once when dependencies are resolved, so a
   message with no guard, validator, or shortcut costs nothing for those stages. The default implementation on the
@@ -145,6 +162,10 @@ unchanged.
 
 ### Fixed
 
+- The result-returning mediation strategy no longer carries an unreachable null check on the resolved main handler.
+  `SingleMainHandlerResolver` either throws or returns a descriptor, and the handler itself comes from
+  `GetRequiredService`, so the `LiteBusConfigurationException` it guarded could never be raised. The void and stream
+  strategies never had the check, which is the divergence that made it worth looking at.
 - A completion handler can now observe more than one message type. The stage dispatched through a default interface
   method on its non-generic contract, so a class implementing completion contracts for two message types did not
   compile.

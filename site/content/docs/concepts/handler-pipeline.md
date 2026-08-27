@@ -66,7 +66,9 @@ Within each group, handlers run in ascending `[HandlerPriority]` order (default 
 
 **Priority orders handlers inside a stage; it never reorders the stages themselves.** Every guard runs before every validator, every validator before every shortcut, and every shortcut before every pre-handler, whatever priority each carries and whether it is registered globally or for one message type. That is the guarantee the split exists to provide, and the [Deciding Whether the Work Happens](#deciding-whether-the-work-happens) section explains what it buys.
 
-This ordering is implemented in `MessageContextExtensions`: each decision stage iterates indirect then direct, post-handlers and completion handlers iterate direct then indirect, and error-handlers iterate indirect then direct.
+This ordering is implemented in `MessageContextExtensions`: each decision stage iterates indirect then direct, post-handlers and completion handlers iterate direct then indirect, and error-handlers iterate indirect then direct. The stages themselves come from one internal table, so the order `PipelineStage` declares is the order that runs rather than something a call sequence has to keep in step with it.
+
+A custom mediation strategy gets the same stage order through `RunAsyncPreStages`, and should track its ending with `MediationOutcome`: `Start` at the top, a `Record` call on each path, `RecordFaultAsync` to route a fault to the error stage, and `CompleteAsync` in a `finally`. That is also what saves it from having to know that the completion stage should see a post-handler's replacement result rather than the handler's own.
 
 Each pre-handler, post-handler, and completion handler is invoked through the closed contract recorded in its descriptor at registration, so one class may implement pipeline contracts for several message types and each dispatch reaches the right one. The delegate that performs the dispatch is built while the descriptor is built, which keeps reflection in the registration path rather than in the hot path.
 
