@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -38,7 +38,8 @@ internal sealed class MessageRegistry : IMessageRegistry
         new CompletionHandlerDescriptorBuilder(),
         new ErrorHandlerDescriptorBuilder(),
         new PostHandlerDescriptorBuilder(),
-        new PreHandlerDescriptorBuilder()
+        new PreHandlerDescriptorBuilder(),
+        new RefusalMapperDescriptorBuilder()
     ];
 
     /// <summary>
@@ -163,13 +164,18 @@ internal sealed class MessageRegistry : IMessageRegistry
             }
 
             // Analyze the type using all available descriptor builders.
-            var newDescriptors = _descriptorBuilders
+            var claimingBuilders = _descriptorBuilders
                 .Where(builder => builder.CanBuild(type))
+                .ToList();
+
+            var newDescriptors = claimingBuilders
                 .SelectMany(builder => builder.Build(type))
                 .ToList();
 
             if (newDescriptors.Count == 0)
             {
+                ThrowIfPipelineMarkerExposesNoContract(type, claimingBuilders.Count);
+
                 // Type doesn't contain handlers, but might be a message type.
                 RegisterMessageType(type);
             }
@@ -506,6 +512,36 @@ internal sealed class MessageRegistry : IMessageRegistry
     {
         return messageType.Namespace is "System" ||
                messageType.Namespace?.StartsWith("System.", StringComparison.Ordinal) == true;
+    }
+
+    /// <summary>
+    ///     Validates that a type carrying a pipeline marker also exposes a contract the pipeline can dispatch through.
+    /// </summary>
+    /// <param name="type">The registered type that produced no descriptor.</param>
+    /// <param name="claimingBuilderCount">The number of descriptor builders that recognized the type.</param>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     The type carries a pipeline marker but exposes no closed contract, so it would register successfully and
+    ///     never run.
+    /// </exception>
+    /// <remarks>
+    ///     Every pipeline marker is memberless, so a class can implement one without implementing any contract that
+    ///     names a message type. Such a class produces no descriptor, and without this check it would fall through to
+    ///     message-type registration and be silently accepted as a handler that never executes. Interfaces and abstract
+    ///     classes are exempt because they are shapes rather than registrations.
+    /// </remarks>
+    private static void ThrowIfPipelineMarkerExposesNoContract(Type type, int claimingBuilderCount)
+    {
+        if (claimingBuilderCount == 0 || type.IsInterface || type.IsAbstract)
+        {
+            return;
+        }
+
+        throw new LiteBusConfigurationException(
+            $"'{type.Name}' implements a LiteBus pipeline marker but exposes no contract that names a message type, so "
+            + "nothing would ever dispatch to it. Implement a closed contract such as "
+            + "IMessageGuard<TMessage>, IMessageShortcut<TMessage>, IMessagePreHandler<TMessage>, "
+            + "IMessagePostHandler<TMessage, TMessageResult>, IMessageCompletionHandler<TMessage>, or "
+            + "IMessageErrorHandler<TMessage>, or remove the marker.");
     }
 
     /// <summary>

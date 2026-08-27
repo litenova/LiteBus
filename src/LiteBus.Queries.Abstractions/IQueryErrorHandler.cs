@@ -11,4 +11,4 @@ namespace LiteBus.Queries.Abstractions;
 ///     Multiple error handlers can be registered to implement different error handling strategies such as
 ///     logging, providing fallback results, or custom recovery logic for all queries.
 /// </remarks>
-public interface IQueryErrorHandler : IAsyncMessageErrorHandler<IQuery, object>;
+public interface IQueryErrorHandler : IMessageErrorHandler<IQuery, object>;

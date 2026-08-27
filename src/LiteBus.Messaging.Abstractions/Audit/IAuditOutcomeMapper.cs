@@ -1,4 +1,4 @@
-namespace LiteBus.Messaging.Abstractions;
+﻿namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
 ///     Classifies how a mediation ended in the vocabulary of an audit trail.
@@ -6,14 +6,14 @@ namespace LiteBus.Messaging.Abstractions;
 /// <remarks>
 ///     <para>
 ///         Most of the mapping needs no application knowledge, because the pipeline already distinguishes a refusal from
-///         an early answer and from a fault. A gate denial is a denial, a short-circuit is a success, a fault is a
+///         an early answer and from a fault. A guard denial is a denial, an early answer is a success, a fault is a
 ///         failure, and a cancellation is a cancellation.
 ///     </para>
 ///     <para>
 ///         What LiteBus cannot know is whether an exception was a refusal in disguise. An application that authorizes by
 ///         throwing owns that exception type, so it registers a mapper to have its refusal recorded as
 ///         <see cref="AuditOutcome.Denied" /> rather than <see cref="AuditOutcome.Failed" />. Applications that refuse
-///         through a gate need no mapper at all.
+///         through a guard or a validator need no mapper at all.
 ///     </para>
 /// </remarks>
 /// <example>
@@ -44,9 +44,9 @@ public interface IAuditOutcomeMapper
     /// <returns>The failure code, or <see langword="null" /> when there is nothing to name.</returns>
     /// <remarks>
     ///     Defaults to the exception type name, which is useful before an application defines its own failure taxonomy.
-    ///     A gate denial is deliberately left uncoded: <see cref="LiteBusMessageDeniedException" /> would only restate
+    ///     A guard denial is deliberately left uncoded: <see cref="LiteBusMessageDeniedException" /> would only restate
     ///     the outcome, and the reason on the record already says why. That also keeps the two shapes of denial
-    ///     consistent, since a gate that hands back a refusal value raises nothing at all.
+    ///     consistent, since a refusal mapped to a value raises nothing at all.
     /// </remarks>
     string? MapFailureCode(MessageCompletionContext context)
     {

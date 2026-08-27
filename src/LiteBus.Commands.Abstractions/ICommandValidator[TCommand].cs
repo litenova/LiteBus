@@ -1,35 +1,15 @@
-using System.Threading;
-using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Commands.Abstractions;
 
 /// <summary>
-///     Represents a validator that performs validation on a specific command type <typeparamref name="TCommand" /> before
-///     it is processed.
+///     Decides whether a command of type <typeparamref name="TCommand" /> is well-formed.
 /// </summary>
-/// <typeparam name="TCommand">The specific command type this validator targets.</typeparam>
+/// <typeparam name="TCommand">The specific command type this validator runs for.</typeparam>
 /// <remarks>
-///     ICommandValidator is a specialized wrapper around ICommandPreHandler that simplifies implementing validation logic.
-///     It provides a more semantic API through the ValidateAsync method while internally mapping to the PreHandleAsync
-///     method.
-///     Command validators run before the main command handler and can be used to ensure commands meet business rules
-///     and contain valid data before processing. Multiple validators can be registered for each command type.
-///     If validation fails, implementations should throw an exception to prevent the command from being processed further.
+///     A validator returns <see cref="Validity" /> rather than throwing, so a malformed command reports
+///     <see cref="MessageOutcome.Invalid" /> instead of arriving at error handlers as a fault. Every validator for the
+///     command runs and their failures are collected, so the caller sees all of them at once.
 /// </remarks>
-public interface ICommandValidator<in TCommand> : ICommandPreHandler<TCommand> where TCommand : ICommand
-{
-    /// <inheritdoc />
-    Task IMessagePreHandler<TCommand>.PreHandleAsync(TCommand message, CancellationToken cancellationToken)
-    {
-        return ValidateAsync(message, cancellationToken);
-    }
-
-    /// <summary>
-    ///     Validates the command.
-    /// </summary>
-    /// <param name="command">The command to validate.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    Task ValidateAsync(TCommand command, CancellationToken cancellationToken = default);
-}
+public interface ICommandValidator<in TCommand> : IMessageValidator<TCommand>
+    where TCommand : ICommand;

@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
@@ -302,13 +302,13 @@ internal sealed class OverridePriceCommandHandler : ICommandHandler<OverridePric
 }
 
 /// <summary>
-///     A command whose gate refuses it, so the trail records a denial without an outcome mapper.
+///     A command whose guard refuses it, so the trail records a denial without an outcome mapper.
 /// </summary>
 [Audited("orders.approve-refund", Category = "money")]
 internal sealed class ApproveRefundCommand : ICommand
 {
     /// <summary>
-    ///     Gets or sets a value indicating whether the gate refuses the command.
+    ///     Gets or sets a value indicating whether the guard refuses the command.
     /// </summary>
     public bool ShouldDeny { get; set; }
 
@@ -324,7 +324,7 @@ internal sealed class ApproveRefundCommand : ICommand
 internal sealed class ApproveRefundCommandGuard : ICommandGuard<ApproveRefundCommand>
 {
     /// <inheritdoc />
-    public Task<Verdict> CheckAsync(
+    public Task<Verdict> DecideAsync(
         ApproveRefundCommand message,
         CancellationToken cancellationToken = default)
     {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -33,16 +33,16 @@ public sealed class MessageCompletionContext
     /// <remarks>
     ///     Present when <see cref="Outcome" /> is <see cref="MessageOutcome.Failed" /> or
     ///     <see cref="MessageOutcome.Canceled" />, and also on a <see cref="MessageOutcome.Denied" /> mediation whose
-    ///     gate supplied no result, where it is the <see cref="LiteBusMessageDeniedException" /> the caller receives.
+    ///     refusal was not mapped to a value, where it is the exception the caller receives.
     /// </remarks>
     public Exception? Exception { get; init; }
 
     /// <summary>
-    ///     Gets the reason the gate gave for stopping the pipeline.
+    ///     Gets the reason the decision gave for stopping the pipeline.
     /// </summary>
     /// <remarks>
     ///     Present when <see cref="Outcome" /> is <see cref="MessageOutcome.Denied" />, and when it is
-    ///     <see cref="MessageOutcome.ShortCircuited" /> and the gate supplied a reason. A stopped mediation reaches
+    ///     <see cref="MessageOutcome.Answered" /> and the decision supplied a reason. A stopped mediation reaches
     ///     neither post-handlers nor error handlers, so this is the only description of why the message ended.
     /// </remarks>
     public string? Reason { get; init; }

@@ -3,85 +3,87 @@ using System;
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     The judgment a guard returns: allow the message to proceed, or refuse it with a reason.
+///     The answer a guard returns: the message may proceed, or it is refused and here is why.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The judgment is a return value rather than an exception. That makes it visible in the guard signature, lets
-///         the compiler require it, and keeps an expected control-flow path off the exception path.
+///         <see cref="Allow" /> is the default, so a guard that permits the message returns it without allocating.
 ///     </para>
 ///     <para>
-///         A refusal never owes the caller the result the main handler would have produced, so this shape is correct for
-///         every message, including one that produces a result. A guard that would rather hand the caller a refusal
-///         value than raise an exception returns <see cref="Verdict{TMessageResult}" /> instead.
+///         A verdict never carries a result. A refusal does not owe the caller the value the main handler would have
+///         produced, which is why one guard contract fits every message, whether or not it produces a result. An
+///         application that returns a failed result object instead of raising registers an
+///         <see cref="IMessageRefusalMapper{TMessage,TMessageResult}" />, so the shape of a refused result is defined
+///         once for the message rather than in each guard.
 ///     </para>
-/// </remarks>
-/// <example>
-///     <code><![CDATA[
-/// public sealed class RejectClosedAccount : ICommandGuard<WithdrawCommand>
-/// {
-///     public async Task<Verdict> CheckAsync(
-///         WithdrawCommand command,
+///     <para>
+///         Example:
+///     </para>
+///     <code>
+///     public Task&lt;Verdict&gt; DecideAsync(
+///         TransferFunds message,
 ///         CancellationToken cancellationToken = default)
 ///     {
-///         var account = await _accounts.GetAsync(command.AccountId, cancellationToken);
-///
-///         return account.IsClosed
-///             ? Verdict.Deny("the account is closed")
-///             : Verdict.Allow;
+///         return Task.FromResult(message.Amount > Threshold
+///             ? Verdict.Deny("transfers above the threshold need a second approver", code: "SECOND_APPROVER")
+///             : Verdict.Allow);
 ///     }
-/// }
-/// ]]></code>
-/// </example>
+///     </code>
+/// </remarks>
 public readonly struct Verdict : IEquatable<Verdict>
 {
     /// <summary>
     ///     Initializes a new instance of the <see cref="Verdict" /> struct.
     /// </summary>
     /// <param name="isDenied">Whether the guard refused the message.</param>
-    /// <param name="reason">The reason the message was refused.</param>
-    private Verdict(bool isDenied, string? reason)
+    /// <param name="reason">The reason for the refusal.</param>
+    /// <param name="code">The code for the refusal.</param>
+    private Verdict(bool isDenied, string? reason, string? code)
     {
         IsDenied = isDenied;
         Reason = reason;
+        Code = code;
     }
 
     /// <summary>
-    ///     Gets a verdict that lets the message proceed.
+    ///     Gets the verdict that permits the message to proceed.
     /// </summary>
+    /// <value>The default value, so returning it allocates nothing.</value>
     public static Verdict Allow => default;
 
     /// <summary>
     ///     Gets a value indicating whether the guard refused the message.
     /// </summary>
+    /// <value><see langword="true" /> when the message is refused.</value>
     public bool IsDenied { get; }
 
     /// <summary>
-    ///     Gets the reason the message was refused.
+    ///     Gets the reason for the refusal.
     /// </summary>
-    /// <remarks>
-    ///     A refusal always carries a reason. It reaches completion handlers as
-    ///     <see cref="MessageCompletionContext.Reason" /> and an audit trail as the reason on the record, which is the
-    ///     one artifact a security review reads.
-    /// </remarks>
+    /// <value>The reason, which a refusal always carries, or <see langword="null" /> when the message is permitted.</value>
     public string? Reason { get; }
 
     /// <summary>
-    ///     Creates a verdict that refuses the message.
+    ///     Gets the code for the refusal.
     /// </summary>
-    /// <param name="reason">The reason the message was refused.</param>
-    /// <returns>A refusing verdict.</returns>
-    /// <remarks>
-    ///     The mediation reports <see cref="MessageOutcome.Denied" />, which an audit trail records as a denial, and
-    ///     then raises <see cref="LiteBusMessageDeniedException" /> when the caller expects a value, because a refusal
-    ///     with no result has nothing to hand back. Supply a value through <see cref="Verdict{TMessageResult}" /> to
-    ///     have the caller receive a refusal result instead.
-    /// </remarks>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="reason" /> is null or whitespace.</exception>
-    public static Verdict Deny(string reason)
+    /// <value>
+    ///     The machine-readable code, or <see langword="null" /> when the guard supplied none. A refusal mapper switches
+    ///     on this rather than parsing <see cref="Reason" />, which is prose written for a person.
+    /// </value>
+    public string? Code { get; }
+
+    /// <summary>
+    ///     Refuses the message.
+    /// </summary>
+    /// <param name="reason">Why the message is refused, written for a person.</param>
+    /// <param name="code">A machine-readable code a refusal mapper can switch on, when the guard has one.</param>
+    /// <returns>A verdict that stops the pipeline and reports <see cref="MessageOutcome.Denied" />.</returns>
+    /// <exception cref="ArgumentException"><paramref name="reason" /> is null, empty, or whitespace.</exception>
+    public static Verdict Deny(string reason, string? code = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        return new Verdict(isDenied: true, reason);
+
+        return new Verdict(isDenied: true, reason, code);
     }
 
     /// <summary>
@@ -89,7 +91,7 @@ public readonly struct Verdict : IEquatable<Verdict>
     /// </summary>
     /// <param name="left">The first verdict.</param>
     /// <param name="right">The second verdict.</param>
-    /// <returns><see langword="true" /> when the verdicts are equal.</returns>
+    /// <returns><see langword="true" /> when both carry the same decision.</returns>
     public static bool operator ==(Verdict left, Verdict right)
     {
         return left.Equals(right);
@@ -100,7 +102,7 @@ public readonly struct Verdict : IEquatable<Verdict>
     /// </summary>
     /// <param name="left">The first verdict.</param>
     /// <param name="right">The second verdict.</param>
-    /// <returns><see langword="true" /> when the verdicts differ.</returns>
+    /// <returns><see langword="true" /> when they carry different decisions.</returns>
     public static bool operator !=(Verdict left, Verdict right)
     {
         return !left.Equals(right);
@@ -109,7 +111,9 @@ public readonly struct Verdict : IEquatable<Verdict>
     /// <inheritdoc />
     public bool Equals(Verdict other)
     {
-        return IsDenied == other.IsDenied && string.Equals(Reason, other.Reason, StringComparison.Ordinal);
+        return IsDenied == other.IsDenied
+               && string.Equals(Reason, other.Reason, StringComparison.Ordinal)
+               && string.Equals(Code, other.Code, StringComparison.Ordinal);
     }
 
     /// <inheritdoc />
@@ -121,17 +125,18 @@ public readonly struct Verdict : IEquatable<Verdict>
     /// <inheritdoc />
     public override int GetHashCode()
     {
-        return HashCode.Combine(IsDenied, Reason);
+        return HashCode.Combine(IsDenied, Reason, Code);
     }
 
     /// <summary>
-    ///     Converts this verdict to the stop the pipeline acts on.
+    ///     Converts this verdict to the pipeline decision the stage runner acts on.
     /// </summary>
-    /// <returns>The stop for a refusal, or <see cref="PipelineStop.None" /> when the message may proceed.</returns>
+    /// <returns>
+    ///     A stop that reports <see cref="MessageOutcome.Denied" /> when the guard refused, otherwise
+    ///     <see cref="PipelineStop.None" />.
+    /// </returns>
     internal PipelineStop ToStop()
     {
-        return IsDenied
-            ? PipelineStop.Denied(Reason!, hasResult: false, result: null)
-            : PipelineStop.None;
+        return IsDenied ? PipelineStop.Denied(Reason!, Code) : PipelineStop.None;
     }
 }

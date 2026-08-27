@@ -1,4 +1,4 @@
-using LiteBus.Messaging.Abstractions;
+﻿using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Registry.Descriptors;
 
 namespace LiteBus.Messaging.Registry;
@@ -38,6 +38,17 @@ internal static class HandlerDescriptorRegistration
                 ContractType = pre.ContractType,
                 Stage = pre.Stage,
                 Dispatch = pre.Dispatch
+            },
+            RefusalMapperDescriptor mapper => new RefusalMapperDescriptor
+            {
+                MessageType = mapper.MessageType,
+                MessageResultType = mapper.MessageResultType,
+                Priority = mapper.Priority,
+                RegistrationSequence = registrationSequence,
+                Tags = mapper.Tags,
+                HandlerType = mapper.HandlerType,
+                ContractType = mapper.ContractType,
+                Dispatch = mapper.Dispatch
             },
             PostHandlerDescriptor post => new PostHandlerDescriptor
             {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -50,7 +50,7 @@ public sealed class MessageCompletionContext<TMessage>
     public Exception? Exception => _context.Exception;
 
     /// <summary>
-    ///     Gets the reason the gate gave for stopping the pipeline, when it stopped.
+    ///     Gets the reason the decision gave for stopping the pipeline, when it stopped.
     /// </summary>
     public string? Reason => _context.Reason;
 

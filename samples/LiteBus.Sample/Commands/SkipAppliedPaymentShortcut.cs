@@ -10,7 +10,7 @@ namespace LiteBus.Sample.Commands;
 /// <remarks>
 ///     <para>
 ///         A shortcut answers one question: is this already done. Nothing was refused, so the mediation reports
-///         <see cref="MessageOutcome.ShortCircuited" /> and an audit trail records a success. Recording a replayed
+///         <see cref="MessageOutcome.Answered" /> and an audit trail records a success. Recording a replayed
 ///         payment as a refusal would put an entry in the denial list that never happened.
 ///     </para>
 ///     <para>

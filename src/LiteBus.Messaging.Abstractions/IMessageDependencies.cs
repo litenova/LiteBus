@@ -1,4 +1,4 @@
-namespace LiteBus.Messaging.Abstractions;
+﻿namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
 ///     Defines a contract for an object that holds the dependencies needed to handle messages within a given context,
@@ -32,7 +32,7 @@ public interface IMessageDependencies
     /// <value>
     ///     The collection of direct pre-message handlers.
     /// </value>
-    ILazyHandlerCollection<IMessagePreHandler, IPreHandlerDescriptor> PreHandlers { get; }
+    ILazyHandlerCollection<IMessagePreStageHandler, IPreHandlerDescriptor> PreHandlers { get; }
 
     /// <summary>
     ///     Gets a lazy initialized read-only collection of indirect pre-message handlers. These handlers are invoked before
@@ -42,7 +42,7 @@ public interface IMessageDependencies
     /// <value>
     ///     The collection of indirect pre-message handlers.
     /// </value>
-    ILazyHandlerCollection<IMessagePreHandler, IPreHandlerDescriptor> IndirectPreHandlers { get; }
+    ILazyHandlerCollection<IMessagePreStageHandler, IPreHandlerDescriptor> IndirectPreHandlers { get; }
 
     /// <summary>
     ///     Gets a lazy initialized read-only collection of direct post-message handlers. These handlers are invoked after the
@@ -81,6 +81,48 @@ public interface IMessageDependencies
     ///     The collection of indirect message error handlers.
     /// </value>
     ILazyHandlerCollection<IMessageErrorHandler, IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
+
+    /// <summary>
+    ///     Determines whether any handler is registered for the given stage of the pre stage.
+    /// </summary>
+    /// <param name="stage">The stage to test.</param>
+    /// <returns><see langword="true" /> when at least one handler runs in that stage.</returns>
+    /// <remarks>
+    ///     Every pre-stage role shares one descriptor collection, so running a stage means a filtered pass over it. Most
+    ///     messages have no guard, validator, or shortcut at all, and this lets those stages be skipped without
+    ///     enumerating. The default implementation is correct for any implementation of this interface; LiteBus's own
+    ///     answers from a mask computed once when the dependencies are resolved.
+    /// </remarks>
+    bool HasPreStageHandlers(PipelineStage stage)
+    {
+        foreach (var preHandler in PreHandlers)
+        {
+            if (preHandler.Descriptor.Stage == stage)
+            {
+                return true;
+            }
+        }
+
+        foreach (var preHandler in IndirectPreHandlers)
+        {
+            if (preHandler.Descriptor.Stage == stage)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Gets the refusal mappers registered for this specific message type.
+    /// </summary>
+    ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> RefusalMappers { get; }
+
+    /// <summary>
+    ///     Gets the refusal mappers registered for a base type or interface that this message type implements.
+    /// </summary>
+    ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> IndirectRefusalMappers { get; }
 
     /// <summary>
     ///     Gets a lazy initialized read-only collection of direct completion handlers. These handlers are invoked once the

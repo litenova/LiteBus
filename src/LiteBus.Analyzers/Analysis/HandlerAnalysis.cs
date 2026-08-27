@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -35,11 +35,14 @@ internal static class HandlerAnalysis
         ("LiteBus.Queries.Abstractions.IQueryPostHandler`2", "query post-handler"),
         ("LiteBus.Queries.Abstractions.IStreamQueryPostHandler`2", "stream query post-handler"),
         ("LiteBus.Commands.Abstractions.ICommandGuard`1", "command guard"),
-        ("LiteBus.Commands.Abstractions.ICommandGuard`2", "command guard"),
         ("LiteBus.Queries.Abstractions.IQueryGuard`1", "query guard"),
-        ("LiteBus.Queries.Abstractions.IQueryGuard`2", "query guard"),
-        ("LiteBus.Queries.Abstractions.IStreamQueryGuard`2", "stream query guard"),
         ("LiteBus.Events.Abstractions.IEventGuard`1", "event guard"),
+        ("LiteBus.Commands.Abstractions.ICommandValidator`1", "command validator"),
+        ("LiteBus.Queries.Abstractions.IQueryValidator`1", "query validator"),
+        ("LiteBus.Events.Abstractions.IEventValidator`1", "event validator"),
+        ("LiteBus.Commands.Abstractions.ICommandRefusalMapper`2", "command refusal-mapper"),
+        ("LiteBus.Queries.Abstractions.IQueryRefusalMapper`2", "query refusal-mapper"),
+        ("LiteBus.Queries.Abstractions.IStreamQueryRefusalMapper`2", "stream query refusal-mapper"),
         ("LiteBus.Commands.Abstractions.ICommandShortcut`1", "command shortcut"),
         ("LiteBus.Commands.Abstractions.ICommandShortcut`2", "command shortcut"),
         ("LiteBus.Queries.Abstractions.IQueryShortcut`2", "query shortcut"),

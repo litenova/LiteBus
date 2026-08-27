@@ -14,5 +14,5 @@ namespace LiteBus.Commands.Abstractions;
 ///     return a fallback result.
 /// </remarks>
 public interface ICommandErrorHandler<TCommand, TCommandResult>
-    : IAsyncMessageErrorHandler<TCommand, TCommandResult>
+    : IMessageErrorHandler<TCommand, TCommandResult>
     where TCommand : ICommand<TCommandResult>;

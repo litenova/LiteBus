@@ -1,4 +1,4 @@
-using LiteBus.Commands.Abstractions;
+﻿using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Completion;
@@ -66,7 +66,7 @@ internal sealed class GatedCommand : ICommand
 internal sealed class GatedCommandGuard : ICommandGuard<GatedCommand>
 {
     /// <inheritdoc />
-    public Task<Verdict> CheckAsync(GatedCommand message, CancellationToken cancellationToken = default)
+    public Task<Verdict> DecideAsync(GatedCommand message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
@@ -227,42 +227,34 @@ internal sealed class CachedValueShortcut : ICommandShortcut<CachedValueCommand,
 }
 
 /// <summary>
-///     Refuses with a value, using the typed verdict so the caller receives a refusal result rather than an exception.
+///     Refuses with a code, so a registered refusal mapper can turn the decision into a value for the caller.
 /// </summary>
-internal sealed class RefusalValueGuard : ICommandGuard<CachedValueCommand, string>
+internal sealed class CodedRefusalGuard : ICommandGuard<CachedValueCommand>
 {
     /// <inheritdoc />
-    public Task<Verdict<string>> CheckAsync(
-        CachedValueCommand message,
-        CancellationToken cancellationToken = default)
+    public Task<Verdict> DecideAsync(CachedValueCommand message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
         return Task.FromResult(message.Decision == StageDecision.Deny
-            ? Verdict<string>.Deny("not your order", "refused")
-            : Verdict<string>.Allow);
+            ? Verdict.Deny("not your order", "NOT_OWNER")
+            : Verdict.Allow);
     }
 }
 
 /// <summary>
-///     Refuses a command that produces a result without supplying one, so the refusal reaches the caller as an exception.
+///     Maps a refused <see cref="CachedValueCommand" /> to the string the caller receives.
 /// </summary>
 /// <remarks>
-///     The untyped guard behaves the same way and is the contract to reach for by default. This one uses the typed
-///     contract with the result-free overload, which is the shape that proves both are available on one guard.
+///     Registered against the concrete command, which is the shape that must win over a mapper registered for a base
+///     type.
 /// </remarks>
-internal sealed class UnansweredDenialGuard : ICommandGuard<CachedValueCommand, string>
+internal sealed class CachedValueRefusalMapper : ICommandRefusalMapper<CachedValueCommand, string>
 {
     /// <inheritdoc />
-    public Task<Verdict<string>> CheckAsync(
-        CachedValueCommand message,
-        CancellationToken cancellationToken = default)
+    public string Map(CachedValueCommand message, Refusal refusal)
     {
-        ArgumentNullException.ThrowIfNull(message);
-
-        return Task.FromResult(message.Decision == StageDecision.Deny
-            ? Verdict<string>.Deny("nothing to hand back")
-            : Verdict<string>.Allow);
+        return $"refused:{refusal.Code ?? refusal.Outcome.ToString()}";
     }
 }
 
@@ -272,7 +264,7 @@ internal sealed class UnansweredDenialGuard : ICommandGuard<CachedValueCommand, 
 internal sealed class UntypedGuardOnResultCommand : ICommandGuard<CachedValueCommand>
 {
     /// <inheritdoc />
-    public Task<Verdict> CheckAsync(CachedValueCommand message, CancellationToken cancellationToken = default)
+    public Task<Verdict> DecideAsync(CachedValueCommand message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
@@ -376,7 +368,7 @@ internal sealed class DirectRefusingGuard : ICommandGuard<OrderedCommand>
     }
 
     /// <inheritdoc />
-    public Task<Verdict> CheckAsync(OrderedCommand message, CancellationToken cancellationToken = default)
+    public Task<Verdict> DecideAsync(OrderedCommand message, CancellationToken cancellationToken = default)
     {
         _recorder.Observed.Add("guard");
         return Task.FromResult(Verdict.Deny("the caller is not permitted"));
@@ -413,6 +405,39 @@ internal sealed class OrderedCommandHandler : ICommandHandler<OrderedCommand>
 /// <summary>
 ///     Records that the pre-handler stage ran after both decision stages allowed the message.
 /// </summary>
+/// <summary>
+///     A validator that accepts every ordered command, used to observe the stage order on the success path.
+/// </summary>
+/// <remarks>
+///     Carries a priority ahead of the guard's, which under priority ordering alone would run it first. The stage order
+///     has to beat that.
+/// </remarks>
+[HandlerPriority(1)]
+internal sealed class AllowingOrderedValidator : ICommandValidator<OrderedCommand>
+{
+    /// <summary>
+    ///     The recorder shared with the test.
+    /// </summary>
+    private readonly StageOrderRecorder _recorder;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="AllowingOrderedValidator" /> class.
+    /// </summary>
+    /// <param name="recorder">The recorder shared with the test.</param>
+    public AllowingOrderedValidator(StageOrderRecorder recorder)
+    {
+        _recorder = recorder;
+    }
+
+    /// <inheritdoc />
+    public Task<Validity> ValidateAsync(OrderedCommand message, CancellationToken cancellationToken = default)
+    {
+        _recorder.Observed.Add("validator");
+
+        return Task.FromResult(Validity.Valid);
+    }
+}
+
 internal sealed class OrderedCommandPreHandler : ICommandPreHandler<OrderedCommand>
 {
     /// <summary>
@@ -458,7 +483,7 @@ internal sealed class AllowingOrderedGuard : ICommandGuard<OrderedCommand>
     }
 
     /// <inheritdoc />
-    public Task<Verdict> CheckAsync(OrderedCommand message, CancellationToken cancellationToken = default)
+    public Task<Verdict> DecideAsync(OrderedCommand message, CancellationToken cancellationToken = default)
     {
         _recorder.Observed.Add("guard");
         return Task.FromResult(Verdict.Allow);

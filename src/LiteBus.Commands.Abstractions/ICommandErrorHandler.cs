@@ -11,4 +11,4 @@ namespace LiteBus.Commands.Abstractions;
 ///     Multiple error handlers can be registered to implement different error handling strategies such as
 ///     logging, notifications, or custom recovery logic for all commands.
 /// </remarks>
-public interface ICommandErrorHandler : IAsyncMessageErrorHandler<ICommand, object>;
+public interface ICommandErrorHandler : IMessageErrorHandler<ICommand, object>;

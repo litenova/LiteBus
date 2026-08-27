@@ -11,4 +11,4 @@ namespace LiteBus.Commands.Abstractions;
 ///     Multiple pre-handlers can be registered in the application and they will all execute before each command is
 ///     handled.
 /// </remarks>
-public interface ICommandPreHandler : IAsyncMessagePreHandler<ICommand>;
+public interface ICommandPreHandler : IMessagePreHandler<ICommand>;

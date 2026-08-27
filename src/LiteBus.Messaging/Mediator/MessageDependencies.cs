@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
@@ -18,6 +18,11 @@ internal sealed class MessageDependencies : IMessageDependencies
     ///     The concrete runtime type of the message being mediated.
     /// </summary>
     private readonly Type _messageType;
+
+    /// <summary>
+    ///     One bit per <see cref="PipelineStage" /> that has at least one handler, computed once at resolution.
+    /// </summary>
+    private readonly int _occupiedPreStages;
 
     /// <summary>
     ///     The mediation tags used to filter handlers by tag intersection.
@@ -45,8 +50,8 @@ internal sealed class MessageDependencies : IMessageDependencies
         MainHandlers = ResolveHandlers(descriptor.Handlers, handlerType => (IMessageHandler) serviceProvider.GetRequiredService(handlerType));
         IndirectMainHandlers = ResolveHandlers(descriptor.IndirectHandlers, handlerType => (IMessageHandler) serviceProvider.GetRequiredService(handlerType));
 
-        PreHandlers = ResolveHandlers(descriptor.PreHandlers, handlerType => (IMessagePreHandler) serviceProvider.GetRequiredService(handlerType));
-        IndirectPreHandlers = ResolveHandlers(descriptor.IndirectPreHandlers, handlerType => (IMessagePreHandler) serviceProvider.GetRequiredService(handlerType));
+        PreHandlers = ResolveHandlers(descriptor.PreHandlers, handlerType => (IMessagePreStageHandler) serviceProvider.GetRequiredService(handlerType));
+        IndirectPreHandlers = ResolveHandlers(descriptor.IndirectPreHandlers, handlerType => (IMessagePreStageHandler) serviceProvider.GetRequiredService(handlerType));
 
         PostHandlers = ResolveHandlers(descriptor.PostHandlers, handlerType => (IMessagePostHandler) serviceProvider.GetRequiredService(handlerType));
         IndirectPostHandlers = ResolveHandlers(descriptor.IndirectPostHandlers, handlerType => (IMessagePostHandler) serviceProvider.GetRequiredService(handlerType));
@@ -56,6 +61,9 @@ internal sealed class MessageDependencies : IMessageDependencies
 
         CompletionHandlers = ResolveHandlers(descriptor.CompletionHandlers, handlerType => (IMessageCompletionHandler) serviceProvider.GetRequiredService(handlerType));
         IndirectCompletionHandlers = ResolveHandlers(descriptor.IndirectCompletionHandlers, handlerType => (IMessageCompletionHandler) serviceProvider.GetRequiredService(handlerType));
+        RefusalMappers = ResolveHandlers(descriptor.RefusalMappers, handlerType => (IMessageRefusalMapper) serviceProvider.GetRequiredService(handlerType));
+        IndirectRefusalMappers = ResolveHandlers(descriptor.IndirectRefusalMappers, handlerType => (IMessageRefusalMapper) serviceProvider.GetRequiredService(handlerType));
+        _occupiedPreStages = ComputeOccupiedPreStages(PreHandlers, IndirectPreHandlers);
     }
 
     /// <inheritdoc />
@@ -65,10 +73,10 @@ internal sealed class MessageDependencies : IMessageDependencies
     public ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> IndirectMainHandlers { get; }
 
     /// <inheritdoc />
-    public ILazyHandlerCollection<IMessagePreHandler, IPreHandlerDescriptor> PreHandlers { get; }
+    public ILazyHandlerCollection<IMessagePreStageHandler, IPreHandlerDescriptor> PreHandlers { get; }
 
     /// <inheritdoc />
-    public ILazyHandlerCollection<IMessagePreHandler, IPreHandlerDescriptor> IndirectPreHandlers { get; }
+    public ILazyHandlerCollection<IMessagePreStageHandler, IPreHandlerDescriptor> IndirectPreHandlers { get; }
 
     /// <inheritdoc />
     public ILazyHandlerCollection<IMessagePostHandler, IPostHandlerDescriptor> PostHandlers { get; }
@@ -87,6 +95,43 @@ internal sealed class MessageDependencies : IMessageDependencies
 
     /// <inheritdoc />
     public ILazyHandlerCollection<IMessageCompletionHandler, ICompletionHandlerDescriptor> IndirectCompletionHandlers { get; }
+
+    /// <inheritdoc />
+    public ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> RefusalMappers { get; }
+
+    /// <inheritdoc />
+    public ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> IndirectRefusalMappers { get; }
+
+    /// <inheritdoc />
+    public bool HasPreStageHandlers(PipelineStage stage)
+    {
+        return (_occupiedPreStages & (1 << (int) stage)) != 0;
+    }
+
+    /// <summary>
+    ///     Builds the stage-occupancy mask from the resolved pre-stage descriptors.
+    /// </summary>
+    /// <param name="preHandlers">The pre-stage handlers registered for the message type itself.</param>
+    /// <param name="indirectPreHandlers">The pre-stage handlers registered for a base type or interface.</param>
+    /// <returns>A mask with one bit set per stage that has at least one handler.</returns>
+    private static int ComputeOccupiedPreStages(
+        ILazyHandlerCollection<IMessagePreStageHandler, IPreHandlerDescriptor> preHandlers,
+        ILazyHandlerCollection<IMessagePreStageHandler, IPreHandlerDescriptor> indirectPreHandlers)
+    {
+        var mask = 0;
+
+        foreach (var preHandler in preHandlers)
+        {
+            mask |= 1 << (int) preHandler.Descriptor.Stage;
+        }
+
+        foreach (var preHandler in indirectPreHandlers)
+        {
+            mask |= 1 << (int) preHandler.Descriptor.Stage;
+        }
+
+        return mask;
+    }
 
     /// <summary>
     ///     Resolves handlers from the provided descriptors and a handler resolution function.

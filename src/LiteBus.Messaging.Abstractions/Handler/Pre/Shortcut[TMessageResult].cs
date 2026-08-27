@@ -4,111 +4,81 @@ using System.Collections.Generic;
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     The answer a shortcut over a message that produces a result returns, carrying a result the compiler has checked.
+///     The answer a shortcut returns for a message that produces a result: here is the result, or carry on.
 /// </summary>
-/// <typeparam name="TMessageResult">The result type of the message the shortcut runs for.</typeparam>
+/// <typeparam name="TMessageResult">The type of result the message produces.</typeparam>
 /// <remarks>
 ///     <para>
-///         A shortcut that answers has to supply the value the caller receives, because the main handler never runs.
-///         Typing the answer over the result type is what turns supplying the wrong value from a runtime configuration
-///         error into a compile error.
+///         <see cref="None" /> is the default, so a shortcut that has no answer returns it without allocating.
 ///     </para>
 ///     <para>
-///         Answering is not refusing. The mediation reports <see cref="MessageOutcome.ShortCircuited" /> and an audit
-///         trail records a success, because a cache hit refused nobody. A guard refuses.
+///         Answering always supplies the result, because a shortcut is standing in for the main handler and the caller
+///         is owed the value that handler would have produced. There is no way to answer a result-returning message
+///         without one; a stream query that means "no items" answers with an empty sequence, which says the same thing
+///         explicitly:
+///     </para>
+///     <code>
+///     Shortcut&lt;IAsyncEnumerable&lt;Product&gt;&gt;.Answer(AsyncEnumerable.Empty&lt;Product&gt;())
+///     </code>
+///     <para>
+///         Answering reports <see cref="MessageOutcome.Answered" />, which an audit trail records as a success, because
+///         nothing was refused. Refusing is a guard's job and reports <see cref="MessageOutcome.Denied" />.
 ///     </para>
 /// </remarks>
-/// <example>
-///     <code><![CDATA[
-/// public sealed class ServeProductFromCache : IQueryShortcut<GetProductQuery, ProductView>
-/// {
-///     public async Task<Shortcut<ProductView>> TryAnswerAsync(
-///         GetProductQuery query,
-///         CancellationToken cancellationToken = default)
-///     {
-///         var cached = await _cache.TryGetAsync(query.ProductId, cancellationToken);
-///
-///         return cached is null
-///             ? Shortcut<ProductView>.None
-///             : Shortcut<ProductView>.Answer(cached, "served from cache");
-///     }
-/// }
-/// ]]></code>
-/// </example>
 public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageResult>>
 {
     /// <summary>
     ///     Initializes a new instance of the <see cref="Shortcut{TMessageResult}" /> struct.
     /// </summary>
-    /// <param name="isAnswered">Whether the shortcut answered for the main handler.</param>
-    /// <param name="hasResult">Whether the shortcut supplied the result the caller receives.</param>
-    /// <param name="result">The result returned to the caller.</param>
-    /// <param name="reason">The reason the main handler was skipped.</param>
-    private Shortcut(bool isAnswered, bool hasResult, TMessageResult? result, string? reason)
+    /// <param name="isAnswered">Whether the shortcut answered the message.</param>
+    /// <param name="result">The result the shortcut supplied.</param>
+    /// <param name="reason">Why the shortcut answered.</param>
+    private Shortcut(bool isAnswered, TMessageResult? result, string? reason)
     {
         IsAnswered = isAnswered;
-        HasResult = hasResult;
         Result = result;
         Reason = reason;
     }
 
     /// <summary>
-    ///     Gets a shortcut that supplies no answer, so the mediation proceeds.
+    ///     Gets the answer a shortcut returns when it has none, letting the mediation proceed.
     /// </summary>
+    /// <value>The default value, so returning it allocates nothing.</value>
     public static Shortcut<TMessageResult> None => default;
 
     /// <summary>
-    ///     Gets a value indicating whether the shortcut answered for the main handler.
+    ///     Gets a value indicating whether the shortcut answered the message.
     /// </summary>
+    /// <value><see langword="true" /> when the main handler must not run.</value>
     public bool IsAnswered { get; }
 
     /// <summary>
-    ///     Gets a value indicating whether the shortcut supplied the result the caller receives.
+    ///     Gets the result the shortcut supplied.
     /// </summary>
-    public bool HasResult { get; }
-
-    /// <summary>
-    ///     Gets the result the caller receives instead of the one the main handler would have produced.
-    /// </summary>
-    /// <remarks>
-    ///     Meaningful only when <see cref="HasResult" /> is <see langword="true" />.
-    /// </remarks>
+    /// <value>
+    ///     The value the caller receives when <see cref="IsAnswered" /> is <see langword="true" />. A shortcut may answer
+    ///     with <see langword="null" /> when the result type is nullable.
+    /// </value>
     public TMessageResult? Result { get; }
 
     /// <summary>
-    ///     Gets the reason the main handler was skipped.
+    ///     Gets the reason the shortcut answered.
     /// </summary>
+    /// <value>
+    ///     The reason, which reaches completion handlers and the audit trail, or <see langword="null" /> when the
+    ///     shortcut gave none.
+    /// </value>
     public string? Reason { get; }
 
     /// <summary>
-    ///     Creates a shortcut that answers for the main handler.
+    ///     Answers the message with the given result, so the main handler never runs.
     /// </summary>
-    /// <param name="result">The result the caller receives instead of the one the main handler would have produced.</param>
-    /// <param name="reason">The reason the main handler was skipped.</param>
-    /// <returns>An answering shortcut.</returns>
-    /// <remarks>
-    ///     The mediation reports <see cref="MessageOutcome.ShortCircuited" />, and an audit trail records a success,
-    ///     because nothing was refused.
-    /// </remarks>
+    /// <param name="result">The value the caller receives in place of the one the main handler would have produced.</param>
+    /// <param name="reason">Why the answer was already known, recorded by completion handlers and the audit trail.</param>
+    /// <returns>A shortcut that stops the pipeline and reports <see cref="MessageOutcome.Answered" />.</returns>
     public static Shortcut<TMessageResult> Answer(TMessageResult result, string? reason = null)
     {
-        return new Shortcut<TMessageResult>(isAnswered: true, hasResult: true, result, reason);
-    }
-
-    /// <summary>
-    ///     Creates a shortcut that skips the main handler without supplying a result.
-    /// </summary>
-    /// <param name="reason">The reason the main handler was skipped.</param>
-    /// <returns>An answering shortcut that supplies no result.</returns>
-    /// <remarks>
-    ///     This is meaningful for a stream, where supplying no stream is a legitimate answer and means the caller
-    ///     enumerates nothing. For any other message that produces a result, the mediation has nothing to hand back and
-    ///     raises <see cref="Runtime.Abstractions.Exceptions.LiteBusConfigurationException" />; use
-    ///     <see cref="Answer" /> there.
-    /// </remarks>
-    public static Shortcut<TMessageResult> Skip(string? reason = null)
-    {
-        return new Shortcut<TMessageResult>(isAnswered: true, hasResult: false, result: default, reason);
+        return new Shortcut<TMessageResult>(isAnswered: true, result, reason);
     }
 
     /// <summary>
@@ -116,7 +86,7 @@ public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageRe
     /// </summary>
     /// <param name="left">The first shortcut.</param>
     /// <param name="right">The second shortcut.</param>
-    /// <returns><see langword="true" /> when the shortcuts are equal.</returns>
+    /// <returns><see langword="true" /> when both carry the same answer.</returns>
     public static bool operator ==(Shortcut<TMessageResult> left, Shortcut<TMessageResult> right)
     {
         return left.Equals(right);
@@ -127,7 +97,7 @@ public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageRe
     /// </summary>
     /// <param name="left">The first shortcut.</param>
     /// <param name="right">The second shortcut.</param>
-    /// <returns><see langword="true" /> when the shortcuts differ.</returns>
+    /// <returns><see langword="true" /> when they carry different answers.</returns>
     public static bool operator !=(Shortcut<TMessageResult> left, Shortcut<TMessageResult> right)
     {
         return !left.Equals(right);
@@ -137,7 +107,6 @@ public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageRe
     public bool Equals(Shortcut<TMessageResult> other)
     {
         return IsAnswered == other.IsAnswered
-               && HasResult == other.HasResult
                && EqualityComparer<TMessageResult?>.Default.Equals(Result, other.Result)
                && string.Equals(Reason, other.Reason, StringComparison.Ordinal);
     }
@@ -151,17 +120,19 @@ public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageRe
     /// <inheritdoc />
     public override int GetHashCode()
     {
-        return HashCode.Combine(IsAnswered, HasResult, Result, Reason);
+        return HashCode.Combine(IsAnswered, Result, Reason);
     }
 
     /// <summary>
-    ///     Converts this shortcut to the stop the pipeline acts on.
+    ///     Converts this shortcut to the pipeline decision the stage runner acts on.
     /// </summary>
-    /// <returns>The stop for an answer, or <see cref="PipelineStop.None" /> when the mediation proceeds.</returns>
+    /// <returns>
+    ///     A stop carrying the result when the shortcut answered, otherwise <see cref="PipelineStop.None" />.
+    /// </returns>
     internal PipelineStop ToStop()
     {
         return IsAnswered
-            ? PipelineStop.ShortCircuited(Reason, HasResult, Result)
+            ? PipelineStop.Answered(Reason, hasResult: true, Result)
             : PipelineStop.None;
     }
 }

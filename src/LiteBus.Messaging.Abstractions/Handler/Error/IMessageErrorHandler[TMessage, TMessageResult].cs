@@ -10,7 +10,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// </summary>
 /// <typeparam name="TMessage">The type of the message that this error handler is applicable to.</typeparam>
 /// <typeparam name="TMessageResult">The type of the result produced by the message processing.</typeparam>
-public interface IAsyncMessageErrorHandler<TMessage, TMessageResult> : IMessageErrorHandler where TMessage : notnull
+public interface IMessageErrorHandler<TMessage, TMessageResult> : IMessageErrorHandler where TMessage : notnull
 {
     /// <summary>
     ///     Adapts the untyped runtime context to the handler's typed context while preserving shared outcome state.

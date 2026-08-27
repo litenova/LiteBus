@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -74,7 +74,7 @@ public sealed record AuditRecord
     /// </summary>
     /// <remarks>
     ///     Defaults to the exception type name when the mediation failed, so a trail is useful before an application
-    ///     defines its own failure taxonomy. A gate denial carries no code, because <see cref="Outcome" /> and
+    ///     defines its own failure taxonomy. A guard denial carries no code, because <see cref="Outcome" /> and
     ///     <see cref="Reason" /> already say what happened and why.
     /// </remarks>
     public string? FailureCode { get; init; }

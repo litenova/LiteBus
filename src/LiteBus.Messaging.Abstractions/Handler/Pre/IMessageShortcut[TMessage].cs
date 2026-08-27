@@ -11,14 +11,17 @@ namespace LiteBus.Messaging.Abstractions;
 /// <remarks>
 ///     <para>
 ///         A shortcut answers "is this already done", and nothing else. Refusing belongs to
-///         <see cref="IMessageGuard{TMessage}" />, and the split is what lets the framework run every guard first. The
-///         mediation reports <see cref="MessageOutcome.ShortCircuited" /> and an audit trail records a success, because
-///         skipping redundant work refused nobody.
+///         <see cref="IMessageGuard{TMessage}" /> and well-formedness to <see cref="IMessageValidator{TMessage}" />, and
+///         the split is what lets the framework run both of those first. The mediation reports
+///         <see cref="MessageOutcome.Answered" /> and an audit trail records a success, because skipping redundant work
+///         refused nobody.
 ///     </para>
 ///     <para>
-///         Shortcuts run after guards and before pre-handlers, so a message that is about to be skipped does not pay
-///         for the validation and enrichment it would have skipped anyway. A shortcut that needs prepared state resolves
-///         it from the container rather than relying on a pre-handler.
+///         Shortcuts run after guards and validators and before pre-handlers. Running last among the decision stages
+///         means a shortcut only ever sees a message the caller was allowed to send and whose contents are well-formed,
+///         so a malformed message cannot claim an idempotency key. Running before pre-handlers means a message that is
+///         about to be skipped does not pay for the enrichment it would have skipped anyway; a shortcut that needs
+///         prepared state resolves it from the container rather than relying on a pre-handler.
 ///     </para>
 ///     <para>
 ///         This shape is for messages that produce no result. Use
@@ -31,7 +34,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///         <see cref="IExecutionContext.SuppressPostHandlers" /> instead.
 ///     </para>
 /// </remarks>
-public interface IMessageShortcut<in TMessage> : IMessagePreHandler
+public interface IMessageShortcut<in TMessage> : IMessagePreStageHandler
     where TMessage : notnull
 {
     /// <summary>

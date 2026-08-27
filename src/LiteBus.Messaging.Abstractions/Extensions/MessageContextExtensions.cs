@@ -1,8 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -45,6 +47,13 @@ public static class MessageContextExtensions
             return stop;
         }
 
+        stop = await messageDependencies.RunAsyncValidators(message, cancellationToken).ConfigureAwait(false);
+
+        if (stop.StopsPipeline)
+        {
+            return stop;
+        }
+
         stop = await messageDependencies.RunAsyncShortcuts(message, cancellationToken).ConfigureAwait(false);
 
         if (stop.StopsPipeline)
@@ -74,6 +83,50 @@ public static class MessageContextExtensions
     }
 
     /// <summary>
+    ///     Runs the validator stage, collecting the failures every validator reported.
+    /// </summary>
+    /// <param name="messageDependencies">The message dependencies encapsulating pre-stage handlers.</param>
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="cancellationToken">The cancellation token passed to each validator invocation.</param>
+    /// <returns>
+    ///     A stop carrying every failure the stage collected, or <see cref="PipelineStop.None" /> when the message is
+    ///     well-formed.
+    /// </returns>
+    /// <remarks>
+    ///     Unlike the guard and shortcut stages, this one does not stop at the first decision. Every validator runs and
+    ///     their failures are gathered into one stop, because a caller fixing a malformed message wants all of them at
+    ///     once rather than one per round trip.
+    /// </remarks>
+    public static async Task<PipelineStop> RunAsyncValidators(
+        this IMessageDependencies messageDependencies,
+        object message,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(messageDependencies);
+
+        if (!messageDependencies.HasPreStageHandlers(PipelineStage.Validator))
+        {
+            return PipelineStop.None;
+        }
+
+        List<ValidationFailure>? failures = null;
+
+        foreach (var validator in messageDependencies.IndirectPreHandlers)
+        {
+            failures = await CollectValidationFailuresAsync(validator, message, failures, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        foreach (var validator in messageDependencies.PreHandlers)
+        {
+            failures = await CollectValidationFailuresAsync(validator, message, failures, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return failures is null ? PipelineStop.None : PipelineStop.Invalid(failures);
+    }
+
+    /// <summary>
     ///     Runs the shortcut stage until one shortcut answers the message.
     /// </summary>
     /// <param name="messageDependencies">The message dependencies encapsulating pre-handlers.</param>
@@ -92,14 +145,14 @@ public static class MessageContextExtensions
     }
 
     /// <summary>
-    ///     Runs the pre-handler stage, where validation and enrichment happen.
+    ///     Runs the pre-handler stage, where a message that is going to be handled is prepared.
     /// </summary>
     /// <param name="messageDependencies">The message dependencies encapsulating pre-handlers.</param>
     /// <param name="message">The message to be pre-handled.</param>
     /// <param name="cancellationToken">The cancellation token passed to each pre-handler invocation.</param>
     /// <returns>
-    ///     Always <see cref="PipelineStop.None" />, because a pre-handler cannot stop the pipeline by returning. A
-    ///     pre-handler that fails validation throws, which ends the mediation as a fault rather than a decision.
+    ///     Always <see cref="PipelineStop.None" />, because a pre-handler cannot stop the pipeline by returning.
+    ///     Throwing ends the mediation as a fault rather than a decision.
     /// </returns>
     public static Task<PipelineStop> RunAsyncPreHandlers(
         this IMessageDependencies messageDependencies,
@@ -107,6 +160,90 @@ public static class MessageContextExtensions
         CancellationToken cancellationToken)
     {
         return messageDependencies.RunStage(PipelineStage.PreHandler, message, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Turns a refusal into the result the caller receives, or raises when no mapper covers the message.
+    /// </summary>
+    /// <typeparam name="TMessageResult">The type of result the message produces.</typeparam>
+    /// <param name="messageDependencies">The message dependencies encapsulating the registered refusal mappers.</param>
+    /// <param name="message">The message that was refused.</param>
+    /// <param name="stop">The refusal produced by a guard or the validator stage.</param>
+    /// <returns>The result the caller receives in place of the one the main handler would have produced.</returns>
+    /// <exception cref="LiteBusMessageDeniedException">A guard refused and no mapper covers the message.</exception>
+    /// <exception cref="LiteBusMessageInvalidException">
+    ///     The validator stage reported failures and no mapper covers the message.
+    /// </exception>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     More than one mapper is registered at the same level of specificity, so which one applies would depend on
+    ///     assembly scanning order.
+    /// </exception>
+    /// <remarks>
+    ///     A mapper registered for the concrete message type wins over one registered for a base type or interface,
+    ///     matching how the rest of the pipeline resolves direct against indirect registrations. That is what lets an
+    ///     application register one mapper for a whole axis and override it for a single message.
+    /// </remarks>
+    [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
+    public static TMessageResult ResolveRefusalResult<TMessageResult>(
+        this IMessageDependencies messageDependencies,
+        object message,
+        PipelineStop stop)
+    {
+        ArgumentNullException.ThrowIfNull(messageDependencies);
+        ArgumentNullException.ThrowIfNull(message);
+
+        var mapper = SelectRefusalMapper<TMessageResult>(messageDependencies.RefusalMappers, message)
+                     ?? SelectRefusalMapper<TMessageResult>(messageDependencies.IndirectRefusalMappers, message);
+
+        if (mapper is null)
+        {
+            throw stop.CreateRefusalException(message.GetType());
+        }
+
+        var mapped = PipelineHandlerInvoker.InvokeRefusalMapper(
+            mapper.Value.Handler.Value,
+            mapper.Value.Descriptor,
+            message,
+            stop.ToRefusal());
+
+        return (TMessageResult) mapped!;
+    }
+
+    /// <summary>
+    ///     Selects the single refusal mapper in one collection that produces the result the caller expects.
+    /// </summary>
+    /// <typeparam name="TMessageResult">The type of result the message produces.</typeparam>
+    /// <param name="mappers">The direct or indirect mappers registered for the message.</param>
+    /// <param name="message">The message that was refused.</param>
+    /// <returns>The mapper to invoke, or <see langword="null" /> when this collection holds none that applies.</returns>
+    /// <exception cref="LiteBusConfigurationException">The collection holds more than one applicable mapper.</exception>
+    private static LazyHandler<IMessageRefusalMapper, IRefusalMapperDescriptor>? SelectRefusalMapper<TMessageResult>(
+        ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> mappers,
+        object message)
+    {
+        LazyHandler<IMessageRefusalMapper, IRefusalMapperDescriptor>? selected = null;
+
+        foreach (var mapper in mappers)
+        {
+            if (!mapper.Descriptor.MessageResultType.IsAssignableTo(typeof(TMessageResult)))
+            {
+                continue;
+            }
+
+            if (selected is not null)
+            {
+                throw new LiteBusConfigurationException(
+                    $"'{message.GetType().Name}' has more than one refusal mapper producing "
+                    + $"'{typeof(TMessageResult).Name}' registered at the same level: "
+                    + $"'{selected.Value.Descriptor.HandlerType.Name}' and '{mapper.Descriptor.HandlerType.Name}'. "
+                    + "Which one applied would depend on assembly scanning order, so remove one, or register the one "
+                    + "that should win against the concrete message type so it takes precedence.");
+            }
+
+            selected = mapper;
+        }
+
+        return selected;
     }
 
     /// <summary>
@@ -266,7 +403,7 @@ public static class MessageContextExtensions
     /// <param name="outcome">The outcome describing how the mediation ended.</param>
     /// <param name="messageResult">The result observed before the mediation ended, when any.</param>
     /// <param name="exception">The exception that ended the mediation, when any.</param>
-    /// <param name="reason">The reason a gate gave for stopping the pipeline, when one did.</param>
+    /// <param name="reason">The reason a decision gave for stopping the pipeline, when one did.</param>
     /// <param name="duration">The elapsed mediation time.</param>
     /// <returns>A task representing the asynchronous completion stage.</returns>
     public static async Task RunAsyncCompletionHandlers(
@@ -315,9 +452,10 @@ public static class MessageContextExtensions
     ///     handler in the stage let it proceed.
     /// </returns>
     /// <remarks>
-    ///     Guards, shortcuts, and pre-handlers share one descriptor collection, ordered once by priority, so a stage is
-    ///     a filtered pass over it rather than a separate collection. Indirect handlers run first, matching the existing
-    ///     rule that a globally registered cross-cutting concern wraps a message-specific one.
+    ///     Every pre-stage role shares one descriptor collection, ordered once by priority, so a stage is a filtered
+    ///     pass over it rather than a separate collection. Indirect handlers run first, matching the existing rule that
+    ///     a globally registered cross-cutting concern wraps a message-specific one. The validator stage does not use
+    ///     this runner, because it collects failures instead of stopping at the first.
     /// </remarks>
     private static async Task<PipelineStop> RunStage(
         this IMessageDependencies messageDependencies,
@@ -325,6 +463,13 @@ public static class MessageContextExtensions
         object message,
         CancellationToken cancellationToken)
     {
+        // Most messages carry no guard or shortcut at all, and a stage that holds nothing should not cost an
+        // enumerator over the shared descriptor collection to discover that.
+        if (!messageDependencies.HasPreStageHandlers(stage))
+        {
+            return PipelineStop.None;
+        }
+
         foreach (var preHandler in messageDependencies.IndirectPreHandlers)
         {
             if (preHandler.Descriptor.Stage != stage)
@@ -406,5 +551,43 @@ public static class MessageContextExtensions
         CancellationToken cancellationToken)
     {
         return PipelineHandlerInvocation.InvokeErrorHandlerAsync(handler, context, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Runs one handler when it belongs to the validator stage, adding whatever it reported to the collected set.
+    /// </summary>
+    /// <param name="handler">The pre-stage handler being considered.</param>
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="failures">The failures collected so far, or null when nothing has failed yet.</param>
+    /// <param name="cancellationToken">The cancellation token passed to the validator invocation.</param>
+    /// <returns>The collected failures, still null when the stage has found nothing wrong.</returns>
+    /// <remarks>
+    ///     The list is allocated only once something fails, so a message that validates cleanly costs nothing beyond the
+    ///     stage filter.
+    /// </remarks>
+    private static async Task<List<ValidationFailure>?> CollectValidationFailuresAsync(
+        LazyHandler<IMessagePreStageHandler, IPreHandlerDescriptor> handler,
+        object message,
+        List<ValidationFailure>? failures,
+        CancellationToken cancellationToken)
+    {
+        if (handler.Descriptor.Stage != PipelineStage.Validator)
+        {
+            return failures;
+        }
+
+        var stop = await PipelineHandlerInvoker
+            .InvokePreHandlerAsync(handler.Handler.Value, handler.Descriptor, message, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!stop.StopsPipeline)
+        {
+            return failures;
+        }
+
+        failures ??= [];
+        failures.AddRange(stop.Failures);
+
+        return failures;
     }
 }

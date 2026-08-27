@@ -1,146 +1,197 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Describes a decision stage that ended the mediation before the main handler ran, carrying why it ended and what
-///     the caller receives.
+///     Carries a pre-stage decision from the handler that made it to the mediation strategy that acts on it.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         This is the single currency the pipeline acts on once a <see cref="Verdict" /> or a <see cref="Shortcut" />
-///         has been returned. Applications write guards and shortcuts and never construct this type; mediation
-///         strategies, including custom ones, read it to learn which outcome to report, what to hand back, and whether
-///         a refusal has to surface as an exception because there is nothing to hand back.
+///         This is infrastructure. Handlers return <see cref="Verdict" />, <see cref="Validity" />, or
+///         <see cref="Shortcut" />, and the stage runner converts whichever it received into one of these so every
+///         strategy can act on a single shape.
 ///     </para>
 ///     <para>
-///         Keeping the three answers on one type is what stops strategies from drifting apart on the meaning of a
-///         refusal.
+///         Two kinds of stop exist and they are not interchangeable. A refusal from a guard or a validator carries no
+///         result, because a refusal does not owe the caller the value the main handler would have produced; the value a
+///         refused caller receives comes from an <see cref="IMessageRefusalMapper{TMessage,TMessageResult}" /> when one
+///         is registered, and otherwise the refusal reaches the caller as an exception. An answer from a shortcut
+///         carries the result itself, because a shortcut is supplying the value the handler would have produced.
 ///     </para>
 /// </remarks>
 public readonly struct PipelineStop : IEquatable<PipelineStop>
 {
     /// <summary>
+    ///     The empty list returned for any decision other than a validation failure, shared to avoid allocating.
+    /// </summary>
+    private static readonly IReadOnlyList<ValidationFailure> NoFailures = [];
+
+    /// <summary>
+    ///     The failures the validator stage collected, or null for any other decision.
+    /// </summary>
+    private readonly IReadOnlyList<ValidationFailure>? _failures;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="PipelineStop" /> struct.
     /// </summary>
-    /// <param name="stopsPipeline">Whether the stage ended the mediation.</param>
+    /// <param name="stopsPipeline">Whether the decision stops the pipeline.</param>
     /// <param name="outcome">The outcome the mediation reports.</param>
-    /// <param name="hasResult">Whether the stage supplied the result the caller receives.</param>
-    /// <param name="result">The result returned to the caller.</param>
-    /// <param name="reason">The reason the mediation ended.</param>
-    private PipelineStop(bool stopsPipeline, MessageOutcome outcome, bool hasResult, object? result, string? reason)
+    /// <param name="hasResult">Whether a shortcut supplied a result.</param>
+    /// <param name="result">The result a shortcut supplied.</param>
+    /// <param name="reason">The reason the decision supplied.</param>
+    /// <param name="code">The code the decision supplied.</param>
+    /// <param name="failures">The failures a validator collected.</param>
+    private PipelineStop(
+        bool stopsPipeline,
+        MessageOutcome outcome,
+        bool hasResult,
+        object? result,
+        string? reason,
+        string? code,
+        IReadOnlyList<ValidationFailure>? failures)
     {
         StopsPipeline = stopsPipeline;
         Outcome = outcome;
         HasResult = hasResult;
         Result = result;
         Reason = reason;
+        Code = code;
+        _failures = failures;
     }
 
     /// <summary>
-    ///     Gets a value indicating that the stage let the mediation proceed.
+    ///     Gets the decision that lets the pipeline continue.
     /// </summary>
+    /// <value>The default value, so a handler that decides nothing allocates nothing.</value>
     public static PipelineStop None => default;
 
     /// <summary>
-    ///     Gets a value indicating whether the stage ended the mediation before the main handler ran.
+    ///     Gets a value indicating whether the pipeline stops here.
     /// </summary>
+    /// <value><see langword="true" /> when the main handler must not run.</value>
     public bool StopsPipeline { get; }
 
     /// <summary>
-    ///     Gets the outcome the mediation reports.
+    ///     Gets the outcome the mediation reports for this decision.
     /// </summary>
-    /// <remarks>
-    ///     Meaningful only when <see cref="StopsPipeline" /> is <see langword="true" />, where it is either
-    ///     <see cref="MessageOutcome.Denied" /> for a refusal or <see cref="MessageOutcome.ShortCircuited" /> for an
-    ///     answer that was already known.
-    /// </remarks>
+    /// <value>
+    ///     <see cref="MessageOutcome.Denied" /> for a guard refusal, <see cref="MessageOutcome.Invalid" /> for a
+    ///     validation failure, or <see cref="MessageOutcome.Answered" /> for a shortcut.
+    /// </value>
     public MessageOutcome Outcome { get; }
 
     /// <summary>
-    ///     Gets a value indicating whether the stage supplied the result the caller receives.
+    ///     Gets a value indicating whether a shortcut supplied a result.
     /// </summary>
-    /// <remarks>
-    ///     This is distinct from <see cref="Result" /> being <see langword="null" />, because a message whose result type
-    ///     is nullable may legitimately be answered with a null result.
-    /// </remarks>
+    /// <value><see langword="true" /> when <see cref="Result" /> holds the value the caller receives.</value>
     public bool HasResult { get; }
 
     /// <summary>
-    ///     Gets the result returned to the caller.
+    ///     Gets the result a shortcut supplied.
     /// </summary>
-    /// <remarks>
-    ///     Meaningful only when <see cref="HasResult" /> is <see langword="true" />. A contract typed over the result is
-    ///     the only way to supply one, so the compiler checks that it matches the result type of the message.
-    /// </remarks>
+    /// <value>The value the caller receives, or <see langword="null" /> when no shortcut supplied one.</value>
     public object? Result { get; }
 
     /// <summary>
-    ///     Gets the reason the mediation ended.
+    ///     Gets the reason the decision supplied.
     /// </summary>
-    /// <remarks>
-    ///     A stopped mediation reaches neither post-handlers nor error handlers, so this reason is the only description
-    ///     of why the message ended. It reaches completion handlers as <see cref="MessageCompletionContext.Reason" /> and
-    ///     an audit trail as the reason on the record. It is always present on a refusal.
-    /// </remarks>
+    /// <value>The reason, or <see langword="null" /> when the decision supplied none.</value>
     public string? Reason { get; }
 
     /// <summary>
-    ///     Gets a value indicating whether a refusal supplied no value for the caller to receive.
+    ///     Gets the code the decision supplied.
     /// </summary>
-    /// <remarks>
-    ///     A refusal in this shape reaches the caller as <see cref="LiteBusMessageDeniedException" />, because a method
-    ///     that must return a value has nothing to return.
-    /// </remarks>
-    public bool IsUnansweredDenial => Outcome == MessageOutcome.Denied && !HasResult;
+    /// <value>The machine-readable code, or <see langword="null" /> when the decision supplied none.</value>
+    public string? Code { get; }
 
     /// <summary>
-    ///     Determines whether two stops are equal.
+    ///     Gets the failures a validator collected.
     /// </summary>
-    /// <param name="left">The first stop.</param>
-    /// <param name="right">The second stop.</param>
-    /// <returns><see langword="true" /> when the stops are equal.</returns>
+    /// <value>Every failure the validator stage reported, or an empty list for any other decision.</value>
+    public IReadOnlyList<ValidationFailure> Failures => _failures ?? NoFailures;
+
+    /// <summary>
+    ///     Gets a value indicating whether this decision refused the message.
+    /// </summary>
+    /// <value>
+    ///     <see langword="true" /> for a guard refusal or a validation failure, which are the decisions a refusal mapper
+    ///     covers. A shortcut answer is not a refusal.
+    /// </value>
+    public bool IsRefusal => Outcome is MessageOutcome.Denied or MessageOutcome.Invalid;
+
+    /// <summary>
+    ///     Determines whether two decisions are equal.
+    /// </summary>
+    /// <param name="left">The first decision.</param>
+    /// <param name="right">The second decision.</param>
+    /// <returns><see langword="true" /> when both carry the same decision.</returns>
     public static bool operator ==(PipelineStop left, PipelineStop right)
     {
         return left.Equals(right);
     }
 
     /// <summary>
-    ///     Determines whether two stops differ.
+    ///     Determines whether two decisions differ.
     /// </summary>
-    /// <param name="left">The first stop.</param>
-    /// <param name="right">The second stop.</param>
-    /// <returns><see langword="true" /> when the stops differ.</returns>
+    /// <param name="left">The first decision.</param>
+    /// <param name="right">The second decision.</param>
+    /// <returns><see langword="true" /> when they carry different decisions.</returns>
     public static bool operator !=(PipelineStop left, PipelineStop right)
     {
         return !left.Equals(right);
     }
 
     /// <summary>
-    ///     Creates the exception a refusal without a result raises.
+    ///     Describes this refusal for an <see cref="IMessageRefusalMapper{TMessage,TMessageResult}" />.
     /// </summary>
-    /// <param name="messageType">The type of the message that was refused.</param>
-    /// <returns>The denial to raise.</returns>
-    public LiteBusMessageDeniedException CreateDenial(Type messageType)
+    /// <returns>The outcome, reason, and code the decision supplied.</returns>
+    /// <remarks>
+    ///     A validation failure with several failures reports them joined into one reason, because a mapper receives one
+    ///     refusal. A mapper that needs the failures individually reads them from
+    ///     <see cref="LiteBusMessageInvalidException.Failures" /> on the exception path, or the application uses a
+    ///     validator code to distinguish them.
+    /// </remarks>
+    public Refusal ToRefusal()
     {
-        return new LiteBusMessageDeniedException(messageType, Reason ?? "no reason was given");
+        return new Refusal(Outcome, Reason ?? "no reason was given", Code);
     }
 
     /// <summary>
-    ///     Reads the result the stage supplied for a message that produces one.
+    ///     Creates the exception a refused caller receives when no refusal mapper is registered.
     /// </summary>
-    /// <typeparam name="TMessageResult">The result type the caller expects.</typeparam>
-    /// <param name="messageType">The concrete runtime type of the message being mediated, used in diagnostics.</param>
+    /// <param name="messageType">The type of the message that was refused.</param>
+    /// <returns>
+    ///     <see cref="LiteBusMessageDeniedException" /> for a guard refusal, or
+    ///     <see cref="LiteBusMessageInvalidException" /> for a validation failure.
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="messageType" /> is null.</exception>
+    public Exception CreateRefusalException(Type messageType)
+    {
+        ArgumentNullException.ThrowIfNull(messageType);
+
+        return Outcome == MessageOutcome.Invalid
+            ? new LiteBusMessageInvalidException(messageType, Failures)
+            : new LiteBusMessageDeniedException(messageType, Reason ?? "no reason was given", Code);
+    }
+
+    /// <summary>
+    ///     Resolves the result a shortcut supplied to the type the caller expects.
+    /// </summary>
+    /// <typeparam name="TMessageResult">The type of result the message produces.</typeparam>
+    /// <param name="messageType">The type of the message being mediated.</param>
     /// <returns>The result the caller receives.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="messageType" /> is null.</exception>
     /// <exception cref="LiteBusConfigurationException">
-    ///     Thrown when a shortcut answered a message that produces a result without supplying one, or supplied one of the
-    ///     wrong type.
+    ///     A shortcut answered without supplying the result the caller expects, or supplied one of the wrong type.
     /// </exception>
     /// <remarks>
-    ///     A shortcut typed over the result type makes both failures impossible, so these branches exist for a shortcut
-    ///     written against the untyped contract for a message that does produce a result. Analyzer rule LB1019 reports
-    ///     that at build time.
+    ///     The missing-result case is reachable only from <see cref="IMessageShortcut{TMessage}" />, the untyped
+    ///     shortcut, used on a message that produces a result. <see cref="Shortcut{TMessageResult}" /> always carries the
+    ///     value, so the typed contract cannot reach this failure. Analyzer LB1019 reports the untyped case at compile
+    ///     time.
     /// </remarks>
     public TMessageResult ResolveResult<TMessageResult>(Type messageType)
     {
@@ -149,8 +200,8 @@ public readonly struct PipelineStop : IEquatable<PipelineStop>
         if (!HasResult)
         {
             throw new LiteBusConfigurationException(
-                $"A shortcut answered the mediation of '{messageType.Name}' without supplying the "
-                + $"'{typeof(TMessageResult).Name}' the caller expects. Implement "
+                $"A shortcut answered the mediation of '{messageType.Name}' through the untyped shortcut contract, "
+                + $"which cannot carry the '{typeof(TMessageResult).Name}' the caller expects. Implement "
                 + $"IMessageShortcut<{messageType.Name}, {typeof(TMessageResult).Name}> so the compiler requires the "
                 + "result, and pass it to Answer.");
         }
@@ -159,8 +210,10 @@ public readonly struct PipelineStop : IEquatable<PipelineStop>
         {
             case TMessageResult typedResult:
                 return typedResult;
+
             case null:
                 return default!;
+
             default:
                 throw new LiteBusConfigurationException(
                     $"A shortcut for '{messageType.Name}' supplied a result of type "
@@ -175,7 +228,9 @@ public readonly struct PipelineStop : IEquatable<PipelineStop>
                && Outcome == other.Outcome
                && HasResult == other.HasResult
                && Equals(Result, other.Result)
-               && string.Equals(Reason, other.Reason, StringComparison.Ordinal);
+               && string.Equals(Reason, other.Reason, StringComparison.Ordinal)
+               && string.Equals(Code, other.Code, StringComparison.Ordinal)
+               && Failures.SequenceEqual(other.Failures);
     }
 
     /// <inheritdoc />
@@ -187,30 +242,63 @@ public readonly struct PipelineStop : IEquatable<PipelineStop>
     /// <inheritdoc />
     public override int GetHashCode()
     {
-        return HashCode.Combine(StopsPipeline, Outcome, HasResult, Result, Reason);
+        return HashCode.Combine(StopsPipeline, Outcome, HasResult, Result, Reason, Code, Failures.Count);
     }
 
     /// <summary>
-    ///     Creates the stop a refusal produces.
+    ///     Creates the decision a refusing guard produces.
     /// </summary>
-    /// <param name="reason">The reason the message was refused.</param>
-    /// <param name="hasResult">Whether the guard supplied the value the caller receives.</param>
-    /// <param name="result">The value the caller receives, when the guard supplied one.</param>
-    /// <returns>The stop the pipeline acts on.</returns>
-    internal static PipelineStop Denied(string reason, bool hasResult, object? result)
+    /// <param name="reason">Why the message is refused.</param>
+    /// <param name="code">The code the guard supplied, when any.</param>
+    /// <returns>A stop reporting <see cref="MessageOutcome.Denied" />.</returns>
+    internal static PipelineStop Denied(string reason, string? code)
     {
-        return new PipelineStop(stopsPipeline: true, MessageOutcome.Denied, hasResult, result, reason);
+        return new PipelineStop(
+            stopsPipeline: true,
+            MessageOutcome.Denied,
+            hasResult: false,
+            result: null,
+            reason,
+            code,
+            failures: null);
     }
 
     /// <summary>
-    ///     Creates the stop an already-known answer produces.
+    ///     Creates the decision the validator stage produces when it collected failures.
     /// </summary>
-    /// <param name="reason">The reason the main handler was skipped.</param>
-    /// <param name="hasResult">Whether the shortcut supplied the value the caller receives.</param>
-    /// <param name="result">The value the caller receives, when the shortcut supplied one.</param>
-    /// <returns>The stop the pipeline acts on.</returns>
-    internal static PipelineStop ShortCircuited(string? reason, bool hasResult, object? result)
+    /// <param name="failures">Every failure the stage collected.</param>
+    /// <returns>A stop reporting <see cref="MessageOutcome.Invalid" />.</returns>
+    internal static PipelineStop Invalid(IReadOnlyList<ValidationFailure> failures)
     {
-        return new PipelineStop(stopsPipeline: true, MessageOutcome.ShortCircuited, hasResult, result, reason);
+        var reason = string.Join("; ", failures.Select(failure => failure.ToString()));
+        var code = failures.Count == 1 ? failures[0].Code : null;
+
+        return new PipelineStop(
+            stopsPipeline: true,
+            MessageOutcome.Invalid,
+            hasResult: false,
+            result: null,
+            reason,
+            code,
+            failures);
+    }
+
+    /// <summary>
+    ///     Creates the decision an answering shortcut produces.
+    /// </summary>
+    /// <param name="reason">Why the shortcut answered, when it said.</param>
+    /// <param name="hasResult">Whether the shortcut supplied a result.</param>
+    /// <param name="result">The result the shortcut supplied.</param>
+    /// <returns>A stop reporting <see cref="MessageOutcome.Answered" />.</returns>
+    internal static PipelineStop Answered(string? reason, bool hasResult, object? result)
+    {
+        return new PipelineStop(
+            stopsPipeline: true,
+            MessageOutcome.Answered,
+            hasResult,
+            result,
+            reason,
+            code: null,
+            failures: null);
     }
 }

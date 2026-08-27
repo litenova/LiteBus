@@ -22,7 +22,7 @@ public enum MessageOutcome
     ///     A cache hit and an idempotent command that detects it already ran are the usual cases. Nothing was refused,
     ///     so an audit trail records this as a success.
     /// </remarks>
-    ShortCircuited = 1,
+    Answered = 1,
 
     /// <summary>
     ///     A guard refused the message, so the main handler never ran.
@@ -45,13 +45,13 @@ public enum MessageOutcome
     Canceled = 4,
 
     /// <summary>
-    ///     Reserved. The message failed validation, so the main handler never ran.
+    ///     A validator reported the message malformed, so the main handler never ran.
     /// </summary>
     /// <remarks>
-    ///     No mediation reports this outcome yet. The slot is reserved for validators that report failures as values
-    ///     rather than by throwing, so a completion handler or audit mapper written today keeps its numbering when that
-    ///     arrives. An invalid message is kept apart from <see cref="Denied" /> for the same reason a denial is kept
-    ///     apart from a failure: a security review reads denials, and malformed input is noise in that list.
+    ///     An invalid message is kept apart from <see cref="Denied" /> for the same reason a denial is kept apart from a
+    ///     failure: a security review reads denials, and malformed input is noise in that list. It is kept apart from
+    ///     <see cref="Failed" /> because a validator reports a failure as a value rather than by throwing, so it is a
+    ///     decision rather than a fault.
     /// </remarks>
     Invalid = 5
 }

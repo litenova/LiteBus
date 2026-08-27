@@ -25,7 +25,7 @@ public sealed class EventShortcutAndCompletionTests : LiteBusTestBase
         await provider.GetRequiredService<IEventMediator>().PublishAsync(@event).ConfigureAwait(false);
 
         @event.HandlerRan.Should().BeFalse();
-        observed.Should().Equal(MessageOutcome.ShortCircuited);
+        observed.Should().Equal(MessageOutcome.Answered);
     }
 
     [Fact]

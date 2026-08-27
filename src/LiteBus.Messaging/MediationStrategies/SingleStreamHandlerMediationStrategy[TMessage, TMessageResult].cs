@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
@@ -20,7 +20,7 @@ namespace LiteBus.Messaging.MediationStrategies;
 ///     execution of pre-handlers before the stream begins, processes each item in the stream,
 ///     and executes post-handlers after the stream completes.
 ///     Error handling is performed at multiple stages: during pre-handling, during stream enumeration,
-///     and during post-handling. When a gate stops the pipeline, the main handler never runs and the stream yields
+///     and during post-handling. When a decision stops the pipeline, the main handler never runs and the stream yields
 ///     whatever the directive supplied, or nothing.
 /// </remarks>
 public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
@@ -61,7 +61,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
     ///     The mediation process includes executing pre-handlers before starting the stream, obtaining the
     ///     stream from the handler, enumerating the stream and yielding each result, and executing post-handlers
     ///     after the stream completes. If an exception occurs during any stage, the appropriate error handlers are
-    ///     executed. When a gate stops the pipeline, the mediation reports <see cref="MessageOutcome.ShortCircuited" />
+    ///     executed. When a decision stops the pipeline, the mediation reports <see cref="MessageOutcome.Answered" />
     ///     or <see cref="MessageOutcome.Denied" />.
     /// </remarks>
     public async IAsyncEnumerable<TMessageResult> Mediate(
@@ -94,18 +94,30 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                         shouldContinue = false;
                         pipelineStopped = true;
 
-                        if (stop.IsUnansweredDenial)
+                        if (stop.IsRefusal)
                         {
-                            var denial = stop.CreateDenial(message.GetType());
-                            failure = denial;
-                            throw denial;
+                            // A refusal carries no stream of its own, so the value comes from a registered mapper.
+                            // Without one it reaches the caller as an exception.
+                            try
+                            {
+                                messageResultAsyncEnumerable = messageDependencies
+                                    .ResolveRefusalResult<IAsyncEnumerable<TMessageResult>?>(message, stop);
+                            }
+                            catch (Exception refusal) when (refusal is LiteBusMessageDeniedException
+                                                                or LiteBusMessageInvalidException)
+                            {
+                                failure = refusal;
+                                throw;
+                            }
                         }
-
-                        // A shortcut over a stream supplies a replacement stream. Supplying none is a legitimate answer
-                        // for a stream, and means the caller enumerates nothing.
-                        messageResultAsyncEnumerable = stop.HasResult
-                            ? stop.ResolveResult<IAsyncEnumerable<TMessageResult>?>(message.GetType())
-                            : null;
+                        else
+                        {
+                            // A typed shortcut always carries the stream it answers with, so this resolves it. Reaching
+                            // here without one means the untyped shortcut contract was used on a stream query, which
+                            // ResolveResult reports and analyzer LB1019 catches at compile time.
+                            messageResultAsyncEnumerable =
+                                stop.ResolveResult<IAsyncEnumerable<TMessageResult>?>(message.GetType());
+                        }
                     }
                     else
                     {
@@ -133,7 +145,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
             if (pipelineStopped)
             {
-                // The gate answered for the handler, so the caller gets whatever stream it supplied and the reactions to
+                // The shortcut answered for the handler, so the caller gets whatever stream it supplied and the reactions to
                 // work that never happened do not run. Supplying no stream is a legitimate answer and yields nothing.
                 if (messageResultAsyncEnumerable is not null)
                 {

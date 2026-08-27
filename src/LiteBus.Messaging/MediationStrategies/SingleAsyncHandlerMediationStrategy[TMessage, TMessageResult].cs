@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
@@ -14,7 +14,8 @@ namespace LiteBus.Messaging.MediationStrategies;
 /// <typeparam name="TMessageResult">The type of the result produced by the handler.</typeparam>
 /// <remarks>
 ///     This strategy ensures that only one handler is registered for the message type and then:
-///     1. Executes pre-handlers, stopping early when a gate short-circuits or denies.
+///     1. Executes the pre stages, stopping early when a guard refuses, a validator reports the message malformed,
+///     or a shortcut answers.
 ///     2. Delegates the message processing to the registered handler.
 ///     3. Executes post-handlers, unless the pipeline suppressed them.
 ///     4. Routes exceptions to registered error handlers.
@@ -52,13 +53,24 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                     outcome = stop.Outcome;
                     reason = stop.Reason;
 
-                    if (stop.IsUnansweredDenial)
+                    if (stop.IsRefusal)
                     {
-                        // A refusal with no result has nothing to return, so it reaches the caller as an exception. It
-                        // is excluded from the recoverable filter, so error handlers do not see a decision as a fault.
-                        var denial = stop.CreateDenial(message.GetType());
-                        failure = denial;
-                        throw denial;
+                        // A refusal carries no result of its own, so the value comes from a registered mapper. Without
+                        // one it reaches the caller as an exception, which is excluded from the recoverable filter so
+                        // error handlers do not see a decision as a fault.
+                        try
+                        {
+                            messageResult = messageDependencies
+                                .ResolveRefusalResult<TMessageResult>(message, stop);
+                        }
+                        catch (Exception refusal) when (refusal is LiteBusMessageDeniedException
+                                                            or LiteBusMessageInvalidException)
+                        {
+                            failure = refusal;
+                            throw;
+                        }
+
+                        return messageResult;
                     }
 
                     messageResult = stop.ResolveResult<TMessageResult>(message.GetType());

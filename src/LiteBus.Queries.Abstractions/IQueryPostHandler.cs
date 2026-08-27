@@ -11,4 +11,4 @@ namespace LiteBus.Queries.Abstractions;
 ///     or cleanup operations that should occur after every query is handled. Multiple post-handlers
 ///     can be registered in the application and they will all execute after each query is processed.
 /// </remarks>
-public interface IQueryPostHandler : IAsyncMessagePostHandler<IQuery>;
+public interface IQueryPostHandler : IMessagePostHandler<IQuery, object>;

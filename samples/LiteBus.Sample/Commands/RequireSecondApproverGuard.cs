@@ -27,7 +27,7 @@ public sealed class RequireSecondApproverGuard : ICommandGuard<ProcessPaymentCom
     private const decimal ApprovalThreshold = 10_000m;
 
     /// <inheritdoc />
-    public Task<Verdict> CheckAsync(ProcessPaymentCommand message, CancellationToken cancellationToken = default)
+    public Task<Verdict> DecideAsync(ProcessPaymentCommand message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 

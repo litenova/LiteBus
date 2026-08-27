@@ -1,4 +1,4 @@
-namespace LiteBus.Messaging.Abstractions;
+﻿namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
 ///     Declares one piece of metadata for messages of type <typeparamref name="TMessage" />.
@@ -27,7 +27,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///         Because the key is the value type, applications may declare their own definitions over their own value types,
 ///         and the registry applies them without knowing what they mean.
 ///         <c>IPermissionDefinition&lt;TMessage&gt;</c> above is such a case: it lives in the application, not in
-///         LiteBus, and is read back through <see cref="IMessageMetadata" /> by an application pre-handler or gate.
+///         LiteBus, and is read back through <see cref="IMessageMetadata" /> by an application pre-stage handler.
 ///     </para>
 ///     <para>
 ///         A definition applies to <typeparamref name="TMessage" /> and to every message assignable to it, so a

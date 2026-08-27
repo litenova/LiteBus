@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 
@@ -31,7 +31,7 @@ internal sealed class CompletionCommand : ICommand
     public bool ShouldThrow { get; set; }
 
     /// <summary>
-    ///     Gets or sets a value indicating whether the gate refuses the command.
+    ///     Gets or sets a value indicating whether the guard refuses the command.
     /// </summary>
     public bool ShouldDeny { get; set; }
 
@@ -52,7 +52,7 @@ internal sealed class CompletionCommandWithResult : ICommand<string>;
 internal sealed class CompletionCommandGuard : ICommandGuard<CompletionCommand>
 {
     /// <inheritdoc />
-    public Task<Verdict> CheckAsync(CompletionCommand message, CancellationToken cancellationToken = default)
+    public Task<Verdict> DecideAsync(CompletionCommand message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 

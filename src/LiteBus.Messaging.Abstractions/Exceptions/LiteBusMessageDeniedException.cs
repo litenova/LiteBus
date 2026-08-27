@@ -3,7 +3,7 @@ using System;
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Represents the refusal of a message by a guard that supplied no result for the caller to receive.
+///     Represents the refusal of a message by a guard, raised when no refusal mapper supplies a value for the caller.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -13,9 +13,9 @@ namespace LiteBus.Messaging.Abstractions;
 ///         value has nothing to return.
 ///     </para>
 ///     <para>
-///         A guard that would rather hand the caller a refusal value than raise an exception implements
-///         <see cref="IMessageGuard{TMessage,TMessageResult}" /> and supplies one through
-///         <see cref="Verdict{TMessageResult}.Deny(string,TMessageResult)" />.
+///         An application that would rather hand the caller a refusal value than raise registers an
+///         <see cref="IMessageRefusalMapper{TMessage,TMessageResult}" />. The mapping then lives in one place instead of
+///         in every guard, and a guard supplies only the reason and code it knows.
 ///     </para>
 /// </remarks>
 public sealed class LiteBusMessageDeniedException : Exception
@@ -24,12 +24,14 @@ public sealed class LiteBusMessageDeniedException : Exception
     ///     Initializes a new instance of the <see cref="LiteBusMessageDeniedException" /> class.
     /// </summary>
     /// <param name="messageType">The type of the message that was refused.</param>
-    /// <param name="reason">The reason the gate gave for refusing the message.</param>
-    public LiteBusMessageDeniedException(Type messageType, string reason)
+    /// <param name="reason">The reason the guard gave for refusing the message.</param>
+    /// <param name="code">The code the guard supplied, when any.</param>
+    public LiteBusMessageDeniedException(Type messageType, string reason, string? code = null)
         : base($"Mediation of '{messageType?.Name}' was denied: {reason}")
     {
         MessageType = messageType;
         Reason = reason;
+        Code = code;
     }
 
     /// <summary>
@@ -61,12 +63,17 @@ public sealed class LiteBusMessageDeniedException : Exception
     }
 
     /// <summary>
-    ///     Gets the type of the message that was refused, when the denial came from a gate.
+    ///     Gets the type of the message that was refused, when the denial came from a guard.
     /// </summary>
     public Type? MessageType { get; }
 
     /// <summary>
-    ///     Gets the reason the gate gave for refusing the message, when the denial came from a gate.
+    ///     Gets the reason the guard gave for refusing the message, when the denial came from a guard.
     /// </summary>
     public string? Reason { get; }
+
+    /// <summary>
+    ///     Gets the code the guard supplied, when it supplied one.
+    /// </summary>
+    public string? Code { get; }
 }

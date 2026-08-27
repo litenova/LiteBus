@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
 
@@ -63,6 +63,16 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     ///     Direct pre-handlers registered for <see cref="MessageType" />.
     /// </summary>
     private readonly List<IPreHandlerDescriptor> _preHandlers = [];
+
+    /// <summary>
+    ///     Refusal mappers registered for this exact message type.
+    /// </summary>
+    private readonly List<IRefusalMapperDescriptor> _refusalMappers = [];
+
+    /// <summary>
+    ///     Refusal mappers registered for a base type or interface of this message type.
+    /// </summary>
+    private readonly List<IRefusalMapperDescriptor> _indirectRefusalMappers = [];
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="MessageDescriptor" /> class.
@@ -139,6 +149,12 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// <inheritdoc />
     public IReadOnlyCollection<ICompletionHandlerDescriptor> IndirectCompletionHandlers => _indirectCompletionHandlers;
 
+    /// <inheritdoc />
+    public IReadOnlyCollection<IRefusalMapperDescriptor> RefusalMappers => _refusalMappers;
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<IRefusalMapperDescriptor> IndirectRefusalMappers => _indirectRefusalMappers;
+
     /// <summary>
     ///     Adds handler descriptors, routing each to direct or indirect collections.
     /// </summary>
@@ -161,6 +177,10 @@ internal sealed class MessageDescriptor : IMessageDescriptor
         {
             switch (descriptor)
             {
+                case IRefusalMapperDescriptor refusalMapperDescriptor:
+                    _refusalMappers.Add(refusalMapperDescriptor);
+                    break;
+
                 case ICompletionHandlerDescriptor completionHandlerDescriptor:
                     _completionHandlers.Add(completionHandlerDescriptor);
                     break;
@@ -182,6 +202,10 @@ internal sealed class MessageDescriptor : IMessageDescriptor
         {
             switch (descriptor)
             {
+                case IRefusalMapperDescriptor refusalMapperDescriptor:
+                    _indirectRefusalMappers.Add(refusalMapperDescriptor);
+                    break;
+
                 case ICompletionHandlerDescriptor completionHandlerDescriptor:
                     _indirectCompletionHandlers.Add(completionHandlerDescriptor);
                     break;
@@ -203,6 +227,10 @@ internal sealed class MessageDescriptor : IMessageDescriptor
         {
             switch (descriptor)
             {
+                case IRefusalMapperDescriptor refusalMapperDescriptor:
+                    _indirectRefusalMappers.Add(refusalMapperDescriptor);
+                    break;
+
                 case ICompletionHandlerDescriptor completionHandlerDescriptor:
                     _indirectCompletionHandlers.Add(completionHandlerDescriptor);
                     break;

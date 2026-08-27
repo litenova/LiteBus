@@ -35,7 +35,7 @@ public sealed class DefaultAuditOutcomeMapper : IAuditOutcomeMapper
         return context.Outcome switch
         {
             MessageOutcome.Succeeded => AuditOutcome.Succeeded,
-            MessageOutcome.ShortCircuited => AuditOutcome.Succeeded,
+            MessageOutcome.Answered => AuditOutcome.Succeeded,
             MessageOutcome.Denied => AuditOutcome.Denied,
             MessageOutcome.Canceled => AuditOutcome.Canceled,
             MessageOutcome.Invalid => AuditOutcome.Invalid,

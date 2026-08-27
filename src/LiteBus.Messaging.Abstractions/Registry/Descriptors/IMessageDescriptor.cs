@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -115,4 +115,22 @@ public interface IMessageDescriptor
     ///     These are error handlers registered for a base type or interface that this message type implements.
     /// </remarks>
     IReadOnlyCollection<IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
+
+    /// <summary>
+    ///     Gets the refusal mappers registered for this specific message type.
+    /// </summary>
+    /// <remarks>
+    ///     A mapper turns a guard refusal or a validation failure into the result the caller receives. A mapper
+    ///     registered here wins over one registered for a base type.
+    /// </remarks>
+    IReadOnlyCollection<IRefusalMapperDescriptor> RefusalMappers { get; }
+
+    /// <summary>
+    ///     Gets the refusal mappers registered for a base type or interface that this message type implements.
+    /// </summary>
+    /// <remarks>
+    ///     This is where an application-wide mapper lands, such as one registered for <c>ICommand</c> that turns every
+    ///     refusal into a failed result object.
+    /// </remarks>
+    IReadOnlyCollection<IRefusalMapperDescriptor> IndirectRefusalMappers { get; }
 }

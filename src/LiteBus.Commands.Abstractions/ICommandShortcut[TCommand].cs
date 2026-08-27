@@ -8,7 +8,7 @@ namespace LiteBus.Commands.Abstractions;
 /// <typeparam name="TCommand">The specific command type this shortcut runs for.</typeparam>
 /// <remarks>
 ///     Return <see cref="Shortcut.Skip" /> when running the handler again would change nothing, which the mediation
-///     reports as <see cref="MessageOutcome.ShortCircuited" /> and an audit trail records as a success. Refusing the
+///     reports as <see cref="MessageOutcome.Answered" /> and an audit trail records as a success. Refusing the
 ///     command is a different decision and belongs to <see cref="ICommandGuard{TCommand}" />, which runs first. Use
 ///     <see cref="ICommandShortcut{TCommand,TCommandResult}" /> for a command that produces a result.
 /// </remarks>

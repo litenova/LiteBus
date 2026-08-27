@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
@@ -34,7 +34,7 @@ internal static class PipelineHandlerInvoker
     /// <returns>The stop that tells the pipeline whether to continue.</returns>
     [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
     public static Task<PipelineStop> InvokePreHandlerAsync(
-        IMessagePreHandler handler,
+        IMessagePreStageHandler handler,
         IPreHandlerDescriptor descriptor,
         object message,
         CancellationToken cancellationToken)
@@ -91,6 +91,29 @@ internal static class PipelineHandlerInvoker
 
         var dispatch = descriptor.Dispatch ?? ResolveRuntimeDispatch(descriptor, context.Message.GetType());
         return dispatch.InvokeCompletionHandlerAsync(handler, context, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Invokes a refusal mapper through the closed contract recorded in its descriptor.
+    /// </summary>
+    /// <param name="mapper">The mapper resolved for the message.</param>
+    /// <param name="descriptor">The descriptor the mapper was registered under.</param>
+    /// <param name="message">The message that was refused.</param>
+    /// <param name="refusal">The outcome, reason, and code the decision supplied.</param>
+    /// <returns>The result the caller receives in place of the one the main handler would have produced.</returns>
+    [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
+    public static object? InvokeRefusalMapper(
+        IMessageRefusalMapper mapper,
+        IRefusalMapperDescriptor descriptor,
+        object message,
+        Refusal refusal)
+    {
+        ArgumentNullException.ThrowIfNull(mapper);
+        ArgumentNullException.ThrowIfNull(descriptor);
+
+        var dispatch = descriptor.Dispatch ?? ResolveRuntimeDispatch(descriptor, message.GetType());
+
+        return dispatch.InvokeRefusalMapper(mapper, message, refusal);
     }
 
     /// <summary>

@@ -74,7 +74,7 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     /// <param name="reason">The reason the main handler was skipped.</param>
     /// <returns>An answering shortcut that supplies no result.</returns>
     /// <remarks>
-    ///     The mediation reports <see cref="MessageOutcome.ShortCircuited" />, and an audit trail records a success,
+    ///     The mediation reports <see cref="MessageOutcome.Answered" />, and an audit trail records a success,
     ///     because nothing was refused.
     /// </remarks>
     public static Shortcut Skip(string? reason = null)
@@ -129,7 +129,7 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     internal PipelineStop ToStop()
     {
         return IsAnswered
-            ? PipelineStop.ShortCircuited(Reason, hasResult: false, result: null)
+            ? PipelineStop.Answered(Reason, hasResult: false, result: null)
             : PipelineStop.None;
     }
 }

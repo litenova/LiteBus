@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -47,9 +47,14 @@ public sealed class PipelineDispatch
     private readonly Func<IMessagePostHandler, object, object?, CancellationToken, Task>? _postHandler;
 
     /// <summary>
-    ///     The bound invoker for a pre-handler, guard, or shortcut contract, when this dispatch describes one.
+    ///     The bound invoker for a pre-stage contract, when this dispatch describes one.
     /// </summary>
-    private readonly Func<IMessagePreHandler, object, CancellationToken, Task<PipelineStop>>? _preHandler;
+    private readonly Func<IMessagePreStageHandler, object, CancellationToken, Task<PipelineStop>>? _preHandler;
+
+    /// <summary>
+    ///     The bound invoker for a refusal mapper contract, when this dispatch describes one.
+    /// </summary>
+    private readonly Func<IMessageRefusalMapper, object, Refusal, object?>? _refusalMapper;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="PipelineDispatch" /> class.
@@ -60,16 +65,19 @@ public sealed class PipelineDispatch
     /// <param name="completionHandler">
     ///     The bound completion handler invoker, when the contract is a completion handler contract.
     /// </param>
+    /// <param name="refusalMapper">The bound mapper invoker, when the contract is a refusal mapper contract.</param>
     private PipelineDispatch(
         Type contractType,
-        Func<IMessagePreHandler, object, CancellationToken, Task<PipelineStop>>? preHandler,
+        Func<IMessagePreStageHandler, object, CancellationToken, Task<PipelineStop>>? preHandler,
         Func<IMessagePostHandler, object, object?, CancellationToken, Task>? postHandler,
-        Func<IMessageCompletionHandler, MessageCompletionContext, CancellationToken, Task>? completionHandler)
+        Func<IMessageCompletionHandler, MessageCompletionContext, CancellationToken, Task>? completionHandler,
+        Func<IMessageRefusalMapper, object, Refusal, object?>? refusalMapper = null)
     {
         ContractType = contractType;
         _preHandler = preHandler;
         _postHandler = postHandler;
         _completionHandler = completionHandler;
+        _refusalMapper = refusalMapper;
     }
 
     /// <summary>
@@ -78,12 +86,13 @@ public sealed class PipelineDispatch
     public Type ContractType { get; }
 
     /// <summary>
-    ///     Reads which of the three decision stages runs a handler registered under the given pre-handler contract.
+    ///     Reads which stage of the pre stage runs a handler registered under the given contract.
     /// </summary>
-    /// <param name="contractType">The pre-handler contract discovered on the handler during registration.</param>
+    /// <param name="contractType">The pre-stage contract discovered on the handler during registration.</param>
     /// <returns>
-    ///     <see cref="PipelineStage.Guard" /> for a guard contract, <see cref="PipelineStage.Shortcut" /> for a shortcut
-    ///     contract, and <see cref="PipelineStage.PreHandler" /> for anything else.
+    ///     <see cref="PipelineStage.Guard" /> for a guard contract, <see cref="PipelineStage.Validator" /> for a
+    ///     validator contract, <see cref="PipelineStage.Shortcut" /> for a shortcut contract, and
+    ///     <see cref="PipelineStage.PreHandler" /> for anything else.
     /// </returns>
     /// <remarks>
     ///     The contract answers this whether or not it is closed, so a handler registered for a generic message is
@@ -101,9 +110,14 @@ public sealed class PipelineDispatch
 
         var definition = contractType.GetGenericTypeDefinition();
 
-        if (definition == typeof(IMessageGuard<>) || definition == typeof(IMessageGuard<,>))
+        if (definition == typeof(IMessageGuard<>))
         {
             return PipelineStage.Guard;
+        }
+
+        if (definition == typeof(IMessageValidator<>))
+        {
+            return PipelineStage.Validator;
         }
 
         if (definition == typeof(IMessageShortcut<>) || definition == typeof(IMessageShortcut<,>))
@@ -149,9 +163,9 @@ public sealed class PipelineDispatch
             return ForPreHandler(contractType, nameof(InvokeGuard), arguments);
         }
 
-        if (definition == typeof(IMessageGuard<,>))
+        if (definition == typeof(IMessageValidator<>))
         {
-            return ForPreHandler(contractType, nameof(InvokeTypedGuard), arguments);
+            return ForPreHandler(contractType, nameof(InvokeValidator), arguments);
         }
 
         if (definition == typeof(IMessageShortcut<>))
@@ -162,6 +176,11 @@ public sealed class PipelineDispatch
         if (definition == typeof(IMessageShortcut<,>))
         {
             return ForPreHandler(contractType, nameof(InvokeTypedShortcut), arguments);
+        }
+
+        if (definition == typeof(IMessageRefusalMapper<,>))
+        {
+            return new PipelineDispatch(contractType, null, null, null, BindRefusalMapper(arguments));
         }
 
         if (definition == typeof(IMessagePostHandler<,>))
@@ -203,7 +222,7 @@ public sealed class PipelineDispatch
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
     /// <returns>The stop that tells the pipeline whether to continue.</returns>
     internal Task<PipelineStop> InvokePreHandlerAsync(
-        IMessagePreHandler handler,
+        IMessagePreStageHandler handler,
         object message,
         CancellationToken cancellationToken)
     {
@@ -249,11 +268,11 @@ public sealed class PipelineDispatch
     /// <param name="arguments">The closed type arguments of the contract.</param>
     /// <returns>The bound delegate.</returns>
     [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
-    private static Func<IMessagePreHandler, object, CancellationToken, Task<PipelineStop>> BindPreHandler(
+    private static Func<IMessagePreStageHandler, object, CancellationToken, Task<PipelineStop>> BindPreHandler(
         string methodName,
         Type[] arguments)
     {
-        return Bind<Func<IMessagePreHandler, object, CancellationToken, Task<PipelineStop>>>(methodName, arguments);
+        return Bind<Func<IMessagePreStageHandler, object, CancellationToken, Task<PipelineStop>>>(methodName, arguments);
     }
 
     /// <summary>
@@ -307,7 +326,7 @@ public sealed class PipelineDispatch
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
     /// <returns>Always <see cref="PipelineStop.None" />.</returns>
     private static async Task<PipelineStop> InvokePreHandler<TMessage>(
-        IMessagePreHandler handler,
+        IMessagePreStageHandler handler,
         object message,
         CancellationToken cancellationToken)
         where TMessage : notnull
@@ -328,38 +347,41 @@ public sealed class PipelineDispatch
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
     /// <returns>The stop for a refusal, or <see cref="PipelineStop.None" /> when the message may proceed.</returns>
     private static async Task<PipelineStop> InvokeGuard<TMessage>(
-        IMessagePreHandler handler,
+        IMessagePreStageHandler handler,
         object message,
         CancellationToken cancellationToken)
         where TMessage : notnull
     {
         var verdict = await ((IMessageGuard<TMessage>) handler)
-            .CheckAsync((TMessage) message, cancellationToken)
+            .DecideAsync((TMessage) message, cancellationToken)
             .ConfigureAwait(false);
 
         return verdict.ToStop();
     }
 
     /// <summary>
-    ///     Runs a guard that can supply a refusal value, and returns its verdict as the stop the pipeline acts on.
+    ///     Runs a validator and returns what it reported as the stop the stage runner collects from.
     /// </summary>
     /// <typeparam name="TMessage">The registered message type.</typeparam>
-    /// <typeparam name="TMessageResult">The registered result type.</typeparam>
-    /// <param name="handler">The guard instance.</param>
+    /// <param name="handler">The validator instance.</param>
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
-    /// <returns>The stop for a refusal, or <see cref="PipelineStop.None" /> when the message may proceed.</returns>
-    private static async Task<PipelineStop> InvokeTypedGuard<TMessage, TMessageResult>(
-        IMessagePreHandler handler,
+    /// <returns>
+    ///     A stop carrying this validator's failures, or <see cref="PipelineStop.None" /> when it found nothing wrong.
+    ///     The stage runner gathers these rather than acting on the first, so returning a stop here does not by itself
+    ///     end the mediation.
+    /// </returns>
+    private static async Task<PipelineStop> InvokeValidator<TMessage>(
+        IMessagePreStageHandler handler,
         object message,
         CancellationToken cancellationToken)
         where TMessage : notnull
     {
-        var verdict = await ((IMessageGuard<TMessage, TMessageResult>) handler)
-            .CheckAsync((TMessage) message, cancellationToken)
+        var validity = await ((IMessageValidator<TMessage>) handler)
+            .ValidateAsync((TMessage) message, cancellationToken)
             .ConfigureAwait(false);
 
-        return verdict.ToStop();
+        return validity.ToStop();
     }
 
     /// <summary>
@@ -372,7 +394,7 @@ public sealed class PipelineDispatch
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
     /// <returns>The stop for an answer, or <see cref="PipelineStop.None" /> when the mediation proceeds.</returns>
     private static async Task<PipelineStop> InvokeShortcut<TMessage>(
-        IMessagePreHandler handler,
+        IMessagePreStageHandler handler,
         object message,
         CancellationToken cancellationToken)
         where TMessage : notnull
@@ -395,7 +417,7 @@ public sealed class PipelineDispatch
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
     /// <returns>The stop for an answer, or <see cref="PipelineStop.None" /> when the mediation proceeds.</returns>
     private static async Task<PipelineStop> InvokeTypedShortcut<TMessage, TMessageResult>(
-        IMessagePreHandler handler,
+        IMessagePreStageHandler handler,
         object message,
         CancellationToken cancellationToken)
         where TMessage : notnull
@@ -463,5 +485,46 @@ public sealed class PipelineDispatch
     {
         return ((IMessageCompletionHandler<TMessage, TMessageResult>) handler)
             .HandleCompletionAsync(context.AsTyped<TMessage, TMessageResult>(), cancellationToken);
+    }
+
+    /// <summary>
+    ///     Invokes the refusal mapper this dispatch describes.
+    /// </summary>
+    /// <param name="mapper">The mapper resolved for the message.</param>
+    /// <param name="message">The message that was refused.</param>
+    /// <param name="refusal">The outcome, reason, and code the decision supplied.</param>
+    /// <returns>The result the caller receives in place of the one the main handler would have produced.</returns>
+    internal object? InvokeRefusalMapper(IMessageRefusalMapper mapper, object message, Refusal refusal)
+    {
+        return _refusalMapper!(mapper, message, refusal);
+    }
+
+    /// <summary>
+    ///     Binds the invoker for a closed refusal mapper contract.
+    /// </summary>
+    /// <param name="arguments">The message and result types the contract is closed over.</param>
+    /// <returns>A delegate that invokes the mapper through its closed contract.</returns>
+    [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
+    private static Func<IMessageRefusalMapper, object, Refusal, object?> BindRefusalMapper(Type[] arguments)
+    {
+        return Bind<Func<IMessageRefusalMapper, object, Refusal, object?>>(nameof(InvokeRefusalMapperCore), arguments);
+    }
+
+    /// <summary>
+    ///     Invokes a refusal mapper through its closed contract.
+    /// </summary>
+    /// <typeparam name="TMessage">The message type the mapper covers.</typeparam>
+    /// <typeparam name="TMessageResult">The result type the mapper produces.</typeparam>
+    /// <param name="mapper">The mapper resolved for the message.</param>
+    /// <param name="message">The message that was refused.</param>
+    /// <param name="refusal">The outcome, reason, and code the decision supplied.</param>
+    /// <returns>The result the caller receives.</returns>
+    private static object? InvokeRefusalMapperCore<TMessage, TMessageResult>(
+        IMessageRefusalMapper mapper,
+        object message,
+        Refusal refusal)
+        where TMessage : notnull
+    {
+        return ((IMessageRefusalMapper<TMessage, TMessageResult>) mapper).Map((TMessage) message, refusal);
     }
 }

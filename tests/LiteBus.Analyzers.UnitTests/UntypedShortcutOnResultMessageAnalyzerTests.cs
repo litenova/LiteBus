@@ -82,7 +82,7 @@ public sealed class UntypedShortcutOnResultMessageAnalyzerTests
 
                               public sealed class RejectDuplicateProduct : ICommandGuard<CreateProductCommand>
                               {
-                                  public Task<Verdict> CheckAsync(
+                                  public Task<Verdict> DecideAsync(
                                       CreateProductCommand message,
                                       CancellationToken cancellationToken = default)
                                       => Task.FromResult(Verdict.Allow);

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -22,6 +22,7 @@ public sealed class EventModuleBuilder
         typeof(IEventPreHandler),
         typeof(IEventPreHandler<>),
         typeof(IEventGuard<>),
+        typeof(IEventValidator<>),
         typeof(IEventShortcut<>),
         typeof(IEventPostHandler),
         typeof(IEventPostHandler<>),

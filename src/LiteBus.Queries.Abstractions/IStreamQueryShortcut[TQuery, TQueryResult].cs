@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Queries.Abstractions;
@@ -10,9 +10,9 @@ namespace LiteBus.Queries.Abstractions;
 /// <typeparam name="TQueryResult">The item type of the stream the query produces.</typeparam>
 /// <remarks>
 ///     The value a stream query produces is the stream itself, so the answer is typed over
-///     <see cref="IAsyncEnumerable{T}" />. Supplying a stream yields that stream instead of the handler's;
-///     <see cref="Shortcut{TQueryResult}.Skip" /> supplies none, which is a legitimate answer and means the caller
-///     enumerates nothing.
+///     <see cref="IAsyncEnumerable{T}" />, and answering yields that stream instead of the handler's. Answering with
+///     <c>AsyncEnumerable.Empty&lt;TQueryResult&gt;()</c> is how a shortcut says the caller enumerates nothing, which
+///     states that outright rather than leaving it implied by a missing value.
 /// </remarks>
 public interface IStreamQueryShortcut<in TQuery, TQueryResult>
     : IMessageShortcut<TQuery, IAsyncEnumerable<TQueryResult>>

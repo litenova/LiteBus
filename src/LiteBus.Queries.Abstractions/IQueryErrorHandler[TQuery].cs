@@ -1,4 +1,4 @@
-﻿using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Queries.Abstractions;
 
@@ -13,4 +13,4 @@ namespace LiteBus.Queries.Abstractions;
 ///     This allows for implementing specialized error handling strategies for different query types,
 ///     such as providing fallback data, specific error reporting, or custom recovery logic for critical queries.
 /// </remarks>
-public interface IQueryErrorHandler<TQuery> : IAsyncMessageErrorHandler<TQuery, object> where TQuery : IQuery;
+public interface IQueryErrorHandler<TQuery> : IMessageErrorHandler<TQuery, object> where TQuery : IQuery;

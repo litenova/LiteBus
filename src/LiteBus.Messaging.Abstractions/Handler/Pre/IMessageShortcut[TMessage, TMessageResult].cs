@@ -20,7 +20,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///         <see cref="MessageOutcome.Denied" />.
 ///     </para>
 /// </remarks>
-public interface IMessageShortcut<in TMessage, TMessageResult> : IMessagePreHandler
+public interface IMessageShortcut<in TMessage, TMessageResult> : IMessagePreStageHandler
     where TMessage : notnull
 {
     /// <summary>

@@ -1,4 +1,4 @@
-using LiteBus.Commands;
+﻿using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
@@ -23,7 +23,7 @@ namespace LiteBus.Mediator.UnitTests.Completion;
 public sealed class GuardAndShortcutTests : LiteBusTestBase
 {
     [Fact]
-    public async Task An_answering_shortcut_skips_the_main_handler_and_reports_ShortCircuited()
+    public async Task An_answering_shortcut_skips_the_main_handler_and_reports_Answered()
     {
         var recorder = new CompletionRecorder();
         var provider = BuildProvider(recorder);
@@ -35,7 +35,7 @@ public sealed class GuardAndShortcutTests : LiteBusTestBase
         command.PostHandlerRan.Should().BeFalse();
 
         var observed = recorder.Observed.Single().Context;
-        observed.Outcome.Should().Be(MessageOutcome.ShortCircuited);
+        observed.Outcome.Should().Be(MessageOutcome.Answered);
         observed.Reason.Should().Be("already applied");
         observed.Faulted.Should().BeFalse();
     }
@@ -127,18 +127,21 @@ public sealed class GuardAndShortcutTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task The_three_stages_run_as_guards_then_shortcuts_then_pre_handlers()
+    public async Task The_four_stages_run_as_guards_then_validators_then_shortcuts_then_pre_handlers()
     {
         var recorder = new StageOrderRecorder();
         var provider = BuildOrderedProvider(
             recorder,
             typeof(AllowingOrderedGuard),
+            typeof(AllowingOrderedValidator),
             typeof(PassiveOrderedShortcut),
             typeof(OrderedCommandPreHandler));
 
         await provider.GetRequiredService<ICommandMediator>().SendAsync(new OrderedCommand()).ConfigureAwait(false);
 
-        recorder.Observed.Should().Equal("guard", "shortcut", "pre-handler", "handler");
+        // The validator carries a lower priority number than the guard, so priority alone would run it first. The
+        // framework fixes the stage order, and priority only orders handlers inside one stage.
+        recorder.Observed.Should().Equal("guard", "validator", "shortcut", "pre-handler", "handler");
     }
 
     [Fact]
@@ -153,26 +156,27 @@ public sealed class GuardAndShortcutTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task A_denial_may_hand_the_caller_a_refusal_value_instead_of_throwing()
+    public async Task A_registered_mapper_hands_the_caller_a_refusal_value_instead_of_throwing()
     {
-        var provider = BuildResultProvider(typeof(RefusalValueGuard));
+        var provider = BuildResultProvider(typeof(CodedRefusalGuard), typeof(CachedValueRefusalMapper));
 
         var result = await provider.GetRequiredService<ICommandMediator>()
             .SendAsync(new CachedValueCommand { Decision = StageDecision.Deny }).ConfigureAwait(false);
 
-        result.Should().Be("refused");
+        // The guard supplied only a reason and a code; the mapper decided what a refused caller receives.
+        result.Should().Be("refused:NOT_OWNER");
     }
 
     [Fact]
-    public async Task A_denial_without_a_result_throws_even_when_the_command_produces_one()
+    public async Task A_denial_throws_when_no_mapper_covers_the_command()
     {
-        var provider = BuildResultProvider(typeof(UnansweredDenialGuard));
+        var provider = BuildResultProvider(typeof(CodedRefusalGuard));
 
         var act = async () => await provider.GetRequiredService<ICommandMediator>()
             .SendAsync(new CachedValueCommand { Decision = StageDecision.Deny }).ConfigureAwait(false);
 
         await act.Should().ThrowAsync<LiteBusMessageDeniedException>()
-            .WithMessage("*nothing to hand back*").ConfigureAwait(false);
+            .WithMessage("*not your order*").ConfigureAwait(false);
     }
 
     [Fact]
@@ -251,9 +255,9 @@ public sealed class GuardAndShortcutTests : LiteBusTestBase
     /// <summary>
     ///     Builds a provider for the command that produces a result, with one decision handler under test.
     /// </summary>
-    /// <param name="decisionType">The guard or shortcut to register.</param>
+    /// <param name="decisionTypes">The guards, shortcuts, or refusal mappers to register.</param>
     /// <returns>The configured service provider.</returns>
-    private static ServiceProvider BuildResultProvider(Type decisionType)
+    private static ServiceProvider BuildResultProvider(params Type[] decisionTypes)
     {
         var services = new ServiceCollection();
 
@@ -266,7 +270,11 @@ public sealed class GuardAndShortcutTests : LiteBusTestBase
                 {
                     builder.Register(typeof(CachedValueCommand));
                     builder.Register(typeof(CachedValueCommandHandler));
-                    builder.Register(decisionType);
+
+                    foreach (var decisionType in decisionTypes)
+                    {
+                        builder.Register(decisionType);
+                    }
                 });
             })
             .BuildServiceProvider();

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
@@ -12,7 +12,8 @@ namespace LiteBus.Messaging.MediationStrategies;
 /// <typeparam name="TMessage">The type of message being mediated.</typeparam>
 /// <remarks>
 ///     This strategy ensures that only one handler is registered for the message type and then:
-///     1. Executes pre-handlers, stopping early when a gate short-circuits or denies.
+///     1. Executes the pre stages, stopping early when a guard refuses, a validator reports the message malformed,
+///     or a shortcut answers.
 ///     2. Delegates the message processing to the registered handler.
 ///     3. Executes post-handlers, unless the pipeline suppressed them.
 ///     4. Routes exceptions to registered error handlers.
@@ -39,7 +40,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
     /// <remarks>
     ///     The mediation process includes executing pre-handlers, the main handler, and post-handlers in sequence.
     ///     If an exception occurs during any stage, the appropriate error handlers are executed.
-    ///     When a gate stops the pipeline, the mediation ends with <see cref="MessageOutcome.ShortCircuited" /> or
+    ///     When a decision stops the pipeline, the mediation ends with <see cref="MessageOutcome.Answered" /> or
     ///     <see cref="MessageOutcome.Denied" /> and the main handler never runs.
     /// </remarks>
     public async Task Mediate(
@@ -66,13 +67,14 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
                     outcome = stop.Outcome;
                     reason = stop.Reason;
 
-                    if (stop.IsUnansweredDenial)
+                    if (stop.IsRefusal)
                     {
-                        // A refusal reaches the caller as an exception. It is excluded from the recoverable filter, so
+                        // A message that produces no result has nothing a refusal mapper could return, so a refusal
+                        // always reaches the caller as an exception. It is excluded from the recoverable filter, so
                         // error handlers do not see a decision as a fault.
-                        var denial = stop.CreateDenial(message.GetType());
-                        failure = denial;
-                        throw denial;
+                        var refusal = stop.CreateRefusalException(message.GetType());
+                        failure = refusal;
+                        throw refusal;
                     }
 
                     return;

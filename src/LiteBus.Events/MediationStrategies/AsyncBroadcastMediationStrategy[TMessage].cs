@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -77,11 +77,13 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
                 outcome = stop.Outcome;
                 reason = stop.Reason;
 
-                if (stop.IsUnansweredDenial)
+                if (stop.IsRefusal)
                 {
-                    var denial = stop.CreateDenial(message.GetType());
-                    failure = denial;
-                    throw denial;
+                    // An event produces no result, so a refusal has nothing a mapper could return and always reaches
+                    // the publisher as an exception.
+                    var refusal = stop.CreateRefusalException(message.GetType());
+                    failure = refusal;
+                    throw refusal;
                 }
 
                 return;

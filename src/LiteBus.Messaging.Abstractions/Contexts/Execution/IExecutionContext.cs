@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -22,7 +22,7 @@ public interface IExecutionContext
     /// <remarks>
     ///     This token carries the caller's decision to abandon the operation, and nothing else. Handlers observe it and
     ///     stop what they are doing when it fires. It is not how a handler refuses a message: a refusal is a decision the
-    ///     pipeline makes, so it belongs to a gate and reports <see cref="MessageOutcome.Denied" />.
+    ///     pipeline makes, so it belongs to a guard and reports <see cref="MessageOutcome.Denied" />.
     /// </remarks>
     CancellationToken CancellationToken { get; }
 
@@ -52,7 +52,7 @@ public interface IExecutionContext
     /// <remarks>
     ///     This property can be set by handlers to provide a result for the mediation operation.
     ///     It is typically set by the main handler, and a post-handler may overwrite it to transform what the caller
-    ///     receives. A gate supplies its result through the directive it returns rather than through this property.
+    ///     receives. A shortcut supplies its result through the answer it returns rather than through this property.
     /// </remarks>
     object? MessageResult { get; set; }
 

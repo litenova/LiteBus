@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -22,10 +22,11 @@ public sealed class QueryModuleBuilder
         typeof(IQueryPreHandler),
         typeof(IQueryPreHandler<>),
         typeof(IQueryGuard<>),
-        typeof(IQueryGuard<,>),
-        typeof(IStreamQueryGuard<,>),
+        typeof(IQueryValidator<>),
         typeof(IQueryShortcut<,>),
+        typeof(IQueryRefusalMapper<,>),
         typeof(IStreamQueryShortcut<,>),
+        typeof(IStreamQueryRefusalMapper<,>),
         typeof(IQueryPostHandler),
         typeof(IQueryPostHandler<>),
         typeof(IQueryPostHandler<,>),
@@ -85,7 +86,7 @@ public sealed class QueryModuleBuilder
     ///         The application must register an <see cref="IAuditTrail" /> implementation; the
     ///         <c>litebus.audit.trail</c> diagnostic probe reports when it is missing. Registering an
     ///         <see cref="IAuditOutcomeMapper" /> is optional and lets a refusal raised as an exception be recorded as
-    ///         <see cref="AuditOutcome.Denied" /> rather than <see cref="AuditOutcome.Failed" />; a refusal from a gate
+    ///         <see cref="AuditOutcome.Denied" /> rather than <see cref="AuditOutcome.Failed" />; a refusal from a guard
     ///         is already recorded as a denial without one.
     ///     </para>
     /// </remarks>
