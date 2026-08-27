@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -154,7 +154,10 @@ internal static class InboxProcessorEnvelopeHandler
                 envelope.AttemptCount,
                 exception);
 
-            if (envelope.AttemptCount >= options.Retry.MaxAttempts)
+            // A refusal or a missing handler produces the same outcome on every attempt, so spending the retry
+            // schedule on it only delays the dead-letter entry an operator is waiting to see.
+            if (envelope.AttemptCount >= options.Retry.MaxAttempts
+                || !MediationExceptionFilters.IsRetryableDispatchException(exception))
             {
                 return envelope.AsDeadLettered(error);
             }
