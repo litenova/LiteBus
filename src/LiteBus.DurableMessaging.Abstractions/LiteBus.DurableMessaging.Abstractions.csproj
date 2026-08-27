@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <ImplicitUsings>enable</ImplicitUsings>
@@ -9,4 +9,12 @@
         <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <!--
+            The inbox and outbox processors are the privileged implementations of these abstractions, so the shared hook
+            machinery they drive stays internal.
+        -->
+        <InternalsVisibleTo Include="LiteBus.Inbox, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Outbox, PublicKey=$(LiteBusPublicKey)"/>
+    </ItemGroup>
 </Project>

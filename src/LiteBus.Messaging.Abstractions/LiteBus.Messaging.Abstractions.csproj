@@ -1,5 +1,12 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+    </ItemGroup>
+    <ItemGroup>
+        <!--
+            LiteBus.Messaging is the privileged implementation of these abstractions, so the dispatch machinery it
+            drives stays internal rather than becoming public API nothing outside LiteBus calls.
+        -->
+        <InternalsVisibleTo Include="LiteBus.Messaging, PublicKey=$(LiteBusPublicKey)"/>
     </ItemGroup>
 </Project>

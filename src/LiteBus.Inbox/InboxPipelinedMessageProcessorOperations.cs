@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -213,9 +213,12 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
             InboxEnvelope terminal;
             var afterDispatchHooksCompleted = false;
 
+            // One adapter serves both hook phases below, rather than each building its own.
+            var hookEnvelope = new InboxProcessorEnvelopeAdapter(sourceEnvelope);
+
             try
             {
-                await InboxProcessorHookRunner.RunAfterDispatchAsync(_hooks, sourceEnvelope, cancellationToken)
+                await ProcessorHookRunner.RunAfterDispatchAsync(_hooks, hookEnvelope, cancellationToken)
                     .ConfigureAwait(false);
 
                 afterDispatchHooksCompleted = true;
@@ -244,7 +247,7 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
             {
                 if (!afterDispatchHooksCompleted)
                 {
-                    InboxProcessorHookRunner.RunAbandonDispatchScopes(_hooks, sourceEnvelope);
+                    ProcessorHookRunner.RunAbandonDispatchScopes(_hooks, hookEnvelope);
                 }
             }
 
