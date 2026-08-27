@@ -72,10 +72,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         IAsyncEnumerable<TMessageResult>? messageResultAsyncEnumerable = null;
         var shouldContinue = true;
         var pipelineStopped = false;
-        var startedAt = Stopwatch.GetTimestamp();
-        var outcome = MessageOutcome.Succeeded;
-        Exception? failure = null;
-        string? reason = null;
+        var mediation = MediationOutcome.Start();
 
         try
         {
@@ -89,8 +86,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
                     if (stop.StopsPipeline)
                     {
-                        outcome = stop.Outcome;
-                        reason = stop.Reason;
+                        mediation.RecordStop(stop);
                         shouldContinue = false;
                         pipelineStopped = true;
 
@@ -106,7 +102,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                             catch (Exception refusal) when (refusal is LiteBusMessageDeniedException
                                                                 or LiteBusMessageInvalidException)
                             {
-                                failure = refusal;
+                                mediation.RecordRefusal(refusal);
                                 throw;
                             }
                         }
@@ -131,8 +127,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
             }
             catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
             {
-                outcome = MessageOutcome.Failed;
-                failure = exception;
+                mediation.RecordFailure(exception);
                 using (AmbientExecutionContext.CreateScope(executionContext))
                 {
                     await messageDependencies.RunAsyncErrorHandlers(
@@ -173,8 +168,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
             }
             catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
             {
-                outcome = MessageOutcome.Failed;
-                failure = exception;
+                mediation.RecordFailure(exception);
                 using (AmbientExecutionContext.CreateScope(executionContext))
                 {
                     await messageDependencies.RunAsyncErrorHandlers(
@@ -203,8 +197,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                         }
                                     catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
                         {
-                            outcome = MessageOutcome.Failed;
-                            failure = exception;
+                            mediation.RecordFailure(exception);
                             await messageDependencies.RunAsyncErrorHandlers(
                                 message,
                                 messageResultAsyncEnumerable,
@@ -247,8 +240,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                 }
                 catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
                 {
-                    outcome = MessageOutcome.Failed;
-                    failure = exception;
+                    mediation.RecordFailure(exception);
                     using (AmbientExecutionContext.CreateScope(executionContext))
                     {
                         await messageDependencies.RunAsyncErrorHandlers(
@@ -272,8 +264,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                     }
                     catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
                     {
-                        outcome = MessageOutcome.Failed;
-                        failure = exception;
+                        mediation.RecordFailure(exception);
                         using (AmbientExecutionContext.CreateScope(executionContext))
                         {
                             await messageDependencies.RunAsyncErrorHandlers(
@@ -303,8 +294,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                                     }
                                                             catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
                                     {
-                                        outcome = MessageOutcome.Failed;
-                                        failure = exception;
+                                        mediation.RecordFailure(exception);
                                         await messageDependencies.RunAsyncErrorHandlers(
                                             message,
                                             overrideStream,
@@ -341,14 +331,8 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         }
         finally
         {
-            await messageDependencies.RunAsyncCompletionHandlers(
-                    message,
-                    executionContext,
-                    outcome,
-                    messageResultAsyncEnumerable,
-                    failure,
-                    reason,
-                    Stopwatch.GetElapsedTime(startedAt))
+            await mediation
+                .CompleteAsync(messageDependencies, message, executionContext, messageResultAsyncEnumerable)
                 .ConfigureAwait(false);
         }
     }

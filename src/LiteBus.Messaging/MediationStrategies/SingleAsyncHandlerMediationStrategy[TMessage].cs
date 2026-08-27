@@ -49,10 +49,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         IExecutionContext executionContext)
     {
         object? messageResult = null;
-        var startedAt = Stopwatch.GetTimestamp();
-        var outcome = MessageOutcome.Succeeded;
-        Exception? failure = null;
-        string? reason = null;
+        var mediation = MediationOutcome.Start();
 
         try
         {
@@ -64,8 +61,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
 
                 if (stop.StopsPipeline)
                 {
-                    outcome = stop.Outcome;
-                    reason = stop.Reason;
+                    mediation.RecordStop(stop);
 
                     if (stop.IsRefusal)
                     {
@@ -73,7 +69,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
                         // always reaches the caller as an exception. It is excluded from the recoverable filter, so
                         // error handlers do not see a decision as a fault.
                         var refusal = stop.CreateRefusalException(message.GetType());
-                        failure = refusal;
+                        mediation.RecordRefusal(refusal);
                         throw refusal;
                     }
 
@@ -95,14 +91,12 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         }
         catch (OperationCanceledException canceledException)
         {
-            outcome = MessageOutcome.Canceled;
-            failure = canceledException;
+            mediation.RecordCancellation(canceledException);
             throw;
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            outcome = MessageOutcome.Failed;
-            failure = e;
+            mediation.RecordFailure(e);
 
             using (AmbientExecutionContext.CreateScope(executionContext))
             {
@@ -115,14 +109,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         }
         finally
         {
-            await messageDependencies.RunAsyncCompletionHandlers(
-                    message,
-                    executionContext,
-                    outcome,
-                    executionContext.MessageResult ?? messageResult,
-                    failure,
-                    reason,
-                    Stopwatch.GetElapsedTime(startedAt))
+            await mediation.CompleteAsync(messageDependencies, message, executionContext, messageResult)
                 .ConfigureAwait(false);
         }
     }

@@ -61,10 +61,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         ArgumentNullException.ThrowIfNull(executionContext);
 
         var executionTaskOfAllHandlers = Task.CompletedTask;
-        var startedAt = Stopwatch.GetTimestamp();
-        var outcome = MessageOutcome.Succeeded;
-        Exception? failure = null;
-        string? reason = null;
+        var mediation = MediationOutcome.Start();
 
         try
         {
@@ -74,15 +71,14 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
             if (stop.StopsPipeline)
             {
-                outcome = stop.Outcome;
-                reason = stop.Reason;
+                mediation.RecordStop(stop);
 
                 if (stop.IsRefusal)
                 {
                     // An event produces no result, so a refusal has nothing a mapper could return and always reaches
                     // the publisher as an exception.
                     var refusal = stop.CreateRefusalException(message.GetType());
-                    failure = refusal;
+                    mediation.RecordRefusal(refusal);
                     throw refusal;
                 }
 
@@ -115,14 +111,12 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         }
         catch (OperationCanceledException canceledException)
         {
-            outcome = MessageOutcome.Canceled;
-            failure = canceledException;
+            mediation.RecordCancellation(canceledException);
             throw;
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            outcome = MessageOutcome.Failed;
-            failure = e;
+            mediation.RecordFailure(e);
 
             await messageDependencies.RunAsyncErrorHandlers(
                 message,
@@ -132,16 +126,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         }
         finally
         {
-            await messageDependencies.RunAsyncCompletionHandlers(
-                    message,
-                    executionContext,
-                    outcome,
-                    // An event produces no result. The task that tracks its handlers is not one, so completion handlers
-                    // see none rather than seeing a Task where a message result belongs.
-                    messageResult: null,
-                    failure,
-                    reason,
-                    Stopwatch.GetElapsedTime(startedAt))
+            // An event produces no result. The task that tracks its handlers is not one, so completion handlers
+            // see none rather than seeing a Task where a message result belongs.
+            await mediation.CompleteAsync(messageDependencies, message, executionContext, messageResult: null)
                 .ConfigureAwait(false);
         }
     }
