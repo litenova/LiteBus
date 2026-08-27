@@ -103,29 +103,7 @@ public sealed class PipelineDispatch
     {
         ArgumentNullException.ThrowIfNull(contractType);
 
-        if (!contractType.IsGenericType)
-        {
-            return PipelineStage.PreHandler;
-        }
-
-        var definition = contractType.GetGenericTypeDefinition();
-
-        if (definition == typeof(IMessageGuard<>))
-        {
-            return PipelineStage.Guard;
-        }
-
-        if (definition == typeof(IMessageValidator<>))
-        {
-            return PipelineStage.Validator;
-        }
-
-        if (definition == typeof(IMessageShortcut<>) || definition == typeof(IMessageShortcut<,>))
-        {
-            return PipelineStage.Shortcut;
-        }
-
-        return PipelineStage.PreHandler;
+        return PreStages.Find(contractType)?.Stage ?? PipelineStage.PreHandler;
     }
 
     /// <summary>
@@ -153,29 +131,11 @@ public sealed class PipelineDispatch
         var definition = contractType.GetGenericTypeDefinition();
         var arguments = contractType.GetGenericArguments();
 
-        if (definition == typeof(IMessagePreHandler<>))
-        {
-            return ForPreHandler(contractType, nameof(InvokePreHandler), arguments);
-        }
+        var preStage = PreStages.Find(contractType);
 
-        if (definition == typeof(IMessageGuard<>))
+        if (preStage is not null)
         {
-            return ForPreHandler(contractType, nameof(InvokeGuard), arguments);
-        }
-
-        if (definition == typeof(IMessageValidator<>))
-        {
-            return ForPreHandler(contractType, nameof(InvokeValidator), arguments);
-        }
-
-        if (definition == typeof(IMessageShortcut<>))
-        {
-            return ForPreHandler(contractType, nameof(InvokeShortcut), arguments);
-        }
-
-        if (definition == typeof(IMessageShortcut<,>))
-        {
-            return ForPreHandler(contractType, nameof(InvokeTypedShortcut), arguments);
+            return ForPreHandler(contractType, preStage.InvokerMethodName, arguments);
         }
 
         if (definition == typeof(IMessageRefusalMapper<,>))
@@ -325,7 +285,7 @@ public sealed class PipelineDispatch
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
     /// <returns>Always <see cref="PipelineStop.None" />.</returns>
-    private static async Task<PipelineStop> InvokePreHandler<TMessage>(
+    internal static async Task<PipelineStop> InvokePreHandler<TMessage>(
         IMessagePreStageHandler handler,
         object message,
         CancellationToken cancellationToken)
@@ -346,7 +306,7 @@ public sealed class PipelineDispatch
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
     /// <returns>The stop for a refusal, or <see cref="PipelineStop.None" /> when the message may proceed.</returns>
-    private static async Task<PipelineStop> InvokeGuard<TMessage>(
+    internal static async Task<PipelineStop> InvokeGuard<TMessage>(
         IMessagePreStageHandler handler,
         object message,
         CancellationToken cancellationToken)
@@ -371,7 +331,7 @@ public sealed class PipelineDispatch
     ///     The stage runner gathers these rather than acting on the first, so returning a stop here does not by itself
     ///     end the mediation.
     /// </returns>
-    private static async Task<PipelineStop> InvokeValidator<TMessage>(
+    internal static async Task<PipelineStop> InvokeValidator<TMessage>(
         IMessagePreStageHandler handler,
         object message,
         CancellationToken cancellationToken)
@@ -393,7 +353,7 @@ public sealed class PipelineDispatch
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
     /// <returns>The stop for an answer, or <see cref="PipelineStop.None" /> when the mediation proceeds.</returns>
-    private static async Task<PipelineStop> InvokeShortcut<TMessage>(
+    internal static async Task<PipelineStop> InvokeShortcut<TMessage>(
         IMessagePreStageHandler handler,
         object message,
         CancellationToken cancellationToken)
@@ -416,7 +376,7 @@ public sealed class PipelineDispatch
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
     /// <returns>The stop for an answer, or <see cref="PipelineStop.None" /> when the mediation proceeds.</returns>
-    private static async Task<PipelineStop> InvokeTypedShortcut<TMessage, TMessageResult>(
+    internal static async Task<PipelineStop> InvokeTypedShortcut<TMessage, TMessageResult>(
         IMessagePreStageHandler handler,
         object message,
         CancellationToken cancellationToken)

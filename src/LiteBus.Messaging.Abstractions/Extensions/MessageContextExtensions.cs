@@ -40,28 +40,29 @@ public static class MessageContextExtensions
         object message,
         CancellationToken cancellationToken)
     {
-        var stop = await messageDependencies.RunAsyncGuards(message, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(messageDependencies);
 
-        if (stop.StopsPipeline)
+        // The order is the order PipelineStage declares its members, so the declared order is the executed one rather
+        // than something a hand-written call sequence has to keep in step.
+        foreach (var stage in PreStages.InOrder)
         {
-            return stop;
+            if (!messageDependencies.HasPreStageHandlers(stage))
+            {
+                continue;
+            }
+
+            var stop = PreStages.AggregationFor(stage) == StageAggregation.CollectFailures
+                ? await messageDependencies.RunAsyncCollectingStage(stage, message, cancellationToken)
+                    .ConfigureAwait(false)
+                : await messageDependencies.RunStage(stage, message, cancellationToken).ConfigureAwait(false);
+
+            if (stop.StopsPipeline)
+            {
+                return stop;
+            }
         }
 
-        stop = await messageDependencies.RunAsyncValidators(message, cancellationToken).ConfigureAwait(false);
-
-        if (stop.StopsPipeline)
-        {
-            return stop;
-        }
-
-        stop = await messageDependencies.RunAsyncShortcuts(message, cancellationToken).ConfigureAwait(false);
-
-        if (stop.StopsPipeline)
-        {
-            return stop;
-        }
-
-        return await messageDependencies.RunAsyncPreHandlers(message, cancellationToken).ConfigureAwait(false);
+        return PipelineStop.None;
     }
 
     /// <summary>
@@ -97,29 +98,53 @@ public static class MessageContextExtensions
     ///     their failures are gathered into one stop, because a caller fixing a malformed message wants all of them at
     ///     once rather than one per round trip.
     /// </remarks>
-    public static async Task<PipelineStop> RunAsyncValidators(
+    public static Task<PipelineStop> RunAsyncValidators(
         this IMessageDependencies messageDependencies,
         object message,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(messageDependencies);
 
-        if (!messageDependencies.HasPreStageHandlers(PipelineStage.Validator))
+        return messageDependencies.RunAsyncCollectingStage(PipelineStage.Validator, message, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Runs every handler of one stage and gathers the failures they reported into a single decision.
+    /// </summary>
+    /// <param name="messageDependencies">The message dependencies encapsulating pre-stage handlers.</param>
+    /// <param name="stage">The stage whose handlers should run.</param>
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="cancellationToken">The cancellation token passed to each invocation.</param>
+    /// <returns>
+    ///     A stop carrying every failure the stage collected, or <see cref="PipelineStop.None" /> when it found none.
+    /// </returns>
+    /// <remarks>
+    ///     Validation is the only stage declaring <see cref="StageAggregation.CollectFailures" />, so the decision built
+    ///     here reports <see cref="MessageOutcome.Invalid" />. A second collecting stage would have to decide what it
+    ///     produces before reusing this.
+    /// </remarks>
+    private static async Task<PipelineStop> RunAsyncCollectingStage(
+        this IMessageDependencies messageDependencies,
+        PipelineStage stage,
+        object message,
+        CancellationToken cancellationToken)
+    {
+        if (!messageDependencies.HasPreStageHandlers(stage))
         {
             return PipelineStop.None;
         }
 
         List<ValidationFailure>? failures = null;
 
-        foreach (var validator in messageDependencies.IndirectPreHandlers)
+        foreach (var handler in messageDependencies.IndirectPreHandlers)
         {
-            failures = await CollectValidationFailuresAsync(validator, message, failures, cancellationToken)
+            failures = await CollectFailuresAsync(handler, stage, message, failures, cancellationToken)
                 .ConfigureAwait(false);
         }
 
-        foreach (var validator in messageDependencies.PreHandlers)
+        foreach (var handler in messageDependencies.PreHandlers)
         {
-            failures = await CollectValidationFailuresAsync(validator, message, failures, cancellationToken)
+            failures = await CollectFailuresAsync(handler, stage, message, failures, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -554,9 +579,10 @@ public static class MessageContextExtensions
     }
 
     /// <summary>
-    ///     Runs one handler when it belongs to the validator stage, adding whatever it reported to the collected set.
+    ///     Runs one handler when it belongs to the given stage, adding whatever it reported to the collected set.
     /// </summary>
     /// <param name="handler">The pre-stage handler being considered.</param>
+    /// <param name="stage">The stage being collected for; a handler from any other stage is skipped.</param>
     /// <param name="message">The message being mediated.</param>
     /// <param name="failures">The failures collected so far, or null when nothing has failed yet.</param>
     /// <param name="cancellationToken">The cancellation token passed to the validator invocation.</param>
@@ -565,13 +591,14 @@ public static class MessageContextExtensions
     ///     The list is allocated only once something fails, so a message that validates cleanly costs nothing beyond the
     ///     stage filter.
     /// </remarks>
-    private static async Task<List<ValidationFailure>?> CollectValidationFailuresAsync(
+    private static async Task<List<ValidationFailure>?> CollectFailuresAsync(
         LazyHandler<IMessagePreStageHandler, IPreHandlerDescriptor> handler,
+        PipelineStage stage,
         object message,
         List<ValidationFailure>? failures,
         CancellationToken cancellationToken)
     {
-        if (handler.Descriptor.Stage != PipelineStage.Validator)
+        if (handler.Descriptor.Stage != stage)
         {
             return failures;
         }
