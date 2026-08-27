@@ -63,14 +63,18 @@ unchanged.
   `RunAsyncShortcuts`, and `RunAsyncPreHandlers`, so a custom mediation strategy gets the same stage order the shipped
   strategies use. `ResolveRefusalResult<TMessageResult>` applies the registered refusal mapper, or raises when none
   covers the message.
+- `RunAsyncErrorHandlers` and `RunAsyncCompletionHandlers` each take the execution context and open their own ambient
+  scope, so a strategy no longer has to wrap them. The error runner also captures the `ExceptionDispatchInfo` itself,
+  which is what preserves the original stack when nothing recovers, and the completion runner resolves a post-handler's
+  replacement result in preference to the handler's own. Both rules used to be a strategy's job to remember.
 - `LiteBusMessageDeniedException` and `LiteBusMessageInvalidException` reach the caller when no refusal mapper covers
   the message. Both are excluded from the recoverable-exception filter, so error handlers never see a decision as a
   fault, and `LiteBusMessageInvalidException.Failures` carries every failure the validator stage collected.
-- `MediationOutcome` tracks how a mediation is ending and reports it to the completion stage. Every strategy carried
-  its own copy of that bookkeeping, and a custom mediation strategy had to reproduce it, including the rule that the
-  completion stage should see a post-handler's replacement result in preference to the handler's own. `Start`,
-  `RecordStop`, `RecordRefusal`, `RecordCancellation`, `RecordFaultAsync`, and `CompleteAsync` cover every path a
-  mediation can take, and it is a struct so it costs no allocation.
+- `MediationEnding` carries how a mediation ended: the outcome, the failure, and the reason. Every strategy held those
+  as three separate locals and assembled them in a `finally`, which is three chances to record one and forget another.
+  It is an immutable value with one transition per path a mediation can take, `Stopped`, `Refused`, `Canceled`, and
+  `Faulted`, each returning a new ending rather than mutating one. It runs nothing itself: reporting it is
+  `RunAsyncCompletionHandlers`, alongside every other stage runner.
 - `MediationExceptionFilters.IsRefusal` and `IsRetryableDispatchException` classify a decision apart from a fault. The
   inbox and outbox processors use the second to dead-letter a refusal or a missing handler on the first attempt instead
   of spending the retry schedule on an answer that cannot change.

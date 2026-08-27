@@ -69,7 +69,7 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | `PipelineDispatch` | Delegate bound at registration to the closed contract a handler was discovered from, and `StageFor` |
 | `IPreHandlerDescriptor.Stage` | The stage that runs a discovered pre-stage handler |
 | `IMessageDependencies.HasPreStageHandlers` | Whether a stage holds any handler, so an empty one costs nothing |
-| `MediationOutcome` | Tracks how a mediation ended and reports it to the completion stage |
+| `MediationEnding` | The outcome, failure, and reason a mediation ended with |
 | `IRefusalMapperDescriptor` | A registered refusal mapper and the result type it produces |
 | `IHandlerDescriptor.ContractType` | The closed contract a descriptor was discovered from |
 

@@ -272,25 +272,36 @@ public static class MessageContextExtensions
     }
 
     /// <summary>
-    ///     Runs error handlers for a given context, allowing for centralized error handling logic to be applied in the case of
-    ///     failures during the message handling process.
+    ///     Offers a fault to the registered error handlers, and rethrows it when none of them recovers.
     /// </summary>
     /// <param name="messageDependencies">The message dependencies encapsulating error handlers.</param>
-    /// <param name="message">The message that was being handled when the error occurred.</param>
-    /// <param name="messageResult">The result of the message handling process, if any.</param>
-    /// <param name="exceptionDispatchInfo">The exception that triggered the error handler.</param>
-    /// <param name="cancellationToken">The cancellation token passed to each error handler invocation.</param>
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="messageResult">Whatever result existed when the fault happened, for handlers to inspect.</param>
+    /// <param name="failure">The exception that ended the mediation.</param>
+    /// <param name="executionContext">The execution context the mediation is running under.</param>
     /// <returns>
-    ///     The error context after all error handlers run. When <see cref="MessageErrorContext.Outcome" /> remains
-    ///     <see cref="MessageErrorOutcome.Unhandled" />, the original exception is rethrown.
+    ///     The error context the handlers saw, carrying whether one of them recovered and what it recovered with.
     /// </returns>
+    /// <remarks>
+    ///     The original stack is preserved through <see cref="ExceptionDispatchInfo" />, captured here so no caller has
+    ///     to remember to. With no error handler registered, or with every handler leaving the outcome unhandled, the
+    ///     fault is rethrown rather than being swallowed by the stage that observed it.
+    /// </remarks>
     public static async Task<MessageErrorContext> RunAsyncErrorHandlers(
         this IMessageDependencies messageDependencies,
         object message,
         object? messageResult,
-        ExceptionDispatchInfo exceptionDispatchInfo,
-        CancellationToken cancellationToken)
+        Exception failure,
+        IExecutionContext executionContext)
     {
+        ArgumentNullException.ThrowIfNull(messageDependencies);
+        ArgumentNullException.ThrowIfNull(executionContext);
+
+        // Capturing here rather than at each call site is what stops a strategy rethrowing without the original stack.
+        var exceptionDispatchInfo = ExceptionDispatchInfo.Capture(failure);
+
+        using var scope = AmbientExecutionContext.CreateScope(executionContext);
+
         if (messageDependencies.ErrorHandlers.Count + messageDependencies.IndirectErrorHandlers.Count == 0)
         {
             exceptionDispatchInfo.Throw();
@@ -305,12 +316,12 @@ public static class MessageContextExtensions
 
         foreach (var errorHandler in messageDependencies.IndirectErrorHandlers)
         {
-            await InvokeErrorHandlerAsync(errorHandler.Handler.Value, context, cancellationToken).ConfigureAwait(false);
+            await InvokeErrorHandlerAsync(errorHandler.Handler.Value, context, executionContext.CancellationToken).ConfigureAwait(false);
         }
 
         foreach (var errorHandler in messageDependencies.ErrorHandlers)
         {
-            await InvokeErrorHandlerAsync(errorHandler.Handler.Value, context, cancellationToken).ConfigureAwait(false);
+            await InvokeErrorHandlerAsync(errorHandler.Handler.Value, context, executionContext.CancellationToken).ConfigureAwait(false);
         }
 
         if (context.Outcome == MessageErrorOutcome.Unhandled)
@@ -420,25 +431,27 @@ public static class MessageContextExtensions
     }
 
     /// <summary>
-    ///     Builds a completion context and runs completion handlers inside the ambient execution scope.
+    ///     Reports how a mediation ended to every registered completion handler.
     /// </summary>
     /// <param name="messageDependencies">The message dependencies encapsulating completion handlers.</param>
     /// <param name="message">The message that was mediated.</param>
-    /// <param name="executionContext">The execution context used to scope the completion handlers.</param>
-    /// <param name="outcome">The outcome describing how the mediation ended.</param>
-    /// <param name="messageResult">The result observed before the mediation ended, when any.</param>
-    /// <param name="exception">The exception that ended the mediation, when any.</param>
-    /// <param name="reason">The reason a decision gave for stopping the pipeline, when one did.</param>
-    /// <param name="duration">The elapsed mediation time.</param>
-    /// <returns>A task representing the asynchronous completion stage.</returns>
+    /// <param name="executionContext">The execution context the mediation ran under.</param>
+    /// <param name="ending">How the mediation ended: the outcome, the failure, and the reason.</param>
+    /// <param name="messageResult">The result the main handler produced, when it ran and produced one.</param>
+    /// <param name="duration">How long the mediation took.</param>
+    /// <returns>A task that completes once every completion handler has run.</returns>
+    /// <remarks>
+    ///     A post-handler may have replaced what the caller receives through
+    ///     <see cref="IExecutionContext.MessageResult" />, and the completion stage should see what the caller actually
+    ///     got. That is resolved here rather than at each call site: getting it wrong reports the handler's own value to
+    ///     an audit trail while the caller received a different one.
+    /// </remarks>
     public static async Task RunAsyncCompletionHandlers(
         this IMessageDependencies messageDependencies,
         object message,
         IExecutionContext executionContext,
-        MessageOutcome outcome,
+        MediationEnding ending,
         object? messageResult,
-        Exception? exception,
-        string? reason,
         TimeSpan duration)
     {
         ArgumentNullException.ThrowIfNull(messageDependencies);
@@ -452,10 +465,13 @@ public static class MessageContextExtensions
         var context = new MessageCompletionContext
         {
             Message = message,
-            Outcome = outcome,
-            MessageResult = messageResult,
-            Exception = exception,
-            Reason = reason,
+            Outcome = ending.Outcome,
+
+            // A post-handler may have replaced what the caller receives, and the completion stage should see what the
+            // caller actually got. Resolving it here is what stops each strategy having to remember.
+            MessageResult = executionContext.MessageResult ?? messageResult,
+            Exception = ending.Failure,
+            Reason = ending.Reason,
             Duration = duration
         };
 

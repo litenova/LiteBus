@@ -1,6 +1,6 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Collections.Generic;
-using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
@@ -69,14 +69,17 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
         IAsyncEnumerable<TMessageResult>? stream = null;
         var pipelineStopped = false;
-        var mediation = MediationOutcome.Start();
+        var startedAt = Stopwatch.GetTimestamp();
+        var ending = MediationEnding.Succeeded;
 
         // Records a fault and offers it to the error stage. Every fault path in this method goes through here, and it
         // is a local function so it can record into the tracker the enclosing iterator owns.
         async Task RouteFaultAsync(Exception fault, object? observedResult)
         {
-            await mediation
-                .RecordFaultAsync(messageDependencies, message, executionContext, observedResult, fault)
+            ending = ending.Faulted(fault);
+
+            await messageDependencies
+                .RunAsyncErrorHandlers(message, observedResult, fault, executionContext)
                 .ConfigureAwait(false);
         }
 
@@ -156,7 +159,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
 
                     if (stop.StopsPipeline)
                     {
-                        mediation.RecordStop(stop);
+                        ending = ending.Stopped(stop);
                         pipelineStopped = true;
 
                         if (stop.IsRefusal)
@@ -171,7 +174,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                             catch (Exception refusal) when (refusal is LiteBusMessageDeniedException
                                                                 or LiteBusMessageInvalidException)
                             {
-                                mediation.RecordRefusal(refusal);
+                                ending = ending.Refused(refusal);
                                 throw;
                             }
                         }
@@ -253,8 +256,13 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         }
         finally
         {
-            await mediation
-                .CompleteAsync(messageDependencies, message, executionContext, stream)
+            await messageDependencies
+                .RunAsyncCompletionHandlers(
+                    message,
+                    executionContext,
+                    ending,
+                    stream,
+                    Stopwatch.GetElapsedTime(startedAt))
                 .ConfigureAwait(false);
         }
     }
