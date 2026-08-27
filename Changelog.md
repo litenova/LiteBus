@@ -208,6 +208,9 @@ unchanged.
   result-returning message always carries the result. The removed overload meant "yields nothing" on a stream query and
   failed at runtime with `LiteBusConfigurationException` on every other result shape. A stream shortcut that means no
   items answers with `AsyncEnumerable.Empty<T>()`.
+- `MessageOutcome` is renamed `MediationOutcome`. It describes how a mediation ended, not a property of the message,
+  and every member reads correctly under the new name. Completion handlers and audit outcome mappers name the type, so
+  they need the rename; nothing about their behavior changes.
 - `MediationOutcome.ShortCircuited` is renamed `Answered`, and `PipelineStop.ShortCircuited` follows it. Its five siblings
   all name a state the message ended in, while short-circuiting names a mechanism that describes a denial just as
   accurately. `Answered` also matches `TryAnswerAsync` and `Shortcut.Answer`, so one word covers the contract, the verb,
