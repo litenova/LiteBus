@@ -117,6 +117,22 @@ public sealed class StreamMediationParityTests
     }
 
     [Fact]
+    public async Task The_handler_stream_is_released_before_post_handlers_run()
+    {
+        var recorder = new CompletionRecorder();
+        var provider = BuildProvider(recorder, new StageOrderRecorder());
+        var query = new SteeredStreamQuery { SourceItems = 2 };
+
+        await provider.GetRequiredService<IQueryMediator>()
+            .StreamAsync(query).ToListAsync().ConfigureAwait(true);
+
+        // Enumeration of the handler's stream is finished by the time post-handlers run, so its enumerator is released
+        // then rather than being held until the whole mediation ends. A post-handler receives the IAsyncEnumerable and
+        // would enumerate it afresh, so nothing observes the difference except the resource being held for less time.
+        query.SourceDisposedBeforePostHandlers.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task A_stream_never_enumerated_produces_no_completion_record()
     {
         var recorder = new CompletionRecorder();

@@ -38,6 +38,11 @@ internal sealed class SteeredStreamQuery : IStreamQuery<int>
     ///     Gets or sets a value indicating whether the source enumerator was disposed.
     /// </summary>
     public bool SourceDisposed { get; set; }
+
+    /// <summary>
+    ///     Gets or sets a value indicating whether the source enumerator had been disposed when post-handlers ran.
+    /// </summary>
+    public bool SourceDisposedBeforePostHandlers { get; set; }
 }
 
 /// <summary>
@@ -85,6 +90,8 @@ internal sealed class SteeredStreamOverridePostHandler : IStreamQueryPostHandler
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
+
+        message.SourceDisposedBeforePostHandlers = message.SourceDisposed;
 
         if (message.ReplaceStream)
         {

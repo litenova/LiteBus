@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,19 +8,22 @@ using LiteBus.Messaging.Abstractions;
 namespace LiteBus.Messaging.MediationStrategies;
 
 /// <summary>
-///     Mediates the handling of a message by invoking a single asynchronous stream handler.
-///     This strategy ensures that only one handler processes the message and produces a stream of results.
+///     Mediates a message by invoking a single stream handler and yielding what it produces.
 /// </summary>
 /// <typeparam name="TMessage">Type of the message being handled.</typeparam>
-/// <typeparam name="TMessageResult">Type of the results returned by the message handler.</typeparam>
+/// <typeparam name="TMessageResult">Type of the items the handler streams.</typeparam>
 /// <remarks>
-///     This strategy implements the streaming pattern for message handling, where a single handler
-///     produces a stream of results that are yielded asynchronously. The strategy orchestrates the
-///     execution of pre-handlers before the stream begins, processes each item in the stream,
-///     and executes post-handlers after the stream completes.
-///     Error handling is performed at multiple stages: during pre-handling, during stream enumeration,
-///     and during post-handling. When a decision stops the pipeline, the main handler never runs and the stream yields
-///     whatever the directive supplied, or nothing.
+///     <para>
+///         This is the only mediation strategy that is an iterator, and that is what makes it different from the others
+///         rather than merely longer. Nothing happens until the caller enumerates, faults surface from
+///         <c>MoveNextAsync</c> rather than from a call, and the completion stage fires when the enumerator is disposed.
+///         A caller who never enumerates produces no completion record at all.
+///     </para>
+///     <para>
+///         Faults are routed to the error stage from four places: acquiring the handler's stream, acquiring an
+///         enumerator, advancing one, and running post-handlers. All four go through the same local function, because
+///         four copies of that block is how they drift apart.
+///     </para>
 /// </remarks>
 public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResult> :
     IMessageMediationStrategy<TMessage, IAsyncEnumerable<TMessageResult>>
@@ -47,32 +49,107 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
     /// </summary>
     /// <param name="message">The message to be mediated.</param>
     /// <param name="messageDependencies">
-    ///     The dependencies required for message handling, including handlers, pre-handlers,
-    ///     post-handlers, and error handlers.
+    ///     The dependencies required for message handling, including handlers, pre-stage handlers, post-handlers, and
+    ///     error handlers.
     /// </param>
     /// <param name="executionContext">
-    ///     The context in which the mediation is executed, providing access to cancellation tokens,
-    ///     shared data, and other execution-related information.
+    ///     The context in which the mediation is executed, providing access to cancellation tokens, shared data, and
+    ///     other execution-related information.
     /// </param>
     /// <returns>An asynchronous stream of results produced by the handler.</returns>
     /// <exception cref="NoHandlerFoundException">Thrown when no handler is found for the message type.</exception>
-    /// <exception cref="MultipleHandlerFoundException">Thrown when more than one handler is found for the message type.</exception>
-    /// <remarks>
-    ///     The mediation process includes executing pre-handlers before starting the stream, obtaining the
-    ///     stream from the handler, enumerating the stream and yielding each result, and executing post-handlers
-    ///     after the stream completes. If an exception occurs during any stage, the appropriate error handlers are
-    ///     executed. When a decision stops the pipeline, the mediation reports <see cref="MessageOutcome.Answered" />
-    ///     or <see cref="MessageOutcome.Denied" />.
-    /// </remarks>
     public async IAsyncEnumerable<TMessageResult> Mediate(
         TMessage message,
         IMessageDependencies messageDependencies,
         IExecutionContext executionContext)
     {
-        IAsyncEnumerable<TMessageResult>? messageResultAsyncEnumerable = null;
-        var shouldContinue = true;
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(messageDependencies);
+        ArgumentNullException.ThrowIfNull(executionContext);
+
+        IAsyncEnumerable<TMessageResult>? stream = null;
         var pipelineStopped = false;
         var mediation = MediationOutcome.Start();
+
+        // Records a fault and offers it to the error stage. Every fault path in this method goes through here, and it
+        // is a local function so it can record into the tracker the enclosing iterator owns.
+        async Task RouteFaultAsync(Exception fault, object? observedResult)
+        {
+            mediation.RecordFailure(fault);
+
+            using (AmbientExecutionContext.CreateScope(executionContext))
+            {
+                await messageDependencies.RunAsyncErrorHandlers(
+                    message,
+                    observedResult,
+                    ExceptionDispatchInfo.Capture(fault),
+                    executionContext.CancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        // Enumerates one stream to its end, routing any fault and stopping there. The handler's stream and a
+        // post-handler's replacement are enumerated identically, so both come through here.
+        async IAsyncEnumerable<TMessageResult> EnumerateAsync(IAsyncEnumerable<TMessageResult> source)
+        {
+            IAsyncEnumerator<TMessageResult>? enumerator = null;
+
+            try
+            {
+                using (AmbientExecutionContext.CreateScope(executionContext))
+                {
+                    enumerator = source.GetAsyncEnumerator(_cancellationToken);
+                }
+            }
+            catch (Exception fault) when (MediationExceptionFilters.IsRecoverableMediationException(fault))
+            {
+                await RouteFaultAsync(fault, source).ConfigureAwait(false);
+            }
+
+            if (enumerator is null)
+            {
+                yield break;
+            }
+
+            try
+            {
+                while (true)
+                {
+                    TMessageResult? item;
+                    bool hasItem;
+
+                    using (AmbientExecutionContext.CreateScope(executionContext))
+                    {
+                        try
+                        {
+                            hasItem = await enumerator.MoveNextAsync().ConfigureAwait(false);
+                            item = hasItem ? enumerator.Current : default;
+                        }
+                        catch (Exception fault) when (MediationExceptionFilters.IsRecoverableMediationException(fault))
+                        {
+                            await RouteFaultAsync(fault, source).ConfigureAwait(false);
+
+                            // The enumerator is not valid after a fault, so stop rather than replaying the last item.
+                            hasItem = false;
+                            item = default;
+                        }
+                    }
+
+                    if (!hasItem)
+                    {
+                        break;
+                    }
+
+                    yield return item!;
+                }
+            }
+            finally
+            {
+                using (AmbientExecutionContext.CreateScope(executionContext))
+                {
+                    await enumerator.DisposeAsync().ConfigureAwait(false);
+                }
+            }
+        }
 
         try
         {
@@ -87,7 +164,6 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                     if (stop.StopsPipeline)
                     {
                         mediation.RecordStop(stop);
-                        shouldContinue = false;
                         pipelineStopped = true;
 
                         if (stop.IsRefusal)
@@ -96,7 +172,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                             // Without one it reaches the caller as an exception.
                             try
                             {
-                                messageResultAsyncEnumerable = messageDependencies
+                                stream = messageDependencies
                                     .ResolveRefusalResult<IAsyncEnumerable<TMessageResult>?>(message, stop);
                             }
                             catch (Exception refusal) when (refusal is LiteBusMessageDeniedException
@@ -111,42 +187,32 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                             // A typed shortcut always carries the stream it answers with, so this resolves it. Reaching
                             // here without one means the untyped shortcut contract was used on a stream query, which
                             // ResolveResult reports and analyzer LB1019 catches at compile time.
-                            messageResultAsyncEnumerable =
-                                stop.ResolveResult<IAsyncEnumerable<TMessageResult>?>(message.GetType());
+                            stream = stop.ResolveResult<IAsyncEnumerable<TMessageResult>?>(message.GetType());
                         }
                     }
                     else
                     {
                         var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
-                        messageResultAsyncEnumerable = HandlerInvocation.InvokeStreamHandler<TMessage, TMessageResult>(
+
+                        stream = HandlerInvocation.InvokeStreamHandler<TMessage, TMessageResult>(
                             handler,
                             message,
                             executionContext.CancellationToken);
                     }
                 }
             }
-            catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
+            catch (Exception fault) when (MediationExceptionFilters.IsRecoverableMediationException(fault))
             {
-                mediation.RecordFailure(exception);
-                using (AmbientExecutionContext.CreateScope(executionContext))
-                {
-                    await messageDependencies.RunAsyncErrorHandlers(
-                        message,
-                        messageResultAsyncEnumerable,
-                        ExceptionDispatchInfo.Capture(exception),
-                        executionContext.CancellationToken).ConfigureAwait(false);
-                }
+                await RouteFaultAsync(fault, stream).ConfigureAwait(false);
             }
 
             if (pipelineStopped)
             {
-                // The shortcut answered for the handler, so the caller gets whatever stream it supplied and the reactions to
-                // work that never happened do not run. Supplying no stream is a legitimate answer and yields nothing.
-                if (messageResultAsyncEnumerable is not null)
+                // A decision answered for the handler, so the caller gets whatever stream it supplied and the reactions
+                // to work that never happened do not run.
+                if (stream is not null)
                 {
-                    await foreach (var item in messageResultAsyncEnumerable
-                                       .WithCancellation(_cancellationToken)
-                                       .ConfigureAwait(false))
+                    await foreach (var item in stream.WithCancellation(_cancellationToken).ConfigureAwait(false))
                     {
                         yield return item;
                     }
@@ -155,197 +221,58 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                 yield break;
             }
 
-            messageResultAsyncEnumerable ??= Empty<TMessageResult>();
+            await foreach (var item in EnumerateAsync(stream ?? Empty()).ConfigureAwait(false))
+            {
+                yield return item;
+            }
 
-            IAsyncEnumerator<TMessageResult>? messageResultAsyncEnumerator = null;
+            IAsyncEnumerable<TMessageResult>? overrideStream = null;
 
             try
             {
                 using (AmbientExecutionContext.CreateScope(executionContext))
                 {
-                    messageResultAsyncEnumerator = messageResultAsyncEnumerable.GetAsyncEnumerator(_cancellationToken);
-                }
-            }
-            catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
-            {
-                mediation.RecordFailure(exception);
-                using (AmbientExecutionContext.CreateScope(executionContext))
-                {
-                    await messageDependencies.RunAsyncErrorHandlers(
+                    await messageDependencies.RunAsyncPostHandlers(
                         message,
-                        messageResultAsyncEnumerable,
-                        ExceptionDispatchInfo.Capture(exception),
+                        stream,
                         executionContext.CancellationToken).ConfigureAwait(false);
-                }
-            }
 
-            messageResultAsyncEnumerator ??= Empty<TMessageResult>().GetAsyncEnumerator(_cancellationToken);
-
-            try
-            {
-                TMessageResult? item = default;
-                var hasResult = true;
-
-                while (hasResult && shouldContinue)
-                {
-                    using (AmbientExecutionContext.CreateScope(executionContext))
+                    if (executionContext.MessageResult is IAsyncEnumerable<TMessageResult> replacement)
                     {
-                        try
-                        {
-                            hasResult = await messageResultAsyncEnumerator.MoveNextAsync().ConfigureAwait(false);
-                            item = hasResult ? messageResultAsyncEnumerator.Current : default;
-                        }
-                                    catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
-                        {
-                            mediation.RecordFailure(exception);
-                            await messageDependencies.RunAsyncErrorHandlers(
-                                message,
-                                messageResultAsyncEnumerable,
-                                ExceptionDispatchInfo.Capture(exception),
-                                executionContext.CancellationToken).ConfigureAwait(false);
-
-                            // The source enumerator is no longer valid after a fault. Do not replay the previous item.
-                            hasResult = false;
-                            item = default;
-                        }
-                    }
-
-                    if (hasResult && shouldContinue)
-                    {
-                        yield return item!;
-                    }
-                }
-
-                if (!shouldContinue)
-                {
-                    yield break;
-                }
-
-                IAsyncEnumerable<TMessageResult>? overrideStream = null;
-
-                try
-                {
-                    using (AmbientExecutionContext.CreateScope(executionContext))
-                    {
-                        await messageDependencies.RunAsyncPostHandlers(
-                            message,
-                            messageResultAsyncEnumerable,
-                            executionContext.CancellationToken).ConfigureAwait(false);
-
-                        if (executionContext.MessageResult is IAsyncEnumerable<TMessageResult> stream)
-                        {
-                            overrideStream = stream;
-                        }
-                    }
-                }
-                catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
-                {
-                    mediation.RecordFailure(exception);
-                    using (AmbientExecutionContext.CreateScope(executionContext))
-                    {
-                        await messageDependencies.RunAsyncErrorHandlers(
-                            message,
-                            messageResultAsyncEnumerable,
-                            ExceptionDispatchInfo.Capture(exception),
-                            executionContext.CancellationToken).ConfigureAwait(false);
-                    }
-                }
-
-                if (overrideStream is not null)
-                {
-                    IAsyncEnumerator<TMessageResult>? overrideEnumerator = null;
-
-                    try
-                    {
-                        using (AmbientExecutionContext.CreateScope(executionContext))
-                        {
-                            overrideEnumerator = overrideStream.GetAsyncEnumerator(_cancellationToken);
-                        }
-                    }
-                    catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
-                    {
-                        mediation.RecordFailure(exception);
-                        using (AmbientExecutionContext.CreateScope(executionContext))
-                        {
-                            await messageDependencies.RunAsyncErrorHandlers(
-                                message,
-                                overrideStream,
-                                ExceptionDispatchInfo.Capture(exception),
-                                executionContext.CancellationToken).ConfigureAwait(false);
-                        }
-                    }
-
-                    if (overrideEnumerator is not null)
-                    {
-                        try
-                        {
-                            var hasOverrideResult = true;
-
-                            while (hasOverrideResult)
-                            {
-                                TMessageResult? overrideItem = default;
-
-                                using (AmbientExecutionContext.CreateScope(executionContext))
-                                {
-                                    try
-                                    {
-                                        hasOverrideResult = await overrideEnumerator.MoveNextAsync().ConfigureAwait(false);
-                                        overrideItem = hasOverrideResult ? overrideEnumerator.Current : default;
-                                    }
-                                                            catch (Exception exception) when (MediationExceptionFilters.IsRecoverableMediationException(exception))
-                                    {
-                                        mediation.RecordFailure(exception);
-                                        await messageDependencies.RunAsyncErrorHandlers(
-                                            message,
-                                            overrideStream,
-                                            ExceptionDispatchInfo.Capture(exception),
-                                            executionContext.CancellationToken).ConfigureAwait(false);
-
-                                        hasOverrideResult = false;
-                                    }
-                                }
-
-                                if (hasOverrideResult)
-                                {
-                                    yield return overrideItem!;
-                                }
-                            }
-                        }
-                        finally
-                        {
-                            using (AmbientExecutionContext.CreateScope(executionContext))
-                            {
-                                await overrideEnumerator.DisposeAsync().ConfigureAwait(false);
-                            }
-                        }
+                        overrideStream = replacement;
                     }
                 }
             }
-            finally
+            catch (Exception fault) when (MediationExceptionFilters.IsRecoverableMediationException(fault))
             {
-                using (AmbientExecutionContext.CreateScope(executionContext))
-                {
-                    await messageResultAsyncEnumerator.DisposeAsync().ConfigureAwait(false);
-                }
+                await RouteFaultAsync(fault, stream).ConfigureAwait(false);
+            }
+
+            if (overrideStream is null)
+            {
+                yield break;
+            }
+
+            await foreach (var item in EnumerateAsync(overrideStream).ConfigureAwait(false))
+            {
+                yield return item;
             }
         }
         finally
         {
             await mediation
-                .CompleteAsync(messageDependencies, message, executionContext, messageResultAsyncEnumerable)
+                .CompleteAsync(messageDependencies, message, executionContext, stream)
                 .ConfigureAwait(false);
         }
     }
 
     /// <summary>
-    ///     Creates an empty asynchronous enumerable.
+    ///     Produces the stream a mediation enumerates when nothing supplied one.
     /// </summary>
-    /// <typeparam name="T">The type of elements in the enumerable.</typeparam>
-    /// <returns>An empty asynchronous enumerable.</returns>
+    /// <returns>An empty asynchronous sequence.</returns>
 #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
-
     // https://github.com/dotnet/runtime/issues/1128#issuecomment-571624647
-    private static async IAsyncEnumerable<T> Empty<T>()
+    private static async IAsyncEnumerable<TMessageResult> Empty()
 #pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
     {
         yield break;
