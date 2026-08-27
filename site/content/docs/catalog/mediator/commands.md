@@ -9,7 +9,7 @@
 
 `ICommandMediator` sends command messages through `SingleAsyncHandlerMediationStrategy`. Commands require exactly one main handler after routing filters are applied. When no handler or multiple handlers remain, mediation fails fast (`NoHandlerFoundException` or `MultipleHandlerFoundException`).
 
-Commands support both void (`ICommand`) and result (`ICommand<TResult>`) flows. A gate can stop execution before the handler runs, as an early answer or a refusal. Post-handlers can observe results, and result post-handlers can replace the returned value through `AmbientExecutionContext.Current.MessageResult`.
+Commands support both void (`ICommand`) and result (`ICommand<TResult>`) flows. A guard, a validator, or a shortcut can stop execution before the handler runs, as a refusal, a report that the message is malformed, or an early answer. Post-handlers can observe results, and result post-handlers can replace the returned value through `AmbientExecutionContext.Current.MessageResult`.
 
 ## Public Surface
 

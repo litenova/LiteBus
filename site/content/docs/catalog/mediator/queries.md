@@ -57,7 +57,7 @@ var dto = await queryMediator.QueryAsync(new GetProductQuery(id), cancellationTo
 
 - Exactly one main query handler must resolve after routing filters.
 - `QueryAsync` and `StreamAsync` throw `ArgumentNullException` for `null` query arguments.
-- A gate that stops a stream query yields whatever stream it supplied, and nothing when it supplied none; post-handlers do not run.
+- A shortcut that stops a stream query yields the stream it answered with, which may be an empty sequence; post-handlers do not run.
 - Query handlers are intended for side-effect free reads.
 
 ## Non-Goals

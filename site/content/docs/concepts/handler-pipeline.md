@@ -1,6 +1,6 @@
 # The Handler Pipeline
 
-Every message LiteBus mediates passes through the same pipeline: two decision stages, pre-handlers, one or more main handlers, post-handlers, error-handlers on failure, and completion handlers on every path. This page explains the exact order each stage runs in, how global and specific handlers interleave, how errors propagate, how cancellation flows, and how a guard or a shortcut decides whether the work happens at all. It is the reference behind the per-module pages and assumes you have read at least the [Command Module](commands.md).
+Every message LiteBus mediates passes through the same pipeline: three decision stages, pre-handlers, one or more main handlers, post-handlers, error-handlers on failure, and completion handlers on every path. This page explains the exact order each stage runs in, how global and specific handlers interleave, how errors propagate, how cancellation flows, and how a guard, a validator, or a shortcut decides whether the work happens at all. It is the reference behind the per-module pages and assumes you have read at least the [Command Module](commands.md).
 
 The pipeline is the same shape for commands, queries, and events. The difference is the main stage: a command or query has exactly one main handler, while an event has zero to many. Everything around the main stage behaves identically.
 
@@ -9,23 +9,26 @@ The pipeline is the same shape for commands, queries, and events. The difference
 For a single message, mediation runs:
 
 1. **Guards** decide whether the message is permitted to proceed. A guard refuses by returning a verdict.
-2. **Shortcuts** decide whether the answer is already known. A shortcut answers by returning a result, so the main handler never runs.
-3. **Pre-handlers** validate, enrich, or otherwise prepare a message that is going to be handled. Throwing here stops the pipeline; returning cannot.
-4. **Main handler** does the work. One handler for commands and queries; all matching handlers for events.
-5. **Post-handlers** react to success. They receive the message and the result.
-6. **Error-handlers** run only if any earlier stage threw. They receive the message, any partial result, and the exception.
-7. **Completion handlers** run on every path, exactly once, and observe how the mediation ended.
+2. **Validators** decide whether the message is well-formed. A validator reports failures by returning a validity.
+3. **Shortcuts** decide whether the answer is already known. A shortcut answers by returning a result, so the main handler never runs.
+4. **Pre-handlers** prepare a message that is going to be handled. Throwing here stops the pipeline; returning cannot.
+5. **Main handler** does the work. One handler for commands and queries; all matching handlers for events.
+6. **Post-handlers** react to success. They receive the message and the result.
+7. **Error-handlers** run only if any earlier stage threw. They receive the message, any partial result, and the exception.
+8. **Completion handlers** run on every path, exactly once, and observe how the mediation ended.
 
 ```mermaid
 flowchart LR
     A[Message sent] --> G1[Guards]
-    G1 --> S1[Shortcuts]
+    G1 --> V1[Validators]
+    V1 --> S1[Shortcuts]
     S1 --> B[Pre-handlers]
     B --> C[Main handler]
     C --> D[Post-handlers]
     D --> E[Result returned]
     G1 -. denies .-> I[Denied]
-    S1 -. answers .-> J[ShortCircuited]
+    V1 -. reports failures .-> L[Invalid]
+    S1 -. answers .-> J[Answered]
     B -. throws .-> F[Error-handlers]
     C -. throws .-> F
     D -. throws .-> F
@@ -33,11 +36,12 @@ flowchart LR
     E --> H[Completion handlers]
     I --> H
     J --> H
+    L --> H
     F --> H
     K --> H
 ```
 
-A guard or shortcut decision leaves the pipeline without touching the main handler, the post-handlers, or the error handlers, and still reaches the completion stage. That is the whole reason the completion stage exists.
+A decision from any of the three stages leaves the pipeline without touching the main handler, the post-handlers, or the error handlers, and still reaches the completion stage. That is the whole reason the completion stage exists.
 
 Every stage before the last answers a partial question. Only the completion stage sees the whole story, which is why it exists: a post-handler never runs when a handler throws, an error-handler never runs for a refusal or a cancellation, and neither runs when no handler of that kind is registered. Anything that must know how a message actually ended, such as an audit record, a metric, or the close of a unit of work, belongs in the completion stage.
 
@@ -50,6 +54,7 @@ The two kinds run in a deliberate order that forms an onion around the main hand
 | Stage | Order |
 | --- | --- |
 | Guards | Global (indirect) first, then specific (direct) |
+| Validators | Global (indirect) first, then specific (direct); every validator runs |
 | Shortcuts | Global (indirect) first, then specific (direct) |
 | Pre-handlers | Global (indirect) first, then specific (direct) |
 | Main handler | The handler(s) for the message |
@@ -59,9 +64,9 @@ The two kinds run in a deliberate order that forms an onion around the main hand
 
 Within each group, handlers run in ascending `[HandlerPriority]` order (default priority is `0`). The pre/post asymmetry is intentional: a global pre-handler such as authentication runs before any message-specific check, and a global post-handler such as audit logging runs after the message-specific reactions have completed. Cross-cutting concerns wrap message-specific ones on both sides.
 
-**Priority orders handlers inside a stage; it never reorders the stages themselves.** Every guard runs before every shortcut, and every shortcut before every pre-handler, whatever priority each carries and whether it is registered globally or for one message type. That is the guarantee the three-stage split exists to provide, and the [Guards and Shortcuts](#guards-and-shortcuts-deciding-whether-the-work-happens) section explains what it buys.
+**Priority orders handlers inside a stage; it never reorders the stages themselves.** Every guard runs before every validator, every validator before every shortcut, and every shortcut before every pre-handler, whatever priority each carries and whether it is registered globally or for one message type. That is the guarantee the split exists to provide, and the [Deciding Whether the Work Happens](#deciding-whether-the-work-happens) section explains what it buys.
 
-This ordering is implemented in `MessageContextExtensions`: each of the three decision stages iterates indirect then direct, post-handlers and completion handlers iterate direct then indirect, and error-handlers iterate indirect then direct.
+This ordering is implemented in `MessageContextExtensions`: each decision stage iterates indirect then direct, post-handlers and completion handlers iterate direct then indirect, and error-handlers iterate indirect then direct.
 
 Each pre-handler, post-handler, and completion handler is invoked through the closed contract recorded in its descriptor at registration, so one class may implement pipeline contracts for several message types and each dispatch reaches the right one. The delegate that performs the dispatch is built while the descriptor is built, which keeps reflection in the registration path rather than in the hot path.
 
@@ -72,7 +77,7 @@ LiteBus also ships pipeline handlers of its own, such as the audit record writer
 A command or query must resolve to exactly one main handler. If more than one is registered, mediation throws `MultipleHandlerFoundException` before running anything. The flow for a result-returning message is:
 
 ```
-stop = RunAsyncPreStages(message)   // guards, then shortcuts, then pre-handlers; stops on the first decision
+stop = RunAsyncPreStages(message)   // guards, validators, shortcuts, pre-handlers; stops on the first decision
 result = handler.HandleAsync(...)   // the one main handler
 RunAsyncPostHandlers(message, result) // direct post, then indirect post
 RunAsyncCompletionHandlers(context)   // direct, then indirect, always, in a finally
@@ -94,7 +99,7 @@ public sealed class WrapInEnvelope : IQueryPostHandler<GetProductByIdQuery, Prod
 
 ## Events: The Broadcast Pipeline
 
-An event runs pre-handlers, then all matching main handlers, then post-handlers, then error-handlers on failure. Main handlers are grouped by priority and executed according to the two concurrency switches on `EventMediationSettings.Execution`, covered on [Handler Priority](handler-priority.md) and the [Event Module](events.md).
+An event runs the decision stages and pre-handlers, then all matching main handlers, then post-handlers, then error-handlers on failure. Main handlers are grouped by priority and executed according to the two concurrency switches on `EventMediationSettings.Execution`, covered on [Handler Priority](handler-priority.md) and the [Event Module](events.md).
 
 If no main handler matches, event publish still runs global and message-specific pre-handlers, then returns without post-handlers. Set `EventMediationSettings.ThrowIfNoHandlerFound = true` to throw `NoHandlerFoundException` after pre-handlers complete, which is useful in tests that assert a handler exists.
 
@@ -121,63 +126,115 @@ public sealed class AuditFailure : ICommandErrorHandler<ProcessPaymentCommand>
 }
 ```
 
-## Guards and Shortcuts: Deciding Whether the Work Happens
+## Deciding Whether the Work Happens
 
-Two kinds of pre-handler can end a mediation before the main handler runs, and they answer different questions:
+Three kinds of pre-stage handler can end a mediation before the main handler runs, and each answers a different question:
 
 - A **guard** answers "may this happen". It refuses, and the refusal is security-relevant.
+- A **validator** answers "is this well-formed". It reports failures, and malformed input is not a refusal.
 - A **shortcut** answers "is this already done". It supplies the answer, and nothing was refused.
 
-Both decide by returning a value rather than throwing, so the compiler requires the decision and nothing after it runs by accident.
+All three decide by returning a value rather than throwing, so the compiler requires the decision and nothing after it runs by accident.
 
 | Decision | Returned by | Meaning | Reported outcome | Recorded by an audit trail as |
 | --- | --- | --- | --- | --- |
 | `Verdict.Allow` | a guard | The message may proceed | not applicable | not applicable |
-| `Verdict.Deny(reason)` | a guard | The message is refused | `MessageOutcome.Denied` | a denial |
+| `Verdict.Deny(reason, code)` | a guard | The message is refused | `MessageOutcome.Denied` | a denial |
+| `Validity.Valid` | a validator | Nothing is wrong | not applicable | not applicable |
+| `Validity.Invalid(...)` | a validator | The message is malformed | `MessageOutcome.Invalid` | invalid |
 | `Shortcut.None` | a shortcut | No answer; the mediation proceeds | not applicable | not applicable |
-| `Shortcut.Skip(reason)` | a shortcut | The work was already applied | `MessageOutcome.ShortCircuited` | a success |
-| `Shortcut<T>.Answer(result, reason)` | a shortcut | The result was already known | `MessageOutcome.ShortCircuited` | a success |
+| `Shortcut.Skip(reason)` | a shortcut | The work was already applied | `MessageOutcome.Answered` | a success |
+| `Shortcut<T>.Answer(result, reason)` | a shortcut | The result was already known | `MessageOutcome.Answered` | a success |
 
-Keeping refusal and early answer in separate contracts does two things. It stops false entries in the one artifact a security review reads, because a cache hit refused nobody and a replayed idempotent command took effect the first time. And it lets the framework fix the order.
+Keeping these in separate contracts does two things. It stops false entries in the one artifact a security review reads, because a cache hit refused nobody, a replayed idempotent command took effect the first time, and a malformed field is not an access decision. And it lets the framework fix the order.
 
-### Why Guards Always Run First
+### Why the Order Is Fixed
 
-The stage order is guards, then shortcuts, then pre-handlers, and no priority can change it. That is a correctness guarantee, not a style preference.
+The stage order is guards, then validators, then shortcuts, then pre-handlers, and no priority can change it. That is a correctness guarantee, not a style preference. Each stage only ever sees input the previous one certified:
+
+| Stage | Sees |
+| --- | --- |
+| Guard | Every message |
+| Validator | Only messages the caller is allowed to send |
+| Shortcut | Only well-formed messages the caller is allowed to send |
+| Pre-handler | Only messages that are going to be handled |
 
 Consider a cache registered globally for every query and an authorization check registered for one query. In a single pre-handler stage the global handler runs first, because indirect handlers precede direct ones, so the cache would answer a caller the authorization check would have refused. Writing priorities to fix that only works if every author remembers, and it cannot fix the indirect-before-direct rule at all. ASP.NET Core documents the same hazard for its own stack: `UseOutputCache` must come after `UseAuthorization`, or cached content reaches unauthorized users. Because LiteBus owns its stages, it can make the mistake unrepresentable instead of documenting it.
 
-Shortcuts run before pre-handlers for a second reason: a message that is about to be skipped should not pay for validation and enrichment it is about to skip, and a replayed message was already validated the first time it ran. A shortcut that needs prepared state resolves it from the container.
+Validation sits between the two for the same class of reason. A malformed message must not claim an idempotency key or collect a cached answer, and an unauthorized caller should not learn from a validation message whether a resource exists.
+
+Shortcuts run before pre-handlers for a different reason: a message that is about to be skipped should not pay for the enrichment it is about to skip. A shortcut that needs prepared state resolves it from the container.
 
 ### Guard Contracts
 
 | Contract | For |
 | --- | --- |
 | `ICommandGuard<TCommand>` | Any command, whether or not it produces a result |
-| `ICommandGuard<TCommand, TCommandResult>` | A command whose refusal hands the caller a value |
 | `IQueryGuard<TQuery>` | Any query, including a stream query |
-| `IQueryGuard<TQuery, TQueryResult>` | A query whose refusal hands the caller a value |
-| `IStreamQueryGuard<TQuery, TQueryResult>` | A stream query whose refusal hands the caller a stream |
 | `IEventGuard<TEvent>` | An event |
 
-A refusal never owes the caller the value the handler would have produced, so the one-parameter contract is correct for every message. Reach for the typed form only when the application models failure as a value and would rather hand back a failed result object than raise an exception.
+One contract covers every message, because a refusal does not owe the caller the value the handler would have produced. Where the application hands back a failed result object instead of raising, that mapping lives in a [refusal mapper](#refusal-mappers) rather than in each guard.
 
 ```csharp
 public sealed class RejectSelfApproval : ICommandGuard<ApproveRefundCommand>
 {
-    public Task<Verdict> CheckAsync(
+    public Task<Verdict> DecideAsync(
         ApproveRefundCommand command,
         CancellationToken cancellationToken = default)
     {
         return Task.FromResult(command.ApproverId == command.RequesterId
-            ? Verdict.Deny("the approver is the requester")
+            ? Verdict.Deny("the approver is the requester", code: "SELF_APPROVAL")
             : Verdict.Allow);
     }
 }
 ```
 
-A refusal always carries a reason. `Deny(reason)` supplies no value, so the mediation raises `LiteBusMessageDeniedException` when the caller expects one, because a method that must return a value has nothing to return. `Verdict<T>.Deny(reason, result)` hands the caller a refusal value instead and raises nothing.
+A refusal always carries a reason and may carry a code, which a refusal mapper can switch on without parsing prose. The stage stops at the first refusal, because one reason is enough for a caller who is not allowed to proceed.
 
 `LiteBusMessageDeniedException` does **not** reach error handlers. An error handler exists to recover from faults, and letting it see a refusal would let it undo one. The mediation still reports `Denied`, so the completion stage records it.
+
+### Validator Contracts
+
+| Contract | For |
+| --- | --- |
+| `ICommandValidator<TCommand>` | Any command |
+| `IQueryValidator<TQuery>` | Any query, including a stream query |
+| `IEventValidator<TEvent>` | An event |
+
+```csharp
+public sealed class TransferValidator : ICommandValidator<TransferCommand>
+{
+    public Task<Validity> ValidateAsync(
+        TransferCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var failures = new List<ValidationFailure>();
+
+        if (command.Amount <= 0)
+        {
+            failures.Add(new ValidationFailure(
+                "the amount must be positive",
+                nameof(command.Amount),
+                "AMOUNT_NOT_POSITIVE"));
+        }
+
+        if (string.IsNullOrWhiteSpace(command.Reference))
+        {
+            failures.Add(new ValidationFailure(
+                "the reference must be supplied",
+                nameof(command.Reference)));
+        }
+
+        return Task.FromResult(Validity.Invalid(failures));
+    }
+}
+```
+
+`Validity.Invalid(failures)` with an empty sequence is `Validity.Valid`, so a validator that finds nothing wrong needs no branch.
+
+**This is the one stage that does not stop at the first decision.** Every validator runs, global and specific, and the stage gathers their failures into one result. A caller fixing a malformed message should not have to discover its problems one round trip at a time. Guards stop at the first refusal for the opposite reason: one reason is enough, and listing the rest would tell an unauthorized caller more than they should learn.
+
+The failures reach the caller on `LiteBusMessageInvalidException.Failures`, and the mediation reports `MessageOutcome.Invalid`. Like a denial, an invalid message is a decision rather than a fault, so error handlers do not see it. It is kept apart from `Denied` so malformed input stays out of the list a security review reads.
 
 ### Shortcut Contracts
 
@@ -207,16 +264,41 @@ public sealed class ServeProductFromCache : IQueryShortcut<GetProductQuery, Prod
 }
 ```
 
+For a stream query the answer is typed over `IAsyncEnumerable<TResult>`, so answering yields that stream instead of the handler's. A shortcut that means the caller enumerates nothing answers with an empty sequence, which says so outright:
+
+```csharp
+return Shortcut<IAsyncEnumerable<Product>>.Answer(AsyncEnumerable.Empty<Product>(), "nothing to stream");
+```
+
+### Refusal Mappers
+
+By default a refusal reaches the caller as `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException`, because a method that must return a value has nothing to return. Applications that model failure as a value register a mapper instead:
+
+```csharp
+public sealed class ResultRefusalMapper : ICommandRefusalMapper<ICommand, Result>
+{
+    public Result Map(ICommand command, Refusal refusal) => refusal.Outcome switch
+    {
+        MessageOutcome.Denied  => Result.Forbidden(refusal.Code, refusal.Reason),
+        MessageOutcome.Invalid => Result.Invalid(refusal.Reason),
+        _                      => Result.Failure(refusal.Reason)
+    };
+}
+```
+
+One registration against `ICommand` covers every command producing that result type. The mapping lives in one place rather than in each guard, which is why a guard supplies only the reason and the code it knows. A mapper registered against a concrete message wins over one registered against a base type; two mappers at the same level are reported as a configuration error rather than resolved by assembly scanning order.
+
+Mapping is synchronous and must stay pure. It runs on the refusal path, where reaching for a database is exactly what the decision was trying to avoid.
+
 ### The Rules
 
-- Everything after the stage that stopped the pipeline **does not run**: later guards or shortcuts, every pre-handler, the main handler, and every post-handler.
+- Everything after the stage that stopped the pipeline **does not run**: later decision stages, every pre-handler, the main handler, and every post-handler.
 - The reason reaches completion handlers as `MessageCompletionContext.Reason`, and an audit trail as the reason on the record. Without a reason, an answered mediation leaves no explanation anywhere, because it reaches neither post-handlers nor error handlers. A denial always has one.
-- For a message with a result type, a shortcut must supply a result. Using the untyped shortcut contract there throws `LiteBusConfigurationException` naming the typed contract to use instead. Because `ICommand<TResult>` derives from `ICommand`, the untyped contract compiles, so analyzer rule `LB1019` reports the declaration at build time. Guards have no equivalent trap.
+- For a message with a result type, a shortcut must supply a result. Using the untyped shortcut contract there throws `LiteBusConfigurationException` naming the typed contract to use instead. Because `ICommand<TResult>` derives from `ICommand`, the untyped contract compiles, so analyzer rule `LB1019` reports the declaration at build time. Guards and validators have no equivalent trap, because neither owes the caller a result.
 - Error handlers do not run. Stopping is a decision, not a failure.
+- A message that produces no result, and any event, has nothing a refusal mapper could return, so a refusal there always raises.
 
-Deciding is a **capability**, which is why it lives in its own contracts. A plain `ICommandPreHandler<TCommand>` cannot stop the pipeline, so a validator cannot skip the work by accident.
-
-For a stream query, the answer is typed over `IAsyncEnumerable<TResult>`: supplying a stream yields that stream instead of the handler's, and `Shortcut<T>.Skip` supplies none, which yields nothing.
+Deciding is a **capability**, which is why it lives in its own contracts. A plain `ICommandPreHandler<TCommand>` cannot stop the pipeline, so a pre-handler cannot skip the work by accident.
 
 An event guard is worth a word of caution. An event is a fact that already happened, so refusing one is rarely meaningful. The useful case is `IEventShortcut<TEvent>`, which skips the reactions to an event this process has already handled; to select handlers rather than stop the broadcast, use [Handler Filtering](handler-filtering.md).
 
@@ -237,13 +319,13 @@ public Task HandleAsync(ProcessPaymentCommand message, CancellationToken cancell
 }
 ```
 
-Suppression differs from a guard or shortcut decision in three ways that matter:
+Suppression differs from a pre-stage decision in three ways that matter:
 
 - It does **not** stop the calling handler. Everything after the call still runs, so there is no hidden control flow.
 - It can be called from the main handler or from a post-handler, in which case the remaining post-handlers are skipped.
 - The mediation still reports `MessageOutcome.Succeeded`, because the main handler ran.
 
-That last point is the invariant to remember: **`ShortCircuited` and `Denied` mean the main handler never ran.** Reporting either for a suppressed post-handler chain would tell an audit trail that a command was refused when it actually took effect.
+That last point is the invariant to remember: **`Answered`, `Denied`, and `Invalid` mean the main handler never ran.** Reporting any of them for a suppressed post-handler chain would tell an audit trail that a command was refused when it actually took effect.
 
 ## Cancellation
 
@@ -266,24 +348,25 @@ public sealed class RecordCommandOutcome : ICommandCompletionHandler
         MessageCompletionContext<ICommand> context,
         CancellationToken cancellationToken)
     {
-        // context.Outcome is Succeeded, ShortCircuited, Denied, Failed, or Canceled.
+        // context.Outcome is Succeeded, Answered, Denied, Invalid, Failed, or Canceled.
         // context.Exception, context.Reason, context.Duration, and context.MessageResult carry the detail.
         return Task.CompletedTask;
     }
 }
 ```
 
-`MessageOutcome` distinguishes five endings:
+`MessageOutcome` distinguishes six endings, each naming a state the message ended in:
 
 | Outcome | When |
 | --- | --- |
 | `Succeeded` | The main handler and every post-handler ran without throwing |
-| `ShortCircuited` | A shortcut answered without the handler, because the result was already known |
+| `Answered` | A shortcut answered without the handler, because the result was already known |
 | `Denied` | A guard refused the message, carrying a reason |
-| `Failed` | The pipeline raised an exception other than cancellation or denial |
+| `Invalid` | A validator reported the message malformed, carrying its failures |
+| `Failed` | The pipeline raised an exception other than cancellation or a refusal |
 | `Canceled` | The mediation cancellation token was observed |
 
-`Faulted` is a shorthand for `Failed` or `Canceled`. A denial is not a fault even when it reaches the caller as `LiteBusMessageDeniedException`, because it is a decision.
+`Faulted` is a shorthand for `Failed` or `Canceled`. A refusal is not a fault even when it reaches the caller as `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException`, because it is a decision.
 
 Three rules matter when writing one:
 
@@ -297,4 +380,4 @@ For streams, completion fires when the enumerator is disposed. A consumer who ca
 
 ## Next
 
-Read [Execution Context](execution-context.md) to share state and override results, then [Handler Priority](handler-priority.md) to order handlers within a stage. To declare metadata that pipeline stages read, see [Message Definitions](message-definitions.md), and for the audit trail built on the completion stage, see [Auditing](auditing.md).
+Read [Validation](validation.md) for the validator stage in full, including how to move a validator that used to throw. Read [Execution Context](execution-context.md) to share state and override results, then [Handler Priority](handler-priority.md) to order handlers within a stage. To declare metadata that pipeline stages read, see [Message Definitions](message-definitions.md), and for the audit trail built on the completion stage, see [Auditing](auditing.md).

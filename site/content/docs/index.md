@@ -11,7 +11,7 @@ These pages describe the current released API and behavior. Historical API and d
 | Install LiteBus and run a handler | [Getting Started](getting-started/README.md) |
 | Run a compile-checked application | [LiteBus Sample](https://github.com/litenova/LiteBus/blob/main/samples/LiteBus.Sample/README.md) |
 | Select packages and integrations | [Dependency Graph](architecture/dependency-graph.md) |
-| Review supported capabilities | [Feature Index](reference/feature-index-v6.md) |
+| Review supported capabilities | [Feature Index](reference/feature-index-v7.md) |
 | Find a contract, builder, or adapter | [Capability Catalog](reference/capability-catalog.md) |
 | Diagnose configuration or runtime behavior | [Troubleshooting](operations/troubleshooting.md) |
 
@@ -26,7 +26,7 @@ These pages describe the current released API and behavior. Historical API and d
 | [Operations](operations/README.md) | Diagnostics, security, management, performance, and troubleshooting |
 | [Testing](testing/README.md) | Application testing, repository suites, and integration categories |
 | [Extending](extending/README.md) | Custom modules, stores, dispatchers, and host adapters |
-| [Reference](reference/feature-index-v6.md) | Feature inventory, analyzers, glossary, and semantic validation |
+| [Reference](reference/feature-index-v7.md) | Feature inventory, analyzers, glossary, and semantic validation |
 | [Catalog](catalog/mediator/README.md) | Contract-level capability pages grouped by subsystem |
 | [Migration](migration/README.md) | Historical version and MediatR migration procedures |
 | [Roadmap](roadmap/README.md) | Planned work that is not part of the current product |

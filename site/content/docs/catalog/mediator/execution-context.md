@@ -36,7 +36,7 @@ public sealed class ContextAwarePreHandler : ICommandPreHandler<CreateOrderComma
 | `IExecutionContext.CancellationToken` | Effective cancellation token |
 | `IExecutionContext.MessageResult` | Result override written by a post-handler |
 | `IExecutionContext.SuppressPostHandlers()` | Skips the post-handlers that have not run yet |
-| `Verdict` / `Verdict<TResult>` | Refuses a message from a guard, optionally with a value for the caller |
+| `Verdict` | Refuses a message from a guard, with a reason and an optional code |
 | `Shortcut` / `Shortcut<TResult>` | Answers a message from a shortcut, so the main handler never runs |
 | `AmbientExecutionContext.Current` | Access current ambient context |
 | `AmbientExecutionContext.HasCurrent` | Presence check |
@@ -57,7 +57,7 @@ public sealed class ContextAwarePreHandler : ICommandPreHandler<CreateOrderComma
 
 - Context is scoped to one mediation call.
 - `Current` throws `NoExecutionContextException` when accessed outside scope.
-- A gate that stops a result-returning command or query supplies the result through its directive, not through the context.
+- A shortcut that stops a result-returning command or query supplies the result through its answer, not through the context; a refusal supplies none, and the value a refused caller receives comes from a registered refusal mapper.
 - `MessageResult` write in void command flow is ignored by strategy return path.
 
 ## Non-Goals

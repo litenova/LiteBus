@@ -31,7 +31,7 @@ LiteBus does not use a wrapping delegate. Each message type has named stages: pr
 | Run before handler | Code before `next()` in a behavior | `ICommandPreHandler<T>` / `IQueryPreHandler<T>` |
 | Run after handler | Code after `next()` in a behavior | `ICommandPostHandler<T, TResult>` / `IQueryPostHandler<T, TResult>` |
 | Handle failure | `try/catch` around `next()` in a behavior | `ICommandErrorHandler<T>` |
-| Short-circuit | Skip calling `next()` | Return `ShortCircuit` or `Deny` from a gate, which the pipeline reports as distinct outcomes |
+| Short-circuit | Skip calling `next()` | Return an answer from a shortcut, a denial from a guard, or failures from a validator, which the pipeline reports as distinct outcomes |
 | Cross-cutting for all messages | Open generic behavior | Open generic pre/post/error handler, or a handler on a base interface (polymorphic dispatch) |
 
 The pipeline is documented in full at [The Handler Pipeline](../concepts/handler-pipeline.md).

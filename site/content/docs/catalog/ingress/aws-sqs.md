@@ -149,4 +149,4 @@ SQS ingress uses shared mapper defaults:
 ## Deep Docs
 
 - [AWS SQS transport](../../integrations/aws-sqs.md)
-- [Feature Index: Ingress](../../reference/feature-index-v6.md)
+- [Feature Index: Ingress](../../reference/feature-index-v7.md)

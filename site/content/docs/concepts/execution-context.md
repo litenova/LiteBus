@@ -89,7 +89,7 @@ The `MessageResult` property (`object? MessageResult { get; set; }`) on `IExecut
 
 #### Purpose 1: Carrying a Result Set by the Main Handler
 
-The main handler's return value reaches the caller directly, so most handlers never touch this property. A gate supplies its result through the directive it returns rather than through `MessageResult`, so the compiler checks the value at the point of the decision.
+The main handler's return value reaches the caller directly, so most handlers never touch this property. A shortcut supplies its result through the answer it returns rather than through `MessageResult`, so the compiler checks the value at the point of the decision.
 
 #### Purpose 2: Replacing the Result from a Post-Handler
 

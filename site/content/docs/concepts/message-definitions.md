@@ -63,7 +63,7 @@ public interface IPermissionDefinition<TMessage> : IMessageDefinition<TMessage, 
 }
 ```
 
-LiteBus discovers and applies this without knowing what a permission is. Read it back in a pre-handler or a gate:
+LiteBus discovers and applies this without knowing what a permission is. Read it back in a guard or any other pre-stage handler:
 
 ```csharp
 public sealed class AuthorizeCommand : ICommandPreHandler

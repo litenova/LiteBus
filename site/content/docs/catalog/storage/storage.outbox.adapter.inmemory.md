@@ -84,7 +84,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 ## Deep Docs
 
 - [Outbox](../../reliable-messaging/outbox.md)
-- [Feature Index](../../reference/feature-index-v6.md)
+- [Feature Index](../../reference/feature-index-v7.md)
 
 ## Test Coverage
 

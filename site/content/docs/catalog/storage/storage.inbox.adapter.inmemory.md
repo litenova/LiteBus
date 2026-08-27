@@ -90,7 +90,7 @@ In-memory stores report synthetic schema info suitable for tests. Register throu
 ## Deep Docs
 
 - [Reliable messaging](../../reliable-messaging/README.md)
-- [Feature Index: Storage](../../reference/feature-index-v6.md)
+- [Feature Index: Storage](../../reference/feature-index-v7.md)
 
 ## Test Coverage
 

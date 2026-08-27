@@ -519,7 +519,7 @@ To add a new LiteBus capability:
    - [Roadmap.md](../roadmap/README.md) when planned scope changes or becomes part of the current product
    - Feature guides (`Inbox.md`, transport guides, and similar) for narrative registration recipes
    - [Analyzers.md](analyzers.md) and `LiteBus.Analyzers` tests if compile-time rules apply
-   - [Feature Index](feature-index-v6.md) when the capability belongs in the quick package map
+   - [Feature Index](feature-index-v7.md) when the capability belongs in the quick package map
 
 5. **Preserve granular packaging.** Do not merge orthogonal adapters into kitchen-sink packages unless an explicit breaking packaging change is approved.
 

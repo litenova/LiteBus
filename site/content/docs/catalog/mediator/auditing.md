@@ -61,7 +61,7 @@ services.AddLiteBus(registry =>
 
 - A record is produced only when the message declares an audited position; an exempt or undeclared message produces none.
 - Records are produced on every outcome path: success, early answer, denial, failure, and cancellation.
-- A gate denial is recorded as `AuditOutcome.Denied` and a gate short-circuit as `AuditOutcome.Succeeded`, with no mapper involved.
+- A guard denial is recorded as `AuditOutcome.Denied`, a validation failure as `AuditOutcome.Invalid`, and a shortcut answer as `AuditOutcome.Succeeded`, with no mapper involved.
 - The writer runs at `HandlerPriorities.Observability`, after LiteBus persistence handlers and after unannotated application handlers.
 - A record for a successful action whose declaration sets `ReasonRequired` is never written without a reason; the writer raises `LiteBusConfigurationException` instead.
 - An exception raised while writing a record cannot replace the original fault; it is attached to it under `MediationExceptionData.SuppressedCompletionFaults`.

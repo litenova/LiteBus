@@ -118,19 +118,20 @@ Enabling auditing also registers the `litebus.audit.trail` diagnostic probe, whi
 
 ## Denials and Early Answers Are Not the Same Ending
 
-The distinction a security review cares about most is whether the actor was permitted. The pipeline carries it: a [gate](handler-pipeline.md) that returns `Deny` reports `MessageOutcome.Denied` and is recorded as `AuditOutcome.Denied`, with the reason the gate gave.
+The distinction a security review cares about most is whether the actor was permitted. The pipeline carries it: a [guard](handler-pipeline.md) that returns `Deny` reports `MessageOutcome.Denied` and is recorded as `AuditOutcome.Denied`, with the reason the guard gave.
 
-A gate that returns `ShortCircuit` is a different event. A cache hit or a replayed idempotent command refused nobody, so it is recorded as `AuditOutcome.Succeeded`. Recording it as a denial would put an entry in the list a reviewer reads that never happened.
+A shortcut that answers is a different event. A cache hit or a replayed idempotent command refused nobody, so it is recorded as `AuditOutcome.Succeeded`. Recording it as a denial would put an entry in the list a reviewer reads that never happened. A validation failure is a third event: the message was malformed rather than refused, so it is recorded as `AuditOutcome.Invalid` and stays out of the denial list too.
 
 | Ending | `MessageOutcome` | Recorded as |
 | --- | --- | --- |
 | The handler ran and post-handlers completed | `Succeeded` | `Succeeded` |
-| A gate answered without the handler | `ShortCircuited` | `Succeeded` |
-| A gate refused the message | `Denied` | `Denied` |
+| A shortcut answered without the handler | `Answered` | `Succeeded` |
+| A validator reported the message malformed | `Invalid` | `Invalid` |
+| A guard refused the message | `Denied` | `Denied` |
 | The pipeline threw | `Failed` | `Failed` |
 | The caller cancelled | `Canceled` | `Canceled` |
 
-An application that refuses by **throwing** rather than through a gate owns the exception type, so LiteBus cannot classify it. Register a mapper to have that exception recorded as a denial:
+An application that refuses by **throwing** rather than through a guard owns the exception type, so LiteBus cannot classify it. Register a mapper to have that exception recorded as a denial:
 
 ```csharp
 public sealed class UseCaseAuditOutcomeMapper : IAuditOutcomeMapper
@@ -145,7 +146,7 @@ public sealed class UseCaseAuditOutcomeMapper : IAuditOutcomeMapper
 registry.AddMessaging(messaging => messaging.UseAuditOutcomeMapper(new UseCaseAuditOutcomeMapper()));
 ```
 
-Refusing through a gate needs no mapper.
+Refusing through a guard or a validator needs no mapper.
 
 ## The Record
 

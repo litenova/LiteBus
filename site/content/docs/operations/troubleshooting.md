@@ -50,31 +50,40 @@ Fix:
 - Reduce the handler to a single type parameter, for example `ICommandPreHandler<T>`.
 - If you need the result type, read it inside the handler rather than as a second type parameter, or use a concrete handler. See [Open Generic Handlers](../concepts/open-generic-handlers.md).
 
-## A Gate Did Not Stop the Pipeline
+## A Decision Did Not Stop the Pipeline
 
-Stopping the pipeline is a return value, not an exception. A pre-handler stops it only when it implements a guard contract such as `ICommandGuard<TCommand>` and returns `Verdict.Deny` from `CheckAsync`, or a shortcut contract such as `IQueryShortcut<TQuery, TResult>` and returns an answer from `TryAnswerAsync`.
+Stopping the pipeline is a return value, not an exception. A pre-stage handler stops it only when it implements a guard contract such as `ICommandGuard<TCommand>` and returns `Verdict.Deny` from `DecideAsync`, a validator contract such as `ICommandValidator<TCommand>` and returns `Validity.Invalid` from `ValidateAsync`, or a shortcut contract such as `IQueryShortcut<TQuery, TResult>` and returns an answer from `TryAnswerAsync`.
 
 Common causes when a decision appears to be ignored:
 
 - The handler implements the plain `ICommandPreHandler<TCommand>` contract, which cannot stop the pipeline by design.
 - The handler was not registered. Every module builder gates assembly scanning on a handler-contract allowlist, so a handler implementing an unrecognized contract is skipped silently.
-- The directive was constructed but not returned.
+- The decision was constructed but not returned. `Verdict.Deny(...)` and `Shortcut.Skip(...)` have no effect until they are the return value.
+- An earlier stage stopped first. Guards run before validators, validators before shortcuts, and shortcuts before pre-handlers, whatever priority each carries.
 
 To skip the post-handlers after the work has already run, call `IExecutionContext.SuppressPostHandlers()` instead. That reports `MessageOutcome.Succeeded`, because the main handler ran.
 
-## LiteBusConfigurationException When a Gate Stops a Result Message
+## LiteBusConfigurationException When a Shortcut Answers a Result Message
 
-Thrown when a gate stops a result-returning command or query without supplying a result. The caller is owed a value, so the directive must carry it.
+Thrown when a shortcut answers a result-returning command or query through the untyped contract, which cannot carry the value the caller is owed.
 
-Fix: implement the typed shortcut, `ICommandShortcut<TCommand, TCommandResult>` or `IQueryShortcut<TQuery, TQueryResult>`, and return `Shortcut<TResult>.Answer(result)`. The compiler then requires the result, and the exception message names the contract to use. A guard needs no such change, because a refusal never owes the caller a result. See [The Handler Pipeline](../concepts/handler-pipeline.md).
+Fix: implement the typed shortcut, `ICommandShortcut<TCommand, TCommandResult>` or `IQueryShortcut<TQuery, TQueryResult>`, and return `Shortcut<TResult>.Answer(result)`. The compiler then requires the result, and the exception message names the contract to use. A guard or a validator needs no such change, because a refusal never owes the caller a result. See [The Handler Pipeline](../concepts/handler-pipeline.md).
 
 Reference `LiteBus.Analyzers` to catch this at build time. `ICommand<TResult>` derives from `ICommand`, so the untyped contract compiles for a message that produces a result; `LB1019` reports the declaration and names the typed contract to use instead. See [Analyzers](../reference/analyzers.md).
 
-## LiteBusMessageDeniedException Reached the Caller
+## LiteBusMessageDeniedException or LiteBusMessageInvalidException Reached the Caller
 
-A gate refused the message through `Deny(reason)` and supplied no result, so there was nothing to hand back. This is a decision rather than a fault: it does not reach error handlers, the mediation reports `MessageOutcome.Denied`, and an audit trail records a denial with the reason.
+A guard refused the message, or a validator reported it malformed, and no refusal mapper covers it, so there was nothing to hand back. Both are decisions rather than faults: neither reaches error handlers, the mediation reports `MessageOutcome.Denied` or `Invalid`, and an audit trail records it accordingly. `LiteBusMessageInvalidException.Failures` carries every failure the validator stage collected.
 
-If the caller should receive a value instead of an exception, use the typed gate and `Deny(reason, result)` to hand back a refusal result.
+If the caller should receive a value instead of an exception, register an `IMessageRefusalMapper<TMessage, TMessageResult>`. One registration against `ICommand` or `IQuery` covers the whole axis, and a mapper registered against a concrete message overrides it. A message that produces no result, and any event, has nothing a mapper could return, so a refusal there always raises.
+
+## LiteBusConfigurationException Naming More Than One Refusal Mapper
+
+Two mappers producing the same result type are registered at the same level of specificity, so which one applied would depend on assembly scanning order. Remove one, or register the one that should win against the concrete message type, which takes precedence over a mapper registered for a base type.
+
+## An Inbox Message Dead-Lettered Without Retrying
+
+A refusal and a missing handler produce the same outcome on every attempt, so both processors retire such a message on its first attempt rather than spending the retry schedule on an answer that cannot change. Check the dead-letter error text: `LiteBusMessageDeniedException` and `LiteBusMessageInvalidException` are decisions about the message itself, and `NoHandlerFoundException` means nothing is registered to handle it.
 
 ## An Audit Record Is Missing for a Cancelled or Failed Mediation
 

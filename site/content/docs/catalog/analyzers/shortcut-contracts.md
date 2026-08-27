@@ -64,7 +64,7 @@ public sealed class SkipDuplicateProduct : ICommandShortcut<CreateProductCommand
 }
 ```
 
-Refusing that same command is a different job and belongs to a guard, which the framework runs first. `ICommandGuard<CreateProductCommand>` needs no result type, and `Verdict<Guid>.Deny(reason, result)` is available when the caller should receive a refusal value rather than an exception.
+Refusing that same command is a different job and belongs to a guard, which the framework runs first. `ICommandGuard<CreateProductCommand>` needs no result type at all, because a refusal does not owe the caller the value the handler would have produced. Where the caller should receive a refusal value rather than an exception, that mapping lives in an `ICommandRefusalMapper<TCommand, TCommandResult>`, registered once for the message or for the whole axis.
 
 ## Packages
 
