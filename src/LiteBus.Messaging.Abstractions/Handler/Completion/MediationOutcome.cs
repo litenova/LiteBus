@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -113,6 +114,63 @@ public struct MediationOutcome
     {
         Outcome = MessageOutcome.Failed;
         Failure = failure;
+    }
+
+    /// <summary>
+    ///     Records a fault and offers it to the error stage.
+    /// </summary>
+    /// <param name="messageDependencies">The message dependencies encapsulating error handlers.</param>
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="executionContext">The execution context the mediation is running under.</param>
+    /// <param name="observedResult">Whatever result existed when the fault happened, for handlers to inspect.</param>
+    /// <param name="fault">The exception that ended the mediation.</param>
+    /// <returns>
+    ///     The error context the handlers saw, carrying whether one of them recovered and what it recovered with.
+    /// </returns>
+    /// <remarks>
+    ///     Recording the fault and running the handlers always go together, and every strategy paired them by hand.
+    ///     Keeping them together here is also what stops a strategy running error handlers without first recording that
+    ///     the mediation failed, which would report a success to the completion stage for a mediation that threw.
+    /// </remarks>
+    public Task<MessageErrorContext> RecordFaultAsync(
+        IMessageDependencies messageDependencies,
+        object message,
+        IExecutionContext executionContext,
+        object? observedResult,
+        Exception fault)
+    {
+        ArgumentNullException.ThrowIfNull(messageDependencies);
+        ArgumentNullException.ThrowIfNull(executionContext);
+
+        RecordFailure(fault);
+
+        return RunErrorHandlersAsync(messageDependencies, message, executionContext, observedResult, fault);
+    }
+
+    /// <summary>
+    ///     Runs the error handlers for a recorded fault inside the ambient execution scope.
+    /// </summary>
+    /// <param name="messageDependencies">The message dependencies encapsulating error handlers.</param>
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="executionContext">The execution context the mediation is running under.</param>
+    /// <param name="observedResult">Whatever result existed when the fault happened.</param>
+    /// <param name="fault">The exception that ended the mediation.</param>
+    /// <returns>The error context the handlers saw.</returns>
+    private static async Task<MessageErrorContext> RunErrorHandlersAsync(
+        IMessageDependencies messageDependencies,
+        object message,
+        IExecutionContext executionContext,
+        object? observedResult,
+        Exception fault)
+    {
+        using (AmbientExecutionContext.CreateScope(executionContext))
+        {
+            return await messageDependencies.RunAsyncErrorHandlers(
+                message,
+                observedResult,
+                ExceptionDispatchInfo.Capture(fault),
+                executionContext.CancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>

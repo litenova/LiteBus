@@ -116,13 +116,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            mediation.RecordFailure(e);
-
-            await messageDependencies.RunAsyncErrorHandlers(
-                message,
-                executionTaskOfAllHandlers,
-                ExceptionDispatchInfo.Capture(e),
-                executionContext.CancellationToken).ConfigureAwait(false);
+            await mediation
+                .RecordFaultAsync(messageDependencies, message, executionContext, executionTaskOfAllHandlers, e)
+                .ConfigureAwait(false);
         }
         finally
         {

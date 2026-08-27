@@ -75,12 +75,6 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
 
                 var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
 
-                if (handler is null)
-                {
-                    throw new LiteBusConfigurationException(
-                        $"Handler for {typeof(TMessage).Name} is not of the expected type.");
-                }
-
                 messageResult = await HandlerInvocation.InvokeMainHandlerAsync<TMessage, TMessageResult>(
                     handler,
                     message,
@@ -106,18 +100,9 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            mediation.RecordFailure(e);
-
-            MessageErrorContext errorContext;
-
-            using (AmbientExecutionContext.CreateScope(executionContext))
-            {
-                errorContext = await messageDependencies.RunAsyncErrorHandlers(
-                    message,
-                    messageResult,
-                    ExceptionDispatchInfo.Capture(e),
-                    executionContext.CancellationToken).ConfigureAwait(false);
-            }
+            var errorContext = await mediation
+                .RecordFaultAsync(messageDependencies, message, executionContext, messageResult, e)
+                .ConfigureAwait(false);
 
             if (errorContext.HandledResult is TMessageResult handledResult)
             {

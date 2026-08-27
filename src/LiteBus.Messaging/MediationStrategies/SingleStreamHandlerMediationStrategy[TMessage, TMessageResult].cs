@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -75,16 +75,9 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         // is a local function so it can record into the tracker the enclosing iterator owns.
         async Task RouteFaultAsync(Exception fault, object? observedResult)
         {
-            mediation.RecordFailure(fault);
-
-            using (AmbientExecutionContext.CreateScope(executionContext))
-            {
-                await messageDependencies.RunAsyncErrorHandlers(
-                    message,
-                    observedResult,
-                    ExceptionDispatchInfo.Capture(fault),
-                    executionContext.CancellationToken).ConfigureAwait(false);
-            }
+            await mediation
+                .RecordFaultAsync(messageDependencies, message, executionContext, observedResult, fault)
+                .ConfigureAwait(false);
         }
 
         // Enumerates one stream to its end, routing any fault and stopping there. The handler's stream and a

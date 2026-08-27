@@ -96,16 +96,9 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            mediation.RecordFailure(e);
-
-            using (AmbientExecutionContext.CreateScope(executionContext))
-            {
-                await messageDependencies.RunAsyncErrorHandlers(
-                    message,
-                    messageResult,
-                    ExceptionDispatchInfo.Capture(e),
-                    executionContext.CancellationToken).ConfigureAwait(false);
-            }
+            await mediation
+                .RecordFaultAsync(messageDependencies, message, executionContext, messageResult, e)
+                .ConfigureAwait(false);
         }
         finally
         {
