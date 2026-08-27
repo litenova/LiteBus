@@ -2,11 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## v6.1.0
+## v7.0.0
 
-Minor release for .NET 10. Adds a completion stage to the mediation pipeline, guards and shortcuts that decide whether
-work happens, declarative message metadata, and an audit trail built on all three. Persistence schemas and transport
-behavior are unchanged.
+Major release for .NET 10. Adds a completion stage to the mediation pipeline, four named decision stages that decide
+whether work happens, declarative message metadata, and an audit trail built on all three. The pre stage is where most
+of the break lands: guards, validators, shortcuts, and pre-handlers are now four contracts the framework can tell apart
+before invoking them, which is what lets it fix the order they run in. Persistence schemas and transport behavior are
+unchanged.
 
 ### Added
 
@@ -18,37 +20,57 @@ behavior are unchanged.
   actually ended. Recording an audit entry, emitting a metric, or closing a unit of work belongs here.
 - The completion stage is not cancellable. Handlers receive `CancellationToken.None`, because the ending has already
   happened and handing the stage the token that just fired would drop exactly the records a review looks for.
-- Guards. A pre-handler that may refuse a message implements `IMessageGuard<TMessage>` and returns a `Verdict` from
-  `CheckAsync`, with the axis contracts `ICommandGuard<TCommand>`, `IQueryGuard<TQuery>`, and `IEventGuard<TEvent>`. A
-  refusal always carries a reason and reports `MessageOutcome.Denied`, which an audit trail records as a denial. The
-  compiler requires the decision, so nothing after it runs by accident, and an expected control-flow path stays off the
-  exception path.
-- Shortcuts. A pre-handler that answers a message whose work is already done implements `IMessageShortcut<TMessage>` or
-  `IMessageShortcut<TMessage, TMessageResult>` and returns a `Shortcut` from `TryAnswerAsync`, with the axis contracts
-  `ICommandShortcut<TCommand>`, `ICommandShortcut<TCommand, TCommandResult>`, `IQueryShortcut<TQuery, TQueryResult>`,
-  `IStreamQueryShortcut<TQuery, TQueryResult>`, and `IEventShortcut<TEvent>`. A cache hit or a replayed idempotent
-  command reports `MessageOutcome.ShortCircuited`, which an audit trail records as a success because nothing was
-  refused. Keeping the two apart is the distinction a security review reads.
-- The framework fixes the stage order: every guard runs before every shortcut, and every shortcut before every
-  pre-handler. Priority orders handlers inside a stage and never reorders the stages, so a globally registered cache
-  shortcut cannot answer a caller that a message-specific authorization guard would have refused. Under a single
-  pre-handler stage that ordering rested on a priority number the author had to remember, and indirect handlers ran
-  ahead of direct ones regardless. ASP.NET Core documents the same hazard for `UseOutputCache` after `UseAuthorization`;
-  because LiteBus owns its stages, it makes the mistake unrepresentable instead of documenting it. `PipelineStage` names
-  the three stages and `IPreHandlerDescriptor.Stage` records which one runs a handler.
+- Guards. A pre-stage handler that may refuse a message implements `IMessageGuard<TMessage>` and returns a `Verdict`
+  from `DecideAsync`, with the axis contracts `ICommandGuard<TCommand>`, `IQueryGuard<TQuery>`, and
+  `IEventGuard<TEvent>`. A refusal always carries a reason, may carry a code, and reports `MessageOutcome.Denied`, which
+  an audit trail records as a denial. The compiler requires the decision, so nothing after it runs by accident, and an
+  expected control-flow path stays off the exception path.
+- Validators. `IMessageValidator<TMessage>` returns `Validity` from `ValidateAsync`, with the axis contracts
+  `ICommandValidator<TCommand>`, `IQueryValidator<TQuery>`, and `IEventValidator<TEvent>`. A validator answers whether
+  the message is well-formed, which is a different question from whether the caller may send it, so a failure reports
+  `MessageOutcome.Invalid` rather than `Denied` and stays out of the list a security review reads. Unlike every other
+  decision stage, this one runs every validator and collects their failures rather than stopping at the first: a caller
+  fixing a malformed message should not discover its problems one round trip at a time. `ValidationFailure` carries the
+  message, the member it applies to, and an optional code.
+- Refusal mappers. `IMessageRefusalMapper<TMessage, TMessageResult>` turns a guard refusal or a validation failure into
+  the value the caller receives, for applications that model failure as data rather than as an exception, with the axis
+  contracts `ICommandRefusalMapper`, `IQueryRefusalMapper`, and `IStreamQueryRefusalMapper`. One registration against
+  `ICommand` covers every command producing that result type, and a mapper registered against a concrete message wins
+  over it. Without a mapper, a refusal reaches the caller as `LiteBusMessageDeniedException` or
+  `LiteBusMessageInvalidException`.
+- Shortcuts. A pre-stage handler that answers a message whose work is already done implements
+  `IMessageShortcut<TMessage>` or `IMessageShortcut<TMessage, TMessageResult>` and returns a `Shortcut` from
+  `TryAnswerAsync`, with the axis contracts `ICommandShortcut<TCommand>`, `ICommandShortcut<TCommand, TCommandResult>`,
+  `IQueryShortcut<TQuery, TQueryResult>`, `IStreamQueryShortcut<TQuery, TQueryResult>`, and `IEventShortcut<TEvent>`. A
+  cache hit or a replayed idempotent command reports `MessageOutcome.Answered`, which an audit trail records as a
+  success because nothing was refused. Keeping that apart from a denial is the distinction a security review reads.
+- The framework fixes the stage order: guards, then validators, then shortcuts, then pre-handlers. Priority orders
+  handlers inside a stage and never reorders the stages, so a globally registered cache shortcut cannot answer a caller
+  that a message-specific authorization guard would have refused, and a malformed message cannot claim an idempotency
+  key. The order encodes what each stage may assume about its input: a guard sees every message, a validator sees only
+  messages the caller is allowed to send, a shortcut sees only well-formed ones, and a pre-handler sees only messages
+  that are going to be handled. Under a single pre-handler stage that ordering rested on a priority number the author
+  had to remember, and indirect handlers ran ahead of direct ones regardless. ASP.NET Core documents the same hazard for
+  `UseOutputCache` after `UseAuthorization`; because LiteBus owns its stages, it makes the mistake unrepresentable
+  instead of documenting it. `PipelineStage` names the four stages and `IPreHandlerDescriptor.Stage` records which one
+  runs a handler.
 - `Shortcut<TMessageResult>` types the answer over the result type of the message, so a shortcut that answers a
-  result-returning message is required by the compiler to supply the value the caller receives. A refusal owes the
-  caller nothing, so `IMessageGuard<TMessage>` fits every message; `IMessageGuard<TMessage, TMessageResult>` and
-  `Verdict<TMessageResult>.Deny(reason, result)` are opt-in for applications that hand back a failed result object
-  instead of raising.
-- `MessageContextExtensions` exposes `RunAsyncPreStages` plus `RunAsyncGuards`, `RunAsyncShortcuts`, and
-  `RunAsyncPreHandlers`, so a custom mediation strategy gets the same stage order the shipped strategies use.
-- `LiteBusMessageDeniedException` reaches the caller when a refusal supplies no result. It is excluded from the
-  recoverable-exception filter, so error handlers never see a decision as a fault.
-- `MessageOutcome` distinguishes `Succeeded`, `ShortCircuited`, `Denied`, `Failed`, and `Canceled`.
-  `MessageOutcome.Invalid` and `AuditOutcome.Invalid` are declared but never reported. The slots are reserved so that a
-  completion handler or audit mapper written today keeps its numbering when validators gain a non-throwing failure
-  model.
+  result-returning message is required by the compiler to supply the value the caller receives. Answering always carries
+  the result; a stream query that means no items answers with `AsyncEnumerable.Empty<T>()`, which states that outright
+  rather than leaving it implied by a missing value. A refusal owes the caller nothing, so one guard contract fits every
+  message, and the value a refused caller receives comes from a refusal mapper instead.
+- `MessageContextExtensions` exposes `RunAsyncPreStages` plus `RunAsyncGuards`, `RunAsyncValidators`,
+  `RunAsyncShortcuts`, and `RunAsyncPreHandlers`, so a custom mediation strategy gets the same stage order the shipped
+  strategies use. `ResolveRefusalResult<TMessageResult>` applies the registered refusal mapper, or raises when none
+  covers the message.
+- `LiteBusMessageDeniedException` and `LiteBusMessageInvalidException` reach the caller when no refusal mapper covers
+  the message. Both are excluded from the recoverable-exception filter, so error handlers never see a decision as a
+  fault, and `LiteBusMessageInvalidException.Failures` carries every failure the validator stage collected.
+- `MediationExceptionFilters.IsRefusal` and `IsRetryableDispatchException` classify a decision apart from a fault. The
+  inbox and outbox processors use the second to dead-letter a refusal or a missing handler on the first attempt instead
+  of spending the retry schedule on an answer that cannot change.
+- `MessageOutcome` distinguishes `Succeeded`, `Answered`, `Denied`, `Invalid`, `Failed`, and `Canceled`. Every member
+  is reported by some path, and each names a state the message ended in rather than a mechanism the pipeline used.
 - `IExecutionContext.SuppressPostHandlers()` skips the post-handlers that have not run yet. Use it when the work turned
   out to be a no-op and the reactions to it should not fire, such as an idempotent command that detects it already ran.
   It does not stop the calling handler and does not change the outcome.
@@ -83,8 +105,8 @@ behavior are unchanged.
 - `LB1019` reports a shortcut that implements the untyped shortcut contract for a message that produces a result.
   Because `ICommand<TResult>` derives from `ICommand`, that contract compiles there, and answering from it fails at
   runtime with `LiteBusConfigurationException`. The typed contract is a strict superset for such a message, so the rule
-  names it and the declaration is where the fix goes. Open generic shortcuts are not reported, and guards never are: a
-  refusal owes the caller no result, so the untyped guard is correct everywhere.
+  names it and the declaration is where the fix goes. Open generic shortcuts are not reported, and guards and validators
+  never are: a refusal owes the caller no result, so one contract is correct for every message on those stages.
 - `HandlerPriorities` reserves a priority band for handlers shipped by LiteBus, so ordering against them is a documented
   guarantee. Application handlers stay below `ReservedFloor` and, with no explicit priority, run first.
 - `IHandlerDescriptor.ContractType` records the closed contract a descriptor was discovered from, and `PipelineDispatch`
@@ -92,13 +114,21 @@ behavior are unchanged.
 
 ### Changed
 
-- Every module builder recognizes guard and shortcut contracts, completion handler contracts, and message definitions as
-  registrable constructs, so `RegisterFromAssembly` discovers them.
+- Every module builder recognizes guard, validator, shortcut, and refusal mapper contracts, completion handler
+  contracts, and message definitions as registrable constructs, so `RegisterFromAssembly` discovers them.
 - `AsyncBroadcastMediationStrategy` observes cancellations so it can report them to the completion stage, honors a guard
   or shortcut decision by publishing to no handlers, and reports no result to completion handlers rather than the task
   that tracked its handlers. Cancellation still propagates as before.
-- A guard or shortcut decision on a stream query no longer runs post-handlers. Stopping the pipeline means the work did
-  not happen, so the reactions to it do not fire; the caller still receives whatever stream the shortcut supplied.
+- A decision on a stream query no longer runs post-handlers. Stopping the pipeline means the work did not happen, so
+  the reactions to it do not fire; the caller still receives whatever stream the shortcut or the refusal mapper
+  supplied.
+- A pre stage that holds no handler is skipped without enumerating the shared descriptor collection.
+  `IMessageDependencies.HasPreStageHandlers` answers from a mask computed once when dependencies are resolved, so a
+  message with no guard, validator, or shortcut costs nothing for those stages. The default implementation on the
+  interface enumerates and is correct for custom implementations, so nothing outside LiteBus has to change.
+- Registering a type that carries a pipeline marker but names no message type is reported with
+  `LiteBusConfigurationException` instead of being accepted. Every marker is memberless, so such a type produced no
+  descriptor, fell through to message-type registration, and silently never ran.
 - Pre-handlers, post-handlers, and completion handlers are invoked through the closed contract recorded in their
   descriptor at registration, using a delegate built while the descriptor is built. The previous dispatch searched a
   handler's interfaces for a method by name on every invocation and called it reflectively, which is how a class
@@ -138,12 +168,57 @@ behavior are unchanged.
   now implements a guard contract and returns a `Verdict`, or a shortcut contract and returns a `Shortcut`. The break is
   a compile error rather than a change in behavior, which is deliberate: a flag that left `Abort()` compiling would have
   silently started running the statements after it.
+- `ICommandValidator<TCommand>` and `IQueryValidator<TQuery>` return `Task<Validity>` from `ValidateAsync` instead of
+  `Task`, and derive from `IMessageValidator<TMessage>` rather than from the pre-handler contract. A validator that
+  reported a failure by throwing now returns `Validity.Invalid(...)` instead. The break is a compile error rather than a
+  change in behavior, for the same reason the `Abort()` removal is: a validator left compiling would have gone on
+  reporting malformed input as a fault. An adapter over an external validation library changes one line, returning the
+  failures instead of raising.
+- Guards return only `Verdict`. `IMessageGuard<TMessage, TMessageResult>`, `Verdict<TMessageResult>`,
+  `ICommandGuard<TCommand, TCommandResult>`, `IQueryGuard<TQuery, TQueryResult>`, and
+  `IStreamQueryGuard<TQuery, TQueryResult>` are removed. A guard supplying its own refusal value was the guard doing the
+  shortcut's job on the denial path, and it duplicated one mapping across every guard registered for a message.
+  Register an `IMessageRefusalMapper<TMessage, TMessageResult>` instead, which defines the shape of a refused result
+  once for the message and covers validation failures at the same time.
+- `IMessageGuard<TMessage>.CheckAsync` is renamed `DecideAsync`. It returns a `Verdict`, and `CheckAsync` already meant
+  a health check on `IDiagnosticCheck` while sitting beside `ValidateAsync` as a near-synonym for the two concepts the
+  design works hardest to separate.
+- `Shortcut<TMessageResult>.Skip()` is removed, along with `Shortcut<TMessageResult>.HasResult`. Answering a
+  result-returning message always carries the result. The removed overload meant "yields nothing" on a stream query and
+  failed at runtime with `LiteBusConfigurationException` on every other result shape. A stream shortcut that means no
+  items answers with `AsyncEnumerable.Empty<T>()`.
+- `MessageOutcome.ShortCircuited` is renamed `Answered`, and `PipelineStop.ShortCircuited` follows it. Its five siblings
+  all name a state the message ended in, while short-circuiting names a mechanism that describes a denial just as
+  accurately. `Answered` also matches `TryAnswerAsync` and `Shortcut.Answer`, so one word covers the contract, the verb,
+  and the outcome.
+- The non-generic pre-stage marker is renamed `IMessagePreStageHandler`. It is the discovery marker for the whole pre
+  stage, which now holds four roles, so it can no longer share a name with `IMessagePreHandler<TMessage>`, the one role
+  in that stage LiteBus does not name. The post and completion stages hold a single role each and keep the shared name.
+- `PipelineStop.IsUnansweredDenial` and `CreateDenial` are replaced by `IsRefusal` and `CreateRefusalException`, which
+  cover a validation failure as well as a denial. `PipelineStop` also carries `Code` and `Failures`.
+- `IAsyncMessageErrorHandler<TMessage>` and `IAsyncMessageErrorHandler<TMessage, TMessageResult>` are renamed
+  `IMessageErrorHandler<TMessage>` and `IMessageErrorHandler<TMessage, TMessageResult>`. The prefix named nothing there:
+  no synchronous error handler exists, and the contract derives straight from the `IMessageErrorHandler` marker. Every
+  stage now follows one rule, that a marker shares its name with its role when the stage holds a single role. The main
+  handler keeps `IAsyncMessageHandler`, where the prefix does name something: it is the `Task`-returning specialization
+  of `IMessageHandler<TMessage, TMessageResult>`, alongside `IStreamMessageHandler` for the `IAsyncEnumerable` one.
+- `IAsyncMessagePreHandler<TMessage>`, `IAsyncMessagePostHandler<TMessage>`, and
+  `IAsyncMessagePostHandler<TMessage, TMessageResult>` are removed. Every handler is asynchronous, so the distinction
+  the names drew no longer exists, and two names for one concept is exactly the noise this release removes. Implement
+  `IMessagePreHandler<TMessage>` or `IMessagePostHandler<TMessage, TMessageResult>`; the axis contracts such as
+  `ICommandPreHandler<TCommand>` are unchanged at the call site and now derive from those directly.
+- `IMessageDescriptor` and `IMessageDependencies` gained `RefusalMappers` and `IndirectRefusalMappers`. Custom
+  implementations, including test doubles, must add them. `IMessageDependencies.HasPreStageHandlers` ships with a
+  default implementation, so it needs no change unless a custom implementation wants the faster answer.
+- A refusal or a missing handler now dead-letters on its first attempt in the inbox and outbox processors instead of
+  consuming the retry schedule. Both fail identically on every attempt, so retrying only delayed the dead-letter entry
+  an operator was waiting to see.
 - Only a guard or a shortcut can stop the pipeline. Stopping means skipping the work, and once the main handler has run
   there is nothing left to skip. A handler that previously aborted from a later stage calls `SuppressPostHandlers()`.
-- `MessageOutcome` has no `Aborted` member. A stopped mediation reports `ShortCircuited` or `Denied`, which say which of
-  the two events happened. Previously an abort from a post-handler reported `Aborted` even though the command had taken
-  effect, which told an audit trail that an action was refused when it had actually succeeded; suppressing post-handlers
-  reports `Succeeded`.
+- `MessageOutcome` has no `Aborted` member. A stopped mediation reports `Answered`, `Denied`, or `Invalid`, which say
+  which of the three events happened. Previously an abort from a post-handler reported `Aborted` even though the command
+  had taken effect, which told an audit trail that an action was refused when it had actually succeeded; suppressing
+  post-handlers reports `Succeeded`.
 - `MessageCompletionContext.AbortReason` is now `Reason`, and `IsSuccess` is replaced by `Faulted`. A single boolean
   cannot summarize five endings, and `Faulted` says exactly one thing: an exception ended the mediation. A denial is not
   a fault even when it reaches the caller as an exception.
@@ -158,11 +233,9 @@ behavior are unchanged.
 - `LiteBusHandlerPriority` is renamed `HandlerPriorities`, and `FrameworkFloor` is renamed `ReservedFloor`.
 - The audit record writer and the per-axis audit completion handlers are internal. Applications reach the writer through
   `IAuditRecordWriter` and enable it through `EnableAuditing()`.
-- The synchronous handler layer is removed. `IMessagePreHandler`, `IMessagePostHandler`, and
+- The synchronous handler layer is removed. `IMessagePreStageHandler`, `IMessagePostHandler`, and
   `IMessageCompletionHandler` are markers used for discovery. The typed members are unchanged, so handlers implementing
-  `ICommandPreHandler<TCommand>`, `IQueryPostHandler<TQuery, TResult>`, `ICommandValidator<TCommand>`, and their
-  siblings compile as they are. `IAsyncMessagePreHandler<TMessage>` and `IAsyncMessagePostHandler<TMessage>` remain as
-  aliases.
+  `ICommandPreHandler<TCommand>`, `IQueryPostHandler<TQuery, TResult>`, and their siblings compile as they are.
 - `IExecutionContext` gained `PostHandlersSuppressed` and `SuppressPostHandlers()`. Custom implementations, including
   test doubles, must add them.
 - `IMessageDescriptor`, `IMessageDependencies`, and the handler descriptor interfaces gained members for the completion
