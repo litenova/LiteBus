@@ -17,7 +17,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///     </para>
 ///     <para>
 ///         A cache hit is the usual case. Refusing belongs to a guard, which runs first and reports
-///         <see cref="MessageOutcome.Denied" />.
+///         <see cref="MediationOutcome.Denied" />.
 ///     </para>
 /// </remarks>
 public interface IMessageShortcut<in TMessage, TMessageResult> : IMessagePreStageHandler

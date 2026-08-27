@@ -34,11 +34,11 @@ public sealed class DefaultAuditOutcomeMapper : IAuditOutcomeMapper
 
         return context.Outcome switch
         {
-            MessageOutcome.Succeeded => AuditOutcome.Succeeded,
-            MessageOutcome.Answered => AuditOutcome.Succeeded,
-            MessageOutcome.Denied => AuditOutcome.Denied,
-            MessageOutcome.Canceled => AuditOutcome.Canceled,
-            MessageOutcome.Invalid => AuditOutcome.Invalid,
+            MediationOutcome.Succeeded => AuditOutcome.Succeeded,
+            MediationOutcome.Answered => AuditOutcome.Succeeded,
+            MediationOutcome.Denied => AuditOutcome.Denied,
+            MediationOutcome.Canceled => AuditOutcome.Canceled,
+            MediationOutcome.Invalid => AuditOutcome.Invalid,
             _ => AuditOutcome.Failed
         };
     }

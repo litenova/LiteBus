@@ -61,7 +61,7 @@ public sealed class CompletionStageTests : LiteBusTestBase
         recorder.Observed.Should().ContainSingle();
 
         var observed = recorder.Observed.Single().Context;
-        observed.Outcome.Should().Be(MessageOutcome.Succeeded);
+        observed.Outcome.Should().Be(MediationOutcome.Succeeded);
         observed.Exception.Should().BeNull();
         observed.Faulted.Should().BeFalse();
     }
@@ -76,7 +76,7 @@ public sealed class CompletionStageTests : LiteBusTestBase
         await mediator.SendAsync(new CompletionCommand { ShouldThrow = true }).ConfigureAwait(false);
 
         var observed = recorder.Observed.Single().Context;
-        observed.Outcome.Should().Be(MessageOutcome.Failed);
+        observed.Outcome.Should().Be(MediationOutcome.Failed);
         observed.Exception.Should().BeOfType<InvalidOperationException>();
         observed.Faulted.Should().BeTrue();
     }
@@ -93,7 +93,7 @@ public sealed class CompletionStageTests : LiteBusTestBase
         await act.Should().ThrowAsync<LiteBusMessageDeniedException>().ConfigureAwait(false);
 
         var observed = recorder.Observed.Single().Context;
-        observed.Outcome.Should().Be(MessageOutcome.Denied);
+        observed.Outcome.Should().Be(MediationOutcome.Denied);
         observed.Reason.Should().Be("not permitted");
 
         // A denial is a decision, so it is not reported as a fault even though it reaches the caller as an exception.
@@ -141,7 +141,7 @@ public sealed class CompletionStageTests : LiteBusTestBase
         await act.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
 
         var observed = recorder.Observed.Single().Context;
-        observed.Outcome.Should().Be(MessageOutcome.Canceled);
+        observed.Outcome.Should().Be(MediationOutcome.Canceled);
         observed.Exception.Should().BeAssignableTo<OperationCanceledException>();
     }
 

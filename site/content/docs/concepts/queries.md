@@ -152,9 +152,9 @@ public sealed class ProductCacheLookup : IQueryShortcut<GetProductByIdQuery, Pro
 }
 ```
 
-The answer is typed over the query result, so the compiler requires the cached value to be the right shape. A cache hit reports `MessageOutcome.Answered`, which an audit trail records as a success, because nothing was refused.
+The answer is typed over the query result, so the compiler requires the cached value to be the right shape. A cache hit reports `MediationOutcome.Answered`, which an audit trail records as a success, because nothing was refused.
 
-Refusing a read is a different job and belongs to `IQueryGuard<GetProductByIdQuery>`, which returns `Verdict.Deny(reason)` and reports `MessageOutcome.Denied`. The separation is what lets LiteBus guarantee that every guard runs before any shortcut, so this cache can never answer a caller an authorization guard would have refused. How the stages behave is on [The Handler Pipeline](handler-pipeline.md) and [Execution Context](execution-context.md).
+Refusing a read is a different job and belongs to `IQueryGuard<GetProductByIdQuery>`, which returns `Verdict.Deny(reason)` and reports `MediationOutcome.Denied`. The separation is what lets LiteBus guarantee that every guard runs before any shortcut, so this cache can never answer a caller an authorization guard would have refused. How the stages behave is on [The Handler Pipeline](handler-pipeline.md) and [Execution Context](execution-context.md).
 
 ## Shared Features
 

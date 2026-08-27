@@ -13,7 +13,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///         A shortcut answers "is this already done", and nothing else. Refusing belongs to
 ///         <see cref="IMessageGuard{TMessage}" /> and well-formedness to <see cref="IMessageValidator{TMessage}" />, and
 ///         the split is what lets the framework run both of those first. The mediation reports
-///         <see cref="MessageOutcome.Answered" /> and an audit trail records a success, because skipping redundant work
+///         <see cref="MediationOutcome.Answered" /> and an audit trail records a success, because skipping redundant work
 ///         refused nobody.
 ///     </para>
 ///     <para>

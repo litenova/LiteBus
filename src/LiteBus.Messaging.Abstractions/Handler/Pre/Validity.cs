@@ -14,8 +14,8 @@ namespace LiteBus.Messaging.Abstractions;
 ///     <para>
 ///         Validity is separate from <see cref="Verdict" /> because the two answer different questions. A guard answers
 ///         "may this happen" and a refusal is security-relevant. A validator answers "is this well-formed" and a failure
-///         is not. The mediation reports <see cref="MessageOutcome.Invalid" /> rather than
-///         <see cref="MessageOutcome.Denied" />, and an audit trail keeps them apart for the same reason.
+///         is not. The mediation reports <see cref="MediationOutcome.Invalid" /> rather than
+///         <see cref="MediationOutcome.Denied" />, and an audit trail keeps them apart for the same reason.
 ///     </para>
 ///     <para>
 ///         The validator stage collects failures from every validator rather than stopping at the first, so a caller
@@ -154,7 +154,7 @@ public readonly struct Validity : IEquatable<Validity>
     ///     Converts this validity to the pipeline decision the stage runner acts on.
     /// </summary>
     /// <returns>
-    ///     A stop reporting <see cref="MessageOutcome.Invalid" /> when failures were reported, otherwise
+    ///     A stop reporting <see cref="MediationOutcome.Invalid" /> when failures were reported, otherwise
     ///     <see cref="PipelineStop.None" />.
     /// </returns>
     /// <remarks>

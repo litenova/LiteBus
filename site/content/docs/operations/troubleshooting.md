@@ -61,7 +61,7 @@ Common causes when a decision appears to be ignored:
 - The decision was constructed but not returned. `Verdict.Deny(...)` and `Shortcut.Skip(...)` have no effect until they are the return value.
 - An earlier stage stopped first. Guards run before validators, validators before shortcuts, and shortcuts before pre-handlers, whatever priority each carries.
 
-To skip the post-handlers after the work has already run, call `IExecutionContext.SuppressPostHandlers()` instead. That reports `MessageOutcome.Succeeded`, because the main handler ran.
+To skip the post-handlers after the work has already run, call `IExecutionContext.SuppressPostHandlers()` instead. That reports `MediationOutcome.Succeeded`, because the main handler ran.
 
 ## LiteBusConfigurationException When a Shortcut Answers a Result Message
 
@@ -73,7 +73,7 @@ Reference `LiteBus.Analyzers` to catch this at build time. `ICommand<TResult>` d
 
 ## LiteBusMessageDeniedException or LiteBusMessageInvalidException Reached the Caller
 
-A guard refused the message, or a validator reported it malformed, and no refusal mapper covers it, so there was nothing to hand back. Both are decisions rather than faults: neither reaches error handlers, the mediation reports `MessageOutcome.Denied` or `Invalid`, and an audit trail records it accordingly. `LiteBusMessageInvalidException.Failures` carries every failure the validator stage collected.
+A guard refused the message, or a validator reported it malformed, and no refusal mapper covers it, so there was nothing to hand back. Both are decisions rather than faults: neither reaches error handlers, the mediation reports `MediationOutcome.Denied` or `Invalid`, and an audit trail records it accordingly. `LiteBusMessageInvalidException.Failures` carries every failure the validator stage collected.
 
 If the caller should receive a value instead of an exception, register an `IMessageRefusalMapper<TMessage, TMessageResult>`. One registration against `ICommand` or `IQuery` covers the whole axis, and a mapper registered against a concrete message overrides it. A message that produces no result, and any event, has nothing a mapper could return, so a refusal there always raises.
 

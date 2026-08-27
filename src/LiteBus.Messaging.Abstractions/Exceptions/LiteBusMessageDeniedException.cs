@@ -8,7 +8,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// <remarks>
 ///     <para>
 ///         A denial is a decision, not a fault, so it does not reach error handlers and is not reported as
-///         <see cref="MessageOutcome.Failed" />. The mediation reports <see cref="MessageOutcome.Denied" />, completion
+///         <see cref="MediationOutcome.Failed" />. The mediation reports <see cref="MediationOutcome.Denied" />, completion
 ///         handlers observe the denial, and this exception then reaches the caller because a method that must return a
 ///         value has nothing to return.
 ///     </para>

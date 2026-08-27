@@ -26,7 +26,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///     </para>
 ///     <para>
 ///         Reporting a failure is a return value, not an exception. The mediation reports
-///         <see cref="MessageOutcome.Invalid" />, which is kept apart from <see cref="MessageOutcome.Denied" /> because
+///         <see cref="MediationOutcome.Invalid" />, which is kept apart from <see cref="MediationOutcome.Denied" /> because
 ///         a malformed message is not a refused one and an audit trail should not record it as one. The caller receives
 ///         whatever an <see cref="IMessageRefusalMapper{TMessage,TMessageResult}" /> supplies, or
 ///         <see cref="LiteBusMessageInvalidException" /> when none is registered.

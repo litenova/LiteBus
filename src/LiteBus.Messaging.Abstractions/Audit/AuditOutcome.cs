@@ -34,7 +34,7 @@ public enum AuditOutcome
     ///     The action was rejected because its input failed validation.
     /// </summary>
     /// <remarks>
-    ///     Pairs with <see cref="MessageOutcome.Invalid" />. It is kept apart from <see cref="Denied" /> so that
+    ///     Pairs with <see cref="MediationOutcome.Invalid" />. It is kept apart from <see cref="Denied" /> so that
     ///     malformed input does not appear in the list a security review reads.
     /// </remarks>
     Invalid = 4

@@ -21,8 +21,8 @@ namespace LiteBus.Messaging.Abstractions;
 ///     Shortcut&lt;IAsyncEnumerable&lt;Product&gt;&gt;.Answer(AsyncEnumerable.Empty&lt;Product&gt;())
 ///     </code>
 ///     <para>
-///         Answering reports <see cref="MessageOutcome.Answered" />, which an audit trail records as a success, because
-///         nothing was refused. Refusing is a guard's job and reports <see cref="MessageOutcome.Denied" />.
+///         Answering reports <see cref="MediationOutcome.Answered" />, which an audit trail records as a success, because
+///         nothing was refused. Refusing is a guard's job and reports <see cref="MediationOutcome.Denied" />.
 ///     </para>
 /// </remarks>
 public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageResult>>
@@ -75,7 +75,7 @@ public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageRe
     /// </summary>
     /// <param name="result">The value the caller receives in place of the one the main handler would have produced.</param>
     /// <param name="reason">Why the answer was already known, recorded by completion handlers and the audit trail.</param>
-    /// <returns>A shortcut that stops the pipeline and reports <see cref="MessageOutcome.Answered" />.</returns>
+    /// <returns>A shortcut that stops the pipeline and reports <see cref="MediationOutcome.Answered" />.</returns>
     public static Shortcut<TMessageResult> Answer(TMessageResult result, string? reason = null)
     {
         return new Shortcut<TMessageResult>(isAnswered: true, result, reason);

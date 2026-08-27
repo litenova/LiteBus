@@ -29,7 +29,7 @@ public sealed class StreamMediationParityTests
 
         items.Should().Equal(0, 1, 2);
         recorder.Observed.Should().ContainSingle()
-            .Which.Context.Outcome.Should().Be(MessageOutcome.Succeeded);
+            .Which.Context.Outcome.Should().Be(MediationOutcome.Succeeded);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class StreamMediationParityTests
         items.Should().Equal(0, 1);
         faults.Observed.Should().ContainSingle().Which.Should().Be("the source stream faulted");
         recorder.Observed.Should().ContainSingle()
-            .Which.Context.Outcome.Should().Be(MessageOutcome.Failed);
+            .Which.Context.Outcome.Should().Be(MediationOutcome.Failed);
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public sealed class StreamMediationParityTests
         items.Should().Equal(0, 100);
         faults.Observed.Should().ContainSingle().Which.Should().Be("the override stream faulted");
         recorder.Observed.Should().ContainSingle()
-            .Which.Context.Outcome.Should().Be(MessageOutcome.Failed);
+            .Which.Context.Outcome.Should().Be(MediationOutcome.Failed);
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public sealed class StreamMediationParityTests
             .WithMessage("the source stream faulted").ConfigureAwait(true);
 
         recorder.Observed.Should().ContainSingle()
-            .Which.Context.Outcome.Should().Be(MessageOutcome.Failed);
+            .Which.Context.Outcome.Should().Be(MediationOutcome.Failed);
     }
 
     /// <summary>

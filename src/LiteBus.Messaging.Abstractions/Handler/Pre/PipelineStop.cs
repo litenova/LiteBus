@@ -46,7 +46,7 @@ public readonly struct PipelineStop : IEquatable<PipelineStop>
     /// <param name="failures">The failures a validator collected.</param>
     private PipelineStop(
         bool stopsPipeline,
-        MessageOutcome outcome,
+        MediationOutcome outcome,
         bool hasResult,
         object? result,
         string? reason,
@@ -78,10 +78,10 @@ public readonly struct PipelineStop : IEquatable<PipelineStop>
     ///     Gets the outcome the mediation reports for this decision.
     /// </summary>
     /// <value>
-    ///     <see cref="MessageOutcome.Denied" /> for a guard refusal, <see cref="MessageOutcome.Invalid" /> for a
-    ///     validation failure, or <see cref="MessageOutcome.Answered" /> for a shortcut.
+    ///     <see cref="MediationOutcome.Denied" /> for a guard refusal, <see cref="MediationOutcome.Invalid" /> for a
+    ///     validation failure, or <see cref="MediationOutcome.Answered" /> for a shortcut.
     /// </value>
-    public MessageOutcome Outcome { get; }
+    public MediationOutcome Outcome { get; }
 
     /// <summary>
     ///     Gets a value indicating whether a shortcut supplied a result.
@@ -120,7 +120,7 @@ public readonly struct PipelineStop : IEquatable<PipelineStop>
     ///     <see langword="true" /> for a guard refusal or a validation failure, which are the decisions a refusal mapper
     ///     covers. A shortcut answer is not a refusal.
     /// </value>
-    public bool IsRefusal => Outcome is MessageOutcome.Denied or MessageOutcome.Invalid;
+    public bool IsRefusal => Outcome is MediationOutcome.Denied or MediationOutcome.Invalid;
 
     /// <summary>
     ///     Determines whether two decisions are equal.
@@ -172,7 +172,7 @@ public readonly struct PipelineStop : IEquatable<PipelineStop>
     {
         ArgumentNullException.ThrowIfNull(messageType);
 
-        return Outcome == MessageOutcome.Invalid
+        return Outcome == MediationOutcome.Invalid
             ? new LiteBusMessageInvalidException(messageType, Failures)
             : new LiteBusMessageDeniedException(messageType, Reason ?? "no reason was given", Code);
     }
@@ -250,12 +250,12 @@ public readonly struct PipelineStop : IEquatable<PipelineStop>
     /// </summary>
     /// <param name="reason">Why the message is refused.</param>
     /// <param name="code">The code the guard supplied, when any.</param>
-    /// <returns>A stop reporting <see cref="MessageOutcome.Denied" />.</returns>
+    /// <returns>A stop reporting <see cref="MediationOutcome.Denied" />.</returns>
     internal static PipelineStop Denied(string reason, string? code)
     {
         return new PipelineStop(
             stopsPipeline: true,
-            MessageOutcome.Denied,
+            MediationOutcome.Denied,
             hasResult: false,
             result: null,
             reason,
@@ -267,7 +267,7 @@ public readonly struct PipelineStop : IEquatable<PipelineStop>
     ///     Creates the decision the validator stage produces when it collected failures.
     /// </summary>
     /// <param name="failures">Every failure the stage collected.</param>
-    /// <returns>A stop reporting <see cref="MessageOutcome.Invalid" />.</returns>
+    /// <returns>A stop reporting <see cref="MediationOutcome.Invalid" />.</returns>
     internal static PipelineStop Invalid(IReadOnlyList<ValidationFailure> failures)
     {
         var reason = string.Join("; ", failures.Select(failure => failure.ToString()));
@@ -275,7 +275,7 @@ public readonly struct PipelineStop : IEquatable<PipelineStop>
 
         return new PipelineStop(
             stopsPipeline: true,
-            MessageOutcome.Invalid,
+            MediationOutcome.Invalid,
             hasResult: false,
             result: null,
             reason,
@@ -289,12 +289,12 @@ public readonly struct PipelineStop : IEquatable<PipelineStop>
     /// <param name="reason">Why the shortcut answered, when it said.</param>
     /// <param name="hasResult">Whether the shortcut supplied a result.</param>
     /// <param name="result">The result the shortcut supplied.</param>
-    /// <returns>A stop reporting <see cref="MessageOutcome.Answered" />.</returns>
+    /// <returns>A stop reporting <see cref="MediationOutcome.Answered" />.</returns>
     internal static PipelineStop Answered(string? reason, bool hasResult, object? result)
     {
         return new PipelineStop(
             stopsPipeline: true,
-            MessageOutcome.Answered,
+            MediationOutcome.Answered,
             hasResult,
             result,
             reason,

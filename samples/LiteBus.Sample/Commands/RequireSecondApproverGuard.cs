@@ -9,7 +9,7 @@ namespace LiteBus.Sample.Commands;
 /// <remarks>
 ///     <para>
 ///         A guard answers one question: may this happen. Refusing an oversized payment is a denial, so the mediation
-///         reports <see cref="MessageOutcome.Denied" /> and an audit trail records it as one, which is the list a
+///         reports <see cref="MediationOutcome.Denied" /> and an audit trail records it as one, which is the list a
 ///         security review reads.
 ///     </para>
 ///     <para>

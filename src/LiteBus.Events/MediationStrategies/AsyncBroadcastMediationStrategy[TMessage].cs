@@ -61,7 +61,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
         var executionTaskOfAllHandlers = Task.CompletedTask;
         var startedAt = Stopwatch.GetTimestamp();
-        var ending = MediationEnding.Succeeded;
+        var outcome = MediationOutcome.Succeeded;
+        Exception? failure = null;
+        string? reason = null;
 
         try
         {
@@ -71,14 +73,15 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
             if (stop.StopsPipeline)
             {
-                ending = ending.Stopped(stop);
+                outcome = stop.Outcome;
+                reason = stop.Reason;
 
                 if (stop.IsRefusal)
                 {
                     // An event produces no result, so a refusal has nothing a mapper could return and always reaches
                     // the publisher as an exception.
                     var refusal = stop.CreateRefusalException(message.GetType());
-                    ending = ending.Refused(refusal);
+                    failure = refusal;
                     throw refusal;
                 }
 
@@ -111,12 +114,14 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         }
         catch (OperationCanceledException canceledException)
         {
-            ending = ending.Canceled(canceledException);
+            outcome = MediationOutcome.Canceled;
+            failure = canceledException;
             throw;
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            ending = ending.Faulted(e);
+            outcome = MediationOutcome.Failed;
+            failure = e;
 
             await messageDependencies
                 .RunAsyncErrorHandlers(message, executionTaskOfAllHandlers, e, executionContext)
@@ -130,7 +135,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
                 .RunAsyncCompletionHandlers(
                     message,
                     executionContext,
-                    ending,
+                    outcome,
+                    failure,
+                    reason,
                     messageResult: null,
                     Stopwatch.GetElapsedTime(startedAt))
                 .ConfigureAwait(false);

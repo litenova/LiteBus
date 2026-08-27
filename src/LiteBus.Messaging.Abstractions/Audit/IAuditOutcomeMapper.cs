@@ -22,7 +22,7 @@
 /// {
 ///     public AuditOutcome Map(MessageCompletionContext context) => context.Outcome switch
 ///     {
-///         MessageOutcome.Failed when context.Exception is ForbiddenException => AuditOutcome.Denied,
+///         MediationOutcome.Failed when context.Exception is ForbiddenException => AuditOutcome.Denied,
 ///         _ => DefaultAuditOutcomeMapper.MapByOutcome(context)
 ///     };
 /// }

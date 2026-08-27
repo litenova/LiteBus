@@ -58,7 +58,7 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | `MessageErrorContext<TMessage, TResult>` | Typed error data and shared recovery outcome |
 | `IMessageCompletionHandler` / `IMessageCompletionHandler<TMessage>` / `IMessageCompletionHandler<TMessage, TResult>` | Completion stage contracts |
 | `MessageCompletionContext` and its typed views | Read-only outcome, result, exception, reason, duration |
-| `MessageOutcome` | `Succeeded`, `Answered`, `Denied`, `Invalid`, `Failed`, `Canceled` |
+| `MediationOutcome` | `Succeeded`, `Answered`, `Denied`, `Invalid`, `Failed`, `Canceled` |
 | `MediationExceptionData.SuppressedCompletionFaults` | Key under which a suppressed completion fault is attached to the original exception |
 | `HandlerPriorities` | Reserved priority band for handlers shipped by LiteBus |
 | `SingleAsyncHandlerMediationStrategy<TMessage, TResult>` | Single main handler orchestration |
@@ -69,7 +69,6 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | `PipelineDispatch` | Delegate bound at registration to the closed contract a handler was discovered from, and `StageFor` |
 | `IPreHandlerDescriptor.Stage` | The stage that runs a discovered pre-stage handler |
 | `IMessageDependencies.HasPreStageHandlers` | Whether a stage holds any handler, so an empty one costs nothing |
-| `MediationEnding` | The outcome, failure, and reason a mediation ended with |
 | `IRefusalMapperDescriptor` | A registered refusal mapper and the result type it produces |
 | `IHandlerDescriptor.ContractType` | The closed contract a descriptor was discovered from |
 
@@ -98,7 +97,7 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 - Stream completion fires on enumerator disposal, so an unenumerated stream produces no completion record.
 - Only a guard, a validator, or a shortcut can stop the pipeline; `Answered`, `Denied`, and `Invalid` all mean the main handler never ran.
 - A denial is not routed to error handlers and is not reported as `Faulted`.
-- Suppressing post-handlers reports `MessageOutcome.Succeeded`, because the main handler ran.
+- Suppressing post-handlers reports `MediationOutcome.Succeeded`, because the main handler ran.
 - A shortcut that answers a result-returning message must supply a result of the expected type, or mediation throws `LiteBusConfigurationException`. Analyzer rule `LB1019` reports a shortcut that used the untyped contract for such a message. A guard has no such duty, so the untyped guard is correct everywhere.
 - One class may implement pipeline contracts for several message types; each dispatch reaches the contract recorded in its descriptor.
 

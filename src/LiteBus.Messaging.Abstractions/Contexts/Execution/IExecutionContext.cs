@@ -22,7 +22,7 @@ public interface IExecutionContext
     /// <remarks>
     ///     This token carries the caller's decision to abandon the operation, and nothing else. Handlers observe it and
     ///     stop what they are doing when it fires. It is not how a handler refuses a message: a refusal is a decision the
-    ///     pipeline makes, so it belongs to a guard and reports <see cref="MessageOutcome.Denied" />.
+    ///     pipeline makes, so it belongs to a guard and reports <see cref="MediationOutcome.Denied" />.
     /// </remarks>
     CancellationToken CancellationToken { get; }
 
@@ -72,7 +72,7 @@ public interface IExecutionContext
     ///     </para>
     ///     <para>
     ///         Unlike a guard or a shortcut, this does not stop the calling handler and does not change the outcome. The
-    ///         mediation still reports <see cref="MessageOutcome.Succeeded" />, because the main handler ran. To skip
+    ///         mediation still reports <see cref="MediationOutcome.Succeeded" />, because the main handler ran. To skip
     ///         the work itself, implement <see cref="IMessageShortcut{TMessage}" />; to refuse the message, implement
     ///         <see cref="IMessageGuard{TMessage}" />.
     ///     </para>

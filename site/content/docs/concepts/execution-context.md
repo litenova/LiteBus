@@ -79,7 +79,7 @@ if (_ledger.AlreadyProcessed(message.PaymentId))
 }
 ```
 
-It does not stop the calling handler, and it does not change the outcome: the mediation still reports `MessageOutcome.Succeeded`, because the main handler ran.
+It does not stop the calling handler, and it does not change the outcome: the mediation still reports `MediationOutcome.Succeeded`, because the main handler ran.
 
 To stop the pipeline **before** the work happens, implement a guard such as `ICommandGuard<TCommand>` and return a `Verdict`, or a shortcut such as `IQueryShortcut<TQuery, TResult>` and return a `Shortcut<TResult>`. Both are return values rather than context calls, so the compiler requires the decision and nothing after it runs by accident. See [The Handler Pipeline](handler-pipeline.md).
 

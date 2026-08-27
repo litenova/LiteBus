@@ -68,7 +68,7 @@ Within each group, handlers run in ascending `[HandlerPriority]` order (default 
 
 This ordering is implemented in `MessageContextExtensions`: each decision stage iterates indirect then direct, post-handlers and completion handlers iterate direct then indirect, and error-handlers iterate indirect then direct. The stages themselves come from one internal table, so the order `PipelineStage` declares is the order that runs rather than something a call sequence has to keep in step with it.
 
-A custom mediation strategy gets the same stage order through `RunAsyncPreStages`. It carries a `MediationEnding`, reassigning it as each path is taken (`Stopped`, `Refused`, `Canceled`, `Faulted`), and hands it to `RunAsyncCompletionHandlers` in a `finally`. The ending is a value and runs nothing itself; the stage runners own the rest, including opening the ambient scope, preserving the original stack when no error handler recovers, and reporting a post-handler's replacement result rather than the handler's own.
+A custom mediation strategy gets the same stage order through `RunAsyncPreStages`. It tracks three values as it runs, the outcome, the failure, and the reason, updating them on whichever path the mediation takes, and passes all three to `RunAsyncCompletionHandlers` in a `finally`. The stage runners own the rest, including opening the ambient scope, preserving the original stack when no error handler recovers, and reporting a post-handler's replacement result rather than the handler's own.
 
 Each pre-handler, post-handler, and completion handler is invoked through the closed contract recorded in its descriptor at registration, so one class may implement pipeline contracts for several message types and each dispatch reaches the right one. The delegate that performs the dispatch is built while the descriptor is built, which keeps reflection in the registration path rather than in the hot path.
 
@@ -141,12 +141,12 @@ All three decide by returning a value rather than throwing, so the compiler requ
 | Decision | Returned by | Meaning | Reported outcome | Recorded by an audit trail as |
 | --- | --- | --- | --- | --- |
 | `Verdict.Allow` | a guard | The message may proceed | not applicable | not applicable |
-| `Verdict.Deny(reason, code)` | a guard | The message is refused | `MessageOutcome.Denied` | a denial |
+| `Verdict.Deny(reason, code)` | a guard | The message is refused | `MediationOutcome.Denied` | a denial |
 | `Validity.Valid` | a validator | Nothing is wrong | not applicable | not applicable |
-| `Validity.Invalid(...)` | a validator | The message is malformed | `MessageOutcome.Invalid` | invalid |
+| `Validity.Invalid(...)` | a validator | The message is malformed | `MediationOutcome.Invalid` | invalid |
 | `Shortcut.None` | a shortcut | No answer; the mediation proceeds | not applicable | not applicable |
-| `Shortcut.Skip(reason)` | a shortcut | The work was already applied | `MessageOutcome.Answered` | a success |
-| `Shortcut<T>.Answer(result, reason)` | a shortcut | The result was already known | `MessageOutcome.Answered` | a success |
+| `Shortcut.Skip(reason)` | a shortcut | The work was already applied | `MediationOutcome.Answered` | a success |
+| `Shortcut<T>.Answer(result, reason)` | a shortcut | The result was already known | `MediationOutcome.Answered` | a success |
 
 Keeping these in separate contracts does two things. It stops false entries in the one artifact a security review reads, because a cache hit refused nobody, a replayed idempotent command took effect the first time, and a malformed field is not an access decision. And it lets the framework fix the order.
 
@@ -236,7 +236,7 @@ public sealed class TransferValidator : ICommandValidator<TransferCommand>
 
 **This is the one stage that does not stop at the first decision.** Every validator runs, global and specific, and the stage gathers their failures into one result. A caller fixing a malformed message should not have to discover its problems one round trip at a time. Guards stop at the first refusal for the opposite reason: one reason is enough, and listing the rest would tell an unauthorized caller more than they should learn.
 
-The failures reach the caller on `LiteBusMessageInvalidException.Failures`, and the mediation reports `MessageOutcome.Invalid`. Like a denial, an invalid message is a decision rather than a fault, so error handlers do not see it. It is kept apart from `Denied` so malformed input stays out of the list a security review reads.
+The failures reach the caller on `LiteBusMessageInvalidException.Failures`, and the mediation reports `MediationOutcome.Invalid`. Like a denial, an invalid message is a decision rather than a fault, so error handlers do not see it. It is kept apart from `Denied` so malformed input stays out of the list a security review reads.
 
 ### Shortcut Contracts
 
@@ -281,8 +281,8 @@ public sealed class ResultRefusalMapper : ICommandRefusalMapper<ICommand, Result
 {
     public Result Map(ICommand command, Refusal refusal) => refusal.Outcome switch
     {
-        MessageOutcome.Denied  => Result.Forbidden(refusal.Code, refusal.Reason),
-        MessageOutcome.Invalid => Result.Invalid(refusal.Reason),
+        MediationOutcome.Denied  => Result.Forbidden(refusal.Code, refusal.Reason),
+        MediationOutcome.Invalid => Result.Invalid(refusal.Reason),
         _                      => Result.Failure(refusal.Reason)
     };
 }
@@ -325,7 +325,7 @@ Suppression differs from a pre-stage decision in three ways that matter:
 
 - It does **not** stop the calling handler. Everything after the call still runs, so there is no hidden control flow.
 - It can be called from the main handler or from a post-handler, in which case the remaining post-handlers are skipped.
-- The mediation still reports `MessageOutcome.Succeeded`, because the main handler ran.
+- The mediation still reports `MediationOutcome.Succeeded`, because the main handler ran.
 
 That last point is the invariant to remember: **`Answered`, `Denied`, and `Invalid` mean the main handler never ran.** Reporting any of them for a suppressed post-handler chain would tell an audit trail that a command was refused when it actually took effect.
 
@@ -357,7 +357,7 @@ public sealed class RecordCommandOutcome : ICommandCompletionHandler
 }
 ```
 
-`MessageOutcome` distinguishes six endings, each naming a state the message ended in:
+`MediationOutcome` distinguishes six endings, each naming a state the message ended in:
 
 | Outcome | When |
 | --- | --- |

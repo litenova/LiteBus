@@ -39,8 +39,8 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
     /// <remarks>
     ///     The mediation process includes executing pre-handlers, the main handler, and post-handlers in sequence.
     ///     If an exception occurs during any stage, the appropriate error handlers are executed.
-    ///     When a decision stops the pipeline, the mediation ends with <see cref="MessageOutcome.Answered" /> or
-    ///     <see cref="MessageOutcome.Denied" /> and the main handler never runs.
+    ///     When a decision stops the pipeline, the mediation ends with <see cref="MediationOutcome.Answered" /> or
+    ///     <see cref="MediationOutcome.Denied" /> and the main handler never runs.
     /// </remarks>
     public async Task Mediate(
         TMessage message,
@@ -49,7 +49,9 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
     {
         object? messageResult = null;
         var startedAt = Stopwatch.GetTimestamp();
-        var ending = MediationEnding.Succeeded;
+        var outcome = MediationOutcome.Succeeded;
+        Exception? failure = null;
+        string? reason = null;
 
         try
         {
@@ -61,7 +63,8 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
 
                 if (stop.StopsPipeline)
                 {
-                    ending = ending.Stopped(stop);
+                    outcome = stop.Outcome;
+                    reason = stop.Reason;
 
                     if (stop.IsRefusal)
                     {
@@ -69,7 +72,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
                         // always reaches the caller as an exception. It is excluded from the recoverable filter, so
                         // error handlers do not see a decision as a fault.
                         var refusal = stop.CreateRefusalException(message.GetType());
-                        ending = ending.Refused(refusal);
+                        failure = refusal;
                         throw refusal;
                     }
 
@@ -91,12 +94,14 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         }
         catch (OperationCanceledException canceledException)
         {
-            ending = ending.Canceled(canceledException);
+            outcome = MediationOutcome.Canceled;
+            failure = canceledException;
             throw;
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            ending = ending.Faulted(e);
+            outcome = MediationOutcome.Failed;
+            failure = e;
 
             await messageDependencies
                 .RunAsyncErrorHandlers(message, messageResult, e, executionContext)
@@ -108,7 +113,9 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
                 .RunAsyncCompletionHandlers(
                     message,
                     executionContext,
-                    ending,
+                    outcome,
+                    failure,
+                    reason,
                     messageResult,
                     Stopwatch.GetElapsedTime(startedAt))
                 .ConfigureAwait(false);

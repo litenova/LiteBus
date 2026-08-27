@@ -120,7 +120,7 @@ public static class MessageContextExtensions
     /// </returns>
     /// <remarks>
     ///     Validation is the only stage declaring <see cref="StageAggregation.CollectFailures" />, so the decision built
-    ///     here reports <see cref="MessageOutcome.Invalid" />. A second collecting stage would have to decide what it
+    ///     here reports <see cref="MediationOutcome.Invalid" />. A second collecting stage would have to decide what it
     ///     produces before reusing this.
     /// </remarks>
     private static async Task<PipelineStop> RunAsyncCollectingStage(
@@ -436,7 +436,9 @@ public static class MessageContextExtensions
     /// <param name="messageDependencies">The message dependencies encapsulating completion handlers.</param>
     /// <param name="message">The message that was mediated.</param>
     /// <param name="executionContext">The execution context the mediation ran under.</param>
-    /// <param name="ending">How the mediation ended: the outcome, the failure, and the reason.</param>
+    /// <param name="outcome">How the mediation ended.</param>
+    /// <param name="failure">The exception that ended the mediation, when one did.</param>
+    /// <param name="reason">The reason a decision gave for stopping the pipeline, when one did.</param>
     /// <param name="messageResult">The result the main handler produced, when it ran and produced one.</param>
     /// <param name="duration">How long the mediation took.</param>
     /// <returns>A task that completes once every completion handler has run.</returns>
@@ -450,7 +452,9 @@ public static class MessageContextExtensions
         this IMessageDependencies messageDependencies,
         object message,
         IExecutionContext executionContext,
-        MediationEnding ending,
+        MediationOutcome outcome,
+        Exception? failure,
+        string? reason,
         object? messageResult,
         TimeSpan duration)
     {
@@ -465,13 +469,13 @@ public static class MessageContextExtensions
         var context = new MessageCompletionContext
         {
             Message = message,
-            Outcome = ending.Outcome,
+            Outcome = outcome,
 
             // A post-handler may have replaced what the caller receives, and the completion stage should see what the
             // caller actually got. Resolving it here is what stops each strategy having to remember.
             MessageResult = executionContext.MessageResult ?? messageResult,
-            Exception = ending.Failure,
-            Reason = ending.Reason,
+            Exception = failure,
+            Reason = reason,
             Duration = duration
         };
 

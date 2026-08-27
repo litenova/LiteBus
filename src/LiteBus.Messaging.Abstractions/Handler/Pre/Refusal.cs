@@ -13,8 +13,8 @@ namespace LiteBus.Messaging.Abstractions;
 ///         refusal looks like to a caller.
 ///     </para>
 ///     <para>
-///         <see cref="Outcome" /> is either <see cref="MessageOutcome.Denied" /> for a guard refusal or
-///         <see cref="MessageOutcome.Invalid" /> for a validation failure. The two are kept apart because a denial is
+///         <see cref="Outcome" /> is either <see cref="MediationOutcome.Denied" /> for a guard refusal or
+///         <see cref="MediationOutcome.Invalid" /> for a validation failure. The two are kept apart because a denial is
 ///         what a security review reads and a validation failure is not.
 ///     </para>
 /// </remarks>
@@ -26,7 +26,7 @@ public readonly struct Refusal : IEquatable<Refusal>
     /// <param name="outcome">The outcome the mediation reports.</param>
     /// <param name="reason">The reason the decision supplied.</param>
     /// <param name="code">The optional code the decision supplied.</param>
-    public Refusal(MessageOutcome outcome, string reason, string? code = null)
+    public Refusal(MediationOutcome outcome, string reason, string? code = null)
     {
         Outcome = outcome;
         Reason = reason;
@@ -36,9 +36,9 @@ public readonly struct Refusal : IEquatable<Refusal>
     /// <summary>
     ///     Gets the outcome the mediation reports for this refusal.
     /// </summary>
-    /// <value><see cref="MessageOutcome.Denied" /> for a guard refusal, <see cref="MessageOutcome.Invalid" /> for a
+    /// <value><see cref="MediationOutcome.Denied" /> for a guard refusal, <see cref="MediationOutcome.Invalid" /> for a
     ///     validation failure.</value>
-    public MessageOutcome Outcome { get; }
+    public MediationOutcome Outcome { get; }
 
     /// <summary>
     ///     Gets the reason the decision supplied.
@@ -58,8 +58,8 @@ public readonly struct Refusal : IEquatable<Refusal>
     /// <summary>
     ///     Gets a value indicating whether a guard refused the message.
     /// </summary>
-    /// <value><see langword="true" /> when <see cref="Outcome" /> is <see cref="MessageOutcome.Denied" />.</value>
-    public bool IsDenial => Outcome == MessageOutcome.Denied;
+    /// <value><see langword="true" /> when <see cref="Outcome" /> is <see cref="MediationOutcome.Denied" />.</value>
+    public bool IsDenial => Outcome == MediationOutcome.Denied;
 
     /// <summary>
     ///     Determines whether two refusals are equal.

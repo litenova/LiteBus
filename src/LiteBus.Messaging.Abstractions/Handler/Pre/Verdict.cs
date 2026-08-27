@@ -77,7 +77,7 @@ public readonly struct Verdict : IEquatable<Verdict>
     /// </summary>
     /// <param name="reason">Why the message is refused, written for a person.</param>
     /// <param name="code">A machine-readable code a refusal mapper can switch on, when the guard has one.</param>
-    /// <returns>A verdict that stops the pipeline and reports <see cref="MessageOutcome.Denied" />.</returns>
+    /// <returns>A verdict that stops the pipeline and reports <see cref="MediationOutcome.Denied" />.</returns>
     /// <exception cref="ArgumentException"><paramref name="reason" /> is null, empty, or whitespace.</exception>
     public static Verdict Deny(string reason, string? code = null)
     {
@@ -132,7 +132,7 @@ public readonly struct Verdict : IEquatable<Verdict>
     ///     Converts this verdict to the pipeline decision the stage runner acts on.
     /// </summary>
     /// <returns>
-    ///     A stop that reports <see cref="MessageOutcome.Denied" /> when the guard refused, otherwise
+    ///     A stop that reports <see cref="MediationOutcome.Denied" /> when the guard refused, otherwise
     ///     <see cref="PipelineStop.None" />.
     /// </returns>
     internal PipelineStop ToStop()

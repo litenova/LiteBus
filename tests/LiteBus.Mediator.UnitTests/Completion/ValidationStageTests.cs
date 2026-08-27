@@ -44,7 +44,7 @@ public sealed class ValidationStageTests
             .WithMessage("*the amount must be positive*").ConfigureAwait(false);
 
         command.HandlerRan.Should().BeFalse();
-        recorder.Observed.Select(entry => entry.Context.Outcome).Should().Equal(MessageOutcome.Invalid);
+        recorder.Observed.Select(entry => entry.Context.Outcome).Should().Equal(MediationOutcome.Invalid);
     }
 
     [Fact]
@@ -207,7 +207,7 @@ public sealed class ValidationStageTests
         // Mapping decides what the caller receives; it does not turn a refusal into a success. An audit trail built on
         // the completion stage must still see the denial, and must see the value the caller actually got.
         var completion = recorder.Observed.Should().ContainSingle().Which.Context;
-        completion.Outcome.Should().Be(MessageOutcome.Denied);
+        completion.Outcome.Should().Be(MediationOutcome.Denied);
         completion.Reason.Should().Be("not permitted");
         completion.MessageResult.Should().Be("quote:Denied:NOT_PERMITTED");
         completion.Faulted.Should().BeFalse();

@@ -10,7 +10,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// <remarks>
 ///     <para>
 ///         A validation failure is a decision, not a fault, so it does not reach error handlers and is not reported as
-///         <see cref="MessageOutcome.Failed" />. The mediation reports <see cref="MessageOutcome.Invalid" />, completion
+///         <see cref="MediationOutcome.Failed" />. The mediation reports <see cref="MediationOutcome.Invalid" />, completion
 ///         handlers observe it, and this exception then reaches the caller because a method that must return a value has
 ///         nothing to return.
 ///     </para>

@@ -18,27 +18,27 @@ public sealed class EventShortcutAndCompletionTests : LiteBusTestBase
     [Fact]
     public async Task An_event_shortcut_can_skip_the_reactions_to_an_already_handled_event()
     {
-        var observed = new List<MessageOutcome>();
+        var observed = new List<MediationOutcome>();
         var provider = BuildProvider(observed);
         var @event = new ProbeEvent { AlreadyHandled = true };
 
         await provider.GetRequiredService<IEventMediator>().PublishAsync(@event).ConfigureAwait(false);
 
         @event.HandlerRan.Should().BeFalse();
-        observed.Should().Equal(MessageOutcome.Answered);
+        observed.Should().Equal(MediationOutcome.Answered);
     }
 
     [Fact]
     public async Task An_event_completion_handler_observes_a_successful_broadcast()
     {
-        var observed = new List<MessageOutcome>();
+        var observed = new List<MediationOutcome>();
         var provider = BuildProvider(observed);
         var @event = new ProbeEvent();
 
         await provider.GetRequiredService<IEventMediator>().PublishAsync(@event).ConfigureAwait(false);
 
         @event.HandlerRan.Should().BeTrue();
-        observed.Should().Equal(MessageOutcome.Succeeded);
+        observed.Should().Equal(MediationOutcome.Succeeded);
     }
 
     /// <summary>
@@ -46,7 +46,7 @@ public sealed class EventShortcutAndCompletionTests : LiteBusTestBase
     /// </summary>
     /// <param name="observed">The list the completion handler appends outcomes to.</param>
     /// <returns>The configured service provider.</returns>
-    private static ServiceProvider BuildProvider(List<MessageOutcome> observed)
+    private static ServiceProvider BuildProvider(List<MediationOutcome> observed)
     {
         var services = new ServiceCollection();
         services.AddSingleton(observed);
@@ -122,13 +122,13 @@ internal sealed class ProbeEventCompletionHandler : IEventCompletionHandler<Prob
     /// <summary>
     ///     The outcomes observed by the test.
     /// </summary>
-    private readonly List<MessageOutcome> _observed;
+    private readonly List<MediationOutcome> _observed;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="ProbeEventCompletionHandler" /> class.
     /// </summary>
     /// <param name="observed">The list to append outcomes to.</param>
-    public ProbeEventCompletionHandler(List<MessageOutcome> observed)
+    public ProbeEventCompletionHandler(List<MediationOutcome> observed)
     {
         _observed = observed;
     }

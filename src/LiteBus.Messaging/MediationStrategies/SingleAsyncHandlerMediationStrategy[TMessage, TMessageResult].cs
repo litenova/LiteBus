@@ -35,7 +35,9 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
 
         TMessageResult? messageResult = default;
         var startedAt = Stopwatch.GetTimestamp();
-        var ending = MediationEnding.Succeeded;
+        var outcome = MediationOutcome.Succeeded;
+        Exception? failure = null;
+        string? reason = null;
 
         try
         {
@@ -47,7 +49,8 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
 
                 if (stop.StopsPipeline)
                 {
-                    ending = ending.Stopped(stop);
+                    outcome = stop.Outcome;
+                    reason = stop.Reason;
 
                     if (stop.IsRefusal)
                     {
@@ -62,7 +65,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                         catch (Exception refusal) when (refusal is LiteBusMessageDeniedException
                                                             or LiteBusMessageInvalidException)
                         {
-                            ending = ending.Refused(refusal);
+                            failure = refusal;
                             throw;
                         }
 
@@ -95,12 +98,14 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         }
         catch (OperationCanceledException canceledException)
         {
-            ending = ending.Canceled(canceledException);
+            outcome = MediationOutcome.Canceled;
+            failure = canceledException;
             throw;
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            ending = ending.Faulted(e);
+            outcome = MediationOutcome.Failed;
+            failure = e;
 
             var errorContext = await messageDependencies
                 .RunAsyncErrorHandlers(message, messageResult, e, executionContext)
@@ -117,7 +122,9 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                 .RunAsyncCompletionHandlers(
                     message,
                     executionContext,
-                    ending,
+                    outcome,
+                    failure,
+                    reason,
                     messageResult,
                     Stopwatch.GetElapsedTime(startedAt))
                 .ConfigureAwait(false);

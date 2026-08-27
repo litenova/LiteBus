@@ -37,7 +37,7 @@ public sealed class MessageCompletionContext<TMessage>
     /// <summary>
     ///     Gets the outcome that describes how the mediation ended.
     /// </summary>
-    public MessageOutcome Outcome => _context.Outcome;
+    public MediationOutcome Outcome => _context.Outcome;
 
     /// <summary>
     ///     Gets the result produced by the pipeline, when one was produced before the mediation ended.

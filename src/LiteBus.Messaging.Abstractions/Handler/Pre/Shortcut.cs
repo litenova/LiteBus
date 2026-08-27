@@ -9,7 +9,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// <remarks>
 ///     <para>
 ///         Skipping is not a refusal. Nothing was denied, the work has already taken effect, and an audit trail records
-///         a success. Refusing belongs to a guard, which reports <see cref="MessageOutcome.Denied" /> instead.
+///         a success. Refusing belongs to a guard, which reports <see cref="MediationOutcome.Denied" /> instead.
 ///     </para>
 ///     <para>
 ///         This shape is for messages that produce no result. Use <see cref="Shortcut{TMessageResult}" /> for a message
@@ -74,7 +74,7 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     /// <param name="reason">The reason the main handler was skipped.</param>
     /// <returns>An answering shortcut that supplies no result.</returns>
     /// <remarks>
-    ///     The mediation reports <see cref="MessageOutcome.Answered" />, and an audit trail records a success,
+    ///     The mediation reports <see cref="MediationOutcome.Answered" />, and an audit trail records a success,
     ///     because nothing was refused.
     /// </remarks>
     public static Shortcut Skip(string? reason = null)

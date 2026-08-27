@@ -35,7 +35,7 @@ public sealed class GuardAndShortcutTests : LiteBusTestBase
         command.PostHandlerRan.Should().BeFalse();
 
         var observed = recorder.Observed.Single().Context;
-        observed.Outcome.Should().Be(MessageOutcome.Answered);
+        observed.Outcome.Should().Be(MediationOutcome.Answered);
         observed.Reason.Should().Be("already applied");
         observed.Faulted.Should().BeFalse();
     }
@@ -57,7 +57,7 @@ public sealed class GuardAndShortcutTests : LiteBusTestBase
         command.HandlerRan.Should().BeFalse();
 
         var observed = recorder.Observed.Single().Context;
-        observed.Outcome.Should().Be(MessageOutcome.Denied);
+        observed.Outcome.Should().Be(MediationOutcome.Denied);
         observed.Reason.Should().Be("the caller may not do this");
     }
 
@@ -89,7 +89,7 @@ public sealed class GuardAndShortcutTests : LiteBusTestBase
 
         command.HandlerRan.Should().BeTrue();
         command.PostHandlerRan.Should().BeTrue();
-        recorder.Observed.Single().Context.Outcome.Should().Be(MessageOutcome.Succeeded);
+        recorder.Observed.Single().Context.Outcome.Should().Be(MediationOutcome.Succeeded);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class GuardAndShortcutTests : LiteBusTestBase
 
         // The work happened, so this is not a denial. Reporting Denied here would tell an audit trail
         // that a command was refused when it actually took effect.
-        recorder.Observed.Single().Context.Outcome.Should().Be(MessageOutcome.Succeeded);
+        recorder.Observed.Single().Context.Outcome.Should().Be(MediationOutcome.Succeeded);
     }
 
     [Fact]

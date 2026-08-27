@@ -9,7 +9,7 @@ namespace LiteBus.Sample.Commands;
 /// <remarks>
 ///     <para>
 ///         A validator answers one question: is this well-formed. A negative amount is malformed input rather than a
-///         refusal, so the mediation reports <see cref="MessageOutcome.Invalid" /> and an audit trail keeps it out of
+///         refusal, so the mediation reports <see cref="MediationOutcome.Invalid" /> and an audit trail keeps it out of
 ///         the denial list a security review reads. Refusing an oversized payment is a different decision and lives in
 ///         <see cref="RequireSecondApproverGuard" />.
 ///     </para>

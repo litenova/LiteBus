@@ -107,8 +107,8 @@ public sealed class ResultRefusalMapper : ICommandRefusalMapper<ICommand, Result
 {
     public Result Map(ICommand command, Refusal refusal) => refusal.Outcome switch
     {
-        MessageOutcome.Denied  => Result.Forbidden(refusal.Code, refusal.Reason),
-        MessageOutcome.Invalid => Result.Invalid(refusal.Reason),
+        MediationOutcome.Denied  => Result.Forbidden(refusal.Code, refusal.Reason),
+        MediationOutcome.Invalid => Result.Invalid(refusal.Reason),
         _                      => Result.Failure(refusal.Reason)
     };
 }

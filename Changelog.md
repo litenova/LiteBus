@@ -22,13 +22,13 @@ unchanged.
   happened and handing the stage the token that just fired would drop exactly the records a review looks for.
 - Guards. A pre-stage handler that may refuse a message implements `IMessageGuard<TMessage>` and returns a `Verdict`
   from `DecideAsync`, with the axis contracts `ICommandGuard<TCommand>`, `IQueryGuard<TQuery>`, and
-  `IEventGuard<TEvent>`. A refusal always carries a reason, may carry a code, and reports `MessageOutcome.Denied`, which
+  `IEventGuard<TEvent>`. A refusal always carries a reason, may carry a code, and reports `MediationOutcome.Denied`, which
   an audit trail records as a denial. The compiler requires the decision, so nothing after it runs by accident, and an
   expected control-flow path stays off the exception path.
 - Validators. `IMessageValidator<TMessage>` returns `Validity` from `ValidateAsync`, with the axis contracts
   `ICommandValidator<TCommand>`, `IQueryValidator<TQuery>`, and `IEventValidator<TEvent>`. A validator answers whether
   the message is well-formed, which is a different question from whether the caller may send it, so a failure reports
-  `MessageOutcome.Invalid` rather than `Denied` and stays out of the list a security review reads. Unlike every other
+  `MediationOutcome.Invalid` rather than `Denied` and stays out of the list a security review reads. Unlike every other
   decision stage, this one runs every validator and collects their failures rather than stopping at the first: a caller
   fixing a malformed message should not discover its problems one round trip at a time. `ValidationFailure` carries the
   message, the member it applies to, and an optional code.
@@ -42,7 +42,7 @@ unchanged.
   `IMessageShortcut<TMessage>` or `IMessageShortcut<TMessage, TMessageResult>` and returns a `Shortcut` from
   `TryAnswerAsync`, with the axis contracts `ICommandShortcut<TCommand>`, `ICommandShortcut<TCommand, TCommandResult>`,
   `IQueryShortcut<TQuery, TQueryResult>`, `IStreamQueryShortcut<TQuery, TQueryResult>`, and `IEventShortcut<TEvent>`. A
-  cache hit or a replayed idempotent command reports `MessageOutcome.Answered`, which an audit trail records as a
+  cache hit or a replayed idempotent command reports `MediationOutcome.Answered`, which an audit trail records as a
   success because nothing was refused. Keeping that apart from a denial is the distinction a security review reads.
 - The framework fixes the stage order: guards, then validators, then shortcuts, then pre-handlers. Priority orders
   handlers inside a stage and never reorders the stages, so a globally registered cache shortcut cannot answer a caller
@@ -66,19 +66,15 @@ unchanged.
 - `RunAsyncErrorHandlers` and `RunAsyncCompletionHandlers` each take the execution context and open their own ambient
   scope, so a strategy no longer has to wrap them. The error runner also captures the `ExceptionDispatchInfo` itself,
   which is what preserves the original stack when nothing recovers, and the completion runner resolves a post-handler's
-  replacement result in preference to the handler's own. Both rules used to be a strategy's job to remember.
+  replacement result in preference to the handler's own. Both rules used to be a strategy's job to remember. The
+  completion runner takes the outcome, the failure, and the reason a strategy tracked, and builds the context from them.
 - `LiteBusMessageDeniedException` and `LiteBusMessageInvalidException` reach the caller when no refusal mapper covers
   the message. Both are excluded from the recoverable-exception filter, so error handlers never see a decision as a
   fault, and `LiteBusMessageInvalidException.Failures` carries every failure the validator stage collected.
-- `MediationEnding` carries how a mediation ended: the outcome, the failure, and the reason. Every strategy held those
-  as three separate locals and assembled them in a `finally`, which is three chances to record one and forget another.
-  It is an immutable value with one transition per path a mediation can take, `Stopped`, `Refused`, `Canceled`, and
-  `Faulted`, each returning a new ending rather than mutating one. It runs nothing itself: reporting it is
-  `RunAsyncCompletionHandlers`, alongside every other stage runner.
 - `MediationExceptionFilters.IsRefusal` and `IsRetryableDispatchException` classify a decision apart from a fault. The
   inbox and outbox processors use the second to dead-letter a refusal or a missing handler on the first attempt instead
   of spending the retry schedule on an answer that cannot change.
-- `MessageOutcome` distinguishes `Succeeded`, `Answered`, `Denied`, `Invalid`, `Failed`, and `Canceled`. Every member
+- `MediationOutcome` distinguishes `Succeeded`, `Answered`, `Denied`, `Invalid`, `Failed`, and `Canceled`. Every member
   is reported by some path, and each names a state the message ended in rather than a mechanism the pipeline used.
 - `IExecutionContext.SuppressPostHandlers()` skips the post-handlers that have not run yet. Use it when the work turned
   out to be a no-op and the reactions to it should not fire, such as an idempotent command that detects it already ran.
@@ -212,7 +208,7 @@ unchanged.
   result-returning message always carries the result. The removed overload meant "yields nothing" on a stream query and
   failed at runtime with `LiteBusConfigurationException` on every other result shape. A stream shortcut that means no
   items answers with `AsyncEnumerable.Empty<T>()`.
-- `MessageOutcome.ShortCircuited` is renamed `Answered`, and `PipelineStop.ShortCircuited` follows it. Its five siblings
+- `MediationOutcome.ShortCircuited` is renamed `Answered`, and `PipelineStop.ShortCircuited` follows it. Its five siblings
   all name a state the message ended in, while short-circuiting names a mechanism that describes a denial just as
   accurately. `Answered` also matches `TryAnswerAsync` and `Shortcut.Answer`, so one word covers the contract, the verb,
   and the outcome.
@@ -240,7 +236,7 @@ unchanged.
   an operator was waiting to see.
 - Only a guard or a shortcut can stop the pipeline. Stopping means skipping the work, and once the main handler has run
   there is nothing left to skip. A handler that previously aborted from a later stage calls `SuppressPostHandlers()`.
-- `MessageOutcome` has no `Aborted` member. A stopped mediation reports `Answered`, `Denied`, or `Invalid`, which say
+- `MediationOutcome` has no `Aborted` member. A stopped mediation reports `Answered`, `Denied`, or `Invalid`, which say
   which of the three events happened. Previously an abort from a post-handler reported `Aborted` even though the command
   had taken effect, which told an audit trail that an action was refused when it had actually succeeded; suppressing
   post-handlers reports `Succeeded`.

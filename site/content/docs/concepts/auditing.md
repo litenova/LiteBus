@@ -118,11 +118,11 @@ Enabling auditing also registers the `litebus.audit.trail` diagnostic probe, whi
 
 ## Denials and Early Answers Are Not the Same Ending
 
-The distinction a security review cares about most is whether the actor was permitted. The pipeline carries it: a [guard](handler-pipeline.md) that returns `Deny` reports `MessageOutcome.Denied` and is recorded as `AuditOutcome.Denied`, with the reason the guard gave.
+The distinction a security review cares about most is whether the actor was permitted. The pipeline carries it: a [guard](handler-pipeline.md) that returns `Deny` reports `MediationOutcome.Denied` and is recorded as `AuditOutcome.Denied`, with the reason the guard gave.
 
 A shortcut that answers is a different event. A cache hit or a replayed idempotent command refused nobody, so it is recorded as `AuditOutcome.Succeeded`. Recording it as a denial would put an entry in the list a reviewer reads that never happened. A validation failure is a third event: the message was malformed rather than refused, so it is recorded as `AuditOutcome.Invalid` and stays out of the denial list too.
 
-| Ending | `MessageOutcome` | Recorded as |
+| Ending | `MediationOutcome` | Recorded as |
 | --- | --- | --- |
 | The handler ran and post-handlers completed | `Succeeded` | `Succeeded` |
 | A shortcut answered without the handler | `Answered` | `Succeeded` |

@@ -8,7 +8,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///     reach post-handlers or error handlers. The outcomes distinguish a refusal from an early answer and from a fault,
 ///     because a review of a trail asks a different question of each.
 /// </remarks>
-public enum MessageOutcome
+public enum MediationOutcome
 {
     /// <summary>
     ///     The main handler and all post-handlers ran without raising an exception.

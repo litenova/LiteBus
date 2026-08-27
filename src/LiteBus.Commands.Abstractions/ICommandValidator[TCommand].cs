@@ -8,7 +8,7 @@ namespace LiteBus.Commands.Abstractions;
 /// <typeparam name="TCommand">The specific command type this validator runs for.</typeparam>
 /// <remarks>
 ///     A validator returns <see cref="Validity" /> rather than throwing, so a malformed command reports
-///     <see cref="MessageOutcome.Invalid" /> instead of arriving at error handlers as a fault. Every validator for the
+///     <see cref="MediationOutcome.Invalid" /> instead of arriving at error handlers as a fault. Every validator for the
 ///     command runs and their failures are collected, so the caller sees all of them at once.
 /// </remarks>
 public interface ICommandValidator<in TCommand> : IMessageValidator<TCommand>
