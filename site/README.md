@@ -1,17 +1,61 @@
 # LiteBus documentation site
 
-This is the Fumadocs site for LiteBus. The Markdown source is copied from `../docs` so
-the repository's source documentation remains available to package and architecture
-workflows while the site can evolve its navigation and presentation independently.
+This is the Fumadocs site for LiteBus. It serves several documentation versions from one
+deployment, so a reader can follow documentation for the release they have installed
+rather than for the one under development.
 
 Each page title is derived from the first level-one heading in its Markdown source.
 Files named `README.md` are exposed as their directory index, so
-`docs/getting-started/README.md` is served at `/docs/getting-started`.
+`getting-started/README.md` is served at `/docs/getting-started`.
 Relative Markdown links are resolved through the Fumadocs source loader. The production
 build rejects rendered local links that still contain a `.md` source-file suffix.
 The search route compiles Markdown at runtime, so its narrow Next.js output-file trace
-includes `content/docs` for serverless deployments. The build verifies that every
-Markdown source file is present in that trace.
+includes every version's content directory for serverless deployments. The build verifies
+that every Markdown source file is present in that trace.
+
+## Documentation versions
+
+`versions.json` declares every version the site serves. Exactly one entry is the default,
+and it is the latest stable release.
+
+| Directory | Holds |
+|-----------|-------|
+| `content/docs` | The working documentation, tracking the source tree in this repository. It describes the version under development, and it is the only tree the repository documentation gates check. |
+| `content/versions/<id>` | A frozen snapshot of a released line. Snapshots are never edited in place, and the repository linters leave them alone because their snippets reference source that has since moved. |
+
+The default version is served unprefixed at `/docs`, so the canonical documentation URL
+does not move when a release is cut and existing links keep working. Every other version
+carries its identifier as the first path segment, such as `/v7/docs/getting-started`.
+
+A version whose `status` is `prerelease` is excluded from the sitemap and its pages carry
+`noindex`, so a search engine does not offer documentation for a package most readers
+should not install yet. Its pages also carry a notice pointing at the stable version.
+
+The sidebar version switcher keeps the reader on the same page across versions. A page
+that exists in only one version lands on the documentation not-found boundary, which
+offers the versions that do have it.
+
+Search is scoped to the version the reader is on. Each version has its own index, and the
+search dialog sends the version identifier as its tag; the search route uses that tag to
+pick an index rather than to filter inside one.
+
+A version's `ref` is the git ref its Markdown sources live on, used for fallback links into the repository. A line
+still developed on its own release branch names that branch, and becomes `main` when the line merges.
+
+### A line that has not merged yet
+
+The production site deploys from `main`, so a version whose sources live on an unmerged release branch is not on
+litebus.io. Its pages build and are checked on every push to that branch, and Vercel publishes them as a branch
+preview deployment; alias that deployment if the pre-release needs a stable URL before it merges. The version appears
+at its own path on litebus.io as soon as the branch merges, with no further change to `versions.json`.
+
+### Cutting a release
+
+1. Copy `content/docs` to `content/versions/<previous id>` if that line has no snapshot yet.
+2. Move `"default": true` in `versions.json` to the entry for the newly released line.
+3. Set that entry's `status` to `stable` and update its `release` and `ref`.
+
+Bump a pre-release entry's `release` for each preview, since it is the version the switcher shows.
 
 ## Local development
 
@@ -32,9 +76,8 @@ server is `npm run start`. Run `npm run lint` for the Next.js ESLint rules and
 `npm run typecheck` for a standalone TypeScript check.
 
 The build and release workflows run a clean install, a high-severity dependency audit,
-linting, type checking, the production build, and the rendered-link gate. Changes under
-`site/` or `Roadmap/` trigger the build workflow. A separate content-mirror gate rejects
-missing, stale, or orphaned site pages before the Fumadocs build starts.
+linting, type checking, the production build, the rendered-link gate, and the search-trace
+gate. Changes under `site/` trigger the build workflow.
 
 ## Vercel deployment
 

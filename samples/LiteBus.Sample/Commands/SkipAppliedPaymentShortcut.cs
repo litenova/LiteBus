@@ -33,6 +33,6 @@ public sealed class SkipAppliedPaymentShortcut : ICommandShortcut<ProcessPayment
 
         return Task.FromResult(Applied.TryAdd(message.PaymentId, true)
             ? Shortcut.None
-            : Shortcut.Skip("the payment was already applied"));
+            : Shortcut.Answer("the payment was already applied"));
     }
 }

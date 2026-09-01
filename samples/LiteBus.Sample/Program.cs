@@ -1,4 +1,4 @@
-using LiteBus.Commands;
+﻿using LiteBus.Commands;
 using LiteBus.Events;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;
@@ -6,13 +6,13 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Dispatch.InProcess;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Queries;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Sample;
-using LiteBus.Messaging.Abstractions;
 using LiteBus.Sample.Auditing;
 using LiteBus.Sample.Commands;
 using LiteBus.Sample.Events;
@@ -21,13 +21,14 @@ using LiteBus.Sample.Queries;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<PaymentLedger>();
-builder.Services.AddSingleton<IAuditTrail, ConsoleAuditTrail>();
 
 builder.Services.AddLiteBus(liteBus =>
 {
     var applicationAssembly = typeof(ProcessPaymentCommand).Assembly;
 
-    liteBus.AddMessaging(_ => { });
+    // The trail and the outcome mapper are the shared half of auditing, so they are configured here;
+    // each axis then decides for itself whether its messages produce records.
+    liteBus.AddMessaging(messaging => messaging.UseAuditTrail<ConsoleAuditTrail>());
     liteBus.AddCommands(commands => commands.RegisterFromAssembly(applicationAssembly).EnableAuditing());
     liteBus.AddQueries(queries => queries.RegisterFromAssembly(applicationAssembly).EnableAuditing());
     liteBus.AddEvents(events => events.RegisterFromAssembly(applicationAssembly));

@@ -1,4 +1,4 @@
-# Shortcut Contracts
+﻿# Shortcut Contracts
 
 ## Header
 
@@ -11,7 +11,17 @@
 
 `ICommand<TResult>` derives from `ICommand`, and `IStreamQuery<TResult>` derives from `IQuery`. Both make the untyped shortcut contract compile for a message that does produce a result, so `ICommandShortcut<CreateProductCommand>` is accepted by the compiler even when `CreateProductCommand` implements `ICommand<Guid>`.
 
-The untyped `Shortcut` carries no result. A shortcut that answers this way leaves the mediation with nothing to hand back, so `Shortcut.Skip` reaches the caller as `LiteBusConfigurationException` at the first dispatch that takes the branch. The exception message names the contract to use, but only after the code has shipped and run.
+The untyped `Shortcut` carries no result. A shortcut that answers this way leaves the mediation with nothing to hand back, so answering fails with `LiteBusConfigurationException`.
+
+This rule is one of three checks on the same mistake, at three different points. The compiler cannot help: C# has no way to write "`ICommand` but not `ICommand<T>`", which is the constraint that would close the hole.
+
+| Point | Covers | Severity |
+| --- | --- | --- |
+| This rule, `LB1019` | The declaration, at build time | Warning, suppressible, absent without the analyzer package |
+| Registration | A shortcut registered directly against a message whose main handler produces a result | `LiteBusConfigurationException`, always on |
+| Dispatch | A shortcut registered against a base type that reaches one message beneath it that produces a result | `LiteBusConfigurationException`, names the shortcut |
+
+Registration is where the guarantee actually lives, because it cannot be turned off. The rule still earns its place by moving the report to build time, where the fix is one keystroke away. The dispatch check covers the case neither of the other two can prove: a shortcut registered against `ICommand` is correct for every result-less command beneath it, so nothing before dispatch knows which message it will answer. See [Mediation Layer Design Rules](../../architecture/mediation-design.md).
 
 For a message that produces a result the typed contract is a strict superset of the untyped one, which is why the rule reports the declaration rather than the individual call: the contract choice is the mistake, and the declaration is where the fix goes.
 
@@ -42,7 +52,7 @@ public sealed class SkipDuplicateProduct : ICommandShortcut<CreateProductCommand
     public Task<Shortcut> TryAnswerAsync(
         CreateProductCommand command,
         CancellationToken cancellationToken = default)
-        => Task.FromResult(Shortcut.Skip("the product already exists"));
+        => Task.FromResult(Shortcut.Answer("the product already exists"));
 }
 ```
 

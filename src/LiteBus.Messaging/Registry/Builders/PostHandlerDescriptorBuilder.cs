@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Extensions;
 using LiteBus.Messaging.Registry.Abstractions;
@@ -23,7 +24,10 @@ public sealed class PostHandlerDescriptorBuilder : IHandlerDescriptorBuilder
     [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
     public IEnumerable<IHandlerDescriptor> Build(Type type)
     {
-        var interfaces = type.GetInterfacesEqualTo(typeof(IMessagePostHandler<,>));
+        // The contracts come from PipelineContracts so that this builder and the dispatch it records cannot disagree
+        // about what a post-handler is.
+        var interfaces = PipelineContracts.ContractDefinitions(PipelineFamily.PostHandler)
+            .SelectMany(type.GetInterfacesEqualTo);
         var priority = type.GetPriorityFromAttribute();
         var tags = type.GetTagsFromAttribute();
 

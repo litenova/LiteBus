@@ -1,4 +1,4 @@
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -16,7 +16,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///         <c>ICommand</c>, the untyped contract also compiles for such a message, which analyzer rule LB1019 reports.
 ///     </para>
 ///     <para>
-///         A cache hit is the usual case. Refusing belongs to a guard, which runs first and reports
+///         A cache hit is the usual case. Denying belongs to a guard, which runs first and reports
 ///         <see cref="MediationOutcome.Denied" />.
 ///     </para>
 /// </remarks>

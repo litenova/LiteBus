@@ -1,4 +1,4 @@
-# Troubleshooting
+﻿# Troubleshooting
 
 This page maps the exceptions and surprising behaviors LiteBus produces to their cause and fix. Each entry names the exception type, where it is thrown, why, and what to change. Use it as a lookup when a message fails to mediate or a registration throws at startup. The behaviors here are grounded in [The Handler Pipeline](../concepts/handler-pipeline.md).
 
@@ -58,16 +58,22 @@ Common causes when a decision appears to be ignored:
 
 - The handler implements the plain `ICommandPreHandler<TCommand>` contract, which cannot stop the pipeline by design.
 - The handler was not registered. Every module builder gates assembly scanning on a handler-contract allowlist, so a handler implementing an unrecognized contract is skipped silently.
-- The decision was constructed but not returned. `Verdict.Deny(...)` and `Shortcut.Skip(...)` have no effect until they are the return value.
+- The decision was constructed but not returned. `Verdict.Deny(...)` and `Shortcut.Answer(...)` have no effect until they are the return value.
 - An earlier stage stopped first. Guards run before validators, validators before shortcuts, and shortcuts before pre-handlers, whatever priority each carries.
 
 To skip the post-handlers after the work has already run, call `IExecutionContext.SuppressPostHandlers()` instead. That reports `MediationOutcome.Succeeded`, because the main handler ran.
 
-## LiteBusConfigurationException When a Shortcut Answers a Result Message
+## LiteBusConfigurationException for an Untyped Shortcut on a Result Message
 
-Thrown when a shortcut answers a result-returning command or query through the untyped contract, which cannot carry the value the caller is owed.
+The untyped shortcut contract cannot carry a value, so it cannot answer a command or query that produces one. This is reported at whichever of two points can prove it.
 
-Fix: implement the typed shortcut, `ICommandShortcut<TCommand, TCommandResult>` or `IQueryShortcut<TQuery, TQueryResult>`, and return `Shortcut<TResult>.Answer(result)`. The compiler then requires the result, and the exception message names the contract to use. A guard or a validator needs no such change, because a refusal never owes the caller a result. See [The Handler Pipeline](../concepts/handler-pipeline.md).
+**At registration**, when the shortcut names the message directly. The message reads `Shortcut 'X' implements the untyped shortcut contract for 'Y', which produces 'Z'`. Registration linked the shortcut to a message whose main handler produces a result, which is enough to prove the shortcut can never answer it.
+
+**At dispatch**, when the shortcut was registered against a base type or interface. A shortcut for `ICommand` is correct for every result-less command beneath it, so nothing before dispatch knows which message it will answer. The message names the shortcut that answered, so several globally registered shortcuts can still be told apart.
+
+Fix, in both cases: implement the typed shortcut, `ICommandShortcut<TCommand, TCommandResult>` or `IQueryShortcut<TQuery, TQueryResult>`, and return `Shortcut<TResult>.Answer(result)`. The compiler then requires the result. A shortcut registered against a base type must return `Shortcut.None` for the messages beneath it that produce a result.
+
+A guard or a validator needs no such change, because a denial never owes the caller a result. See [The Handler Pipeline](../concepts/handler-pipeline.md) and [Mediation Layer Design Rules](../architecture/mediation-design.md).
 
 Reference `LiteBus.Analyzers` to catch this at build time. `ICommand<TResult>` derives from `ICommand`, so the untyped contract compiles for a message that produces a result; `LB1019` reports the declaration and names the typed contract to use instead. See [Analyzers](../reference/analyzers.md).
 

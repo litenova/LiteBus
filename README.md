@@ -17,7 +17,10 @@
 LiteBus provides command, query, and event mediation for .NET 10 applications using CQS and DDD. Durable modules add inbox, outbox, saga, storage, dispatch, ingress, hosting, and operational APIs without requiring unrelated broker or database SDKs.
 
 LiteBus is open source under the MIT license, free for commercial use, and will remain free.
-Find all API and architecture documentation at https://litebus.io/docs.
+Find all API and architecture documentation at https://litebus.io/docs, which documents the latest stable release.
+The v7 pre-release is described in [Changelog.md](Changelog.md) and documented under
+[site/content/docs](site/content/docs) on the `v7` branch; it is served at https://litebus.io/v7/docs once that
+branch merges to main.
 
 ## What LiteBus Includes
 

@@ -11,7 +11,7 @@ namespace LiteBus.Messaging.MediationStrategies;
 /// <typeparam name="TMessage">The type of message being mediated.</typeparam>
 /// <remarks>
 ///     This strategy ensures that only one handler is registered for the message type and then:
-///     1. Executes the pre stages, stopping early when a guard refuses, a validator reports the message malformed,
+///     1. Executes the pre stages, stopping early when a guard denies, a validator reports the message malformed,
 ///     or a shortcut answers.
 ///     2. Delegates the message processing to the registered handler.
 ///     3. Executes post-handlers, unless the pipeline suppressed them.
@@ -57,21 +57,21 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         {
             using (AmbientExecutionContext.CreateScope(executionContext))
             {
-                var stop = await messageDependencies
+                var decision = await messageDependencies
                     .RunAsyncPreStages(message, executionContext.CancellationToken)
                     .ConfigureAwait(false);
 
-                if (stop.StopsPipeline)
+                if (decision.StopsPipeline)
                 {
-                    outcome = stop.Outcome;
-                    reason = stop.Reason;
+                    outcome = decision.Outcome;
+                    reason = decision.Reason;
 
-                    if (stop.IsRefusal)
+                    if (decision.IsRefusal)
                     {
                         // A message that produces no result has nothing a refusal mapper could return, so a refusal
                         // always reaches the caller as an exception. It is excluded from the recoverable filter, so
                         // error handlers do not see a decision as a fault.
-                        var refusal = stop.CreateRefusalException(message.GetType());
+                        var refusal = decision.CreateRefusalException(message.GetType());
                         failure = refusal;
                         throw refusal;
                     }

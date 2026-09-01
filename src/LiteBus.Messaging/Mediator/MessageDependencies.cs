@@ -20,7 +20,7 @@ internal sealed class MessageDependencies : IMessageDependencies
     private readonly Type _messageType;
 
     /// <summary>
-    ///     One bit per <see cref="PipelineStage" /> that has at least one handler, computed once at resolution.
+    ///     One bit per <see cref="PreStage" /> that has at least one handler, computed once at resolution.
     /// </summary>
     private readonly int _occupiedPreStages;
 
@@ -50,8 +50,8 @@ internal sealed class MessageDependencies : IMessageDependencies
         MainHandlers = ResolveHandlers(descriptor.Handlers, handlerType => (IMessageHandler) serviceProvider.GetRequiredService(handlerType));
         IndirectMainHandlers = ResolveHandlers(descriptor.IndirectHandlers, handlerType => (IMessageHandler) serviceProvider.GetRequiredService(handlerType));
 
-        PreHandlers = ResolveHandlers(descriptor.PreHandlers, handlerType => (IMessagePreStageHandler) serviceProvider.GetRequiredService(handlerType));
-        IndirectPreHandlers = ResolveHandlers(descriptor.IndirectPreHandlers, handlerType => (IMessagePreStageHandler) serviceProvider.GetRequiredService(handlerType));
+        PreStageHandlers = ResolveHandlers(descriptor.PreStageHandlers, handlerType => (IMessagePreStageHandler) serviceProvider.GetRequiredService(handlerType));
+        IndirectPreStageHandlers = ResolveHandlers(descriptor.IndirectPreStageHandlers, handlerType => (IMessagePreStageHandler) serviceProvider.GetRequiredService(handlerType));
 
         PostHandlers = ResolveHandlers(descriptor.PostHandlers, handlerType => (IMessagePostHandler) serviceProvider.GetRequiredService(handlerType));
         IndirectPostHandlers = ResolveHandlers(descriptor.IndirectPostHandlers, handlerType => (IMessagePostHandler) serviceProvider.GetRequiredService(handlerType));
@@ -63,7 +63,7 @@ internal sealed class MessageDependencies : IMessageDependencies
         IndirectCompletionHandlers = ResolveHandlers(descriptor.IndirectCompletionHandlers, handlerType => (IMessageCompletionHandler) serviceProvider.GetRequiredService(handlerType));
         RefusalMappers = ResolveHandlers(descriptor.RefusalMappers, handlerType => (IMessageRefusalMapper) serviceProvider.GetRequiredService(handlerType));
         IndirectRefusalMappers = ResolveHandlers(descriptor.IndirectRefusalMappers, handlerType => (IMessageRefusalMapper) serviceProvider.GetRequiredService(handlerType));
-        _occupiedPreStages = ComputeOccupiedPreStages(PreHandlers, IndirectPreHandlers);
+        _occupiedPreStages = ComputeOccupiedPreStages(PreStageHandlers, IndirectPreStageHandlers);
     }
 
     /// <inheritdoc />
@@ -73,10 +73,10 @@ internal sealed class MessageDependencies : IMessageDependencies
     public ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> IndirectMainHandlers { get; }
 
     /// <inheritdoc />
-    public ILazyHandlerCollection<IMessagePreStageHandler, IPreHandlerDescriptor> PreHandlers { get; }
+    public ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor> PreStageHandlers { get; }
 
     /// <inheritdoc />
-    public ILazyHandlerCollection<IMessagePreStageHandler, IPreHandlerDescriptor> IndirectPreHandlers { get; }
+    public ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor> IndirectPreStageHandlers { get; }
 
     /// <inheritdoc />
     public ILazyHandlerCollection<IMessagePostHandler, IPostHandlerDescriptor> PostHandlers { get; }
@@ -103,7 +103,7 @@ internal sealed class MessageDependencies : IMessageDependencies
     public ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> IndirectRefusalMappers { get; }
 
     /// <inheritdoc />
-    public bool HasPreStageHandlers(PipelineStage stage)
+    public bool HasPreStageHandlers(PreStage stage)
     {
         return (_occupiedPreStages & (1 << (int) stage)) != 0;
     }
@@ -115,8 +115,8 @@ internal sealed class MessageDependencies : IMessageDependencies
     /// <param name="indirectPreHandlers">The pre-stage handlers registered for a base type or interface.</param>
     /// <returns>A mask with one bit set per stage that has at least one handler.</returns>
     private static int ComputeOccupiedPreStages(
-        ILazyHandlerCollection<IMessagePreStageHandler, IPreHandlerDescriptor> preHandlers,
-        ILazyHandlerCollection<IMessagePreStageHandler, IPreHandlerDescriptor> indirectPreHandlers)
+        ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor> preHandlers,
+        ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor> indirectPreHandlers)
     {
         var mask = 0;
 

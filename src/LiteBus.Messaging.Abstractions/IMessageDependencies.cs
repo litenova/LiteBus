@@ -26,23 +26,24 @@ public interface IMessageDependencies
     ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> IndirectMainHandlers { get; }
 
     /// <summary>
-    ///     Gets a lazy initialized read-only collection of direct pre-message handlers. These handlers are invoked before the
-    ///     primary message handlers and can be used for tasks such as validation or logging.
+    ///     Gets a lazy initialized read-only collection of the pre-stage handlers registered directly for this message
+    ///     type. Every pre-stage role shares this collection: guards, validators, shortcuts, and pre-handlers.
     /// </summary>
     /// <value>
-    ///     The collection of direct pre-message handlers.
+    ///     The collection of direct pre-stage handlers, ordered once by priority. Read
+    ///     <see cref="IPreStageHandlerDescriptor.Stage" /> to tell which role a handler plays.
     /// </value>
-    ILazyHandlerCollection<IMessagePreStageHandler, IPreHandlerDescriptor> PreHandlers { get; }
+    ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor> PreStageHandlers { get; }
 
     /// <summary>
-    ///     Gets a lazy initialized read-only collection of indirect pre-message handlers. These handlers are invoked before
-    ///     the primary message handlers, potentially handling a variety of different message types or performing logging or
-    ///     other cross-cutting concerns.
+    ///     Gets a lazy initialized read-only collection of the pre-stage handlers registered for a base type or interface
+    ///     this message type implements, such as a guard covering every command.
     /// </summary>
     /// <value>
-    ///     The collection of indirect pre-message handlers.
+    ///     The collection of indirect pre-stage handlers. Within each stage these run before the direct ones, so a
+    ///     cross-cutting concern wraps a message-specific one.
     /// </value>
-    ILazyHandlerCollection<IMessagePreStageHandler, IPreHandlerDescriptor> IndirectPreHandlers { get; }
+    ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor> IndirectPreStageHandlers { get; }
 
     /// <summary>
     ///     Gets a lazy initialized read-only collection of direct post-message handlers. These handlers are invoked after the
@@ -93,19 +94,19 @@ public interface IMessageDependencies
     ///     enumerating. The default implementation is correct for any implementation of this interface; LiteBus's own
     ///     answers from a mask computed once when the dependencies are resolved.
     /// </remarks>
-    bool HasPreStageHandlers(PipelineStage stage)
+    bool HasPreStageHandlers(PreStage stage)
     {
-        foreach (var preHandler in PreHandlers)
+        foreach (var handler in PreStageHandlers)
         {
-            if (preHandler.Descriptor.Stage == stage)
+            if (handler.Descriptor.Stage == stage)
             {
                 return true;
             }
         }
 
-        foreach (var preHandler in IndirectPreHandlers)
+        foreach (var handler in IndirectPreStageHandlers)
         {
-            if (preHandler.Descriptor.Stage == stage)
+            if (handler.Descriptor.Stage == stage)
             {
                 return true;
             }

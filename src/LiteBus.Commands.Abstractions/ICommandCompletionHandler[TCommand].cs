@@ -7,7 +7,7 @@ namespace LiteBus.Commands.Abstractions;
 /// </summary>
 /// <typeparam name="TCommand">The specific command type this completion handler observes.</typeparam>
 /// <remarks>
-///     Completion handlers run on every path: success, short-circuit, denial, failure, and cancellation. They observe the
+///     Completion handlers run on every path: success, answer, denial, invalid input, failure, and cancellation. They observe the
 ///     ending of a mediation but cannot change it. Use
 ///     <see cref="ICommandCompletionHandler{TCommand,TCommandResult}" /> when the handler needs the result typed.
 /// </remarks>

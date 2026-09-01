@@ -1,4 +1,4 @@
-using LiteBus.Messaging.Abstractions;
+﻿using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Events.Abstractions;
 
@@ -7,9 +7,9 @@ namespace LiteBus.Events.Abstractions;
 /// </summary>
 /// <typeparam name="TEvent">The specific event type this shortcut runs for.</typeparam>
 /// <remarks>
-///     Return <see cref="Shortcut.Skip" /> when the event has already been processed, which the mediation reports as
+///     Return <see cref="Shortcut.Answer" /> when the event has already been processed, which the mediation reports as
 ///     <see cref="MediationOutcome.Answered" /> and an audit trail records as a success. This is the useful shape
-///     on the event axis, because an event is a fact and refusing a fact is rarely meaningful.
+///     on the event axis, because an event is a fact and denying a fact is rarely meaningful.
 /// </remarks>
 public interface IEventShortcut<in TEvent> : IMessageShortcut<TEvent>
     where TEvent : IEvent;

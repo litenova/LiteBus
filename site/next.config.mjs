@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -25,12 +27,17 @@ const securityHeaders = [
   },
 ];
 
+const { versions } = JSON.parse(await readFile(new URL('./versions.json', import.meta.url), 'utf8'));
+const prefixedVersions = versions.filter((version) => !version.default);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   outputFileTracingIncludes: {
-    '/api/search': ['./content/docs/**/*'],
+    // The search route reads every version's Markdown at request time, so each content root has to be traced into the
+    // serverless bundle. Keep this in step with `dir` in lib/versions.ts.
+    '/api/search': ['./content/docs/**/*', './content/versions/**/*'],
   },
   async headers() {
     return [
@@ -39,6 +46,28 @@ const nextConfig = {
         headers: securityHeaders,
       },
     ];
+  },
+  async redirects() {
+    // A version identifier is a plausible thing to type or guess on its own, and `/docs/v7` is the shape a reader
+    // familiar with the unprefixed default would try first. Both land on that version's documentation index rather
+    // than on a not-found page.
+    return prefixedVersions.flatMap((version) => [
+      {
+        source: `/${version.id}`,
+        destination: `/${version.id}/docs`,
+        permanent: false,
+      },
+      {
+        source: `/docs/${version.id}/:path*`,
+        destination: `/${version.id}/docs/:path*`,
+        permanent: false,
+      },
+      {
+        source: `/docs/${version.id}`,
+        destination: `/${version.id}/docs`,
+        permanent: false,
+      },
+    ]);
   },
 };
 

@@ -1,4 +1,4 @@
-# Auditing
+﻿# Auditing
 
 An audit trail answers a question no other log answers: for any action a person or a machine took inside somebody else's data, who did it, what they did it to, when, why, and whether it worked. LiteBus produces those records at the mediation boundary, from metadata you declare once per message, on every outcome including refusals. This page explains the model, the wiring, and the decisions LiteBus deliberately leaves to you.
 
@@ -89,14 +89,12 @@ Some actions are only accountable with a justification. Declare `ReasonRequired 
 
 ## Wiring It Up
 
-Provide a trail and turn auditing on per axis:
+Auditing is configured in two halves, and the split follows the two questions it answers. The trail and the outcome mapper are shared by every axis, so they go on the messaging module. Whether a given axis produces records at all is a per-axis decision, so it goes on that axis:
 
 ```csharp
-services.AddSingleton<IAuditTrail, PostgresAuditTrail>();
-
 services.AddLiteBus(registry =>
 {
-    registry.AddMessaging(_ => { });
+    registry.AddMessaging(messaging => messaging.UseAuditTrail<PostgresAuditTrail>());
 
     registry.AddCommands(builder =>
     {
@@ -112,7 +110,17 @@ services.AddLiteBus(registry =>
 });
 ```
 
+`UseAuditTrail<T>()` lets the container build the trail, so it may take dependencies of its own. `UseAuditTrail(instance)` registers one you already hold. Registering `IAuditTrail` directly with the application container also works, and the `litebus.audit.trail` diagnostic check accepts either.
+
 `IAuditTrail` is the only thing you must supply. LiteBus decides when a record is produced and what it contains; where it is written, and with what durability, is your decision.
+
+An application that authorizes by throwing its own exception type registers `UseAuditOutcomeMapper<T>()` beside the trail, so that its refusal is recorded as `AuditOutcome.Denied` rather than `AuditOutcome.Failed`. An application that denies through a guard or a validator needs no mapper: the pipeline already reports those as decisions.
+
+### Events Are Not Audited
+
+`EnableAuditing` exists on the command and query modules and not on the event module. An audit trail records who attempted an action and how it ended, and an event is not an attempt: it is a fact that has already happened, published by a handler whose own command was audited. Auditing events would record the same action twice, once as the decision and once as its consequence, and only the first is answerable.
+
+Record the event stream where it belongs, in the domain event log, and keep the trail for the actions people take. An event handler that performs an audited action of its own sends a command for it, and that command is audited normally.
 
 Enabling auditing also registers the `litebus.audit.trail` diagnostic probe, which reports unhealthy when no trail is registered. Without it, a missing trail first shows up as a fault inside the completion stage, which is the one stage whose faults are deliberately kept away from the caller.
 

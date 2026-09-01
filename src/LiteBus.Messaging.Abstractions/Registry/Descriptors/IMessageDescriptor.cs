@@ -74,7 +74,7 @@ public interface IMessageDescriptor
     /// <remarks>
     ///     These are pre-handlers that were explicitly registered to handle this specific message type.
     /// </remarks>
-    IReadOnlyCollection<IPreHandlerDescriptor> PreHandlers { get; }
+    IReadOnlyCollection<IPreStageHandlerDescriptor> PreStageHandlers { get; }
 
     /// <summary>
     ///     Gets a read-only collection of pre-handlers indirectly applicable to this message type.
@@ -82,7 +82,7 @@ public interface IMessageDescriptor
     /// <remarks>
     ///     These are pre-handlers registered for a base type or interface that this message type implements.
     /// </remarks>
-    IReadOnlyCollection<IPreHandlerDescriptor> IndirectPreHandlers { get; }
+    IReadOnlyCollection<IPreStageHandlerDescriptor> IndirectPreStageHandlers { get; }
 
     /// <summary>
     ///     Gets a read-only collection of completion handlers directly registered for this message type.

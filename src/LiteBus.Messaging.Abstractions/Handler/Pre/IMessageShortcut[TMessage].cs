@@ -1,4 +1,4 @@
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -10,11 +10,11 @@ namespace LiteBus.Messaging.Abstractions;
 /// <typeparam name="TMessage">The type of message this shortcut runs for.</typeparam>
 /// <remarks>
 ///     <para>
-///         A shortcut answers "is this already done", and nothing else. Refusing belongs to
+///         A shortcut answers "is this already done", and nothing else. Denying belongs to
 ///         <see cref="IMessageGuard{TMessage}" /> and well-formedness to <see cref="IMessageValidator{TMessage}" />, and
 ///         the split is what lets the framework run both of those first. The mediation reports
 ///         <see cref="MediationOutcome.Answered" /> and an audit trail records a success, because skipping redundant work
-///         refused nobody.
+///         denied nobody.
 ///     </para>
 ///     <para>
 ///         Shortcuts run after guards and validators and before pre-handlers. Running last among the decision stages
@@ -43,7 +43,7 @@ public interface IMessageShortcut<in TMessage> : IMessagePreStageHandler
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
     /// <returns>
-    ///     <see cref="Shortcut.Skip" /> when the main handler should be skipped, or <see cref="Shortcut.None" /> to let
+    ///     <see cref="Shortcut.Answer" /> when the main handler should be skipped, or <see cref="Shortcut.None" /> to let
     ///     the mediation proceed.
     /// </returns>
     Task<Shortcut> TryAnswerAsync(TMessage message, CancellationToken cancellationToken = default);

@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Represents the refusal of a message by a guard, raised when no refusal mapper supplies a value for the caller.
+///     Represents the denial of a message by a guard, raised when no refusal mapper supplies a value for the caller.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -13,7 +13,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///         value has nothing to return.
 ///     </para>
 ///     <para>
-///         An application that would rather hand the caller a refusal value than raise registers an
+///         An application that would rather hand the caller a denial value than raise registers an
 ///         <see cref="IMessageRefusalMapper{TMessage,TMessageResult}" />. The mapping then lives in one place instead of
 ///         in every guard, and a guard supplies only the reason and code it knows.
 ///     </para>
@@ -23,8 +23,8 @@ public sealed class LiteBusMessageDeniedException : Exception
     /// <summary>
     ///     Initializes a new instance of the <see cref="LiteBusMessageDeniedException" /> class.
     /// </summary>
-    /// <param name="messageType">The type of the message that was refused.</param>
-    /// <param name="reason">The reason the guard gave for refusing the message.</param>
+    /// <param name="messageType">The type of the message that was denied.</param>
+    /// <param name="reason">The reason the guard gave for denying the message.</param>
     /// <param name="code">The code the guard supplied, when any.</param>
     public LiteBusMessageDeniedException(Type messageType, string reason, string? code = null)
         : base($"Mediation of '{messageType?.Name}' was denied: {reason}")

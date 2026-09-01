@@ -1,4 +1,4 @@
-# API Design Reference
+﻿# API Design Reference
 
 This page defines the current LiteBus public API model: named types, CLR shapes, package placement, method signatures, parameter limits, mapping boundaries, and durable-messaging examples.
 
@@ -214,6 +214,7 @@ Track broader roadmap items in [Roadmap](../roadmap/README.md).
 
 - Dependency role rules (see [Dependency graph](dependency-graph.md))
 - Module registration and hosted-service manifest (see [Hosted services](hosted-services.md))
+- Mediation contract naming, stage rules, and vocabulary (see [Mediation Layer Design Rules](mediation-design.md))
 - Mediation pipeline behavior (see [The handler pipeline](../concepts/handler-pipeline.md))
 
 ## Next

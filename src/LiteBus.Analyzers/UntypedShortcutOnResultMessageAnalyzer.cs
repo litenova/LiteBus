@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -16,9 +16,9 @@ namespace LiteBus.Analyzers;
 ///         value the caller expects.
 ///     </para>
 ///     <para>
-///         The guard contracts have no equivalent trap, which is why this rule covers only shortcuts. A refusal does not
+///         The guard contracts have no equivalent trap, which is why this rule covers only shortcuts. A denial does not
 ///         owe the caller the value the main handler would have produced, so the untyped guard is correct for every
-///         message and refuses by raising <c>LiteBusMessageDeniedException</c> by design.
+///         message and denies by raising <c>LiteBusMessageDeniedException</c> by design.
 ///     </para>
 ///     <para>
 ///         The rule reports the declaration rather than an individual call, because the contract choice is the mistake

@@ -6,8 +6,8 @@ namespace LiteBus.Messaging.Abstractions;
 ///     Carries the message, outcome, and optional result or exception observed when a mediation operation ends.
 /// </summary>
 /// <remarks>
-///     Completion handlers receive this context exactly once per mediation, on every path: success, short-circuit,
-///     denial, failure, and cancellation. Unlike <see cref="MessageErrorContext" />, this context is read-only. A
+///     Completion handlers receive this context exactly once per mediation, on every path: success, answer, denial,
+///     invalid input, failure, and cancellation. Unlike <see cref="MessageErrorContext" />, this context is read-only. A
 ///     completion handler observes the ending; it cannot change it.
 /// </remarks>
 public sealed class MessageCompletionContext

@@ -150,7 +150,7 @@ public sealed class LogPaymentFailure : ICommandErrorHandler<ProcessPaymentComma
 
 To recover, set `context.Outcome = MessageErrorOutcome.Handled`. A result-bearing command handler must also set `context.HandledResult` to the fallback value the caller should receive.
 
-The exact ordering of these stages, including global versus specific handlers and how a pre-handler short-circuits the pipeline, is on [The Handler Pipeline](handler-pipeline.md).
+The exact ordering of these stages, including global versus specific handlers and how a guard, a validator, or a shortcut ends the pipeline early, is on [The Handler Pipeline](handler-pipeline.md).
 
 ## Sending a Command
 

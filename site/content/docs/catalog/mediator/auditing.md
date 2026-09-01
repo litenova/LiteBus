@@ -1,4 +1,4 @@
-# Auditing
+﻿# Auditing
 
 - **ID**: `mediator.auditing`
 - **Name**: Audit trail
@@ -19,11 +19,9 @@ The constant half of a record is declared once per message, with `[Audited]` and
 [Audited("orders.place-order", Category = "money", TargetKind = "order")]
 public sealed record PlaceOrderCommand(Guid CartId) : ICommand<OrderId>;
 
-services.AddSingleton<IAuditTrail, PostgresAuditTrail>();
-
 services.AddLiteBus(registry =>
 {
-    registry.AddMessaging(_ => { });
+    registry.AddMessaging(messaging => messaging.UseAuditTrail<PostgresAuditTrail>());
     registry.AddCommands(builder => builder.EnableAuditing());
     registry.AddQueries(builder => builder.EnableAuditing());
 });
@@ -38,6 +36,8 @@ services.AddLiteBus(registry =>
 | `IAuditScope` | Handler-supplied target, reason, and properties |
 | `AuditRecord` / `AuditOutcome` | The record handed to the trail |
 | `IAuditTrail` | Application-supplied sink |
+| `MessageModuleBuilder.UseAuditTrail<T>()` / `UseAuditTrail(instance)` | Registers the sink on the messaging module, shared by every axis |
+| `MessageModuleBuilder.UseAuditOutcomeMapper<T>()` / `UseAuditOutcomeMapper(instance)` | Classifies an application refusal exception as a denial rather than a failure |
 | `IAuditRecordWriter` | Composes a record from a completion context |
 | `IAuditOutcomeMapper` / `DefaultAuditOutcomeMapper` | Classifies an exception-borne refusal as denied rather than failed |
 | `AuditTrailDiagnosticCheck` | Probe reporting `litebus.audit.trail` when no trail is registered |

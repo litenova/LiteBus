@@ -127,7 +127,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                         {
                             await RouteFaultAsync(fault, source).ConfigureAwait(false);
 
-                            // The enumerator is not valid after a fault, so stop rather than replaying the last item.
+                            // The enumerator is not valid after a fault, so decision rather than replaying the last item.
                             hasItem = false;
                             item = default;
                         }
@@ -156,24 +156,24 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
             {
                 using (AmbientExecutionContext.CreateScope(executionContext))
                 {
-                    var stop = await messageDependencies
+                    var decision = await messageDependencies
                         .RunAsyncPreStages(message, executionContext.CancellationToken)
                         .ConfigureAwait(false);
 
-                    if (stop.StopsPipeline)
+                    if (decision.StopsPipeline)
                     {
-                        outcome = stop.Outcome;
-                        reason = stop.Reason;
+                        outcome = decision.Outcome;
+                        reason = decision.Reason;
                         pipelineStopped = true;
 
-                        if (stop.IsRefusal)
+                        if (decision.IsRefusal)
                         {
                             // A refusal carries no stream of its own, so the value comes from a registered mapper.
                             // Without one it reaches the caller as an exception.
                             try
                             {
                                 stream = messageDependencies
-                                    .ResolveRefusalResult<IAsyncEnumerable<TMessageResult>?>(message, stop);
+                                    .ResolveRefusalResult<IAsyncEnumerable<TMessageResult>?>(message, decision);
                             }
                             catch (Exception refusal) when (refusal is LiteBusMessageDeniedException
                                                                 or LiteBusMessageInvalidException)
@@ -187,7 +187,7 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                             // A typed shortcut always carries the stream it answers with, so this resolves it. Reaching
                             // here without one means the untyped shortcut contract was used on a stream query, which
                             // ResolveResult reports and analyzer LB1019 catches at compile time.
-                            stream = stop.ResolveResult<IAsyncEnumerable<TMessageResult>?>(message.GetType());
+                            stream = decision.ResolveResult<IAsyncEnumerable<TMessageResult>?>(message.GetType());
                         }
                     }
                     else

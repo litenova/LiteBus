@@ -1,4 +1,4 @@
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -9,14 +9,14 @@ namespace LiteBus.Messaging.Abstractions;
 /// <typeparam name="TMessage">The type of message this guard runs for.</typeparam>
 /// <remarks>
 ///     <para>
-///         A guard is a precondition that refuses: it answers "may this happen", and nothing else. Whether the answer is
+///         A guard is a precondition that denies: it answers "may this happen", and nothing else. Whether the answer is
 ///         already known belongs to <see cref="IMessageShortcut{TMessage}" />, and whether the message is well-formed
 ///         belongs to <see cref="IMessageValidator{TMessage}" />. The split is what lets the framework run every guard
-///         before either, so a cached answer can never reach a caller that a guard would have refused, whatever
+///         before either, so a cached answer can never reach a caller that a guard would have denied, whatever
 ///         priorities are written.
 ///     </para>
 ///     <para>
-///         The stage stops at the first refusal, because one reason is enough for a caller who is not allowed to
+///         The stage stops at the first denial, because one reason is enough for a caller who is not allowed to
 ///         proceed. The validator stage aggregates instead, because a caller fixing a malformed message wants every
 ///         failure at once.
 ///     </para>
@@ -25,7 +25,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///         accident, and an expected control-flow path stays off the exception path.
 ///     </para>
 ///     <para>
-///         One contract fits every message, including one that produces a result, because a refusal does not owe the
+///         One contract fits every message, including one that produces a result, because a denial does not owe the
 ///         caller the value the main handler would have produced. Register an
 ///         <see cref="IMessageRefusalMapper{TMessage,TMessageResult}" /> when the application hands the caller a failed
 ///         result object instead of raising <see cref="LiteBusMessageDeniedException" />; the mapping then lives in one
@@ -40,6 +40,6 @@ public interface IMessageGuard<in TMessage> : IMessagePreStageHandler
     /// </summary>
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
-    /// <returns>The verdict that allows or refuses the message.</returns>
+    /// <returns>The verdict that allows or denies the message.</returns>
     Task<Verdict> DecideAsync(TMessage message, CancellationToken cancellationToken = default);
 }

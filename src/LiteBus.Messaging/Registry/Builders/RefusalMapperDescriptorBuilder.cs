@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Extensions;
 using LiteBus.Messaging.Registry.Abstractions;
@@ -25,7 +26,8 @@ public sealed class RefusalMapperDescriptorBuilder : IHandlerDescriptorBuilder
     {
         // One class may map refusals for several messages, and each closed contract yields its own descriptor so the
         // pipeline dispatches through the one that matches the message being refused.
-        var interfaces = type.GetInterfacesEqualTo(typeof(IMessageRefusalMapper<,>));
+        var interfaces = PipelineContracts.ContractDefinitions(PipelineFamily.RefusalMapper)
+            .SelectMany(type.GetInterfacesEqualTo);
         var priority = type.GetPriorityFromAttribute();
         var tags = type.GetTagsFromAttribute();
 

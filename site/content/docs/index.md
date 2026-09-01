@@ -1,4 +1,4 @@
-# LiteBus Documentation
+﻿# LiteBus Documentation
 
 LiteBus provides command, query, and event mediation for .NET 10 applications. Durable modules add inbox, outbox, saga, storage, dispatch, ingress, hosting, and operational APIs.
 
@@ -35,6 +35,7 @@ These pages describe the current released API and behavior. Historical API and d
 
 - [Commands](concepts/commands.md), [Queries](concepts/queries.md), and [Events](concepts/events.md)
 - [Handler Pipeline](concepts/handler-pipeline.md) and [Execution Context](concepts/execution-context.md)
+- [Mediation Layer Design Rules](architecture/mediation-design.md) and [Glossary](reference/glossary.md)
 - [Inbox](reliable-messaging/inbox.md), [Outbox](reliable-messaging/outbox.md), and [Saga](reliable-messaging/saga.md)
 - [Transactional Messaging Writes](reliable-messaging/transactional-writes.md)
 - [PostgreSQL Schema Management](integrations/postgresql-schema-management.md)

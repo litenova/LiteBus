@@ -1,24 +1,7 @@
-﻿using System.Collections.Concurrent;
-using LiteBus.Commands.Abstractions;
+﻿using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Completion;
-
-/// <summary>
-///     Collects the completion contexts observed during one test run.
-/// </summary>
-internal sealed class CompletionRecorder
-{
-    /// <summary>
-    ///     Gets the completion contexts observed, in the order the handlers ran.
-    /// </summary>
-    public ConcurrentQueue<(string Handler, MessageCompletionContext Context)> Observed { get; } = new();
-
-    /// <summary>
-    ///     Gets the typed results observed by completion handlers that ask for the result type.
-    /// </summary>
-    public ConcurrentQueue<(bool HasResult, string? Result)> TypedResults { get; } = new();
-}
 
 /// <summary>
 ///     A command whose handler behavior is chosen by the test.
@@ -44,7 +27,13 @@ internal sealed class CompletionCommand : ICommand
 /// <summary>
 ///     A command with a result used to assert that completion observes the produced result.
 /// </summary>
-internal sealed class CompletionCommandWithResult : ICommand<string>;
+internal sealed class CompletionCommandWithResult : ICommand<string>
+{
+    /// <summary>
+    ///     Gets or sets a value indicating whether the main handler throws, so an error handler recovers the result.
+    /// </summary>
+    public bool ShouldThrow { get; set; }
+}
 
 /// <summary>
 ///     Refuses the command with a reason when the command asks for it.
@@ -92,7 +81,28 @@ internal sealed class CompletionCommandWithResultHandler : ICommandHandler<Compl
     /// <inheritdoc />
     public Task<string> HandleAsync(CompletionCommandWithResult message, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult("produced");
+        ArgumentNullException.ThrowIfNull(message);
+
+        return message.ShouldThrow
+            ? throw new InvalidOperationException("handler failed")
+            : Task.FromResult("produced");
+    }
+}
+
+/// <summary>
+///     Recovers the failure with a replacement result, so the caller receives a value the main handler never produced.
+/// </summary>
+internal sealed class CompletionCommandWithResultErrorHandler : ICommandErrorHandler<CompletionCommandWithResult, string>
+{
+    /// <inheritdoc />
+    public Task HandleErrorAsync(
+        MessageErrorContext<CompletionCommandWithResult, string> context,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        context.HandledResult = "recovered";
+        context.Outcome = MessageErrorOutcome.Handled;
+        return Task.CompletedTask;
     }
 }
 

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Events.MediationStrategies;
@@ -67,20 +68,20 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
         try
         {
-            var stop = await messageDependencies
+            var decision = await messageDependencies
                 .RunAsyncPreStages(message, executionContext.CancellationToken)
                 .ConfigureAwait(false);
 
-            if (stop.StopsPipeline)
+            if (decision.StopsPipeline)
             {
-                outcome = stop.Outcome;
-                reason = stop.Reason;
+                outcome = decision.Outcome;
+                reason = decision.Reason;
 
-                if (stop.IsRefusal)
+                if (decision.IsRefusal)
                 {
                     // An event produces no result, so a refusal has nothing a mapper could return and always reaches
                     // the publisher as an exception.
-                    var refusal = stop.CreateRefusalException(message.GetType());
+                    var refusal = decision.CreateRefusalException(message.GetType());
                     failure = refusal;
                     throw refusal;
                 }

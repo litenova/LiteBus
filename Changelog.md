@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -43,26 +43,26 @@ unchanged.
   `TryAnswerAsync`, with the axis contracts `ICommandShortcut<TCommand>`, `ICommandShortcut<TCommand, TCommandResult>`,
   `IQueryShortcut<TQuery, TQueryResult>`, `IStreamQueryShortcut<TQuery, TQueryResult>`, and `IEventShortcut<TEvent>`. A
   cache hit or a replayed idempotent command reports `MediationOutcome.Answered`, which an audit trail records as a
-  success because nothing was refused. Keeping that apart from a denial is the distinction a security review reads.
+  success because nothing was denied. Keeping that apart from a denial is the distinction a security review reads.
 - The framework fixes the stage order: guards, then validators, then shortcuts, then pre-handlers. Priority orders
   handlers inside a stage and never reorders the stages, so a globally registered cache shortcut cannot answer a caller
-  that a message-specific authorization guard would have refused, and a malformed message cannot claim an idempotency
+  that a message-specific authorization guard would have denied, and a malformed message cannot claim an idempotency
   key. The order encodes what each stage may assume about its input: a guard sees every message, a validator sees only
   messages the caller is allowed to send, a shortcut sees only well-formed ones, and a pre-handler sees only messages
   that are going to be handled. Under a single pre-handler stage that ordering rested on a priority number the author
   had to remember, and indirect handlers ran ahead of direct ones regardless. ASP.NET Core documents the same hazard for
   `UseOutputCache` after `UseAuthorization`; because LiteBus owns its stages, it makes the mistake unrepresentable
-  instead of documenting it. `PipelineStage` names the four stages and `IPreHandlerDescriptor.Stage` records which one
+  instead of documenting it. `PreStage` names the four stages and `IPreStageHandlerDescriptor.Stage` records which one
   runs a handler.
 - `Shortcut<TMessageResult>` types the answer over the result type of the message, so a shortcut that answers a
   result-returning message is required by the compiler to supply the value the caller receives. Answering always carries
   the result; a stream query that means no items answers with `AsyncEnumerable.Empty<T>()`, which states that outright
-  rather than leaving it implied by a missing value. A refusal owes the caller nothing, so one guard contract fits every
-  message, and the value a refused caller receives comes from a refusal mapper instead.
-- `MessageContextExtensions` exposes `RunAsyncPreStages` plus `RunAsyncGuards`, `RunAsyncValidators`,
-  `RunAsyncShortcuts`, and `RunAsyncPreHandlers`, so a custom mediation strategy gets the same stage order the shipped
-  strategies use. `ResolveRefusalResult<TMessageResult>` applies the registered refusal mapper, or raises when none
-  covers the message.
+  rather than leaving it implied by a missing value. A denial owes the caller nothing, so one guard contract fits every
+  message, and the value a denied caller receives comes from a refusal mapper instead.
+- `MessageContextExtensions.RunAsyncPreStages` gives a custom mediation strategy the same stage order the shipped
+  strategies use, in one call rather than four, because running one stage without the others cannot honor the ordering
+  guarantee the split exists to provide. `ResolveRefusalResult<TMessageResult>` applies the registered refusal mapper,
+  or raises when none covers the message. Both live in `LiteBus.Messaging` rather than in the abstractions package.
 - `RunAsyncErrorHandlers` and `RunAsyncCompletionHandlers` each take the execution context and open their own ambient
   scope, so a strategy no longer has to wrap them. The error runner also captures the `ExceptionDispatchInfo` itself,
   which is what preserves the original stack when nothing recovers, and the completion runner resolves a post-handler's
@@ -117,6 +117,83 @@ unchanged.
 - `IHandlerDescriptor.ContractType` records the closed contract a descriptor was discovered from, and `PipelineDispatch`
   carries the delegate bound to it at registration.
 
+### Documentation
+
+- [Mediation Layer Design Rules](site/content/docs/architecture/mediation-design.md) states the twenty rules the
+  mediation layer follows: the stage model and the capability rule, contract and arity shapes, the vocabulary grid,
+  what a decision type may express, where each class of configuration error is rejected, and checklists for adding a
+  pre-stage role or an axis. Known deviations are listed rather than omitted, so they read as decisions rather than as
+  precedents. The layer had a system; it had never been written down, which left every name looking arbitrary.
+- The documentation site serves one version per release line, declared in `site/versions.json`. The latest stable line
+  stays at `/docs`, so existing links and search results keep working across a release, and every other line carries
+  its identifier as a path prefix such as `/v7/docs`. A sidebar switcher moves between versions on the same page,
+  search is scoped to the version being read, and a pre-release line is excluded from the sitemap and marked
+  `noindex` so a search engine does not offer it ahead of the stable page answering the same question. Until now the
+  site served whatever the working branch held, which meant readers on the released package were reading
+  documentation for APIs they did not have.
+
+### Naming
+
+The pipeline vocabulary is now one word per concept, listed in
+[Pipeline Vocabulary](site/content/docs/reference/glossary.md) and enforced across type names, XML comments, and the
+documentation. Where three words had described the same thing, two are gone.
+
+- `PipelineStage` is `PreStage`. The enum only ever held the four pre-stage roles, and calling it `PipelineStage`
+  invited a fifth member for the post or completion stage. `RunAsyncPreStages` runs every member of this enum in
+  declared order, so such a member would have run before the main handler.
+- `PipelineStop` is `PipelineDecision`, and `PipelineStop.None` is `PipelineDecision.Continue`. A value named after its
+  own negation read backwards at every call site, and the documentation already called these the decision stages.
+- `Shortcut.Skip(reason)` is `Shortcut.Answer(reason)`, matching `Shortcut<TMessageResult>.Answer` and the
+  `IsAnswered` property it sets. One concept, one verb, across both shapes of shortcut.
+- `Refusal.IsDenial` is `Refusal.IsDenied`, matching `Verdict.IsDenied` and `MediationOutcome.Denied`.
+- `Refusal` is created through `Refusal.Denied` and `Refusal.Invalid` rather than a public constructor taking any
+  `MediationOutcome`. A refusal is the category holding exactly those two outcomes, and the constructor accepted
+  `Succeeded`, `Answered`, `Failed`, and `Canceled`, none of which a refusal mapper can act on.
+- "Short-circuit" is gone from the API documentation in favor of "answered", which is what the outcome is called.
+  Prose that said "refusal" where it meant a guard specifically now says "denial"; "refusal" is reserved for the
+  category holding a denial and a validation failure.
+
+### Structure
+
+- The stage runners moved out of the abstractions package. `MessageContextExtensions` and `PipelineHandlerInvoker` now
+  live in `LiteBus.Messaging`, in the `LiteBus.Messaging` namespace. They open ambient scopes, order the stages,
+  preserve stack traces, and decide what a denied caller receives, which is engine work rather than contract. Every
+  package implementing a mediation strategy already references `LiteBus.Messaging`, so the fix is a using directive.
+- `PipelineHandlerInvocation` is folded into `PipelineHandlerInvoker`. Two internal types one word apart held one
+  method between them, and no reader could tell which was which.
+- `IPreHandlerDescriptor` is `IPreStageHandlerDescriptor`, and the `PreHandlers` and `IndirectPreHandlers` collections
+  on `IMessageDescriptor` and `IMessageDependencies` are `PreStageHandlers` and `IndirectPreStageHandlers`. One
+  collection holds all four roles, so `ILazyHandlerCollection<IMessagePreStageHandler, IPreHandlerDescriptor>`
+  contradicted itself on a single line.
+- `Handler/Pre` holds the four role contracts and the values they return. The pipeline machinery moved to `Pipeline`,
+  and the refusal path, which is not a stage, moved to `Handler/Refusal`. `MediationOutcome` left `Handler/Completion`
+  for `Pipeline`, since every stage reports it.
+- `RunAsyncGuards`, `RunAsyncValidators`, `RunAsyncShortcuts`, and `RunAsyncPreHandlers` are removed. They were public,
+  called from nowhere, and covered by no test, and running one stage in isolation cannot honor the ordering guarantee.
+
+### Fixed
+
+- An untyped shortcut registered for a message that produces a result is rejected when the registry links the two,
+  instead of failing on the first dispatch that takes the shortcut branch. The untyped answer cannot carry a result, so
+  the mistake was certain but could sit in production until the first cache hit. Analyzer LB1019 already reported the
+  declaration, but it is a warning and is absent from a project that does not reference the analyzer package, so the
+  guarantee now lives in registration. The check runs from both directions, since a handler may be registered before or
+  after the message it handles.
+- A shortcut that answers a message it cannot supply a result for is named in the error. `PipelineDecision.AnsweredBy`
+  records the shortcut that answered, so the case registration cannot prove wrong, a shortcut registered against a base
+  type and reaching one message beneath it that produces a result, reports which of the registered shortcuts was
+  responsible rather than only the message type.
+- Enabling no auditing at all no longer breaks a container that validates on build. `IAuditRecordWriter` was registered
+  by implementation type and depends on an `IAuditTrail` that only an auditing application registers, so
+  `ValidateOnBuild` walked into a dependency that was never meant to be resolvable and failed the whole container at
+  startup. It is registered through a factory now, which defers the lookup to the first audited mediation and reports a
+  missing trail as `LiteBusConfigurationException` naming the fix. The `litebus.audit.trail` probe still reports it
+  earlier.
+- The audit trail is registered on the messaging module through `UseAuditTrail<T>()` or `UseAuditTrail(instance)`,
+  beside the outcome mapper, rather than only in the application container. `UseAuditOutcomeMapper<T>()` joins the
+  instance overload so the mapper no longer has to be constructed by the caller. Auditing was configured in three
+  unrelated places; the shared half is now in one, and the per-axis switch stays where the decision belongs.
+
 ### Changed
 
 - Every module builder recognizes guard, validator, shortcut, and refusal mapper contracts, completion handler
@@ -127,10 +204,12 @@ unchanged.
 - A decision on a stream query no longer runs post-handlers. Stopping the pipeline means the work did not happen, so
   the reactions to it do not fire; the caller still receives whatever stream the shortcut or the refusal mapper
   supplied.
-- A pre-stage role is declared in one place. `PipelineStage`, dispatch, the descriptor builder, and the stage runner all
-  read the contract, the stage, the invoker, and the aggregation policy from a single internal table, so adding the
-  validator stage no longer takes edits in nine files. The run order is read from the `PipelineStage` ordinals rather
-  than from a hand-written call sequence, which makes the order the enum documents the order that executes.
+- Every dispatchable handler contract is declared in one place. `PipelineContracts` holds one row per contract naming
+  its family, its invoker, and, for a pre-stage contract, its stage and aggregation policy. Dispatch, all four
+  descriptor builders, and the stage runner read from it, so adding the validator stage no longer takes edits in nine
+  files, and post-handlers, completion handlers, and refusal mappers are declared the same way rather than hand-wired
+  beside the table. The run order is read from the `PreStage` ordinals rather than from a hand-written call sequence,
+  which makes the order the enum documents the order that executes.
 - The stream mediation strategy routes every fault through one place instead of six, and enumerates the handler's
   stream and a post-handler's replacement through one loop instead of two. It is a third shorter. One timing changes
   with it: the handler's enumerator is released when its enumeration ends rather than when the whole mediation does, so
@@ -178,6 +257,14 @@ unchanged.
 - Handler discovery in the analyzers recognizes the two-parameter post-handler contracts and the stream query
   post-handler contract. A handler implementing only those was invisible to LB1011 and LB1012, so an unused
   `[HandlerTag]` on one was not reported.
+- Every package links to the release notes for the version it carries. The link was pinned to the v6.0.2 changelog
+  anchor in `Directory.Build.props` and again in the two testing packages, so a v7 package would have pointed readers
+  at v6 notes, and the package gate asserted the same fixed anchor rather than the version being packed. The two
+  testing packages also still declared a `6.0.2` version prefix, so a local pack produced them a major version behind
+  everything else.
+- The completion stage now observes the result an error handler recovered. The result-returning strategy returned the
+  error handler's `HandledResult` to the caller without recording it, so an audit trail written at the completion stage
+  reported the default value the main handler never produced instead of what the caller actually received.
 - Publishing to and consuming from Amazon SQS no longer raises `NullReferenceException`. AWSSDK 4 stopped initializing
   the `MessageAttributes` and `Attributes` collections, which the mapper wrote to and read from directly, so every
   publish failed on the first attribute write. The mapper now supplies its own attribute dictionary and treats an absent
@@ -211,15 +298,15 @@ unchanged.
 - `MessageOutcome` is renamed `MediationOutcome`. It describes how a mediation ended, not a property of the message,
   and every member reads correctly under the new name. Completion handlers and audit outcome mappers name the type, so
   they need the rename; nothing about their behavior changes.
-- `MediationOutcome.ShortCircuited` is renamed `Answered`, and `PipelineStop.ShortCircuited` follows it. Its five siblings
+- `MediationOutcome.ShortCircuited` is renamed `Answered`, and `PipelineDecision.ShortCircuited` follows it. Its five siblings
   all name a state the message ended in, while short-circuiting names a mechanism that describes a denial just as
   accurately. `Answered` also matches `TryAnswerAsync` and `Shortcut.Answer`, so one word covers the contract, the verb,
   and the outcome.
 - The non-generic pre-stage marker is renamed `IMessagePreStageHandler`. It is the discovery marker for the whole pre
   stage, which now holds four roles, so it can no longer share a name with `IMessagePreHandler<TMessage>`, the one role
   in that stage LiteBus does not name. The post and completion stages hold a single role each and keep the shared name.
-- `PipelineStop.IsUnansweredDenial` and `CreateDenial` are replaced by `IsRefusal` and `CreateRefusalException`, which
-  cover a validation failure as well as a denial. `PipelineStop` also carries `Code` and `Failures`.
+- `PipelineDecision.IsUnansweredDenial` and `CreateDenial` are replaced by `IsRefusal` and `CreateRefusalException`, which
+  cover a validation failure as well as a denial. `PipelineDecision` also carries `Code` and `Failures`.
 - `IAsyncMessageErrorHandler<TMessage>` and `IAsyncMessageErrorHandler<TMessage, TMessageResult>` are renamed
   `IMessageErrorHandler<TMessage>` and `IMessageErrorHandler<TMessage, TMessageResult>`. The prefix named nothing there:
   no synchronous error handler exists, and the contract derives straight from the `IMessageErrorHandler` marker. Every

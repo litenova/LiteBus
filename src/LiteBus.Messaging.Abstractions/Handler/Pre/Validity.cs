@@ -154,15 +154,15 @@ public readonly struct Validity : IEquatable<Validity>
     ///     Converts this validity to the pipeline decision the stage runner acts on.
     /// </summary>
     /// <returns>
-    ///     A stop reporting <see cref="MediationOutcome.Invalid" /> when failures were reported, otherwise
-    ///     <see cref="PipelineStop.None" />.
+    ///     A decision reporting <see cref="MediationOutcome.Invalid" /> when failures were reported, otherwise
+    ///     <see cref="PipelineDecision.Continue" />.
     /// </returns>
     /// <remarks>
-    ///     The stage runner does not act on this stop immediately. It collects the failures from every validator and
-    ///     builds one stop from all of them, because a caller fixing a malformed message wants every failure at once.
+    ///     The stage runner does not act on this decision immediately. It collects the failures from every validator and
+    ///     builds one decision from all of them, because a caller fixing a malformed message wants every failure at once.
     /// </remarks>
-    internal PipelineStop ToStop()
+    internal PipelineDecision ToDecision()
     {
-        return IsInvalid ? PipelineStop.Invalid(Failures) : PipelineStop.None;
+        return IsInvalid ? PipelineDecision.Invalid(Failures) : PipelineDecision.Continue;
     }
 }

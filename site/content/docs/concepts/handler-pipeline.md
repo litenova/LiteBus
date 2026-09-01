@@ -1,4 +1,4 @@
-# The Handler Pipeline
+﻿# The Handler Pipeline
 
 Every message LiteBus mediates passes through the same pipeline: three decision stages, pre-handlers, one or more main handlers, post-handlers, error-handlers on failure, and completion handlers on every path. This page explains the exact order each stage runs in, how global and specific handlers interleave, how errors propagate, how cancellation flows, and how a guard, a validator, or a shortcut decides whether the work happens at all. It is the reference behind the per-module pages and assumes you have read at least the [Command Module](commands.md).
 
@@ -66,9 +66,9 @@ Within each group, handlers run in ascending `[HandlerPriority]` order (default 
 
 **Priority orders handlers inside a stage; it never reorders the stages themselves.** Every guard runs before every validator, every validator before every shortcut, and every shortcut before every pre-handler, whatever priority each carries and whether it is registered globally or for one message type. That is the guarantee the split exists to provide, and the [Deciding Whether the Work Happens](#deciding-whether-the-work-happens) section explains what it buys.
 
-This ordering is implemented in `MessageContextExtensions`: each decision stage iterates indirect then direct, post-handlers and completion handlers iterate direct then indirect, and error-handlers iterate indirect then direct. The stages themselves come from one internal table, so the order `PipelineStage` declares is the order that runs rather than something a call sequence has to keep in step with it.
+This ordering is implemented in `MessageContextExtensions`: each decision stage iterates indirect then direct, post-handlers and completion handlers iterate direct then indirect, and error-handlers iterate indirect then direct. The stages themselves come from one internal table, so the order `PreStage` declares is the order that runs rather than something a call sequence has to keep in step with it.
 
-A custom mediation strategy gets the same stage order through `RunAsyncPreStages`. It tracks three values as it runs, the outcome, the failure, and the reason, updating them on whichever path the mediation takes, and passes all three to `RunAsyncCompletionHandlers` in a `finally`. The stage runners own the rest, including opening the ambient scope, preserving the original stack when no error handler recovers, and reporting a post-handler's replacement result rather than the handler's own.
+A custom mediation strategy gets the same stage order through `RunAsyncPreStages`, in the `LiteBus.Messaging` assembly. It tracks three values as it runs, the outcome, the failure, and the reason, updating them on whichever path the mediation takes, and passes all three to `RunAsyncCompletionHandlers` in a `finally`. The stage runners own the rest, including opening the ambient scope, preserving the original stack when no error handler recovers, and reporting a post-handler's replacement result rather than the handler's own.
 
 Each pre-handler, post-handler, and completion handler is invoked through the closed contract recorded in its descriptor at registration, so one class may implement pipeline contracts for several message types and each dispatch reaches the right one. The delegate that performs the dispatch is built while the descriptor is built, which keeps reflection in the registration path rather than in the hot path.
 
@@ -79,7 +79,7 @@ LiteBus also ships pipeline handlers of its own, such as the audit record writer
 A command or query must resolve to exactly one main handler. If more than one is registered, mediation throws `MultipleHandlerFoundException` before running anything. The flow for a result-returning message is:
 
 ```
-stop = RunAsyncPreStages(message)   // guards, validators, shortcuts, pre-handlers; stops on the first decision
+decision = RunAsyncPreStages(message) // guards, validators, shortcuts, pre-handlers; stops on the first decision
 result = handler.HandleAsync(...)   // the one main handler
 RunAsyncPostHandlers(message, result) // direct post, then indirect post
 RunAsyncCompletionHandlers(context)   // direct, then indirect, always, in a finally
@@ -145,7 +145,7 @@ All three decide by returning a value rather than throwing, so the compiler requ
 | `Validity.Valid` | a validator | Nothing is wrong | not applicable | not applicable |
 | `Validity.Invalid(...)` | a validator | The message is malformed | `MediationOutcome.Invalid` | invalid |
 | `Shortcut.None` | a shortcut | No answer; the mediation proceeds | not applicable | not applicable |
-| `Shortcut.Skip(reason)` | a shortcut | The work was already applied | `MediationOutcome.Answered` | a success |
+| `Shortcut.Answer(reason)` | a shortcut | The work was already applied | `MediationOutcome.Answered` | a success |
 | `Shortcut<T>.Answer(result, reason)` | a shortcut | The result was already known | `MediationOutcome.Answered` | a success |
 
 Keeping these in separate contracts does two things. It stops false entries in the one artifact a security review reads, because a cache hit refused nobody, a replayed idempotent command took effect the first time, and a malformed field is not an access decision. And it lets the framework fix the order.
@@ -302,7 +302,27 @@ Mapping is synchronous and must stay pure. It runs on the refusal path, where re
 
 Deciding is a **capability**, which is why it lives in its own contracts. A plain `ICommandPreHandler<TCommand>` cannot stop the pipeline, so a pre-handler cannot skip the work by accident.
 
-An event guard is worth a word of caution. An event is a fact that already happened, so refusing one is rarely meaningful. The useful case is `IEventShortcut<TEvent>`, which skips the reactions to an event this process has already handled; to select handlers rather than stop the broadcast, use [Handler Filtering](handler-filtering.md).
+An event guard is worth a word of caution. An event is a fact that already happened, so denying one is rarely meaningful. The useful case is `IEventShortcut<TEvent>`, which skips the reactions to an event this process has already handled; to select handlers rather than stop the broadcast, use [Handler Filtering](handler-filtering.md).
+
+### What Each Axis Offers
+
+The three axes do not carry identical contracts, and the gaps are deliberate rather than unfinished. Each one follows from what the axis is:
+
+| | Command | Query | Event |
+| --- | --- | --- | --- |
+| Guard | yes | yes | yes |
+| Validator | yes | yes | yes |
+| Shortcut | `ICommandShortcut<T>` and `ICommandShortcut<T, TResult>` | `IQueryShortcut<T, TResult>` and `IStreamQueryShortcut<T, TResult>` | `IEventShortcut<T>` |
+| Refusal mapper | yes | yes, including the stream form | no |
+| Completion handler | yes | yes | yes |
+| `EnableAuditing()` | yes | yes | no |
+
+Two rules produce every gap in that table:
+
+- **A contract that names a result exists only where the axis has one.** A query always produces a result, so it has no untyped shortcut. An event never produces one, so it has no typed shortcut and no refusal mapper: there is no value a mapper could return, and a denied event raises instead.
+- **Auditing records actions, and an event is not an action.** See [Auditing](auditing.md#events-are-not-audited).
+
+A new axis follows the same two rules rather than copying whichever axis it most resembles.
 
 ## Suppressing Post-Handlers
 

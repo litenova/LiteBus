@@ -1,24 +1,7 @@
-import Image from 'next/image';
-import { DocsLayout } from 'fumadocs-ui/layouts/docs';
-import { getSource } from '@/lib/source';
+import { DocsShell } from '@/components/docs-shell';
+import { defaultVersion } from '@/lib/versions';
 
-export default async function DocsRootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const docs = await getSource();
-
-  return (
-    <DocsLayout
-      tree={docs.getPageTree()}
-      nav={{
-        title: (
-          <span className="litebus-nav-brand">
-            <Image src="/icon.svg" alt="" width={24} height={24} />
-            <span>LiteBus</span>
-          </span>
-        ),
-        url: '/',
-      }}
-    >
-      {children}
-    </DocsLayout>
-  );
+// The default version is served unprefixed so the canonical documentation URL does not move when a release is cut.
+export default function DocsRootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return <DocsShell version={defaultVersion}>{children}</DocsShell>;
 }

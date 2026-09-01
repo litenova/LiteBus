@@ -1,4 +1,4 @@
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -8,8 +8,8 @@ namespace LiteBus.Messaging.Abstractions;
 /// </summary>
 /// <typeparam name="TMessage">The type of message this completion handler observes.</typeparam>
 /// <remarks>
-///     The handler runs once for every mediation of the message, on every path: success, short-circuit, denial, failure,
-///     and cancellation. Use <see cref="IMessageCompletionHandler{TMessage,TMessageResult}" /> when the message produces
+///     The handler runs once for every mediation of the message, on every path: success, answer, denial, invalid
+///     input, failure, and cancellation. Use <see cref="IMessageCompletionHandler{TMessage,TMessageResult}" /> when the message produces
 ///     a result the handler needs typed.
 /// </remarks>
 public interface IMessageCompletionHandler<TMessage> : IMessageCompletionHandler

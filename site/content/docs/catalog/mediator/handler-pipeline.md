@@ -1,4 +1,4 @@
-# Handler Pipeline
+﻿# Handler Pipeline
 
 - **ID**: `mediator.handler-pipeline`
 - **Name**: Handler pipeline
@@ -46,10 +46,10 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | `IMessageShortcut<TMessage>` / `IMessageShortcut<TMessage, TResult>` | Shortcut stage contracts that may answer without the handler |
 | `Verdict` | Allow or deny, with a reason and an optional code |
 | `Validity` / `ValidationFailure` | Valid, or the failures a validator reported |
-| `Refusal` | The outcome, reason, and code handed to a refusal mapper |
-| `Shortcut` / `Shortcut<TResult>` | No answer, skip, or answer, with a reason and a result |
-| `PipelineStage` | `Guard`, `Validator`, `Shortcut`, `PreHandler`; the framework-fixed stage order |
-| `PipelineStop` | What a stage reported: outcome, reason, and the result the caller receives |
+| `Refusal` | The outcome, reason, and code handed to a refusal mapper. `Refusal.Denied` or `Refusal.Invalid`, never anything else |
+| `Shortcut` / `Shortcut<TResult>` | `None` to carry on, or `Answer` with a reason and, when the message produces one, a result |
+| `PreStage` | `Guard`, `Validator`, `Shortcut`, `PreHandler`; the framework-fixed stage order. Covers the pre stage only |
+| `PipelineDecision` | What a pre-stage handler reported: `Continue`, or a stop carrying the outcome, reason, and result |
 | `LiteBusMessageDeniedException` | Raised when a refusal supplies no result for the caller |
 | `IAsyncMessageHandler<TMessage>` / `IAsyncMessageHandler<TMessage, TResult>` | Main handler contracts |
 | `IMessagePostHandler<TMessage, TResult>` | Post stage contract |
@@ -64,10 +64,11 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | `SingleAsyncHandlerMediationStrategy<TMessage, TResult>` | Single main handler orchestration |
 | `SingleStreamHandlerMediationStrategy<TMessage, TResult>` | Stream query orchestration |
 | `AsyncBroadcastMediationStrategy<TMessage>` | Event broadcast orchestration |
-| `MessageContextExtensions.RunAsyncPreStages/RunAsyncGuards/RunAsyncValidators/RunAsyncShortcuts/RunAsyncPreHandlers/RunAsyncPostHandlers/RunAsyncErrorHandlers/RunAsyncCompletionHandlers` | Stage execution helpers |
+| `MessageContextExtensions.RunAsyncPreStages/RunAsyncPostHandlers/RunAsyncErrorHandlers/RunAsyncCompletionHandlers` | Stage execution helpers, in the `LiteBus.Messaging` assembly |
 | `MessageContextExtensions.ResolveRefusalResult<TMessageResult>` | Applies the registered refusal mapper, or raises when none covers the message |
 | `PipelineDispatch` | Delegate bound at registration to the closed contract a handler was discovered from, and `StageFor` |
-| `IPreHandlerDescriptor.Stage` | The stage that runs a discovered pre-stage handler |
+| `PipelineContracts` | The one table declaring every dispatchable contract, its family, its invoker, and its stage |
+| `IPreStageHandlerDescriptor.Stage` | The stage that runs a discovered pre-stage handler |
 | `IMessageDependencies.HasPreStageHandlers` | Whether a stage holds any handler, so an empty one costs nothing |
 | `IRefusalMapperDescriptor` | A registered refusal mapper and the result type it produces |
 | `IHandlerDescriptor.ContractType` | The closed contract a descriptor was discovered from |

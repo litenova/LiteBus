@@ -38,7 +38,7 @@ internal sealed class MessageRegistry : IMessageRegistry
         new CompletionHandlerDescriptorBuilder(),
         new ErrorHandlerDescriptorBuilder(),
         new PostHandlerDescriptorBuilder(),
-        new PreHandlerDescriptorBuilder(),
+        new PreStageHandlerDescriptorBuilder(),
         new RefusalMapperDescriptorBuilder()
     ];
 

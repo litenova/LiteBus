@@ -13,7 +13,7 @@ namespace LiteBus.Messaging.MediationStrategies;
 /// <typeparam name="TMessageResult">The type of the result produced by the handler.</typeparam>
 /// <remarks>
 ///     This strategy ensures that only one handler is registered for the message type and then:
-///     1. Executes the pre stages, stopping early when a guard refuses, a validator reports the message malformed,
+///     1. Executes the pre stages, stopping early when a guard denies, a validator reports the message malformed,
 ///     or a shortcut answers.
 ///     2. Delegates the message processing to the registered handler.
 ///     3. Executes post-handlers, unless the pipeline suppressed them.
@@ -43,16 +43,16 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
         {
             using (AmbientExecutionContext.CreateScope(executionContext))
             {
-                var stop = await messageDependencies
+                var decision = await messageDependencies
                     .RunAsyncPreStages(message, executionContext.CancellationToken)
                     .ConfigureAwait(false);
 
-                if (stop.StopsPipeline)
+                if (decision.StopsPipeline)
                 {
-                    outcome = stop.Outcome;
-                    reason = stop.Reason;
+                    outcome = decision.Outcome;
+                    reason = decision.Reason;
 
-                    if (stop.IsRefusal)
+                    if (decision.IsRefusal)
                     {
                         // A refusal carries no result of its own, so the value comes from a registered mapper. Without
                         // one it reaches the caller as an exception, which is excluded from the recoverable filter so
@@ -60,7 +60,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                         try
                         {
                             messageResult = messageDependencies
-                                .ResolveRefusalResult<TMessageResult>(message, stop);
+                                .ResolveRefusalResult<TMessageResult>(message, decision);
                         }
                         catch (Exception refusal) when (refusal is LiteBusMessageDeniedException
                                                             or LiteBusMessageInvalidException)
@@ -72,7 +72,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                         return messageResult;
                     }
 
-                    messageResult = stop.ResolveResult<TMessageResult>(message.GetType());
+                    messageResult = decision.ResolveResult<TMessageResult>(message.GetType());
                     return messageResult;
                 }
 
@@ -113,6 +113,10 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
 
             if (errorContext.HandledResult is TMessageResult handledResult)
             {
+                // The recovered value is what the caller receives, so the completion stage has to see it too. Returning
+                // it without recording it would hand an audit trail the default the main handler never produced.
+                messageResult = handledResult;
+
                 return handledResult;
             }
         }

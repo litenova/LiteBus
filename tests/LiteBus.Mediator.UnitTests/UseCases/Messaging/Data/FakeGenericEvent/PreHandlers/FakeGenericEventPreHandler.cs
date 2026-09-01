@@ -1,7 +1,7 @@
 using LiteBus.Events.Abstractions;
 using LiteBus.Mediator.UnitTests.UseCases.Messaging.Data.FakeGenericEvent.Messages;
 
-namespace LiteBus.Mediator.UnitTests.UseCases.Messaging.Data.FakeGenericEvent.PreHandlers;
+namespace LiteBus.Mediator.UnitTests.UseCases.Messaging.Data.FakeGenericEvent.PreStageHandlers;
 
 public sealed class FakeGenericEventPreHandler<TPayload> : IEventPreHandler<FakeGenericEvent<TPayload>>
 {

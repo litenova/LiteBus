@@ -1,4 +1,4 @@
-# Handler Descriptor Model
+﻿# Handler Descriptor Model
 
 - **ID**: `runtime.handler-descriptors`
 - **Name**: Handler descriptor model
@@ -18,7 +18,7 @@ Recording the contract is what lets the pipeline invoke a handler through the co
 | `IMessageDescriptor` | Message descriptor with stage-specific handler collections |
 | `IHandlerDescriptor` | Base handler metadata contract |
 | `IMainHandlerDescriptor` | Main handler descriptor |
-| `IPreHandlerDescriptor` | Pre-handler descriptor |
+| `IPreStageHandlerDescriptor` | Pre-stage descriptor, shared by guards, validators, shortcuts, and pre-handlers |
 | `IPostHandlerDescriptor` | Post-handler descriptor |
 | `ICompletionHandlerDescriptor` | Completion handler descriptor |
 | `IErrorHandlerDescriptor` | Error-handler descriptor |

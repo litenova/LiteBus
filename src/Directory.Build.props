@@ -12,7 +12,13 @@
         <PackageIcon>icon.png</PackageIcon>
         <Description>Mediator and durable messaging contracts for explicit command, query, event, inbox, and outbox composition in .NET applications.</Description>
         <PackageProjectUrl>https://litebus.io/</PackageProjectUrl>
-        <PackageReleaseNotes>https://github.com/litenova/LiteBus/blob/main/Changelog.md#v602</PackageReleaseNotes>
+        <!--
+            A package is released from a tag, and a pre-release tag may sit on a release branch that has not merged to
+            main yet. The release for the version being packed resolves in both cases, and it keeps resolving after the
+            release branch is deleted. A local pack that names no version falls back to the changelog.
+        -->
+        <PackageReleaseNotes Condition="'$(Version)' != ''">https://github.com/litenova/LiteBus/releases/tag/v$(Version)</PackageReleaseNotes>
+        <PackageReleaseNotes Condition="'$(Version)' == ''">https://github.com/litenova/LiteBus/blob/main/Changelog.md</PackageReleaseNotes>
         <RepositoryUrl>https://github.com/litenova/LiteBus</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <Nullable>enable</Nullable>

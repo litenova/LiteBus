@@ -39,6 +39,7 @@ public sealed class CompletionStageTests : LiteBusTestBase
                     builder.Register(typeof(CompletionCommandHandler));
                     builder.Register(typeof(CompletionCommandWithResultHandler));
                     builder.Register(typeof(CompletionCommandErrorHandler));
+                    builder.Register(typeof(CompletionCommandWithResultErrorHandler));
 
                     foreach (var completionHandler in completionHandlers)
                     {
@@ -110,6 +111,28 @@ public sealed class CompletionStageTests : LiteBusTestBase
         await mediator.SendAsync(new CompletionCommandWithResult()).ConfigureAwait(false);
 
         recorder.TypedResults.Single().Should().Be((true, "produced"));
+    }
+
+    [Fact]
+    public async Task Completion_receives_the_result_an_error_handler_recovered()
+    {
+        var recorder = new CompletionRecorder();
+        var provider = BuildProvider(recorder, typeof(TypedResultCompletionHandler));
+        var mediator = provider.GetRequiredService<ICommandMediator>();
+
+        var result = await mediator
+            .SendAsync(new CompletionCommandWithResult { ShouldThrow = true })
+            .ConfigureAwait(false);
+
+        result.Should().Be("recovered");
+
+        // The completion stage records what the caller received. Reporting the default the main handler never produced
+        // would put a value in an audit trail that no caller ever saw.
+        recorder.TypedResults.Single().Should().Be((true, "recovered"));
+
+        var observed = recorder.Observed.Single().Context;
+        observed.Outcome.Should().Be(MediationOutcome.Failed);
+        observed.MessageResult.Should().Be("recovered");
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-using LiteBus.Messaging.Abstractions;
+﻿using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Commands.Abstractions;
 
@@ -7,8 +7,8 @@ namespace LiteBus.Commands.Abstractions;
 /// </summary>
 /// <typeparam name="TCommand">The specific command type this shortcut runs for.</typeparam>
 /// <remarks>
-///     Return <see cref="Shortcut.Skip" /> when running the handler again would change nothing, which the mediation
-///     reports as <see cref="MediationOutcome.Answered" /> and an audit trail records as a success. Refusing the
+///     Return <see cref="Shortcut.Answer" /> when running the handler again would change nothing, which the mediation
+///     reports as <see cref="MediationOutcome.Answered" /> and an audit trail records as a success. Denying the
 ///     command is a different decision and belongs to <see cref="ICommandGuard{TCommand}" />, which runs first. Use
 ///     <see cref="ICommandShortcut{TCommand,TCommandResult}" /> for a command that produces a result.
 /// </remarks>

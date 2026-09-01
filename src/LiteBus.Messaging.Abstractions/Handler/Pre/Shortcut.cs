@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -8,8 +8,8 @@ namespace LiteBus.Messaging.Abstractions;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Skipping is not a refusal. Nothing was denied, the work has already taken effect, and an audit trail records
-///         a success. Refusing belongs to a guard, which reports <see cref="MediationOutcome.Denied" /> instead.
+///         Answering is not a denial. Nothing was refused, the work has already taken effect, and an audit trail
+///         records a success. Denying belongs to a guard, which reports <see cref="MediationOutcome.Denied" /> instead.
 ///     </para>
 ///     <para>
 ///         This shape is for messages that produce no result. Use <see cref="Shortcut{TMessageResult}" /> for a message
@@ -30,7 +30,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///         CancellationToken cancellationToken = default)
 ///     {
 ///         return await _ledger.AlreadyAppliedAsync(command.PaymentId, cancellationToken)
-///             ? Shortcut.Skip("the payment was already applied")
+///             ? Shortcut.Answer("the payment was already applied")
 ///             : Shortcut.None;
 ///     }
 /// }
@@ -69,15 +69,16 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     public string? Reason { get; }
 
     /// <summary>
-    ///     Creates a shortcut that skips the main handler because the work has already been applied.
+    ///     Answers the message because the work has already been applied, so the main handler never runs.
     /// </summary>
     /// <param name="reason">The reason the main handler was skipped.</param>
     /// <returns>An answering shortcut that supplies no result.</returns>
     /// <remarks>
     ///     The mediation reports <see cref="MediationOutcome.Answered" />, and an audit trail records a success,
-    ///     because nothing was refused.
+    ///     because nothing was denied. The verb matches <see cref="Shortcut{TMessageResult}.Answer" /> so that both
+    ///     shapes of shortcut read the same way; this one takes no result because the message produces none.
     /// </remarks>
-    public static Shortcut Skip(string? reason = null)
+    public static Shortcut Answer(string? reason = null)
     {
         return new Shortcut(isAnswered: true, reason);
     }
@@ -123,13 +124,14 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     }
 
     /// <summary>
-    ///     Converts this shortcut to the stop the pipeline acts on.
+    ///     Converts this shortcut to the decision the pipeline acts on.
     /// </summary>
-    /// <returns>The stop for an answer, or <see cref="PipelineStop.None" /> when the mediation proceeds.</returns>
-    internal PipelineStop ToStop()
+    /// <param name="answeredBy">The shortcut that produced this answer, recorded so a misuse can be named.</param>
+    /// <returns>The decision for an answer, or <see cref="PipelineDecision.Continue" /> when the mediation proceeds.</returns>
+    internal PipelineDecision ToDecision(Type answeredBy)
     {
         return IsAnswered
-            ? PipelineStop.Answered(Reason, hasResult: false, result: null)
-            : PipelineStop.None;
+            ? PipelineDecision.Answered(Reason, hasResult: false, result: null, answeredBy)
+            : PipelineDecision.Continue;
     }
 }

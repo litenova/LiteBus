@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -24,10 +24,11 @@ public sealed class CompletionHandlerDescriptorBuilder : IHandlerDescriptorBuild
     [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
     public IEnumerable<IHandlerDescriptor> Build(Type type)
     {
-        // A completion handler observes a message either without its result or with it typed. Both contracts produce the
-        // same descriptor kind, and the contract recorded here is what the pipeline later dispatches through.
-        var interfaces = type.GetInterfacesEqualTo(typeof(IMessageCompletionHandler<>))
-            .Concat(type.GetInterfacesEqualTo(typeof(IMessageCompletionHandler<,>)));
+        // A completion handler observes a message either without its result or with it typed. Both contracts produce
+        // the same descriptor kind, and the contract recorded here is what the pipeline later dispatches through. The
+        // pair comes from PipelineContracts so that adding a third shape does not need this builder edited.
+        var interfaces = PipelineContracts.ContractDefinitions(PipelineFamily.CompletionHandler)
+            .SelectMany(type.GetInterfacesEqualTo);
 
         var priority = type.GetPriorityFromAttribute();
         var tags = type.GetTagsFromAttribute();

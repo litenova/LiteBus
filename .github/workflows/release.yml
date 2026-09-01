@@ -1,7 +1,17 @@
-# Release - tag-triggered validation and publication for v6
+# Release - tag-triggered validation and publication
 #
 # Emulator-backed transport categories are mandatory and reject skipped tests. TransportLiveAzure remains an opt-in
 # credential-backed category and is excluded from this release job.
+#
+# A pre-release tag such as v7.0.0-preview.1 runs every gate a stable tag runs. Its version suffix is what makes
+# NuGet treat the package as a pre-release, and the GitHub release is marked as one so it does not displace the
+# latest stable release. Its notes come from the Changelog section for the version it previews, because splitting
+# one release's notes across its previews leaves no single section describing what shipped.
+#
+# A pre-release may be cut from any branch, so a version line can ship previews from its own branch and merge to
+# main once it is stable. A stable tag must be on main: it is what NuGet resolves without an opt-in and what the
+# documentation site deploys from, so shipping one from a branch would publish as generally available something
+# that never passed through the default branch.
 name: Release
 
 permissions:
@@ -21,6 +31,8 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          # The branch policy below compares the tag against main, which a tag checkout does not fetch on its own.
+          ref: ${{ github.ref }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -58,14 +70,70 @@ jobs:
             exit 1
           fi
 
-          if ! grep -Fxq "## ${tag}" Changelog.md; then
+          version="${tag#v}"
+          base_tag="v${version%%-*}"
+
+          if [ "${base_tag}" = "${tag}" ]; then
+            prerelease=false
+          else
+            prerelease=true
+          fi
+
+          # A pre-release reads the section for the version it previews, so every preview of one release publishes
+          # the same accumulated notes rather than a fragment of them.
+          if grep -Fxq "## ${tag}" Changelog.md; then
+            changelog_heading="## ${tag}"
+          elif [ "${prerelease}" = "true" ] && grep -Fxq "## ${base_tag}" Changelog.md; then
+            changelog_heading="## ${base_tag}"
+          elif [ "${prerelease}" = "true" ]; then
+            echo "::error::Changelog.md contains neither a '## ${tag}' nor a '## ${base_tag}' release heading."
+            exit 1
+          else
             echo "::error::Changelog.md does not contain an exact '## ${tag}' release heading."
             exit 1
           fi
 
-          version="${tag#v}"
-          echo "Using tag version: ${version}"
+          echo "Using tag version: ${version} (pre-release: ${prerelease}, notes from ${changelog_heading})"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
+          echo "changelog_heading=${changelog_heading}" >> "${GITHUB_OUTPUT}"
+
+      - name: Validate Release Branch
+        id: branch
+        env:
+          IS_PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          tag_sha="$(git rev-parse "${GITHUB_REF_NAME}^{commit}")"
+
+          # Every remote branch the tagged commit is reachable from, for the run summary. A pre-release cut from a
+          # version branch reports that branch; the list is empty for a tag on a commit no branch points past.
+          branches="$(git branch --remotes --contains "${tag_sha}" --format="%(refname:lstrip=3)" \
+            | grep -v '^HEAD$' | sort | paste -sd ',' - | sed 's/,/, /g')"
+          branches="${branches:-none}"
+
+          if git merge-base --is-ancestor "${tag_sha}" origin/main; then
+            on_main=true
+          else
+            on_main=false
+          fi
+
+          if [ "${IS_PRERELEASE}" != "true" ] && [ "${on_main}" != "true" ]; then
+            echo "::error::Stable tag '${GITHUB_REF_NAME}' is not reachable from main (found on: ${branches}). Merge the release line to main and tag the merge commit, or cut a pre-release tag instead."
+            exit 1
+          fi
+
+          echo "Tagged commit ${tag_sha} is on: ${branches} (reachable from main: ${on_main})"
+          echo "branches=${branches}" >> "${GITHUB_OUTPUT}"
+          echo "on_main=${on_main}" >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "## Release source"
+            echo "- Tag: \`${GITHUB_REF_NAME}\`"
+            echo "- Pre-release: ${IS_PRERELEASE}"
+            echo "- Branches containing the tagged commit: ${branches}"
+            echo "- Reachable from main: ${on_main}"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Restore
         run: dotnet restore LiteBus.slnx --locked-mode
@@ -209,6 +277,9 @@ jobs:
         run: ./scripts/Test-Packages.ps1 -PackageDirectory artifacts -ExpectedVersion ${{ steps.version.outputs.version }}
 
       - name: Generate Release Notes
+        env:
+          CHANGELOG_HEADING: ${{ steps.version.outputs.changelog_heading }}
+          IS_PRERELEASE: ${{ steps.version.outputs.prerelease }}
         run: bash .github/scripts/generate-release-notes.sh
 
       - name: Upload Artifacts
@@ -235,9 +306,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # A pre-release must not become the release GitHub offers as latest, and a stable tag must.
+          if [ "${{ steps.version.outputs.prerelease }}" = "true" ]; then
+            release_kind=(--prerelease)
+          else
+            release_kind=(--latest)
+          fi
+
           gh release create "${GITHUB_REF_NAME}" \
             ./artifacts/*.nupkg \
             ./artifacts/*.snupkg \
             --verify-tag \
             --title "${GITHUB_REF_NAME}" \
+            "${release_kind[@]}" \
             --notes-file release-notes.md

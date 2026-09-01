@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Audit;
@@ -57,7 +57,8 @@ public sealed class MessageModule : IModule
             messageRegistry,
             messageContractRegistry,
             moduleBuilder.TimeProvider,
-            moduleBuilder.AuditOutcomeMapper);
+            moduleBuilder.AuditOutcomeMapper,
+            moduleBuilder.AuditTrail);
         RegisterNewHandlers(configuration, messageRegistry, startIndex);
     }
 
@@ -69,12 +70,14 @@ public sealed class MessageModule : IModule
     /// <param name="messageContractRegistry">The message contract registry instance.</param>
     /// <param name="timeProvider">The optional time provider registered for messaging services.</param>
     /// <param name="auditOutcomeMapper">The optional audit outcome mapper registered for the audit writer.</param>
+    /// <param name="auditTrail">The audit trail registered through the builder, when the application supplied one there.</param>
     private static void RegisterMessagingServices(
         IModuleConfiguration configuration,
         IMessageRegistry messageRegistry,
         MessageContractRegistry messageContractRegistry,
         TimeProvider? timeProvider,
-        IAuditOutcomeMapper? auditOutcomeMapper)
+        IAuditOutcomeMapper? auditOutcomeMapper,
+        object? auditTrail)
     {
         // Register message registry as singleton.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -120,16 +123,77 @@ public sealed class MessageModule : IModule
             typeof(IAuditOutcomeMapper),
             auditOutcomeMapper ?? new DefaultAuditOutcomeMapper()));
 
-        // Resolved only when an axis enables auditing, which also requires the application to register an IAuditTrail.
+        RegisterAuditTrail(configuration, auditTrail);
+
+        // Registered through a factory rather than by type on purpose. The writer needs an IAuditTrail that only an
+        // application auditing its messages registers, and a by-type registration makes a container running
+        // ValidateOnBuild fail at startup for every application that is not auditing at all. The factory defers the
+        // lookup to the first audited mediation and names the fix when it is missing; the litebus.audit.trail probe
+        // reports it earlier still.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IAuditRecordWriter),
-            typeof(AuditRecordWriter),
+            CreateAuditRecordWriter,
             InstanceLifetime.Scoped));
 
         // Register message mediator as transient.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageMediator),
             typeof(MessageMediator)));
+    }
+
+    /// <summary>
+    ///     Registers the audit trail the builder was given, when it was given one.
+    /// </summary>
+    /// <param name="configuration">The module configuration.</param>
+    /// <param name="auditTrail">The trail instance or implementation type, or null when the application registers it itself.</param>
+    /// <remarks>
+    ///     An application may register the trail with its own container instead, which is what the
+    ///     <c>litebus.audit.trail</c> probe checks for. Configuring it here keeps the whole feature on one builder.
+    /// </remarks>
+    private static void RegisterAuditTrail(IModuleConfiguration configuration, object? auditTrail)
+    {
+        switch (auditTrail)
+        {
+            case null:
+                return;
+
+            case Type trailType:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IAuditTrail),
+                    trailType,
+                    InstanceLifetime.Scoped));
+                return;
+
+            default:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IAuditTrail),
+                    auditTrail));
+                return;
+        }
+    }
+
+    /// <summary>
+    ///     Creates the audit record writer, reporting a missing trail as configuration rather than a null reference.
+    /// </summary>
+    /// <param name="serviceProvider">The scope the writer is being resolved from.</param>
+    /// <returns>The writer bound to the registered trail.</returns>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     Auditing is enabled but no <see cref="IAuditTrail" /> is registered.
+    /// </exception>
+    private static AuditRecordWriter CreateAuditRecordWriter(IServiceProvider serviceProvider)
+    {
+        var trail = (IAuditTrail?) serviceProvider.GetService(typeof(IAuditTrail))
+                    ?? throw new LiteBusConfigurationException(
+                        "Auditing is enabled but no IAuditTrail is registered, so audit records cannot be written. "
+                        + "Register one with UseAuditTrail on the messaging module builder, or with the application "
+                        + "container. The litebus.audit.trail diagnostic check reports this before the first message "
+                        + "arrives.");
+
+        return new AuditRecordWriter(
+            trail,
+            (IMessageRegistry) serviceProvider.GetService(typeof(IMessageRegistry))!,
+            (IAuditOutcomeMapper) serviceProvider.GetService(typeof(IAuditOutcomeMapper))!,
+            (TimeProvider) serviceProvider.GetService(typeof(TimeProvider))!);
     }
 
     /// <summary>

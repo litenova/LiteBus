@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -22,7 +22,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///     </code>
 ///     <para>
 ///         Answering reports <see cref="MediationOutcome.Answered" />, which an audit trail records as a success, because
-///         nothing was refused. Refusing is a guard's job and reports <see cref="MediationOutcome.Denied" />.
+///         nothing was denied. Denying is a guard's job and reports <see cref="MediationOutcome.Denied" />.
 ///     </para>
 /// </remarks>
 public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageResult>>
@@ -126,13 +126,14 @@ public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageRe
     /// <summary>
     ///     Converts this shortcut to the pipeline decision the stage runner acts on.
     /// </summary>
+    /// <param name="answeredBy">The shortcut that produced this answer, recorded so a misuse can be named.</param>
     /// <returns>
-    ///     A stop carrying the result when the shortcut answered, otherwise <see cref="PipelineStop.None" />.
+    ///     A decision carrying the result when the shortcut answered, otherwise <see cref="PipelineDecision.Continue" />.
     /// </returns>
-    internal PipelineStop ToStop()
+    internal PipelineDecision ToDecision(Type answeredBy)
     {
         return IsAnswered
-            ? PipelineStop.Answered(Reason, hasResult: true, Result)
-            : PipelineStop.None;
+            ? PipelineDecision.Answered(Reason, hasResult: true, Result, answeredBy)
+            : PipelineDecision.Continue;
     }
 }

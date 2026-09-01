@@ -166,7 +166,7 @@ public sealed class UntypedShortcutOnResultMessageAnalyzerTests
                                   public Task<Shortcut> TryAnswerAsync(
                                       CreateProductCommand message,
                                       CancellationToken cancellationToken = default)
-                                      => Task.FromResult(Shortcut.Skip("already created"));
+                                      => Task.FromResult(Shortcut.Answer("already created"));
                               }
                               """;
 

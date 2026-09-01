@@ -516,6 +516,7 @@ Before adding a project:
 - Document application-owned integration (health endpoints, schema probes, export sinks) as recipes; ship framework-neutral contracts and stable telemetry names in libraries.
 - Keep `site/content/docs/architecture/hosted-services.md` and `site/content/docs/architecture/README.md` aligned with the manifest model (`IStartupTask`, `IBackgroundService`, `IDiagnosticCheck`, `LiteBusHostManifest`).
 - Keep `site/content/docs/architecture/dependency-graph.md` as the living package inventory and dependency rule reference.
+- **`site/content/docs/` is the version under development; `site/content/versions/<id>/` is frozen.** A snapshot describes a package that has already shipped, so editing one makes the documentation disagree with the release it documents. The repository documentation gates deliberately scan only `site/content/docs/`, because a snapshot's snippets reference source that has since moved. `site/versions.json` declares the versions the site serves and what to change when a release is cut.
 
 ## Evolving this guide
 

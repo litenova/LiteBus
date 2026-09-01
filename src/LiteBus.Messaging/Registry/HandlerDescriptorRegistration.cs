@@ -28,7 +28,7 @@ internal static class HandlerDescriptorRegistration
                 HandlerType = main.HandlerType,
                 ContractType = main.ContractType
             },
-            PreHandlerDescriptor pre => new PreHandlerDescriptor
+            PreStageHandlerDescriptor pre => new PreStageHandlerDescriptor
             {
                 MessageType = pre.MessageType,
                 Priority = pre.Priority,
