@@ -23,6 +23,8 @@ export type DocsVersion = {
   readonly status: VersionStatus;
   /** Git ref the sources live on, used to build fallback links into the repository. */
   readonly ref: string;
+  /** Branch this line is still maintained on, when it is. Absent once the line stops receiving fixes. */
+  readonly tracks?: string;
   readonly default: boolean;
 };
 

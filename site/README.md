@@ -42,12 +42,24 @@ pick an index rather than to filter inside one.
 A version's `ref` is the git ref its Markdown sources live on, used for fallback links into the repository. A line
 still developed on its own release branch names that branch, and becomes `main` when the line merges.
 
-### A line that has not merged yet
+### Two lines at once
 
-The production site deploys from `main`, so a version whose sources live on an unmerged release branch is not on
-litebus.io. Its pages build and are checked on every push to that branch, and Vercel publishes them as a branch
-preview deployment; alias that deployment if the pre-release needs a stable URL before it merges. The version appears
-at its own path on litebus.io as soon as the branch merges, with no further change to `versions.json`.
+While a major line is in pre-release, two lines are live: the released one still takes patches on `main`, and the next
+one is developed on its own branch. Only the release branch carries both, because it holds the working documentation
+for the new line and a snapshot of the released one. So the site deploys from the release branch for as long as that
+is true, and returns to `main` when the line merges and `main` carries both again.
+
+That makes the release branch's snapshot the published documentation for the released line, so a documentation fix
+that lands on `main` has to reach the snapshot as well. The version's `tracks` field names the branch that happens on,
+and `scripts/Test-VersionSnapshots.ps1` compares the two and reports the files that differ. The build workflow runs it
+and raises a warning rather than failing, since the missing fix is work on another branch. To apply one:
+
+```bash
+git checkout origin/main -- site/content/docs/<file>
+git mv -f site/content/docs/<file> site/content/versions/<id>/<file>
+```
+
+Drop `tracks` from the entry once the line stops receiving fixes. The snapshot is then final, and the check skips it.
 
 ### Cutting a release
 

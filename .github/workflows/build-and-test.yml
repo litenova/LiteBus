@@ -83,6 +83,21 @@ jobs:
         shell: pwsh
         run: ./scripts/Test-Documentation.ps1
 
+      - name: Check Documentation Version Snapshots
+        shell: pwsh
+        run: |
+          # Reports, rather than fails: a snapshot falls behind when a fix lands on the branch it tracks, which is work
+          # on another branch. Blocking this one for it would stop unrelated changes from merging.
+          $output = ./scripts/Test-VersionSnapshots.ps1 2>&1 | Out-String
+          Write-Host $output
+
+          if ($output -match 'differs from') {
+            Write-Host "::warning::A documentation version snapshot has fallen behind the branch it tracks, so the published documentation for that line is stale. See the job log for the files and the command to fix it."
+          }
+
+          "## Documentation version snapshots", '```', $output.TrimEnd(), '```' |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
       - name: Validate Documentation Site
         working-directory: site
         run: |

@@ -16,6 +16,9 @@
     "  3. Set that entry's \"status\" to \"stable\" and update \"release\" and \"ref\".",
     "",
     "\"ref\" is the git ref a version's Markdown sources live on, used for fallback links into the repository.",
+    "\"tracks\" names the branch a snapshot's line is still maintained on, when it is. A fix to that line's",
+    "documentation lands there first, so scripts/Test-VersionSnapshots.ps1 reports a snapshot that has fallen",
+    "behind it. Remove the field when the line stops receiving fixes; the snapshot is then final.",
     "A line that is still on its own release branch names that branch; it becomes \"main\" when the line merges.",
     "",
     "This file is JSON rather than TypeScript because the build gates in site/scripts read it from plain Node."
@@ -29,6 +32,7 @@
       "release": "6.0.2",
       "status": "stable",
       "ref": "v6.0.2",
+      "tracks": "main",
       "default": true
     },
     {
