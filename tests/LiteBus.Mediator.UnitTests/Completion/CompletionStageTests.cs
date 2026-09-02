@@ -1,4 +1,4 @@
-using LiteBus.Commands;
+﻿using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
@@ -182,7 +182,7 @@ public sealed class CompletionStageTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task Direct_completion_handlers_run_before_indirect_ones()
+    public async Task Completion_handlers_of_equal_priority_run_in_registration_order()
     {
         var recorder = new CompletionRecorder();
         var provider = BuildProvider(recorder, typeof(DirectCompletionHandler), typeof(GlobalCompletionHandler));
@@ -191,6 +191,20 @@ public sealed class CompletionStageTests : LiteBusTestBase
         await mediator.SendAsync(new CompletionCommand()).ConfigureAwait(false);
 
         recorder.Observed.Select(o => o.Handler).Should().Equal("direct", "global");
+    }
+
+    [Fact]
+    public async Task Priority_orders_completion_handlers_across_the_direct_and_indirect_split()
+    {
+        var recorder = new CompletionRecorder();
+        var provider = BuildProvider(recorder, typeof(UnitOfWorkCompletionHandler), typeof(GlobalCompletionHandler));
+        var mediator = provider.GetRequiredService<ICommandMediator>();
+
+        await mediator.SendAsync(new CompletionCommand()).ConfigureAwait(false);
+
+        // The unit-of-work handler is registered for the concrete command and registered first, so under the old
+        // direct-before-indirect rule it would have run before the global one. Priority decides instead.
+        recorder.Observed.Select(o => o.Handler).Should().Equal("global", "unit-of-work");
     }
 
     [Fact]

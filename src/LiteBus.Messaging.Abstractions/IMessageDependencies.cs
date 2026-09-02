@@ -126,20 +126,21 @@ public interface IMessageDependencies
     ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> IndirectRefusalMappers { get; }
 
     /// <summary>
-    ///     Gets a lazy initialized read-only collection of direct completion handlers. These handlers are invoked once the
-    ///     mediation ends, on every path, allowing the outcome of the operation to be observed and recorded.
+    ///     Gets a lazy initialized read-only collection of every completion handler that observes this message, ordered
+    ///     by priority. These handlers are invoked once the mediation ends, on every path, allowing the outcome of the
+    ///     operation to be observed and recorded.
     /// </summary>
     /// <value>
-    ///     The collection of direct completion handlers.
+    ///     The collection of completion handlers, in the order they run.
     /// </value>
+    /// <remarks>
+    ///     Unlike every other role, the completion stage does not separate handlers registered for the message type from
+    ///     handlers registered for a base type or interface. Completion handlers observe rather than wrap, so there is
+    ///     no onion for a specific handler to sit inside, and a split collection would make
+    ///     <see cref="HandlerPriorityAttribute" /> unable to order a message-specific handler against a broad one. That
+    ///     matters because the order decides whether an application's unit of work commits before or after LiteBus
+    ///     writes its audit record. Priority is the only rule here, with
+    ///     <see cref="IHandlerDescriptor.RegistrationSequence" /> breaking ties.
+    /// </remarks>
     ILazyHandlerCollection<IMessageCompletionHandler, ICompletionHandlerDescriptor> CompletionHandlers { get; }
-
-    /// <summary>
-    ///     Gets a lazy initialized read-only collection of indirect completion handlers. These handlers are invoked once the
-    ///     mediation ends, potentially observing a variety of different message types.
-    /// </summary>
-    /// <value>
-    ///     The collection of indirect completion handlers.
-    /// </value>
-    ILazyHandlerCollection<IMessageCompletionHandler, ICompletionHandlerDescriptor> IndirectCompletionHandlers { get; }
 }

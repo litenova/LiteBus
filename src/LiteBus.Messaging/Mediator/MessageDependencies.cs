@@ -59,8 +59,11 @@ internal sealed class MessageDependencies : IMessageDependencies
         ErrorHandlers = ResolveHandlers(descriptor.ErrorHandlers, handlerType => (IMessageErrorHandler) serviceProvider.GetRequiredService(handlerType));
         IndirectErrorHandlers = ResolveHandlers(descriptor.IndirectErrorHandlers, handlerType => (IMessageErrorHandler) serviceProvider.GetRequiredService(handlerType));
 
-        CompletionHandlers = ResolveHandlers(descriptor.CompletionHandlers, handlerType => (IMessageCompletionHandler) serviceProvider.GetRequiredService(handlerType));
-        IndirectCompletionHandlers = ResolveHandlers(descriptor.IndirectCompletionHandlers, handlerType => (IMessageCompletionHandler) serviceProvider.GetRequiredService(handlerType));
+        // The completion stage orders by priority alone, so the two descriptor sets are resolved as one collection
+        // rather than kept apart the way every wrapping role keeps them apart.
+        CompletionHandlers = ResolveHandlers(
+            descriptor.CompletionHandlers.Concat(descriptor.IndirectCompletionHandlers),
+            handlerType => (IMessageCompletionHandler) serviceProvider.GetRequiredService(handlerType));
         RefusalMappers = ResolveHandlers(descriptor.RefusalMappers, handlerType => (IMessageRefusalMapper) serviceProvider.GetRequiredService(handlerType));
         IndirectRefusalMappers = ResolveHandlers(descriptor.IndirectRefusalMappers, handlerType => (IMessageRefusalMapper) serviceProvider.GetRequiredService(handlerType));
         _occupiedPreStages = ComputeOccupiedPreStages(PreStageHandlers, IndirectPreStageHandlers);
@@ -92,9 +95,6 @@ internal sealed class MessageDependencies : IMessageDependencies
 
     /// <inheritdoc />
     public ILazyHandlerCollection<IMessageCompletionHandler, ICompletionHandlerDescriptor> CompletionHandlers { get; }
-
-    /// <inheritdoc />
-    public ILazyHandlerCollection<IMessageCompletionHandler, ICompletionHandlerDescriptor> IndirectCompletionHandlers { get; }
 
     /// <inheritdoc />
     public ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> RefusalMappers { get; }

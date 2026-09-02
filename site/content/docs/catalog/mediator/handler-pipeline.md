@@ -18,7 +18,7 @@ Direct and indirect handlers run in a fixed order:
 - Guard, shortcut, and pre: indirect then direct.
 - Post: direct then indirect.
 - Error: indirect then direct.
-- Completion: direct then indirect.
+- Completion: one pass over the merged direct and indirect sets, ordered by `[HandlerPriority]` then registration sequence.
 
 The pre stage is four framework-ordered stages, not one. Guards run first and refuse through `Verdict`; validators run next and report failures through `Validity`; shortcuts run third and answer through `Shortcut` or `Shortcut<TResult>`; plain pre-handlers run last and cannot stop the pipeline by returning. Priority orders handlers inside a stage and never reorders the stages, so a globally registered shortcut cannot answer ahead of a message-specific guard, and a malformed message cannot claim an idempotency key. Guards and shortcuts stop at the first decision; the validator stage runs every validator and collects their failures. A refusal with no registered `IMessageRefusalMapper<TMessage, TMessageResult>` raises `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException`, both excluded from the recoverable filter so error handlers never see a decision as a fault. Any stage may call `IExecutionContext.SuppressPostHandlers()` to skip the remaining post-handlers without changing the outcome.
 

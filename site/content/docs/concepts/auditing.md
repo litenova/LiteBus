@@ -177,10 +177,75 @@ Note what is deliberately absent: any before-and-after snapshot of the changed s
 
 For the same reason, do not put personal data in `Properties`. A trail that holds pseudonymous identifiers can serve an erasure request by breaking the identity mapping, which leaves the records meaningful and the person unidentifiable. A trail full of names cannot.
 
+## Making a Record Atomic With Its Change
+
+An audit record that can exist without the change it describes, or a change that can exist without its record, is worth less than either. Making the two atomic means the record has to be written by the same transaction that writes the change, and that constrains where your commit goes.
+
+Put the commit in a **completion handler** at `HandlerPriorities.UnitOfWork`:
+
+```csharp
+[HandlerPriority(HandlerPriorities.UnitOfWork)]
+public sealed class CommitUnitOfWork : ICommandCompletionHandler
+{
+    private readonly IDocumentSession _session;
+
+    public CommitUnitOfWork(IDocumentSession session) => _session = session;
+
+    public async Task HandleCompletionAsync(
+        MessageCompletionContext<ICommand> context,
+        CancellationToken cancellationToken)
+    {
+        if (context.Outcome is MediationOutcome.Succeeded or MediationOutcome.Answered)
+        {
+            await _session.SaveChangesAsync(CancellationToken.None);
+        }
+    }
+}
+```
+
+Your `IAuditTrail` then stages the record instead of writing it:
+
+```csharp
+public sealed class MartenAuditTrail : IAuditTrail
+{
+    private readonly IDocumentSession _session;
+    private readonly IAuditArchive _archive;
+
+    public MartenAuditTrail(IDocumentSession session, IAuditArchive archive)
+    {
+        _session = session;
+        _archive = archive;
+    }
+
+    public Task WriteAsync(AuditRecord record, CancellationToken cancellationToken = default)
+    {
+        if (record.Outcome == AuditOutcome.Succeeded)
+        {
+            // Staged, not written. The commit below flushes it with the change.
+            _session.Store(record);
+            return Task.CompletedTask;
+        }
+
+        // The transaction carrying the change is being rolled back, so this record cannot ride it.
+        return _archive.WriteAsync(record, cancellationToken);
+    }
+}
+```
+
+Three things make this work, and all three are guarantees rather than incidental behavior:
+
+- The audit writer runs at `HandlerPriorities.Observability`, inside the reserved window. `HandlerPriorities.UnitOfWork` sits above `ReservedCeiling`, so the commit runs after the writer in this and every future release. See [Handler Priority](handler-priority.md#the-reserved-framework-window).
+- The completion stage orders by priority alone, unlike every other role. A commit registered broadly for `ICommand` still runs after a framework writer registered the same way, and after a handler registered for one concrete command.
+- A completion handler that throws on an otherwise clean mediation propagates its exception to the caller. A commit that hits a concurrency conflict is reported, not swallowed. When the mediation had already failed, the fault is attached to the original exception under `LiteBus.SuppressedCompletionFaults` instead of replacing it.
+
+The commit belongs in the completion stage rather than a post-handler for a reason worth stating plainly: a post-handler never runs when the main handler throws, so a commit placed there cannot decide anything about a failure, and everything LiteBus writes afterwards is outside the transaction by construction. The completion stage is the first point that sees how the mediation actually ended.
+
+Two consequences to plan for. A record for a refusal or a failure has to be written out of band, as above, and that write has to survive whatever caused the failure. And anything your commit handler does after the commit, such as dispatching the domain events the aggregates recorded, runs with `CancellationToken.None`, because the completion stage is not cancellable.
+
 ## What LiteBus Deliberately Leaves to You
 
 - **Where records are stored, and their integrity.** A hash chain, an append-only database role, and a retention job are all worth having, and all belong in your `IAuditTrail` implementation rather than in a messaging library.
-- **Transaction behavior.** A record for a successful action is best written in the same transaction as the change it describes, so an action cannot exist without its record. The record arrives at the completion stage, which runs after post-handlers, so a unit of work opened inside the pipeline has usually committed by then. To share the transaction, buffer the record in the unit of work and let the commit flush it; LiteBus does not buffer on your behalf, because only your application knows where its transaction boundary is. A record for a refusal or a failure cannot ride that transaction in any case, because the transaction is the one being rolled back; it has to be written out of band and must survive the failure that caused it.
+- **Where the transaction boundary is.** LiteBus does not open, commit, or roll back anything, because only your application knows what its unit of work contains. It does guarantee a position you can commit from, described under [Making a Record Atomic With Its Change](#making-a-record-atomic-with-its-change) below.
 - **The actor.** LiteBus does not model identity. Capture the acting account in your trail implementation, from whatever ambient principal your host provides.
 
 ## Next

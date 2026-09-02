@@ -60,13 +60,15 @@ The two kinds run in a deliberate order that forms an onion around the main hand
 | Main handler | The handler(s) for the message |
 | Post-handlers | Specific (direct) first, then global (indirect) |
 | Error-handlers | Global (indirect) first, then specific (direct) |
-| Completion handlers | Specific (direct) first, then global (indirect) |
+| Completion handlers | Priority order only; the direct and indirect sets are merged |
 
 Within each group, handlers run in ascending `[HandlerPriority]` order (default priority is `0`). The pre/post asymmetry is intentional: a global pre-handler such as authentication runs before any message-specific check, and a global post-handler such as audit logging runs after the message-specific reactions have completed. Cross-cutting concerns wrap message-specific ones on both sides.
 
 **Priority orders handlers inside a stage; it never reorders the stages themselves.** Every guard runs before every validator, every validator before every shortcut, and every shortcut before every pre-handler, whatever priority each carries and whether it is registered globally or for one message type. That is the guarantee the split exists to provide, and the [Deciding Whether the Work Happens](#deciding-whether-the-work-happens) section explains what it buys.
 
-This ordering is implemented in `MessageContextExtensions`: each decision stage iterates indirect then direct, post-handlers and completion handlers iterate direct then indirect, and error-handlers iterate indirect then direct. The stages themselves come from one internal table, so the order `PreStage` declares is the order that runs rather than something a call sequence has to keep in step with it.
+This ordering is implemented in `MessageContextExtensions`: each decision stage iterates indirect then direct, post-handlers iterate direct then indirect, and error-handlers iterate indirect then direct. The stages themselves come from one internal table, so the order `PreStage` declares is the order that runs rather than something a call sequence has to keep in step with it.
+
+The completion stage is the exception. It resolves both sets into one collection sorted by `[HandlerPriority]`, with registration order breaking ties. Completion handlers observe an ending rather than wrapping the handler, so there is no onion for a specific handler to sit inside, and keeping the sets apart would put the framework's audit writer beyond the reach of an application's priority. That order decides whether an application's unit of work commits before or after the record is produced, which is not something a registration-breadth rule should decide. See [Auditing](auditing.md#making-a-record-atomic-with-its-change).
 
 A custom mediation strategy gets the same stage order through `RunAsyncPreStages`, in the `LiteBus.Messaging` assembly. It tracks three values as it runs, the outcome, the failure, and the reason, updating them on whichever path the mediation takes, and passes all three to `RunAsyncCompletionHandlers` in a `finally`. The stage runners own the rest, including opening the ambient scope, preserving the original stack when no error handler recovers, and reporting a post-handler's replacement result rather than the handler's own.
 
@@ -82,7 +84,7 @@ A command or query must resolve to exactly one main handler. If more than one is
 decision = RunAsyncPreStages(message) // guards, validators, shortcuts, pre-handlers; stops on the first decision
 result = handler.HandleAsync(...)   // the one main handler
 RunAsyncPostHandlers(message, result) // direct post, then indirect post
-RunAsyncCompletionHandlers(context)   // direct, then indirect, always, in a finally
+RunAsyncCompletionHandlers(context)   // one priority-ordered pass, always, in a finally
 return result
 ```
 

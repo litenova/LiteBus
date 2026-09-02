@@ -1,19 +1,27 @@
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Reserved <see cref="HandlerPriorityAttribute" /> values for handlers shipped by LiteBus itself.
+///     Named <see cref="HandlerPriorityAttribute" /> values that fix the order of application handlers against the
+///     handlers LiteBus ships.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Handlers run in ascending priority order, so a larger number runs later. LiteBus reserves the range at or
-///         above <see cref="ReservedFloor" /> for the handlers it ships, which leaves every value below it to
-///         applications. An application handler with no explicit priority sits at <see cref="Default" /> and therefore
-///         runs before all of them.
+///         Handlers run in ascending priority order, so a larger number runs later. LiteBus reserves the window from
+///         <see cref="ReservedFloor" /> up to but not including <see cref="ReservedCeiling" /> for the handlers it
+///         ships. Applications own everything below the floor and everything at or above the ceiling. An application
+///         handler with no explicit priority sits at <see cref="Default" /> and therefore runs before every LiteBus
+///         handler.
 ///     </para>
 ///     <para>
-///         The band exists so that ordering against a LiteBus handler is a documented guarantee rather than something
-///         each application rediscovers by experiment. To run after LiteBus writes its audit record, for example, give
-///         your handler a priority above <see cref="Observability" />.
+///         The reserved window is a window rather than an open-ended range because some application handlers have to
+///         run after LiteBus writes. A unit of work that has to flush an audit record cannot commit before the audit
+///         writer produces it, so it needs a position on the far side of the reserved values that will not be reordered
+///         out from under it. That position is <see cref="UnitOfWork" />.
+///     </para>
+///     <para>
+///         Only <see cref="Persistence" /> and <see cref="Observability" /> may be reordered between LiteBus releases,
+///         and only relative to each other. The floor and the ceiling are stable, so the two application bands they
+///         delimit are stable too.
 ///     </para>
 /// </remarks>
 public static class HandlerPriorities
@@ -27,8 +35,9 @@ public static class HandlerPriorities
     ///     The lowest priority reserved for handlers shipped by LiteBus.
     /// </summary>
     /// <remarks>
-    ///     Application handlers should stay below this value. Everything at or above it may be reordered between LiteBus
-    ///     releases.
+    ///     Application handlers that should run before every LiteBus handler stay below this value, which is where an
+    ///     unannotated handler already sits. An application handler that has to run after them belongs at or above
+    ///     <see cref="ReservedCeiling" /> instead of inside the window.
     /// </remarks>
     public const int ReservedFloor = 1_000_000;
 
@@ -41,8 +50,38 @@ public static class HandlerPriorities
     ///     The priority used by LiteBus handlers that observe and record, such as the audit record writer.
     /// </summary>
     /// <remarks>
-    ///     Observation runs after persistence so that a record describing a change is written once the change itself has
-    ///     been committed.
+    ///     Observation runs after persistence so that LiteBus has finished its own durable writes before it records
+    ///     that they happened. It says nothing about the application's transaction, which commits at
+    ///     <see cref="UnitOfWork" />, after this.
     /// </remarks>
     public const int Observability = ReservedFloor + 200;
+
+    /// <summary>
+    ///     The first priority above the range reserved for handlers shipped by LiteBus.
+    /// </summary>
+    /// <remarks>
+    ///     An application handler at or above this value runs after every LiteBus handler for the same role, and the
+    ///     guarantee holds across releases. Values between <see cref="ReservedFloor" /> and this ceiling belong to
+    ///     LiteBus.
+    /// </remarks>
+    public const int ReservedCeiling = 2_000_000;
+
+    /// <summary>
+    ///     The priority at which an application commits its unit of work.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         A completion handler at this priority runs after every LiteBus completion handler, which is what makes a
+    ///         record produced at <see cref="Observability" /> part of the transaction that commits here. Gate the
+    ///         commit on <see cref="MessageCompletionContext.Outcome" />: the completion stage runs on every path, and a
+    ///         failed mediation must roll back rather than commit.
+    ///     </para>
+    ///     <para>
+    ///         The commit belongs in the completion stage rather than a post-handler because only the completion stage
+    ///         sees how the mediation ended. A post-handler never runs when the main handler throws, so a commit placed
+    ///         there cannot decide anything about a failure, and anything LiteBus writes afterwards is outside the
+    ///         transaction by construction.
+    ///     </para>
+    /// </remarks>
+    public const int UnitOfWork = ReservedCeiling;
 }

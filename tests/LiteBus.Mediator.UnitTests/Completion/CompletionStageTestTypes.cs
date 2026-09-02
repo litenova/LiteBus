@@ -177,6 +177,41 @@ internal sealed class GlobalCompletionHandler : ICommandCompletionHandler
 }
 
 /// <summary>
+///     A completion handler registered for the concrete command type but ordered to run last, standing in for an
+///     application's unit-of-work commit.
+/// </summary>
+/// <remarks>
+///     It exists to prove that <see cref="HandlerPriorityAttribute" /> outranks the distinction between a handler
+///     registered for the message type and one registered for a base type. A commit that has to flush a record written
+///     by a broadly registered LiteBus handler depends on exactly that.
+/// </remarks>
+[HandlerPriority(HandlerPriorities.UnitOfWork)]
+internal sealed class UnitOfWorkCompletionHandler : ICommandCompletionHandler<CompletionCommand>
+{
+    /// <summary>
+    ///     The recorder shared with the test.
+    /// </summary>
+    private readonly CompletionRecorder _recorder;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="UnitOfWorkCompletionHandler" /> class.
+    /// </summary>
+    /// <param name="recorder">The recorder shared with the test.</param>
+    public UnitOfWorkCompletionHandler(CompletionRecorder recorder)
+    {
+        _recorder = recorder;
+    }
+
+    /// <inheritdoc />
+    public Task HandleCompletionAsync(MessageCompletionContext<CompletionCommand> context, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        _recorder.Observed.Enqueue(("unit-of-work", context.AsUntyped()));
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
 ///     A completion handler that always throws, used to assert the suppression policy.
 /// </summary>
 internal sealed class ThrowingCompletionHandler : ICommandCompletionHandler<CompletionCommand>

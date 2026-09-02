@@ -136,14 +136,15 @@ IMessageMediator.Mediate
   |     |- main handler (exactly one for command/query; all for events grouped by priority)
   |     |- RunAsyncPostHandlers (direct then indirect; stops if IExecutionContext.SuppressPostHandlers was called)
   |     |- on catch: RunAsyncErrorHandlers (indirect then direct), rethrow unless MessageErrorOutcome.Handled
-  |     |- finally: RunAsyncCompletionHandlers (direct then indirect) with CancellationToken.None
+  |     |- finally: RunAsyncCompletionHandlers (one priority-ordered pass) with CancellationToken.None
   |- MediationScopeRetention.RetainUntilPipelineCompletes(result, resourceScope)
 ```
 
 Rules baked into the code:
 
 * Stage order is fixed by the declaration order of the `PreStage` enum and cannot be changed by priorities.
-* `HandlerPriorityAttribute` orders handlers **within** a stage/role only; ties break on `RegistrationSequence` (module registration order).
+* `HandlerPriorityAttribute` orders handlers **within** a stage/role only, ascending; ties break on `RegistrationSequence` (module registration order).
+* Every role except completion runs its direct (message-type) handlers and its indirect (base-type) handlers as two separate passes. The completion stage merges both descriptor sets into one `IMessageDependencies.CompletionHandlers` collection sorted by `Priority` then `RegistrationSequence`, so priority is the only ordering rule there. `IMessageDependencies` has no `IndirectCompletionHandlers`; `IMessageDescriptor` still separates them at the registry level.
 * A pre-stage is skipped entirely when no handler occupies it (`IMessageDependencies.HasPreStageHandlers` bitmask).
 * `MediationExceptionFilters.IsRecoverableMediationException` excludes `NoHandlerFoundException`, `MultipleHandlerFoundException`, `OperationCanceledException` and refusals from error handlers.
 * Completion handlers always run, on every path, and are never cancelled. A completion handler that throws while the mediation had already failed has its exception collected into `exception.Data["LiteBus.SuppressedCompletionFaults"]` instead of replacing the original fault.
@@ -1785,7 +1786,7 @@ await commandMediator.SendAsync(command, "batch", cancellationToken);   // selec
 
 A descriptor participates when `descriptor.Tags.Count == 0` **or** `descriptor.Tags` intersects the mediation tags. Analyzer `LB1011` warns about a tag no mediation call in the compilation references.
 
-**Priorities.** `HandlerPriorities` reserves a band for framework handlers:
+**Priorities.** Handlers run in **ascending** priority order: a lower number runs earlier, a higher number runs later, and ties break on `RegistrationSequence`. `HandlerPriorities` reserves a window for framework handlers and names the application band on each side of it:
 
 | Constant | Value | Meaning |
 | --- | --- | --- |
@@ -1793,8 +1794,12 @@ A descriptor participates when `descriptor.Tags.Count == 0` **or** `descriptor.T
 | `HandlerPriorities.ReservedFloor` | `1000000` | Lowest value reserved for LiteBus-shipped handlers. |
 | `HandlerPriorities.Persistence` | `1000100` | LiteBus handlers that persist state. |
 | `HandlerPriorities.Observability` | `1000200` | LiteBus handlers that observe and record, such as the audit writers. |
+| `HandlerPriorities.ReservedCeiling` | `2000000` | First value above the reserved window. |
+| `HandlerPriorities.UnitOfWork` | `2000000` | Where an application commits its unit of work, after every LiteBus handler. |
 
-Application handlers should stay below `ReservedFloor` so framework handlers keep running last.
+Application handlers belong below `ReservedFloor` or at/above `ReservedCeiling`. Only `Persistence` and `Observability` may be reordered between releases, and only relative to each other; the floor and ceiling are stable.
+
+An application that needs an audit record atomic with the change it describes registers an `ICommandCompletionHandler` at `HandlerPriorities.UnitOfWork`, gates the commit on `context.Outcome`, and stages the record from its `IAuditTrail` rather than writing it. The commit flushes both. A record for a non-success outcome cannot ride the transaction being rolled back and has to be written out of band.
 
 **Open generic handlers:**
 
@@ -2016,7 +2021,44 @@ public interface IAuditTrail
 }
 ```
 
-The record arrives at the completion stage, after the main and post handlers, so any unit of work opened inside the pipeline has usually already committed. The completion stage is not cancellable, so the token is always `CancellationToken.None`. `ReasonRequired = true` with a `Succeeded` outcome and no reason raises `LiteBusConfigurationException` instead of writing an incomplete record.
+The record arrives at the completion stage, at priority `HandlerPriorities.Observability`. The completion stage is not cancellable, so the token is always `CancellationToken.None`. `ReasonRequired = true` with a `Succeeded` outcome and no reason raises `LiteBusConfigurationException` instead of writing an incomplete record.
+
+**Making a record atomic with its change.** LiteBus never opens or commits a transaction, but it guarantees a position an application can commit from. Register a completion handler at `HandlerPriorities.UnitOfWork` and stage the record from the trail rather than writing it:
+
+```csharp
+[HandlerPriority(HandlerPriorities.UnitOfWork)]
+public sealed class CommitUnitOfWork : ICommandCompletionHandler
+{
+    private readonly IDocumentSession _session;
+
+    public CommitUnitOfWork(IDocumentSession session) => _session = session;
+
+    public async Task HandleCompletionAsync(MessageCompletionContext<ICommand> context, CancellationToken cancellationToken)
+    {
+        if (context.Outcome is MediationOutcome.Succeeded or MediationOutcome.Answered)
+        {
+            await _session.SaveChangesAsync(CancellationToken.None);
+        }
+    }
+}
+
+public sealed class MartenAuditTrail : IAuditTrail
+{
+    // ctor omitted
+    public Task WriteAsync(AuditRecord record, CancellationToken cancellationToken = default)
+    {
+        if (record.Outcome == AuditOutcome.Succeeded)
+        {
+            _session.Store(record);   // staged; the commit above flushes it with the change
+            return Task.CompletedTask;
+        }
+
+        return _archive.WriteAsync(record, cancellationToken);   // the transaction is rolling back
+    }
+}
+```
+
+Three guarantees make it work: `UnitOfWork` is above `ReservedCeiling` so it runs after the writer at `Observability` in every release; the completion stage orders by priority alone, so registration breadth cannot reorder the commit against the writer; and a completion handler that throws on an otherwise clean mediation propagates, so a commit conflict reaches the caller instead of being swallowed. Do not put the commit in a post-handler: a post-handler is skipped when the main handler throws, and everything LiteBus writes afterwards is outside the transaction by construction.
 
 ### 4.9 Message contracts and serialization
 
@@ -3042,6 +3084,8 @@ Trace-context column types by provider: PostgreSQL `jsonb`, SQL Server `nvarchar
 | `ReservedFloor` | `int` | `1000000` |
 | `Persistence` | `int` | `1000100` (`ReservedFloor + 100`) |
 | `Observability` | `int` | `1000200` (`ReservedFloor + 200`) |
+| `ReservedCeiling` | `int` | `2000000` |
+| `UnitOfWork` | `int` | `2000000` (`ReservedCeiling`) |
 
 #### `MediationExceptionData` (`LiteBus.Messaging.Abstractions`)
 

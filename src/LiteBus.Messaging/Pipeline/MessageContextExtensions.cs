@@ -326,8 +326,11 @@ public static class MessageContextExtensions
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <remarks>
     ///     <para>
-    ///         Direct handlers run before indirect handlers, matching post-handler ordering, so that a globally registered
-    ///         observer sees the message last.
+    ///         Handlers run in ascending <see cref="HandlerPriorityAttribute" /> order regardless of whether they were
+    ///         registered for the message type or for a base type it implements. The completion stage is the one role
+    ///         that does not split the two, because the order here decides whether an application's unit of work commits
+    ///         before or after LiteBus writes its audit record, and a split collection would put that outside the reach
+    ///         of priority.
     ///     </para>
     ///     <para>
     ///         The stage is not cancellable. It observes an ending, and the ending has already happened, so handing it the
@@ -347,7 +350,7 @@ public static class MessageContextExtensions
         ArgumentNullException.ThrowIfNull(messageDependencies);
         ArgumentNullException.ThrowIfNull(context);
 
-        if (messageDependencies.CompletionHandlers.Count + messageDependencies.IndirectCompletionHandlers.Count == 0)
+        if (messageDependencies.CompletionHandlers.Count == 0)
         {
             return;
         }
@@ -355,11 +358,6 @@ public static class MessageContextExtensions
         List<Exception>? suppressed = null;
 
         foreach (var completionHandler in messageDependencies.CompletionHandlers)
-        {
-            suppressed = await InvokeCompletionHandlerAsync(completionHandler, context, suppressed).ConfigureAwait(false);
-        }
-
-        foreach (var completionHandler in messageDependencies.IndirectCompletionHandlers)
         {
             suppressed = await InvokeCompletionHandlerAsync(completionHandler, context, suppressed).ConfigureAwait(false);
         }
@@ -401,7 +399,7 @@ public static class MessageContextExtensions
         ArgumentNullException.ThrowIfNull(messageDependencies);
         ArgumentNullException.ThrowIfNull(executionContext);
 
-        if (messageDependencies.CompletionHandlers.Count + messageDependencies.IndirectCompletionHandlers.Count == 0)
+        if (messageDependencies.CompletionHandlers.Count == 0)
         {
             return;
         }
