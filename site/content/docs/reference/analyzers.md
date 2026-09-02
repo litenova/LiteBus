@@ -8,7 +8,7 @@
 
 Analyzers have no runtime dependency on LiteBus libraries.
 
-## Rule Inventory (LB1001-LB1019)
+## Rule Inventory (LB1001-LB1021)
 
 | ID | Severity | Category | Summary |
 | --- | --- | --- | --- |
@@ -16,7 +16,7 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | LB1002 | Reserved | Handlers | Not implemented. Event multicast is supported, so duplicate event handlers are not reported by this rule. |
 | LB1003 | Warning | Handlers | Query or stream query handler depends on command, event, inbox, or outbox APIs |
 | LB1004 | Error | Inbox | `ICommand<TResult>` passed to `IInbox.AcceptAsync`, `AcceptBatchAsync`, or `ITransactionalInbox.AcceptAsync` |
-| LB1005 | Error | Handlers | Open generic handler exposes unsupported generic arity |
+| LB1005 | Error | Handlers | Open generic handler exposes unsupported generic arity: anything but one type parameter, or two bound by a handler contract taking both in order |
 | LB1007 | Warning | Contracts | Handled durable command/event lacks `[MessageContract]` and explicit `Contracts.Register` / `RegisterFromAssembly` |
 | LB1008 | Error | Handlers | Command type has no main command handler in the compilation |
 | LB1009 | Error | Handlers | Query or stream query type has no main handler in the compilation |
@@ -28,8 +28,10 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | LB1015 | Warning | Configuration | Transactional EF storage calls `EnforceTransactionalSetup()` without `EnableSaveChangesInterceptor()` |
 | LB1016 | Warning | Inbox | Constructor injects `ITransactionalInboxStore` without a `DbContext` in the same constructor |
 | LB1017 | Warning | Contracts | Type declares `[MessageContract]` but lacks explicit `Contracts.Register` or `RegisterFromAssembly` in the compilation |
-| LB1018 | Warning (disabled by default) | Auditing | Command or query type declares neither `[Audited]` nor `[AuditExempt]` and has no `IAuditDefinition` |
+| LB1018 | Warning (disabled by default) | Auditing | Command or query type declares neither `[Audited]` nor `[AuditExempt]` and has no `IAuditDefinition`. The preconfigured instance of LB1020 over `AuditDeclaration` |
 | LB1019 | Warning | Handlers | Shortcut implements `IMessageShortcut<TMessage>` for a message that produces a result |
+| LB1020 | Warning (disabled by default) | Declarations | Command or query type states no position on a metadata value type named in `litebus_required_declarations` |
+| LB1021 | Warning | Declarations | `litebus_required_declarations` names a type that does not resolve in the compilation |
 
 ### Audit Declaration (LB1018)
 
@@ -44,6 +46,23 @@ dotnet_diagnostic.LB1018.severity = warning
 ```
 
 Promote it to `error` when the trail is a compliance obligation rather than a convenience. See [Auditing](../concepts/auditing.md).
+
+### Required Declarations (LB1020, LB1021)
+
+LB1020 is the general form of LB1018. Name the metadata value types your project requires every message to state a position on, and enable the rule:
+
+```ini
+# .editorconfig
+[*.cs]
+litebus_required_declarations = App.Security.RequiredPermission, App.Compliance.RetentionClass
+dotnet_diagnostic.LB1020.severity = warning
+```
+
+A message satisfies it with a definition class, with an attribute annotated `[MessageDeclaration(typeof(TValue))]`, or with `[DeclarationExempt(typeof(TValue), "rationale")]`. A declaration written for a base type or marker interface covers the messages beneath it. With nothing configured the rule reports nothing.
+
+LB1021 reports a configured name that does not resolve, because a name that silently did nothing would disable the requirement it configures, and a typo in `.editorconfig` is exactly how that happens.
+
+`RequireDeclaration<TValue>()` on the messaging module enforces the same rule at composition time, which also covers a message registered from an assembly this compilation never saw. See [Required Declarations](../catalog/analyzers/required-declarations.md).
 
 ### Untyped Shortcut on a Result Message (LB1019)
 

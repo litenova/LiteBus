@@ -15,8 +15,11 @@ Quick map from capability to documentation and primary packages. For install com
 | Refusal mapping | [The handler pipeline](../concepts/handler-pipeline.md#refusal-mappers) | Core mediator packages |
 | Completion stage | [The handler pipeline](../concepts/handler-pipeline.md#completion-observing-how-mediation-ended) | Core mediator packages |
 | Auditing | [Auditing](../concepts/auditing.md) | `LiteBus.Messaging`, axis packages |
+| In-process idempotency | [In-process idempotency](../concepts/idempotency.md) | `LiteBus.Messaging`, `LiteBus.Commands` |
 | Message definitions | [Message definitions](../concepts/message-definitions.md) | `LiteBus.Messaging.Abstractions` |
+| Required declarations | [Required declarations](../catalog/analyzers/required-declarations.md) | `LiteBus.Messaging`, `LiteBus.Analyzers` |
 | Execution context | [Execution context](../concepts/execution-context.md) | `LiteBus.Messaging.Abstractions` |
+| Unit-of-work commit position | [Handler priority](../concepts/handler-priority.md#the-reserved-framework-window) | `LiteBus.Messaging.Abstractions` |
 
 ## Durable Messaging Core
 
@@ -80,7 +83,7 @@ Transport platform: `LiteBus.Transport.*`. Kafka transport is GA; AWS SQS and Az
 
 ## Analyzers
 
-See [Analyzers](analyzers.md) for LB1001-LB1019. Highlights:
+See [Analyzers](analyzers.md) for LB1001-LB1021. Highlights:
 
 | Rule | Topic |
 | --- | --- |
@@ -89,6 +92,7 @@ See [Analyzers](analyzers.md) for LB1001-LB1019. Highlights:
 | LB1014-LB1017 | Processor without dispatcher, transactional EF interceptor, transactional inbox DbContext, explicit contract registration |
 | LB1018 | Message states no audit position |
 | LB1019 | Untyped shortcut on a message that produces a result |
+| LB1020 / LB1021 | Message states no position on a required declaration; required declaration type not found |
 
 ## Related Documentation
 

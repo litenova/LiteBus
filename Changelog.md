@@ -5,10 +5,13 @@ All notable changes to this project will be documented in this file.
 ## v7.0.0
 
 Major release for .NET 10, describing the change from v6.0.2. Adds a completion stage to the mediation pipeline, four
-named decision stages that decide whether work happens, declarative message metadata, and an audit trail built on all
-three. The pre stage is where most of the break lands: guards, validators, shortcuts, and pre-handlers are now four
-contracts the framework can tell apart before invoking them, which is what lets it fix the order they run in.
-Persistence schemas and transport behavior are unchanged.
+named decision stages that decide whether work happens, declarative message metadata, and an audit trail and in-process
+idempotency built on all three. The pre stage is where most of the break lands: guards, validators, shortcuts, and
+pre-handlers are now four contracts the framework can tell apart before invoking them, which is what lets it fix the
+order they run in. The declaration model is general rather than an auditing feature: an application declares its own
+metadata, reads it back through an accessor, enforces it at compile time and at composition time, and a named priority
+band gives its unit-of-work commit a position the framework's own writers can be ordered against. Persistence schemas
+and transport behavior are unchanged.
 
 ### Added
 
@@ -118,8 +121,65 @@ Persistence schemas and transport behavior are unchanged.
 - Registration rejects an untyped shortcut declared for a message that produces a result, so the mistake `LB1019`
   reports cannot reach production in a project that does not reference the analyzer package. The check runs from
   both directions, since a handler may be registered before or after the message it handles.
-- `HandlerPriorities` reserves a priority band for handlers shipped by LiteBus, so ordering against them is a documented
-  guarantee. Application handlers stay below `ReservedFloor` and, with no explicit priority, run first.
+- `HandlerPriorities` reserves a priority window for handlers shipped by LiteBus, so ordering against them is a
+  documented guarantee. `ReservedFloor` opens it, `ReservedCeiling` closes it, and application handlers own the band
+  below the floor, where an unannotated handler already sits, and the band at or above the ceiling. `UnitOfWork` names
+  the position in that upper band where an application commits, which is what makes an audit record staged by the
+  writer at `Observability` part of the transaction that applies the change it describes. Only `Persistence` and
+  `Observability` may be reordered between releases, and only against each other.
+- `IExecutionContext.Data` is an `IHandleContextData`: a store keyed by the CLR type of the value rather than by a
+  string, created once per mediation. It exists so a guard whose decision depends on loaded state can hand the loaded
+  object to the main handler instead of forcing a second round trip, which is the cost that keeps authorization inside
+  handlers rather than in the stage that owns the decision. `Items` stays for string-keyed interop. `Get<T>` throws
+  `HandleContextDataNotFoundException` naming the type, `TryGet<T>` covers the optional case, and access is
+  lock-guarded because parallel event handlers share one execution context.
+- `IMessageMetadataAccessor` reads a message type's declared metadata from application code, through `ForMessage` and
+  `TryGet`. Reading a declaration previously meant injecting `IMessageRegistry`, calling `Find`, and reaching through
+  `IMessageDescriptor.Metadata`, which made the registry's descriptor shape part of every application that wanted to
+  read a declaration it wrote itself. An unregistered type raises `MessageMetadataNotFoundException` rather than
+  answering with an empty collection, because an empty answer turns a missing registration into a permission check that
+  silently passes.
+- `MessageModuleBuilder.RequireDeclaration<TValue>()` fails composition for any registered message that neither
+  declares a value of that type nor records an exemption from it, naming every offender grouped by the declaration each
+  one omits. It runs through the new `IModuleConfiguration.RegisterCompositionValidation` hook, after every module has
+  built, because the messaging module is foundational and has no commands to inspect during its own build.
+- `[DeclarationExempt(typeof(TValue), rationale)]` records that a message deliberately declares nothing for one
+  metadata type. It is repeatable and every instance is aggregated into one `DeclarationExemptions` value, readable
+  through the accessor like any other declaration. The rationale is what separates a decision from an omission.
+- `[MessageDeclaration(typeof(TValue))]` states, on an attribute class, which metadata value that attribute declares.
+  `IMessageDeclarationSource.DeclarationType` is a runtime property an analyzer cannot execute, so without a static
+  declaration no compile-time rule can tell that `[RequiresPermission]` is how a message states its permission.
+  Registration fails when the annotation and the property name different types.
+- `LB1020` reports a command or query type that states no position on a metadata value type named in
+  `litebus_required_declarations`, and `LB1021` reports a configured name that does not resolve. `LB1018` is now the
+  preconfigured instance of `LB1020` over `AuditDeclaration`, sharing its analysis rather than duplicating it. A
+  written policy such as "every command states the permission it requires" becomes a build failure instead of something
+  code review has to catch.
+- `ThrowingValidator<TMessage, TException>`, with the axis specializations `ThrowingCommandValidator` and
+  `ThrowingQueryValidator`, adapts a validator whose body still reports failure by throwing. It is migration
+  scaffolding for the `Validity` signature change: adapted and converted validators mix in one mediation because the
+  stage collects across both, so a codebase converts module by module instead of in one commit touching every
+  validator. Only the named exception type is caught, so a genuine fault inside a validator still ends the mediation as
+  a failure.
+- Open generic handlers may take two type parameters, binding the message type and the result type the message declares
+  through the new `IProducesResult<TMessageResult>` marker on `ICommand<T>`, `IQuery<T>` and `IStreamQuery<T>`. A
+  generic post-handler, completion handler, or error handler reaches the typed contract instead of falling back to an
+  `object?` it can do nothing with. Arity 2 is accepted only when the handler implements a contract taking both
+  parameters in order, so a second parameter the handler invented is still rejected, and a message declaring no result
+  is skipped the way a constraint mismatch is.
+- In-process idempotency. `IIdempotencyDefinition<TMessage>` declares the key a repeat is recognised by,
+  `IIdempotencyStore` remembers which keys were applied, and `CommandModuleBuilder.EnableIdempotency()` registers two
+  shortcuts and a completion handler that claim the key before the handler runs and settle it after: applied on
+  success, released on anything else, so a transient failure does not turn the retry into a false repeat. The durable
+  inbox and outbox already deduped envelopes; this is the same problem one layer in, where the shortcut stage was
+  already the right shape and only the declaration and the storage contract were missing.
+  `IdempotencyDeclaration.ReplayResult` records the first answer so a repeated result-producing command can be answered
+  with it; without it, a repeat raises a configuration error naming the fix rather than inventing a `default`.
+  `InMemoryIdempotencyStore` ships from `LiteBus.Testing.Mediation`, because a store that forgets on restart and knows
+  only its own process cannot make a claim about the system.
+- The `litebus.idempotency.store` diagnostic probe reports `Unhealthy` when idempotency is enabled and no
+  `IIdempotencyStore` is registered, and the `litebus.audit.trail` probe now also reports `trailIsSingleton`, resolved
+  by comparing the trail across two dispatch scopes.
 - `IHandlerDescriptor.ContractType` records the closed contract a descriptor was discovered from, and `PipelineDispatch`
   carries the delegate bound to it at registration.
 
@@ -127,6 +187,24 @@ Persistence schemas and transport behavior are unchanged.
 
 - Every module builder recognizes guard, validator, shortcut, and refusal mapper contracts, completion handler
   contracts, and message definitions as registrable constructs, so `RegisterFromAssembly` discovers them.
+- The completion stage orders handlers by priority alone. Every other role runs handlers registered for the message
+  type before handlers registered for a base type, but completion handlers observe an ending rather than wrapping the
+  handler, so there is no onion for a specific handler to sit inside. The split put the framework's broadly registered
+  audit writer beyond the reach of an application's priority, and that order decides whether a record lands inside the
+  transaction, which is not something registration breadth should decide. `IMessageDependencies.CompletionHandlers` is
+  now the single ordered collection and `IndirectCompletionHandlers` is gone; `IMessageDescriptor` still separates the
+  two sets at the registry level.
+- `MessageModuleBuilder.UseAuditTrail<TAuditTrail>` takes the lifetime as a parameter, still `Scoped` by default, and
+  the instance overload is renamed `UseAuditTrailInstance` so the name carries the lifetime a pre-created instance
+  necessarily has. "Scoped when registered by type, Singleton when registered as an instance" was a quiet footgun for
+  any trail wrapping a scoped database session, and nothing at the call site said which one was being chosen.
+- The `litebus.audit.trail` probe resolves the trail through a dispatch scope rather than from the provider it was
+  handed. Resolving a scoped service from a root provider is an error in a container validating scopes, so the probe
+  used to fail on exactly the default configuration it exists to approve.
+- The registry no longer closes an untyped open generic shortcut for a message that declares a result. A closed
+  registration of that pair is still a configuration error, because the author named the message; an open generic says
+  "every message I fit" and a result-producing message is not one of them, so it is skipped the way a constraint
+  mismatch is.
 - `AsyncBroadcastMediationStrategy` observes cancellations so it can report them to the completion stage, honors a guard
   or shortcut decision by publishing to no handlers, and reports no result to completion handlers rather than the task
   that tracked its handlers. Cancellation still propagates as before.
@@ -189,7 +267,16 @@ Persistence schemas and transport behavior are unchanged.
   reported a failure by throwing now returns `Validity.Invalid(...)` instead. The break is a compile error rather than a
   change in behavior, for the same reason the `Abort()` removal is: a validator left compiling would have gone on
   reporting malformed input as a fault. An adapter over an external validation library changes one line, returning the
-  failures instead of raising.
+  failures instead of raising. A codebase with too many validators to convert in one commit derives them from
+  `ThrowingCommandValidator` or `ThrowingQueryValidator` to land the build first and convert module by module.
+- `IExecutionContext` gained `Data`, and `IMessageDependencies` lost `IndirectCompletionHandlers`. Both are
+  infrastructure contracts implemented by LiteBus itself; applications that only implement handlers are unaffected, and
+  a custom implementation or test double returns `new HandleContextData()` from `Data` and drops the removed property.
+- `MessageModuleBuilder.UseAuditTrail(IAuditTrail)` is renamed `UseAuditTrailInstance`, and the generic overload takes
+  an optional `InstanceLifetime`. The rename is a compile error on purpose: the old pair of overloads differed in
+  lifetime with nothing at the call site saying so.
+- `IModuleConfiguration` gained `CompositionValidations` and `RegisterCompositionValidation`. A custom host adapter must
+  run the collected validations after its module loop, or a rule spanning several modules never executes.
 - The non-generic pre-stage marker is renamed `IMessagePreStageHandler`. It is the discovery marker for the whole pre
   stage, which now holds four roles, so it can no longer share a name with `IMessagePreHandler<TMessage>`, the one role
   in that stage LiteBus does not name. The post and completion stages hold a single role each and keep the shared name.

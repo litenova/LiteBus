@@ -41,14 +41,14 @@ Fix:
 
 ## UnsupportedOpenGenericHandlerException
 
-Message: `Open generic handler type '<Type>' declares <n> generic parameters. LiteBus supports open generic handlers with exactly one generic parameter.`
+Message: `Open generic handler type '<Type>' declares <n> generic parameters. LiteBus closes one, binding the message type, or two, binding the message type and the result type the message declares. Any other arity has nothing to bind to.`
 
-Thrown at registration when an open generic handler declares more than one type parameter, such as `MyHandler<TCommand, TResult>`. LiteBus closes open generic handlers only when they have exactly one type parameter.
+Thrown at registration when an open generic handler declares a type-parameter shape the registry cannot close. One parameter is always fine. Two are fine when the handler implements a contract taking both of them in order, such as `ICommandPostHandler<TCommand, TCommandResult>`, because then the second binds to the result type the message declares. Two where the second is the handler's own invention, a `TContext` or a `TStore`, has nothing to bind to, because the registry closes by position.
 
 Fix:
 
-- Reduce the handler to a single type parameter, for example `ICommandPreHandler<T>`.
-- If you need the result type, read it inside the handler rather than as a second type parameter, or use a concrete handler. See [Open Generic Handlers](../concepts/open-generic-handlers.md).
+- To reach the typed result, implement the two-parameter contract: `ICommandPostHandler<TCommand, TCommandResult>` with `where TCommand : ICommand<TCommandResult>`.
+- For an auxiliary parameter, take the dependency through the constructor instead, or use a concrete handler. See [Open Generic Handlers](../concepts/open-generic-handlers.md#reaching-the-typed-result).
 
 ## A Decision Did Not Stop the Pipeline
 
@@ -121,7 +121,7 @@ Behavior. A published event ran no handler. Causes:
 
 ## Handlers Ran in an Unexpected Order
 
-Behavior. Within a stage, handlers run in ascending `[HandlerPriority]` (default `0`). Across the onion, global pre-handlers run before specific ones and specific post-handlers run before global ones. For events, priority groups and within-group execution follow the concurrency switches on `EventMediationSettings.Execution`; parallel execution makes order non-deterministic.
+Behavior. Within a stage, handlers run in ascending `[HandlerPriority]` (default `0`), with registration order breaking ties. Across the onion, global pre-handlers run before specific ones and specific post-handlers run before global ones. The completion stage is the exception: it merges the global and specific sets and orders by priority alone, because the order there decides whether an application's unit-of-work commit runs before or after LiteBus writes its audit record. For events, priority groups and within-group execution follow the concurrency switches on `EventMediationSettings.Execution`; parallel execution makes order non-deterministic.
 
 Fix: set explicit priorities, or switch event execution to `Sequential`. See [Handler Priority](../concepts/handler-priority.md).
 
