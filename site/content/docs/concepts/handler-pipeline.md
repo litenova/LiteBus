@@ -404,4 +404,4 @@ For streams, completion fires when the enumerator is disposed. A consumer who ca
 
 ## Next
 
-Read [Validation](validation.md) for the validator stage in full, including how to move a validator that used to throw. Read [Execution Context](execution-context.md) to share state and override results, then [Handler Priority](handler-priority.md) to order handlers within a stage. To declare metadata that pipeline stages read, see [Message Definitions](message-definitions.md), and for the audit trail built on the completion stage, see [Auditing](auditing.md).
+Read [Validation](validation.md) for the validator stage in full, including how to move a validator that used to throw. Read [Execution Context](execution-context.md) to share state and override results, then [Handler Priority](handler-priority.md) to order handlers within a stage. To declare metadata that pipeline stages read, see [Message Definitions](message-definitions.md). Two features are built on these stages and worth reading as worked examples: [Auditing](auditing.md) on the completion stage, and [In-Process Idempotency](idempotency.md) on the shortcut and completion stages together.

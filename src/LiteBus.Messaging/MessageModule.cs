@@ -2,6 +2,7 @@
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Audit;
+using LiteBus.Messaging.Idempotency;
 using LiteBus.Messaging.Mediator;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
@@ -152,6 +153,12 @@ public sealed class MessageModule : IModule
             typeof(IAuditRecordWriter),
             CreateAuditRecordWriter,
             InstanceLifetime.Scoped));
+
+        // The key resolver reads a declaration resolved once at registration, so it holds no state and a singleton is
+        // correct. The store itself is application-supplied and is not registered here.
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IdempotencyKeyResolver),
+            new IdempotencyKeyResolver(new MessageMetadataAccessor(messageRegistry))));
 
         // Register message mediator as transient.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

@@ -475,7 +475,7 @@ internal sealed class MessageRegistry : IMessageRegistry
 
         var typeArguments = BuildOpenGenericTypeArguments(openGenericHandlerType, messageType);
 
-        if (typeArguments is null)
+        if (typeArguments is null || !CanCloseForMessage(openGenericHandlerType, messageType))
         {
             return;
         }
@@ -537,6 +537,37 @@ internal sealed class MessageRegistry : IMessageRegistry
         var resultType = FindDeclaredResultType(messageType);
 
         return resultType is null ? null : [messageType, resultType];
+    }
+
+    /// <summary>
+    ///     Determines whether an open generic handler describes a message it can legally answer for.
+    /// </summary>
+    /// <param name="openGenericHandlerType">The open generic handler type definition.</param>
+    /// <param name="messageType">The concrete message type being closed for.</param>
+    /// <returns><see langword="false" /> when closing would produce a registration the pipeline rejects.</returns>
+    /// <remarks>
+    ///     An untyped shortcut cannot answer a message that produces a result, and a closed registration of that
+    ///     combination is reported as a configuration error because the author named the message. An open generic says
+    ///     "every message I fit" instead, and a result-producing message is one it does not fit, so it is skipped the
+    ///     way a constraint mismatch is. That is what lets one generic shortcut cover the void messages in an axis
+    ///     without exploding on the ones that return something.
+    /// </remarks>
+    private static bool CanCloseForMessage(Type openGenericHandlerType, Type messageType)
+    {
+        if (FindDeclaredResultType(messageType) is null)
+        {
+            return true;
+        }
+
+        foreach (var contract in openGenericHandlerType.GetInterfaces())
+        {
+            if (contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IMessageShortcut<>))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

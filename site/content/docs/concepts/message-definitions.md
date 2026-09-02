@@ -49,7 +49,7 @@ Keying by value type means a definition that only declares one thing is not forc
 
 ## Declaring Your Own
 
-`IAuditDefinition<TMessage>` is the only declaration LiteBus ships, but the mechanism is open. Any interface deriving from `IMessageDefinition<TMessage, TValue>` that forwards `Value` to a better-named member works:
+`IAuditDefinition<TMessage>` and `IIdempotencyDefinition<TMessage>` are the declarations LiteBus ships, but the mechanism is open. Any interface deriving from `IMessageDefinition<TMessage, TValue>` that forwards `Value` to a better-named member works:
 
 ```csharp
 public sealed record RequiredPermission(string Name);

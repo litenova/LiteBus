@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Commands.Idempotency;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
@@ -70,6 +71,15 @@ public sealed class CommandModuleBuilder
     internal bool AuditingEnabled { get; private set; }
 
     /// <summary>
+    ///     Gets a value indicating whether <see cref="EnableIdempotency" /> was called.
+    /// </summary>
+    /// <remarks>
+    ///     The module reads this after the configuration action runs, so it can register the diagnostic probe that
+    ///     reports a missing <c>IIdempotencyStore</c> before the first declaring command arrives.
+    /// </remarks>
+    internal bool IdempotencyEnabled { get; private set; }
+
+    /// <summary>
     ///     Registers the LiteBus command audit writer, so every command mediation produces an audit record when the
     ///     message declares one.
     /// </summary>
@@ -92,6 +102,40 @@ public sealed class CommandModuleBuilder
     {
         AuditingEnabled = true;
         return Register<CommandAuditCompletionHandler>();
+    }
+
+    /// <summary>
+    ///     Registers the LiteBus in-process idempotency handlers, so a command declaring an idempotency key is applied
+    ///     at most once.
+    /// </summary>
+    /// <returns>The current <see cref="CommandModuleBuilder" /> instance for method chaining.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Three handlers, all of which ignore a command that declares no
+    ///         <c>IdempotencyDeclaration</c>, so one call covers the axis and only the declaring commands pay for it.
+    ///         Two shortcuts claim the key, one for commands that produce a result and one for those that do not, and a
+    ///         completion handler settles the claim: applied on success, released on anything else, so a transient
+    ///         failure does not burn the key and turn the retry into a false repeat.
+    ///     </para>
+    ///     <para>
+    ///         The application must register an <c>IIdempotencyStore</c>; the <c>litebus.idempotency.store</c>
+    ///         diagnostic probe reports when it is missing. Make its claim atomic by letting the storage engine refuse
+    ///         the duplicate, and write it through the same unit of work the handler uses, or a crash between the claim
+    ///         and the change leaves a key claimed for work that never happened.
+    ///     </para>
+    ///     <para>
+    ///         The shortcut stage runs after guards and validators, so an unauthorized or malformed command cannot
+    ///         claim a key.
+    ///     </para>
+    /// </remarks>
+    public CommandModuleBuilder EnableIdempotency()
+    {
+        IdempotencyEnabled = true;
+
+        Register(typeof(IdempotentCommandShortcut<>));
+        Register(typeof(IdempotentCommandShortcut<,>));
+
+        return Register<IdempotencyCompletionHandler>();
     }
 
     /// <summary>

@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using System.Linq;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Audit;
+using LiteBus.Messaging.Idempotency;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Commands;
@@ -50,6 +51,13 @@ public sealed class CommandModule : IModule, IRequires<MessageModule>
         if (moduleBuilder.AuditingEnabled)
         {
             configuration.RegisterDiagnosticCheck(typeof(AuditTrailDiagnosticCheck), AuditTrailDiagnosticCheck.CheckName);
+        }
+
+        if (moduleBuilder.IdempotencyEnabled)
+        {
+            configuration.RegisterDiagnosticCheck(
+                typeof(IdempotencyStoreDiagnosticCheck),
+                IdempotencyStoreDiagnosticCheck.CheckName);
         }
 
         RegisterCommandServices(configuration);
