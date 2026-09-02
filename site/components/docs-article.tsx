@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DocsBody, DocsPage } from 'fumadocs-ui/layouts/docs/page';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
+import { resolveDocHref } from '@/lib/doc-links';
 import { getSource } from '@/lib/source';
-import { repositoryUrl, siteDescription, siteName } from '@/lib/site';
+import { siteDescription, siteName } from '@/lib/site';
 import { type DocsVersion, defaultVersion, versionBasePath } from '@/lib/versions';
 
 /**
@@ -57,28 +58,16 @@ export async function DocsArticle({
     notFound();
   }
 
-  // Frozen snapshots describe a released package, so a link that escapes the site has to reach the sources that shipped
-  // with it rather than whatever the working branch holds today.
-  const repositorySources = `${repositoryUrl}/blob/${version.ref}/site/${version.dir}/`;
   const renderer = await page.data.load();
   const DefaultLink = defaultMdxComponents.a;
   const rendered = await renderer.render({
     ...defaultMdxComponents,
-    a: ({ href, ...props }: ComponentProps<'a'>) => {
-      let resolvedHref = href;
-
-      if (href !== undefined && /\.md(?:#|$)/i.test(href) && !/^[a-z]+:/i.test(href)) {
-        const sourceHref = href.startsWith('.') ? href : `./${href}`;
-        resolvedHref = source.resolveHref(sourceHref, page);
-
-        if (resolvedHref === sourceHref) {
-          const repositoryPage = new URL(page.path, repositorySources);
-          resolvedHref = new URL(href, repositoryPage).toString();
-        }
-      }
-
-      return <DefaultLink href={resolvedHref} {...props} />;
-    },
+    a: ({ href, ...props }: ComponentProps<'a'>) => (
+      <DefaultLink
+        href={href === undefined ? href : resolveDocHref(href, page, source, version)}
+        {...props}
+      />
+    ),
   });
 
   return (

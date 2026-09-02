@@ -3,6 +3,7 @@ import { getSlugs } from 'fumadocs-core/source';
 import { dynamicLoader } from 'fumadocs-core/source/dynamic';
 import { pageSchema } from 'fumadocs-core/source/schema';
 import { z } from 'zod';
+import { extractDescription, extractTitle } from '@/lib/doc-summary';
 import {
   type DocsVersion,
   defaultVersion,
@@ -24,6 +25,9 @@ function createDocsLoader(version: DocsVersion) {
   }
 
   const rawSource = docs.dynamicSource();
+
+  // The sources carry no frontmatter, so the title and description are read out of the prose. See lib/doc-summary.ts
+  // for why that is the arrangement rather than 240 hand-written frontmatter blocks.
   const docsSource = {
     ...rawSource,
     async files() {
@@ -34,17 +38,17 @@ function createDocsLoader(version: DocsVersion) {
           return file;
         }
 
-        const title = /^#\s+(.+?)\s*$/m.exec(file.data.content)?.[1];
+        const title = extractTitle(file.data.content);
+        const description = extractDescription(file.data.content);
 
-        return title === undefined
-          ? file
-          : {
-              ...file,
-              data: {
-                ...file.data,
-                title,
-              },
-            };
+        return {
+          ...file,
+          data: {
+            ...file.data,
+            ...(title === undefined ? {} : { title }),
+            ...(description === undefined ? {} : { description }),
+          },
+        };
       });
     },
   } satisfies typeof rawSource;

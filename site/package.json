@@ -7,8 +7,9 @@
   },
   "scripts": {
     "dev": "local-md dev -- node node_modules/next/dist/bin/next dev",
-    "build": "next build && npm run check:links && npm run check:search-trace",
+    "build": "next build && npm run check:links && npm run check:llms && npm run check:search-trace",
     "check:links": "node scripts/check-rendered-links.mjs",
+    "check:llms": "node scripts/check-llms.mjs",
     "check:search-trace": "node scripts/check-search-trace.mjs",
     "start": "next start",
     "lint": "eslint .",

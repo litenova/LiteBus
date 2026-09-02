@@ -43,6 +43,16 @@ These pages describe the current released API and behavior. Historical API and d
 - [Diagnostics and Health](operations/diagnostics-and-health.md)
 - [Production Runbook](operations/runbook.md)
 
+## Reading These Pages as Plain Text
+
+These pages are also served as plain text, following the [llms.txt convention](https://llmstxt.org), for language models and agents that would otherwise read rendered HTML.
+
+- [llms.txt](https://litebus.io/llms.txt) indexes every page of the latest stable documentation with a one-line description of each.
+- [llms-full.txt](https://litebus.io/llms-full.txt) holds the complete text of those pages in one document.
+- Appending `.md` to any documentation URL returns that page's Markdown source.
+
+A line served under a version prefix indexes itself at `<prefix>/docs/llms.txt` and `<prefix>/docs/llms-full.txt`, because the root index describes a different release.
+
 ## Documentation Checks
 
 Run the repository documentation check used by CI:
