@@ -187,3 +187,92 @@ internal sealed class TouchScheduleCommandHandler : ICommandHandler<TouchSchedul
         return Task.CompletedTask;
     }
 }
+
+/// <summary>
+///     A command declaring nothing, used to assert the requirement fails composition.
+/// </summary>
+internal sealed class DraftScheduleCommand : ICommand;
+
+/// <summary>
+///     Handles <see cref="DraftScheduleCommand" />.
+/// </summary>
+internal sealed class DraftScheduleCommandHandler : ICommandHandler<DraftScheduleCommand>
+{
+    /// <inheritdoc />
+    public Task HandleAsync(DraftScheduleCommand message, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+///     A second command declaring nothing, so the composition error can be checked for listing both.
+/// </summary>
+internal sealed class WithdrawScheduleCommand : ICommand;
+
+/// <summary>
+///     Handles <see cref="WithdrawScheduleCommand" />.
+/// </summary>
+internal sealed class WithdrawScheduleCommandHandler : ICommandHandler<WithdrawScheduleCommand>
+{
+    /// <inheritdoc />
+    public Task HandleAsync(WithdrawScheduleCommand message, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+///     A command that records why it needs no permission rather than omitting one.
+/// </summary>
+[DeclarationExempt(typeof(RequiredPermission), "the schedule list is public")]
+internal sealed class BrowseScheduleCommand : ICommand;
+
+/// <summary>
+///     Handles <see cref="BrowseScheduleCommand" />.
+/// </summary>
+internal sealed class BrowseScheduleCommandHandler : ICommandHandler<BrowseScheduleCommand>
+{
+    /// <inheritdoc />
+    public Task HandleAsync(BrowseScheduleCommand message, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+///     A command exempt from a different declaration, which says nothing about the required one.
+/// </summary>
+[DeclarationExempt(typeof(RetentionClass), "nothing is retained")]
+internal sealed class RetireScheduleCommand : ICommand;
+
+/// <summary>
+///     Handles <see cref="RetireScheduleCommand" />.
+/// </summary>
+internal sealed class RetireScheduleCommandHandler : ICommandHandler<RetireScheduleCommand>
+{
+    /// <inheritdoc />
+    public Task HandleAsync(RetireScheduleCommand message, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+///     A command carrying two exemptions, which have to aggregate into one metadata value.
+/// </summary>
+[DeclarationExempt(typeof(RequiredPermission), "internal maintenance command")]
+[DeclarationExempt(typeof(RetentionClass), "nothing is retained")]
+internal sealed class ArchiveScheduleCommand : ICommand;
+
+/// <summary>
+///     Handles <see cref="ArchiveScheduleCommand" />.
+/// </summary>
+internal sealed class ArchiveScheduleCommandHandler : ICommandHandler<ArchiveScheduleCommand>
+{
+    /// <inheritdoc />
+    public Task HandleAsync(ArchiveScheduleCommand message, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+}

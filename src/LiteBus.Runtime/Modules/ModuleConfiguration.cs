@@ -23,6 +23,11 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
     private readonly HashSet<Type> _backgroundServiceTypes = [];
 
     /// <summary>
+    ///     Validations registered by modules to run once every module has been built, in registration order.
+    /// </summary>
+    private readonly List<Action> _compositionValidations = [];
+
+    /// <summary>
     ///     Shared contexts published by modules during initialization.
     /// </summary>
     private readonly Dictionary<Type, object> _contexts = [];
@@ -73,6 +78,16 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
 
     /// <inheritdoc />
     public IReadOnlyList<DiagnosticCheckDescriptor> DiagnosticChecks => [.. _diagnosticChecks];
+
+    /// <inheritdoc />
+    public IReadOnlyList<Action> CompositionValidations => [.. _compositionValidations];
+
+    /// <inheritdoc />
+    public void RegisterCompositionValidation(Action validate)
+    {
+        ArgumentNullException.ThrowIfNull(validate);
+        _compositionValidations.Add(validate);
+    }
 
     /// <inheritdoc />
     public void RegisterStartupTask(Type implementationType)

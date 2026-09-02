@@ -22,6 +22,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// public sealed record GetStorefrontQuery(Guid StoreId) : IQuery<StorefrontView>;
 /// ]]></code>
 /// </example>
+[MessageDeclaration(typeof(AuditDeclaration))]
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
 public sealed class AuditExemptAttribute : Attribute, IMessageDeclarationSource
 {

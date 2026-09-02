@@ -23,6 +23,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// public sealed record PlaceOrderCommand(Guid CartId) : ICommand<OrderId>;
 /// ]]></code>
 /// </example>
+[MessageDeclaration(typeof(AuditDeclaration))]
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
 public sealed class AuditedAttribute : Attribute, IMessageDeclarationSource
 {

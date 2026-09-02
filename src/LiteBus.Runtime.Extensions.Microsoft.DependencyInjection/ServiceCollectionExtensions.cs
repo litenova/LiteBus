@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Runtime.Composition;
@@ -55,6 +55,12 @@ public static class ServiceCollectionExtensions
         foreach (var moduleDescriptor in moduleRegistry.BuildOrder())
         {
             moduleDescriptor.Module.Build(moduleConfiguration);
+        }
+
+        // Rules spanning several modules can only be checked once every module has registered what it owns.
+        foreach (var validate in moduleConfiguration.CompositionValidations)
+        {
+            validate();
         }
 
         RegisterHostManifest(services, moduleConfiguration);

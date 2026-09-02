@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
 
@@ -13,6 +14,11 @@ public sealed class MessageModuleBuilder
     ///     Gets the shared message registry used to register handlers and message types.
     /// </summary>
     private readonly IMessageRegistry _messageRegistry;
+
+    /// <summary>
+    ///     The metadata value types every registered message must declare or be exempt from, in the order required.
+    /// </summary>
+    private readonly List<Type> _requiredDeclarations = [];
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="MessageModuleBuilder" /> class.
@@ -34,6 +40,50 @@ public sealed class MessageModuleBuilder
     ///     Gets the optional time provider registered for messaging and dependent modules.
     /// </summary>
     internal TimeProvider? TimeProvider { get; private set; }
+
+    /// <summary>
+    ///     Gets the metadata value types every registered message must declare or be exempt from.
+    /// </summary>
+    internal IReadOnlyList<Type> RequiredDeclarations => _requiredDeclarations;
+
+    /// <summary>
+    ///     Requires every registered message to declare a value of type <typeparamref name="TValue" /> or to record an
+    ///     exemption from it.
+    /// </summary>
+    /// <typeparam name="TValue">The metadata value type each message must state a position on.</typeparam>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         This is what turns a written policy into a startup failure. "Every command states the permission it
+    ///         requires" is otherwise enforced by code review, and a command that forgets is an unguarded use case
+    ///         nobody notices. Requiring the declaration makes the omission a composition error naming every offender.
+    ///     </para>
+    ///     <para>
+    ///         A message satisfies the requirement by declaring the value through an attribute or a definition, or by
+    ///         carrying a <see cref="DeclarationExemptAttribute" /> for that value type. A declaration inherited from a
+    ///         base type or marker interface counts, so a family of messages can satisfy it once.
+    ///     </para>
+    ///     <para>
+    ///         The check runs after every module has been built, because the messaging module is foundational and has no
+    ///         commands or queries to inspect while it is being built. Abstract types and interfaces are skipped: they
+    ///         are shapes rather than messages, and a declaration on one covers the messages beneath it.
+    ///     </para>
+    ///     <para>
+    ///         Analyzer <c>LB1020</c> reports the same omission at compile time, message by message, and is the better
+    ///         first line. Keep both: the analyzer catches it while writing the message, and this catches a message
+    ///         registered from an assembly the analyzer never saw.
+    ///     </para>
+    /// </remarks>
+    public MessageModuleBuilder RequireDeclaration<TValue>()
+        where TValue : notnull
+    {
+        if (!_requiredDeclarations.Contains(typeof(TValue)))
+        {
+            _requiredDeclarations.Add(typeof(TValue));
+        }
+
+        return this;
+    }
 
     /// <summary>
     ///     Registers the <see cref="TimeProvider" /> instance exposed through dependency injection.

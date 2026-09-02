@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -88,21 +89,69 @@ internal sealed class MessageDescriptor : IMessageDescriptor
 
         // Only attributes that declare themselves as metadata are collected, and each is converted to the value type a
         // definition would contribute, so a definition for the same message overwrites it instead of sitting beside it.
+        List<DeclarationExemption>? exemptions = null;
+
         foreach (var attribute in messageType.GetCustomAttributes(inherit: true))
         {
-            if (attribute is IMessageDeclarationSource declaration)
+            switch (attribute)
             {
-                _metadata.Set(
-                    declaration.DeclarationType,
-                    declaration.CreateDeclaration(),
-                    messageType,
-                    MetadataSourceKind.Attribute);
+                case IMessageDeclarationSource declaration:
+                    ThrowIfAnnotationDisagrees(declaration);
+                    _metadata.Set(
+                        declaration.DeclarationType,
+                        declaration.CreateDeclaration(),
+                        messageType,
+                        MetadataSourceKind.Attribute);
+                    break;
+
+                // Exemptions are collected rather than set one at a time. Metadata holds one value per key type, and a
+                // message may be exempt from several requirements, so the attributes have to collapse into one set
+                // instead of overwriting each other.
+                case DeclarationExemptAttribute exempt:
+                    (exemptions ??= []).Add(exempt.CreateExemption());
+                    break;
             }
+        }
+
+        if (exemptions is not null)
+        {
+            _metadata.Set(
+                typeof(DeclarationExemptions),
+                new DeclarationExemptions(exemptions),
+                messageType,
+                MetadataSourceKind.Attribute);
         }
     }
 
     /// <inheritdoc />
     public IMessageMetadata Metadata => _metadata;
+
+    /// <summary>
+    ///     Verifies that a declaring attribute's <see cref="MessageDeclarationAttribute" /> names the same value type
+    ///     its <see cref="IMessageDeclarationSource.DeclarationType" /> returns.
+    /// </summary>
+    /// <param name="declaration">The declaring attribute instance found on a message type.</param>
+    /// <exception cref="LiteBusConfigurationException">The annotation and the property disagree.</exception>
+    /// <remarks>
+    ///     The annotation is what an analyzer reads, and the property is what the registry reads. Letting them drift
+    ///     would make LB1020 report a message as undeclared while registration accepts it, or the reverse, which is
+    ///     worse than either rule being absent.
+    /// </remarks>
+    private static void ThrowIfAnnotationDisagrees(IMessageDeclarationSource declaration)
+    {
+        var annotation = declaration.GetType().GetCustomAttribute<MessageDeclarationAttribute>(inherit: false);
+
+        if (annotation is null || annotation.DeclarationType == declaration.DeclarationType)
+        {
+            return;
+        }
+
+        throw new LiteBusConfigurationException(
+            $"The attribute '{declaration.GetType().Name}' is annotated [MessageDeclaration(typeof("
+            + $"{annotation.DeclarationType.Name}))] but its DeclarationType returns '{declaration.DeclarationType.Name}'. "
+            + "The annotation is what analyzers read and the property is what registration reads, so they have to name "
+            + "the same type.");
+    }
 
     /// <summary>
     ///     Applies a value declared by a message definition to this descriptor's metadata.

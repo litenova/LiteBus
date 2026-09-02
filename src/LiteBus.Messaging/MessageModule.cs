@@ -60,6 +60,15 @@ public sealed class MessageModule : IModule
             moduleBuilder.AuditOutcomeMapper,
             moduleBuilder.AuditTrail);
         RegisterNewHandlers(configuration, messageRegistry, startIndex);
+
+        // Deferred because this module is foundational: the commands and queries the requirement applies to are
+        // registered by modules that build after it.
+        if (moduleBuilder.RequiredDeclarations.Count > 0)
+        {
+            var required = moduleBuilder.RequiredDeclarations;
+            configuration.RegisterCompositionValidation(
+                () => RequiredDeclarationValidator.Validate(messageRegistry, required));
+        }
     }
 
     /// <summary>

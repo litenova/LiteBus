@@ -37,7 +37,7 @@
 | **Lease / fencing token** | `LeaseOwner` + monotonic `LeaseGeneration` + `LeaseExpiresAt` on envelopes; `ILeaseRenewable.RenewLeaseAsync` heartbeats. |
 | **Discriminated union via sealed record hierarchies** | `MessageIdentity`, `Idempotency`, `MessageVisibility`, `MessageTrace`, `TenantScope`, `PublicationTarget`, `AuditDeclaration`, `AzureServiceBusDiagnosticTarget`. |
 | **Result objects instead of exceptions** | `Verdict`, `Validity`, `Shortcut`, `Shortcut<T>`, `Refusal`, `PipelineDecision`, `MediationOutcome`, `PersistResult`, `ProcessorPassResult`. |
-| **Roslyn analyzers** | 18 diagnostic rules (`LB1001`-`LB1019`) that enforce composition invariants at compile time. |
+| **Roslyn analyzers** | 20 diagnostic rules (`LB1001`-`LB1021`) that enforce composition invariants at compile time. |
 
 ### 1.2 Key interfaces and their primary implementations
 
@@ -200,7 +200,7 @@ Rules baked into the code:
 | `LiteBus.Extensions.Diagnostics.HealthChecks` | `IHealthChecksBuilder.AddLiteBus(...)`. |
 | `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, `LiteBus.Transport.Extensions.OpenTelemetry`, `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | OTel registration helpers. |
 | `LiteBus.Testing`, `LiteBus.Testing.Mediation`, `LiteBus.Testing.Hosting`, `LiteBus.Testing.Transport`, `LiteBus.Testing.DurableMessaging` | Test doubles and fixtures. |
-| `LiteBus.Analyzers` | Roslyn analyzers `LB1001`-`LB1019`. |
+| `LiteBus.Analyzers` | Roslyn analyzers `LB1001`-`LB1021`. |
 
 ---
 
@@ -1959,6 +1959,20 @@ A definition must have a parameterless constructor (public or not) and is instan
 
 A declaration written for a base type covers derived messages through `IsAssignableFrom`; open generic types never cover each other.
 
+**Requiring a declaration.** `MessageModuleBuilder.RequireDeclaration<TValue>()` fails composition for any registered message that neither declares `TValue` nor records an exemption from it.
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .RequireDeclaration<RequiredPermission>()
+    .RequireDeclaration<RetentionClass>());
+```
+
+The check is registered through `IModuleConfiguration.RegisterCompositionValidation(Action)` and runs after every module has been built, because the messaging module is foundational and has no commands or queries to inspect during its own build. Both host adapters (`AddLiteBus` and the Autofac `RegisterLiteBus`) run `moduleConfiguration.CompositionValidations` after the module loop. Abstract types and interfaces are skipped: they are shapes, and a declaration on one covers the messages beneath it. The `LiteBusConfigurationException` names every offender grouped by the omitted value type, not just the first.
+
+**Exemptions.** `[DeclarationExempt(typeof(TValue), "rationale")]` is repeatable and every instance is aggregated by `MessageDescriptor` into one `DeclarationExemptions` metadata value (`Values`, `Covers<TValue>()`, `Covers(Type)`, `TryGet(Type, out DeclarationExemption)`, `Merge`). It deliberately does **not** implement `IMessageDeclarationSource`, because that contract maps one attribute to one value and several exemptions have to collapse into one set. A definition may contribute `DeclarationExemptions` directly, replacing the attribute set rather than adding to it. `[AuditExempt]` needs none of this: it already produces an `AuditDeclaration`, so an audit-exempt message satisfies `RequireDeclaration<AuditDeclaration>()`.
+
+**Making an attribute analyzable.** `[MessageDeclaration(typeof(TValue))]` on an attribute class states which value that attribute declares. It exists because `IMessageDeclarationSource.DeclarationType` is a runtime property an analyzer cannot execute, and `LB1020` needs a static answer. Registration throws `LiteBusConfigurationException` when the annotation and the property name different types. LiteBus annotates `[Audited]` and `[AuditExempt]` with `typeof(AuditDeclaration)`. Definition classes need no annotation; their declaration is the second type argument of `IMessageDefinition<TMessage, TValue>`.
+
 **Reading declarations from application code.** Resolve `IMessageMetadataAccessor` (singleton, `MessageMetadataAccessor` over `IMessageReader`). It is the supported surface; reaching for `IMessageRegistry.Find(...)!.Metadata` makes the descriptor shape part of the application.
 
 ```csharp
@@ -2039,7 +2053,7 @@ public sealed record PlaceOrderCommand(Guid CartId) : ICommand<OrderId>;
 public sealed record GetStorefrontQuery(Guid StoreId) : IQuery<StorefrontView>;
 ```
 
-Analyzer `LB1018` ("Message states no audit position", **disabled by default**) reports messages declaring neither; enable with `dotnet_diagnostic.LB1018.severity = warning`.
+Analyzer `LB1018` ("Message states no audit position", **disabled by default**) reports messages declaring neither; enable with `dotnet_diagnostic.LB1018.severity = warning`. It is the preconfigured instance of `LB1020`, sharing `DeclarationAnalysis` with `AuditDeclaration` as the required value type.
 
 **Contributing the runtime half:**
 
@@ -2918,6 +2932,8 @@ Ship `LiteBus.Analyzers` as an analyzer package reference. Rules with the `Compi
 | `LB1017` | Explicit message contract registration recommended | `LiteBus.Contracts` | Warning | Yes (CompilationEnd) | `[MessageContract]` present but no explicit registration. |
 | `LB1018` | Message states no audit position | `LiteBus.Auditing` | Warning | **No** (opt in with `dotnet_diagnostic.LB1018.severity = warning`) | Neither `[Audited]` nor `[AuditExempt]` nor an `IAuditDefinition`. |
 | `LB1019` | Untyped shortcut on a message that produces a result | `LiteBus.Handlers` | Warning | Yes | Untyped shortcut contract used for a result-producing message; answering would throw `LiteBusConfigurationException`. |
+| `LB1020` | Message states no position on a required declaration | `LiteBus.Declarations` | Warning | **No** (opt in with `dotnet_diagnostic.LB1020.severity = warning`) | The message declares none of the value types named in `litebus_required_declarations` and records no exemption. Generalizes `LB1018`. |
+| `LB1021` | Required declaration type not found | `LiteBus.Declarations` | Warning | Yes | A name in `litebus_required_declarations` does not resolve; reported rather than skipped, because skipping would silently disable the requirement. |
 
 The analyzer package is held on Roslyn 4.x (`Microsoft.CodeAnalysis.CSharp` 4.14.0) so it loads on consumer SDKs.
 
@@ -2933,6 +2949,8 @@ The analyzer package is held on Roslyn 4.x (`Microsoft.CodeAnalysis.CSharp` 4.14
 | `LiteBusMessageDeniedException` | same | A guard denied and no refusal mapper applied. Carries `MessageType?`, `Reason?`, `Code?`. |
 | `LiteBusMessageInvalidException` | same | Validators reported failures and no refusal mapper applied. Carries `MessageType?`, `Failures`. |
 | `NoExecutionContextException` | same | Ambient execution context accessed outside a mediation. |
+| `HandleContextDataNotFoundException` | same | `IExecutionContext.Data.Get<T>()` asked for a type no stage stored. Carries `DataType`. Use `TryGet<T>` where the value is optional. |
+| `MessageMetadataNotFoundException` | same | `IMessageMetadataAccessor` asked about a type the registry does not hold. Carries `MessageType`. |
 | `MessageContractNotRegisteredException` | same | Contract lookup failed by type or by `(name, version)`. |
 | `MessageContractAlreadyRegisteredException` | same | Conflicting contract registration. |
 | `MessageContractMismatchException` | same | Explicit registration disagrees with `[MessageContract]`. Carries `MessageType`. |
@@ -3301,7 +3319,7 @@ Same constant names with `LiteBus.Outbox` for the source and meter names and `li
 
 #### Analyzer diagnostic ids (`LiteBus.Analyzers.DiagnosticIds`, internal)
 
-`LB1001` DuplicateCommandHandler, `LB1003` QueryHandlerImpurity, `LB1004` CommandWithResultScheduledToInbox, `LB1005` UnsupportedOpenGenericHandler, `LB1007` MissingMessageContractRegistration, `LB1008` MissingCommandHandler, `LB1009` MissingQueryHandler, `LB1010` DuplicateQueryHandler, `LB1011` OrphanHandlerTag, `LB1012` DuplicateHandlerAcrossAssemblies, `LB1013` TransactionalOutboxWithoutDbContext, `LB1014` ProcessorEnabledWithoutDispatcher, `LB1015` TransactionalStorageWithoutInterceptor, `LB1016` TransactionalInboxWithoutDbContext, `LB1017` ExplicitMessageContractRegistration, `LB1018` MissingAuditDeclaration, `LB1019` UntypedShortcutOnResultMessage. (There is no `LB1002` or `LB1006`.)
+`LB1001` DuplicateCommandHandler, `LB1003` QueryHandlerImpurity, `LB1004` CommandWithResultScheduledToInbox, `LB1005` UnsupportedOpenGenericHandler, `LB1007` MissingMessageContractRegistration, `LB1008` MissingCommandHandler, `LB1009` MissingQueryHandler, `LB1010` DuplicateQueryHandler, `LB1011` OrphanHandlerTag, `LB1012` DuplicateHandlerAcrossAssemblies, `LB1013` TransactionalOutboxWithoutDbContext, `LB1014` ProcessorEnabledWithoutDispatcher, `LB1015` TransactionalStorageWithoutInterceptor, `LB1016` TransactionalInboxWithoutDbContext, `LB1017` ExplicitMessageContractRegistration, `LB1018` MissingAuditDeclaration, `LB1019` UntypedShortcutOnResultMessage, `LB1020` MissingDeclaration, `LB1021` UnresolvedRequiredDeclaration. (There is no `LB1002` or `LB1006`.)
 
 #### Log event ids
 

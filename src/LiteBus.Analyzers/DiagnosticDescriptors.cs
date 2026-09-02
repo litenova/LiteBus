@@ -197,6 +197,32 @@ public static class DiagnosticDescriptors
         customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
+    ///     A message states no position on a metadata value type the project requires it to declare.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor MissingDeclaration = new(
+        DiagnosticIds.MissingDeclaration,
+        "Message states no position on a required declaration",
+        "Message type '{0}' declares no '{1}'. Declare it with a definition class or an attribute annotated [MessageDeclaration(typeof({1}))], or record why it does not need one with [DeclarationExempt(typeof({1}), \"rationale\")].",
+        "LiteBus.Declarations",
+        DiagnosticSeverity.Warning,
+        false,
+        description: "Configure the required value types with litebus_required_declarations in .editorconfig, then enable this rule. It turns a written policy such as \"every command states the permission it requires\" into a build failure.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     A required declaration type named in configuration cannot be resolved in the compilation.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor UnresolvedRequiredDeclaration = new(
+        DiagnosticIds.UnresolvedRequiredDeclaration,
+        "Required declaration type not found",
+        "litebus_required_declarations names '{0}', which does not resolve in this compilation. Use the full metadata name and make sure the project references the assembly declaring it.",
+        "LiteBus.Declarations",
+        DiagnosticSeverity.Warning,
+        true,
+        description: "A name that does not resolve would silently disable the requirement it configures, so it is reported rather than skipped.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
     ///     A shortcut uses the untyped shortcut contract for a message that produces a result.
     /// </summary>
     internal static readonly DiagnosticDescriptor UntypedShortcutOnResultMessage = new(

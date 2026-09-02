@@ -13,13 +13,16 @@ Auditing standards ask for the selection of audited events to be documented alon
 
 This rule makes the choice total. Every command and query states a position, and the rationale for not auditing lives next to the code it describes rather than in a document that drifts.
 
+`LB1018` is the preconfigured instance of a general rule. It asks the same question [`LB1020`](required-declarations.md) asks, with `AuditDeclaration` as the required value type. Requiring your own declarations the same way is a matter of configuration rather than a new analyzer.
+
 ## When It Reports
 
 Reports for a command or query type when all of the following are true:
 
 - The type is declared in the analyzed assembly and is not abstract.
 - The type does not carry `[Audited]` or `[AuditExempt]`.
-- No `IAuditDefinition<TMessage>` in the assembly describes it.
+- No `IAuditDefinition<TMessage>` in the assembly describes it, or describes a base type or interface it implements.
+- The type carries no `[DeclarationExempt(typeof(AuditDeclaration), "rationale")]`.
 
 The rule stays silent when the audit contracts are not referenced at all, so a codebase that has not adopted auditing sees nothing.
 
@@ -94,3 +97,4 @@ public sealed class RefundOrderCommandDefinition : IAuditDefinition<RefundOrderC
 
 - [Auditing](../../concepts/auditing.md)
 - [Message definitions](../../concepts/message-definitions.md)
+- [Required declarations (LB1020)](required-declarations.md)

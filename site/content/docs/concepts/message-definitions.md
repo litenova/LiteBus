@@ -163,6 +163,59 @@ Open generic message shapes are matched exactly, because assignability between g
 
 One more constraint is worth knowing: a definition must expose a **parameterless constructor**, public or not. Definitions are declarative and are instantiated once during registration, so they cannot take dependencies.
 
+## Requiring a Declaration
+
+A declaration is only as good as its coverage. One command that forgets to declare the permission it requires is an unguarded use case, and it looks exactly like a command that needs no permission. Two mechanisms close that gap, and they cover different ground.
+
+At composition time, on the messaging module:
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .RequireDeclaration<RequiredPermission>()
+    .RequireDeclaration<RetentionClass>());
+```
+
+Every registered message must then declare the value or record an exemption from it. The check runs once every module has built, because the messaging module is foundational and has no commands to inspect while it is being built. A failure is a `LiteBusConfigurationException` naming every offender, grouped by the declaration each one omits:
+
+```text
+One or more registered messages state no position on a required declaration:
+  RequiredPermission is not declared by: DraftScheduleCommand, WithdrawScheduleCommand
+Declare the value with an attribute or a definition class, or record why the message does not need it
+with [DeclarationExempt(typeof(TValue), "rationale")].
+```
+
+At compile time, with `LB1020`:
+
+```ini
+# .editorconfig
+[*.cs]
+litebus_required_declarations = App.Security.RequiredPermission
+dotnet_diagnostic.LB1020.severity = warning
+```
+
+Use both. The analyzer reports the omission on the message itself while you are writing it; the composition check covers a message registered from an assembly the analyzer never saw. See [Required Declarations](../catalog/analyzers/required-declarations.md) for the full rule, including how to make your own attribute analyzable with `[MessageDeclaration]`.
+
+### Recording an Exemption
+
+A message that genuinely needs no declaration says so, with a reason:
+
+```csharp
+[DeclarationExempt(typeof(RequiredPermission), "the storefront is public, so there is no actor to authorize")]
+public sealed record BrowseStorefrontQuery(Guid StoreId) : IQuery<StorefrontView>;
+```
+
+The rationale is the whole point. An exemption is a decision and an omission is an accident, and without the reason written down there is nothing to tell them apart, which is the situation the requirement exists to end.
+
+The attribute may be applied more than once and every instance is aggregated into a single `DeclarationExemptions` metadata value, readable through the accessor like any other declaration:
+
+```csharp
+accessor.TryGet<BrowseStorefrontQuery, DeclarationExemptions>(out var exemptions);
+exemptions.TryGet(typeof(RequiredPermission), out var exemption);
+// exemption.Rationale
+```
+
+Auditing is the exception that needs no exemption attribute. `[AuditExempt]` already produces an `AuditDeclaration`, because the audit position models both answers in one value type, so an audit-exempt message satisfies `RequireDeclaration<AuditDeclaration>()` on its own. Most application value types cannot model an absence that way, which is why the general exemption exists.
+
 ## Declaring a Value Computed From the Message
 
 A declaration is resolved once at registration and cannot take dependencies, which is often read as "constants only". It is not. The value is an ordinary object, so it can carry a delegate over the message, and that is the difference between a generic handler covering only the constant cases and one covering everything derivable from the message itself.
