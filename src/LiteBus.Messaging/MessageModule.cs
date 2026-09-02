@@ -58,7 +58,8 @@ public sealed class MessageModule : IModule
             messageContractRegistry,
             moduleBuilder.TimeProvider,
             moduleBuilder.AuditOutcomeMapper,
-            moduleBuilder.AuditTrail);
+            moduleBuilder.AuditTrail,
+            moduleBuilder.AuditTrailLifetime);
         RegisterNewHandlers(configuration, messageRegistry, startIndex);
 
         // Deferred because this module is foundational: the commands and queries the requirement applies to are
@@ -80,13 +81,15 @@ public sealed class MessageModule : IModule
     /// <param name="timeProvider">The optional time provider registered for messaging services.</param>
     /// <param name="auditOutcomeMapper">The optional audit outcome mapper registered for the audit writer.</param>
     /// <param name="auditTrail">The audit trail registered through the builder, when the application supplied one there.</param>
+    /// <param name="auditTrailLifetime">The lifetime an audit trail implementation type is registered with.</param>
     private static void RegisterMessagingServices(
         IModuleConfiguration configuration,
         IMessageRegistry messageRegistry,
         MessageContractRegistry messageContractRegistry,
         TimeProvider? timeProvider,
         IAuditOutcomeMapper? auditOutcomeMapper,
-        object? auditTrail)
+        object? auditTrail,
+        InstanceLifetime auditTrailLifetime)
     {
         // Register message registry as singleton.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -138,7 +141,7 @@ public sealed class MessageModule : IModule
             typeof(IAuditOutcomeMapper),
             auditOutcomeMapper ?? new DefaultAuditOutcomeMapper()));
 
-        RegisterAuditTrail(configuration, auditTrail);
+        RegisterAuditTrail(configuration, auditTrail, auditTrailLifetime);
 
         // Registered through a factory rather than by type on purpose. The writer needs an IAuditTrail that only an
         // application auditing its messages registers, and a by-type registration makes a container running
@@ -161,11 +164,15 @@ public sealed class MessageModule : IModule
     /// </summary>
     /// <param name="configuration">The module configuration.</param>
     /// <param name="auditTrail">The trail instance or implementation type, or null when the application registers it itself.</param>
+    /// <param name="lifetime">The lifetime an implementation type is registered with; an instance is always a singleton.</param>
     /// <remarks>
     ///     An application may register the trail with its own container instead, which is what the
     ///     <c>litebus.audit.trail</c> probe checks for. Configuring it here keeps the whole feature on one builder.
     /// </remarks>
-    private static void RegisterAuditTrail(IModuleConfiguration configuration, object? auditTrail)
+    private static void RegisterAuditTrail(
+        IModuleConfiguration configuration,
+        object? auditTrail,
+        InstanceLifetime lifetime)
     {
         switch (auditTrail)
         {
@@ -176,7 +183,7 @@ public sealed class MessageModule : IModule
                 configuration.DependencyRegistry.Register(new DependencyDescriptor(
                     typeof(IAuditTrail),
                     trailType,
-                    InstanceLifetime.Scoped));
+                    lifetime));
                 return;
 
             default:

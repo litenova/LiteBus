@@ -36,7 +36,8 @@ services.AddLiteBus(registry =>
 | `IAuditScope` | Handler-supplied target, reason, and properties |
 | `AuditRecord` / `AuditOutcome` | The record handed to the trail |
 | `IAuditTrail` | Application-supplied sink |
-| `MessageModuleBuilder.UseAuditTrail<T>()` / `UseAuditTrail(instance)` | Registers the sink on the messaging module, shared by every axis |
+| `MessageModuleBuilder.UseAuditTrail<T>(lifetime)` | Registers the sink on the messaging module, shared by every axis. Scoped by default |
+| `MessageModuleBuilder.UseAuditTrailInstance(trail)` | Registers a trail you already hold, as a singleton |
 | `MessageModuleBuilder.UseAuditOutcomeMapper<T>()` / `UseAuditOutcomeMapper(instance)` | Classifies an application refusal exception as a denial rather than a failure |
 | `IAuditRecordWriter` | Composes a record from a completion context |
 | `IAuditOutcomeMapper` / `DefaultAuditOutcomeMapper` | Classifies an exception-borne refusal as denied rather than failed |

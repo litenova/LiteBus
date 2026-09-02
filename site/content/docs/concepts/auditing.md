@@ -112,7 +112,19 @@ services.AddLiteBus(registry =>
 });
 ```
 
-`UseAuditTrail<T>()` lets the container build the trail, so it may take dependencies of its own. `UseAuditTrail(instance)` registers one you already hold. Registering `IAuditTrail` directly with the application container also works, and the `litebus.audit.trail` diagnostic check accepts either.
+`UseAuditTrail<T>()` lets the container build the trail, so it may take dependencies of its own, and registers it as **scoped**. That is what a trail wrapping a database session needs, and it is the default for that reason.
+
+Pass a lifetime when you want something else:
+
+```csharp
+registry.AddMessaging(messaging => messaging.UseAuditTrail<HttpAuditTrail>(InstanceLifetime.Singleton));
+```
+
+`UseAuditTrailInstance(trail)` registers a trail you already hold. A pre-created instance can only be a singleton, so the name says so: a trail built there with a database session captures that one session for the life of the process, and nothing else about the call site would tell you.
+
+The `litebus.audit.trail` probe reports the lifetime it actually observes, as `trailIsSingleton`. It resolves the trail from two dispatch scopes and compares the instances, which is the only way to see the lifetime from outside the container. A singleton trail wrapping a scoped session raises nothing at startup and misbehaves later under load, so the probe names it while the application is still starting.
+
+Registering `IAuditTrail` directly with the application container also works, and the probe accepts either route.
 
 `IAuditTrail` is the only thing you must supply. LiteBus decides when a record is produced and what it contains; where it is written, and with what durability, is your decision.
 

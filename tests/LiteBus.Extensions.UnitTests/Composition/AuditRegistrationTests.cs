@@ -1,8 +1,11 @@
-using LiteBus.Commands;
+﻿using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Audit;
+using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -118,10 +121,129 @@ public sealed class AuditRegistrationTests
         provider.GetRequiredService<IAuditOutcomeMapper>().Should().NotBeNull();
     }
 
+    [Fact]
+    public void A_trail_type_is_scoped_by_default()
+    {
+        using var provider = BuildProvider(messaging => messaging.UseAuditTrail<SessionBoundTrail>());
+
+        using var first = provider.CreateScope();
+        using var second = provider.CreateScope();
+
+        // A trail wrapping a database session has to be scoped. It used to be scoped only as a consequence of which
+        // overload the caller reached for, with nothing at the call site saying so.
+        first.ServiceProvider.GetRequiredService<IAuditTrail>()
+            .Should().NotBeSameAs(second.ServiceProvider.GetRequiredService<IAuditTrail>());
+    }
+
+    [Fact]
+    public void A_trail_type_registered_as_a_singleton_says_so_at_the_call_site()
+    {
+        using var provider = BuildProvider(messaging =>
+            messaging.UseAuditTrail<AuditProbeTrail>(InstanceLifetime.Singleton));
+
+        using var first = provider.CreateScope();
+        using var second = provider.CreateScope();
+
+        first.ServiceProvider.GetRequiredService<IAuditTrail>()
+            .Should().BeSameAs(second.ServiceProvider.GetRequiredService<IAuditTrail>());
+    }
+
+    [Fact]
+    public void A_pre_created_trail_instance_is_a_singleton()
+    {
+        var instance = new AuditProbeTrail();
+        using var provider = BuildProvider(messaging => messaging.UseAuditTrailInstance(instance));
+
+        using var scope = provider.CreateScope();
+
+        // The method name carries the lifetime, because a pre-created instance can only be one.
+        scope.ServiceProvider.GetRequiredService<IAuditTrail>().Should().BeSameAs(instance);
+    }
+
+    [Fact]
+    public async Task The_probe_reports_whether_the_trail_is_a_singleton()
+    {
+        using var scoped = BuildProvider(messaging => messaging.UseAuditTrail<SessionBoundTrail>());
+        using var singleton = BuildProvider(messaging => messaging.UseAuditTrailInstance(new AuditProbeTrail()));
+
+        var scopedResult = await ProbeAsync(scoped).ConfigureAwait(false);
+        var singletonResult = await ProbeAsync(singleton).ConfigureAwait(false);
+
+        // A singleton trail holding a scoped session produces no error until the captured session misbehaves under
+        // load, so the probe names it while the application is still starting.
+        scopedResult.Data!["trailIsSingleton"].Should().Be(false);
+        singletonResult.Data!["trailIsSingleton"].Should().Be(true);
+    }
+
+    /// <summary>
+    ///     Builds a provider with auditing enabled on the command axis and the given messaging configuration.
+    /// </summary>
+    /// <param name="configureMessaging">The messaging configuration under test.</param>
+    /// <returns>The built service provider.</returns>
+    private static ServiceProvider BuildProvider(Action<MessageModuleBuilder> configureMessaging)
+    {
+        var services = new ServiceCollection();
+        services.AddScoped<FakeSession>();
+
+        services.AddLiteBus(liteBus =>
+        {
+            liteBus.AddMessaging(configureMessaging);
+            liteBus.AddCommands(commands => commands.Register<AuditProbeCommand>().EnableAuditing());
+        });
+
+        return services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+    }
+
+    /// <summary>
+    ///     Runs the audit trail probe against a built provider.
+    /// </summary>
+    /// <param name="provider">The provider to probe.</param>
+    /// <returns>The probe result.</returns>
+    private static async Task<DiagnosticResult> ProbeAsync(ServiceProvider provider)
+    {
+        return await new AuditTrailDiagnosticCheck(provider).CheckAsync().ConfigureAwait(false);
+    }
+
     /// <summary>
     ///     A command that exists only to give the command module something to register.
     /// </summary>
     private sealed record AuditProbeCommand : ICommand;
+
+    /// <summary>
+    ///     A scoped dependency standing in for a database session a trail would capture.
+    /// </summary>
+    private sealed class FakeSession;
+
+    /// <summary>
+    ///     A trail taking a scoped dependency, so its own lifetime has to be scoped too.
+    /// </summary>
+    private sealed class SessionBoundTrail : IAuditTrail
+    {
+        /// <summary>
+        ///     The session this trail would write through.
+        /// </summary>
+        private readonly FakeSession _session;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="SessionBoundTrail" /> class.
+        /// </summary>
+        /// <param name="session">The session this trail would write through.</param>
+        public SessionBoundTrail(FakeSession session)
+        {
+            _session = session;
+        }
+
+        /// <inheritdoc />
+        public Task WriteAsync(AuditRecord record, CancellationToken cancellationToken = default)
+        {
+            _ = _session;
+            return Task.CompletedTask;
+        }
+    }
 
     /// <summary>
     ///     A trail that records nothing, for asserting on registration rather than on writing.

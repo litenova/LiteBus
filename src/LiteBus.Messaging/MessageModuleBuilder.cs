@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Messaging;
 
@@ -109,55 +110,73 @@ public sealed class MessageModuleBuilder
     ///     Gets the audit trail the module registers, as an instance or an implementation type.
     /// </summary>
     /// <value>
-    ///     The instance passed to <see cref="UseAuditTrail(IAuditTrail)" />, the type passed to
+    ///     The instance passed to <see cref="UseAuditTrailInstance" />, the type passed to
     ///     <see cref="UseAuditTrail{TAuditTrail}" />, or <see langword="null" /> when the application registers the trail
     ///     with its own container instead.
     /// </value>
     internal object? AuditTrail { get; private set; }
 
     /// <summary>
-    ///     Registers the <see cref="IAuditTrail" /> that receives audit records.
+    ///     Gets the lifetime the trail implementation type is registered with.
     /// </summary>
-    /// <typeparam name="TAuditTrail">The trail implementation, resolved per mediation scope.</typeparam>
+    internal InstanceLifetime AuditTrailLifetime { get; private set; } = InstanceLifetime.Scoped;
+
+    /// <summary>
+    ///     Registers the <see cref="IAuditTrail" /> type that receives audit records, constructed by the container.
+    /// </summary>
+    /// <typeparam name="TAuditTrail">The trail implementation.</typeparam>
+    /// <param name="lifetime">
+    ///     The lifetime the trail is resolved with. Defaults to <see cref="InstanceLifetime.Scoped" />, which is what a
+    ///     trail taking a database session needs.
+    /// </param>
     /// <returns>The current builder.</returns>
     /// <remarks>
     ///     <para>
     ///         This is the one place the audit feature is plumbed: the trail here, the optional mapper through
-    ///         <see cref="UseAuditOutcomeMapper{TAuditOutcomeMapper}" />, and the per-axis switch through
-    ///         <c>EnableAuditing</c> on the command or query module, which decides which messages produce records.
+    ///         <see cref="UseAuditOutcomeMapper" />, and the per-axis switch through <c>EnableAuditing</c> on the command
+    ///         or query module, which decides which messages produce records.
+    ///     </para>
+    ///     <para>
+    ///         The lifetime is a parameter rather than a consequence of which overload was reached for. A trail wrapping
+    ///         a scoped database session is correct as <see cref="InstanceLifetime.Scoped" /> and captures one session
+    ///         for the life of the process as a singleton, and nothing about the call site used to say which one you
+    ///         were choosing.
     ///     </para>
     ///     <para>
     ///         Registering the trail with the application container instead still works, and the
-    ///         <c>litebus.audit.trail</c> diagnostic check accepts either. Prefer this overload when the trail takes
-    ///         dependencies of its own, since the container constructs it.
+    ///         <c>litebus.audit.trail</c> diagnostic check accepts either.
     ///     </para>
     /// </remarks>
-    public MessageModuleBuilder UseAuditTrail<TAuditTrail>()
+    public MessageModuleBuilder UseAuditTrail<TAuditTrail>(InstanceLifetime lifetime = InstanceLifetime.Scoped)
         where TAuditTrail : class, IAuditTrail
     {
         AuditTrail = typeof(TAuditTrail);
+        AuditTrailLifetime = lifetime;
         return this;
     }
 
     /// <summary>
     ///     Registers a pre-created <see cref="IAuditTrail" /> that receives audit records.
     /// </summary>
-    /// <param name="auditTrail">The trail instance, shared by every mediation.</param>
+    /// <param name="auditTrail">The trail instance, shared by every mediation for the life of the process.</param>
     /// <returns>The current builder.</returns>
     /// <remarks>
-    ///     Use <see cref="UseAuditTrail{TAuditTrail}" /> when the trail takes dependencies, so the container builds it.
+    ///     The name says the lifetime, because a pre-created instance can only be a singleton. A trail built here with a
+    ///     database session captures that one session forever, which is the failure this name exists to make visible at
+    ///     the call site. Use <see cref="UseAuditTrail{TAuditTrail}" /> whenever the trail has dependencies.
     /// </remarks>
-    public MessageModuleBuilder UseAuditTrail(IAuditTrail auditTrail)
+    public MessageModuleBuilder UseAuditTrailInstance(IAuditTrail auditTrail)
     {
         ArgumentNullException.ThrowIfNull(auditTrail);
         AuditTrail = auditTrail;
+        AuditTrailLifetime = InstanceLifetime.Singleton;
         return this;
     }
 
     /// <summary>
-    ///     Registers the <see cref="IAuditOutcomeMapper" /> used to classify how an audited action ended.
+    ///     Registers the <see cref="IAuditOutcomeMapper" /> instance used to classify how an audited action ended.
     /// </summary>
-    /// <param name="auditOutcomeMapper">The mapper to register.</param>
+    /// <param name="auditOutcomeMapper">The mapper to register, shared for the life of the process.</param>
     /// <returns>The current builder.</returns>
     /// <remarks>
     ///     <para>

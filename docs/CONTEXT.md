@@ -297,7 +297,7 @@ var commandMediator = container.Resolve<ICommandMediator>();
 | `TimeProvider` | builder value or `TimeProvider.System` | Singleton (instance) |
 | `IAuditScope` | `AmbientAuditScope` | Singleton (instance) |
 | `IAuditOutcomeMapper` | builder value or `DefaultAuditOutcomeMapper` | Singleton (instance) |
-| `IAuditTrail` | only if `UseAuditTrail` was called | Scoped (type form) / Singleton (instance form) |
+| `IAuditTrail` | only if `UseAuditTrail`/`UseAuditTrailInstance` was called | Lifetime passed to `UseAuditTrail<T>` (Scoped by default) / Singleton for an instance |
 | `IAuditRecordWriter` | `AuditRecordWriter` factory | Scoped |
 | `IMessageMediator` | `MessageMediator` | Transient |
 | every newly discovered handler type | itself | Scoped |
@@ -1271,8 +1271,8 @@ Factories: `AuditDeclaration.Audited(string action)` and `AuditDeclaration.Exemp
 | --- | --- | --- |
 | `Contracts` | `IContractWriter { get; }` | Live contract registry writer. |
 | `UseTimeProvider` | `(TimeProvider) -> MessageModuleBuilder` | Registers the `TimeProvider` used by auditing, envelope factories, processors and stores. |
-| `UseAuditTrail<TAuditTrail>` | `() -> MessageModuleBuilder`, `TAuditTrail : class, IAuditTrail` | Registers the trail as **Scoped**. |
-| `UseAuditTrail` | `(IAuditTrail) -> MessageModuleBuilder` | Registers a pre-created trail as a **Singleton** instance. |
+| `UseAuditTrail<TAuditTrail>` | `(InstanceLifetime lifetime = Scoped) -> MessageModuleBuilder`, `TAuditTrail : class, IAuditTrail` | Container-constructed trail. The lifetime is an explicit parameter, not a consequence of the overload reached for. |
+| `UseAuditTrailInstance` | `(IAuditTrail) -> MessageModuleBuilder` | Pre-created trail, necessarily a **Singleton**. The name carries the lifetime, because a trail built here with a scoped session captures it for the life of the process. |
 | `UseAuditOutcomeMapper` | `(IAuditOutcomeMapper) -> MessageModuleBuilder` | Overrides `DefaultAuditOutcomeMapper`. |
 | `UseAuditOutcomeMapper<T>` | `() -> MessageModuleBuilder`, `T : IAuditOutcomeMapper, new()` | Constructs and registers the mapper. |
 | `Register<T>()` / `Register(Type)` | `-> MessageModuleBuilder` | Registers any message or handler type with no axis validation. |
@@ -2033,7 +2033,7 @@ The delegate is built at registration, so it can project from the message but ca
 
 ```csharp
 liteBus.AddMessaging(messaging => messaging
-    .UseAuditTrail<SqlAuditTrail>()                     // scoped
+    .UseAuditTrail<SqlAuditTrail>()                     // scoped by default; pass InstanceLifetime to change it
     .UseAuditOutcomeMapper<UseCaseAuditOutcomeMapper>() // optional
     .UseTimeProvider(TimeProvider.System));
 
@@ -2041,7 +2041,7 @@ liteBus.AddCommands(commands => commands.RegisterFromAssembly(assembly).EnableAu
 liteBus.AddQueries(queries => queries.RegisterFromAssembly(assembly).EnableAuditing());
 ```
 
-`EnableAuditing()` registers a completion handler at priority `HandlerPriorities.Observability` covering `ICommand` / `IQuery` respectively, plus the `litebus.audit.trail` diagnostic probe. The probe reports `Unhealthy` when auditing is enabled but no `IAuditTrail` is registered, and `Healthy` with `component`, `trailRegistered` and `trailType` data otherwise. Resolving `IAuditRecordWriter` without a trail throws `LiteBusConfigurationException`.
+`EnableAuditing()` registers a completion handler at priority `HandlerPriorities.Observability` covering `ICommand` / `IQuery` respectively, plus the `litebus.audit.trail` diagnostic probe. The probe reports `Unhealthy` when auditing is enabled but no `IAuditTrail` is registered, and `Healthy` with `component`, `trailRegistered`, `trailType` and `trailIsSingleton` data otherwise. It resolves the trail through `IMessageDispatchScopeFactory` twice and compares instances, both to see the lifetime from outside the container and because resolving a scoped trail from a root provider is an error under `ValidateScopes`. Resolving `IAuditRecordWriter` without a trail throws `LiteBusConfigurationException`.
 
 **Declaring a position:**
 
