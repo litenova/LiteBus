@@ -1959,9 +1959,61 @@ A definition must have a parameterless constructor (public or not) and is instan
 
 A declaration written for a base type covers derived messages through `IsAssignableFrom`; open generic types never cover each other.
 
+**Reading declarations from application code.** Resolve `IMessageMetadataAccessor` (singleton, `MessageMetadataAccessor` over `IMessageReader`). It is the supported surface; reaching for `IMessageRegistry.Find(...)!.Metadata` makes the descriptor shape part of the application.
+
+```csharp
+public interface IMessageMetadataAccessor
+{
+    IMessageMetadata ForMessage(Type messageType);
+    IMessageMetadata ForMessage<TMessage>() where TMessage : notnull;
+    bool TryGet<TValue>(Type messageType, [MaybeNullWhen(false)] out TValue value) where TValue : notnull;
+    bool TryGet<TMessage, TValue>([MaybeNullWhen(false)] out TValue value) where TMessage : notnull where TValue : notnull;
+}
+```
+
+An unregistered type raises `MessageMetadataNotFoundException` (exposes `MessageType`) rather than returning an empty bag, because an empty answer turns a missing registration into a permission check that silently passes. A closed generic message resolves to its generic type definition, matching `IMessageReader.Find`. Registered by `AddMessaging`, so it is available with or without auditing.
+
+The intended use is one generic pre-stage handler enforcing a declaration for every message that carries it:
+
+```csharp
+internal sealed class PermissionGuard<TCommand> : ICommandGuard<TCommand>
+    where TCommand : ICommand
+{
+    // ctor omitted
+    public Task<Verdict> DecideAsync(TCommand message, CancellationToken cancellationToken = default)
+    {
+        if (!_metadata.TryGet<TCommand, RequiredPermission>(out var required))
+        {
+            return Task.FromResult(Verdict.Allow);
+        }
+
+        return Task.FromResult(_actor.Holds(required) ? Verdict.Allow : Verdict.Deny("insufficient permission"));
+    }
+}
+
+registry.AddCommands(builder => builder.Register(typeof(PermissionGuard<>)));
+```
+
+**Declaration values may be delegates.** A definition is instantiated once and cannot take dependencies, but its value is an ordinary object and may carry a `Func` over the message. That covers every scope derivable from the message itself, not only constants:
+
+```csharp
+public sealed record AuthorizationScope(Func<object, string> Resolve)
+{
+    public static AuthorizationScope Fixed(string scope) => new(_ => scope);
+
+    public static AuthorizationScope FromMessage<TMessage>(Func<TMessage, string> resolve)
+        where TMessage : notnull
+        => new(message => resolve((TMessage) message));
+}
+```
+
+The delegate is built at registration, so it can project from the message but cannot resolve services. Anything needing a database read belongs in the guard, which hands its result forward through `IExecutionContext.Data`.
+
 ### 4.8 Auditing
 
 **Types:** `AuditDeclaration` / `AuditedDeclaration` / `AuditExemptDeclaration`, `AuditedAttribute` / `AuditExemptAttribute`, `IAuditDefinition<TMessage>`, `AuditRecord`, `AuditOutcome`, `IAuditTrail`, `IAuditScope`, `IAuditRecordWriter`, `IAuditOutcomeMapper`, `DefaultAuditOutcomeMapper`, `AuditTrailDiagnosticCheck`, `CommandAuditCompletionHandler`, `QueryAuditCompletionHandler`.
+
+**The declaration half is separable from the writing half.** `IAuditScope` and `IAuditOutcomeMapper` are registered by `AddMessaging`, not by `EnableAuditing()`, so both resolve whether or not any axis produces records. An application wanting the declaration model with its own writer injects `IAuditScope`, reads `AuditDeclaration` through `IMessageMetadataAccessor`, and never calls `EnableAuditing()`. Nothing consumes the scope in that configuration, so pushed values are discarded; that is intended, and the `litebus.audit.trail` probe stays quiet because auditing was never enabled.
 
 **Wiring:**
 

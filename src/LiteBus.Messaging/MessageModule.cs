@@ -88,6 +88,12 @@ public sealed class MessageModule : IModule
             typeof(IMessageReader),
             messageRegistry));
 
+        // The read-only view applications use to read their own declarations, so a generic guard does not have to
+        // navigate descriptors to find the metadata bag.
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IMessageMetadataAccessor),
+            new MessageMetadataAccessor(messageRegistry)));
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageWriter),
             messageRegistry));

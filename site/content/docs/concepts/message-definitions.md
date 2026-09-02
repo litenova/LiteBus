@@ -63,31 +63,42 @@ public interface IPermissionDefinition<TMessage> : IMessageDefinition<TMessage, 
 }
 ```
 
-LiteBus discovers and applies this without knowing what a permission is. Read it back in a guard or any other pre-stage handler:
+LiteBus discovers and applies this without knowing what a permission is. Read it back with `IMessageMetadataAccessor`, which is covered in full under [Reading Metadata](#reading-metadata):
 
 ```csharp
-public sealed class AuthorizeCommand : ICommandPreHandler
+public sealed class PermissionGuard<TCommand> : ICommandGuard<TCommand>
+    where TCommand : ICommand
 {
-    private readonly IMessageRegistry _registry;
+    private readonly IMessageMetadataAccessor _metadata;
     private readonly IAccessAuthorizer _authorizer;
 
-    public AuthorizeCommand(IMessageRegistry registry, IAccessAuthorizer authorizer)
+    public PermissionGuard(IMessageMetadataAccessor metadata, IAccessAuthorizer authorizer)
     {
-        _registry = registry;
+        _metadata = metadata;
         _authorizer = authorizer;
     }
 
-    public async Task PreHandleAsync(ICommand message, CancellationToken cancellationToken = default)
+    public async Task<Verdict> DecideAsync(TCommand message, CancellationToken cancellationToken = default)
     {
-        var descriptor = _registry.Find(message.GetType());
-
-        if (descriptor?.Metadata.TryGet<RequiredPermission>(out var permission) == true)
+        if (!_metadata.TryGet<TCommand, RequiredPermission>(out var permission))
         {
-            await _authorizer.AuthorizeAsync(permission.Name, cancellationToken);
+            return Verdict.Allow;
         }
+
+        return await _authorizer.HoldsAsync(permission.Name, cancellationToken)
+            ? Verdict.Allow
+            : Verdict.Deny($"the caller does not hold {permission.Name}");
     }
 }
 ```
+
+Register it once as an open generic and it covers every command:
+
+```csharp
+registry.AddCommands(builder => builder.Register(typeof(PermissionGuard<>)));
+```
+
+That is the whole payoff of the declaration model. One guard replaces one authorization call per handler, and a message that forgets to declare its permission is a build failure rather than an unguarded use case, once you add [Requiring a Declaration](#requiring-a-declaration).
 
 This is the division that keeps the framework honest. **What a use case requires** is a declaration, and LiteBus carries it. **Whether the current actor holds it** is enforcement, and that stays in your application, because no messaging library can model your tenancy and role structure.
 
@@ -152,18 +163,66 @@ Open generic message shapes are matched exactly, because assignability between g
 
 One more constraint is worth knowing: a definition must expose a **parameterless constructor**, public or not. Definitions are declarative and are instantiated once during registration, so they cannot take dependencies.
 
-## Reading Metadata
+## Declaring a Value Computed From the Message
 
-`IMessageDescriptor.Metadata` exposes everything resolved for a message type:
+A declaration is resolved once at registration and cannot take dependencies, which is often read as "constants only". It is not. The value is an ordinary object, so it can carry a delegate over the message, and that is the difference between a generic handler covering only the constant cases and one covering everything derivable from the message itself.
+
+An authorization scope is the common case. Some commands need a fixed permission; others need one scoped to the organization named in the command:
 
 ```csharp
-var descriptor = registry.Find(typeof(PlaceOrderCommand));
+public sealed record AuthorizationScope(Func<object, string> Resolve)
+{
+    public static AuthorizationScope Fixed(string scope) => new(_ => scope);
 
-descriptor.Metadata.TryGet<AuditDeclaration>(out var audit);
-descriptor.Metadata.Contains<RequiredPermission>();
+    public static AuthorizationScope FromMessage<TMessage>(Func<TMessage, string> resolve)
+        where TMessage : notnull
+        => new(message => resolve((TMessage) message));
+}
+
+public sealed class ArchiveOccurrenceCommandDefinition
+    : IMessageDefinition<ArchiveOccurrenceCommand, AuthorizationScope>
+{
+    public AuthorizationScope Value =>
+        AuthorizationScope.FromMessage<ArchiveOccurrenceCommand>(command => command.OrganizationId);
+}
 ```
 
-Because it is resolved once at registration, reading it costs a dictionary lookup rather than reflection on every dispatch.
+The guard then resolves the scope per message from a declaration it reads once:
+
+```csharp
+if (_metadata.TryGet<TCommand, AuthorizationScope>(out var scope))
+{
+    var resolved = scope.Resolve(message);
+    // ...
+}
+```
+
+The constraint that remains is real: the delegate is built at registration and cannot resolve services, so it can only project from the message. Anything needing a database read belongs in the guard, which can inject what it needs and hand the result forward through [`IExecutionContext.Data`](execution-context.md).
+
+## Reading Metadata
+
+Resolve `IMessageMetadataAccessor` from the container. It is the supported way to read declarations from application code:
+
+```csharp
+public interface IMessageMetadataAccessor
+{
+    IMessageMetadata ForMessage(Type messageType);
+    IMessageMetadata ForMessage<TMessage>() where TMessage : notnull;
+    bool TryGet<TValue>(Type messageType, out TValue value) where TValue : notnull;
+    bool TryGet<TMessage, TValue>(out TValue value) where TMessage : notnull where TValue : notnull;
+}
+```
+
+```csharp
+accessor.TryGet<PlaceOrderCommand, RequiredPermission>(out var permission);
+accessor.ForMessage(message.GetType()).Contains<AuditDeclaration>();
+```
+
+Because metadata is resolved once at registration, reading it costs a dictionary lookup rather than reflection on every dispatch, and the accessor is a stateless view with nothing to invalidate.
+
+A type the registry does not hold raises `MessageMetadataNotFoundException` rather than answering with an empty collection. That is deliberate: an empty answer would turn a missing registration into a permission check that silently passes.
+
+`IMessageDescriptor.Metadata` is still there and still public, but reaching for it from application code means the registry's descriptor shape becomes part of your application. Use the accessor.
 
 ## Next
 

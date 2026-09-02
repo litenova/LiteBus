@@ -83,7 +83,9 @@ public sealed class PlaceOrderCommandHandler : ICommandHandler<PlaceOrderCommand
 }
 ```
 
-The scope holds no state of its own. It reads and writes the ambient execution context, which flows with the mediation and is discarded when it ends, so two concurrent mediations never see each other.
+The scope holds no state of its own. It reads and writes the ambient execution context, which flows with the mediation and is discarded when it ends, so two concurrent mediations never see each other. Calling one of its methods outside a mediation raises `NoExecutionContextException`, because there is no record for the value to reach.
+
+`IAuditScope` is registered by `AddMessaging`, not by `EnableAuditing()`, so it resolves whether or not an axis produces records. An application that wants the declaration model and its own writer can inject the scope, read declarations through [`IMessageMetadataAccessor`](message-definitions.md#reading-metadata), and never call `EnableAuditing()`. Nothing reads the scope in that configuration, so what a handler pushes is discarded; that is the intended behavior, not a misconfiguration the framework should report.
 
 Some actions are only accountable with a justification. Declare `ReasonRequired = true` and the writer refuses to produce an incomplete record for a successful action, raising `LiteBusConfigurationException` instead. A required justification that silently goes missing defeats the requirement, so it is reported rather than recorded as absent.
 
