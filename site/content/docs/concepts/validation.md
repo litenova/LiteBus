@@ -167,6 +167,41 @@ public sealed class ExternalValidatorAdapter<TCommand> : ICommandValidator<TComm
 
 A validator that genuinely needs to fault, because a lookup it depends on is unreachable, should still throw. That is a fault, not a verdict about the message, and the pipeline should report it as one.
 
+### Landing the Build Before Converting Everything
+
+A codebase with a hundred validators breaks in a hundred places at once, and a hundred-file commit cannot be reviewed. `ThrowingCommandValidator<TCommand, TException>` and `ThrowingQueryValidator<TQuery, TException>` let you land the build first:
+
+```csharp
+public sealed class TransferCommandValidator
+    : ThrowingCommandValidator<TransferCommand, ValidationException>
+{
+    protected override Task ValidateOrThrowAsync(
+        TransferCommand command,
+        CancellationToken cancellationToken)
+    {
+        // The old body, unchanged.
+        var errors = new ErrorCollection();
+
+        if (command.Amount <= 0)
+        {
+            errors.Add(nameof(command.Amount), "the amount must be positive");
+        }
+
+        errors.ThrowIfInvalidCommand();
+        return Task.CompletedTask;
+    }
+
+    protected override Validity Describe(ValidationException exception) =>
+        Validity.Invalid(exception.Errors.Select(e => new ValidationFailure(e.Message, e.Member)));
+}
+```
+
+Only the exception type you name is caught, so a genuine fault inside a validator still ends the mediation as a failure rather than being reported as a verdict.
+
+Adapted and converted validators mix in one mediation, because the stage collects across both. A half-converted codebase behaves correctly rather than only after the last file lands.
+
+The adapter is scaffolding. It cannot recover the behavior the change exists for: a throwing body stops at the first problem, so a message with three malformed fields still reports one failure. Give the adapter a deletion date, or the codebase keeps the validation model v7 replaced.
+
 ## Next
 
 - [The Handler Pipeline](handler-pipeline.md) for the full stage order and the guard and shortcut contracts

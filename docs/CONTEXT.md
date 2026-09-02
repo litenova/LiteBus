@@ -1673,6 +1673,10 @@ public sealed class ProcessPaymentCommandValidator : ICommandValidator<ProcessPa
 
 **Aggregation.** The validator stage is the only stage with `StageAggregation.CollectFailures`: every validator runs (indirect first, then direct) and all reported failures are merged into one `PipelineDecision.Invalid`. The decision's `Reason` is the failures joined with `"; "`; `Code` is the single failure's code when exactly one failure was reported, otherwise `null`.
 
+**Migration adapters.** `ThrowingValidator<TMessage, TException>` (abstract, `LiteBus.Messaging.Abstractions`) adapts a v6 validator body that reports failure by throwing. Two abstract members: `Task ValidateOrThrowAsync(TMessage, CancellationToken)` holding the old body unchanged, and `Validity Describe(TException)` translating the exception. Only `TException` is caught; anything else propagates as a failure, so a genuine fault in a validator is not reported as a verdict. Axis specializations `ThrowingCommandValidator<TCommand, TException>` and `ThrowingQueryValidator<TQuery, TException>` exist because a validator implementing only the messaging contract is not a command or query construct and the axis module refuses to register it.
+
+Adapted and converted validators mix in one mediation, because the stage collects across both, which is what makes a file-by-file migration behave correctly before the last file lands. The adapter cannot recover the collected-failures behavior of a real conversion: a throwing body stops at the first problem. It is scaffolding, not a supported shape.
+
 #### Shortcuts - `IMessageShortcut<in TMessage>` and `IMessageShortcut<in TMessage, TMessageResult>` (`PreStage.Shortcut`)
 
 ```csharp
