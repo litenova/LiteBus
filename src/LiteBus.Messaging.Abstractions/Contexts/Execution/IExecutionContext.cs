@@ -38,6 +38,17 @@ public interface IExecutionContext
     public IDictionary<string, object> Items { get; }
 
     /// <summary>
+    ///     Gets the type-keyed store one pipeline stage uses to hand a resolved value to a later one.
+    /// </summary>
+    /// <remarks>
+    ///     Prefer this over <see cref="Items" /> whenever the thing being passed is an object rather than a flag. A
+    ///     guard that loads an aggregate to decide whether the caller may act stores it here, and the main handler takes
+    ///     it instead of loading it again. <see cref="Items" /> remains for string-keyed interop, where the key comes
+    ///     from outside the process and there is no type to key on.
+    /// </remarks>
+    IHandleContextData Data { get; }
+
+    /// <summary>
     ///     Gets the collection of specified tags used to filter message handlers (i.e., pre, main and post) during mediation.
     /// </summary>
     /// <remarks>

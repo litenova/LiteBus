@@ -359,7 +359,7 @@ The token is a signal from the caller and the environment flowing inward: the cl
 
 ## Sharing State Across Stages
 
-Handlers in one mediation share an execution context. Use `AmbientExecutionContext.Current.Items` to pass data from a pre-handler to the main handler or a post-handler, for example a timer started in a pre-handler and stopped in a post-handler. The context is covered in full on [Execution Context](execution-context.md).
+Handlers in one mediation share an execution context. Use `AmbientExecutionContext.Current.Data` to pass a typed value forward, such as an aggregate a guard loaded to make its decision, and `Items` for string-keyed state such as a timer started in a pre-handler and stopped in a post-handler. The context is covered in full on [Execution Context](execution-context.md).
 
 ## Completion: Observing How Mediation Ended
 

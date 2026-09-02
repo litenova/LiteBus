@@ -1,4 +1,4 @@
-using LiteBus.Messaging.Abstractions;
+﻿using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.UseCases.Messaging;
 
@@ -44,6 +44,8 @@ public sealed class AmbientExecutionContextTests
         public CancellationToken CancellationToken => CancellationToken.None;
 
         public IDictionary<string, object> Items { get; } = new Dictionary<string, object>();
+
+        public IHandleContextData Data { get; } = new HandleContextData();
 
         public IReadOnlyCollection<string> Tags { get; } = Array.Empty<string>();
 

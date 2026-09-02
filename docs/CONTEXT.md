@@ -49,14 +49,14 @@
 | `IMessageRegistry` (= `IMessageWriter` + `IMessageReader`) | `MessageRegistry` (internal) | Thread-safe (lock-protected). Discovers handler descriptors from CLR types, links handlers to messages, binds `IMessageDefinition` metadata, closes open generic handlers. |
 | `IMessageContractRegistry` (= `IContractWriter` + `IContractReader`) | `MessageContractRegistry` (internal) | Lock-protected bidirectional map: CLR type <-> (`Name`, `Version`). Also honours `[MessageContract]` on-demand. |
 | `IMessageSerializer` | `SystemTextJsonMessageSerializer` | `JsonSerializerDefaults.Web` by default; wraps `JsonException`/`NotSupportedException` in `MessageSerializationException`. |
-| `IExecutionContext` | `ExecutionContext` (internal) | Carries `CancellationToken`, `Items`, `Tags`, `MessageResult`, `PostHandlersSuppressed`. |
+| `IExecutionContext` | `ExecutionContext` (internal) | Carries `CancellationToken`, `Items`, `Data`, `Tags`, `MessageResult`, `PostHandlersSuppressed`. |
 | `IMessageDependencies` | `MessageDependencies` (internal) | Filters descriptors by handler predicate and tag intersection, orders by `Priority` then `RegistrationSequence`, wraps each in a `LazyHandler`. Precomputes a bitmask of occupied pre-stages. |
 | `IAuditScope` | `AmbientAuditScope` (internal, singleton instance) | Stores `AuditScopeState` under execution-context item key `__LiteBus.Audit.Scope`. |
 | `IAuditRecordWriter` | `AuditRecordWriter` (internal, scoped) | Builds `AuditRecord` from the message's `AuditedDeclaration` + `IAuditScope` + `IAuditOutcomeMapper` + `TimeProvider`. |
 | `IAuditOutcomeMapper` | `DefaultAuditOutcomeMapper` | Maps `MediationOutcome` to `AuditOutcome` with no application knowledge. |
 | `IAuditTrail` | none shipped (application supplied) | Registered through `MessageModuleBuilder.UseAuditTrail`. |
 | `IMessageContractResolver` | `DeclaredTypeMessageContractResolver` (optional) | Default (unregistered) behaviour uses the runtime instance type. |
-| `IHandleContextData` | `HandleContextData` | Type-keyed bag; not wired into the pipeline by default. |
+| `IHandleContextData` | `HandleContextData` | Type-keyed store reached through `IExecutionContext.Data`; one instance per mediation, lock-guarded. |
 
 #### Semantic facades
 
@@ -1870,7 +1870,32 @@ public sealed class SkipNotificationsPostHandler : ICommandPostHandler<PlaceOrde
 }
 ```
 
-`IHandleContextData` (`Get<T>`, `Set<T>`, `Contains<T>`, `Remove<T>`) with implementation `HandleContextData` is a type-keyed bag available for application use; it is not wired into the pipeline.
+`IExecutionContext.Data` returns an `IHandleContextData`: a store keyed by the CLR type of the value rather than by a string, created once per mediation.
+
+| Member | Behavior |
+| --- | --- |
+| `Set<T>(T value)` | Stores under `typeof(T)`, replacing any existing value. Throws `ArgumentNullException` on null. |
+| `Get<T>()` | Returns the value or throws `HandleContextDataNotFoundException` (exposes `DataType`). |
+| `TryGet<T>(out T value)` | `false` instead of throwing when absent. |
+| `Contains<T>()` / `Remove<T>()` | Presence check and removal. |
+
+The implementation is `HandleContextData` in `LiteBus.Messaging.Abstractions`, public so a test double implementing `IExecutionContext` has a working store to return. Access is guarded by a `Lock`, because event handlers can run in parallel over one execution context.
+
+It exists so a pre-stage handler can hand a resolved object to the main handler. The motivating case is a guard whose authorization decision depends on a loaded aggregate: without a typed channel the handler loads the same aggregate again, which is why authorization tends to stay inside handlers instead of moving to the stage that owns the decision.
+
+```csharp
+// Guard
+var occurrence = await _occurrences.LoadAsync(message.OccurrenceId, cancellationToken);
+if (occurrence is null) return Verdict.Deny("the occurrence does not exist");
+if (!await _authorizer.MayCancelAsync(occurrence, cancellationToken)) return Verdict.Deny("not permitted");
+AmbientExecutionContext.Current.Data.Set(occurrence);
+return Verdict.Allow;
+
+// Handler
+var occurrence = AmbientExecutionContext.Current.Data.Get<Occurrence>();
+```
+
+Use `Items` (`IDictionary<string, object>`) only where the key comes from outside the process or the value is a flag; `Data` is preferred for anything with a type to key on.
 
 ### 4.7 Message metadata and definitions
 

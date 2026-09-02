@@ -19,6 +19,7 @@ internal sealed class ExecutionContext : IExecutionContext
         CancellationToken = cancellationToken;
         Tags = tags.ToList();
         Items = new Dictionary<string, object>(items);
+        Data = new HandleContextData();
     }
 
     /// <inheritdoc />
@@ -26,6 +27,9 @@ internal sealed class ExecutionContext : IExecutionContext
 
     /// <inheritdoc />
     public IDictionary<string, object> Items { get; }
+
+    /// <inheritdoc />
+    public IHandleContextData Data { get; }
 
     /// <inheritdoc />
     public IReadOnlyCollection<string> Tags { get; }

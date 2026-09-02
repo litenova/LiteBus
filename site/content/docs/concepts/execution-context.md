@@ -4,7 +4,7 @@ The execution context is the shared state for a single mediation call. It lets p
 
 ## What the Execution Context Is
 
-The context holds metadata about the current mediation: a cancellation token, an `Items` bag for shared state, the mediation tags, and the result slot. It is created when a message enters a mediator and lives until that mediation completes.
+The context holds metadata about the current mediation: a cancellation token, a string-keyed `Items` bag, a type-keyed `Data` store, the mediation tags, and the result slot. It is created when a message enters a mediator and lives until that mediation completes.
 
 LiteBus stores it in an `AsyncLocal<IExecutionContext>`, so it stays ambient and flows correctly across `async`/`await` boundaries within one logical call. That is why any handler can reach it statically without it being passed as a parameter.
 
@@ -35,9 +35,75 @@ public class MyHandler : ICommandHandler<MyCommand>
 
 ## Key Features
 
-### 1. Items Dictionary
+### 1. Data: Handing a Typed Value Forward
 
-The `Items` dictionary is a key-value collection (`IDictionary<string, object>`) for sharing state between handlers in the same pipeline. This is useful for passing data discovered in a pre-handler to downstream handlers.
+`Data` is an `IHandleContextData`: a store keyed by the CLR type of the value rather than by a string. Use it whenever one stage resolves something a later stage needs.
+
+The case it exists for is a guard whose decision depends on loaded state. Authorization that has to read an aggregate to decide anything cannot move out of the handler unless the handler can reuse what the guard loaded, and a second load per message is not an acceptable price for putting the check where it belongs.
+
+```csharp
+public sealed class CancelOccurrenceGuard : ICommandGuard<CancelOccurrenceCommand>
+{
+    private readonly IOccurrenceRepository _occurrences;
+    private readonly IAuthorizer _authorizer;
+
+    public CancelOccurrenceGuard(IOccurrenceRepository occurrences, IAuthorizer authorizer)
+    {
+        _occurrences = occurrences;
+        _authorizer = authorizer;
+    }
+
+    public async Task<Verdict> DecideAsync(
+        CancelOccurrenceCommand message,
+        CancellationToken cancellationToken = default)
+    {
+        var occurrence = await _occurrences.LoadAsync(message.OccurrenceId, cancellationToken);
+
+        if (occurrence is null)
+        {
+            return Verdict.Deny("the occurrence does not exist");
+        }
+
+        if (!await _authorizer.MayCancelAsync(occurrence, cancellationToken))
+        {
+            return Verdict.Deny("not permitted to cancel this occurrence");
+        }
+
+        AmbientExecutionContext.Current.Data.Set(occurrence);
+        return Verdict.Allow;
+    }
+}
+
+public sealed class CancelOccurrenceCommandHandler : ICommandHandler<CancelOccurrenceCommand>
+{
+    public Task HandleAsync(CancelOccurrenceCommand message, CancellationToken cancellationToken = default)
+    {
+        // The guard already loaded it. No second round trip, and no cast.
+        var occurrence = AmbientExecutionContext.Current.Data.Get<Occurrence>();
+        occurrence.Cancel();
+        return Task.CompletedTask;
+    }
+}
+```
+
+The surface is four methods:
+
+| Member | Behavior |
+| --- | --- |
+| `Set<T>(value)` | Stores the value under `T`, replacing any value already there. |
+| `Get<T>()` | Returns the value, or throws `HandleContextDataNotFoundException` naming `T`. |
+| `TryGet<T>(out value)` | Returns `false` instead of throwing when the value is absent. |
+| `Contains<T>()`, `Remove<T>()` | Presence check and removal. |
+
+Use `Get<T>` where an earlier stage is required to have supplied the value, so a missing one is a wiring error worth failing on, and `TryGet<T>` where it is genuinely optional. A guard that can deny is the first case: if the guard allowed the message, the value is there.
+
+One value per type, so wrap a primitive in a named type instead of storing a bare `string` that two unrelated stages will collide on. Store under a base type or interface by naming the type parameter explicitly: `Data.Set<IOccurrence>(occurrence)`.
+
+Access is synchronised, so event handlers running in parallel over one context can read and write safely. Two handlers racing to set the same type still leave whichever landed last.
+
+### 2. Items Dictionary
+
+The `Items` dictionary is a key-value collection (`IDictionary<string, object>`) for sharing state between handlers in the same pipeline. Reach for it when the key comes from outside the process, or when the value is a flag rather than an object. Prefer `Data` for anything with a type worth keying on: the string key is invented at both ends, the cast is unchecked, and a rename in one stage becomes a runtime failure in another.
 
 **Example**: Passing a User ID from a pre-handler to a post-handler for auditing.
 
@@ -67,7 +133,7 @@ public class AuditPostHandler : ICommandPostHandler<CreateProductCommand>
 }
 ```
 
-### 2. Suppressing Post-Handlers
+### 3. Suppressing Post-Handlers
 
 `SuppressPostHandlers()` stops the post-handlers that have not run yet. Use it when the work turned out to be a no-op and the reactions to it should not fire.
 
@@ -83,7 +149,7 @@ It does not stop the calling handler, and it does not change the outcome: the me
 
 To stop the pipeline **before** the work happens, implement a guard such as `ICommandGuard<TCommand>` and return a `Verdict`, or a shortcut such as `IQueryShortcut<TQuery, TResult>` and return a `Shortcut<TResult>`. Both are return values rather than context calls, so the compiler requires the decision and nothing after it runs by accident. See [The Handler Pipeline](handler-pipeline.md).
 
-### 5. `MessageResult`: Aborting and Post-Handler Override
+### 4. `MessageResult`: Aborting and Post-Handler Override
 
 The `MessageResult` property (`object? MessageResult { get; set; }`) on `IExecutionContext` serves two purposes:
 
@@ -122,7 +188,7 @@ For a complete worked example, see [Overriding the Result from a Post-Handler](.
 
 ## Best Practices
 
-1.  **Use String Constants for Keys**: To avoid typos, define the keys for the `Items` dictionary as `const string` in a shared class.
+1.  **Prefer `Data` Over `Items`**: Key on the type when there is a type. Where you do use `Items`, define the keys as `const string` in a shared class so a typo is a compile error rather than a silent miss.
 2.  **Scope**: Remember that the execution context is scoped to a single mediation call. It is not shared across different `SendAsync` or `PublishAsync` calls.
 3.  **Avoid Overuse**: The context is for cross-cutting concerns. Core business data should always be part of the message contract itself.
 
