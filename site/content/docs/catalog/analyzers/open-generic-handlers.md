@@ -13,7 +13,7 @@
 
 - Handler type is generic.
 - Handler type uses a bare message type parameter in the first handler interface type argument.
-- Open generic handler definition exposes type parameter count other than 1.
+- Open generic handler definition exposes a type-parameter count other than 1, or exposes 2 without implementing a handler contract taking both of them in order.
 
 Diagnostic locations include:
 
@@ -56,7 +56,7 @@ public sealed class CommandLogger<TCommand> : ICommandPreHandler<TCommand>
 
 ## Suppression Guidance
 
-- Refactor unsupported generic handler types to one message type parameter.
+- Refactor an unsupported generic handler to one message type parameter, or to two where the second is bound by a typed handler contract such as `ICommandPostHandler<TCommand, TCommandResult>`.
 - Keep auxiliary generic context in constructor dependencies or closed helper services.
 - Do not suppress unless compatibility with a fixed external generic contract is required.
 

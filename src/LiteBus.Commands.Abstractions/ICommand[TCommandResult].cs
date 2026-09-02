@@ -1,4 +1,6 @@
-﻿namespace LiteBus.Commands.Abstractions;
+﻿using LiteBus.Messaging.Abstractions;
+
+namespace LiteBus.Commands.Abstractions;
 
 /// <summary>
 ///     Represents a command that produces a result of type <typeparamref name="TCommandResult" /> when handled.
@@ -9,4 +11,4 @@
 ///     data to the caller. While regular commands are used for state-changing operations without returning data,
 ///     commands with results allow for obtaining computed values or status information from the handler.
 /// </remarks>
-public interface ICommand<TCommandResult> : ICommand;
+public interface ICommand<TCommandResult> : ICommand, IProducesResult<TCommandResult>;

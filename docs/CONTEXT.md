@@ -50,6 +50,7 @@
 | `IMessageContractRegistry` (= `IContractWriter` + `IContractReader`) | `MessageContractRegistry` (internal) | Lock-protected bidirectional map: CLR type <-> (`Name`, `Version`). Also honours `[MessageContract]` on-demand. |
 | `IMessageSerializer` | `SystemTextJsonMessageSerializer` | `JsonSerializerDefaults.Web` by default; wraps `JsonException`/`NotSupportedException` in `MessageSerializationException`. |
 | `IExecutionContext` | `ExecutionContext` (internal) | Carries `CancellationToken`, `Items`, `Data`, `Tags`, `MessageResult`, `PostHandlersSuppressed`. |
+| `IProducesResult<out TMessageResult>` | marker on `ICommand<T>` / `IQuery<T>` / `IStreamQuery<T>` | States a message's result type so the registry can bind the second parameter of an arity-2 open generic handler without referencing the axis packages. |
 | `IMessageDependencies` | `MessageDependencies` (internal) | Filters descriptors by handler predicate and tag intersection, orders by `Priority` then `RegistrationSequence`, wraps each in a `LazyHandler`. Precomputes a bitmask of occupied pre-stages. |
 | `IAuditScope` | `AmbientAuditScope` (internal, singleton instance) | Stores `AuditScopeState` under execution-context item key `__LiteBus.Audit.Scope`. |
 | `IAuditRecordWriter` | `AuditRecordWriter` (internal, scoped) | Builds `AuditRecord` from the message's `AuditedDeclaration` + `IAuditScope` + `IAuditOutcomeMapper` + `TimeProvider`. |
@@ -1768,7 +1769,11 @@ public sealed class PaymentRefusalMapper : ICommandRefusalMapper<ProcessPaymentC
 1. Detects an `IMessageDefinition` implementation and binds its declarations (see 4.7).
 2. Otherwise runs six descriptor builders - `HandlerDescriptorBuilder` (main), `CompletionHandlerDescriptorBuilder`, `ErrorHandlerDescriptorBuilder`, `PostHandlerDescriptorBuilder`, `PreStageHandlerDescriptorBuilder`, `RefusalMapperDescriptorBuilder` - and collects the descriptors they produce.
 3. If no descriptors were produced, the type is treated as a message type (unless its namespace is `System` or starts with `System.`, in which case it is ignored). A type that carries a pipeline marker interface but exposes no contract naming a message type throws `LiteBusConfigurationException`.
-4. If the type is an open generic type definition whose descriptors have a generic-parameter message type, it is stored as an open generic handler and closed over every known and future concrete message type. An open generic handler with anything other than exactly one type parameter throws `UnsupportedOpenGenericHandlerException` (analyzer `LB1005`).
+4. If the type is an open generic type definition whose descriptors have a generic-parameter message type, it is stored as an open generic handler and closed over every known and future concrete message type.
+
+   Closable arities: **1** (binds the message type) and **2** (binds the message type and the result type the message declares). Arity 2 is accepted only when the handler implements a contract taking both of its parameters in order, one of `IMessageHandler<,>`, `IStreamMessageHandler<,>`, `IMessagePostHandler<,>`, `IMessageCompletionHandler<,>`, `IMessageErrorHandler<,>`, `IMessageShortcut<,>` or `IMessageRefusalMapper<,>` (or an axis contract deriving from one). Anything else throws `UnsupportedOpenGenericHandlerException` (analyzer `LB1005`).
+
+   The result type is read from the message's own `IProducesResult<TMessageResult>` contract, which `ICommand<T>`, `IQuery<T>` and `IStreamQuery<T>` all derive from, so the binding does not depend on a main handler being registered yet. A message declaring no result, or declaring two, is skipped for an arity-2 handler rather than failing: a generic handler covers the messages it fits.
 5. Handler descriptors get a monotonically increasing `RegistrationSequence`, then handlers and messages are cross-linked and committed.
 
 Message types are normalized: a generic type that still contains generic parameters is reduced to its generic type definition; closed generic messages keep their exact type.
@@ -2922,7 +2927,7 @@ Ship `LiteBus.Analyzers` as an analyzer package reference. Rules with the `Compi
 | `LB1001` | Duplicate command handler | `LiteBus.Handlers` | Error | Yes (CompilationEnd) | Command type has more than one command handler. |
 | `LB1003` | Query handler impurity | `LiteBus.Handlers` | Warning | Yes | Query handler depends on a command, event, inbox or outbox API. |
 | `LB1004` | Command with result scheduled to inbox | `LiteBus.Inbox` | Error | Yes | `ICommand<TResult>` cannot be stored through `IInbox.AcceptAsync` / `AcceptBatchAsync`. |
-| `LB1005` | Unsupported open generic handler | `LiteBus.Handlers` | Error | Yes | Open generic handler must expose exactly one type parameter. |
+| `LB1005` | Unsupported open generic handler | `LiteBus.Handlers` | Error | Yes | Open generic handler must expose one type parameter, or two bound by a handler contract taking both in order. |
 | `LB1007` | Missing message contract registration | `LiteBus.Contracts` | Warning | Yes (CompilationEnd) | Handled message type has no durable contract registration. |
 | `LB1008` | Missing command handler | `LiteBus.Handlers` | Error | Yes (CompilationEnd) | Command type has no command handler. |
 | `LB1009` | Missing query handler | `LiteBus.Handlers` | Error | Yes (CompilationEnd) | Query type has no query handler. |

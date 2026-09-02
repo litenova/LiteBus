@@ -47,7 +47,7 @@ public static class DiagnosticDescriptors
     internal static readonly DiagnosticDescriptor UnsupportedOpenGenericHandler = new(
         DiagnosticIds.UnsupportedOpenGenericHandler,
         "Unsupported open generic handler",
-        "Open generic handler '{0}' exposes {1} type parameters. LiteBus open generic handlers must expose exactly one type parameter that matches the handled message type.",
+        "Open generic handler '{0}' exposes {1} type parameters. LiteBus closes one, binding the handled message type, or two, binding the message type and the result type the message declares.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Error,
         true);

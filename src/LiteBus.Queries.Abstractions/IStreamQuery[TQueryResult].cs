@@ -1,3 +1,5 @@
+﻿using LiteBus.Messaging.Abstractions;
+
 namespace LiteBus.Queries.Abstractions;
 
 /// <summary>
@@ -10,4 +12,4 @@ namespace LiteBus.Queries.Abstractions;
 ///     or implementing pagination patterns. Stream queries are handled by implementing the appropriate
 ///     stream query handler and are executed using the StreamAsync method of the IQueryMediator.
 /// </remarks>
-public interface IStreamQuery<out TQueryResult> : IQuery;
+public interface IStreamQuery<out TQueryResult> : IQuery, IProducesResult<TQueryResult>;

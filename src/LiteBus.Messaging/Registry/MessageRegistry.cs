@@ -412,6 +412,24 @@ internal sealed class MessageRegistry : IMessageRegistry
     }
 
     /// <summary>
+    ///     The messaging-level handler contracts whose second type argument is the message's result type.
+    /// </summary>
+    /// <remarks>
+    ///     Used to tell an arity-2 handler that binds a result type apart from one that declares a second parameter of
+    ///     its own, which has nothing to bind to and cannot be closed.
+    /// </remarks>
+    private static readonly HashSet<Type> TypedHandlerContracts =
+    [
+        typeof(IMessageHandler<,>),
+        typeof(IStreamMessageHandler<,>),
+        typeof(IMessagePostHandler<,>),
+        typeof(IMessageCompletionHandler<,>),
+        typeof(IMessageErrorHandler<,>),
+        typeof(IMessageShortcut<,>),
+        typeof(IMessageRefusalMapper<,>)
+    ];
+
+    /// <summary>
     ///     Stores an open generic handler type and retroactively closes it for all already-known message types.
     /// </summary>
     /// <param name="openGenericHandlerType">The open generic handler type (e.g., GenericValidator&lt;&gt;).</param>
@@ -455,11 +473,18 @@ internal sealed class MessageRegistry : IMessageRegistry
         if (messageType.IsGenericTypeDefinition || messageType.IsGenericParameter)
             return;
 
+        var typeArguments = BuildOpenGenericTypeArguments(openGenericHandlerType, messageType);
+
+        if (typeArguments is null)
+        {
+            return;
+        }
+
         try
         {
             // Let the CLR evaluate substituted constraints such as IComparable<T>, which cannot be tested correctly
             // against the unresolved generic parameter with Type.IsAssignableTo.
-            var closedHandlerType = openGenericHandlerType.MakeGenericType(messageType);
+            var closedHandlerType = openGenericHandlerType.MakeGenericType(typeArguments);
 
             // Build descriptors for the closed type.
             var closedDescriptors = _descriptorBuilders
@@ -487,6 +512,31 @@ internal sealed class MessageRegistry : IMessageRegistry
         {
             // The concrete message does not satisfy the handler's complete generic constraint set.
         }
+    }
+
+    /// <summary>
+    ///     Builds the type arguments that close an open generic handler for one concrete message type.
+    /// </summary>
+    /// <param name="openGenericHandlerType">The open generic handler type definition.</param>
+    /// <param name="messageType">The concrete message type being closed for.</param>
+    /// <returns>
+    ///     The type arguments to substitute, or <see langword="null" /> when this handler cannot describe this message.
+    /// </returns>
+    /// <remarks>
+    ///     An arity-2 handler needs the message's declared result type, so it is simply not closed for a message that
+    ///     declares none. That is the same silence a constraint mismatch produces: a generic handler covers the messages
+    ///     it fits, and a void command is not one of them.
+    /// </remarks>
+    private static Type[]? BuildOpenGenericTypeArguments(Type openGenericHandlerType, Type messageType)
+    {
+        if (openGenericHandlerType.GetGenericArguments().Length == 1)
+        {
+            return [messageType];
+        }
+
+        var resultType = FindDeclaredResultType(messageType);
+
+        return resultType is null ? null : [messageType, resultType];
     }
 
     /// <summary>
@@ -545,17 +595,94 @@ internal sealed class MessageRegistry : IMessageRegistry
     }
 
     /// <summary>
-    ///     Validates that an open generic handler exposes exactly one type parameter for message closing.
+    ///     Validates that an open generic handler exposes a type-parameter shape the registry can close.
     /// </summary>
     /// <param name="openGenericHandlerType">The open generic handler type definition.</param>
+    /// <remarks>
+    ///     One parameter binds the message type. Two are supported only when the handler implements a typed contract
+    ///     over both, such as <c>IMessagePostHandler&lt;TMessage, TMessageResult&gt;</c>, because then the second
+    ///     parameter has something to bind to: the result type the message declares. Two parameters where the second is
+    ///     the handler's own invention, a <c>TContext</c> or a <c>TStore</c>, cannot be closed and are still rejected.
+    /// </remarks>
     private static void ThrowIfOpenGenericHandlerShapeIsUnsupported(Type openGenericHandlerType)
     {
         var typeParams = openGenericHandlerType.GetGenericArguments();
 
-        if (typeParams.Length != 1)
+        var supported = typeParams.Length switch
+        {
+            1 => true,
+            2 => BindsBothParametersToATypedContract(openGenericHandlerType, typeParams),
+            _ => false
+        };
+
+        if (!supported)
         {
             throw new UnsupportedOpenGenericHandlerException(openGenericHandlerType, typeParams.Length);
         }
+    }
+
+    /// <summary>
+    ///     Determines whether an arity-2 handler implements a contract taking both of its type parameters, in order.
+    /// </summary>
+    /// <param name="openGenericHandlerType">The open generic handler type definition.</param>
+    /// <param name="typeParams">The handler's own generic parameters.</param>
+    /// <returns><see langword="true" /> when the second parameter binds to a result type rather than to nothing.</returns>
+    /// <remarks>
+    ///     Only the messaging-level contracts are listed. An axis contract such as
+    ///     <c>ICommandPostHandler&lt;TCommand, TCommandResult&gt;</c> derives from one of them, and
+    ///     <see cref="Type.GetInterfaces" /> returns the whole transitive closure, so matching here covers both.
+    /// </remarks>
+    private static bool BindsBothParametersToATypedContract(Type openGenericHandlerType, Type[] typeParams)
+    {
+        foreach (var contract in openGenericHandlerType.GetInterfaces())
+        {
+            if (!contract.IsGenericType || !TypedHandlerContracts.Contains(contract.GetGenericTypeDefinition()))
+            {
+                continue;
+            }
+
+            var arguments = contract.GetGenericArguments();
+
+            if (arguments.Length == 2 && arguments[0] == typeParams[0] && arguments[1] == typeParams[1])
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Resolves the result type a message declares through <see cref="IProducesResult{TMessageResult}" />.
+    /// </summary>
+    /// <param name="messageType">The concrete message type.</param>
+    /// <returns>The declared result type, or <see langword="null" /> when the message declares none or declares several.</returns>
+    /// <remarks>
+    ///     Read from the message's own contract rather than from a main handler descriptor, so the answer does not
+    ///     depend on whether the handler has been registered yet. A message declaring two result types is a modelling
+    ///     error the axis contracts already make hard to write, and there is no correct arity-2 closing for it, so it
+    ///     is answered as no result and the handler is skipped rather than closed over an arbitrary choice.
+    /// </remarks>
+    private static Type? FindDeclaredResultType(Type messageType)
+    {
+        Type? resultType = null;
+
+        foreach (var contract in messageType.GetInterfaces())
+        {
+            if (!contract.IsGenericType || contract.GetGenericTypeDefinition() != typeof(IProducesResult<>))
+            {
+                continue;
+            }
+
+            if (resultType is not null)
+            {
+                return null;
+            }
+
+            resultType = contract.GetGenericArguments()[0];
+        }
+
+        return resultType;
     }
 
     /// <summary>
