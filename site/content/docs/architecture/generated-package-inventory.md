@@ -75,7 +75,7 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Testing` | none | none |
 | `LiteBus.Testing.DurableMessaging` | `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Storage.InMemory`, `LiteBus.Messaging`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Storage.InMemory`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.DependencyInjection` |
 | `LiteBus.Testing.Hosting` | `LiteBus.Inbox`, `LiteBus.Runtime.Abstractions`, `LiteBus.Runtime.Extensions.Microsoft.Hosting` | `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Hosting.Abstractions` |
-| `LiteBus.Testing.Mediation` | `LiteBus.Commands.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Queries.Abstractions` | none |
+| `LiteBus.Testing.Mediation` | `LiteBus.Commands.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Queries.Abstractions` | none |
 | `LiteBus.Testing.Transport` | `LiteBus.Transport.Abstractions` | none |
 | `LiteBus.Transport` | `LiteBus.Runtime.Abstractions`, `LiteBus.Transport.Abstractions` | none |
 | `LiteBus.Transport.Abstractions` | none | none |
