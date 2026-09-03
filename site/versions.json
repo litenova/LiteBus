@@ -40,7 +40,7 @@
       "label": "v7",
       "description": "Pre-release",
       "dir": "content/docs",
-      "release": "7.0.0-preview.1",
+      "release": "7.0.0-preview.2",
       "status": "prerelease",
       "ref": "v7",
       "default": false
