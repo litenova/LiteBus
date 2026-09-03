@@ -40,12 +40,12 @@ public sealed class KafkaInboxIngressModule :
         var moduleBuilder = _moduleBuilder;
 
         var options = moduleBuilder.Options ??
-                      throw new LiteBusConfigurationException(
+                      throw new DurableStorageConfigurationException(
                           $"{nameof(KafkaInboxIngressOptions)} must be configured before registering Kafka inbox ingress.");
 
         if (string.IsNullOrWhiteSpace(options.Destination))
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 $"{nameof(KafkaInboxIngressOptions.Destination)} must be configured before registering Kafka inbox ingress.");
         }
 

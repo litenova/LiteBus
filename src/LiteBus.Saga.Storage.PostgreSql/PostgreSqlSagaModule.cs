@@ -36,7 +36,7 @@ public sealed class PostgreSqlSagaModule : ISagaStorageModule
 
         if (moduleBuilder.DataSource is null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "A PostgreSQL saga data source must be configured. " +
                 "Call UseDataSource(NpgsqlDataSource) or UseConnectionString(string).");
         }

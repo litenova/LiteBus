@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Audit;
 
@@ -23,6 +22,11 @@ namespace LiteBus.Messaging.Audit;
 /// </remarks>
 internal sealed class AuditRecordWriter : IAuditRecordWriter
 {
+    /// <summary>
+    ///     Resolves who the action is attributed to, or null when the application registered no resolver.
+    /// </summary>
+    private readonly IAuditActorResolver? _actorResolver;
+
     /// <summary>
     ///     Classifies the mediation outcome in audit vocabulary.
     /// </summary>
@@ -50,11 +54,17 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
     /// <param name="registry">The message registry supplying declarative metadata.</param>
     /// <param name="outcomeMapper">The mapper that classifies the mediation outcome.</param>
     /// <param name="timeProvider">The time source for the record timestamp.</param>
+    /// <param name="actorResolver">
+    ///     The resolver that says who acted, or <see langword="null" /> when the application registered none. A trail
+    ///     with no actor is still written, because a record naming nobody is more useful than no record at all, and
+    ///     the <c>litebus.audit.trail</c> probe reports the gap at startup.
+    /// </param>
     public AuditRecordWriter(
         IAuditTrail trail,
         IMessageRegistry registry,
         IAuditOutcomeMapper outcomeMapper,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IAuditActorResolver? actorResolver = null)
     {
         ArgumentNullException.ThrowIfNull(trail);
         ArgumentNullException.ThrowIfNull(registry);
@@ -65,6 +75,7 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
         _registry = registry;
         _outcomeMapper = outcomeMapper;
         _timeProvider = timeProvider;
+        _actorResolver = actorResolver;
     }
 
     /// <inheritdoc />
@@ -85,15 +96,13 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
 
         if (declaration.ReasonRequired && outcome == AuditOutcome.Succeeded && string.IsNullOrWhiteSpace(reason))
         {
-            throw new LiteBusConfigurationException(
-                $"The action '{declaration.Action}' declares that a reason is required, but the handler for "
-                + $"'{messageType.Name}' supplied none. Call IAuditScope.WithReason before the handler returns, or drop "
-                + "ReasonRequired from the declaration.");
+            throw new AuditReasonMissingException(declaration.Action, messageType);
         }
 
         var record = new AuditRecord
         {
             Action = declaration.Action,
+            Actor = ResolveActor(context, scope),
             Outcome = outcome,
             OccurredAt = _timeProvider.GetUtcNow(),
             Duration = context.Duration,
@@ -111,6 +120,23 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
         };
 
         await _trail.WriteAsync(record, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Resolves who the action is attributed to.
+    /// </summary>
+    /// <param name="context">How the mediation ended, carrying the message the resolver reads.</param>
+    /// <param name="scope">The scope state the handler pushed, when it pushed any.</param>
+    /// <returns>The actor, or <see langword="null" /> when nothing established one.</returns>
+    /// <remarks>
+    ///     The handler wins over the resolver. A resolver states the rule that holds for every message, and a handler
+    ///     that called <see cref="IAuditScope.WithActor" /> knows something the rule does not, so overriding is the
+    ///     only precedence that makes the call worth having. A resolver that throws is not caught here: an attribution
+    ///     bug that silently produces unattributed evidence is worse than a failed mediation.
+    /// </remarks>
+    private AuditActor? ResolveActor(MessageCompletionContext context, AuditScopeState? scope)
+    {
+        return scope?.Actor ?? _actorResolver?.Resolve(context);
     }
 
     /// <summary>

@@ -44,7 +44,7 @@ internal sealed class DependencyRegistrationTracker : IEnumerable<DependencyDesc
     ///     <see langword="true" /> when the descriptor is newly tracked and should be translated into the container;
     ///     <see langword="false" /> when an equal descriptor was already tracked.
     /// </returns>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="ModuleCompositionException">
     ///     Thrown when another module already registered <see cref="DependencyDescriptor.DependencyType" /> with a
     ///     different binding.
     /// </exception>
@@ -60,7 +60,7 @@ internal sealed class DependencyRegistrationTracker : IEnumerable<DependencyDesc
                 return false;
             }
 
-            throw new LiteBusConfigurationException(
+            throw new ModuleCompositionException(
                 $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' is already registered. " +
                 "Each LiteBus module may register a given service type only once. Remove the duplicate registration or consolidate modules.");
         }

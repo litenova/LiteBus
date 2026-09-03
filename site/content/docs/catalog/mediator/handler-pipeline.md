@@ -1,4 +1,4 @@
-﻿# Handler Pipeline
+# Handler Pipeline
 
 - **ID**: `mediator.handler-pipeline`
 - **Name**: Handler pipeline
@@ -47,7 +47,7 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | `Verdict` | Allow or deny, with a reason and an optional code |
 | `Validity` / `ValidationFailure` | Valid, or the failures a validator reported |
 | `Refusal` | The outcome, reason, and code handed to a refusal mapper. `Refusal.Denied` or `Refusal.Invalid`, never anything else |
-| `Shortcut` / `Shortcut<TResult>` | `None` to carry on, or `Answer` with a reason and, when the message produces one, a result |
+| `Shortcut` / `Shortcut<TResult>` | `None` to carry on, or `Answer` with a reason, a code, and, when the message produces one, a result |
 | `PreStage` | `Guard`, `Validator`, `Shortcut`, `PreHandler`; the framework-fixed stage order. Covers the pre stage only |
 | `PipelineDecision` | What a pre-stage handler reported: `Continue`, or a stop carrying the outcome, reason, and result |
 | `LiteBusMessageDeniedException` | Raised when a refusal supplies no result for the caller |
@@ -57,8 +57,13 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | `IMessageErrorHandler<TMessage, TResult>` | Error stage contract |
 | `MessageErrorContext<TMessage, TResult>` | Typed error data and shared recovery outcome |
 | `IMessageCompletionHandler` / `IMessageCompletionHandler<TMessage>` / `IMessageCompletionHandler<TMessage, TResult>` | Completion stage contracts |
-| `MessageCompletionContext` and its typed views | Read-only outcome, result, exception, reason, duration |
+| `MessageCompletionContext` and its typed views | Read-only outcome, result, exception, reason, code, duration |
+| `MediationResult` / `MediationResult<TResult>` | What `TrySendAsync` and `TryQueryAsync` return: the outcome, the value, the reason, the code, and the validation failures |
+| `MediationDecision` | What `EvaluateAsync` returns: what the guard and validator stages would say, with nothing performed |
+| `MessageContextExtensions.RunAsyncDecisionStages` | Runs guards then validators and stops, for a custom strategy backing an evaluation |
+| `IMessageReader.Explain(Type)` / `MessagePipelinePlan` | Everything that will run for one message, in the order it will run |
 | `MediationOutcome` | `Succeeded`, `Answered`, `Denied`, `Invalid`, `Failed`, `Canceled` |
+| `LiteBusMediationTelemetry` | Public instrument and attribute names for the `LiteBus.Mediation` source and meter |
 | `MediationExceptionData.SuppressedCompletionFaults` | Key under which a suppressed completion fault is attached to the original exception |
 | `HandlerPriorities` | Reserved priority band for handlers shipped by LiteBus |
 | `SingleAsyncHandlerMediationStrategy<TMessage, TResult>` | Single main handler orchestration |
@@ -93,6 +98,9 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 - Event broadcast may execute handlers concurrently based on event execution settings.
 - Completion handlers run exactly once per mediation, on every outcome path.
 - Completion handlers cannot change the outcome; the context is read-only.
+- `EvaluateAsync` runs the guard and validator stages only. A shortcut and a pre-handler act rather than decide, so an evaluation cannot claim an idempotency key or do a pre-handler's work.
+- `TrySendAsync` and `TryQueryAsync` return a refusal as a value and still throw a genuine fault, which is the line the pipeline already draws between a decision and a fault.
+- `Reason` and `Code` mean the same thing on `Verdict`, `Shortcut`, `PipelineDecision`, `MessageCompletionContext`, `MediationResult` and `MediationDecision`: prose for a person, and a value a later stage can switch on.
 - Completion handlers receive `CancellationToken.None`; the stage runs to the end on every path.
 - A completion handler that throws while an exception is ending the mediation has its fault attached to that exception under `MediationExceptionData.SuppressedCompletionFaults`, and propagates otherwise.
 - Stream completion fires on enumerator disposal, so an unenumerated stream produces no completion record.

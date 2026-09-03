@@ -1,4 +1,4 @@
-﻿# Auditing
+# Auditing
 
 An audit trail answers a question no other log answers: for any action a person or a machine took inside somebody else's data, who did it, what they did it to, when, why, and whether it worked. LiteBus produces those records at the mediation boundary, from metadata you declare once per message, on every outcome including refusals. This page explains the model, the wiring, and the decisions LiteBus deliberately leaves to you.
 
@@ -87,29 +87,35 @@ The scope holds no state of its own. It reads and writes the ambient execution c
 
 `IAuditScope` is registered by `AddMessaging`, not by `EnableAuditing()`, so it resolves whether or not an axis produces records. An application that wants the declaration model and its own writer can inject the scope, read declarations through [`IMessageMetadataAccessor`](message-definitions.md#reading-metadata), and never call `EnableAuditing()`. Nothing reads the scope in that configuration, so what a handler pushes is discarded; that is the intended behavior, not a misconfiguration the framework should report.
 
-Some actions are only accountable with a justification. Declare `ReasonRequired = true` and the writer refuses to produce an incomplete record for a successful action, raising `LiteBusConfigurationException` instead. A required justification that silently goes missing defeats the requirement, so it is reported rather than recorded as absent.
+Some actions are only accountable with a justification. Declare `ReasonRequired = true` and the writer refuses to produce an incomplete record for a successful action, raising `AuditReasonMissingException` instead. A required justification that silently goes missing defeats the requirement, so it is reported rather than recorded as absent. The throw happens at `HandlerPriorities.Observability`, which is before the commit at `HandlerPriorities.UnitOfWork`, so the work is rolled back rather than standing without its justification. That is the point of the flag; set it only where that trade is the one you want, and call `WithReason` on every path the handler can return through.
 
 ## Wiring It Up
 
-Auditing is configured in two halves, and the split follows the two questions it answers. The trail and the outcome mapper are shared by every axis, so they go on the messaging module. Whether a given axis produces records at all is a per-axis decision, so it goes on that axis:
+Auditing is one decision, made in one place:
 
 ```csharp
 services.AddLiteBus(registry =>
 {
-    registry.AddMessaging(messaging => messaging.UseAuditTrail<PostgresAuditTrail>());
+    registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
+        .UseTrail<PostgresAuditTrail>()
+        .UseActorResolver<RequestActorResolver>()
+        .ForCommands()
+        .ForQueries()));
 
-    registry.AddCommands(builder =>
-    {
-        builder.RegisterFromAssembly(typeof(PlaceOrderCommand).Assembly);
-        builder.EnableAuditing();
-    });
-
-    registry.AddQueries(builder =>
-    {
-        builder.RegisterFromAssembly(typeof(ExportOrdersQuery).Assembly);
-        builder.EnableAuditing();
-    });
+    registry.AddCommands(builder => builder.RegisterFromAssembly(typeof(PlaceOrderCommand).Assembly));
+    registry.AddQueries(builder => builder.RegisterFromAssembly(typeof(ExportOrdersQuery).Assembly));
 });
+```
+
+The feature has a shared half and a per-axis half: a trail, an actor resolver and an outcome mapper belong to every axis, and the completion handler that writes a record belongs to each one. `AddAuditing` is what keeps that from being two or three decisions a consumer can make inconsistently. Configuring a trail and selecting no axis fails composition, because no probe can report that at runtime: nothing is ever audited, so nothing ever fails.
+
+The per-axis switches remain and are what `AddAuditing` composes. Reach for them directly only when the axes are genuinely configured in separate places:
+
+```csharp
+registry.AddMessaging(messaging => messaging.UseAuditTrail<PostgresAuditTrail>());
+registry.AddCommands(builder => builder.EnableAuditing());
+registry.AddQueries(builder => builder.EnableAuditing());
+registry.AddEvents(builder => builder.EnableAuditing());
 ```
 
 `UseAuditTrail<T>()` lets the container build the trail, so it may take dependencies of its own, and registers it as **scoped**. That is what a trail wrapping a database session needs, and it is the default for that reason.
@@ -128,13 +134,40 @@ Registering `IAuditTrail` directly with the application container also works, an
 
 `IAuditTrail` is the only thing you must supply. LiteBus decides when a record is produced and what it contains; where it is written, and with what durability, is your decision.
 
-An application that authorizes by throwing its own exception type registers `UseAuditOutcomeMapper<T>()` beside the trail, so that its refusal is recorded as `AuditOutcome.Denied` rather than `AuditOutcome.Failed`. An application that denies through a guard or a validator needs no mapper: the pipeline already reports those as decisions.
+An application that authorizes by throwing its own exception type registers an outcome mapper beside the trail, through `UseOutcomeMapper<T>()` on the auditing builder, so that its refusal is recorded as `AuditOutcome.Denied` rather than `AuditOutcome.Failed`. An application that denies through a guard or a validator needs no mapper: the pipeline already reports those as decisions, and the code the guard supplied is recorded as the record's `FailureCode`.
 
-### Events Are Not Audited
+### Who Acted
 
-`EnableAuditing` exists on the command and query modules and not on the event module. An audit trail records who attempted an action and how it ended, and an event is not an attempt: it is a fact that has already happened, published by a handler whose own command was audited. Auditing events would record the same action twice, once as the decision and once as its consequence, and only the first is answerable.
+`AuditRecord.Actor` is the first column an audit review reads, and the one part of a record LiteBus cannot derive. It knows the action, the outcome, the target and the clock; who is holding the request lives somewhere different in every application, so supply an `IAuditActorResolver`:
 
-Record the event stream where it belongs, in the domain event log, and keep the trail for the actions people take. An event handler that performs an audited action of its own sends a command for it, and that command is audited normally.
+```csharp
+internal sealed class RequestActorResolver : IAuditActorResolver
+{
+    public AuditActor? Resolve(MessageCompletionContext context) => context.Message switch
+    {
+        IActingAccountCommand acting => AuditActor.User(acting.ActingAccountId.ToString()),
+        _ => AuditActor.System(ProcessNameOf(context.Message.GetType()))
+    };
+}
+```
+
+It runs at the completion stage, which is what makes it the right extension point rather than a pre-stage handler. A denied command produces a record, and "who tried" is the most useful thing that record can say, but a pre-handler never runs when a guard denies. Resolving here means attribution survives every path: success, denial, invalid input, failure and cancellation.
+
+`AuditActor` carries a required `Id` and an optional `Kind`, `DisplayName` and `OnBehalfOf`. `Kind` exists so a query can separate the actions people took from the actions a process took, which is a distinction every review draws and an identifier alone cannot express. `OnBehalfOf` is for a delegated action, which is what separates support staff acting as a customer from the customer acting, and a device acting on a key from the person who authorized that key.
+
+Returning `null` is legitimate and means nothing established an actor. Do not invent one: a fabricated identifier in evidence is worse than a gap a review can see. Where the application knows a process acted, say so with `AuditActor.System`, because a scheduled job and an unattributed action are different answers.
+
+`IAuditScope.WithActor` overrides the resolver for the case only the handler knows, such as an actor established by exchanging a token mid-handler. Attribution that is the same for every message belongs in the resolver, which also covers the paths a handler never reaches.
+
+Without a resolver, records are still written and every one has no actor. The `litebus.audit.trail` probe reports that as `Degraded` rather than unhealthy: a trail that says what happened is worth writing, it just cannot say who is answerable, and that is not something to discover during a review.
+
+### Auditing Events
+
+`EnableAuditing` exists on the event module too. A domain fact is frequently the thing a review most wants recorded, and it is not always the consequence of an audited command: an event raised by an inbox replay, a scheduled reconciliation, or an integration from another system has no command behind it.
+
+One record per publish, not per handler. The mediation is the unit being audited and the broadcast strategy reports one outcome for the whole publish, so a record per subscriber would multiply one fact into as many entries as there happen to be reactions, and would change count whenever a handler is added.
+
+Auditing both a command and the event it raises does record the same business change twice, from two angles: the action somebody took and the fact it produced. Decide which you want and declare an audit position on that one. Declaring both is a choice rather than a mistake, and the action codes keep them apart.
 
 Enabling auditing also registers the `litebus.audit.trail` diagnostic probe, which reports unhealthy when no trail is registered. Without it, a missing trail first shows up as a fault inside the completion stage, which is the one stage whose faults are deliberately kept away from the caller.
 
@@ -177,19 +210,53 @@ Refusing through a guard or a validator needs no mapper.
 | Field | Holds |
 | --- | --- |
 | `Action` | Use-case identity, such as `orders.place-order` |
-| `Outcome` | `Succeeded`, `Denied`, `Failed`, or `Canceled` (an early answer is a success) |
+| `Actor` | Who did it, from the actor resolver or the audit scope |
+| `Outcome` | `Succeeded`, `Denied`, `Invalid`, `Failed`, or `Canceled` (an early answer is a success) |
 | `OccurredAt`, `Duration` | When it happened and how long it took |
 | `Category` | Grouping that drives review and retention |
 | `TargetKind`, `TargetId` | What was acted on |
 | `Reason` | Why, where the action requires one |
-| `FailureCode` | Stable code for a non-success, defaulting to the exception type name |
+| `FailureCode` | Stable code for a non-success: the code a guard or validator supplied, otherwise the exception type name |
 | `MessageType` | For correlating with the diagnostic log |
 | `CorrelationId`, `TenantId` | Read from the execution context when present |
 | `Properties` | Non-identifying context attached by the handler |
 
-Note what is deliberately absent: any before-and-after snapshot of the changed state. That is the field which turns an audit table into an erasure liability under data-protection law, and it is redundant, because the domain event stream already records what changed under its own retention rule. The trail records who is answerable and why.
+Note what is deliberately absent: the message itself, and any before-and-after snapshot of the changed state. The message is handed to the actor resolver instead, so a payload cannot reach audit storage by default. Handing it to the trail would put the whole payload in front of every trail implementation and make keeping personal data out of audit storage the implementer's discipline rather than the framework's. That is the field which turns an audit table into an erasure liability under data-protection law, and it is redundant, because the domain event stream already records what changed under its own retention rule. The trail records who is answerable and why.
 
 For the same reason, do not put personal data in `Properties`. A trail that holds pseudonymous identifiers can serve an erasure request by breaking the identity mapping, which leaves the records meaningful and the person unidentifiable. A trail full of names cannot.
+
+## Building the Catalogue From the Declarations
+
+Which actions does this system audit, under what category, and which of them require a justification? That is a compliance artifact many teams maintain by hand and keep wrong, and it is a pure function of what the messages declare:
+
+```csharp
+var catalog = provider.GetRequiredService<IMessageCatalog>();
+
+foreach (var row in catalog.ToRows())
+{
+    Console.WriteLine($"{row.Action} ({row.Category}) on {row.TargetKind}");
+}
+
+File.WriteAllText("audit-catalogue.md", catalog.ToMarkdown());
+```
+
+`IMessageCatalog` resolves at runtime as well as inside a composition check. `ToRows` gives an `AuditCatalogueRow` per audited message, ordered by action so two runs produce the same document, and `ToMarkdown` is one formatter over those rows. Rows are the primary surface because what a compliance process consumes differs per team: a wiki page for one, a spreadsheet attached to an audit for another. A library that emitted only Markdown would serve the first and obstruct the second.
+
+An exempt or undeclared message is absent, because a catalogue of audited actions is what this builds. Enumerate the catalog itself and read `DeclarationExemptions` to report the exemptions and their rationales, which answers a different question and is worth its own document.
+
+The other half of an authorization matrix stays yours. A required permission is your value type, so project it from the resolved metadata alongside these rows:
+
+```csharp
+var matrix = catalog
+    .Where(entry => entry.Metadata.TryGet<RequiredPermission>(out _))
+    .Select(entry =>
+    {
+        entry.Metadata.TryGet<RequiredPermission>(out var permission);
+        return new { entry.MessageType.Name, Permission = permission!.Name, entry.Audit?.Action };
+    });
+```
+
+LiteBus applies your declarations without understanding them, so it can hand them back but cannot name their columns for you.
 
 ## Making a Record Atomic With Its Change
 

@@ -351,8 +351,10 @@
         "dependencies": {
           "LiteBus.Commands.Abstractions": "[7.0.0, )",
           "LiteBus.Events.Abstractions": "[7.0.0, )",
+          "LiteBus.Messaging": "[7.0.0, )",
           "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Queries.Abstractions": "[7.0.0, )"
+          "LiteBus.Queries.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime": "[7.0.0, )"
         }
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {

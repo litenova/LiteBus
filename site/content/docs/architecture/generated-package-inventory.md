@@ -41,6 +41,7 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Messaging.Abstractions` | `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Messaging.Extensions.Autofac` | `LiteBus.Messaging`, `LiteBus.Runtime.Extensions.Autofac` | none |
 | `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection` | `LiteBus.Messaging`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | none |
+| `LiteBus.Messaging.Extensions.OpenTelemetry` | `LiteBus.Messaging` | `OpenTelemetry` |
 | `LiteBus.Outbox` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
 | `LiteBus.Outbox.Abstractions` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Outbox.Dispatch` | `LiteBus.Messaging`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Transport`, `LiteBus.Transport.Abstractions` | none |
@@ -75,7 +76,7 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Testing` | none | none |
 | `LiteBus.Testing.DurableMessaging` | `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Storage.InMemory`, `LiteBus.Messaging`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Storage.InMemory`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.DependencyInjection` |
 | `LiteBus.Testing.Hosting` | `LiteBus.Inbox`, `LiteBus.Runtime.Abstractions`, `LiteBus.Runtime.Extensions.Microsoft.Hosting` | `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Hosting.Abstractions` |
-| `LiteBus.Testing.Mediation` | `LiteBus.Commands.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Queries.Abstractions` | none |
+| `LiteBus.Testing.Mediation` | `LiteBus.Commands.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Runtime` | none |
 | `LiteBus.Testing.Transport` | `LiteBus.Transport.Abstractions` | none |
 | `LiteBus.Transport` | `LiteBus.Runtime.Abstractions`, `LiteBus.Transport.Abstractions` | none |
 | `LiteBus.Transport.Abstractions` | none | none |

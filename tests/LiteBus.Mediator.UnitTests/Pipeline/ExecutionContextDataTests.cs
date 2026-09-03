@@ -112,6 +112,76 @@ public sealed class ExecutionContextDataTests : LiteBusTestBase
     }
 
     [Fact]
+    public void A_keyed_store_holds_several_values_of_one_type()
+    {
+        IHandleContextData data = new HandleContextData();
+
+        // The identity-map case the unkeyed store cannot express: one command naming two occurrences.
+        data.Set("occ-1", new Occurrence("occ-1"));
+        data.Set("occ-2", new Occurrence("occ-2"));
+
+        data.Get<Occurrence>("occ-1").Id.Should().Be("occ-1");
+        data.Get<Occurrence>("occ-2").Id.Should().Be("occ-2");
+        data.Contains<Occurrence>("occ-1").Should().BeTrue();
+
+        data.Remove<Occurrence>("occ-1");
+        data.Contains<Occurrence>("occ-1").Should().BeFalse();
+        data.Contains<Occurrence>("occ-2").Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_keyed_value_and_an_unkeyed_value_of_one_type_are_separate_slots()
+    {
+        IHandleContextData data = new HandleContextData();
+
+        data.Set(new Occurrence("unkeyed"));
+        data.Set("occ-1", new Occurrence("keyed"));
+
+        data.Get<Occurrence>().Id.Should().Be("unkeyed");
+        data.Get<Occurrence>("occ-1").Id.Should().Be("keyed");
+
+        // Clearing one slot leaves the other, so a stage that stores unkeyed cannot erase a keyed entry by accident.
+        data.Remove<Occurrence>();
+        data.Contains<Occurrence>().Should().BeFalse();
+        data.Contains<Occurrence>("occ-1").Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_keyed_get_names_the_key_it_could_not_find()
+    {
+        IHandleContextData data = new HandleContextData();
+
+        var act = () => data.Get<Occurrence>("occ-9");
+
+        var thrown = act.Should().Throw<HandleContextDataNotFoundException>().Which;
+        thrown.DataType.Should().Be<Occurrence>();
+        thrown.Key.Should().Be("occ-9");
+        thrown.Message.Should().Contain("occ-9");
+    }
+
+    [Fact]
+    public void A_keyed_store_compares_keys_by_value()
+    {
+        IHandleContextData data = new HandleContextData();
+
+        // An identifier value object is the usual key, because the reader already holds one that is equal but not
+        // the same instance.
+        data.Set(new OccurrenceId("occ-1"), new Occurrence("occ-1"));
+
+        data.Get<Occurrence>(new OccurrenceId("occ-1")).Id.Should().Be("occ-1");
+    }
+
+    [Fact]
+    public void A_keyed_member_rejects_a_null_key()
+    {
+        IHandleContextData data = new HandleContextData();
+
+        var act = () => data.Set(null!, new Occurrence("occ-1"));
+
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
     public async Task Data_is_not_shared_between_mediations()
     {
         var loads = new AggregateLoadCounter();

@@ -137,7 +137,7 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
                 return;
             }
 
-            throw new LiteBusConfigurationException(
+            throw new ModuleCompositionException(
                 $"Diagnostic check type '{implementationType.FullName ?? implementationType.Name}' is already registered " +
                 $"as '{registeredName}' and cannot also be registered as '{name}'.");
         }
@@ -154,7 +154,7 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
             return (T) context;
         }
 
-        throw new LiteBusConfigurationException(
+        throw new ModuleCompositionException(
             $"Context of type '{typeof(T).Name}' was not found. " +
             "Ensure the module that provides this context has been registered and runs before this module.");
     }
@@ -173,7 +173,7 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
                 return;
             }
 
-            throw new LiteBusConfigurationException(
+            throw new ModuleCompositionException(
                 $"Context of type '{contextType.FullName ?? contextType.Name}' is already registered. " +
                 "Each shared module context must have a single owner.");
         }
@@ -211,7 +211,7 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
 
         if (newContext is null)
         {
-            throw new LiteBusConfigurationException(
+            throw new ModuleCompositionException(
                 $"The context factory for '{contextType.FullName ?? contextType.Name}' returned null.");
         }
 

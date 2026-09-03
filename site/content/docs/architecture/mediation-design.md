@@ -129,7 +129,7 @@ Steps 3 and 4 are the whole registration and dispatch wiring. If a change needs 
 1. Define the message contracts, and decide for each stage which shapes the axis can carry (Rule 6).
 2. Alias only the stages that apply, with no new members (Rule 5).
 3. List the accepted contracts in the module builder's discovery set.
-4. State in the axis documentation which stages it does not offer and why, as the [event axis does for auditing](../concepts/auditing.md#events-are-not-audited).
+4. State in the axis documentation which stages it does not offer and why, as the [event axis does for the typed shortcut and the refusal mapper](../concepts/handler-pipeline.md#what-each-axis-offers).
 
 ## Known Deviations
 

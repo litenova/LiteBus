@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Pipeline;
 
 namespace LiteBus.Messaging.MediationStrategies;
 
@@ -49,9 +50,11 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
     {
         object? messageResult = null;
         var startedAt = Stopwatch.GetTimestamp();
+        using var activity = MediationTelemetry.StartMediation(message.GetType());
         var outcome = MediationOutcome.Succeeded;
         Exception? failure = null;
         string? reason = null;
+        string? code = null;
 
         try
         {
@@ -65,6 +68,10 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
                 {
                     outcome = decision.Outcome;
                     reason = decision.Reason;
+                    code = decision.Code;
+
+                    // Only a Try call installs a capture, so this is a dictionary miss on every ordinary mediation.
+                    MediationEndingCapture.Record(executionContext, decision);
 
                     if (decision.IsRefusal)
                     {
@@ -109,6 +116,9 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         }
         finally
         {
+            var elapsed = Stopwatch.GetElapsedTime(startedAt);
+            MediationTelemetry.RecordMediation(activity, message.GetType(), outcome, code, elapsed);
+
             await messageDependencies
                 .RunAsyncCompletionHandlers(
                     message,
@@ -116,8 +126,9 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
                     outcome,
                     failure,
                     reason,
+                    code,
                     messageResult,
-                    Stopwatch.GetElapsedTime(startedAt))
+                    elapsed)
                 .ConfigureAwait(false);
         }
     }

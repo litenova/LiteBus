@@ -20,6 +20,15 @@ Quick map from capability to documentation and primary packages. For install com
 | Required declarations | [Required declarations](../catalog/analyzers/required-declarations.md) | `LiteBus.Messaging`, `LiteBus.Analyzers` |
 | Execution context | [Execution context](../concepts/execution-context.md) | `LiteBus.Messaging.Abstractions` |
 | Unit-of-work commit position | [Handler priority](../concepts/handler-priority.md#the-reserved-framework-window) | `LiteBus.Messaging.Abstractions` |
+| Audit actor attribution | [Auditing](../concepts/auditing.md) | `LiteBus.Messaging`, axis packages |
+| Refusal as a value (`TrySendAsync`) | [The handler pipeline](../concepts/handler-pipeline.md#refusal-mappers) | Core mediator packages |
+| Dry-run evaluation (`EvaluateAsync`) | [The handler pipeline](../concepts/handler-pipeline.md#deciding-whether-the-work-happens) | Core mediator packages |
+| Mediation telemetry | [Architecture](../architecture/README.md) | `LiteBus.Messaging.Extensions.OpenTelemetry` |
+| Pipeline plan (`Explain`) | [The handler pipeline](../concepts/handler-pipeline.md) | `LiteBus.Messaging` |
+| Composition summary | [Hosted services](../architecture/hosted-services.md) | `LiteBus.Messaging` |
+| Pipeline test harness | [Testing](../testing/README.md) | `LiteBus.Testing.Mediation` |
+| Declaration defaults | [Message definitions](../concepts/message-definitions.md) | `LiteBus.Messaging` |
+| Audit catalogue | [Auditing](../concepts/auditing.md) | `LiteBus.Messaging` |
 
 ## Durable Messaging Core
 
@@ -73,7 +82,7 @@ Transport platform: `LiteBus.Transport.*`. Kafka transport is GA; AWS SQS and Az
 | Manifest (startup, background, diagnostics) | [Hosted services](../architecture/hosted-services.md) | `IModuleConfiguration` |
 | Management HTTP | [Operations and management](../operations/README.md) | `LiteBus.Extensions.AspNetCore` |
 | Health checks | [Diagnostics and health](../operations/diagnostics-and-health.md) | `LiteBus.Extensions.Diagnostics.HealthChecks` |
-| OpenTelemetry | [Architecture](../architecture/README.md) | `*.Extensions.OpenTelemetry` per axis |
+| OpenTelemetry | [Architecture](../architecture/README.md) | `*.Extensions.OpenTelemetry` per axis, including `LiteBus.Messaging.Extensions.OpenTelemetry` for mediation |
 
 ## Saga (Extension)
 

@@ -10,6 +10,12 @@ namespace LiteBus.Mediator.UnitTests.Pipeline;
 public sealed record Occurrence(string Id);
 
 /// <summary>
+///     The identifier value object used as a keyed store key, standing in for an application's own identifier.
+/// </summary>
+/// <param name="Value">The identifier value.</param>
+public sealed record OccurrenceId(string Value);
+
+/// <summary>
 ///     Counts how many times the aggregate was loaded, which is the whole point of the handoff.
 /// </summary>
 public sealed class AggregateLoadCounter

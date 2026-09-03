@@ -46,12 +46,27 @@ public sealed class QueryModule : IModule, IRequires<MessageModule>
         var moduleBuilder = new QueryModuleBuilder(messageRegistry, contractRegistry);
         _builder(moduleBuilder);
 
+        // AddAuditing on the messaging module selects the axes, so a consumer configures the feature once instead of
+        // repeating the decision here. EnableAuditing stays the primitive, and registering the same handler twice is a
+        // no-op in the registry.
+        if (configuration.TryGetContext<AuditingComposition>(out var auditing) && auditing?.Queries == true)
+        {
+            moduleBuilder.EnableAuditing();
+        }
+
         if (moduleBuilder.AuditingEnabled)
         {
             configuration.RegisterDiagnosticCheck(typeof(AuditTrailDiagnosticCheck), AuditTrailDiagnosticCheck.CheckName);
         }
 
         RegisterQueryServices(configuration);
+        // Recorded for the composition summary. Only this module knows how many messages belong to its axis, because
+        // the messaging registry does not reference the axis contracts.
+        if (configuration.TryGetContext<LiteBusCompositionSummary>(out var summary) && summary is not null)
+        {
+            summary.RecordAxis("queries", CountAxisMessages(messageRegistry));
+        }
+
         RegisterNewHandlers(configuration, messageRegistry, startIndex);
     }
 
@@ -64,6 +79,31 @@ public sealed class QueryModule : IModule, IRequires<MessageModule>
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IQueryMediator),
             typeof(QueryMediator)));
+    }
+
+    /// <summary>
+    ///     Counts the concrete query types registered so far, for the composition summary.
+    /// </summary>
+    /// <param name="reader">The registry holding every registered message descriptor.</param>
+    /// <returns>The number of concrete query types.</returns>
+    /// <remarks>
+    ///     Abstract types and interfaces are excluded, because they are shapes rather than messages and counting them
+    ///     would make the reported total disagree with the number of things that can be mediated.
+    /// </remarks>
+    private static int CountAxisMessages(IMessageReader reader)
+    {
+        var count = 0;
+
+        foreach (var descriptor in reader)
+        {
+            if (descriptor.MessageType is { IsAbstract: false, IsInterface: false } &&
+                typeof(IQuery).IsAssignableFrom(descriptor.MessageType))
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     /// <summary>

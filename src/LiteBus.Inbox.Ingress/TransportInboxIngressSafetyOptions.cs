@@ -76,30 +76,30 @@ public sealed record TransportInboxIngressSafetyOptions
     /// <summary>
     ///     Validates provider-neutral ingress bounds before the broker consumer is registered.
     /// </summary>
-    /// <exception cref="LiteBusConfigurationException">A configured numeric bound is outside its supported range.</exception>
+    /// <exception cref="DurableStorageConfigurationException">A configured numeric bound is outside its supported range.</exception>
     public void Validate()
     {
         if (MaxMessageBytes < 0)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 $"{nameof(MaxMessageBytes)} must be greater than or equal to zero.");
         }
 
         if (MaxInFlightMessages < 1)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 $"{nameof(MaxInFlightMessages)} must be greater than zero.");
         }
 
         if (BatchSize < 1)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 $"{nameof(BatchSize)} must be greater than zero.");
         }
 
         if (BatchMaxWait < TimeSpan.Zero)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 $"{nameof(BatchMaxWait)} must be greater than or equal to zero.");
         }
     }

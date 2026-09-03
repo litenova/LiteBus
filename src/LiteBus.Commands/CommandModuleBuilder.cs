@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -179,7 +179,7 @@ public sealed class CommandModuleBuilder
         foreach (var registrableCommandConstruct in assembly.GetTypes()
                      .Where(static type => type is { IsClass: true, IsAbstract: false } && IsCommandConstruct(type)))
         {
-            _messageRegistry.Register(registrableCommandConstruct);
+            _messageRegistry.RegisterFromScan(registrableCommandConstruct);
         }
 
         return this;
@@ -207,12 +207,23 @@ public sealed class CommandModuleBuilder
             var contractDefinition = contract.GetGenericTypeDefinition();
 
             // A message definition declares metadata for a command rather than implementing a handler contract.
-            if (contractDefinition == typeof(IMessageDefinition<,>))
+            // Both shapes count: the keyed one that types a single declaration, and the describe one that declares
+            // several without an explicit interface implementation per value.
+            if (contractDefinition == typeof(IMessageDefinition<,>) ||
+                contractDefinition == typeof(IMessageDefinition<>))
             {
                 return typeof(ICommand).IsAssignableFrom(contract.GetGenericArguments()[0]);
             }
 
-            return HandlerContracts.Contains(contractDefinition);
+            if (HandlerContracts.Contains(contractDefinition))
+            {
+                return true;
+            }
+
+            // A pipeline handler written against the messaging-level contract counts when its message type is
+            // constrained to this axis. Without this, a cross-cutting guard has to be written once per axis, and the
+            // code being copied is usually the code least safe to have two copies of.
+            return MessagingHandlerContracts.NamesMessageAssignableTo(contract, typeof(ICommand));
         });
     }
 }

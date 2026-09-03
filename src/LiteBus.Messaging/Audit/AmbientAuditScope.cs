@@ -21,6 +21,9 @@ internal sealed class AmbientAuditScope : IAuditScope
     internal const string ItemKey = "__LiteBus.Audit.Scope";
 
     /// <inheritdoc />
+    public AuditActor? Actor => Find()?.Actor;
+
+    /// <inheritdoc />
     public string? TargetId => Find()?.TargetId;
 
     /// <inheritdoc />
@@ -29,6 +32,14 @@ internal sealed class AmbientAuditScope : IAuditScope
     /// <inheritdoc />
     public IReadOnlyDictionary<string, string> Properties =>
         Find()?.Properties ?? new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <inheritdoc />
+    public IAuditScope WithActor(AuditActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        GetOrCreate().Actor = actor;
+        return this;
+    }
 
     /// <inheritdoc />
     public IAuditScope WithTarget(string targetId)

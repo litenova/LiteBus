@@ -1,4 +1,4 @@
-﻿using LiteBus.Commands.Abstractions;
+using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Completion;
@@ -22,6 +22,11 @@ internal sealed class CompletionCommand : ICommand
     ///     Gets or sets a value indicating whether the main handler cancels.
     /// </summary>
     public bool ShouldCancel { get; set; }
+
+    /// <summary>
+    ///     Gets or sets a value indicating whether the shortcut answers the command.
+    /// </summary>
+    public bool ShouldAnswer { get; set; }
 }
 
 /// <summary>
@@ -46,8 +51,28 @@ internal sealed class CompletionCommandGuard : ICommandGuard<CompletionCommand>
         ArgumentNullException.ThrowIfNull(message);
 
         return message.ShouldDeny
-            ? Task.FromResult(Verdict.Deny("not permitted"))
+            ? Task.FromResult(Verdict.Deny("not permitted", code: "NOT_PERMITTED"))
             : Task.FromResult(Verdict.Allow);
+    }
+}
+
+/// <summary>
+///     Answers the command with a reason and a code when the command asks for it.
+/// </summary>
+/// <remarks>
+///     It exists to prove that a shortcut's code reaches the completion stage. Without one, a completion handler
+///     counting why messages were answered has to match on the reason, which is prose.
+/// </remarks>
+internal sealed class CompletionCommandShortcut : ICommandShortcut<CompletionCommand>
+{
+    /// <inheritdoc />
+    public Task<Shortcut> TryAnswerAsync(CompletionCommand message, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        return message.ShouldAnswer
+            ? Task.FromResult(Shortcut.Answer("the work was already applied", code: "ALREADY_APPLIED"))
+            : Task.FromResult(Shortcut.None);
     }
 }
 
@@ -207,6 +232,42 @@ internal sealed class UnitOfWorkCompletionHandler : ICommandCompletionHandler<Co
     {
         ArgumentNullException.ThrowIfNull(context);
         _recorder.Observed.Enqueue(("unit-of-work", context.AsUntyped()));
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+///     A completion handler sitting in the band between <see cref="HandlerPriorities.ReservedCeiling" /> and
+///     <see cref="HandlerPriorities.UnitOfWork" />, standing in for application infrastructure that has to run after
+///     every LiteBus handler and still before the commit.
+/// </summary>
+/// <remarks>
+///     The band only exists because <see cref="HandlerPriorities.UnitOfWork" /> sits above the ceiling rather than on
+///     it. When the two shared a value this handler tied with the commit and the order resolved by registration
+///     sequence, which is assembly scan order.
+/// </remarks>
+[HandlerPriority(HandlerPriorities.ReservedCeiling)]
+internal sealed class InfrastructureCompletionHandler : ICommandCompletionHandler<CompletionCommand>
+{
+    /// <summary>
+    ///     The recorder shared with the test.
+    /// </summary>
+    private readonly CompletionRecorder _recorder;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="InfrastructureCompletionHandler" /> class.
+    /// </summary>
+    /// <param name="recorder">The recorder shared with the test.</param>
+    public InfrastructureCompletionHandler(CompletionRecorder recorder)
+    {
+        _recorder = recorder;
+    }
+
+    /// <inheritdoc />
+    public Task HandleCompletionAsync(MessageCompletionContext<CompletionCommand> context, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        _recorder.Observed.Enqueue(("infrastructure", context.AsUntyped()));
         return Task.CompletedTask;
     }
 }

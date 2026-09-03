@@ -72,7 +72,7 @@ internal sealed class MessageMetadata : IMessageMetadata
     /// <param name="value">The value to store.</param>
     /// <param name="declaringMessageType">The message type the declaration was written for.</param>
     /// <param name="kind">Where the declaration came from.</param>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="MessageDeclarationException">
     ///     Thrown when the value does not match its key type, or when two declarations cover this message and neither is
     ///     more derived than the other.
     /// </exception>
@@ -89,7 +89,7 @@ internal sealed class MessageMetadata : IMessageMetadata
 
         if (!keyType.IsInstanceOfType(value))
         {
-            throw new LiteBusConfigurationException(
+            throw new MessageDeclarationException(
                 $"A declaration for '{_messageType.Name}' produced a value of type '{value.GetType().Name}', "
                 + $"but declared its metadata key as '{keyType.Name}'.");
         }
@@ -112,7 +112,7 @@ internal sealed class MessageMetadata : IMessageMetadata
     /// <param name="storedMessageType">The message type the stored declaration was written for.</param>
     /// <param name="storedKind">Where the stored declaration came from.</param>
     /// <returns><see langword="true" /> when the incoming declaration is the more specific one.</returns>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="MessageDeclarationException">
     ///     Thrown when neither declaration is more derived than the other.
     /// </exception>
     private bool Wins(
@@ -136,7 +136,7 @@ internal sealed class MessageMetadata : IMessageMetadata
             return false;
         }
 
-        throw new LiteBusConfigurationException(
+        throw new MessageDeclarationException(
             $"The message '{_messageType.Name}' is covered by two declarations of the same kind, one for "
             + $"'{storedMessageType.Name}' and one for '{incomingMessageType.Name}', and neither is more derived than "
             + "the other. Declare the value for the message itself to say which one applies.");

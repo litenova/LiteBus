@@ -15,6 +15,13 @@ namespace LiteBus.Messaging.Abstractions;
 ///         Pair with <see cref="AuditedAttribute" />, so a message carrying neither can be reported as undeclared rather
 ///         than silently going unaudited.
 ///     </para>
+///     <para>
+///         This is shorthand for <c>[DeclarationExempt(typeof(AuditDeclaration), rationale)]</c> and records the same
+///         exemption, so every exemption a message carries is readable from one
+///         <see cref="DeclarationExemptions" /> value however it was written. It exists because auditing is the one
+///         declaration whose two positions are both modelled as values, so an exempt message also contributes an
+///         <see cref="AuditExemptDeclaration" /> the record writer reads.
+///     </para>
 /// </remarks>
 /// <example>
 ///     <code><![CDATA[
@@ -24,14 +31,16 @@ namespace LiteBus.Messaging.Abstractions;
 /// </example>
 [MessageDeclaration(typeof(AuditDeclaration))]
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
-public sealed class AuditExemptAttribute : Attribute, IMessageDeclarationSource
+public sealed class AuditExemptAttribute : Attribute, IMessageDeclarationSource, IMessageDeclarationExemptionSource
 {
     /// <summary>
     ///     Initializes a new instance of the <see cref="AuditExemptAttribute" /> class.
     /// </summary>
     /// <param name="rationale">The recorded reason the message is exempt from auditing.</param>
+    /// <exception cref="ArgumentException"><paramref name="rationale" /> is null, empty, or whitespace.</exception>
     public AuditExemptAttribute(string rationale)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rationale);
         Rationale = rationale;
     }
 
@@ -47,5 +56,11 @@ public sealed class AuditExemptAttribute : Attribute, IMessageDeclarationSource
     public object CreateDeclaration()
     {
         return AuditDeclaration.Exempt(Rationale);
+    }
+
+    /// <inheritdoc />
+    public DeclarationExemption CreateExemption()
+    {
+        return new DeclarationExemption(typeof(AuditDeclaration), Rationale);
     }
 }

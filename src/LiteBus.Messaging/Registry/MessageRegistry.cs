@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -68,6 +68,26 @@ internal sealed class MessageRegistry : IMessageRegistry
     private readonly List<Type> _openGenericHandlers = [];
 
     /// <summary>
+    ///     The concrete message types each open generic handler was successfully closed over.
+    /// </summary>
+    /// <remarks>
+    ///     Recorded so composition can report what a scanned open generic actually reached. A handler that closes over
+    ///     140 commands and one that closes over none look identical in a registration list, and only the first
+    ///     changes what every message does.
+    /// </remarks>
+    private readonly Dictionary<Type, HashSet<Type>> _openGenericClosures = [];
+
+    /// <summary>
+    ///     The open generic handler types that arrived through an assembly scan rather than being named.
+    /// </summary>
+    /// <remarks>
+    ///     Recorded so <c>RequireExplicitOpenGenerics</c> can name them. Scanning is the default and stays it, because
+    ///     picking up open generic handlers is what a scan has meant since v4; the strict mode is for a team that
+    ///     wants every pipeline-wide stage to appear as a reviewable line in the composition code.
+    /// </remarks>
+    private readonly HashSet<Type> _scannedOpenGenericHandlers = [];
+
+    /// <summary>
     ///     Message descriptors discovered during the current registration pass before commit.
     /// </summary>
     private readonly List<MessageDescriptor> _pendingMessages = [];
@@ -121,6 +141,25 @@ internal sealed class MessageRegistry : IMessageRegistry
     }
 
     /// <inheritdoc />
+    public IReadOnlyDictionary<Type, IReadOnlyCollection<Type>> OpenGenericClosures
+    {
+        get
+        {
+            lock (_lock)
+            {
+                var snapshot = new Dictionary<Type, IReadOnlyCollection<Type>>(_openGenericClosures.Count);
+
+                foreach (var (handlerType, closures) in _openGenericClosures)
+                {
+                    snapshot[handlerType] = closures.ToList();
+                }
+
+                return snapshot;
+            }
+        }
+    }
+
+    /// <inheritdoc />
     public IEnumerator<IMessageDescriptor> GetEnumerator()
     {
         lock (_lock)
@@ -134,6 +173,42 @@ internal sealed class MessageRegistry : IMessageRegistry
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<Type> ScannedOpenGenericHandlers
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _scannedOpenGenericHandlers.ToList();
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    [RequiresUnreferencedCode("Handler and message registration inspects CLR types via reflection.")]
+    public void RegisterFromScan(
+        [DynamicallyAccessedMembers(
+            DynamicallyAccessedMemberTypes.PublicConstructors
+            | DynamicallyAccessedMemberTypes.PublicMethods
+            | DynamicallyAccessedMemberTypes.Interfaces)]
+        Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+
+        lock (_lock)
+        {
+            // Recorded before registering, because StoreOpenGenericHandler runs inside Register and the origin has to
+            // be known by then for the strict check to see it.
+            if (type.IsGenericTypeDefinition)
+            {
+                _scannedOpenGenericHandlers.Add(type);
+            }
+        }
+
+        Register(type);
     }
 
     /// <inheritdoc />
@@ -227,6 +302,29 @@ internal sealed class MessageRegistry : IMessageRegistry
         LinkHandlersToCommittedMessages(committedDescriptors);
     }
 
+    /// <inheritdoc />
+    public void AddDeclaration(MessageDeclarationItem declaration)
+    {
+        ArgumentNullException.ThrowIfNull(declaration);
+
+        if (!declaration.DeclarationType.IsInstanceOfType(declaration.Value))
+        {
+            throw new MessageDeclarationException(
+                $"The declaration of '{declaration.DeclarationType.Name}' for '{declaration.MessageType.Name}' "
+                + $"supplied a '{declaration.Value.GetType().Name}', which is not assignable to it. A value has to be "
+                + "an instance of the type it is keyed by, or a reader looking it up by that type finds nothing.");
+        }
+
+        lock (_lock)
+        {
+            Apply(new MessageDeclaration(
+                declaration.MessageType.NormalizeMessageRegistrationType(),
+                declaration.DeclarationType,
+                declaration.Value,
+                DefinitionType: null));
+        }
+    }
+
     /// <summary>
     ///     Binds a message definition type and applies what it declares to known and pending message descriptors.
     /// </summary>
@@ -241,26 +339,44 @@ internal sealed class MessageRegistry : IMessageRegistry
     {
         foreach (var declaration in MessageDefinitionBinder.Bind(definitionType))
         {
-            ThrowIfAlreadyDeclared(declaration);
-            _declarations.Add(declaration);
-
-            // The described message may not have been registered yet.
-            RegisterMessageType(declaration.MessageType);
-
-            // A declaration written for a base type or interface covers every message beneath it, including messages
-            // that were committed before the definition was registered.
-            foreach (var committed in _committedMessages)
-            {
-                ApplyDeclaration(declaration, committed);
-            }
+            Apply(declaration);
         }
+    }
+
+    /// <summary>
+    ///     Records one declaration and applies it to every message it covers.
+    /// </summary>
+    /// <param name="declaration">The declaration to record.</param>
+    /// <remarks>
+    ///     Shared by a definition class and a declaration made from composition code, so both resolve by the same
+    ///     rules. A family default declared here is overridden by a message that states its own position, because
+    ///     that precedence lives in the metadata bag rather than in either caller.
+    /// </remarks>
+    private void Apply(MessageDeclaration declaration)
+    {
+        ThrowIfAlreadyDeclared(declaration);
+        _declarations.Add(declaration);
+
+        // The described message may not have been registered yet.
+        RegisterMessageType(declaration.MessageType);
+
+        // A declaration written for a base type or interface covers every message beneath it, including messages
+        // that were committed before the declaration arrived.
+        foreach (var committed in _committedMessages)
+        {
+            ApplyDeclaration(declaration, committed);
+        }
+
+        // And messages awaiting commit, which is where a message registered in the same pass sits.
+        ApplyDefinitionsToPendingMessages();
+        CommitPendingMessages();
     }
 
     /// <summary>
     ///     Reports a second definition declaring the same value type for the same message.
     /// </summary>
     /// <param name="declaration">The declaration being registered.</param>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="PipelineContractException">
     ///     Thrown when another definition already declared this value type for this message.
     /// </exception>
     /// <remarks>
@@ -273,8 +389,8 @@ internal sealed class MessageRegistry : IMessageRegistry
         {
             if (existing.MessageType == declaration.MessageType && existing.KeyType == declaration.KeyType)
             {
-                throw new LiteBusConfigurationException(
-                    $"Both '{existing.DefinitionType.Name}' and '{declaration.DefinitionType.Name}' declare "
+                throw new PipelineContractException(
+                    $"Both '{existing.SourceName}' and '{declaration.SourceName}' declare "
                     + $"'{declaration.KeyType.Name}' for the message '{declaration.MessageType.Name}'. "
                     + "Keep one declaration per message and value type.");
             }
@@ -439,6 +555,10 @@ internal sealed class MessageRegistry : IMessageRegistry
 
         _openGenericHandlers.Add(openGenericHandlerType);
 
+        // Recorded on registration, so an open generic that fits nothing still appears in the composition summary as
+        // covering zero messages. A handler that silently never runs is the case the summary most needs to show.
+        _openGenericClosures.TryAdd(openGenericHandlerType, []);
+
         // Close for committed messages - must add directly since LinkHandlersToPendingMessages won't touch them.
         foreach (var messageDescriptor in _committedMessages.ToList())
         {
@@ -506,6 +626,17 @@ internal sealed class MessageRegistry : IMessageRegistry
             if (linkToMessageDescriptor)
             {
                 messageDescriptor.AddDescriptors(committedDescriptors);
+            }
+
+            if (closedDescriptors.Count > 0)
+            {
+                if (!_openGenericClosures.TryGetValue(openGenericHandlerType, out var closures))
+                {
+                    closures = [];
+                    _openGenericClosures[openGenericHandlerType] = closures;
+                }
+
+                closures.Add(messageType);
             }
         }
         catch (ArgumentException)
@@ -600,7 +731,7 @@ internal sealed class MessageRegistry : IMessageRegistry
     /// </summary>
     /// <param name="type">The registered type that produced no descriptor.</param>
     /// <param name="claimingBuilderCount">The number of descriptor builders that recognized the type.</param>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="PipelineContractException">
     ///     The type carries a pipeline marker but exposes no closed contract, so it would register successfully and
     ///     never run.
     /// </exception>
@@ -617,7 +748,7 @@ internal sealed class MessageRegistry : IMessageRegistry
             return;
         }
 
-        throw new LiteBusConfigurationException(
+        throw new PipelineContractException(
             $"'{type.Name}' implements a LiteBus pipeline marker but exposes no contract that names a message type, so "
             + "nothing would ever dispatch to it. Implement a closed contract such as "
             + "IMessageGuard<TMessage>, IMessageShortcut<TMessage>, IMessagePreHandler<TMessage>, "

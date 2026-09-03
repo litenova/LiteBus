@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -66,6 +66,11 @@ public sealed class MessageCompletionContext<TMessage, TMessageResult>
     ///     Gets the reason the decision gave for stopping the pipeline, when it stopped.
     /// </summary>
     public string? Reason => _context.Reason;
+
+    /// <summary>
+    ///     Gets the machine-readable code the decision gave for stopping the pipeline, when it stopped.
+    /// </summary>
+    public string? Code => _context.Code;
 
     /// <summary>
     ///     Gets the elapsed time from the start of mediation until the outcome was observed.

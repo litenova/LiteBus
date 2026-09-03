@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Pipeline;
 
 namespace LiteBus.Messaging.MediationStrategies;
 
@@ -70,9 +71,11 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         IAsyncEnumerable<TMessageResult>? stream = null;
         var pipelineStopped = false;
         var startedAt = Stopwatch.GetTimestamp();
+        using var activity = MediationTelemetry.StartMediation(message.GetType());
         var outcome = MediationOutcome.Succeeded;
         Exception? failure = null;
         string? reason = null;
+        string? code = null;
 
         // Records a fault and offers it to the error stage. Every fault path in this method goes through here, and it
         // is a local function so it can record into the locals the enclosing iterator owns.
@@ -164,6 +167,10 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                     {
                         outcome = decision.Outcome;
                         reason = decision.Reason;
+                    code = decision.Code;
+
+                    // Only a Try call installs a capture, so this is a dictionary miss on every ordinary mediation.
+                    MediationEndingCapture.Record(executionContext, decision);
                         pipelineStopped = true;
 
                         if (decision.IsRefusal)
@@ -260,6 +267,9 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
         }
         finally
         {
+            var elapsed = Stopwatch.GetElapsedTime(startedAt);
+            MediationTelemetry.RecordMediation(activity, message.GetType(), outcome, code, elapsed);
+
             await messageDependencies
                 .RunAsyncCompletionHandlers(
                     message,
@@ -267,8 +277,9 @@ public sealed class SingleStreamHandlerMediationStrategy<TMessage, TMessageResul
                     outcome,
                     failure,
                     reason,
+                    code,
                     stream,
-                    Stopwatch.GetElapsedTime(startedAt))
+                    elapsed)
                 .ConfigureAwait(false);
         }
     }

@@ -60,9 +60,16 @@ public static class HandlerPriorities
     ///     The first priority above the range reserved for handlers shipped by LiteBus.
     /// </summary>
     /// <remarks>
-    ///     An application handler at or above this value runs after every LiteBus handler for the same role, and the
-    ///     guarantee holds across releases. Values between <see cref="ReservedFloor" /> and this ceiling belong to
-    ///     LiteBus.
+    ///     <para>
+    ///         An application handler at or above this value runs after every LiteBus handler for the same role, and
+    ///         the guarantee holds across releases. Values between <see cref="ReservedFloor" /> and this ceiling belong
+    ///         to LiteBus.
+    ///     </para>
+    ///     <para>
+    ///         This is a boundary marker and not a position. Nothing LiteBus ships sits here, and nothing an
+    ///         application writes should either: the band from this value up to <see cref="UnitOfWork" /> is where
+    ///         application infrastructure that has to run after LiteBus and before the commit belongs.
+    ///     </para>
     /// </remarks>
     public const int ReservedCeiling = 2_000_000;
 
@@ -82,6 +89,13 @@ public static class HandlerPriorities
     ///         there cannot decide anything about a failure, and anything LiteBus writes afterwards is outside the
     ///         transaction by construction.
     ///     </para>
+    ///     <para>
+    ///         It sits above <see cref="ReservedCeiling" /> rather than on it so that the ceiling stays a boundary with
+    ///         no handler on it. The gap between the two is the band for application infrastructure that has to run
+    ///         after every LiteBus handler and still before the commit, such as a handler that flushes a buffered
+    ///         projection. Registering there is ordered against the commit; registering on the ceiling itself used to
+    ///         tie with it and resolve by registration sequence, which is assembly scan order.
+    ///     </para>
     /// </remarks>
-    public const int UnitOfWork = ReservedCeiling;
+    public const int UnitOfWork = ReservedCeiling + 100;
 }

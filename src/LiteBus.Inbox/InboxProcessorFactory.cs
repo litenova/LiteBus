@@ -102,7 +102,7 @@ internal static class InboxProcessorFactory
             return service;
         }
 
-        throw new LiteBusConfigurationException(
+        throw new DurableStorageConfigurationException(
             $"Inbox processor requires {typeof(T).FullName} to be registered. " +
             "Configure inbox storage and dispatcher inside AddInboxModule(...).");
     }

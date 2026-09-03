@@ -1,4 +1,4 @@
-﻿# Glossary
+# Glossary
 
 This page defines terms used across the LiteBus documentation. Each entry links to the page that explains it in depth.
 
@@ -42,6 +42,10 @@ These words each name exactly one thing, and nothing else in LiteBus is called b
 | **Canceled** | The caller's cancellation token fired. `MediationOutcome.Canceled`, spelled with one `l` to match `OperationCanceledException`. | aborted, stopped |
 | **Refusal** | The **category** holding Denied and Invalid, and the only two things it can hold. `Refusal.Denied`, `Refusal.Invalid`, `PipelineDecision.IsRefusal`, `IMessageRefusalMapper`. | (never as a synonym for Denied) |
 | **Decision** | What a pre-stage handler returns, normalized to `PipelineDecision`. `PipelineDecision.Continue` lets the pipeline run on. | stop, directive, abort |
+| **Reason** | Why a decision stopped the message, written for a person. `Verdict.Deny(reason)`, `Shortcut.Answer(reason)`, `MessageCompletionContext.Reason`, `AuditRecord.Reason`. | code, message, error |
+| **Code** | The machine-readable half of the same decision, meaning the same thing on every shape that carries one: `Verdict`, `Shortcut`, `PipelineDecision`, `Refusal`, `MessageCompletionContext`, `MediationResult`, `MediationDecision`. Switch on it rather than matching the reason. | reason, key, error code (on its own) |
+| **Evaluate** | Ask what the decision stages would say, without performing the message. `ICommandMediator.EvaluateAsync`, `MediationDecision`. Runs guards and validators only. | dry run, check, authorize |
+| **Actor** | Who performed an audited action. `AuditActor`, `AuditRecord.Actor`, `IAuditActorResolver`, `IAuditScope.WithActor`. | user, principal, subject, initiator |
 
 Two consequences worth stating outright, because they are the questions the split exists to answer:
 
@@ -55,6 +59,7 @@ Two consequences worth stating outright, because they are the questions the spli
 | Audit declaration | The constant half of an audit record, stated on the message with `[Audited]`, `[AuditExempt]`, or an `IAuditDefinition<TMessage>`. See [Auditing](../concepts/auditing.md). |
 | Audit exemption | A recorded decision that a message is deliberately not audited, carrying the rationale. Not the same as a message nobody considered, which analyzer LB1018 reports. |
 | Audit scope | The variable half of a record, pushed by the handler while it runs through `IAuditScope`. |
+| Audit actor | Who performed the action, resolved by an `IAuditActorResolver` at the completion stage so a denied message is attributed too. A null actor means nothing established one, which is a distinct answer from `AuditActor.System`. |
 | Audit trail | The application's sink for finished records (`IAuditTrail`). LiteBus decides when a record is produced and what it holds; where it is written is the application's decision. |
 
 ## Reliable Messaging Entry Points

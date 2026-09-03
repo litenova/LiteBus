@@ -1,10 +1,12 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Pipeline;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging;
@@ -43,9 +45,84 @@ public static class MessageContextExtensions
     {
         ArgumentNullException.ThrowIfNull(messageDependencies);
 
+        var messageType = message.GetType();
+
         // The order is the order PreStage declares its members, so the declared order is the executed one rather
         // than something a hand-written call sequence has to keep in step.
         foreach (var stage in PipelineContracts.StagesInOrder)
+        {
+            if (!messageDependencies.HasPreStageHandlers(stage))
+            {
+                continue;
+            }
+
+            var startedAt = Stopwatch.GetTimestamp();
+            using var stageActivity = MediationTelemetry.StartStage(stage, messageType);
+
+            // Only a harness or a Try call installs a capture, so this is a dictionary miss on every ordinary
+            // mediation. Read through the non-throwing accessor: this method is public, and a custom strategy that
+            // has not opened an ambient scope must not start failing here.
+            var capturing = AmbientExecutionContext.GetCurrentOrDefault();
+
+            if (capturing is not null)
+            {
+                MediationEndingCapture.RecordStage(capturing, stage);
+            }
+
+            var decision = PipelineContracts.AggregationFor(stage) == StageAggregation.CollectFailures
+                ? await messageDependencies.RunAsyncCollectingStage(stage, message, cancellationToken)
+                    .ConfigureAwait(false)
+                : await messageDependencies.RunStage(stage, message, cancellationToken).ConfigureAwait(false);
+
+            MediationTelemetry.RecordStage(
+                stage,
+                messageType,
+                Stopwatch.GetElapsedTime(startedAt),
+                decision);
+
+            if (decision.StopsPipeline)
+            {
+                return decision;
+            }
+        }
+
+        return PipelineDecision.Continue;
+    }
+
+    /// <summary>
+    ///     Runs the stages that decide whether a message may proceed, without running the stages that act on it.
+    /// </summary>
+    /// <param name="messageDependencies">The message dependencies encapsulating pre-stage handlers.</param>
+    /// <param name="message">The message being evaluated.</param>
+    /// <param name="cancellationToken">The cancellation token passed to each invocation.</param>
+    /// <returns>
+    ///     The decision from the first stage that would stop the message, or <see cref="PipelineDecision.Continue" />
+    ///     when nothing objects.
+    /// </returns>
+    /// <remarks>
+    ///     <para>
+    ///         This is what an <c>Evaluate</c> mediator method calls. It runs guards and then validators, in the same
+    ///         fixed order the full pipeline runs them, and stops there.
+    ///     </para>
+    ///     <para>
+    ///         The stages it skips are skipped because they act rather than decide. The shipped idempotency shortcut
+    ///         claims a key, and a pre-handler exists to do work, so running either to answer "may I" would perform
+    ///         part of the message the caller was only asking about.
+    ///     </para>
+    ///     <para>
+    ///         It is a prefix of the fixed order rather than an arbitrary subset, which is what distinguishes it from
+    ///         the per-stage helpers v7 removed. Those let a caller run one stage without the ones before it, which
+    ///         cannot honor the guarantee that a shortcut never answers ahead of a guard.
+    ///     </para>
+    /// </remarks>
+    public static async Task<PipelineDecision> RunAsyncDecisionStages(
+        this IMessageDependencies messageDependencies,
+        object message,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(messageDependencies);
+
+        foreach (var stage in PipelineContracts.DecisionStagesInOrder)
         {
             if (!messageDependencies.HasPreStageHandlers(stage))
             {
@@ -121,7 +198,7 @@ public static class MessageContextExtensions
     /// <exception cref="LiteBusMessageInvalidException">
     ///     The validator stage reported failures and no mapper covers the message.
     /// </exception>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="PipelineContractException">
     ///     More than one mapper is registered at the same level of specificity, so which one applies would depend on
     ///     assembly scanning order.
     /// </exception>
@@ -177,7 +254,7 @@ public static class MessageContextExtensions
     /// <param name="mappers">The direct or indirect mappers registered for the message.</param>
     /// <param name="message">The message that was refused.</param>
     /// <returns>The mapper to invoke, or <see langword="null" /> when this collection holds none that applies.</returns>
-    /// <exception cref="LiteBusConfigurationException">The collection holds more than one applicable mapper.</exception>
+    /// <exception cref="PipelineContractException">The collection holds more than one applicable mapper.</exception>
     private static LazyHandler<IMessageRefusalMapper, IRefusalMapperDescriptor>? SelectRefusalMapper<TMessageResult>(
         ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> mappers,
         object message)
@@ -193,7 +270,7 @@ public static class MessageContextExtensions
 
             if (selected is not null)
             {
-                throw new LiteBusConfigurationException(
+                throw new PipelineContractException(
                     $"'{message.GetType().Name}' has more than one refusal mapper producing "
                     + $"'{typeof(TMessageResult).Name}' registered at the same level: "
                     + $"'{selected.Value.Descriptor.HandlerType.Name}' and '{mapper.Descriptor.HandlerType.Name}'. "
@@ -377,6 +454,7 @@ public static class MessageContextExtensions
     /// <param name="outcome">How the mediation ended.</param>
     /// <param name="failure">The exception that ended the mediation, when one did.</param>
     /// <param name="reason">The reason a decision gave for stopping the pipeline, when one did.</param>
+    /// <param name="code">The machine-readable code a decision gave for stopping the pipeline, when it supplied one.</param>
     /// <param name="messageResult">The result the main handler produced, when it ran and produced one.</param>
     /// <param name="duration">How long the mediation took.</param>
     /// <returns>A task that completes once every completion handler has run.</returns>
@@ -393,6 +471,7 @@ public static class MessageContextExtensions
         MediationOutcome outcome,
         Exception? failure,
         string? reason,
+        string? code,
         object? messageResult,
         TimeSpan duration)
     {
@@ -414,6 +493,7 @@ public static class MessageContextExtensions
             MessageResult = executionContext.MessageResult ?? messageResult,
             Exception = failure,
             Reason = reason,
+            Code = code,
             Duration = duration
         };
 

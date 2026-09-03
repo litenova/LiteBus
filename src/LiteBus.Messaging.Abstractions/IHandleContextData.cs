@@ -20,8 +20,14 @@ namespace LiteBus.Messaging.Abstractions;
 ///         is the handler's load.
 ///     </para>
 ///     <para>
-///         One value per type. Wrap a primitive in a named type rather than storing a bare <see cref="string" /> or
-///         <see cref="int" />, which two unrelated stages will collide on.
+///         One value per type by default. Wrap a primitive in a named type rather than storing a bare
+///         <see cref="string" /> or <see cref="int" />, which two unrelated stages will collide on.
+///     </para>
+///     <para>
+///         Where one mediation legitimately holds several values of one type, pass a key. A command naming two
+///         accounts stores each under its own identifier and the handler reads each back by the identifier it already
+///         has, which is the identity-map case the unkeyed store cannot express. A keyed entry and an unkeyed one of
+///         the same type do not collide: the unkeyed calls address a reserved slot of their own.
 ///     </para>
 ///     <para>
 ///         The store belongs to one mediation and is not shared between mediations. Access is synchronised, so parallel
@@ -73,7 +79,7 @@ public interface IHandleContextData
     /// <exception cref="HandleContextDataNotFoundException">No value of that type is present.</exception>
     /// <remarks>
     ///     Use this where an earlier stage is required to have supplied the value, so a missing one is a wiring error
-    ///     worth failing on. Use <see cref="TryGet{T}" /> where the value is optional.
+    ///     worth failing on. Use <see cref="TryGet{T}(out T)" /> where the value is optional.
     /// </remarks>
     T Get<T>();
 
@@ -107,4 +113,56 @@ public interface IHandleContextData
     /// </summary>
     /// <typeparam name="T">The type of the value to remove.</typeparam>
     void Remove<T>();
+
+    /// <summary>
+    ///     Gets the value stored under <typeparamref name="T" /> and <paramref name="key" />.
+    /// </summary>
+    /// <typeparam name="T">The type of the value to get.</typeparam>
+    /// <param name="key">The key the value was stored under.</param>
+    /// <returns>The stored value.</returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="key" /> is <see langword="null" />.</exception>
+    /// <exception cref="HandleContextDataNotFoundException">No value is present for that type and key.</exception>
+    T Get<T>(object key);
+
+    /// <summary>
+    ///     Attempts to get the value stored under <typeparamref name="T" /> and <paramref name="key" />.
+    /// </summary>
+    /// <typeparam name="T">The type of the value to get.</typeparam>
+    /// <param name="key">The key the value was stored under.</param>
+    /// <param name="value">When this method returns <see langword="true" />, the stored value.</param>
+    /// <returns><see langword="true" /> when a value is present for that type and key.</returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="key" /> is <see langword="null" />.</exception>
+    bool TryGet<T>(object key, [MaybeNullWhen(false)] out T value);
+
+    /// <summary>
+    ///     Stores a value under <typeparamref name="T" /> and <paramref name="key" />, replacing any value already
+    ///     stored under that pair.
+    /// </summary>
+    /// <typeparam name="T">The type the value is stored under.</typeparam>
+    /// <param name="key">
+    ///     The key that separates this value from others of the same type. An identifier value object is the usual
+    ///     choice, because the reader already holds it; keys are compared with <see cref="object.Equals(object)" />.
+    /// </param>
+    /// <param name="value">The value to store.</param>
+    /// <exception cref="System.ArgumentNullException">
+    ///     <paramref name="key" /> or <paramref name="value" /> is <see langword="null" />.
+    /// </exception>
+    void Set<T>(object key, T value) where T : notnull;
+
+    /// <summary>
+    ///     Determines whether a value is present for <typeparamref name="T" /> and <paramref name="key" />.
+    /// </summary>
+    /// <typeparam name="T">The type to check for.</typeparam>
+    /// <param name="key">The key to check for.</param>
+    /// <returns><see langword="true" /> when a value is present for that type and key.</returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="key" /> is <see langword="null" />.</exception>
+    bool Contains<T>(object key);
+
+    /// <summary>
+    ///     Removes the value stored under <typeparamref name="T" /> and <paramref name="key" />, if there is one.
+    /// </summary>
+    /// <typeparam name="T">The type of the value to remove.</typeparam>
+    /// <param name="key">The key the value was stored under.</param>
+    /// <exception cref="System.ArgumentNullException"><paramref name="key" /> is <see langword="null" />.</exception>
+    void Remove<T>(object key);
 }

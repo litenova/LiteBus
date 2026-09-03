@@ -25,6 +25,12 @@ namespace LiteBus.Messaging.Audit;
 ///         it while the application is still starting.
 ///     </para>
 ///     <para>
+///         It reports whether an <see cref="IAuditActorResolver" /> is registered, and reports its absence as degraded
+///         rather than unhealthy. A trail with no actor still records what happened, so it is worth writing; it just
+///         cannot say who is answerable, which is the first question a review asks and not something to discover during
+///         one.
+///     </para>
+///     <para>
 ///         Every resolution happens inside a dispatch scope rather than against the provider the probe was given. The
 ///         trail is scoped by default, and resolving a scoped service from a root provider is an error in a container
 ///         validating scopes, which would make the probe fail on exactly the configuration it is meant to approve.
@@ -62,21 +68,25 @@ public sealed class AuditTrailDiagnosticCheck : IDiagnosticCheck
         {
             // A host with no dispatch scope factory resolves everything from the root, so the trail can only be a
             // singleton and there is nothing to compare against.
-            return Task.FromResult(Describe(_serviceProvider.GetService(typeof(IAuditTrail)), isSingleton: true));
+            return Task.FromResult(Describe(
+                _serviceProvider.GetService(typeof(IAuditTrail)),
+                isSingleton: true,
+                _serviceProvider.GetService(typeof(IAuditActorResolver)) is not null));
         }
 
         using var first = scopeFactory.CreateScope();
         var trail = first.ServiceProvider.GetService(typeof(IAuditTrail));
+        var hasActorResolver = first.ServiceProvider.GetService(typeof(IAuditActorResolver)) is not null;
 
         if (trail is null)
         {
-            return Task.FromResult(Describe(trail: null, isSingleton: true));
+            return Task.FromResult(Describe(trail: null, isSingleton: true, hasActorResolver));
         }
 
         using var second = scopeFactory.CreateScope();
         var trailInSecondScope = second.ServiceProvider.GetService(typeof(IAuditTrail));
 
-        return Task.FromResult(Describe(trail, ReferenceEquals(trail, trailInSecondScope)));
+        return Task.FromResult(Describe(trail, ReferenceEquals(trail, trailInSecondScope), hasActorResolver));
     }
 
     /// <summary>
@@ -84,8 +94,9 @@ public sealed class AuditTrailDiagnosticCheck : IDiagnosticCheck
     /// </summary>
     /// <param name="trail">The resolved trail, or <see langword="null" /> when none is registered.</param>
     /// <param name="isSingleton">Whether two dispatch scopes resolve the same trail instance.</param>
+    /// <param name="hasActorResolver">Whether an <see cref="IAuditActorResolver" /> is registered.</param>
     /// <returns>The probe result.</returns>
-    private static DiagnosticResult Describe(object? trail, bool isSingleton)
+    private static DiagnosticResult Describe(object? trail, bool isSingleton, bool hasActorResolver)
     {
         if (trail is null)
         {
@@ -96,19 +107,32 @@ public sealed class AuditTrailDiagnosticCheck : IDiagnosticCheck
                 new Dictionary<string, object>
                 {
                     ["component"] = "audit",
-                    ["trailRegistered"] = false
+                    ["trailRegistered"] = false,
+                    ["actorResolverRegistered"] = hasActorResolver
                 });
+        }
+
+        var data = new Dictionary<string, object>
+        {
+            ["component"] = "audit",
+            ["trailRegistered"] = true,
+            ["trailType"] = trail.GetType().FullName ?? trail.GetType().Name,
+            ["trailIsSingleton"] = isSingleton,
+            ["actorResolverRegistered"] = hasActorResolver
+        };
+
+        if (!hasActorResolver)
+        {
+            return new DiagnosticResult(
+                DiagnosticStatus.Degraded,
+                "Auditing is enabled and an audit trail is registered, but no IAuditActorResolver is, so every record "
+                + "is written with no actor. Register one with UseAuditActorResolver on the messaging module builder.",
+                data);
         }
 
         return new DiagnosticResult(
             DiagnosticStatus.Healthy,
             "Auditing is enabled and an audit trail is registered.",
-            new Dictionary<string, object>
-            {
-                ["component"] = "audit",
-                ["trailRegistered"] = true,
-                ["trailType"] = trail.GetType().FullName ?? trail.GetType().Name,
-                ["trailIsSingleton"] = isSingleton
-            });
+            data);
     }
 }

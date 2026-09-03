@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -10,8 +10,9 @@ idempotency built on all three. The pre stage is where most of the break lands: 
 pre-handlers are now four contracts the framework can tell apart before invoking them, which is what lets it fix the
 order they run in. The declaration model is general rather than an auditing feature: an application declares its own
 metadata, reads it back through an accessor, enforces it at compile time and at composition time, and a named priority
-band gives its unit-of-work commit a position the framework's own writers can be ordered against. Persistence schemas
-and transport behavior are unchanged.
+band gives its unit-of-work commit a position the framework's own writers can be ordered against. In-process mediation
+becomes observable, a refusal can be received as a value rather than caught, and a message can be asked whether it
+would be permitted without being performed. Persistence schemas and transport behavior are unchanged.
 
 ### Added
 
@@ -182,6 +183,131 @@ and transport behavior are unchanged.
   by comparing the trail across two dispatch scopes.
 - `IHandlerDescriptor.ContractType` records the closed contract a descriptor was discovered from, and `PipelineDispatch`
   carries the delegate bound to it at registration.
+- An audit record says who acted. `AuditRecord.Actor` carries an `AuditActor` with a required `Id` and optional `Kind`,
+  `DisplayName` and `OnBehalfOf`, supplied by an `IAuditActorResolver` the application registers through
+  `UseAuditActorResolver`. The resolver receives the completion context, so it reads the actor off the message and runs
+  on every path, which is what attributes a denied command; a pre-stage handler cannot, because a guard that denies
+  stops the pipeline before any pre-handler runs, and that is exactly the case a trail exists for. A handler that knows
+  more than the resolver overrides it with `IAuditScope.WithActor`. Returning null is legitimate and means nothing
+  established an actor, which is a different answer from a named process. The message itself is deliberately not on the
+  record: it is handed to the resolver, so a payload cannot reach audit storage by default. The `litebus.audit.trail`
+  probe reports a missing resolver as `Degraded` and carries `actorResolverRegistered`.
+- `MessageModuleBuilder.AddAuditing` configures the whole audit feature in one call: the trail, the actor resolver, the
+  outcome mapper, and which axes produce records, through `AuditingBuilder`. Before it, the trail lived on the messaging
+  builder and the per-axis switch lived on the command and query builders, so an application could register either
+  without the other and find out from a diagnostic probe. Configuring a trail and selecting no axis now raises
+  `AuditConfigurationException` at composition, which no probe can report at runtime because nothing is ever audited
+  and so nothing ever fails. The per-axis `EnableAuditing()` calls remain and are what this composes.
+- `EventModuleBuilder.EnableAuditing()`. A domain fact is frequently the thing a review most wants recorded, and the
+  event axis had no switch for it while commands and queries did. One record per publish, not per handler: the
+  mediation is the unit being audited, and a record per subscriber would turn one fact into as many entries as there
+  happen to be reactions.
+- `IMessageDefinition<TMessage>` declares every value for a message from one `Describe(IMessageDeclarations)` method,
+  with `Declare<TValue>`, `Audited`, `NotAudited` and `Exempt<TValue>` on the collection. The keyed
+  `IMessageDefinition<TMessage, TValue>` remains and is the better choice for a single declaration, because the
+  compiler checks it; past one it stops paying, since the second and every later value has to be written as an explicit
+  interface implementation naming the message type and the value type again, which is the type name three times to say
+  one thing. Both shapes write into the same type-keyed bag, so a codebase uses whichever fits each message.
+- Declaration requirements can be scoped. `RequireDeclaration<TValue, TScope>()` covers every message assignable to a
+  marker, and `RequireDeclaration<TValue>(predicate, description)` covers an arbitrary selection with the words the
+  error uses. The unscoped form applied to commands, queries and events alike, so requiring a permission of commands
+  also demanded one from every query and produced exemptions that said nothing, which trains a team to treat a
+  rationale as paperwork. The scope is a type rather than a namespace on purpose: a namespace is a string a refactoring
+  tool moves without telling anyone, and for an authorization rule that failure is an unguarded command that used to be
+  guarded. The composition error names the scope alongside every offender.
+- `MessageModuleBuilder.ValidateComposition(Action<IMessageCatalog>)` runs an application rule over every registered
+  message after every module has built. `IMessageCatalog` enumerates `MessageCatalogEntry` values carrying the message
+  type, its resolved metadata, and its `AuditedDeclaration`, with an `Audited()` filter. The underlying hook was public
+  and unreachable in practice, because the only way to be handed an `IModuleConfiguration` is to implement `IModule`,
+  which is a lot of ceremony for a five-line assertion. `RequireUniqueAuditActions()` and
+  `RequireAuditActionFormat(pattern)` ship as built-ins over it, because every audited application needs both and
+  getting either wrong corrupts the trail rather than breaking the build.
+- `ICommandMediator.TrySendAsync` and `IQueryMediator.TryQueryAsync` return `MediationResult` and
+  `MediationResult<TResult>` instead of raising a refusal. A denial and a validation failure are routine endings that
+  the pipeline already models as decisions internally, and converting them to exceptions at the boundary left an HTTP
+  endpoint catching one to produce a 403. A genuine fault still throws: a database timeout is not something a boundary
+  should branch on, and a result carrying the exception would invite one to be swallowed. Where a refusal mapper is
+  registered, the mapped value arrives alongside the denied outcome, so an application sees both its own shape and the
+  framework's classification.
+- `ICommandMediator.EvaluateAsync` and `IQueryMediator.EvaluateAsync` answer whether a message would be permitted and
+  well-formed, without performing it, returning a `MediationDecision`. This is what removes the second authorization
+  method an application otherwise writes, one to authorize while doing and one for a caller that shows or hides a
+  control; two methods answering the same question drift, and the drift is silent and security-relevant, because a
+  button stays visible for an action the pipeline will refuse. It runs guards and validators only, because a shortcut
+  and a pre-handler act rather than decide: the shipped idempotency shortcut claims a key, so evaluating a page full of
+  controls would burn keys for commands nobody submitted. `MessageContextExtensions.RunAsyncDecisionStages` exposes the
+  same prefix to a custom mediation strategy.
+- In-process mediation is observable. `LiteBusMediationTelemetry` declares the `LiteBus.Mediation` activity source and
+  meter with public instrument names: `litebus.mediation.duration`, `litebus.mediation.count`,
+  `litebus.mediation.stage.duration` and `litebus.mediation.decisions`. One span per mediation named
+  `mediate {MessageType}`, tagged with the message, the outcome and the decision code; the decisions counter is tagged
+  with the stage and the deciding handler, which turns "which stage denied this" from a stack trace into a filter. Only
+  a `Failed` outcome sets the span error status, because a denial is a decision and colouring every refused request red
+  makes a trace view useless for finding the requests that actually broke. The inbox, the outbox, the transport and
+  each broker adapter all published instruments while the library's primary job published none.
+  `MessageModuleBuilder.UseTelemetry(MediationTelemetryOptions)` decides what is recorded: spans and metrics are on,
+  per-stage spans and per-stage metrics are opt-in because mediation volume is orders of magnitude above
+  durable-processing volume. The new `LiteBus.Messaging.Extensions.OpenTelemetry` package registers the source and the
+  meter with `AddLiteBusMediationInstrumentation()` and `AddLiteBusMediationMetrics()`.
+- `IMessageReader.Explain(Type)` returns a `MessagePipelinePlan`: the message, the result type it declares, and every
+  handler that will run in the order it will run, as `MessagePipelineStep` records naming the stage, the priority, the
+  handler, the contract, and whether it arrived indirectly or from a closed open generic. With a hundred messages, open
+  generic guards, an audit writer and a commit, the honest answer to "what runs for this command" was to read the
+  registry in a debugger. It reproduces the pipeline's own ordering rules, including that completion orders by priority
+  alone across the direct and indirect split, and it is read from the registry rather than computed at compile time
+  because the registry is the only thing that knows about closed open generics, base-type registrations and priority
+  ties.
+- `LiteBusCompositionSummary` reports what the host actually composed: message counts per axis, every open generic
+  handler with the number of messages it was closed over, the audit trail and its lifetime, whether an actor resolver
+  is registered, the declaration policies enforced, and how many application composition checks run. Resolve it and log
+  `ToString()` once at startup. The open generic line is what earns it: adding one file to a scanned assembly inserts a
+  pipeline stage into every message it fits, and nothing in the composition code shows it.
+- `IMessageWriter.RegisterFromScan(Type)` records that a type arrived through an assembly scan rather than being named,
+  surfaced as `IMessageReader.ScannedOpenGenericHandlers` and `IMessageReader.OpenGenericClosures`.
+  `MessageModuleBuilder.RequireExplicitOpenGenerics()` then fails composition, naming each scanned open generic and the
+  registration line that fixes it. It is opt-in rather than the default because picking up open generic handlers is
+  what an assembly scan has meant since v4, and turning that off changes what a scan is rather than fixing a defect.
+- `IHandleContextData` gained keyed overloads of `Set`, `Get`, `TryGet`, `Contains` and `Remove`. One value per type
+  cannot express a command that names two accounts, which is the identity-map case the store's own worked example
+  implies. Keys are compared with `object.Equals`, so an identifier value object is usable directly, and the unkeyed
+  slot is a distinct slot rather than a reserved key value, so neither can clear the other.
+  `HandleContextDataNotFoundException` now carries the `Key` alongside the `DataType`.
+- `Shortcut` and `Shortcut<TMessageResult>` carry a `Code` alongside their reason, and `MessageCompletionContext`
+  exposes `Code`. `Code` now means the same thing on all three decision shapes and on `Verdict`: something a later
+  stage can switch on, where the reason is prose written for a person. Without it, a completion handler counting why
+  messages were answered had to match on English, and a metric could not tell a cache hit from an idempotent replay.
+- `AuditReasonMissingException` replaces the configuration exception raised when an audited action declares
+  `ReasonRequired` and the handler supplied none. It carries the action and the message type.
+- Family defaults. `MessageModuleBuilder.DeclareDefault<TScope, TValue>(value)` declares a value for every message
+  assignable to a marker, and `IMessageWriter.AddDeclaration(MessageDeclarationItem)` records a declaration without a
+  definition class. "Everything under organizations requires ManageOrganization unless it says otherwise" is a rule
+  worth stating once; declaring it on each of a hundred commands states it a hundred times and gives it a hundred
+  places to drift. Nothing new decides precedence: a declaration still resolves to the one written closest to the
+  message, so a command carrying its own value keeps it and the family inherits the default, which is the rule a
+  definition written for a base type has always followed. The scope is a type rather than a namespace for the reason a
+  scoped requirement is: a namespace is a string a refactoring tool moves without telling anyone, and for an
+  authorization default that failure is a command that used to be guarded and now is not. Two defaults for one scope
+  and value type are a configuration error, and the writer's default `AddDeclaration` throws rather than accepting the
+  call and dropping it, because a silently dropped default is an unguarded command that looks configured.
+- The audit catalogue is derived rather than maintained. `IMessageCatalog` is registered as a Singleton so it resolves
+  at runtime and not only inside a composition check, and `AuditCatalogue.ToRows` projects every audited message into
+  an `AuditCatalogueRow` carrying the action, the message, the category, the target kind, and whether a reason is
+  required. `ToMarkdown` is one formatter over those rows. Rows are the primary surface because what a compliance
+  process consumes differs per team, and a library emitting only Markdown would serve one team and obstruct the rest.
+  Rows are ordered by action so two runs produce the same document. The other half of an authorization matrix stays
+  the application's: a required permission is an application value type, projected from
+  `MessageCatalogEntry.Metadata` alongside these rows, because only the application knows what its own declarations
+  mean.
+- `MediationHarness` in `LiteBus.Testing.Mediation` runs the shipped pipeline over hand-supplied handler instances,
+  with no host and no container, and reports which pre stages ran. Asserting that a guard denies previously meant
+  booting the whole host, which for an application with a relational store meant a database container for a test about
+  one authorization decision. `MediationHarnessResult.StagesRun` is the part no consumer can build, because only the
+  stage runner knows it, and when the point of the library is that behavior moved into named stages that is the
+  assertion a test of the behavior wants. It runs the real strategies through the real stage runner, so the fixed stage
+  order, the validator stage's aggregation, and priority ordering all apply; what it leaves out is composition, so a
+  registration a host would reject still has to be asserted against a host. `MessageRegistryFactory.Create()` and
+  `MessageMediatorFactory.Create(registry, dispatchScopeFactory)` are the public seams it is built on, both
+  `EditorBrowsable(Never)`, for a manual host composing LiteBus without a container.
 
 ### Changed
 
@@ -246,6 +372,39 @@ and transport behavior are unchanged.
   `Pomelo.EntityFrameworkCore.MySql` has no EF Core 10 provider, and `SQLitePCLRaw` stays on 2.1.x to match the EF Core
   9 SQLite provider.
 
+- `HandlerPriorities.UnitOfWork` moves from `ReservedCeiling` to `ReservedCeiling + 100`. Two names for one value
+  invited an application to register infrastructure just above the ceiling and silently tie with the commit, resolved
+  by registration sequence, which is assembly scan order. The ceiling is now a pure boundary marker with nothing on it,
+  and the band between the two is where application infrastructure that has to run after every LiteBus handler and
+  still before the commit belongs.
+- `LiteBusConfigurationException` gains derived types so a composition failure can be caught by category:
+  `ModuleCompositionException`, `MessageDeclarationException`, `PipelineContractException`,
+  `DurableStorageConfigurationException` and `AuditConfigurationException`. It used to be one type for duplicate
+  modules, dependency cycles, missing storage, a missing audit trail, refusal mapper conflicts, metadata conflicts and
+  untyped-shortcut misuse, so nothing could be caught selectively. The base is no longer sealed and stays catchable as
+  the category; every throw site in the library now uses a derived type.
+- The command, query and event module builders accept a pipeline handler written against the messaging-level contract
+  when its message type is, or is constrained to be, assignable to that axis. A cross-cutting guard had to be written
+  once per axis, and the code being copied was authorization, where two copies means one of them gets the next fix. A
+  handler constrained to neither axis is still refused, because nothing says which axis it is for and accepting it
+  would silently close it over every message in whichever axis happened to register it. Main handler contracts are
+  excluded: a command handler and a query handler mean different things.
+- `IExecutionContext` is registered as a scoped dependency, so a handler declares it as a constructor parameter and the
+  dependency appears in the type signature. Every documented way of reading mediation state went through the
+  `AsyncLocal` static, which hides a dependency and forces an ambient scope in a unit test.
+  `AmbientExecutionContext` remains the way to reach the context from code that runs outside dependency injection.
+- `IAuditOutcomeMapper.MapFailureCode` returns the refusal's own `Code` for a `Denied` or `Invalid` outcome before
+  falling back to the exception type name, and no longer reports `LiteBusMessageInvalidException` as a failure code.
+  A guard that supplied a code chose it deliberately and it survives either shape of refusal, where an
+  exception-derived code is present when a refusal raises and absent when a mapper returns a value instead. A
+  shortcut's code is deliberately excluded, because an answered mediation reports `Succeeded` and its code would
+  otherwise land in the field a review reads as the reason something did not work.
+- `[AuditExempt]` records the same `DeclarationExemption` that `[DeclarationExempt(typeof(AuditDeclaration), ...)]`
+  records, through the new `IMessageDeclarationExemptionSource` contract, so every exemption a message carries reads
+  from one place whichever spelling wrote it. There is one mechanism with two spellings rather than two mechanisms; the
+  paragraph of documentation explaining why auditing was special-cased is gone. `[AuditExempt]` also validates its
+  rationale at construction rather than at declaration time.
+
 ### Fixed
 
 - Publishing to and consuming from Amazon SQS no longer raises `NullReferenceException`. AWSSDK 4 stopped initializing
@@ -255,6 +414,14 @@ and transport behavior are unchanged.
 - Handler discovery in the analyzers recognizes the two-parameter post-handler contracts and the stream query
   post-handler contract. A handler implementing only those was invisible to LB1011 and LB1012, so an unused
   `[HandlerTag]` on one was not reported.
+- An event denial's code reaches the completion stage. `AsyncBroadcastMediationStrategy` captured the decision's reason
+  and not its code, so a guard that refused an event with a code left `MessageCompletionContext.Code` empty and the
+  audit record uncoded, while the command and query strategies carried it.
+- A configuration error thrown from a message definition reads as one. `Describe` is invoked reflectively, so anything
+  it threw arrived wrapped in `TargetInvocationException`, which meant a duplicate declaration surfaced as a
+  reflection failure the author had to unwrap. The inner exception is now rethrown with its stack intact.
+- The event module registers its audit completion handler before the dependency registration pass rather than after,
+  so enabling auditing on the event axis no longer fails to resolve the handler on the first audited publish.
 
 ### Breaking
 

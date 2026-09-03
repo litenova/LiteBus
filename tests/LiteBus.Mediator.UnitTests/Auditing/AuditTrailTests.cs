@@ -327,9 +327,15 @@ public sealed class AuditTrailTests : LiteBusTestBase
         var act = async () => await provider.GetRequiredService<ICommandMediator>()
             .SendAsync(new OverridePriceCommand()).ConfigureAwait(false);
 
-        // A justification that silently goes missing defeats the reason the declaration asked for one.
-        await act.Should().ThrowAsync<LiteBusConfigurationException>()
+        // A justification that silently goes missing defeats the reason the declaration asked for one. The exception is
+        // its own type rather than a configuration error: a handler that forgot a call is a data problem in one
+        // mediation, and an application catching composition faults at startup must not also catch this.
+        var thrown = await act.Should().ThrowAsync<AuditReasonMissingException>()
             .WithMessage("*declares that a reason is required*").ConfigureAwait(false);
+
+        thrown.Which.Should().NotBeAssignableTo<LiteBusConfigurationException>();
+        thrown.Which.MessageType.Should().Be<OverridePriceCommand>();
+        thrown.Which.Action.Should().NotBeNullOrWhiteSpace();
 
         trail.Records.Should().BeEmpty();
     }

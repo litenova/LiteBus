@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -91,25 +91,26 @@ internal sealed class MessageDescriptor : IMessageDescriptor
         // definition would contribute, so a definition for the same message overwrites it instead of sitting beside it.
         List<DeclarationExemption>? exemptions = null;
 
+        // Tested independently rather than in a switch, because one attribute may do both. [AuditExempt] declares the
+        // audit position and records the exemption from declaring one, and a switch would run only the first arm.
         foreach (var attribute in messageType.GetCustomAttributes(inherit: true))
         {
-            switch (attribute)
+            if (attribute is IMessageDeclarationSource declaration)
             {
-                case IMessageDeclarationSource declaration:
-                    ThrowIfAnnotationDisagrees(declaration);
-                    _metadata.Set(
-                        declaration.DeclarationType,
-                        declaration.CreateDeclaration(),
-                        messageType,
-                        MetadataSourceKind.Attribute);
-                    break;
+                ThrowIfAnnotationDisagrees(declaration);
+                _metadata.Set(
+                    declaration.DeclarationType,
+                    declaration.CreateDeclaration(),
+                    messageType,
+                    MetadataSourceKind.Attribute);
+            }
 
-                // Exemptions are collected rather than set one at a time. Metadata holds one value per key type, and a
-                // message may be exempt from several requirements, so the attributes have to collapse into one set
-                // instead of overwriting each other.
-                case DeclarationExemptAttribute exempt:
-                    (exemptions ??= []).Add(exempt.CreateExemption());
-                    break;
+            // Exemptions are collected rather than set one at a time. Metadata holds one value per key type, and a
+            // message may be exempt from several requirements, so the attributes have to collapse into one set
+            // instead of overwriting each other.
+            if (attribute is IMessageDeclarationExemptionSource exempt)
+            {
+                (exemptions ??= []).Add(exempt.CreateExemption());
             }
         }
 
@@ -131,7 +132,7 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     ///     its <see cref="IMessageDeclarationSource.DeclarationType" /> returns.
     /// </summary>
     /// <param name="declaration">The declaring attribute instance found on a message type.</param>
-    /// <exception cref="LiteBusConfigurationException">The annotation and the property disagree.</exception>
+    /// <exception cref="PipelineContractException">The annotation and the property disagree.</exception>
     /// <remarks>
     ///     The annotation is what an analyzer reads, and the property is what the registry reads. Letting them drift
     ///     would make LB1020 report a message as undeclared while registration accepts it, or the reverse, which is
@@ -146,7 +147,7 @@ internal sealed class MessageDescriptor : IMessageDescriptor
             return;
         }
 
-        throw new LiteBusConfigurationException(
+        throw new PipelineContractException(
             $"The attribute '{declaration.GetType().Name}' is annotated [MessageDeclaration(typeof("
             + $"{annotation.DeclarationType.Name}))] but its DeclarationType returns '{declaration.DeclarationType.Name}'. "
             + "The annotation is what analyzers read and the property is what registration reads, so they have to name "
@@ -314,7 +315,7 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// </summary>
     /// <param name="mainHandler">The main handler being linked.</param>
     /// <param name="preStageHandlers">The pre-stage handlers already linked directly to this message.</param>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="PipelineContractException">
     ///     An untyped shortcut is registered for a message that produces a result.
     /// </exception>
     private void ThrowIfUntypedShortcutMeetsResult(
@@ -340,7 +341,7 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// </summary>
     /// <param name="preStageHandler">The pre-stage handler being linked.</param>
     /// <param name="mainHandlers">The main handlers already linked directly to this message.</param>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="PipelineContractException">
     ///     An untyped shortcut is registered for a message that produces a result.
     /// </exception>
     /// <remarks>
@@ -403,13 +404,13 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     ///     and is absent from a project that does not reference the analyzer package, so registration is where the
     ///     guarantee actually lives.
     /// </remarks>
-    private LiteBusConfigurationException UntypedShortcutOnResultMessage(
+    private PipelineContractException UntypedShortcutOnResultMessage(
         IPreStageHandlerDescriptor shortcut,
         Type messageResultType)
     {
         var resultName = UnwrapResultType(messageResultType).Name;
 
-        return new LiteBusConfigurationException(
+        return new PipelineContractException(
             $"Shortcut '{shortcut.HandlerType.Name}' implements the untyped shortcut contract for "
             + $"'{MessageType.Name}', which produces '{resultName}'. The untyped answer cannot carry a result, so "
             + $"answering would fail at dispatch. Implement IMessageShortcut<{MessageType.Name}, {resultName}> "

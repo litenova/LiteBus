@@ -71,7 +71,7 @@ public sealed class RequiredDeclarationTests : LiteBusTestBase
         var act = () => BuildProvider(typeof(DraftScheduleCommand), typeof(DraftScheduleCommandHandler));
 
         act.Should().Throw<LiteBusConfigurationException>()
-            .WithMessage("*RequiredPermission is not declared by: DraftScheduleCommand*");
+            .WithMessage("*RequiredPermission is required of every registered message but is not declared by: DraftScheduleCommand*");
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public sealed class RequiredDeclarationTests : LiteBusTestBase
         var act = () => BuildProvider(typeof(RetireScheduleCommand), typeof(RetireScheduleCommandHandler));
 
         act.Should().Throw<LiteBusConfigurationException>()
-            .WithMessage("*RequiredPermission is not declared by: RetireScheduleCommand*");
+            .WithMessage("*RequiredPermission is required of every registered message but is not declared by: RetireScheduleCommand*");
     }
 
     [Fact]

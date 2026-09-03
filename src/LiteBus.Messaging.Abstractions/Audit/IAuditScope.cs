@@ -40,6 +40,15 @@ namespace LiteBus.Messaging.Abstractions;
 public interface IAuditScope
 {
     /// <summary>
+    ///     Gets the actor the handler attributed the action to, when it supplied one.
+    /// </summary>
+    /// <value>
+    ///     The actor pushed through <see cref="WithActor" />, or <see langword="null" /> when the handler pushed none
+    ///     and attribution is left to the registered <see cref="IAuditActorResolver" />.
+    /// </value>
+    AuditActor? Actor { get; }
+
+    /// <summary>
     ///     Gets the identifier of the resource the message acted on, when the handler supplied one.
     /// </summary>
     string? TargetId { get; }
@@ -53,6 +62,20 @@ public interface IAuditScope
     ///     Gets the additional properties the handler attached to the record.
     /// </summary>
     IReadOnlyDictionary<string, string> Properties { get; }
+
+    /// <summary>
+    ///     Attributes the action to an actor, overriding whatever the registered
+    ///     <see cref="IAuditActorResolver" /> would have resolved.
+    /// </summary>
+    /// <param name="actor">Who performed the action.</param>
+    /// <returns>The scope, for chaining.</returns>
+    /// <remarks>
+    ///     Reach for this only where the handler knows something the resolver cannot: an actor established by
+    ///     exchanging a token mid-handler, or a delegation the message does not carry. Attribution that is the same for
+    ///     every message belongs in the resolver, which also covers the denied and failed paths a handler never
+    ///     reaches.
+    /// </remarks>
+    IAuditScope WithActor(AuditActor actor);
 
     /// <summary>
     ///     Records the identifier of the resource the message acted on.

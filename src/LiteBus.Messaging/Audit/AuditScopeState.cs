@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Audit;
 
@@ -8,6 +9,11 @@ namespace LiteBus.Messaging.Audit;
 /// </summary>
 internal sealed class AuditScopeState
 {
+    /// <summary>
+    ///     Gets or sets the actor the handler attributed the action to.
+    /// </summary>
+    public AuditActor? Actor { get; set; }
+
     /// <summary>
     ///     Gets or sets the identifier of the resource the message acted on.
     /// </summary>

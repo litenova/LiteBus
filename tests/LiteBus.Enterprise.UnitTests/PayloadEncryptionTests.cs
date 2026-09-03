@@ -395,6 +395,33 @@ public sealed class PayloadEncryptionTests
         {
             throw new NotSupportedException();
         }
+    
+        /// <inheritdoc />
+        public Task<MediationResult> TrySendAsync(
+            ICommand command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationResult.Succeeded());
+        }
+
+        /// <inheritdoc />
+        public Task<MediationResult<TCommandResult>> TrySendAsync<TCommandResult>(
+            ICommand<TCommandResult> command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationResult<TCommandResult>.Succeeded(default!));
+        }
+
+        /// <inheritdoc />
+        public Task<MediationDecision> EvaluateAsync(
+            ICommand command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationDecision.Allowed);
+        }
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Pipeline;
 
 namespace LiteBus.Events.MediationStrategies;
 
@@ -62,9 +63,11 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
         var executionTaskOfAllHandlers = Task.CompletedTask;
         var startedAt = Stopwatch.GetTimestamp();
+        using var activity = MediationTelemetry.StartMediation(message.GetType());
         var outcome = MediationOutcome.Succeeded;
         Exception? failure = null;
         string? reason = null;
+        string? code = null;
 
         try
         {
@@ -76,6 +79,10 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
             {
                 outcome = decision.Outcome;
                 reason = decision.Reason;
+                code = decision.Code;
+
+                // Only a Try call installs a capture, so this is a dictionary miss on every ordinary publish.
+                MediationEndingCapture.Record(executionContext, decision);
 
                 if (decision.IsRefusal)
                 {
@@ -132,6 +139,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         {
             // An event produces no result. The task that tracks its handlers is not one, so completion handlers
             // see none rather than seeing a Task where a message result belongs.
+            var elapsed = Stopwatch.GetElapsedTime(startedAt);
+            MediationTelemetry.RecordMediation(activity, message.GetType(), outcome, code, elapsed);
+
             await messageDependencies
                 .RunAsyncCompletionHandlers(
                     message,
@@ -139,8 +149,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
                     outcome,
                     failure,
                     reason,
+                    code,
                     messageResult: null,
-                    Stopwatch.GetElapsedTime(startedAt))
+                    elapsed)
                 .ConfigureAwait(false);
         }
     }

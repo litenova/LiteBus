@@ -1,4 +1,4 @@
-﻿namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
 ///     Classifies how a mediation ended in the vocabulary of an audit trail.
@@ -43,14 +43,32 @@ public interface IAuditOutcomeMapper
     /// <param name="context">The completion context observed at the end of mediation.</param>
     /// <returns>The failure code, or <see langword="null" /> when there is nothing to name.</returns>
     /// <remarks>
-    ///     Defaults to the exception type name, which is useful before an application defines its own failure taxonomy.
-    ///     A guard denial is deliberately left uncoded: <see cref="LiteBusMessageDeniedException" /> would only restate
-    ///     the outcome, and the reason on the record already says why. That also keeps the two shapes of denial
-    ///     consistent, since a refusal mapped to a value raises nothing at all.
+    ///     <para>
+    ///         A refusal's own code wins, because a guard or a validator that passed one chose it deliberately and it
+    ///         is stable across wordings. It also survives either shape of refusal: a refusal mapped to a value raises
+    ///         nothing at all, so an exception-derived code would be present for one shape and absent for the other.
+    ///     </para>
+    ///     <para>
+    ///         Only a refusal contributes its code. A shortcut answers with a code too, and that mediation reports
+    ///         <see cref="AuditOutcome.Succeeded" />, so carrying it here would put a cache-hit code in the field a
+    ///         review reads as the reason something did not work.
+    ///     </para>
+    ///     <para>
+    ///         Otherwise it defaults to the exception type name, which is useful before an application defines its own
+    ///         failure taxonomy. A refusal that supplied no code stays uncoded rather than reporting
+    ///         <see cref="LiteBusMessageDeniedException" /> or <see cref="LiteBusMessageInvalidException" />: naming
+    ///         those would only restate <see cref="MessageCompletionContext.Outcome" />, and the reason on the record
+    ///         already says why.
+    ///     </para>
     /// </remarks>
     string? MapFailureCode(MessageCompletionContext context)
     {
-        return context.Exception is null or LiteBusMessageDeniedException
+        if (context.Outcome is MediationOutcome.Denied or MediationOutcome.Invalid && context.Code is not null)
+        {
+            return context.Code;
+        }
+
+        return context.Exception is null or LiteBusMessageDeniedException or LiteBusMessageInvalidException
             ? null
             : context.Exception.GetType().Name;
     }

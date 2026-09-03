@@ -34,7 +34,7 @@ public sealed class IdempotencyKeyResolver
     /// </summary>
     /// <param name="message">The message being mediated.</param>
     /// <returns>The declaration and its resolved key, or <see langword="null" /> when the message declares none.</returns>
-    /// <exception cref="LiteBusConfigurationException">The selector produced a blank key.</exception>
+    /// <exception cref="AuditConfigurationException">The selector produced a blank key.</exception>
     /// <remarks>
     ///     A blank key is reported rather than used. Every message with a blank key collides with every other one, so
     ///     the first would answer all the rest, which is a data-loss bug wearing the costume of a working feature.
@@ -54,7 +54,7 @@ public sealed class IdempotencyKeyResolver
 
         if (string.IsNullOrWhiteSpace(key))
         {
-            throw new LiteBusConfigurationException(
+            throw new AuditConfigurationException(
                 $"The idempotency declaration for '{messageType.Name}' produced a blank key. Every message with a "
                 + "blank key shares one key space, so the first would answer all the others. Project the key from a "
                 + "field the message always carries.");

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Queries.Abstractions;
 
@@ -64,4 +65,41 @@ public interface IQueryMediator
     IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
                                                              QueryMediationSettings? queryMediationSettings = null,
                                                              CancellationToken cancellationToken = default);
+    /// <summary>
+    ///     Asynchronously executes a query and returns how the mediation ended instead of raising a refusal.
+    /// </summary>
+    /// <typeparam name="TQueryResult">The type of the result returned by the query.</typeparam>
+    /// <param name="query">The query to execute.</param>
+    /// <param name="queryMediationSettings">Optional settings for query mediation.</param>
+    /// <param name="cancellationToken">Cancellation token for the operation.</param>
+    /// <returns>The outcome and the value, or the reason and code when a decision stopped the pipeline.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         A read a caller is not permitted to make is a routine ending, and this is the method for a boundary
+    ///         that branches on it rather than catching an exception to produce a 403.
+    ///     </para>
+    ///     <para>
+    ///         A genuine fault still throws, because a database timeout is not something a boundary should branch on.
+    ///     </para>
+    /// </remarks>
+    Task<MediationResult<TQueryResult>> TryQueryAsync<TQueryResult>(
+        IQuery<TQueryResult> query,
+        QueryMediationSettings? queryMediationSettings = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Asks the pipeline whether a query would be permitted and well-formed, without executing it.
+    /// </summary>
+    /// <param name="query">The query to evaluate.</param>
+    /// <param name="queryMediationSettings">Optional settings for query mediation.</param>
+    /// <param name="cancellationToken">Cancellation token for the operation.</param>
+    /// <returns>The decision the guard and validator stages reached.</returns>
+    /// <remarks>
+    ///     Runs guards and validators only, for the same reason the command form does: a shortcut and a pre-handler act
+    ///     rather than decide, and a caller asking whether a read is permitted must not warm a cache or claim anything.
+    /// </remarks>
+    Task<MediationDecision> EvaluateAsync(
+        IQuery query,
+        QueryMediationSettings? queryMediationSettings = null,
+        CancellationToken cancellationToken = default);
 }

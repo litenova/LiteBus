@@ -76,4 +76,78 @@ public sealed class QueryMediator : IQueryMediator
             },
             cancellationToken);
     }
+    /// <inheritdoc />
+    public async Task<MediationResult<TQueryResult>> TryQueryAsync<TQueryResult>(
+        IQuery<TQueryResult> query,
+        QueryMediationSettings? queryMediationSettings = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        queryMediationSettings ??= new QueryMediationSettings();
+        var capture = new MediationEndingCapture();
+
+        var request = new MessageMediationRequest<IQuery<TQueryResult>, Task<TQueryResult>>
+        {
+            MessageMediationStrategy = new SingleAsyncHandlerMediationStrategy<IQuery<TQueryResult>, TQueryResult>(),
+            MessageResolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy(),
+            Tags = queryMediationSettings.Routing.Tags,
+            Items = WithEndingCapture(queryMediationSettings.Items, capture),
+            HandlerPredicate = queryMediationSettings.Routing.HandlerPredicate
+        };
+
+        try
+        {
+            var value = await _messageMediator.Mediate(query, request, cancellationToken).ConfigureAwait(false);
+
+            // A registered refusal mapper returns a value rather than raising, so the outcome comes from the capture.
+            return MediationResultFactory.FromCapture(capture, value, hasValue: true);
+        }
+        catch (Exception exception) when (MediationExceptionFilters.IsRefusal(exception))
+        {
+            return MediationResultFactory.FromCapture<TQueryResult>(capture, value: default, hasValue: false);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<MediationDecision> EvaluateAsync(
+        IQuery query,
+        QueryMediationSettings? queryMediationSettings = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        queryMediationSettings ??= new QueryMediationSettings();
+
+        return _messageMediator.Mediate(query,
+            new MessageMediationRequest<IQuery, Task<MediationDecision>>
+            {
+                MessageMediationStrategy = new DecisionEvaluationMediationStrategy<IQuery>(),
+                MessageResolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy(),
+                Tags = queryMediationSettings.Routing.Tags,
+                Items = queryMediationSettings.Items,
+                HandlerPredicate = queryMediationSettings.Routing.HandlerPredicate
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    ///     Copies the caller's items and adds the ending capture the strategy fills in.
+    /// </summary>
+    /// <param name="items">The items the caller supplied.</param>
+    /// <param name="capture">The capture to install.</param>
+    /// <returns>The items to pass to the mediator.</returns>
+    /// <remarks>
+    ///     Copied rather than mutated, because a settings object reused across calls would otherwise leave one
+    ///     mediation writing into a previous call's result.
+    /// </remarks>
+    private static Dictionary<string, object> WithEndingCapture(
+        IDictionary<string, object> items,
+        MediationEndingCapture capture)
+    {
+        return new Dictionary<string, object>(items, StringComparer.Ordinal)
+        {
+            [MediationEndingCapture.ItemKey] = capture
+        };
+    }
 }

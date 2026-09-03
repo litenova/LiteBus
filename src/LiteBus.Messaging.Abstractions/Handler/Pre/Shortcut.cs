@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -43,10 +43,12 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     /// </summary>
     /// <param name="isAnswered">Whether the shortcut skipped the main handler.</param>
     /// <param name="reason">The reason the main handler was skipped.</param>
-    private Shortcut(bool isAnswered, string? reason)
+    /// <param name="code">The machine-readable code for the answer.</param>
+    private Shortcut(bool isAnswered, string? reason, string? code)
     {
         IsAnswered = isAnswered;
         Reason = reason;
+        Code = code;
     }
 
     /// <summary>
@@ -69,18 +71,31 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     public string? Reason { get; }
 
     /// <summary>
+    ///     Gets the machine-readable code for the answer.
+    /// </summary>
+    /// <value>
+    ///     The code, or <see langword="null" /> when the shortcut supplied none. It means the same thing here as it
+    ///     does on <see cref="Verdict.Code" />: something a later stage can switch on, where <see cref="Reason" /> is
+    ///     prose written for a person. A completion handler tagging a metric by why the message was answered reads
+    ///     this rather than parsing the reason, which is what distinguishes a cache hit from an idempotent replay
+    ///     without either shortcut agreeing on wording.
+    /// </value>
+    public string? Code { get; }
+
+    /// <summary>
     ///     Answers the message because the work has already been applied, so the main handler never runs.
     /// </summary>
     /// <param name="reason">The reason the main handler was skipped.</param>
+    /// <param name="code">A machine-readable code a completion handler or a metric can switch on.</param>
     /// <returns>An answering shortcut that supplies no result.</returns>
     /// <remarks>
     ///     The mediation reports <see cref="MediationOutcome.Answered" />, and an audit trail records a success,
     ///     because nothing was denied. The verb matches <see cref="Shortcut{TMessageResult}.Answer" /> so that both
     ///     shapes of shortcut read the same way; this one takes no result because the message produces none.
     /// </remarks>
-    public static Shortcut Answer(string? reason = null)
+    public static Shortcut Answer(string? reason = null, string? code = null)
     {
-        return new Shortcut(isAnswered: true, reason);
+        return new Shortcut(isAnswered: true, reason, code);
     }
 
     /// <summary>
@@ -108,7 +123,9 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     /// <inheritdoc />
     public bool Equals(Shortcut other)
     {
-        return IsAnswered == other.IsAnswered && string.Equals(Reason, other.Reason, StringComparison.Ordinal);
+        return IsAnswered == other.IsAnswered
+               && string.Equals(Reason, other.Reason, StringComparison.Ordinal)
+               && string.Equals(Code, other.Code, StringComparison.Ordinal);
     }
 
     /// <inheritdoc />
@@ -120,7 +137,7 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     /// <inheritdoc />
     public override int GetHashCode()
     {
-        return HashCode.Combine(IsAnswered, Reason);
+        return HashCode.Combine(IsAnswered, Reason, Code);
     }
 
     /// <summary>
@@ -131,7 +148,7 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     internal PipelineDecision ToDecision(Type answeredBy)
     {
         return IsAnswered
-            ? PipelineDecision.Answered(Reason, hasResult: false, result: null, answeredBy)
+            ? PipelineDecision.Answered(Reason, Code, hasResult: false, result: null, answeredBy)
             : PipelineDecision.Continue;
     }
 }

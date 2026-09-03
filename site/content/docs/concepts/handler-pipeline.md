@@ -1,4 +1,4 @@
-﻿# The Handler Pipeline
+# The Handler Pipeline
 
 Every message LiteBus mediates passes through the same pipeline: three decision stages, pre-handlers, one or more main handlers, post-handlers, error-handlers on failure, and completion handlers on every path. This page explains the exact order each stage runs in, how global and specific handlers interleave, how errors propagate, how cancellation flows, and how a guard, a validator, or a shortcut decides whether the work happens at all. It is the reference behind the per-module pages and assumes you have read at least the [Command Module](commands.md).
 
@@ -87,6 +87,14 @@ RunAsyncPostHandlers(message, result) // direct post, then indirect post
 RunAsyncCompletionHandlers(context)   // one priority-ordered pass, always, in a finally
 return result
 ```
+
+### What the Post Stage Is For
+
+The post stage guarantees exactly two things, and they are worth stating because the guidance elsewhere says only where the commit does not belong. A post-handler runs only when the main handler returned, and it runs before the completion stage and therefore before a commit positioned at `HandlerPriorities.UnitOfWork`.
+
+That is the slot for a reaction that is part of the successful path and has to be inside the transaction: publishing the domain events an aggregate raised, enqueueing an outbox message, appending to a projection the same commit will flush. Its name says the position rather than the guarantee, so read the guarantee here.
+
+What does not belong there is the commit itself. A post-handler never runs when the main handler throws, so a commit placed there cannot decide anything about a failure, and everything LiteBus writes afterwards, including the audit record at `HandlerPriorities.Observability`, is outside the transaction by construction. Commit from a completion handler at `HandlerPriorities.UnitOfWork` and gate it on `MessageCompletionContext.Outcome`.
 
 A post-handler can replace the value the caller receives by setting `MessageResult` on the execution context. When a post-handler writes a non-null `MessageResult`, that value is returned instead of the handler's own result. This is how a post-handler can wrap or transform a result without the main handler knowing.
 
@@ -317,14 +325,11 @@ The three axes do not carry identical contracts, and the gaps are deliberate rat
 | Shortcut | `ICommandShortcut<T>` and `ICommandShortcut<T, TResult>` | `IQueryShortcut<T, TResult>` and `IStreamQueryShortcut<T, TResult>` | `IEventShortcut<T>` |
 | Refusal mapper | yes | yes, including the stream form | no |
 | Completion handler | yes | yes | yes |
-| `EnableAuditing()` | yes | yes | no |
+| `EnableAuditing()` | yes | yes | yes, one record per publish |
 
-Two rules produce every gap in that table:
+One rule produces every gap in that table: **a contract that names a result exists only where the axis has one.** A query always produces a result, so it has no untyped shortcut. An event never produces one, so it has no typed shortcut and no refusal mapper: there is no value a mapper could return, and a denied event raises instead.
 
-- **A contract that names a result exists only where the axis has one.** A query always produces a result, so it has no untyped shortcut. An event never produces one, so it has no typed shortcut and no refusal mapper: there is no value a mapper could return, and a denied event raises instead.
-- **Auditing records actions, and an event is not an action.** See [Auditing](auditing.md#events-are-not-audited).
-
-A new axis follows the same two rules rather than copying whichever axis it most resembles.
+A new axis follows that rule rather than copying whichever axis it most resembles.
 
 ## Suppressing Post-Handlers
 

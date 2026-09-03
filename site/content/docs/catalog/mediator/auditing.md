@@ -1,4 +1,4 @@
-﻿# Auditing
+# Auditing
 
 - **ID**: `mediator.auditing`
 - **Name**: Audit trail
@@ -7,9 +7,9 @@
 
 ## What It Does
 
-`EnableAuditing()` registers a completion handler on the command or query axis. When a mediation ends, the handler reads the message's `AuditDeclaration` from message metadata, combines it with detail the handler pushed through `IAuditScope`, and hands an `AuditRecord` to the application's `IAuditTrail`.
+`AddAuditing` configures the trail, the actor resolver, the outcome mapper, and which axes produce records. Selecting an axis registers a completion handler there. When a mediation ends, the handler reads the message's `AuditDeclaration` from message metadata, combines it with the actor the resolver established and the detail the handler pushed through `IAuditScope`, and hands an `AuditRecord` to the application's `IAuditTrail`.
 
-Because it runs at the completion stage, refusals, failures, and cancellations produce records just as successes do. That is the difference between an audit trail and a changelog: an audit exists to answer who attempted something and was stopped, and a handler-written record can never capture that, since authorization refuses before the handler reaches its audit line. The stage is not cancellable, so a cancelled mediation still produces its record.
+Because it runs at the completion stage, refusals, failures, and cancellations produce records just as successes do. That is the difference between an audit trail and a changelog: an audit exists to answer who attempted something and was stopped, and a handler-written record can never capture that, since authorization refuses before the handler reaches its audit line. The stage is not cancellable, so a cancelled mediation still produces its record. Attribution runs there for the same reason: a resolver at the completion stage names the actor on a denied command, and a pre-stage handler never runs on that path.
 
 The constant half of a record is declared once per message, with `[Audited]` and `[AuditExempt]` or with an `IAuditDefinition<TMessage>`. Both contribute an `AuditDeclaration`, so the writer reads one metadata key and a definition overwrites an attribute rather than sitting beside it. The variable half, such as an identifier the handler generated, is pushed at runtime.
 
@@ -21,9 +21,11 @@ public sealed record PlaceOrderCommand(Guid CartId) : ICommand<OrderId>;
 
 services.AddLiteBus(registry =>
 {
-    registry.AddMessaging(messaging => messaging.UseAuditTrail<PostgresAuditTrail>());
-    registry.AddCommands(builder => builder.EnableAuditing());
-    registry.AddQueries(builder => builder.EnableAuditing());
+    registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
+        .UseTrail<PostgresAuditTrail>()
+        .UseActorResolver<RequestActorResolver>()
+        .ForCommands()
+        .ForQueries()));
 });
 ```
 
@@ -33,17 +35,26 @@ services.AddLiteBus(registry =>
 | `IAuditDefinition<TMessage>` | Definition-form audit declaration |
 | `AuditDeclaration` | The closed base of the two positions stored in message metadata |
 | `AuditedDeclaration` / `AuditExemptDeclaration` | The audited position and the recorded exemption |
-| `IAuditScope` | Handler-supplied target, reason, and properties |
+| `IAuditScope` | Handler-supplied actor, target, reason, and properties |
 | `AuditRecord` / `AuditOutcome` | The record handed to the trail |
+| `AuditActor` | Who acted: a required `Id` plus `Kind`, `DisplayName` and `OnBehalfOf` |
+| `IAuditActorResolver` | Application-supplied attribution, reading the message at the completion stage |
 | `IAuditTrail` | Application-supplied sink |
-| `MessageModuleBuilder.UseAuditTrail<T>(lifetime)` | Registers the sink on the messaging module, shared by every axis. Scoped by default |
+| `MessageModuleBuilder.AddAuditing(Action<AuditingBuilder>)` | Configures the whole feature: trail, actor resolver, outcome mapper, and axes |
+| `AuditingBuilder` | `UseTrail`, `UseTrailInstance`, `UseActorResolver`, `UseActorResolverInstance`, `UseOutcomeMapper`, `UseOutcomeMapperInstance`, `ForCommands`, `ForQueries`, `ForEvents`, `ForAllAxes` |
+| `MessageModuleBuilder.UseAuditTrail<T>(lifetime)` | The primitive `AddAuditing` composes. Scoped by default |
 | `MessageModuleBuilder.UseAuditTrailInstance(trail)` | Registers a trail you already hold, as a singleton |
+| `MessageModuleBuilder.UseAuditActorResolver<T>(lifetime)` / `UseAuditActorResolverInstance` | The attribution primitives |
 | `MessageModuleBuilder.UseAuditOutcomeMapper<T>()` / `UseAuditOutcomeMapper(instance)` | Classifies an application refusal exception as a denial rather than a failure |
+| `MessageModuleBuilder.RequireUniqueAuditActions()` | Fails composition when two messages share an action code |
+| `MessageModuleBuilder.RequireAuditActionFormat(pattern)` | Fails composition when an action breaks the house naming convention |
 | `IAuditRecordWriter` | Composes a record from a completion context |
 | `IAuditOutcomeMapper` / `DefaultAuditOutcomeMapper` | Classifies an exception-borne refusal as denied rather than failed |
-| `AuditTrailDiagnosticCheck` | Probe reporting `litebus.audit.trail` when no trail is registered |
-| `CommandModuleBuilder.EnableAuditing` / `QueryModuleBuilder.EnableAuditing` | Registers the writer and the probe on an axis |
-| `MessageModuleBuilder.UseAuditOutcomeMapper` | Replaces the default outcome mapper |
+| `AuditReasonMissingException` | Raised when a reason-required action supplies none |
+| `AuditTrailDiagnosticCheck` | Probe reporting `litebus.audit.trail`: unhealthy with no trail, degraded with no actor resolver |
+| `IMessageCatalog` | Registered as a Singleton, so the declarations are readable at runtime as well as at composition |
+| `AuditCatalogueRow` / `AuditCatalogue.ToRows` / `AuditCatalogue.ToMarkdown` | The audit catalogue, derived from the declarations |
+| `CommandModuleBuilder` / `QueryModuleBuilder` / `EventModuleBuilder` `.EnableAuditing` | Registers the writer and the probe on one axis |
 
 ## Packages
 
@@ -51,6 +62,7 @@ services.AddLiteBus(registry =>
 - `LiteBus.Messaging.Abstractions`
 - `LiteBus.Commands`
 - `LiteBus.Queries`
+- `LiteBus.Events`
 
 ## Requires
 
@@ -64,15 +76,17 @@ services.AddLiteBus(registry =>
 - Records are produced on every outcome path: success, early answer, denial, failure, and cancellation.
 - A guard denial is recorded as `AuditOutcome.Denied`, a validation failure as `AuditOutcome.Invalid`, and a shortcut answer as `AuditOutcome.Succeeded`, with no mapper involved.
 - The writer runs at `HandlerPriorities.Observability`, after LiteBus persistence handlers and after unannotated application handlers.
-- A record for a successful action whose declaration sets `ReasonRequired` is never written without a reason; the writer raises `LiteBusConfigurationException` instead.
+- A record for a successful action whose declaration sets `ReasonRequired` is never written without a reason; the writer raises `AuditReasonMissingException` instead, before the commit at `HandlerPriorities.UnitOfWork`, so the work is rolled back.
 - An exception raised while writing a record cannot replace the original fault; it is attached to it under `MediationExceptionData.SuppressedCompletionFaults`.
 - `IAuditScope` state lives on the ambient execution context, so concurrent mediations never share it.
-- `AuditRecord` carries no before-and-after payload snapshot.
+- `AuditRecord` carries no before-and-after payload snapshot, and does not carry the message. The message is handed to `IAuditActorResolver` instead.
+- An actor pushed through `IAuditScope.WithActor` overrides whatever the resolver resolved; a resolver returning null leaves `AuditRecord.Actor` null, which means nothing established an actor.
+- An audited event writes one record per publish, not one per handler.
 
 ## Non-Goals
 
 - Persistence, integrity chaining, retention, and the read side. These belong in the `IAuditTrail` implementation.
-- Modelling identity. LiteBus does not know who the actor is; the trail implementation captures it.
+- Modelling identity. `AuditActor` is a stable identifier, a kind, an optional display name, and an optional delegating actor; what those mean and how they resolve is the application's, supplied through `IAuditActorResolver`.
 - Publishing the trail through the outbox. The outbox provides at-least-once delivery to other systems, while evidence needs durability at the source.
 - Deriving audit records from domain events, which carry domain identity rather than use-case identity and do not exist for refused actions.
 

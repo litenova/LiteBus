@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -114,6 +114,12 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
     ///     Gets the code the decision supplied.
     /// </summary>
     /// <value>The machine-readable code, or <see langword="null" /> when the decision supplied none.</value>
+    /// <remarks>
+    ///     Every decision shape carries one and it means the same thing in all of them: something a later stage can
+    ///     switch on, where <see cref="Reason" /> is prose. A guard supplies it through <see cref="Verdict.Deny" />, a
+    ///     shortcut through <see cref="Shortcut.Answer" />, and the validator stage from the single failure it
+    ///     collected, since two failures have no one code.
+    /// </remarks>
     public string? Code { get; }
 
     /// <summary>
@@ -216,7 +222,7 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
     /// <param name="messageType">The type of the message being mediated.</param>
     /// <returns>The result the caller receives.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="messageType" /> is null.</exception>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="PipelineContractException">
     ///     A shortcut answered without supplying the result the caller expects, or supplied one of the wrong type.
     /// </exception>
     /// <remarks>
@@ -235,7 +241,7 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
         {
             var culprit = AnsweredBy?.Name ?? "A shortcut";
 
-            throw new LiteBusConfigurationException(
+            throw new PipelineContractException(
                 $"'{culprit}' answered the mediation of '{messageType.Name}' through the untyped shortcut contract, "
                 + $"which cannot carry the '{typeof(TMessageResult).Name}' the caller expects. Implement "
                 + $"IMessageShortcut<{messageType.Name}, {typeof(TMessageResult).Name}> so the compiler requires the "
@@ -253,7 +259,7 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
             return typedResult;
         }
 
-        throw new LiteBusConfigurationException(
+        throw new PipelineContractException(
             $"'{AnsweredBy?.Name ?? "A shortcut"}' answered '{messageType.Name}' with a result of type "
             + $"'{Result.GetType().Name}', but the message expects '{typeof(TMessageResult).Name}'.");
     }
@@ -325,11 +331,17 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
     ///     Creates the decision an answering shortcut produces.
     /// </summary>
     /// <param name="reason">Why the shortcut answered, when it said.</param>
+    /// <param name="code">The machine-readable code the shortcut supplied, when it supplied one.</param>
     /// <param name="hasResult">Whether the shortcut supplied a result.</param>
     /// <param name="result">The result the shortcut supplied.</param>
     /// <param name="answeredBy">The shortcut that answered.</param>
     /// <returns>A decision reporting <see cref="MediationOutcome.Answered" />.</returns>
-    internal static PipelineDecision Answered(string? reason, bool hasResult, object? result, Type? answeredBy = null)
+    internal static PipelineDecision Answered(
+        string? reason,
+        string? code,
+        bool hasResult,
+        object? result,
+        Type? answeredBy = null)
     {
         return new PipelineDecision(
             stopsPipeline: true,
@@ -337,7 +349,7 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
             hasResult,
             result,
             reason,
-            code: null,
+            code,
             failures: null,
             answeredBy);
     }

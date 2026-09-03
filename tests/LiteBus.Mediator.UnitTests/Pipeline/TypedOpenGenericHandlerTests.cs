@@ -122,4 +122,97 @@ public sealed class TypedOpenGenericHandlerTests : LiteBusTestBase
         // does not apply to it, the same silence a constraint mismatch produces.
         observed.Seen.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task One_generic_shortcut_answers_every_command_that_declares_a_result()
+    {
+        var cache = new TypedResultCache();
+        cache.Seed(typeof(IssueTicketCommand), new TicketNumber("cached"));
+        cache.Seed(typeof(VoidTicketCommand), true);
+
+        var services = new ServiceCollection();
+        services.AddSingleton(cache);
+        services.AddSingleton(new TypedResultRecorder());
+
+        var provider = services
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessaging(_ => { });
+                registry.AddCommands(builder =>
+                {
+                    builder.Register<IssueTicketCommand>();
+                    builder.Register<IssueTicketCommandHandler>();
+                    builder.Register<VoidTicketCommand>();
+                    builder.Register<VoidTicketCommandHandler>();
+                    builder.Register(typeof(TypedResultShortcut<,>));
+                });
+            })
+            .BuildServiceProvider();
+
+        var mediator = provider.GetRequiredService<ICommandMediator>();
+
+        // One registration covers both result shapes, which is the whole point: a generic caching shortcut is
+        // inexpressible through the untyped contract because that one carries no result.
+        var ticket = await mediator.SendAsync(new IssueTicketCommand()).ConfigureAwait(false);
+        var voided = await mediator.SendAsync(new VoidTicketCommand()).ConfigureAwait(false);
+
+        ticket.Number.Should().Be("cached");
+        voided.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_generic_shortcut_lets_a_command_it_holds_no_answer_for_proceed()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(new TypedResultCache());
+        services.AddSingleton(new TypedResultRecorder());
+
+        var provider = services
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessaging(_ => { });
+                registry.AddCommands(builder =>
+                {
+                    builder.Register<IssueTicketCommand>();
+                    builder.Register<IssueTicketCommandHandler>();
+                    builder.Register(typeof(TypedResultShortcut<,>));
+                });
+            })
+            .BuildServiceProvider();
+
+        var ticket = await provider.GetRequiredService<ICommandMediator>()
+            .SendAsync(new IssueTicketCommand()).ConfigureAwait(false);
+
+        ticket.Number.Should().Be("T-1");
+    }
+
+    [Fact]
+    public async Task One_generic_refusal_mapper_covers_every_result_type()
+    {
+        var refusals = new RefusalRecorder();
+        var services = new ServiceCollection();
+        services.AddSingleton(refusals);
+
+        var provider = services
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessaging(_ => { });
+                registry.AddCommands(builder =>
+                {
+                    builder.Register<DeniedTicketCommand>();
+                    builder.Register<DeniedTicketCommandHandler>();
+                    builder.Register<DeniedTicketCommandGuard>();
+                    builder.Register(typeof(TypedResultRefusalMapper<,>));
+                });
+            })
+            .BuildServiceProvider();
+
+        // A mapper registered against ICommand covers one result type. Only a generic one expresses "map every
+        // denial onto this shape", and the caller receives a value rather than an exception.
+        var refused = await provider.GetRequiredService<ICommandMediator>()
+            .SendAsync(new DeniedTicketCommand()).ConfigureAwait(false);
+
+        refused.Number.Should().Be("refused");
+        refusals.Seen.Should().Equal("DeniedTicketCommand:Denied:NOT_PERMITTED");
+    }
 }

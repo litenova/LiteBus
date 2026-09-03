@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -33,11 +33,13 @@ public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageRe
     /// <param name="isAnswered">Whether the shortcut answered the message.</param>
     /// <param name="result">The result the shortcut supplied.</param>
     /// <param name="reason">Why the shortcut answered.</param>
-    private Shortcut(bool isAnswered, TMessageResult? result, string? reason)
+    /// <param name="code">The machine-readable code for the answer.</param>
+    private Shortcut(bool isAnswered, TMessageResult? result, string? reason, string? code)
     {
         IsAnswered = isAnswered;
         Result = result;
         Reason = reason;
+        Code = code;
     }
 
     /// <summary>
@@ -71,14 +73,26 @@ public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageRe
     public string? Reason { get; }
 
     /// <summary>
+    ///     Gets the machine-readable code for the answer.
+    /// </summary>
+    /// <value>
+    ///     The code, or <see langword="null" /> when the shortcut supplied none. It means the same thing here as it
+    ///     does on <see cref="Verdict.Code" />: something a later stage can switch on, where <see cref="Reason" /> is
+    ///     prose written for a person. A cache shortcut and an idempotency shortcut both answer, and a code is how a
+    ///     metric tells them apart without agreeing on wording.
+    /// </value>
+    public string? Code { get; }
+
+    /// <summary>
     ///     Answers the message with the given result, so the main handler never runs.
     /// </summary>
     /// <param name="result">The value the caller receives in place of the one the main handler would have produced.</param>
     /// <param name="reason">Why the answer was already known, recorded by completion handlers and the audit trail.</param>
+    /// <param name="code">A machine-readable code a completion handler or a metric can switch on.</param>
     /// <returns>A shortcut that stops the pipeline and reports <see cref="MediationOutcome.Answered" />.</returns>
-    public static Shortcut<TMessageResult> Answer(TMessageResult result, string? reason = null)
+    public static Shortcut<TMessageResult> Answer(TMessageResult result, string? reason = null, string? code = null)
     {
-        return new Shortcut<TMessageResult>(isAnswered: true, result, reason);
+        return new Shortcut<TMessageResult>(isAnswered: true, result, reason, code);
     }
 
     /// <summary>
@@ -108,7 +122,8 @@ public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageRe
     {
         return IsAnswered == other.IsAnswered
                && EqualityComparer<TMessageResult?>.Default.Equals(Result, other.Result)
-               && string.Equals(Reason, other.Reason, StringComparison.Ordinal);
+               && string.Equals(Reason, other.Reason, StringComparison.Ordinal)
+               && string.Equals(Code, other.Code, StringComparison.Ordinal);
     }
 
     /// <inheritdoc />
@@ -120,7 +135,7 @@ public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageRe
     /// <inheritdoc />
     public override int GetHashCode()
     {
-        return HashCode.Combine(IsAnswered, Result, Reason);
+        return HashCode.Combine(IsAnswered, Result, Reason, Code);
     }
 
     /// <summary>
@@ -133,7 +148,7 @@ public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageRe
     internal PipelineDecision ToDecision(Type answeredBy)
     {
         return IsAnswered
-            ? PipelineDecision.Answered(Reason, hasResult: true, Result, answeredBy)
+            ? PipelineDecision.Answered(Reason, Code, hasResult: true, Result, answeredBy)
             : PipelineDecision.Continue;
     }
 }

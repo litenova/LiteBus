@@ -41,7 +41,7 @@ public sealed class AmqpInboxIngressModule :
 
         if (string.IsNullOrWhiteSpace(options.QueueName))
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 $"{nameof(AmqpInboxIngressOptions.QueueName)} must be configured before registering AMQP inbox ingress.");
         }
 

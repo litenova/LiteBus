@@ -54,6 +54,18 @@ internal static class PipelineContracts
     internal static readonly PreStage[] StagesInOrder = Enum.GetValues<PreStage>().Order().ToArray();
 
     /// <summary>
+    ///     The stages that decide whether a message may proceed, in the order the framework runs them.
+    /// </summary>
+    /// <remarks>
+    ///     A guard answers whether the caller may, and a validator whether the input is well-formed, both by returning
+    ///     a value and without acting. A shortcut and a pre-handler act, so they are absent: evaluating a message must
+    ///     not claim an idempotency key or run work for a caller who only asked a question. Derived from the same enum
+    ///     as <see cref="StagesInOrder" /> so the two cannot disagree about order.
+    /// </remarks>
+    internal static readonly PreStage[] DecisionStagesInOrder =
+        StagesInOrder.Where(static stage => stage is PreStage.Guard or PreStage.Validator).ToArray();
+
+    /// <summary>
     ///     Contracts indexed by their open generic definition, for the lookups on the dispatch path.
     /// </summary>
     private static readonly Dictionary<Type, PipelineContract> ByContract =
@@ -95,6 +107,20 @@ internal static class PipelineContracts
         }
 
         return ByContract.GetValueOrDefault(contractType.GetGenericTypeDefinition());
+    }
+
+    /// <summary>
+    ///     Determines whether an open generic contract definition is one the pipeline dispatches.
+    /// </summary>
+    /// <param name="contractDefinition">The open generic contract definition to test.</param>
+    /// <returns><see langword="true" /> when the definition appears in <see cref="All" />.</returns>
+    /// <remarks>
+    ///     Read by <see cref="MessagingHandlerContracts" /> so an axis builder decides membership from this table
+    ///     rather than from its own list, which is what keeps a new role recognised on every axis at once.
+    /// </remarks>
+    internal static bool IsDispatchable(Type contractDefinition)
+    {
+        return ByContract.ContainsKey(contractDefinition);
     }
 
     /// <summary>

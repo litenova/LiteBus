@@ -17,10 +17,10 @@ namespace LiteBus.Messaging.Abstractions;
 ///         <see cref="DeclarationExemptions" /> metadata value.
 ///     </para>
 ///     <para>
-///         Auditing is the exception: <see cref="AuditExemptAttribute" /> already produces an
-///         <see cref="AuditDeclaration" />, so an audit-exempt message satisfies
-///         <c>RequireDeclaration&lt;AuditDeclaration&gt;</c> without this attribute. The audit position models both
-///         answers in one value type; a requirement over an application's own value type usually cannot.
+///         It covers auditing like anything else: <c>[DeclarationExempt(typeof(AuditDeclaration), "why")]</c> exempts a
+///         message from producing an audit record and satisfies <c>RequireDeclaration&lt;AuditDeclaration&gt;</c>.
+///         <see cref="AuditExemptAttribute" /> is the shorthand for exactly that, and records the same exemption here,
+///         so there is one place to read every exemption a message carries whichever spelling wrote it.
 ///     </para>
 /// </remarks>
 /// <example>
@@ -30,7 +30,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// ]]></code>
 /// </example>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
-public sealed class DeclarationExemptAttribute : Attribute
+public sealed class DeclarationExemptAttribute : Attribute, IMessageDeclarationExemptionSource
 {
     /// <summary>
     ///     Initializes a new instance of the <see cref="DeclarationExemptAttribute" /> class.
@@ -58,14 +58,12 @@ public sealed class DeclarationExemptAttribute : Attribute
     /// </summary>
     public string Rationale { get; }
 
-    /// <summary>
-    ///     Creates the exemption this attribute declares.
-    /// </summary>
-    /// <returns>The exemption and its rationale.</returns>
+    /// <inheritdoc />
     /// <remarks>
-    ///     This attribute does not implement <see cref="IMessageDeclarationSource" />, unlike the declarations it sits
-    ///     beside. That contract maps one attribute to one metadata value, and several exemptions have to collapse into
-    ///     one set, so the registry aggregates them instead of letting the last one overwrite the rest.
+    ///     This attribute implements <see cref="IMessageDeclarationExemptionSource" /> rather than
+    ///     <see cref="IMessageDeclarationSource" />, unlike the declarations it sits beside. That contract maps one
+    ///     attribute to one metadata value and the last one wins, and several exemptions have to collapse into one
+    ///     set, so the registry aggregates them instead.
     /// </remarks>
     public DeclarationExemption CreateExemption()
     {

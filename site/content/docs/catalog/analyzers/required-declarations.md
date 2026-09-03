@@ -108,15 +108,18 @@ The rationale is the point of the exemption. A message with no declaration is in
 
 ## The Composition-Time Counterpart
 
-`RequireDeclaration<TValue>()` on the messaging module enforces the same rule when the host is composed:
+`RequireDeclaration` on the messaging module enforces the same rule when the host is composed, scoped to the messages the rule is about:
 
 ```csharp
 registry.AddMessaging(messaging => messaging
-    .RequireDeclaration<RequiredPermission>()
+    .RequireDeclaration<RequiredPermission, ICommand>()
+    .RequireDeclaration<RequiredPermission, IActingAccountCommand>()
     .RequireDeclaration<RetentionClass>());
 ```
 
-It fails with a `LiteBusConfigurationException` naming every offending message, grouped by the declaration each one omits. Every offender is listed rather than the first, because a requirement turned on for an existing codebase reports many at once.
+It fails with a `MessageDeclarationException` naming every offending message, grouped by the declaration each one omits and by the scope of the requirement it violated. Every offender is listed rather than the first, because a requirement turned on for an existing codebase reports many at once.
+
+Three scopes: `RequireDeclaration<TValue>()` covers every registered message, `RequireDeclaration<TValue, TScope>()` covers every message assignable to a marker, and `RequireDeclaration<TValue>(predicate, description)` covers an arbitrary selection with the words the error uses. Prefer a marker: an unscoped permission requirement also demands one from every query, and the exemptions written to satisfy it say nothing.
 
 Keep both. The analyzer reports the omission where it can be fixed, message by message, while writing the code. The composition check covers a message registered from an assembly the analyzer never saw, and it holds even where the analyzer package is not referenced.
 

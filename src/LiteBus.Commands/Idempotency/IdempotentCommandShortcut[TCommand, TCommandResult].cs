@@ -88,7 +88,7 @@ internal sealed class IdempotentCommandShortcut<TCommand, TCommandResult> : ICom
 
         if (!resolved.Value.Declaration.ReplayResult)
         {
-            throw new LiteBusConfigurationException(
+            throw new PipelineContractException(
                 $"'{typeof(TCommand).Name}' declares idempotency and produces a result, but its declaration does not "
                 + "set ReplayResult, so there is no answer to give a repeat. Set ReplayResult on the declaration, or "
                 + "handle the repeat with a shortcut of your own.");
@@ -96,7 +96,7 @@ internal sealed class IdempotentCommandShortcut<TCommand, TCommandResult> : ICom
 
         if (claim.Payload is null)
         {
-            throw new LiteBusConfigurationException(
+            throw new PipelineContractException(
                 $"'{typeof(TCommand).Name}' asked for its result to be replayed, but the store returned no recorded "
                 + "payload for an applied key. The store must persist the payload passed to CompleteAsync and hand it "
                 + "back with the claim.");

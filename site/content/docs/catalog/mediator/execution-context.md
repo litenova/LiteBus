@@ -3,18 +3,21 @@
 - **ID**: `mediator.execution-context`
 - **Name**: Execution context
 - **Maturity**: GA
-- **Summary**: Shares per-call state across handlers through an ambient context scope.
+- **Summary**: Shares per-call state across handlers through a scoped dependency or an ambient context scope.
 
 ## What It Does
 
 `IExecutionContext` carries mediation-scoped state:
 - `CancellationToken`
-- `Items` key-value data
+- `Items` string-keyed data
+- `Data` type-keyed store (`IHandleContextData`)
 - `Tags`
 - `MessageResult`
 - `SuppressPostHandlers()`
 
-`AmbientExecutionContext` stores the current context via `AsyncLocal<IExecutionContext?>`. Handlers access it statically inside mediation flow. `CreateScope` sets and restores ambient context for nested and async flows.
+`IExecutionContext` is registered as a scoped dependency, so a handler declares it as a constructor parameter and the dependency appears in the type signature. `AmbientExecutionContext` stores the current context via `AsyncLocal<IExecutionContext?>` and remains the way to reach it from code that runs outside dependency injection. `CreateScope` sets and restores ambient context for nested and async flows.
+
+Scoped here means per mediation. The mediator opens the ambient scope before it creates the dispatch scope, and there is one dispatch scope per mediation, so the scoped resolution returns the context of the mediation in flight.
 
 ## Public Surface
 
@@ -31,7 +34,8 @@ public sealed class ContextAwarePreHandler : ICommandPreHandler<CreateOrderComma
 
 | API | Role |
 | --- | --- |
-| `IExecutionContext.Items` | Shared per-call state |
+| `IExecutionContext.Items` | Shared per-call state, string-keyed, for a key that comes from outside the process or a value that is a flag |
+| `IExecutionContext.Data` | Type-keyed store for handing a resolved object from one stage to a later one |
 | `IExecutionContext.Tags` | Effective routing tags |
 | `IExecutionContext.CancellationToken` | Effective cancellation token |
 | `IExecutionContext.MessageResult` | Result override written by a post-handler |
@@ -42,6 +46,8 @@ public sealed class ContextAwarePreHandler : ICommandPreHandler<CreateOrderComma
 | `AmbientExecutionContext.HasCurrent` | Presence check |
 | `AmbientExecutionContext.CreateScope(IExecutionContext)` | Scoped ambient context |
 | `AmbientExecutionContext.ResetForTesting()` | Test-only context reset helper |
+| `IHandleContextData.Set<T>` / `Get<T>` / `TryGet<T>` / `Contains<T>` / `Remove<T>` | One value per type |
+| `IHandleContextData.Set<T>(key, value)` and the keyed reads | Several values of one type, for a mediation that legitimately holds two |
 
 ## Packages
 
@@ -56,7 +62,9 @@ public sealed class ContextAwarePreHandler : ICommandPreHandler<CreateOrderComma
 ## Invariants
 
 - Context is scoped to one mediation call.
-- `Current` throws `NoExecutionContextException` when accessed outside scope.
+- `Current` throws `NoExecutionContextException` when accessed outside scope, and so does resolving `IExecutionContext` from the container outside a mediation.
+- The dispatch scope is a child of the root provider, not of the ambient request scope, so an application's scoped services in a handler are per mediation and are not the request's instances.
+- `Data` holds one value per type in its unkeyed slot; a keyed entry and the unkeyed entry of the same type are separate slots and neither clears the other.
 - A shortcut that stops a result-returning command or query supplies the result through its answer, not through the context; a refusal supplies none, and the value a refused caller receives comes from a registered refusal mapper.
 - `MessageResult` write in void command flow is ignored by strategy return path.
 

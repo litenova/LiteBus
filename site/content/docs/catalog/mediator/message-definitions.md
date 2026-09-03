@@ -14,7 +14,7 @@ Two sources populate metadata, in a defined order, and both contribute values of
 1. Attributes on the message type that implement `IMessageDeclarationSource`, each converted to the value type it names. Attributes that do not implement it are not metadata and are never collected, which keeps the collection bounded.
 2. Definitions, applied second, so a definition wins over an attribute declaring the same value type.
 
-Declarations are keyed by value type. A definition class implements one small interface per concern, so declaring an audit position does not force it to declare a permission. Because each closes `IMessageDefinition<TMessage, TValue>` over a distinct `TValue`, several coexist on one class without ambiguity, and applications may declare their own value types that LiteBus applies without understanding.
+Declarations are keyed by value type, in both definition shapes. `IMessageDefinition<TMessage>` declares any number of them from one `Describe(IMessageDeclarations)` method and is the shape to reach for. `IMessageDefinition<TMessage, TValue>` types one declaration against the compiler, which makes it the better choice for a message declaring exactly one thing and is why `IAuditDefinition<TMessage>` is built on it; past one, every later value has to be written as an explicit interface implementation naming both types again. Applications may declare their own value types either way, and LiteBus applies them without understanding them.
 
 A declaration covers the message type it names and every message assignable to it, so a definition over a base type or marker interface describes a family of messages. The most derived declaration wins.
 
@@ -43,7 +43,14 @@ public sealed class PlaceOrderCommandDefinition :
 | API | Role |
 | --- | --- |
 | `IMessageDefinition` | Non-generic marker used for discovery |
-| `IMessageDefinition<TMessage, TValue>` | One declaration, keyed by `TValue` |
+| `IMessageDefinition<TMessage, TValue>` | One declaration, keyed by `TValue` and checked by the compiler |
+| `IMessageDefinition<TMessage>` | Any number of declarations from one `Describe(IMessageDeclarations)` method |
+| `IMessageDeclarations` | `Declare<TValue>`, `Audited`, `NotAudited`, `Exempt<TValue>` |
+| `IMessageDeclarationExemptionSource` | Implemented by an attribute that records an exemption, aggregated into one `DeclarationExemptions` value |
+| `MessageModuleBuilder.DeclareDefault<TScope, TValue>(value)` | Declares a value for every message assignable to a marker, overridden by a message that states its own |
+| `MessageDeclarationItem` / `IMessageWriter.AddDeclaration` | A declaration made from composition code rather than a definition class |
+| `MessageModuleBuilder.ValidateComposition(Action<IMessageCatalog>)` | Runs an application convention over every registered message at composition |
+| `IMessageCatalog` / `MessageCatalogEntry` | The read-only view a composition check asserts over |
 | `IMessageDeclarationSource` | Implemented by an attribute that declares metadata |
 | `IMessageMetadata` | Read side exposed on the message descriptor |
 | `IMessageDescriptor.Metadata` | Resolved metadata for one message type |

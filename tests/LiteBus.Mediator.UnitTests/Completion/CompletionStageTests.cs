@@ -1,4 +1,4 @@
-﻿using LiteBus.Commands;
+using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
@@ -36,6 +36,7 @@ public sealed class CompletionStageTests : LiteBusTestBase
                     builder.Register(typeof(CompletionCommand));
                     builder.Register(typeof(CompletionCommandWithResult));
                     builder.Register(typeof(CompletionCommandGuard));
+                    builder.Register(typeof(CompletionCommandShortcut));
                     builder.Register(typeof(CompletionCommandHandler));
                     builder.Register(typeof(CompletionCommandWithResultHandler));
                     builder.Register(typeof(CompletionCommandErrorHandler));
@@ -96,9 +97,42 @@ public sealed class CompletionStageTests : LiteBusTestBase
         var observed = recorder.Observed.Single().Context;
         observed.Outcome.Should().Be(MediationOutcome.Denied);
         observed.Reason.Should().Be("not permitted");
+        observed.Code.Should().Be("NOT_PERMITTED");
 
         // A denial is a decision, so it is not reported as a fault even though it reaches the caller as an exception.
         observed.Faulted.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Completion_runs_with_Answered_and_carries_the_reason_and_the_code()
+    {
+        var recorder = new CompletionRecorder();
+        var provider = BuildProvider(recorder, typeof(DirectCompletionHandler));
+        var mediator = provider.GetRequiredService<ICommandMediator>();
+
+        await mediator.SendAsync(new CompletionCommand { ShouldAnswer = true }).ConfigureAwait(false);
+
+        var observed = recorder.Observed.Single().Context;
+        observed.Outcome.Should().Be(MediationOutcome.Answered);
+        observed.Reason.Should().Be("the work was already applied");
+
+        // The code is what a metric counting answers tags on, rather than matching the reason prose.
+        observed.Code.Should().Be("ALREADY_APPLIED");
+        observed.Faulted.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Completion_carries_no_code_when_the_pipeline_was_not_stopped()
+    {
+        var recorder = new CompletionRecorder();
+        var provider = BuildProvider(recorder, typeof(DirectCompletionHandler));
+        var mediator = provider.GetRequiredService<ICommandMediator>();
+
+        await mediator.SendAsync(new CompletionCommand()).ConfigureAwait(false);
+
+        var observed = recorder.Observed.Single().Context;
+        observed.Outcome.Should().Be(MediationOutcome.Succeeded);
+        observed.Code.Should().BeNull();
     }
 
     [Fact]

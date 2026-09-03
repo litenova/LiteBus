@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
@@ -146,7 +146,7 @@ internal static class PipelineHandlerInvoker
     /// <param name="descriptor">The descriptor whose contract is open.</param>
     /// <param name="runtimeMessageType">The concrete runtime type of the message being mediated.</param>
     /// <returns>The dispatch for the contract closed over the runtime message type.</returns>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="PipelineContractException">
     ///     Thrown when the recorded contract cannot be closed over the runtime message type.
     /// </exception>
     [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
@@ -160,7 +160,7 @@ internal static class PipelineHandlerInvoker
         }
 
         var dispatch = PipelineDispatch.For(closedContract)
-                       ?? throw new LiteBusConfigurationException(
+                       ?? throw new PipelineContractException(
                            $"The handler '{descriptor.HandlerType.Name}' was registered under the contract "
                            + $"'{descriptor.ContractType.Name}', which the pipeline cannot dispatch for message "
                            + $"'{runtimeMessageType.Name}'.");

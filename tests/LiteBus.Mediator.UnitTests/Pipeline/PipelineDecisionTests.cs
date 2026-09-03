@@ -146,10 +146,11 @@ public sealed class PipelineDecisionTests
     ///     Produces an answering decision the way the shortcut stage does.
     /// </summary>
     /// <param name="reason">The reason the shortcut gave.</param>
+    /// <param name="code">The code the shortcut gave, when it gave one.</param>
     /// <returns>The decision the stage runner acts on.</returns>
-    private static PipelineDecision Answer(string reason)
+    private static PipelineDecision Answer(string reason, string? code = null)
     {
-        return PipelineDecision.Answered(reason, hasResult: false, result: null);
+        return PipelineDecision.Answered(reason, code, hasResult: false, result: null);
     }
 
     /// <summary>

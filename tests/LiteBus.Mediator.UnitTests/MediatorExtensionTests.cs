@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Events.Abstractions;
 using LiteBus.Queries.Abstractions;
 
@@ -126,6 +127,33 @@ public sealed class MediatorExtensionTests
             Tokens.Add(cancellationToken);
             return Task.FromResult((TCommandResult)(object)42);
         }
+    
+        /// <inheritdoc />
+        public Task<MediationResult> TrySendAsync(
+            ICommand command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationResult.Succeeded());
+        }
+
+        /// <inheritdoc />
+        public Task<MediationResult<TCommandResult>> TrySendAsync<TCommandResult>(
+            ICommand<TCommandResult> command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationResult<TCommandResult>.Succeeded(default!));
+        }
+
+        /// <inheritdoc />
+        public Task<MediationDecision> EvaluateAsync(
+            ICommand command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationDecision.Allowed);
+        }
     }
 
     private sealed class RecordingQueryMediator : IQueryMediator
@@ -161,6 +189,24 @@ public sealed class MediatorExtensionTests
             await Task.CompletedTask.ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             yield return item;
+        }
+    
+        /// <inheritdoc />
+        public Task<MediationResult<TQueryResult>> TryQueryAsync<TQueryResult>(
+            IQuery<TQueryResult> query,
+            QueryMediationSettings? queryMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationResult<TQueryResult>.Succeeded(default!));
+        }
+
+        /// <inheritdoc />
+        public Task<MediationDecision> EvaluateAsync(
+            IQuery query,
+            QueryMediationSettings? queryMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationDecision.Allowed);
         }
     }
 

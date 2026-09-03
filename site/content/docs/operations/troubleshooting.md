@@ -1,4 +1,4 @@
-﻿# Troubleshooting
+# Troubleshooting
 
 This page maps the exceptions and surprising behaviors LiteBus produces to their cause and fix. Each entry names the exception type, where it is thrown, why, and what to change. Use it as a lookup when a message fails to mediate or a registration throws at startup. The behaviors here are grounded in [The Handler Pipeline](../concepts/handler-pipeline.md).
 
@@ -63,7 +63,7 @@ Common causes when a decision appears to be ignored:
 
 To skip the post-handlers after the work has already run, call `IExecutionContext.SuppressPostHandlers()` instead. That reports `MediationOutcome.Succeeded`, because the main handler ran.
 
-## LiteBusConfigurationException for an Untyped Shortcut on a Result Message
+## PipelineContractException for an Untyped Shortcut on a Result Message
 
 The untyped shortcut contract cannot carry a value, so it cannot answer a command or query that produces one. This is reported at whichever of two points can prove it.
 
@@ -83,7 +83,9 @@ A guard refused the message, or a validator reported it malformed, and no refusa
 
 If the caller should receive a value instead of an exception, register an `IMessageRefusalMapper<TMessage, TMessageResult>`. One registration against `ICommand` or `IQuery` covers the whole axis, and a mapper registered against a concrete message overrides it. A message that produces no result, and any event, has nothing a mapper could return, so a refusal there always raises.
 
-## LiteBusConfigurationException Naming More Than One Refusal Mapper
+If the caller should branch on the refusal rather than receive a value of its own, call `TrySendAsync` or `TryQueryAsync` instead. Both return a `MediationResult` carrying the outcome, the reason, the code and any validation failures, so an HTTP boundary produces a 403 or a 400 without catching anything. A genuine fault still throws, which is deliberate: a database timeout is not something a boundary should branch on.
+
+## PipelineContractException Naming More Than One Refusal Mapper
 
 Two mappers producing the same result type are registered at the same level of specificity, so which one applied would depend on assembly scanning order. Remove one, or register the one that should win against the concrete message type, which takes precedence over a mapper registered for a base type.
 

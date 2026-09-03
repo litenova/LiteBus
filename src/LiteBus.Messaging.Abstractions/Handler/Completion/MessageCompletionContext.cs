@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -46,6 +46,17 @@ public sealed class MessageCompletionContext
     ///     neither post-handlers nor error handlers, so this is the only description of why the message ended.
     /// </remarks>
     public string? Reason { get; init; }
+
+    /// <summary>
+    ///     Gets the machine-readable code the decision gave for stopping the pipeline.
+    /// </summary>
+    /// <remarks>
+    ///     Carries whatever <see cref="Verdict.Deny" />, <see cref="Shortcut.Answer" /> or a single
+    ///     <see cref="ValidationFailure" /> supplied, and means the same thing in all three. Switch on this rather than
+    ///     matching on <see cref="Reason" />, which is prose written for a person and free to change wording. It is the
+    ///     dimension to tag a metric with when counting why messages ended the way they did.
+    /// </remarks>
+    public string? Code { get; init; }
 
     /// <summary>
     ///     Gets the elapsed time from the start of mediation until the outcome was observed.

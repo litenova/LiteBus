@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -18,6 +18,11 @@ namespace LiteBus.Messaging.Abstractions;
 ///         including any integrity chaining and column layout, is the store's own concern.
 ///     </para>
 ///     <para>
+///         The initiator arrives through <see cref="Actor" />, resolved by an <see cref="IAuditActorResolver" /> the
+///         application registers. The message itself is deliberately not on this record: it is handed to the resolver
+///         instead, so a payload cannot reach audit storage by default. See the note below on why that matters.
+///     </para>
+///     <para>
 ///         Note what is deliberately absent: any before-and-after snapshot of the changed state. That is the field which
 ///         turns an audit table into an erasure liability under data-protection law, and it is redundant, because the
 ///         domain event stream already records what changed. The trail records who is answerable and why.
@@ -29,6 +34,20 @@ public sealed record AuditRecord
     ///     Gets the use-case identity of the action, such as <c>orders.place-order</c>.
     /// </summary>
     public required string Action { get; init; }
+
+    /// <summary>
+    ///     Gets who performed the action.
+    /// </summary>
+    /// <value>
+    ///     The actor an <see cref="IAuditActorResolver" /> or <see cref="IAuditScope.WithActor" /> supplied, or
+    ///     <see langword="null" /> when neither established one.
+    /// </value>
+    /// <remarks>
+    ///     Null is a real answer and a distinct one: it means nothing recorded who acted, which is a defect a review
+    ///     should be able to find. An action a process performed says so through <see cref="AuditActor.System" />
+    ///     rather than by leaving this empty.
+    /// </remarks>
+    public AuditActor? Actor { get; init; }
 
     /// <summary>
     ///     Gets how the action ended.

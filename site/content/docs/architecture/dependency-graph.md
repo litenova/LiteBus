@@ -121,6 +121,7 @@ Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactor
 | `LiteBus.Transport.Abstractions` | `ITransportPublisher`, `IMessageConsumer`, transport headers | none | none |
 | `LiteBus.Transport` | Circuit breaker metrics, transport tracing, and header value parsing | `Transport.Abstractions`, `Runtime.Abstractions` | none |
 | `LiteBus.Transport.Amqp` | RabbitMQ adapter | `Transport.Abstractions`, `Transport`, `Runtime.Abstractions` | `RabbitMQ.Client` |
+| `LiteBus.Messaging.Extensions.OpenTelemetry` | Register mediation traces and metrics | `Messaging` | `OpenTelemetry` |
 | `LiteBus.Inbox.Extensions.OpenTelemetry` | Register inbox traces and metrics | `Inbox` | `OpenTelemetry` |
 | `LiteBus.Outbox.Extensions.OpenTelemetry` | Register outbox traces and metrics | `Outbox` | `OpenTelemetry` |
 | `LiteBus.Transport.Extensions.OpenTelemetry` | Register transport tracing and circuit breaker metrics | `Transport` | `OpenTelemetry` |

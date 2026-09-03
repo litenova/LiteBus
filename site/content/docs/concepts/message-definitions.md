@@ -26,9 +26,26 @@ Organizations/CreateOrganization/
     CreateOrganizationCommandDefinition.cs
 ```
 
+## Describing a Message
+
+`IMessageDefinition<TMessage>` declares everything a message states, from one method:
+
+```csharp
+internal sealed class PlaceOrderCommandDefinition : IMessageDefinition<PlaceOrderCommand>
+{
+    public void Describe(IMessageDeclarations declarations)
+    {
+        declarations.Audited("orders.place-order", category: "money", targetKind: "order");
+        declarations.Declare(Permissions.Orders.Place);
+    }
+}
+```
+
+`IMessageDeclarations` carries four members: `Declare<TValue>` for any value the application defines, `Audited` and `NotAudited` for the audit position, and `Exempt<TValue>` for a recorded exemption. Declarations are keyed by value type here exactly as they are in the typed shape below, so a reader looks a value up by its own type whichever way it was declared. Declaring the same value type twice in one `Describe` is a configuration error rather than the second silently replacing the first.
+
 ## One Interface Per Declaration
 
-A definition does not implement one large interface. It implements one small interface per declaration, each keyed by the type of the value it contributes:
+A definition may also implement one small interface per declaration, each keyed by the type of the value it contributes:
 
 ```csharp
 public sealed class PlaceOrderCommandDefinition :
@@ -45,7 +62,15 @@ public sealed class PlaceOrderCommandDefinition :
 }
 ```
 
-Keying by value type means a definition that only declares one thing is not forced to implement the others. It also means a class can declare several concerns without them interfering, because each closes `IMessageDefinition<TMessage, TValue>` over a different `TValue`.
+Keying by value type means a definition that only declares one thing is not forced to implement the others, and the compiler checks each value against its key. That is what makes it the better shape for a message declaring exactly one thing, and why `IAuditDefinition<TMessage>` and `IIdempotencyDefinition<TMessage>` are built on it.
+
+Past one declaration it stops paying. Each of those named interfaces exists because the underlying member is called `Value`, and a message declaring two values it has no named interface for has to write the second as an explicit interface implementation:
+
+```csharp
+RequiredPermission IMessageDefinition<PlaceOrderCommand, RequiredPermission>.Value => Permissions.Orders.Place;
+```
+
+That is the message type and the value type twice each to say one thing. `Describe` is the shape to reach for once a message declares more than one value, and the two mix freely: both write into the same type-keyed metadata, and one class may implement both.
 
 ## Declaring Your Own
 
@@ -167,22 +192,80 @@ One more constraint is worth knowing: a definition must expose a **parameterless
 
 A declaration is only as good as its coverage. One command that forgets to declare the permission it requires is an unguarded use case, and it looks exactly like a command that needs no permission. Two mechanisms close that gap, and they cover different ground.
 
-At composition time, on the messaging module:
+At composition time, on the messaging module. Scope the requirement to the messages the rule is actually about:
 
 ```csharp
 registry.AddMessaging(messaging => messaging
-    .RequireDeclaration<RequiredPermission>()
+    // Every command, rather than every message. Requiring a permission of every query too produces exemptions
+    // that say nothing, which trains a team to treat a rationale as paperwork.
+    .RequireDeclaration<RequiredPermission, ICommand>()
+
+    // Better still: the marker that carries the rule. "Every command that names an acting account declares what
+    // that account has to be permitted to do" is a sentence a security review can read.
+    .RequireDeclaration<RequiredPermission, IActingAccountCommand>()
+
+    // An arbitrary selection, with the words the error uses. A predicate cannot describe itself.
+    .RequireDeclaration<RetentionClass>(type => type.Namespace!.Contains("Billing"), "every billing message")
+
+    // Unscoped, for a value every message genuinely has to state.
     .RequireDeclaration<RetentionClass>());
 ```
 
-Every registered message must then declare the value or record an exemption from it. The check runs once every module has built, because the messaging module is foundational and has no commands to inspect while it is being built. A failure is a `LiteBusConfigurationException` naming every offender, grouped by the declaration each one omits:
+Every registered message in scope must then declare the value or record an exemption from it. The check runs once every module has built, because the messaging module is foundational and has no commands to inspect while it is being built. A failure is a `MessageDeclarationException` naming every offender, grouped by the declaration each one omits and by the scope of the requirement it violated:
 
 ```text
 One or more registered messages state no position on a required declaration:
-  RequiredPermission is not declared by: DraftScheduleCommand, WithdrawScheduleCommand
+  RequiredPermission is required of every IActingAccountCommand but is not declared by: DraftScheduleCommand
 Declare the value with an attribute or a definition class, or record why the message does not need it
-with [DeclarationExempt(typeof(TValue), "rationale")].
+with [DeclarationExempt(typeof(TValue), "rationale")]. Narrow the requirement instead if the messages
+listed were never meant to be in its scope.
 ```
+
+Scope on a type rather than a namespace deliberately. A namespace is a string a refactoring tool moves without telling anyone, so a requirement keyed on one silently stops applying when a folder is renamed, and for an authorization rule that failure is an unguarded command that used to be guarded.
+
+### Declaring a Family Default
+
+A rule that holds for a whole family is worth stating once. Declaring it on each of a hundred commands states it a hundred times, and gives it a hundred places to drift:
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .DeclareDefault<IOrganizationCommand, RequiredPermission>(Permissions.Organizations.Manage)
+    .RequireDeclaration<RequiredPermission, IOrganizationCommand>());
+```
+
+Every command implementing `IOrganizationCommand` now declares that permission, and one that states its own keeps it. Nothing new decides that: a declaration resolves to the one written closest to the message, which is the rule a definition written for a base type has always followed. This states it without a file.
+
+Defaults and a scoped requirement work together. The requirement makes the family answer for the value; the default answers for the ones that have nothing special to say. For a large family that is the difference between a hundred declarations and a handful of overrides.
+
+The scope is a type rather than a namespace for the same reason a scoped requirement's is. A namespace is a string a refactoring tool moves without telling anyone, so a default keyed on one silently stops applying when a folder is renamed, and for an authorization default that failure is a command that used to be guarded and now is not.
+
+Two defaults for one scope and value type are a configuration error, as are a default and a definition both declared against the same message: one of them would have to be discarded and nothing says which.
+
+### Checking Your Own Conventions
+
+A requirement covers "did this message state a position". `ValidateComposition` covers everything else a team writes down and then enforces by review:
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .RequireUniqueAuditActions()
+    .RequireAuditActionFormat()
+    .ValidateComposition(catalog =>
+    {
+        var wrong = catalog.Audited()
+            .Where(entry => entry.Audit!.Category is null)
+            .Select(entry => entry.MessageType.Name)
+            .ToList();
+
+        if (wrong.Count > 0)
+        {
+            throw new InvalidOperationException($"Audited messages must carry a category: {string.Join(", ", wrong)}");
+        }
+    }));
+```
+
+The callback receives an `IMessageCatalog` over every registered message and its resolved declarations, at the same point a requirement runs. Throw to fail composition, and name every offender in one message rather than the first, so a convention turned on for an existing codebase is fixed in one pass rather than one restart at a time.
+
+`RequireUniqueAuditActions()` and `RequireAuditActionFormat(pattern)` ship because every audited application needs both and getting either wrong corrupts the trail rather than breaking the build: two messages under one action code make the trail unqueryable by use case, and an inconsistent code is written and stored exactly like a consistent one.
 
 At compile time, with `LB1020`:
 
@@ -214,7 +297,7 @@ exemptions.TryGet(typeof(RequiredPermission), out var exemption);
 // exemption.Rationale
 ```
 
-Auditing is the exception that needs no exemption attribute. `[AuditExempt]` already produces an `AuditDeclaration`, because the audit position models both answers in one value type, so an audit-exempt message satisfies `RequireDeclaration<AuditDeclaration>()` on its own. Most application value types cannot model an absence that way, which is why the general exemption exists.
+There is one exemption mechanism, with two spellings for auditing. `[DeclarationExempt(typeof(AuditDeclaration), "rationale")]` exempts a message from auditing, and `[AuditExempt("rationale")]` is the shorthand for exactly that; both record the same exemption, so everything a message is exempt from reads from one place. `[AuditExempt]` additionally produces the `AuditExemptDeclaration` the record writer reads, because auditing is the one declaration whose two positions are both modelled as values. A definition says the same thing with `declarations.NotAudited("rationale")`.
 
 ## Declaring a Value Computed From the Message
 
