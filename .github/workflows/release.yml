@@ -5,8 +5,12 @@
 #
 # A pre-release tag such as v7.0.0-preview.1 runs every gate a stable tag runs. Its version suffix is what makes
 # NuGet treat the package as a pre-release, and the GitHub release is marked as one so it does not displace the
-# latest stable release. Its notes come from the Changelog section for the version it previews, because splitting
-# one release's notes across its previews leaves no single section describing what shipped.
+# latest stable release.
+#
+# Notes come from the Changelog. The first preview and every stable release publish the version's own section, so
+# each describes the whole line. A later preview publishes its own '## <tag>' section instead, which is a delta
+# against the preview before it: a reader upgrading between two previews wants what changed between them, and the
+# cumulative section is one link away for anyone who wants the whole line.
 #
 # A pre-release may be cut from any branch, so a version line can ship previews from its own branch and merge to
 # main once it is stable. A stable tag must be on main: it is what NuGet resolves without an opt-in and what the
@@ -79,12 +83,15 @@ jobs:
             prerelease=true
           fi
 
-          # A pre-release reads the section for the version it previews, so every preview of one release publishes
-          # the same accumulated notes rather than a fragment of them.
+          # A section for the tag itself wins, and for a pre-release after the first that is what makes its notes a
+          # delta against the preview before it. Falling back to the version's own section is what the first preview
+          # and every stable release read, so those publish the whole line.
           if grep -Fxq "## ${tag}" Changelog.md; then
             changelog_heading="## ${tag}"
+            changelog_scope=delta
           elif [ "${prerelease}" = "true" ] && grep -Fxq "## ${base_tag}" Changelog.md; then
             changelog_heading="## ${base_tag}"
+            changelog_scope=cumulative
           elif [ "${prerelease}" = "true" ]; then
             echo "::error::Changelog.md contains neither a '## ${tag}' nor a '## ${base_tag}' release heading."
             exit 1
@@ -93,10 +100,16 @@ jobs:
             exit 1
           fi
 
-          echo "Using tag version: ${version} (pre-release: ${prerelease}, notes from ${changelog_heading})"
+          # A stable release always describes the whole version, whichever heading it read.
+          if [ "${prerelease}" != "true" ]; then
+            changelog_scope=cumulative
+          fi
+
+          echo "Using tag version: ${version} (pre-release: ${prerelease}, ${changelog_scope} notes from ${changelog_heading})"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
           echo "changelog_heading=${changelog_heading}" >> "${GITHUB_OUTPUT}"
+          echo "changelog_scope=${changelog_scope}" >> "${GITHUB_OUTPUT}"
 
       - name: Validate Release Branch
         id: branch
@@ -279,6 +292,7 @@ jobs:
       - name: Generate Release Notes
         env:
           CHANGELOG_HEADING: ${{ steps.version.outputs.changelog_heading }}
+          CHANGELOG_SCOPE: ${{ steps.version.outputs.changelog_scope }}
           IS_PRERELEASE: ${{ steps.version.outputs.prerelease }}
         run: bash .github/scripts/generate-release-notes.sh
 

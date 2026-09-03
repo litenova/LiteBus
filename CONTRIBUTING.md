@@ -41,6 +41,9 @@ change what an existing consumer gets. A stable tag must be reachable from `main
 release workflow rejects one that is not, because a stable release is what NuGet resolves
 without an opt-in and what the documentation site deploys from.
 
-Notes come from the Changelog section for the version being released. Previews of one
-version share that version's section rather than each carrying a fragment of it, so
-`v7.0.0-preview.2` publishes the `## v7.0.0` notes as they stand at that point.
+Notes come from the Changelog. The first preview of a version and its stable release both
+publish that version's own section, so each describes the whole line. Every later preview
+publishes its own `## v7.0.0-preview.N` section instead, holding only what changed since
+the preview before it, because someone moving from one preview to the next wants the
+difference rather than the notes they already read. A delta section links the cumulative
+one, so the whole line stays one click away.

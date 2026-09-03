@@ -2,6 +2,78 @@
 
 All notable changes to this project will be documented in this file.
 
+## v7.0.0-preview.3
+
+What changed since `v7.0.0-preview.2`. This preview acts on the feedback from the first application to migrate onto
+the v7 previews. Most of it is about the distance between what the pipeline could already express and what an
+application still had to write by hand to use it: the audit trail knew what happened but not who did it, a refusal
+could only be caught rather than received, a declaration had to be repeated on every message it applied to, and
+nothing could report what the composition had actually assembled.
+
+### Added
+
+- Actor attribution on the audit trail. `AuditActor`, `IAuditActorResolver`, and `AuditRecord.Actor` record who
+  performed an audited action, which is the field an audit trail is least useful without.
+- `MessageModuleBuilder.AddAuditing` configures the trail, the actor resolver, the outcome mapper, and which axes are
+  audited in one place, in place of a sequence of separate registrations.
+- Events are audited. An event now records alongside commands and queries instead of being excluded by construction.
+- `IMessageDefinition<TMessage>.Describe(IMessageDeclarations)` declares several values for one message from a single
+  definition class, rather than one class per declared value.
+- Scoped declaration requirements. `RequireDeclaration<TValue, TScope>()` and the predicate overload require a value
+  only of the messages a marker or a predicate covers, so one family can be held to a rule the rest is not.
+- Family defaults. `DeclareDefault<TScope, TValue>(value)` and `IMessageWriter.AddDeclaration(MessageDeclarationItem)`
+  declare a value once for a whole family; a message carrying its own still keeps it.
+- Composition checks. `ValidateComposition(Action<IMessageCatalog>)`, `RequireUniqueAuditActions`,
+  `RequireAuditActionFormat`, and `RequireExplicitOpenGenerics` fail the build rather than a request in production.
+- `ICommandMediator.TrySendAsync`, `IQueryMediator.TryQueryAsync`, and `EvaluateAsync` on both. A refusal arrives as a
+  `MediationResult` instead of an exception, and `EvaluateAsync` asks whether a message would be permitted without
+  performing it, which is what a UI needs to decide whether to offer the action at all.
+- Mediation telemetry. An `ActivitySource` and a `Meter` named `LiteBus.Mediation`, `MediationTelemetryOptions` to
+  choose what is emitted, and a new `LiteBus.Messaging.Extensions.OpenTelemetry` package registering both with a host.
+- `IMessageCatalog.Explain(Type)` reports the pipeline a message will actually run as a `MessagePipelinePlan`, and
+  `LiteBusCompositionSummary` reports what the composition assembled.
+- `MediationHarness` in `LiteBus.Testing.Mediation` runs the shipped pipeline over hand-supplied handler instances, so
+  a pipeline test does not need a container.
+- The audit catalogue. `AuditCatalogue.ToRows` and `ToMarkdown` derive it from the declarations, and `IMessageCatalog`
+  is registered as a Singleton so it resolves at runtime and not only inside a composition check.
+- Keyed data on `IExecutionContext.Data`, a `Code` on `Shortcut` and on completion, and `AuditReasonMissingException`.
+- Typed configuration exceptions: `ModuleCompositionException`, `MessageDeclarationException`,
+  `PipelineContractException`, `DurableStorageConfigurationException`, and `AuditConfigurationException`.
+
+### Changed
+
+- `LiteBusConfigurationException` is no longer sealed, because the typed exceptions above derive from it. A `catch` on
+  the base still catches every one of them.
+- The axis builders accept `IMessageDefinition<>` and the messaging-level handler contracts, so a definition or a guard
+  written against the messaging abstractions registers on the axis whose message type it constrains.
+- `IExecutionContext` is registered as Scoped, so a handler can take it as a dependency instead of reaching for the
+  ambient accessor.
+
+### Fixed
+
+- The events strategy dropped `decision.Code`, so an event denial reported no code.
+- `Describe` is invoked reflectively, which wrapped a configuration error in `TargetInvocationException`.
+- `EventModule` registered the audit completion handler after its handler scan, so the type never reached the container
+  and no event was ever audited.
+- `[AuditExempt]` accepted an empty rationale, which is the one thing the attribute exists to record.
+
+### Breaking
+
+- `HandlerPriorities.UnitOfWork` moved to `ReservedCeiling + 100`. An application's unit-of-work commit now runs after
+  the framework's own writers rather than between them, which is the order the inbox and the audit trail need to be
+  committed in the same transaction as the work.
+- `ICommandMediator` and `IQueryMediator` gained members without default implementations, so a hand-written
+  implementation of either, such as a test double, has to implement them.
+
+### Documentation
+
+- Arity-2 open generic handlers, `IMessageShortcut<,>` and `IMessageRefusalMapper<,>`, were already supported in
+  preview.2 but undocumented. They are now recorded and covered by regression tests.
+- The dispatch scope is created from the root scope factory, making it a sibling of the request scope rather than a
+  child. `hosted-services.md` described a "per-request `DbContext`", which is the opposite of what happens.
+- `IExecutionContext.Data` was missing from the execution context listings, and no page said what the Post stage is
+  for.
+
 ## v7.0.0
 
 Major release for .NET 10, describing the change from v6.0.2. Adds a completion stage to the mediation pipeline, four

@@ -504,6 +504,14 @@ Before adding a project:
 - Central package versions: add NuGet packages to `src/Directory.Packages.props`, not inline in csproj files.
 - New test projects using xUnit attributes: add `GlobalUsings.cs` with `global using Xunit;` when the project has no other global usings for xUnit.
 
+## Releases and changelog
+
+- **A version has one Changelog section, and every preview after the first has its own.** `## v7.0.0` accumulates everything landing in 7.0.0, and it is what the first preview and the stable release publish, so each of those describes the whole line. Every later preview adds a `## v7.0.0-preview.N` section above it holding only what changed since `preview.N-1`, and the release workflow publishes that section instead. A reader moving from one preview to the next wants the difference, not the two hundred lines they already read when they took the previous one; a reader arriving at the line for the first time wants all of it, which is what the first preview and the stable release give them.
+- **A delta section names what it compares against and links the cumulative one.** Open it with a line saying which preview it is a delta against and pointing at the version's own section, so the whole line stays one link away from anyone who wants it. `.github/scripts/generate-release-notes.sh` also puts that link in the pre-release banner it prepends.
+- **Do not add a section for the first preview of a line.** `.github/workflows/release.yml` prefers a section matching the tag and falls back to the version's own, so a `## v7.0.0-preview.1` section would turn the first preview into a delta against nothing.
+- **A delta section is written when the preview is cut, not derived from git.** Entries land in the version's cumulative section as the work happens. Cutting a preview after the first means summarizing what accumulated since the previous tag into a new delta section, in the same commit as the version bump. Keep it to about a line per item and leave the reasoning in the cumulative section, so the two cannot drift into disagreeing about the same change.
+- **Pushing the tag publishes the release.** `release.yml` triggers on `v*`, reruns every gate, and creates the GitHub release itself. Do not run `gh release create` by hand for a tag that has been pushed; it either races the workflow or produces a release the workflow then fails on.
+
 ## Testing
 
 - **Tests prove behavior, not wiring.** Prefer assertions on outcomes (manifest contents, probe results, processor pass behavior, store state transitions) over tests that only verify a type appears in dependency injection or a module builds without exception.
