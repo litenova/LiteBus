@@ -208,6 +208,49 @@ public sealed class IdempotencyTests : LiteBusTestBase
     }
 
     [Fact]
+    public async Task The_probe_reports_a_registered_store()
+    {
+        var provider = BuildProvider(new InMemoryIdempotencyStore(), new ApplicationCounter());
+
+        var result = await new Messaging.Idempotency.IdempotencyStoreDiagnosticCheck(provider)
+            .CheckAsync().ConfigureAwait(false);
+
+        result.Status.Should().Be(DiagnosticStatus.Healthy);
+        result.Data!["storeRegistered"].Should().Be(true);
+        result.Data["storeType"].Should().Be(typeof(InMemoryIdempotencyStore).FullName);
+    }
+
+    [Fact]
+    public async Task A_repeat_whose_store_recorded_no_payload_names_the_store_as_the_fix()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IIdempotencyStore>(new ForgetfulIdempotencyStore());
+        services.AddSingleton(new ApplicationCounter());
+
+        var provider = services
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessaging(_ => { });
+                registry.AddCommands(builder =>
+                {
+                    builder.Register<RepeatablePaymentCommand>();
+                    builder.Register<RepeatablePaymentCommandHandler>();
+                    builder.Register<RepeatablePaymentCommandDefinition>();
+                    builder.EnableIdempotency();
+                });
+            })
+            .BuildServiceProvider();
+
+        // The declaration asked for a replay, so a store that reports a key applied without keeping its payload has
+        // broken its half of the contract. Answering with default would look like a real receipt.
+        var act = async () => await provider.GetRequiredService<ICommandMediator>()
+            .SendAsync(new RepeatablePaymentCommand { PaymentId = "p-6" }).ConfigureAwait(false);
+
+        await act.Should().ThrowAsync<LiteBusConfigurationException>()
+            .WithMessage("*no recorded payload*").ConfigureAwait(false);
+    }
+
+    [Fact]
     public async Task A_blank_key_is_reported_rather_than_shared_by_every_message()
     {
         var applications = new ApplicationCounter();

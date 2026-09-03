@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -98,17 +97,5 @@ public sealed class DeclarationExemptions
     {
         ArgumentNullException.ThrowIfNull(declarationType);
         return _byType.TryGetValue(declarationType, out exemption);
-    }
-
-    /// <summary>
-    ///     Merges two exemption sets, keeping the exemption already present for a given metadata type.
-    /// </summary>
-    /// <param name="other">The set whose exemptions are added.</param>
-    /// <returns>A set covering both.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="other" /> is <see langword="null" />.</exception>
-    public DeclarationExemptions Merge(DeclarationExemptions other)
-    {
-        ArgumentNullException.ThrowIfNull(other);
-        return new DeclarationExemptions(_byType.Values.Concat(other._byType.Values));
     }
 }

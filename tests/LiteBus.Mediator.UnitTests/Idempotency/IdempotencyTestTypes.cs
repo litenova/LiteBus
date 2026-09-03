@@ -264,3 +264,31 @@ internal sealed class UndeclaredPaymentCommandHandler : ICommandHandler<Undeclar
         return Task.CompletedTask;
     }
 }
+
+/// <summary>
+///     A store that reports every key as already applied but records no payload.
+/// </summary>
+/// <remarks>
+///     Stands in for a store that persists the key and drops the payload passed to <c>CompleteAsync</c>, which is the
+///     half of the contract a replaying declaration depends on.
+/// </remarks>
+public sealed class ForgetfulIdempotencyStore : IIdempotencyStore
+{
+    /// <inheritdoc />
+    public Task<IdempotencyClaim> TryClaimAsync(string key, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(IdempotencyClaim.AlreadyCompleted());
+    }
+
+    /// <inheritdoc />
+    public Task CompleteAsync(string key, string? payload, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task ReleaseAsync(string key, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+}
