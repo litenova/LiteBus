@@ -37,11 +37,13 @@ services.AddLiteBus(registry =>
 | `AuditedDeclaration` / `AuditExemptDeclaration` | The audited position and the recorded exemption |
 | `IAuditScope` | Handler-supplied actor, target, reason, and properties |
 | `AuditRecord` / `AuditOutcome` | The record handed to the trail |
-| `AuditActor` | Who acted: a required `Id` plus `Kind`, `DisplayName` and `OnBehalfOf` |
+| `AuditActor` | Who acted: a required `Id` and `Kind`, plus `DisplayName` and `OnBehalfOf`. Factories `User(id)`, `System(processName)`, `For(kind, id)`; a display name is added with `with` |
+| `IAuditRecordWriter` | The whole contract between the pipeline and auditing. Replace it to own the record shape |
 | `IAuditActorResolver` | Application-supplied attribution, reading the message at the completion stage |
 | `IAuditTrail` | Application-supplied sink |
 | `MessageModuleBuilder.AddAuditing(Action<AuditingBuilder>)` | Configures the whole feature: trail, actor resolver, outcome mapper, and axes |
-| `AuditingBuilder` | `UseTrail`, `UseTrailInstance`, `UseActorResolver`, `UseActorResolverInstance`, `UseOutcomeMapper`, `UseOutcomeMapperInstance`, `ForCommands`, `ForQueries`, `ForEvents`, `ForAllAxes` |
+| `AuditingBuilder` | `UseTrail`, `UseTrailInstance`, `UseActorResolver`, `UseActorResolverInstance`, `UseOutcomeMapper`, `UseOutcomeMapperInstance`, `UseRecordWriter`, `UseRecordWriterInstance`, `ForCommands`, `ForQueries`, `ForEvents`, `ForAllAxes` |
+| `MessageModuleBuilder.UseAuditRecordWriter<T>(lifetime)` / `UseAuditRecordWriterInstance` | Replaces the record building. The probe then reports the writer instead of demanding a trail |
 | `MessageModuleBuilder.UseAuditTrail<T>(lifetime)` | The primitive `AddAuditing` composes. Scoped by default |
 | `MessageModuleBuilder.UseAuditTrailInstance(trail)` | Registers a trail you already hold, as a singleton |
 | `MessageModuleBuilder.UseAuditActorResolver<T>(lifetime)` / `UseAuditActorResolverInstance` | The attribution primitives |

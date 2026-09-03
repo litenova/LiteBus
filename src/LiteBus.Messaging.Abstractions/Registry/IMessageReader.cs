@@ -51,8 +51,15 @@ public interface IMessageReader : IEnumerable<IMessageDescriptor>
     ///     The scanned handler types, or an empty collection for a reader that does not distinguish the two.
     /// </value>
     /// <remarks>
-    ///     Read by <c>RequireExplicitOpenGenerics</c>. The default implementation returns nothing, which means the
-    ///     strict check passes for a custom reader rather than failing on something it cannot see.
+    ///     <para>
+    ///         Read by <c>RequireExplicitOpenGenerics</c>. The default implementation returns nothing, which means the
+    ///         strict check passes for a custom reader rather than failing on something it cannot see.
+    ///     </para>
+    ///     <para>
+    ///         A handler that was both scanned and named by a registration line is absent, in either order. The
+    ///         registration line is what the strict check asks for, and a scan that also walks past the type does not
+    ///         take it away: an open generic living in a scanned assembly would otherwise be impossible to declare.
+    ///     </para>
     /// </remarks>
     IReadOnlyCollection<Type> ScannedOpenGenericHandlers => [];
 

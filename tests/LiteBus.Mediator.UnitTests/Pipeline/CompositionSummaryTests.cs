@@ -136,6 +136,46 @@ public sealed class CompositionSummaryTests : LiteBusTestBase
     }
 
     [Fact]
+    public void A_registration_line_clears_the_scanned_mark_whichever_order_the_two_arrive_in()
+    {
+        // The order is not the application's to choose. RegisterFromAssembly walks every type in the assembly the
+        // open generic lives in, so it reaches a handler the composition already named, and a scan configured before
+        // the explicit line reaches it first. Both orders have to leave the same answer or the check is impossible
+        // to satisfy for a handler that lives in a scanned assembly, which is every handler worth sharing.
+        var scanFirst = new MessageRegistry();
+        scanFirst.Register(typeof(ApproveLeaveCommand));
+        scanFirst.RegisterFromScan(typeof(SharedCommandGuard<>));
+        scanFirst.Register(typeof(SharedCommandGuard<>));
+
+        var lineFirst = new MessageRegistry();
+        lineFirst.Register(typeof(ApproveLeaveCommand));
+        lineFirst.Register(typeof(SharedCommandGuard<>));
+        lineFirst.RegisterFromScan(typeof(SharedCommandGuard<>));
+
+        scanFirst.ScannedOpenGenericHandlers.Should().BeEmpty();
+        lineFirst.ScannedOpenGenericHandlers.Should().BeEmpty();
+
+        var actScanFirst = () => MessageModule.ThrowIfOpenGenericsWereScanned(scanFirst);
+        var actLineFirst = () => MessageModule.ThrowIfOpenGenericsWereScanned(lineFirst);
+
+        actScanFirst.Should().NotThrow();
+        actLineFirst.Should().NotThrow();
+    }
+
+    [Fact]
+    public void Clearing_the_scanned_mark_does_not_cost_the_closure()
+    {
+        var registry = new MessageRegistry();
+        registry.Register(typeof(ApproveLeaveCommand));
+        registry.RegisterFromScan(typeof(SharedCommandGuard<>));
+        registry.Register(typeof(SharedCommandGuard<>));
+
+        // The guard still guards the command. Satisfying the strict check must not turn the handler off, and the
+        // summary still has a closure count to report.
+        registry.OpenGenericClosures[typeof(SharedCommandGuard<>)].Should().ContainSingle();
+    }
+
+    [Fact]
     public void Strict_mode_reports_an_open_generic_that_arrived_through_a_scan()
     {
         var registry = new MessageRegistry();

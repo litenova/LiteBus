@@ -12,8 +12,8 @@ namespace LiteBus.Messaging.Abstractions;
 ///     </para>
 ///     <para>
 ///         The shape follows the initiator of the DMTF CADF event model and the actor of NIST SP 800-53 AU-3: a stable
-///         identifier, a kind that says what sort of thing acted, and an optional display name for a reader who should
-///         not have to resolve the identifier. It is deliberately data rather than a closed hierarchy, because the set
+///         identifier, a kind that says what sort of thing acted, and a display name for a reader who should not have
+///         to resolve the identifier. It is deliberately data rather than a closed hierarchy, because the set
 ///         of things that can act is the application's to define. A service account, a scanner at a door, and a
 ///         scheduled worker are all actors, and LiteBus cannot enumerate them.
 ///     </para>
@@ -28,9 +28,13 @@ namespace LiteBus.Messaging.Abstractions;
 /// </remarks>
 /// <example>
 ///     <code><![CDATA[
-/// AuditActor.User(account.Id.ToString(), account.Email);
+/// AuditActor.User(account.Id.ToString());
 /// AuditActor.System("nightly-settlement");
 /// AuditActor.For("scanner-device", device.Id.ToString()) with { OnBehalfOf = authorizedBy.ToString() };
+///
+/// // Recording a display name puts personal data in the trail, so it is a deliberate act rather than a
+/// // second argument. See the note on DisplayName.
+/// AuditActor.User(account.Id.ToString()) with { DisplayName = account.Email };
 /// ]]></code>
 /// </example>
 public sealed record AuditActor
@@ -63,7 +67,12 @@ public sealed record AuditActor
     ///     It exists so a query can separate the actions people took from the actions a process took, which is a
     ///     distinction every review draws and which an identifier alone cannot express.
     /// </value>
-    public string? Kind { get; init; }
+    /// <remarks>
+    ///     Required, because an actor of no kind is a state no audit query can use and no factory here produces. It
+    ///     stays a string rather than an enumeration for the reason given on the type: the set of things that can act
+    ///     belongs to the application, and a closed set belongs at the point the application constructs the actor.
+    /// </remarks>
+    public required string Kind { get; init; }
 
     /// <summary>
     ///     Gets the name to show a reader in place of the identifier.
@@ -73,6 +82,11 @@ public sealed record AuditActor
     ///     Recording it makes the entry readable after the account is deleted, and makes the trail hold personal data;
     ///     which of those matters more is the application's decision, so LiteBus does not populate it.
     /// </value>
+    /// <remarks>
+    ///     Set it with <c>with { DisplayName = name }</c>. None of the factories here take it, deliberately: putting
+    ///     personal data behind an optional second argument makes it the easiest thing to reach for at a call site,
+    ///     and a decision with a data-protection consequence should be visible in the line that makes it.
+    /// </remarks>
     public string? DisplayName { get; init; }
 
     /// <summary>
@@ -89,12 +103,15 @@ public sealed record AuditActor
     ///     Creates an actor for a person acting through an authenticated request.
     /// </summary>
     /// <param name="id">The stable identifier of the account.</param>
-    /// <param name="displayName">The name to show a reader, when the application records one.</param>
     /// <returns>The actor, ready to be refined with <c>with</c>.</returns>
     /// <exception cref="ArgumentException"><paramref name="id" /> is null, empty, or whitespace.</exception>
-    public static AuditActor User(string id, string? displayName = null)
+    /// <remarks>
+    ///     Add a display name with <c>with { DisplayName = name }</c> where the application has decided the trail
+    ///     should hold one. See <see cref="DisplayName" /> for why it is not a parameter here.
+    /// </remarks>
+    public static AuditActor User(string id)
     {
-        return For(UserKind, id, displayName);
+        return For(UserKind, id);
     }
 
     /// <summary>
@@ -117,12 +134,15 @@ public sealed record AuditActor
     /// </summary>
     /// <param name="kind">The stable code for the kind of thing that acted.</param>
     /// <param name="id">The stable identifier of the actor.</param>
-    /// <param name="displayName">The name to show a reader, when the application records one.</param>
     /// <returns>The actor, ready to be refined with <c>with</c>.</returns>
     /// <exception cref="ArgumentException">
     ///     <paramref name="kind" /> or <paramref name="id" /> is null, empty, or whitespace.
     /// </exception>
-    public static AuditActor For(string kind, string id, string? displayName = null)
+    /// <remarks>
+    ///     Add a display name with <c>with { DisplayName = name }</c>. See <see cref="DisplayName" /> for why it is
+    ///     not a parameter here.
+    /// </remarks>
+    public static AuditActor For(string kind, string id)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(kind);
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -130,8 +150,7 @@ public sealed record AuditActor
         return new AuditActor
         {
             Id = id,
-            Kind = kind,
-            DisplayName = displayName
+            Kind = kind
         };
     }
 }

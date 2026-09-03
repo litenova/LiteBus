@@ -64,6 +64,25 @@ public sealed class AuditTrailDiagnosticCheck : IDiagnosticCheck
     /// <inheritdoc />
     public Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default)
     {
+        // An application that replaced the record writer does not have to use an IAuditTrail at all, so asserting one
+        // is registered would report a correct configuration as unhealthy. Read from the composition summary rather
+        // than by resolving IAuditRecordWriter, because resolving the built-in one with no trail registered throws,
+        // which is the very state this check exists to report.
+        if (_serviceProvider.GetService(typeof(LiteBusCompositionSummary)) is LiteBusCompositionSummary summary &&
+            summary.AuditRecordWriter is { } writer)
+        {
+            return Task.FromResult(new DiagnosticResult(
+                DiagnosticStatus.Healthy,
+                $"Auditing is enabled and the record writer is {writer}, which replaces the built-in one. What that "
+                + "writer records with, and whether it uses an IAuditTrail or an IAuditActorResolver at all, is the "
+                + "application's to check.",
+                new Dictionary<string, object>
+                {
+                    ["component"] = "audit",
+                    ["recordWriter"] = writer
+                }));
+        }
+
         if (_serviceProvider.GetService(typeof(IMessageDispatchScopeFactory)) is not IMessageDispatchScopeFactory scopeFactory)
         {
             // A host with no dispatch scope factory resolves everything from the root, so the trail can only be a

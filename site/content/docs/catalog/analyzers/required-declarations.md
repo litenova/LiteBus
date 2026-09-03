@@ -33,13 +33,43 @@ Use the full metadata name of each value type. Separate several with commas or s
 `LB1020` reports for a command, query, or stream query type when all of the following are true:
 
 - The type is declared in the analyzed assembly and is not abstract.
-- No definition class declares the required value type for it, or for a base type or interface it implements.
+- No definition class declares the required value type for it, or for a base type or interface it implements, in either definition shape.
 - The type carries no attribute annotated `[MessageDeclaration(typeof(TValue))]` for the required value type.
 - The type carries no `[DeclarationExempt(typeof(TValue), "rationale")]` for the required value type.
 
+## The Two Definition Shapes
+
+`IMessageDefinition<TMessage, TValue>` names its value type in the contract, so the interface settles it.
+
+`IMessageDefinition<TMessage>.Describe(IMessageDeclarations)` names nothing in the contract, so the body is read instead. `Declare<TValue>` and `Exempt<TValue>` are matched on the type argument, and `Audited(...)` and `NotAudited(...)` both count as declaring `AuditDeclaration`, because both state an audit position and the rule asks whether the message answered rather than which answer it gave:
+
+```csharp
+public sealed class ShipOrderCommandDefinition : IMessageDefinition<ShipOrderCommand>
+{
+    public void Describe(IMessageDeclarations declarations)
+    {
+        declarations
+            .Audited("orders.ship-order", category: "lifecycle")
+            .Declare(new RequiredPermission("orders.ship"));
+    }
+}
+```
+
+Three cases cannot be read and are treated as declared: a definition in a referenced assembly, an implementation the analyzer cannot locate, and a body that hands the collector to another method:
+
+```csharp
+public void Describe(IMessageDeclarations declarations)
+{
+    // Out of the analyzer's sight, so no diagnostic is reported for this message.
+    BillingConventions.Apply(declarations);
+}
+```
+
+That resolves in favour of the build deliberately. A false negative leaves a rule `RequireDeclaration` still enforces at startup, while a false positive is a build that cannot be made to pass without turning the rule off. If you want the rule enforced with no gaps at all, `messaging.RequireDeclaration<TValue>()` reads the resolved metadata, so it sees every shape including the ones the analyzer cannot.
+
 ## Making an Attribute Analyzable
 
-A definition class needs nothing: its declaration is already in the type system, as the second type argument of `IMessageDefinition<TMessage, TValue>`.
+A definition class needs nothing: a keyed one puts its declaration in the type system as the second type argument of `IMessageDefinition<TMessage, TValue>`, and a describing one is read from its `Describe` body.
 
 An attribute needs `[MessageDeclaration]`, because `IMessageDeclarationSource.DeclarationType` is a runtime property an analyzer cannot execute:
 

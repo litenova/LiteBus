@@ -419,3 +419,45 @@ internal sealed class SecondDoubleDeclaration : IAuditDefinition<DoubleDeclaredC
     /// <inheritdoc />
     public AuditDeclaration Audit => AuditDeclaration.Audited("orders.second");
 }
+
+/// <summary>
+///     An audit record writer with a shape of its own, standing in for an application that keeps its own document.
+/// </summary>
+/// <remarks>
+///     It records the completion contexts it was handed rather than building an <see cref="AuditRecord" />, which is
+///     the point of the seam: what reaches storage is the application's, and LiteBus hands over the mediation.
+/// </remarks>
+internal sealed class ShapeOfItsOwnAuditRecordWriter : IAuditRecordWriter
+{
+    /// <summary>
+    ///     Gets the completions handed to this writer during the test.
+    /// </summary>
+    public ConcurrentQueue<MessageCompletionContext> Completions { get; } = new();
+
+    /// <inheritdoc />
+    public Task WriteAsync(MessageCompletionContext context, CancellationToken cancellationToken = default)
+    {
+        Completions.Enqueue(context);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+///     An audit record writer that counts what it was handed, for asserting the container resolved it by type.
+/// </summary>
+internal sealed class CountingAuditRecordWriter : IAuditRecordWriter
+{
+    private int _count;
+
+    /// <summary>
+    ///     Gets the number of completions this writer was handed.
+    /// </summary>
+    public int Count => Volatile.Read(ref _count);
+
+    /// <inheritdoc />
+    public Task WriteAsync(MessageCompletionContext context, CancellationToken cancellationToken = default)
+    {
+        Interlocked.Increment(ref _count);
+        return Task.CompletedTask;
+    }
+}

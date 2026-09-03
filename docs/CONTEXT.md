@@ -1239,11 +1239,19 @@ The message itself is deliberately absent. It is handed to `IAuditActorResolver`
 | Property Name | Data Type | Default Value | Required? | Description & Impact |
 | --- | --- | --- | --- | --- |
 | `Id` | `string` | none | **Yes** (`required`) | Stable identifier that stays resolvable for as long as the trail is retained. Prefer a surrogate key over an address. |
-| `Kind` | `string?` | `null` | No | What sort of thing acted. `AuditActor.UserKind` (`user`), `AuditActor.SystemKind` (`system`), or an application-defined code. Separates the actions people took from the actions a process took. |
-| `DisplayName` | `string?` | `null` | No | The name as it stood when the action happened. Makes the entry readable after the account is deleted, and makes the trail hold personal data; LiteBus does not populate it. |
+| `Kind` | `string` | none | **Yes** (`required`) | What sort of thing acted. `AuditActor.UserKind` (`user`), `AuditActor.SystemKind` (`system`), or an application-defined code. Separates the actions people took from the actions a process took. Required because an actor of no kind is a state no audit query can use, and no factory produces one. |
+| `DisplayName` | `string?` | `null` | No | The name as it stood when the action happened. Makes the entry readable after the account is deleted, and makes the trail hold personal data; LiteBus does not populate it, and no factory takes it. |
 | `OnBehalfOf` | `string?` | `null` | No | The delegating actor. Separates support staff acting as a customer from the customer acting, and a device acting on a key from the person who authorized it. |
 
-Factories: `User(id, displayName)`, `System(processName)`, `For(kind, id, displayName)`. All reject a blank `kind` or `id` with `ArgumentException`.
+Factories: `User(id)`, `System(processName)`, `For(kind, id)`. All reject a blank `kind` or `id` with `ArgumentException`.
+
+A display name is set with `with { DisplayName = name }` rather than passed to a factory. `DisplayName` is documented as the field that makes the trail hold personal data, so putting it behind an optional second argument made the easiest thing at a call site the thing the documentation warns about. It stays one line, and now it is a line a reviewer can see:
+
+```csharp
+AuditActor.User(account.Id.ToString()) with { DisplayName = account.Email };
+```
+
+`Kind` stays a string rather than an enumeration. The set of things that can act belongs to the application, and an application with a closed set keeps that set closed at the point it constructs the actor: a switch over its own union returning an `AuditActor` keeps the type system where it earns its place and leaves the record shape open, which is the shape a SIEM schema expects.
 
 ### 3.12 Contracts, metadata and payload protection
 
@@ -1836,9 +1844,11 @@ Message types are normalized: a generic type that still contains generic paramet
 **Scanned versus named.** `IMessageWriter.RegisterFromScan(Type)` behaves exactly like `Register(Type)` and additionally records that nothing in the composition code named the type. Every `RegisterFromAssembly` uses it. The distinction matters only for an open generic pipeline handler, which is closed over every registered message it fits and so inserts a stage into every message in the application with no registration line for a reviewer to read:
 
 * `IMessageReader.OpenGenericClosures` reports each open generic handler and the concrete message types it was closed over. A handler that fits nothing appears with an empty set, which is worth seeing: nothing else reports a handler that never runs.
-* `IMessageReader.ScannedOpenGenericHandlers` reports the ones that arrived through a scan.
+* `IMessageReader.ScannedOpenGenericHandlers` reports the ones that arrived through a scan **and were never named by a registration line**. A handler that was both scanned and explicitly registered is absent, in either order.
 * `MessageModuleBuilder.RequireExplicitOpenGenerics()` fails composition with `PipelineContractException` naming each one and the `Register(typeof(X<>))` line that fixes it.
 * `LiteBusCompositionSummary` reports every open generic and its closure count whether strict mode is on or not.
+
+The order-independence is what makes the check satisfiable. `RegisterFromAssembly` walks every type in the assembly the open generic lives in, so it reaches a handler the composition already named, and a scan configured before the explicit line reaches it first. If a scan could take the registration line away, the only way to satisfy strict mode would be to move the handler into an assembly nothing scans, which is a worse design imposed by a registration nicety, and the exception's own advice to add a `Register(typeof(X<>))` line would name a fix that does not work. So the registry records the two origins separately and subtracts them, and clearing the scanned mark does not cost the closure: the handler still runs for every message it fits.
 
 Strict mode is opt-in rather than the default because picking up open generic handlers is what an assembly scan has meant since v4, and turning that off changes what a scan is rather than fixing a defect. The summary is the visibility the behavior actually lacked.
 
@@ -2279,6 +2289,32 @@ liteBus.AddEvents(events => events.EnableAuditing());   // one record per publis
 
 `EnableAuditing()` registers a completion handler at priority `HandlerPriorities.Observability` covering `ICommand` / `IQuery` / `IEvent` respectively, plus the `litebus.audit.trail` diagnostic probe. The probe reports `Unhealthy` when auditing is enabled but no `IAuditTrail` is registered, `Degraded` when a trail is registered but no `IAuditActorResolver` is, because every record would then be written with no actor, and `Healthy` otherwise, with `component`, `trailRegistered`, `trailType`, `trailIsSingleton` and `actorResolverRegistered` data. It resolves the trail through `IMessageDispatchScopeFactory` twice and compares instances, both to see the lifetime from outside the container and because resolving a scoped trail from a root provider is an error under `ValidateScopes`. Resolving `IAuditRecordWriter` without a trail throws `AuditConfigurationException`.
 
+An application that replaced the record writer is exempt from all of that. The probe reads `LiteBusCompositionSummary.AuditRecordWriter` first and, when it is set, reports `Healthy` with `component` and `recordWriter` and asserts nothing else: a writer LiteBus did not build need not use an `IAuditTrail` or an `IAuditActorResolver` at all, so demanding either would report a correct configuration as broken. It reads the summary rather than resolving `IAuditRecordWriter` because resolving the built-in writer with no trail registered throws, which is the state the probe exists to report.
+
+**Owning the record shape.** `MessageModuleBuilder.UseAuditRecordWriter<TWriter>(lifetime)` and `UseAuditRecordWriterInstance`, surfaced on the auditing builder as `UseRecordWriter<TWriter>` and `UseRecordWriterInstance`, replace the writer:
+
+```csharp
+registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
+    .UseRecordWriter<EntroAuditRecordWriter>()
+    .ForAllAxes()));
+```
+
+`AuditRecord` is a handoff to `IAuditTrail`, not a persistence schema, so a different set of fields needs no new abstraction here: it needs a different writer. `IAuditRecordWriter.WriteAsync(MessageCompletionContext, CancellationToken)` is the entire contract between the pipeline and auditing, and the three axis completion handlers depend on nothing else, so a replacement keeps the completion-stage placement, the `HandlerPriorities.Observability` priority, and the per-axis selection, and replaces exactly the record building.
+
+A replacement owns everything the built-in writer does, and every part of it is public API:
+
+| What the built-in writer does | What a replacement uses |
+| --- | --- |
+| Skips a message that declares no audit position | `IMessageRegistry.Find`, then `Metadata.TryGet<AuditDeclaration>()` |
+| Enforces a required justification | `AuditedDeclaration.ReasonRequired`, `AuditReasonMissingException` |
+| Reads the target, reason, properties and actor a handler supplied | Inject `IAuditScope`; its getters read the ambient state |
+| Stamps the correlation and tenant identifiers | `AmbientExecutionContext.GetCurrentOrDefault()`, `MessageTraceContextKeys` |
+| Classifies the outcome and the failure code | `IAuditOutcomeMapper`, already injectable |
+
+Skipping an undeclared message is part of that contract rather than a detail: without it, every message on the selected axes produces a record. `LiteBusCompositionSummary.AuditRecordWriter` names the replacement in the startup line, because replacing the writer replaces the whole of record building and a misregistration otherwise looks exactly like auditing working.
+
+Why this instead of a generic `AuditRecord<T>` or `IAuditTrail<TRecord>`: a type parameter there spreads through the writer, three axis completion handlers, the probe, the builder and `AddAuditing`, so every application wanting the default pays for the minority that does not, and it buys nothing a custom writer cannot already do. The fixed shape is also the opinion worth having, because it maps onto NIST SP 800-53 AU-3, PCI DSS Requirement 10 and the DMTF CADF event model, which is what lets a trail reach a SIEM later without being remodelled.
+
 **Who acted.** `AuditRecord.Actor` is the first column an audit review reads, and the one part LiteBus cannot derive. Supply it with an `IAuditActorResolver`, which runs at the completion stage and therefore attributes a denied or failed command as well as a successful one:
 
 ```csharp
@@ -2292,7 +2328,7 @@ internal sealed class RequestActorResolver : IAuditActorResolver
 }
 ```
 
-`AuditActor` carries `Id` (required), `Kind`, `DisplayName` and `OnBehalfOf`, with factories `User(id, displayName)`, `System(processName)` and `For(kind, id, displayName)`. Returning `null` is legitimate and means nothing established an actor; prefer `AuditActor.System` where the application knows a worker acted, because a scheduled job and an unattributed action are different answers and an audit query has to tell them apart. A handler that knows more than the resolver overrides it with `IAuditScope.WithActor`.
+`AuditActor` carries `Id` and `Kind` (both required), plus `DisplayName` and `OnBehalfOf`, with factories `User(id)`, `System(processName)` and `For(kind, id)`; a display name is added with `with { DisplayName = name }`. Returning `null` is legitimate and means nothing established an actor; prefer `AuditActor.System` where the application knows a worker acted, because a scheduled job and an unattributed action are different answers and an audit query has to tell them apart. A handler that knows more than the resolver overrides it with `IAuditScope.WithActor`.
 
 Resolving at the completion stage is what makes a pre-stage actor guard unnecessary. A guard that denies stops the pipeline before any pre-handler runs, which is exactly the case a trail exists for, so attribution established in a pre-handler is lost on the denied path.
 
@@ -2309,6 +2345,19 @@ public sealed record GetStorefrontQuery(Guid StoreId) : IQuery<StorefrontView>;
 ```
 
 Analyzer `LB1018` ("Message states no audit position", **disabled by default**) reports messages declaring neither; enable with `dotnet_diagnostic.LB1018.severity = warning`. It is the preconfigured instance of `LB1020`, sharing `DeclarationAnalysis` with `AuditDeclaration` as the required value type.
+
+**How the analyzers see a declaration.** `DeclarationAnalysis` recognizes four shapes, and both `LB1018` and `LB1020` get all four because they share the pass:
+
+| Shape | How it is read |
+| --- | --- |
+| An attribute annotated `[MessageDeclaration(typeof(TValue))]`, including `[Audited]` | The attribute on the message type |
+| `[DeclarationExempt(typeof(TValue))]`, including `[AuditExempt]` | The attribute's first constructor argument |
+| `IMessageDefinition<TMessage, TValue>`, including `IAuditDefinition<TMessage>` | The contract's type arguments |
+| `IMessageDefinition<TMessage>.Describe(IMessageDeclarations)` | The calls in the method body |
+
+The keyed contract names its value type, so the interface settles it. The `Describe` shape names nothing in the contract, so the body has to be read: `Declare<TValue>` and `Exempt<TValue>` are matched on the type argument, and `Audited(...)` and `NotAudited(...)` both count as declaring `AuditDeclaration`, because both state an audit position and the rule asks whether the message answered rather than which answer it gave. Coverage still walks base types and interfaces, so a definition written for a marker covers the family either way.
+
+Three cases are unreadable and are treated as declared: a definition in a referenced assembly, an implementation the pass cannot locate, and a body that hands the collector to another method. That resolves in favour of the build deliberately. A false negative leaves a rule the composition check still enforces at startup, while a false positive is a build that cannot be made to pass without turning the rule off, which is the worse failure for an analyzer that is opt-in in the first place.
 
 **Contributing the runtime half:**
 
@@ -3303,9 +3352,9 @@ Ship `LiteBus.Analyzers` as an analyzer package reference. Rules with the `Compi
 | `LB1015` | Transactional storage without interceptor | `LiteBus.Configuration` | Warning | Yes | `EnforceTransactionalSetup()` without `EnableSaveChangesInterceptor()`. |
 | `LB1016` | Transactional inbox without DbContext | `LiteBus.Inbox` | Warning | Yes | Injects `ITransactionalInboxStore` without a `DbContext`. |
 | `LB1017` | Explicit message contract registration recommended | `LiteBus.Contracts` | Warning | Yes (CompilationEnd) | `[MessageContract]` present but no explicit registration. |
-| `LB1018` | Message states no audit position | `LiteBus.Auditing` | Warning | **No** (opt in with `dotnet_diagnostic.LB1018.severity = warning`) | Neither `[Audited]` nor `[AuditExempt]` nor an `IAuditDefinition`. |
+| `LB1018` | Message states no audit position | `LiteBus.Auditing` | Warning | **No** (opt in with `dotnet_diagnostic.LB1018.severity = warning`) | None of `[Audited]`, `[AuditExempt]`, an `IAuditDefinition`, or an `IMessageDefinition<TMessage>.Describe` body calling `Audited` or `NotAudited`. |
 | `LB1019` | Untyped shortcut on a message that produces a result | `LiteBus.Handlers` | Warning | Yes | Untyped shortcut contract used for a result-producing message; answering would throw `PipelineContractException`. |
-| `LB1020` | Message states no position on a required declaration | `LiteBus.Declarations` | Warning | **No** (opt in with `dotnet_diagnostic.LB1020.severity = warning`) | The message declares none of the value types named in `litebus_required_declarations` and records no exemption. Generalizes `LB1018`. |
+| `LB1020` | Message states no position on a required declaration | `LiteBus.Declarations` | Warning | **No** (opt in with `dotnet_diagnostic.LB1020.severity = warning`) | The message declares none of the value types named in `litebus_required_declarations` through any of the four shapes, and records no exemption. Generalizes `LB1018`. |
 | `LB1021` | Required declaration type not found | `LiteBus.Declarations` | Warning | Yes | A name in `litebus_required_declarations` does not resolve; reported rather than skipped, because skipping would silently disable the requirement. |
 
 The analyzer package is held on Roslyn 4.x (`Microsoft.CodeAnalysis.CSharp` 4.14.0) so it loads on consumer SDKs.

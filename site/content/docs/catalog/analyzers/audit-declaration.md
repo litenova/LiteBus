@@ -22,9 +22,29 @@ Reports for a command or query type when all of the following are true:
 - The type is declared in the analyzed assembly and is not abstract.
 - The type does not carry `[Audited]` or `[AuditExempt]`.
 - No `IAuditDefinition<TMessage>` in the assembly describes it, or describes a base type or interface it implements.
+- No `IMessageDefinition<TMessage>` in the assembly states an audit position for it in its `Describe` body.
 - The type carries no `[DeclarationExempt(typeof(AuditDeclaration), "rationale")]`.
 
 The rule stays silent when the audit contracts are not referenced at all, so a codebase that has not adopted auditing sees nothing.
+
+## Both Definition Shapes Count
+
+`IAuditDefinition<TMessage>` names `AuditDeclaration` in its contract, so the interface settles it. A definition using `Describe` names nothing in its contract, so the body is read instead, and both `Audited(...)` and `NotAudited(...)` clear the rule: each states an audit position, and the rule asks whether the message answered rather than which answer it gave.
+
+```csharp
+public sealed class ShipOrderCommandDefinition : IMessageDefinition<ShipOrderCommand>
+{
+    public void Describe(IMessageDeclarations declarations)
+    {
+        // Clears LB1018, exactly as [Audited] or an IAuditDefinition would.
+        declarations.Audited("orders.ship-order", category: "lifecycle");
+    }
+}
+```
+
+A definition that exists is not on its own enough: one that describes a permission but never states an audit position is still reported, because the two are different declarations.
+
+Three cases cannot be read and are treated as declared: a definition in a referenced assembly, an implementation the analyzer cannot locate, and a body that hands the collector to another method. That resolves in favour of the build, because a false positive here is a build that cannot be made to pass without turning the rule off. Where the rule has to hold with no gaps, `messaging.RequireDeclaration<AuditDeclaration>()` reads the resolved metadata at composition and sees every shape.
 
 ## Enabling It
 
@@ -90,6 +110,11 @@ public sealed class RefundOrderCommandDefinition : IAuditDefinition<RefundOrderC
 | `AuditedCommand_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `ExemptCommand_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `CommandWithAuditDefinition_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
+| `CommandDescribedThroughDescribe_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
+| `CommandDescribedAsNotAudited_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
+| `DescribeOnAMarkerInterface_CoversTheFamily` | `LiteBus.Analyzers.UnitTests` |
+| `DescribeThatDelegatesToAHelper_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
+| `DescribeThatDeclaresSomethingElse_ProducesDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `UndeclaredCommand_ProducesDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `UndeclaredQuery_ProducesDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 

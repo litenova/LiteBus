@@ -553,6 +553,80 @@ public sealed class MessageModuleBuilder
     }
 
     /// <summary>
+    ///     Gets the audit record writer the module registers, as an instance or an implementation type.
+    /// </summary>
+    /// <value>
+    ///     The instance passed to <see cref="UseAuditRecordWriterInstance" />, the type passed to
+    ///     <see cref="UseAuditRecordWriter{TAuditRecordWriter}" />, or <see langword="null" /> to use the built-in
+    ///     writer.
+    /// </value>
+    internal object? AuditRecordWriter { get; private set; }
+
+    /// <summary>
+    ///     Gets the lifetime the audit record writer implementation type is registered with.
+    /// </summary>
+    internal InstanceLifetime AuditRecordWriterLifetime { get; private set; } = InstanceLifetime.Scoped;
+
+    /// <summary>
+    ///     Replaces the writer that turns a completed mediation into an audit record.
+    /// </summary>
+    /// <typeparam name="TAuditRecordWriter">The writer implementation.</typeparam>
+    /// <param name="lifetime">
+    ///     The lifetime the writer is resolved with. Defaults to <see cref="InstanceLifetime.Scoped" />, which is what
+    ///     a writer holding a database session needs.
+    /// </param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         This is the seam for an application that wants its own audit record shape. <see cref="AuditRecord" /> is
+    ///         a handoff, not a schema, so a different set of columns needs no new abstraction here: it needs a
+    ///         different writer. Replacing it keeps the completion-stage placement, the
+    ///         <see cref="HandlerPriorities.Observability" /> priority, and the per-axis wiring, and replaces exactly
+    ///         the record building.
+    ///     </para>
+    ///     <para>
+    ///         A replacement owns everything the built-in writer does, and every part of it is public: reading the
+    ///         audit position through <see cref="IMessageRegistry" /> and <see cref="AuditDeclaration" />, enforcing
+    ///         <see cref="AuditedDeclaration.ReasonRequired" /> with
+    ///         <see cref="AuditReasonMissingException" />, reading what a handler supplied through
+    ///         <see cref="IAuditScope" />, and classifying the outcome through <see cref="IAuditOutcomeMapper" />.
+    ///         Skipping a message that declares no audit position is part of that contract: without it, every message
+    ///         produces a record.
+    ///     </para>
+    ///     <para>
+    ///         A custom writer does not have to use <see cref="IAuditTrail" />, so the <c>litebus.audit.trail</c>
+    ///         probe stops asserting one is registered and reports the writer instead. LiteBus cannot know what a
+    ///         writer it did not build needs.
+    ///     </para>
+    /// </remarks>
+    public MessageModuleBuilder UseAuditRecordWriter<TAuditRecordWriter>(
+        InstanceLifetime lifetime = InstanceLifetime.Scoped)
+        where TAuditRecordWriter : class, IAuditRecordWriter
+    {
+        AuditRecordWriter = typeof(TAuditRecordWriter);
+        AuditRecordWriterLifetime = lifetime;
+        return this;
+    }
+
+    /// <summary>
+    ///     Replaces the audit record writer with a pre-created instance.
+    /// </summary>
+    /// <param name="auditRecordWriter">The writer instance, shared for the life of the process.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="auditRecordWriter" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     The name says the lifetime, because a pre-created instance can only be a singleton. Use
+    ///     <see cref="UseAuditRecordWriter{TAuditRecordWriter}" /> whenever the writer has dependencies.
+    /// </remarks>
+    public MessageModuleBuilder UseAuditRecordWriterInstance(IAuditRecordWriter auditRecordWriter)
+    {
+        ArgumentNullException.ThrowIfNull(auditRecordWriter);
+        AuditRecordWriter = auditRecordWriter;
+        AuditRecordWriterLifetime = InstanceLifetime.Singleton;
+        return this;
+    }
+
+    /// <summary>
     ///     Gets the axis selection <see cref="AddAuditing" /> recorded, or null when it was not called.
     /// </summary>
     /// <remarks>

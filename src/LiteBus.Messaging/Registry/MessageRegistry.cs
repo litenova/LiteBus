@@ -88,6 +88,16 @@ internal sealed class MessageRegistry : IMessageRegistry
     private readonly HashSet<Type> _scannedOpenGenericHandlers = [];
 
     /// <summary>
+    ///     Gets the open generic handler types an explicit <see cref="Register(Type)" /> call registered.
+    /// </summary>
+    /// <remarks>
+    ///     Held separately from <see cref="_scannedOpenGenericHandlers" /> rather than removed from it, so the two
+    ///     orders agree: a scan reaching a handler before its explicit registration and after it both leave the same
+    ///     answer. Subtracting one set from the other is what <see cref="ScannedOpenGenericHandlers" /> reports.
+    /// </remarks>
+    private readonly HashSet<Type> _explicitOpenGenericHandlers = [];
+
+    /// <summary>
     ///     Message descriptors discovered during the current registration pass before commit.
     /// </summary>
     private readonly List<MessageDescriptor> _pendingMessages = [];
@@ -182,7 +192,12 @@ internal sealed class MessageRegistry : IMessageRegistry
         {
             lock (_lock)
             {
-                return _scannedOpenGenericHandlers.ToList();
+                // Only the handlers that reached the registry by scanning alone. An explicit Register for the same
+                // type is the registration line a reviewer reads, and a scan walking past that type afterwards does
+                // not take it away, so the sets are subtracted rather than unioned.
+                return _scannedOpenGenericHandlers
+                       .Where(handler => !_explicitOpenGenericHandlers.Contains(handler))
+                       .ToList();
             }
         }
     }
@@ -198,17 +213,7 @@ internal sealed class MessageRegistry : IMessageRegistry
     {
         ArgumentNullException.ThrowIfNull(type);
 
-        lock (_lock)
-        {
-            // Recorded before registering, because StoreOpenGenericHandler runs inside Register and the origin has to
-            // be known by then for the strict check to see it.
-            if (type.IsGenericTypeDefinition)
-            {
-                _scannedOpenGenericHandlers.Add(type);
-            }
-        }
-
-        Register(type);
+        RegisterCore(type, fromScan: true);
     }
 
     /// <inheritdoc />
@@ -222,8 +227,40 @@ internal sealed class MessageRegistry : IMessageRegistry
     {
         ArgumentNullException.ThrowIfNull(type);
 
+        RegisterCore(type, fromScan: false);
+    }
+
+    /// <summary>
+    ///     Registers a type, recording where an open generic handler came from.
+    /// </summary>
+    /// <param name="type">The type to register.</param>
+    /// <param name="fromScan">
+    ///     <see langword="true" /> when an assembly scan produced the type, <see langword="false" /> when a
+    ///     registration line named it.
+    /// </param>
+    /// <remarks>
+    ///     The origin is recorded before the processed-types check rather than after it. A handler a scan reached
+    ///     first is already processed by the time an explicit registration for it arrives, so recording afterwards
+    ///     would drop the registration line and leave a scanned mark that <c>RequireExplicitOpenGenerics</c> could
+    ///     never clear.
+    /// </remarks>
+    [RequiresUnreferencedCode("Handler and message registration inspects CLR types via reflection.")]
+    private void RegisterCore(
+        [DynamicallyAccessedMembers(
+            DynamicallyAccessedMemberTypes.PublicConstructors
+            | DynamicallyAccessedMemberTypes.PublicMethods
+            | DynamicallyAccessedMemberTypes.Interfaces)]
+        Type type,
+        bool fromScan)
+    {
         lock (_lock)
         {
+            if (type.IsGenericTypeDefinition)
+            {
+                var origin = fromScan ? _scannedOpenGenericHandlers : _explicitOpenGenericHandlers;
+                origin.Add(type);
+            }
+
             // Skip if already processed to avoid duplicate work.
             if (!_processedTypes.Add(type))
                 return;

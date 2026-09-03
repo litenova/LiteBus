@@ -106,6 +106,59 @@ public sealed class MissingDeclarationAnalyzerTests
     }
 
     /// <summary>
+    ///     Verifies that a definition declaring the required value through <c>Describe</c> passes.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    /// <remarks>
+    ///     The general form of the LB1018 gap: the keyed contract names its value type, so the rule could read it off
+    ///     the interface, and the <c>Describe</c> shape names nothing, so the rule has to read the body. Both
+    ///     analyzers share the collection pass, so both were blind to the shape the documentation recommends.
+    /// </remarks>
+    [Fact]
+    public Task DescribeDeclaredCommand_ProducesNoDiagnostic()
+    {
+        var source = Source("""
+                            public sealed record ShipOrderCommand : ICommand;
+
+                            public sealed class ShipOrderCommandDefinition : IMessageDefinition<ShipOrderCommand>
+                            {
+                                public void Describe(IMessageDeclarations declarations)
+                                {
+                                    declarations.Declare(new RequiredPermission("orders.ship"));
+                                }
+                            }
+                            """);
+
+        return AnalyzerTest.VerifyWithEditorConfigAsync<MissingDeclarationAnalyzer>(source, RequirePermission);
+    }
+
+    /// <summary>
+    ///     Verifies that declaring the message exempt through <c>Describe</c> passes.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    /// <remarks>
+    ///     <c>Exempt</c> states that a message deliberately has no value for the requirement, which answers the rule
+    ///     exactly as <c>[DeclarationExempt]</c> does.
+    /// </remarks>
+    [Fact]
+    public Task DescribeExemptedCommand_ProducesNoDiagnostic()
+    {
+        var source = Source("""
+                            public sealed record PingCommand : ICommand;
+
+                            public sealed class PingCommandDefinition : IMessageDefinition<PingCommand>
+                            {
+                                public void Describe(IMessageDeclarations declarations)
+                                {
+                                    declarations.Exempt<RequiredPermission>("a liveness probe needs no permission");
+                                }
+                            }
+                            """);
+
+        return AnalyzerTest.VerifyWithEditorConfigAsync<MissingDeclarationAnalyzer>(source, RequirePermission);
+    }
+
+    /// <summary>
     ///     Verifies that a declaration written for a marker interface covers the messages beneath it.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>

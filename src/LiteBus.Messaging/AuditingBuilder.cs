@@ -145,6 +145,40 @@ public sealed class AuditingBuilder
     }
 
     /// <summary>
+    ///     Replaces the writer that turns a completed mediation into an audit record.
+    /// </summary>
+    /// <typeparam name="TAuditRecordWriter">The writer implementation.</typeparam>
+    /// <param name="lifetime">
+    ///     The lifetime the writer is resolved with. Defaults to <see cref="InstanceLifetime.Scoped" />, which is what
+    ///     a writer holding a database session needs.
+    /// </param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     The seam for an application that wants its own record shape rather than <see cref="AuditRecord" />. A
+    ///     replacement keeps the stage placement, the priority, and the axis wiring, and owns the record building
+    ///     including skipping a message that declares no audit position. See
+    ///     <see cref="MessageModuleBuilder.UseAuditRecordWriter{TAuditRecordWriter}" /> for what that contract covers.
+    /// </remarks>
+    public AuditingBuilder UseRecordWriter<TAuditRecordWriter>(
+        InstanceLifetime lifetime = InstanceLifetime.Scoped)
+        where TAuditRecordWriter : class, IAuditRecordWriter
+    {
+        _messaging.UseAuditRecordWriter<TAuditRecordWriter>(lifetime);
+        return this;
+    }
+
+    /// <summary>
+    ///     Replaces the audit record writer with a pre-created instance.
+    /// </summary>
+    /// <param name="auditRecordWriter">The writer instance, shared for the life of the process.</param>
+    /// <returns>The current builder.</returns>
+    public AuditingBuilder UseRecordWriterInstance(IAuditRecordWriter auditRecordWriter)
+    {
+        _messaging.UseAuditRecordWriterInstance(auditRecordWriter);
+        return this;
+    }
+
+    /// <summary>
     ///     Audits command mediations.
     /// </summary>
     /// <returns>The current builder.</returns>

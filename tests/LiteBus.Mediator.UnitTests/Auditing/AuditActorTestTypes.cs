@@ -77,7 +77,7 @@ internal sealed class CloseAccountCommandHandler : ICommandHandler<CloseAccountC
 
         if (message.HandlerAttributes)
         {
-            _audit.WithActor(AuditActor.User("acct-override", "Override Person"));
+            _audit.WithActor(AuditActor.User("acct-override") with { DisplayName = "Override Person" });
         }
 
         return Task.CompletedTask;
@@ -150,7 +150,7 @@ internal sealed class TestAuditActorResolver : IAuditActorResolver
 
         return context.Message switch
         {
-            IActingAccountCommand acting => AuditActor.User(acting.ActingAccountId, "Acting Person"),
+            IActingAccountCommand acting => AuditActor.User(acting.ActingAccountId) with { DisplayName = "Acting Person" },
             AccountClosedEvent => AuditActor.System("account-closed-reaction"),
             _ => AuditActor.System("scheduled-worker")
         };

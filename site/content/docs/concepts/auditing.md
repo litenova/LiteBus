@@ -153,7 +153,45 @@ internal sealed class RequestActorResolver : IAuditActorResolver
 
 It runs at the completion stage, which is what makes it the right extension point rather than a pre-stage handler. A denied command produces a record, and "who tried" is the most useful thing that record can say, but a pre-handler never runs when a guard denies. Resolving here means attribution survives every path: success, denial, invalid input, failure and cancellation.
 
-`AuditActor` carries a required `Id` and an optional `Kind`, `DisplayName` and `OnBehalfOf`. `Kind` exists so a query can separate the actions people took from the actions a process took, which is a distinction every review draws and an identifier alone cannot express. `OnBehalfOf` is for a delegated action, which is what separates support staff acting as a customer from the customer acting, and a device acting on a key from the person who authorized that key.
+`AuditActor` carries a required `Id` and `Kind`, plus an optional `DisplayName` and `OnBehalfOf`. `Kind` exists so a query can separate the actions people took from the actions a process took, which is a distinction every review draws and an identifier alone cannot express. It is required because an actor of no kind is a state no such query can use. `OnBehalfOf` is for a delegated action, which is what separates support staff acting as a customer from the customer acting, and a device acting on a key from the person who authorized that key.
+
+`Kind` is a string rather than an enumeration, and that is deliberate: the set of things that can act is yours, and a service account, a scanner at a door and a scheduled worker are all actors. If your own set is closed, keep it closed where you construct the actor. A switch over your own union returning an `AuditActor` keeps the type system where it earns its place, and leaves the record shape open, which is what a SIEM schema expects. Mapping a closed domain model onto an open record shape is one expression, and it is the normal direction of travel rather than a smell.
+
+### Display Names Are a Decision, Not a Parameter
+
+`DisplayName` is the field that makes the trail hold personal data. Recording it keeps an entry readable after the account is deleted, and which of those matters more is yours to decide, so LiteBus never populates it and no factory takes it. Setting it is a line of its own:
+
+```csharp
+AuditActor.User(account.Id.ToString()) with { DisplayName = account.Email };
+```
+
+That is the same amount of code as an extra argument and a different amount of attention. A trail whose stated scope is "no personal data beyond the acting account's identity" is satisfied by leaving it null, and if that claim matters, assert it in a test over your resolver: a comment does not fail a build.
+
+### Owning the Record Shape
+
+`AuditRecord` is a handoff to `IAuditTrail`, not a persistence schema. What your store writes down, including its columns and any integrity chaining, was always yours. If you want a different record on the way through too, replace the writer:
+
+```csharp
+registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
+    .UseRecordWriter<AuditDocumentWriter>()
+    .ForAllAxes()));
+```
+
+`IAuditRecordWriter.WriteAsync(MessageCompletionContext, CancellationToken)` is the entire contract between the pipeline and auditing, so a replacement keeps the completion-stage placement, the observability priority and the per-axis selection, and replaces exactly the record building. There is no generic `AuditRecord<T>`, deliberately: a type parameter there would spread through five surfaces so that every application wanting the default pays for the few that do not, and it would buy nothing a writer cannot already do.
+
+A replacement owns everything the built-in writer does, and all of it is public:
+
+| What the built-in writer does | What you use |
+| --- | --- |
+| Skips a message that declares no audit position | `IMessageRegistry.Find`, then `Metadata.TryGet<AuditDeclaration>()` |
+| Enforces a required justification | `AuditedDeclaration.ReasonRequired`, `AuditReasonMissingException` |
+| Reads the target, reason, properties and actor a handler supplied | Inject `IAuditScope` |
+| Stamps the correlation and tenant identifiers | `AmbientExecutionContext.GetCurrentOrDefault()`, `MessageTraceContextKeys` |
+| Classifies the outcome and the failure code | `IAuditOutcomeMapper` |
+
+Skipping an undeclared message is part of that contract rather than a detail. Leave it out and every message on the selected axes produces a record.
+
+Your writer does not have to use an `IAuditTrail`, so the `litebus.audit.trail` probe stops asserting one is registered and reports the writer instead. LiteBus cannot know what a writer it did not build needs. The composition summary names it too, because replacing the writer replaces the whole of record building and a misregistration otherwise looks exactly like auditing working.
 
 Returning `null` is legitimate and means nothing established an actor. Do not invent one: a fabricated identifier in evidence is worse than a gap a review can see. Where the application knows a process acted, say so with `AuditActor.System`, because a scheduled job and an unattributed action are different answers.
 
@@ -167,7 +205,9 @@ Without a resolver, records are still written and every one has no actor. The `l
 
 One record per publish, not per handler. The mediation is the unit being audited and the broadcast strategy reports one outcome for the whole publish, so a record per subscriber would multiply one fact into as many entries as there happen to be reactions, and would change count whenever a handler is added.
 
-Auditing both a command and the event it raises does record the same business change twice, from two angles: the action somebody took and the fact it produced. Decide which you want and declare an audit position on that one. Declaring both is a choice rather than a mistake, and the action codes keep them apart.
+Turning it on is not a decision about volume. An event that declares no audit position costs one registry lookup and writes nothing, exactly as a command does, so what you get is a row per publish of the events you explicitly declared. The number of rows is a choice you make one event at a time.
+
+The decision worth making carefully is a different one. Auditing both a command and the event it raises records the same business change twice, from two angles: the action somebody took and the fact it produced. An event published by a command handler in the same mediation also resolves the same actor, so the two entries agree about who and differ only in wording, which inflates a count a reviewer will trust. Declare an audit position on the event when it is evidence of something no command records: a fact arriving from outside the system, an inbox replay, a reconciliation, or a change with no single commanding action behind it. Declaring both is a choice rather than a mistake, and the action codes keep them apart.
 
 Enabling auditing also registers the `litebus.audit.trail` diagnostic probe, which reports unhealthy when no trail is registered. Without it, a missing trail first shows up as a fault inside the completion stage, which is the one stage whose faults are deliberately kept away from the caller.
 

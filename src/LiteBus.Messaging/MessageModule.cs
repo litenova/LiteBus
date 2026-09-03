@@ -70,7 +70,9 @@ public sealed class MessageModule : IModule
             moduleBuilder.AuditTrail,
             moduleBuilder.AuditTrailLifetime,
             moduleBuilder.AuditActorResolver,
-            moduleBuilder.AuditActorResolverLifetime);
+            moduleBuilder.AuditActorResolverLifetime,
+            moduleBuilder.AuditRecordWriter,
+            moduleBuilder.AuditRecordWriterLifetime);
         RegisterNewHandlers(configuration, messageRegistry, startIndex);
 
         // Published for the axis modules, which build after this one because they declare IRequires<MessageModule>.
@@ -191,6 +193,13 @@ public sealed class MessageModule : IModule
             var instance => $"{instance.GetType().Name} (Singleton)"
         };
 
+        summary.AuditRecordWriter = moduleBuilder.AuditRecordWriter switch
+        {
+            Type writerType => $"{writerType.Name} ({moduleBuilder.AuditRecordWriterLifetime})",
+            null => null,
+            var instance => $"{instance.GetType().Name} (Singleton)"
+        };
+
         foreach (var (handlerType, closures) in reader.OpenGenericClosures)
         {
             summary.RecordOpenGeneric(handlerType.Name, closures.Count);
@@ -234,6 +243,8 @@ public sealed class MessageModule : IModule
     /// <param name="auditTrailLifetime">The lifetime an audit trail implementation type is registered with.</param>
     /// <param name="auditActorResolver">The audit actor resolver registered through the builder, when there is one.</param>
     /// <param name="auditActorResolverLifetime">The lifetime an actor resolver implementation type is registered with.</param>
+    /// <param name="auditRecordWriter">The audit record writer registered through the builder, or null for the built-in one.</param>
+    /// <param name="auditRecordWriterLifetime">The lifetime an audit record writer implementation type is registered with.</param>
     private static void RegisterMessagingServices(
         IModuleConfiguration configuration,
         IMessageRegistry messageRegistry,
@@ -243,7 +254,9 @@ public sealed class MessageModule : IModule
         object? auditTrail,
         InstanceLifetime auditTrailLifetime,
         object? auditActorResolver,
-        InstanceLifetime auditActorResolverLifetime)
+        InstanceLifetime auditActorResolverLifetime,
+        object? auditRecordWriter,
+        InstanceLifetime auditRecordWriterLifetime)
     {
         // Register message registry as singleton.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -317,15 +330,7 @@ public sealed class MessageModule : IModule
         RegisterAuditTrail(configuration, auditTrail, auditTrailLifetime);
         RegisterAuditActorResolver(configuration, auditActorResolver, auditActorResolverLifetime);
 
-        // Registered through a factory rather than by type on purpose. The writer needs an IAuditTrail that only an
-        // application auditing its messages registers, and a by-type registration makes a container running
-        // ValidateOnBuild fail at startup for every application that is not auditing at all. The factory defers the
-        // lookup to the first audited mediation and names the fix when it is missing; the litebus.audit.trail probe
-        // reports it earlier still.
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IAuditRecordWriter),
-            CreateAuditRecordWriter,
-            InstanceLifetime.Scoped));
+        RegisterAuditRecordWriter(configuration, auditRecordWriter, auditRecordWriterLifetime);
 
         // The key resolver reads a declaration resolved once at registration, so it holds no state and a singleton is
         // correct. The store itself is application-supplied and is not registered here.
@@ -370,6 +375,49 @@ public sealed class MessageModule : IModule
                 configuration.DependencyRegistry.Register(new DependencyDescriptor(
                     typeof(IAuditTrail),
                     auditTrail));
+                return;
+        }
+    }
+
+    /// <summary>
+    ///     Registers the audit record writer: the application's, when it replaced it, and otherwise the built-in one.
+    /// </summary>
+    /// <param name="configuration">The module configuration.</param>
+    /// <param name="auditRecordWriter">The writer implementation type, the writer instance, or null for the built-in one.</param>
+    /// <param name="lifetime">The lifetime a writer implementation type is registered with.</param>
+    /// <remarks>
+    ///     The built-in writer is registered through a factory rather than by type on purpose. It needs an
+    ///     <see cref="IAuditTrail" /> that only an application auditing its messages registers, and a by-type
+    ///     registration makes a container running <c>ValidateOnBuild</c> fail at startup for every application that is
+    ///     not auditing at all. The factory defers the lookup to the first audited mediation and names the fix when it
+    ///     is missing; the <c>litebus.audit.trail</c> probe reports it earlier still. A replacement is registered
+    ///     normally, because what it depends on is the application's business.
+    /// </remarks>
+    private static void RegisterAuditRecordWriter(
+        IModuleConfiguration configuration,
+        object? auditRecordWriter,
+        InstanceLifetime lifetime)
+    {
+        switch (auditRecordWriter)
+        {
+            case Type writerType:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IAuditRecordWriter),
+                    writerType,
+                    lifetime));
+                return;
+
+            case not null:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IAuditRecordWriter),
+                    auditRecordWriter));
+                return;
+
+            default:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IAuditRecordWriter),
+                    CreateAuditRecordWriter,
+                    InstanceLifetime.Scoped));
                 return;
         }
     }

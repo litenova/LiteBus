@@ -29,6 +29,7 @@ Quick map from capability to documentation and primary packages. For install com
 | Pipeline test harness | [Testing](../testing/README.md) | `LiteBus.Testing.Mediation` |
 | Declaration defaults | [Message definitions](../concepts/message-definitions.md) | `LiteBus.Messaging` |
 | Audit catalogue | [Auditing](../concepts/auditing.md) | `LiteBus.Messaging` |
+| Custom audit record shape | [Auditing](../concepts/auditing.md) | `LiteBus.Messaging` |
 
 ## Durable Messaging Core
 

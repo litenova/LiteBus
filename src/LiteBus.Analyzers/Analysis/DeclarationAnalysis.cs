@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace LiteBus.Analyzers.Analysis;
@@ -20,6 +21,14 @@ internal static class DeclarationAnalysis
     ///     The metadata name of the open generic definition contract.
     /// </summary>
     private const string MessageDefinitionMetadataName = "LiteBus.Messaging.Abstractions.IMessageDefinition`2";
+
+    private const string DescribingDefinitionMetadataName = "LiteBus.Messaging.Abstractions.IMessageDefinition`1";
+
+    private const string MessageDeclarationsMetadataName = "LiteBus.Messaging.Abstractions.IMessageDeclarations";
+
+    private const string AuditDeclarationMetadataName = "LiteBus.Messaging.Abstractions.AuditDeclaration";
+
+    private const string DescribeMethodName = "Describe";
 
     /// <summary>
     ///     The metadata name of the annotation stating which value an attribute declares.
@@ -183,34 +192,189 @@ internal static class DeclarationAnalysis
         CancellationToken cancellationToken)
     {
         var definitionContract = compilation.GetTypeByMetadataName(MessageDefinitionMetadataName);
+        var describingContract = compilation.GetTypeByMetadataName(DescribingDefinitionMetadataName);
 
-        if (definitionContract is null)
+        if (definitionContract is null && describingContract is null)
         {
             return ImmutableHashSet.Create<INamedTypeSymbol>(SymbolEqualityComparer.Default);
         }
 
+        var declarations = compilation.GetTypeByMetadataName(MessageDeclarationsMetadataName);
+        var auditDeclaration = compilation.GetTypeByMetadataName(AuditDeclarationMetadataName);
         var builder = ImmutableHashSet.CreateBuilder<INamedTypeSymbol>(SymbolEqualityComparer.Default);
 
         foreach (var type in EnumerateTypes(compilation.Assembly.GlobalNamespace, cancellationToken))
         {
             foreach (var contract in type.AllInterfaces)
             {
-                if (!contract.IsGenericType ||
-                    !SymbolEqualityComparer.Default.Equals(contract.OriginalDefinition, definitionContract) ||
-                    contract.TypeArguments.Length != 2)
+                if (!contract.IsGenericType)
                 {
                     continue;
                 }
 
-                if (SymbolEqualityComparer.Default.Equals(contract.TypeArguments[1], valueType) &&
-                    contract.TypeArguments[0] is INamedTypeSymbol described)
+                // The keyed shape names the value type in the contract, so the type arguments settle it.
+                if (definitionContract is not null &&
+                    SymbolEqualityComparer.Default.Equals(contract.OriginalDefinition, definitionContract) &&
+                    contract.TypeArguments.Length == 2)
                 {
-                    builder.Add(described);
+                    if (SymbolEqualityComparer.Default.Equals(contract.TypeArguments[1], valueType) &&
+                        contract.TypeArguments[0] is INamedTypeSymbol described)
+                    {
+                        builder.Add(described);
+                    }
+
+                    continue;
+                }
+
+                // The Describe shape names nothing in the contract, so what it declares has to be read out of the
+                // method body. Without this, a definition written the way the documentation recommends looks like a
+                // message that declares nothing at all.
+                if (describingContract is not null &&
+                    declarations is not null &&
+                    SymbolEqualityComparer.Default.Equals(contract.OriginalDefinition, describingContract) &&
+                    contract.TypeArguments.Length == 1 &&
+                    contract.TypeArguments[0] is INamedTypeSymbol describedByBody &&
+                    DescribeDeclares(type, valueType, declarations, auditDeclaration, compilation, cancellationToken))
+                {
+                    builder.Add(describedByBody);
                 }
             }
         }
 
         return builder.ToImmutable();
+    }
+
+    /// <summary>
+    ///     Reads a definition's <c>Describe</c> body to decide whether it declares the required value type.
+    /// </summary>
+    /// <param name="definition">The definition type implementing the describing contract.</param>
+    /// <param name="valueType">The value type a requirement asks every message to declare.</param>
+    /// <param name="declarations">The <c>IMessageDeclarations</c> symbol whose calls are the declarations.</param>
+    /// <param name="auditDeclaration">The <c>AuditDeclaration</c> symbol, when the audit contracts are referenced.</param>
+    /// <param name="compilation">The compilation, for the semantic model of the body.</param>
+    /// <param name="cancellationToken">Cancels the analysis.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the body declares the value type, or when the body cannot be read at all.
+    /// </returns>
+    /// <remarks>
+    ///     Unreadable is treated as declared, deliberately. This analyzer's failure mode matters: a false negative is
+    ///     a rule the composition check still enforces at startup, while a false positive is a build that cannot be
+    ///     made to pass without turning the rule off. So a body in a referenced assembly, an implementation this pass
+    ///     cannot find, and a body that hands the collector to another method are all treated as covering the message.
+    /// </remarks>
+    private static bool DescribeDeclares(
+        INamedTypeSymbol definition,
+        INamedTypeSymbol valueType,
+        INamedTypeSymbol declarations,
+        INamedTypeSymbol? auditDeclaration,
+        Compilation compilation,
+        CancellationToken cancellationToken)
+    {
+        var describe = definition
+            .GetMembers(DescribeMethodName)
+            .OfType<IMethodSymbol>()
+            .FirstOrDefault(method => method.Parameters.Length == 1 &&
+                                      SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, declarations));
+
+        var reference = describe?.DeclaringSyntaxReferences.FirstOrDefault();
+
+        if (describe is null || reference is null)
+        {
+            return true;
+        }
+
+        var syntax = reference.GetSyntax(cancellationToken);
+        var model = compilation.GetSemanticModel(syntax.SyntaxTree);
+        var collector = describe.Parameters[0];
+
+        foreach (var invocation in syntax.DescendantNodes().OfType<InvocationExpressionSyntax>())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (PassesCollector(invocation, model, collector, cancellationToken))
+            {
+                return true;
+            }
+
+            if (model.GetSymbolInfo(invocation, cancellationToken).Symbol is not IMethodSymbol called ||
+                called.ContainingType is null ||
+                !SymbolEqualityComparer.Default.Equals(called.ContainingType.OriginalDefinition, declarations))
+            {
+                continue;
+            }
+
+            if (DeclaresValueType(called, valueType, auditDeclaration))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Determines whether one call on the declaration collector declares the required value type.
+    /// </summary>
+    /// <param name="called">The collector method the body called.</param>
+    /// <param name="valueType">The value type a requirement asks for.</param>
+    /// <param name="auditDeclaration">The <c>AuditDeclaration</c> symbol, when the audit contracts are referenced.</param>
+    /// <returns><see langword="true" /> when the call declares that value type.</returns>
+    private static bool DeclaresValueType(
+        IMethodSymbol called,
+        INamedTypeSymbol valueType,
+        INamedTypeSymbol? auditDeclaration)
+    {
+        switch (called.Name)
+        {
+            // Both are keyed by the one type argument. Declare states a value and Exempt states that the message
+            // deliberately has none, and a requirement is answered either way, exactly as [DeclarationExempt] is.
+            case "Declare":
+            case "Exempt":
+                return called.TypeArguments.Length == 1 &&
+                       SymbolEqualityComparer.Default.Equals(called.TypeArguments[0], valueType);
+
+            // Both key their declaration by AuditDeclaration, which is what makes NotAudited answer the same
+            // question Audited does: the message stated its audit position either way.
+            case "Audited":
+            case "NotAudited":
+                return auditDeclaration is not null &&
+                       SymbolEqualityComparer.Default.Equals(valueType, auditDeclaration);
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether an invocation hands the declaration collector to something else.
+    /// </summary>
+    /// <param name="invocation">The invocation in the body.</param>
+    /// <param name="model">The semantic model of the body.</param>
+    /// <param name="collector">The <c>Describe</c> parameter holding the collector.</param>
+    /// <param name="cancellationToken">Cancels the analysis.</param>
+    /// <returns><see langword="true" /> when the collector is passed as an argument.</returns>
+    /// <remarks>
+    ///     A body that calls a shared helper declares through it, out of this pass's sight. Treating that as covered
+    ///     keeps the analyzer from failing a build over a declaration that is there.
+    /// </remarks>
+    private static bool PassesCollector(
+        InvocationExpressionSyntax invocation,
+        SemanticModel model,
+        IParameterSymbol collector,
+        CancellationToken cancellationToken)
+    {
+        foreach (var argument in invocation.ArgumentList.Arguments)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (model.GetSymbolInfo(argument.Expression, cancellationToken).Symbol is IParameterSymbol passed &&
+                SymbolEqualityComparer.Default.Equals(passed, collector))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
