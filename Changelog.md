@@ -2,6 +2,73 @@
 
 All notable changes to this project will be documented in this file.
 
+## v7.0.0-preview.4
+
+What changed since `v7.0.0-preview.3`. Acts on the second round of feedback from the application migrating onto the v7
+previews. The theme is ownership: an application can now define its own audit record shape, and two checks that could
+not be satisfied as shipped no longer have to be turned off to get a build through.
+
+### Added
+
+- An application can own the audit record shape. `AuditingBuilder.UseRecordWriter<TWriter>(lifetime)` and
+  `UseRecordWriterInstance`, over `MessageModuleBuilder.UseAuditRecordWriter`, replace the writer that turns a
+  completed mediation into a record. `AuditRecord` was always a handoff to `IAuditTrail` rather than a persistence
+  schema, so a different set of fields needs no new abstraction: it needs a different `IAuditRecordWriter`, which is
+  the entire contract between the pipeline and auditing. A replacement keeps the completion-stage placement, the
+  `Observability` priority and the per-axis selection, and replaces exactly the record building. Everything the
+  built-in writer uses to do that was already public: the audit position through `IMessageRegistry`,
+  `AuditReasonMissingException`, `IAuditScope`, `AmbientExecutionContext`, and `IAuditOutcomeMapper`. Skipping a
+  message that declares no audit position is part of the contract rather than a detail, because without it every
+  message on the selected axes produces a record. There is deliberately no generic `AuditRecord<T>` or
+  `IAuditTrail<TRecord>`: a type parameter there spreads through the writer, three axis completion handlers, the
+  probe, the builder and `AddAuditing`, so every application wanting the default would pay for the few that do not,
+  and it buys nothing a writer cannot already do.
+- `LiteBusCompositionSummary.AuditRecordWriter` names a writer that replaced the built-in one, and the startup line
+  reports it. Replacing the writer replaces the whole of record building and nothing else in the composition would
+  say so, which makes a misregistration look exactly like auditing working.
+
+### Changed
+
+- The `litebus.audit.trail` probe no longer asserts an `IAuditTrail` is registered when the record writer was
+  replaced. It reads `LiteBusCompositionSummary.AuditRecordWriter` and reports `Healthy` with the writer instead: a
+  writer LiteBus did not build need not use a trail or an actor resolver at all, so demanding either reported a
+  correct configuration as unhealthy. It reads the summary rather than resolving `IAuditRecordWriter`, because
+  resolving the built-in writer with no trail throws, which is the state the probe exists to report.
+
+### Fixed
+
+- `RequireExplicitOpenGenerics` was unsatisfiable for an open generic living in a scanned assembly, which is every
+  handler worth sharing. An explicit `Register(typeof(MyGuard<>))` did not clear the scanned mark in either order,
+  and `RegisterFromAssembly` re-marked any open generic in the assembly it walked, so the only way to satisfy the
+  check was to move the handler into an assembly nothing scans. The exception even named a fix that did not work. The
+  registry now records the two origins separately and `IMessageReader.ScannedOpenGenericHandlers` subtracts them, so a
+  registration line clears the mark whichever order the two arrive in, and clearing it does not cost the closure.
+- `LB1018` and `LB1020` could not see `IMessageDefinition<TMessage>.Describe`, the shape the documentation calls the
+  one to reach for. Both share `DeclarationAnalysis`, which looked only for the attributes and the keyed
+  `IMessageDefinition<TMessage, TValue>`, so a message declared the recommended way was reported as declaring nothing
+  and the only remedy was to turn the rule off. The pass now reads the `Describe` body: `Declare<TValue>` and
+  `Exempt<TValue>` match on the type argument, and `Audited(...)` and `NotAudited(...)` both count as declaring
+  `AuditDeclaration`, because each states an audit position and the rule asks whether the message answered rather
+  than which answer it gave. A body that cannot be read, one in a referenced assembly or one that hands the collector
+  to another method, is treated as declared: a false positive is a build that cannot be made to pass, while a false
+  negative leaves a rule `RequireDeclaration` still enforces at startup.
+
+### Breaking
+
+- `AuditActor.Kind` is required, and `AuditActor.User` and `For` no longer take a display name. An actor of no kind is
+  a state no audit query can use and no factory produced, so requiring it removes a fourth answer nobody wanted.
+  `DisplayName` is documented as the field that makes the trail hold personal data and that LiteBus deliberately does
+  not populate, so putting it behind an optional second argument made the easiest thing at a call site the thing the
+  documentation warns about. Write `AuditActor.User(id) with { DisplayName = name }`, which is the same amount of code
+  and a different amount of attention. `Kind` stays a string, because the set of things that can act belongs to the
+  application, and an application whose set is closed keeps it closed where it constructs the actor.
+
+### Documentation
+
+- A preview after the first now publishes only what changed since the preview before it, which is why these notes are
+  a delta rather than the whole v7.0.0 section. The first preview of a line and its stable release still publish that
+  section in full. `AGENTS.md` and `CONTRIBUTING.md` record the convention.
+
 ## v7.0.0-preview.3
 
 What changed since `v7.0.0-preview.2`. This preview acts on the feedback from the first application to migrate onto
