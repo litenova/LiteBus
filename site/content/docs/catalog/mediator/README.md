@@ -1,6 +1,6 @@
 # Mediator Axis Capability Catalog
 
-The mediator axis provides in-process command, query, and event mediation on top of the shared message module. It covers semantic contracts (`ICommand`, `IQuery<T>`, `IEvent`), pipeline stages (pre/main/post/error), routing filters, handler priority, and execution context behavior.
+The mediator axis provides in-process command, query, and event mediation on top of the shared message module. It covers semantic contracts (`ICommand`, `IQuery<T>`, `IEvent`), pipeline stages (pre/main/post/error/completion), routing filters, handler priority, declarative message metadata, audit records, and execution context behavior.
 
 ## Capability Index
 
@@ -18,6 +18,8 @@ The mediator axis provides in-process command, query, and event mediation on top
 | [mediator.generic-messages](generic-messages-and-handlers.md) | Generic messages and handlers | GA |
 | [mediator.open-generic-handlers](open-generic-handlers.md) | Open generic handlers | GA |
 | [mediator.polymorphic-dispatch](polymorphic-dispatch.md) | Polymorphic dispatch | GA |
+| [mediator.message-definitions](message-definitions.md) | Message definitions and metadata | GA |
+| [mediator.auditing](auditing.md) | Audit trail | GA |
 
 ## Package Map
 

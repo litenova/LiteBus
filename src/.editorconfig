@@ -48,6 +48,11 @@ dotnet_diagnostic.CA1716.severity = none
 [LiteBus.Messaging.Abstractions/IHandleContextData.cs]
 dotnet_diagnostic.CA1716.severity = none
 
+# Declare is the verb the whole declaration model is named after, and this collector is supplied by the framework and
+# never implemented by a consumer, so the cross-language override concern the rule exists for does not arise.
+[LiteBus.Messaging.Abstractions/Definitions/IMessageDeclarations.cs]
+dotnet_diagnostic.CA1716.severity = none
+
 [LiteBus.Events.Abstractions/IEventHandler*.cs]
 dotnet_diagnostic.CA1711.severity = none
 
@@ -62,4 +67,12 @@ dotnet_diagnostic.CA1711.severity = none
 dotnet_diagnostic.CA1000.severity = none
 
 [LiteBus.Saga.Abstractions/SagaSaveItem*.cs]
+dotnet_diagnostic.CA1000.severity = none
+
+# Static factories live on the verdict and shortcut structs a guard or shortcut returns by design.
+[LiteBus.Messaging.Abstractions/Handler/Pre/{Verdict,Shortcut}*.cs]
+dotnet_diagnostic.CA1000.severity = none
+
+# Same shape on the result a Try mediator method returns, so the outcome is named at the construction site.
+[LiteBus.Messaging.Abstractions/Pipeline/MediationResult*.cs]
 dotnet_diagnostic.CA1000.severity = none

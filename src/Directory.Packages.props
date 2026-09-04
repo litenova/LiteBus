@@ -1,26 +1,29 @@
 <Project>
     <ItemGroup>
-        <PackageVersion Include="Autofac" Version="9.1.0"/>
-        <PackageVersion Include="Autofac.Extensions.DependencyInjection" Version="10.0.0"/>
-        <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4"/>
-        <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0"/>
-        <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.4"/>
-        <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.4"/>
-        <PackageVersion Include="AwesomeAssertions" Version="9.4.0"/>
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8"/>
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8"/>
+        <PackageVersion Include="Autofac" Version="9.3.2"/>
+        <PackageVersion Include="Autofac.Extensions.DependencyInjection" Version="11.0.2"/>
+        <!-- Held on Roslyn 4.x: an analyzer compiled against a compiler newer than the consumer's SDK fails to load. -->
+        <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0"/>
+        <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0"/>
+        <!-- Held on EF Core 9.x: Pomelo.EntityFrameworkCore.MySql, used by the MySQL storage tests, has no EF Core 10 provider. -->
+        <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.19"/>
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.19"/>
+        <PackageVersion Include="AwesomeAssertions" Version="9.6.0"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.11"/>
         <PackageVersion Include="Newtonsoft.Json" Version="13.0.4"/>
         <PackageVersion Include="xunit" Version="2.9.3"/>
-        <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0"/>
-        <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.0"/>
-        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8"/>
-        <PackageVersion Include="OpenTelemetry" Version="1.15.3"/>
-        <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.300" PrivateAssets="All"/>
-        <PackageVersion Include="Npgsql" Version="9.0.4"/>
-        <PackageVersion Include="AWSSDK.SQS" Version="3.7.400.118"/>
-        <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.18.4"/>
-        <PackageVersion Include="Confluent.Kafka" Version="2.8.0"/>
-        <PackageVersion Include="RabbitMQ.Client" Version="7.1.2"/>
+        <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.11"/>
+        <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.11"/>
+        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11"/>
+        <PackageVersion Include="OpenTelemetry" Version="1.18.0"/>
+        <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.400" PrivateAssets="All"/>
+        <!-- Held on Npgsql 9.x to match the EF Core 9 PostgreSQL provider used by the storage tests. -->
+        <PackageVersion Include="Npgsql" Version="9.0.5"/>
+        <PackageVersion Include="AWSSDK.SQS" Version="4.0.100.11"/>
+        <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.20.2"/>
+        <PackageVersion Include="Confluent.Kafka" Version="2.15.0"/>
+        <PackageVersion Include="RabbitMQ.Client" Version="7.2.2"/>
         <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556"/>
     </ItemGroup>
 </Project>

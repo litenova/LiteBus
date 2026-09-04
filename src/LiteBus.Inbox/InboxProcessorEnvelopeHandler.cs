@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -119,12 +119,16 @@ internal static class InboxProcessorEnvelopeHandler
         messageActivity?.SetTag("litebus.message_id", envelope.Id);
         var dispatchCompleted = false;
 
+        // One adapter serves every hook phase of this dispatch. Each phase used to build its own, so a single
+        // envelope allocated five of an object whose only job is to project a record behind an interface.
+        var hookEnvelope = new InboxProcessorEnvelopeAdapter(envelope);
+
         try
         {
-            await InboxProcessorHookRunner.RunBeforeDispatchAsync(hooks, envelope, cancellationToken).ConfigureAwait(false);
-            InboxProcessorHookRunner.RunPrepareDispatchScope(hooks, envelope);
+            await ProcessorHookRunner.RunBeforeDispatchAsync(hooks, hookEnvelope, cancellationToken).ConfigureAwait(false);
+            ProcessorHookRunner.RunPrepareDispatchScope(hooks, hookEnvelope);
 
-            if (!InboxProcessorHookRunner.ShouldDispatch(hooks, envelope))
+            if (!ProcessorHookRunner.ShouldDispatch(hooks, hookEnvelope))
             {
                 dispatchCompleted = true;
                 return envelope.AsCompleted();
@@ -154,7 +158,10 @@ internal static class InboxProcessorEnvelopeHandler
                 envelope.AttemptCount,
                 exception);
 
-            if (envelope.AttemptCount >= options.Retry.MaxAttempts)
+            // A refusal or a missing handler produces the same outcome on every attempt, so spending the retry
+            // schedule on it only delays the dead-letter entry an operator is waiting to see.
+            if (envelope.AttemptCount >= options.Retry.MaxAttempts
+                || !MediationExceptionFilters.IsRetryableDispatchException(exception))
             {
                 return envelope.AsDeadLettered(error);
             }
@@ -166,7 +173,7 @@ internal static class InboxProcessorEnvelopeHandler
         {
             if (!dispatchCompleted)
             {
-                InboxProcessorHookRunner.RunAbandonDispatchScopes(hooks, envelope);
+                ProcessorHookRunner.RunAbandonDispatchScopes(hooks, hookEnvelope);
             }
         }
     }

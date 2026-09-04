@@ -157,7 +157,7 @@ public sealed class OutboxModuleBuilder
 
         if (_storageModule is not null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Outbox storage is already configured. " +
                 "Call only one of UsePostgreSqlStorage, UseEntityFrameworkCoreStorage, " +
                 "or UseInMemoryStorage.");
@@ -183,7 +183,7 @@ public sealed class OutboxModuleBuilder
 
         if (_dispatcherModule is not null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Outbox dispatcher is already configured. " +
                 "Call only one outbox dispatcher registration method such as UseInProcessDispatch or a broker-specific Use*Dispatch extension.");
         }

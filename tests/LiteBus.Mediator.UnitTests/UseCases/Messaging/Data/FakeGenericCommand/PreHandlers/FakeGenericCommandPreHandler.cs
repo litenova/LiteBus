@@ -1,7 +1,7 @@
 using LiteBus.Commands.Abstractions;
 using LiteBus.Mediator.UnitTests.UseCases.Messaging.Data.FakeGenericCommand.Messages;
 
-namespace LiteBus.Mediator.UnitTests.UseCases.Messaging.Data.FakeGenericCommand.PreHandlers;
+namespace LiteBus.Mediator.UnitTests.UseCases.Messaging.Data.FakeGenericCommand.PreStageHandlers;
 
 public sealed class FakeGenericCommandPreHandler<TPayload> : ICommandPreHandler<FakeGenericCommand<TPayload>>
 {

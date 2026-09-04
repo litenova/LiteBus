@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -85,14 +85,18 @@ internal static class OutboxProcessorEnvelopeHandler
         messageActivity?.SetTag("litebus.message_id", envelope.Id);
         var dispatchCompleted = false;
 
+        // One adapter serves every hook phase of this dispatch. Each phase used to build its own, so a single
+        // envelope allocated five of an object whose only job is to project a record behind an interface.
+        var hookEnvelope = new OutboxProcessorEnvelopeAdapter(envelope);
+
         try
         {
-            await OutboxProcessorHookRunner.RunBeforeDispatchAsync(hooks, envelope, cancellationToken)
+            await ProcessorHookRunner.RunBeforeDispatchAsync(hooks, hookEnvelope, cancellationToken)
                 .ConfigureAwait(false);
 
-            OutboxProcessorHookRunner.RunPrepareDispatchScope(hooks, envelope);
+            ProcessorHookRunner.RunPrepareDispatchScope(hooks, hookEnvelope);
 
-            if (!OutboxProcessorHookRunner.ShouldDispatch(hooks, envelope))
+            if (!ProcessorHookRunner.ShouldDispatch(hooks, hookEnvelope))
             {
                 dispatchCompleted = true;
                 return envelope.AsPublished(clock.GetUtcNow());
@@ -120,7 +124,10 @@ internal static class OutboxProcessorEnvelopeHandler
                 envelope.AttemptCount,
                 exception);
 
-            if (envelope.AttemptCount >= options.Retry.MaxAttempts)
+            // A refusal or a missing handler produces the same outcome on every attempt, so spending the retry
+            // schedule on it only delays the dead-letter entry an operator is waiting to see.
+            if (envelope.AttemptCount >= options.Retry.MaxAttempts
+                || !MediationExceptionFilters.IsRetryableDispatchException(exception))
             {
                 return envelope.AsDeadLettered(error);
             }
@@ -132,7 +139,7 @@ internal static class OutboxProcessorEnvelopeHandler
         {
             if (!dispatchCompleted)
             {
-                OutboxProcessorHookRunner.RunAbandonDispatchScopes(hooks, envelope);
+                ProcessorHookRunner.RunAbandonDispatchScopes(hooks, hookEnvelope);
             }
         }
     }

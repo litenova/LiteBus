@@ -184,8 +184,12 @@ foreach ($package in $packageMetadata) {
         $errors.Add("Package '$($package.Id)' does not declare the LiteBus website as its project URL.")
     }
 
-    if ($null -eq $releaseNotes -or $releaseNotes.InnerText -ne "https://github.com/litenova/LiteBus/blob/main/Changelog.md#v602") {
-        $errors.Add("Package '$($package.Id)' does not link to the v6.0.2 release notes.")
+    # A package links to the release for the version it carries, so the check follows the version being packed rather
+    # than naming one release. Hard-coding the previous release's anchor made this gate fail on every version bump.
+    $expectedReleaseNotes = "https://github.com/litenova/LiteBus/releases/tag/v$($package.Version)"
+
+    if ($null -eq $releaseNotes -or $releaseNotes.InnerText -ne $expectedReleaseNotes) {
+        $errors.Add("Package '$($package.Id)' links to '$(if ($null -eq $releaseNotes) { '<missing>' } else { $releaseNotes.InnerText })' instead of its own release notes at '$expectedReleaseNotes'.")
     }
 
     if ($null -eq $readme -or $readme.InnerText -ne "README.md") {

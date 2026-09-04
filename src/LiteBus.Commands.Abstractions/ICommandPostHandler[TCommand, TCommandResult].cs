@@ -1,4 +1,4 @@
-﻿using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Commands.Abstractions;
 
@@ -14,6 +14,6 @@ namespace LiteBus.Commands.Abstractions;
 ///     They have access to both the original command and its result, allowing for operations such as
 ///     result transformation, logging, caching, or other processing that depends on the command outcome.
 /// </remarks>
-public interface ICommandPostHandler<in TCommand, in TCommandResult> : IAsyncMessagePostHandler<TCommand, TCommandResult>
+public interface ICommandPostHandler<in TCommand, in TCommandResult> : IMessagePostHandler<TCommand, TCommandResult>
     where TCommand : ICommand<TCommandResult>
     where TCommandResult : notnull;

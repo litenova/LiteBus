@@ -1,0 +1,49 @@
+{
+  "$comment": [
+    "Documentation versions. One entry per documentation line the site serves.",
+    "Exactly one entry has \"default\": true, and it is the latest stable release: a reader who follows a bare /docs",
+    "link, or arrives from a search engine, lands on documentation for a package they can actually install.",
+    "",
+    "Layout on disk:",
+    "  content/docs           the working documentation, tracking the source tree in this repository. It describes the",
+    "                         version under development and is the only tree the repository documentation gates check.",
+    "  content/versions/<id>  a frozen snapshot of a released line. Snapshots are never edited in place, and the",
+    "                         linters leave them alone because their snippets reference source that has since moved.",
+    "",
+    "Cutting a release:",
+    "  1. Copy content/docs to content/versions/<previous id> if that line has no snapshot yet.",
+    "  2. Move \"default\": true to the entry for the newly released line.",
+    "  3. Set that entry's \"status\" to \"stable\" and update \"release\" and \"ref\".",
+    "",
+    "\"ref\" is the git ref a version's Markdown sources live on, used for fallback links into the repository.",
+    "\"tracks\" names the branch a snapshot's line is still maintained on, when it is. A fix to that line's",
+    "documentation lands there first, so scripts/Test-VersionSnapshots.ps1 reports a snapshot that has fallen",
+    "behind it. Remove the field when the line stops receiving fixes; the snapshot is then final.",
+    "A line that is still on its own release branch names that branch; it becomes \"main\" when the line merges.",
+    "",
+    "This file is JSON rather than TypeScript because the build gates in site/scripts read it from plain Node."
+  ],
+  "versions": [
+    {
+      "id": "v6",
+      "label": "v6",
+      "description": "Latest stable",
+      "dir": "content/versions/v6",
+      "release": "6.0.2",
+      "status": "stable",
+      "ref": "v6.0.2",
+      "tracks": "main",
+      "default": true
+    },
+    {
+      "id": "v7",
+      "label": "v7",
+      "description": "Pre-release",
+      "dir": "content/docs",
+      "release": "7.0.0-preview.4",
+      "status": "prerelease",
+      "ref": "v7",
+      "default": false
+    }
+  ]
+}

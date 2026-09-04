@@ -155,7 +155,7 @@ public sealed class InboxModuleBuilder
 
         if (_storageModule is not null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Inbox storage is already configured. " +
                 "Call only one of UsePostgreSqlStorage, UseEntityFrameworkCoreStorage, " +
                 "or UseInMemoryStorage.");
@@ -177,7 +177,7 @@ public sealed class InboxModuleBuilder
 
         if (_dispatcherModule is not null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Inbox dispatcher is already configured. " +
                 "Call only one inbox dispatcher registration method such as UseInProcessDispatch or a broker-specific Use*Dispatch extension.");
         }
@@ -199,7 +199,7 @@ public sealed class InboxModuleBuilder
 
         if (_ingressModule is not null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Inbox ingress is already configured. Register one ingress source per inbox module.");
         }
 

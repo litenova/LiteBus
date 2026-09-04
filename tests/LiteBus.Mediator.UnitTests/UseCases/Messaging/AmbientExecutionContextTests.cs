@@ -1,4 +1,4 @@
-using LiteBus.Messaging.Abstractions;
+﻿using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.UseCases.Messaging;
 
@@ -45,14 +45,17 @@ public sealed class AmbientExecutionContextTests
 
         public IDictionary<string, object> Items { get; } = new Dictionary<string, object>();
 
+        public IHandleContextData Data { get; } = new HandleContextData();
+
         public IReadOnlyCollection<string> Tags { get; } = Array.Empty<string>();
 
         public object? MessageResult { get; set; }
 
-        public void Abort(object? messageResult = null)
+        public bool PostHandlersSuppressed { get; private set; }
+
+        public void SuppressPostHandlers()
         {
-            MessageResult = messageResult;
-            throw new LiteBusExecutionAbortedException();
+            PostHandlersSuppressed = true;
         }
     }
 }

@@ -149,4 +149,4 @@ Service Bus ingress uses shared mapper defaults:
 ## Deep Docs
 
 - [Azure Service Bus transport](../../integrations/azure-service-bus.md)
-- [Feature Index: Ingress](../../reference/feature-index-v6.md)
+- [Feature Index: Ingress](../../reference/feature-index-v7.md)

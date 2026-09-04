@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 
 namespace LiteBus.Messaging;
@@ -46,11 +46,11 @@ internal static class DurableEnvelopeMetadataMapper
     /// </summary>
     /// <param name="idempotency">The idempotency metadata supplied by the caller.</param>
     /// <returns>The idempotency key to persist, or <see langword="null" /> when duplicate detection is not requested.</returns>
-    internal static string? ResolveIdempotencyKey(Idempotency idempotency)
+    internal static string? ResolveIdempotencyKey(Abstractions.DurableMessaging.Idempotency idempotency)
     {
         return idempotency switch
         {
-            Idempotency.Keyed keyed when !string.IsNullOrWhiteSpace(keyed.Key) => keyed.Key,
+            Abstractions.DurableMessaging.Idempotency.Keyed keyed when !string.IsNullOrWhiteSpace(keyed.Key) => keyed.Key,
             _                                                                  => null
         };
     }
@@ -60,11 +60,11 @@ internal static class DurableEnvelopeMetadataMapper
     /// </summary>
     /// <param name="idempotency">The idempotency metadata supplied by the caller.</param>
     /// <returns>The conflict mode applied by writers and stores for the attempt.</returns>
-    internal static IdempotencyConflictMode ResolveIdempotencyConflictMode(Idempotency idempotency)
+    internal static IdempotencyConflictMode ResolveIdempotencyConflictMode(Abstractions.DurableMessaging.Idempotency idempotency)
     {
         return idempotency switch
         {
-            Idempotency.Keyed keyed => keyed.ConflictMode,
+            Abstractions.DurableMessaging.Idempotency.Keyed keyed => keyed.ConflictMode,
             _                       => IdempotencyConflictMode.ReturnExisting
         };
     }

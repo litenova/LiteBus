@@ -1,4 +1,6 @@
-﻿namespace LiteBus.Queries.Abstractions;
+﻿using LiteBus.Messaging.Abstractions;
+
+namespace LiteBus.Queries.Abstractions;
 
 /// <summary>
 ///     Represents a query that returns a result of type <typeparamref name="TQueryResult" /> when handled.
@@ -10,4 +12,4 @@
 ///     and return it to the caller. Each query should have exactly one handler responsible for
 ///     executing the query and producing the result.
 /// </remarks>
-public interface IQuery<TQueryResult> : IQuery;
+public interface IQuery<TQueryResult> : IQuery, IProducesResult<TQueryResult>;

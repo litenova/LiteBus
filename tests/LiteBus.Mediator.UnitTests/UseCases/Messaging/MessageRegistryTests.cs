@@ -202,8 +202,8 @@ public sealed class MessageRegistryTests : LiteBusTestBase
 
         // Assert - the open generic should be closed for TestCommand
         var messageDescriptor = registry.Single(d => d.MessageType == typeof(TestCommand));
-        messageDescriptor.PreHandlers.Should().HaveCount(1);
-        messageDescriptor.PreHandlers.First().HandlerType.Should().Be(typeof(OpenGenericTestPreHandler<TestCommand>));
+        messageDescriptor.PreStageHandlers.Should().HaveCount(1);
+        messageDescriptor.PreStageHandlers.First().HandlerType.Should().Be(typeof(OpenGenericTestPreHandler<TestCommand>));
     }
 
     [Fact]
@@ -220,8 +220,8 @@ public sealed class MessageRegistryTests : LiteBusTestBase
 
         // Assert - the open generic should be closed for TestCommand
         var messageDescriptor = registry.Single(d => d.MessageType == typeof(TestCommand));
-        messageDescriptor.PreHandlers.Should().HaveCount(1);
-        messageDescriptor.PreHandlers.First().HandlerType.Should().Be(typeof(OpenGenericTestPreHandler<TestCommand>));
+        messageDescriptor.PreStageHandlers.Should().HaveCount(1);
+        messageDescriptor.PreStageHandlers.First().HandlerType.Should().Be(typeof(OpenGenericTestPreHandler<TestCommand>));
     }
 
     [Fact]
@@ -238,12 +238,12 @@ public sealed class MessageRegistryTests : LiteBusTestBase
 
         // Assert
         var testCommandDescriptor = registry.Single(d => d.MessageType == typeof(TestCommand));
-        testCommandDescriptor.PreHandlers.Should().HaveCount(1);
-        testCommandDescriptor.PreHandlers.First().HandlerType.Should().Be(typeof(OpenGenericTestPreHandler<TestCommand>));
+        testCommandDescriptor.PreStageHandlers.Should().HaveCount(1);
+        testCommandDescriptor.PreStageHandlers.First().HandlerType.Should().Be(typeof(OpenGenericTestPreHandler<TestCommand>));
 
         var anotherCommandDescriptor = registry.Single(d => d.MessageType == typeof(AnotherTestCommand));
-        anotherCommandDescriptor.PreHandlers.Should().HaveCount(1);
-        anotherCommandDescriptor.PreHandlers.First().HandlerType.Should().Be(typeof(OpenGenericTestPreHandler<AnotherTestCommand>));
+        anotherCommandDescriptor.PreStageHandlers.Should().HaveCount(1);
+        anotherCommandDescriptor.PreStageHandlers.First().HandlerType.Should().Be(typeof(OpenGenericTestPreHandler<AnotherTestCommand>));
     }
 
     [Fact]
@@ -260,7 +260,7 @@ public sealed class MessageRegistryTests : LiteBusTestBase
 
         // Assert - the event type should not have the command pre-handler
         var eventDescriptor = registry.Single(d => d.MessageType == typeof(TestRecordClass));
-        eventDescriptor.PreHandlers.Should().BeEmpty();
+        eventDescriptor.PreStageHandlers.Should().BeEmpty();
     }
 
     [Theory]
@@ -284,7 +284,7 @@ public sealed class MessageRegistryTests : LiteBusTestBase
 
         var descriptor = registry.Single(item => item.MessageType == typeof(SelfComparableCommand));
 
-        descriptor.PreHandlers.Should().ContainSingle()
+        descriptor.PreStageHandlers.Should().ContainSingle()
             .Which.HandlerType.Should().Be(typeof(SelfComparablePreHandler<SelfComparableCommand>));
     }
 
@@ -301,7 +301,7 @@ public sealed class MessageRegistryTests : LiteBusTestBase
 
         // Assert
         var messageDescriptor = registry.Single(d => d.MessageType == typeof(TestCommand));
-        messageDescriptor.PreHandlers.Should().HaveCount(1);
+        messageDescriptor.PreStageHandlers.Should().HaveCount(1);
     }
 
     [Fact]
@@ -326,7 +326,7 @@ public sealed class MessageRegistryTests : LiteBusTestBase
         var firstRegistry = new MessageRegistry();
         firstRegistry.Register(typeof(OpenGenericTestPreHandler<>));
         firstRegistry.Register(typeof(TestCommandHandler));
-        firstRegistry.Single(d => d.MessageType == typeof(TestCommand)).PreHandlers.Should().HaveCount(1);
+        firstRegistry.Single(d => d.MessageType == typeof(TestCommand)).PreStageHandlers.Should().HaveCount(1);
 
         var secondRegistry = new MessageRegistry();
 
@@ -335,7 +335,7 @@ public sealed class MessageRegistryTests : LiteBusTestBase
 
         // Assert
         var descriptor = secondRegistry.Single(d => d.MessageType == typeof(TestCommand));
-        descriptor.PreHandlers.Should().BeEmpty();
+        descriptor.PreStageHandlers.Should().BeEmpty();
     }
 
     [Fact]

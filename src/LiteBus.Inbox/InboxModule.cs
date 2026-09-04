@@ -51,21 +51,21 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
 
         if (_builder is null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "InboxModule.Build was called without a prior DeclareChildren call. " +
                 "Register the module through IModuleRegistry.");
         }
 
         if (!_builder.IsStorageConfigured)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Inbox storage is required because AddInboxModule registers IInbox and related writer services. " +
                 "Call UseInMemoryStorage, UsePostgreSqlStorage, or UseEntityFrameworkCoreStorage inside AddInboxModule(...).");
         }
 
         if (_builder.IsInboxProcessorEnabled && !_builder.IsDispatcherConfigured)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "EnableInboxProcessor requires an inbox dispatcher. " +
                 "Call UseInProcessDispatch, a broker-specific Use*Dispatch extension, or RegisterDispatcher inside AddInboxModule(...).");
         }

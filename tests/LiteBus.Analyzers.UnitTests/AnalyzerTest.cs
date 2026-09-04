@@ -1,4 +1,4 @@
-using LiteBus.Commands.Abstractions;
+﻿using LiteBus.Commands.Abstractions;
 using LiteBus.Events.Abstractions;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
@@ -89,6 +89,61 @@ internal static class AnalyzerTest
                     .WithLocation(markupLocation)
                     .WithArguments(arguments));
         }
+
+        return test.RunAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    ///     Verifies analyzer behavior under an <c>.editorconfig</c>, for rules whose required inputs are configured.
+    /// </summary>
+    /// <typeparam name="TAnalyzer">The analyzer type under test.</typeparam>
+    /// <param name="source">The source under test.</param>
+    /// <param name="editorConfig">The <c>.editorconfig</c> content applied to the compilation.</param>
+    /// <param name="expectedDiagnostics">The expected diagnostics, empty when none are expected.</param>
+    /// <returns>A task that completes when verification finishes.</returns>
+    internal static Task VerifyWithEditorConfigAsync<TAnalyzer>(
+        string source,
+        string editorConfig,
+        params (DiagnosticDescriptor Descriptor, int MarkupLocation, object[] Arguments)[] expectedDiagnostics)
+        where TAnalyzer : DiagnosticAnalyzer, new()
+    {
+        var test = CreateTest<TAnalyzer>();
+        test.TestCode = source;
+        test.TestState.AnalyzerConfigFiles.Add(("/.editorconfig", editorConfig));
+
+        foreach (var (descriptor, markupLocation, arguments) in expectedDiagnostics)
+        {
+            test.ExpectedDiagnostics.Add(
+                new DiagnosticResult(descriptor)
+                    .WithLocation(markupLocation)
+                    .WithArguments(arguments));
+        }
+
+        return test.RunAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    ///     Verifies a configured rule reports a diagnostic that carries no source location.
+    /// </summary>
+    /// <typeparam name="TAnalyzer">The analyzer type under test.</typeparam>
+    /// <param name="source">The source under test.</param>
+    /// <param name="editorConfig">The <c>.editorconfig</c> content applied to the compilation.</param>
+    /// <param name="expectedDiagnostic">The expected diagnostic descriptor.</param>
+    /// <param name="arguments">The expected diagnostic message arguments.</param>
+    /// <returns>A task that completes when verification finishes.</returns>
+    internal static Task VerifyUnlocatedWithEditorConfigAsync<TAnalyzer>(
+        string source,
+        string editorConfig,
+        DiagnosticDescriptor expectedDiagnostic,
+        params object[] arguments)
+        where TAnalyzer : DiagnosticAnalyzer, new()
+    {
+        var test = CreateTest<TAnalyzer>();
+        test.TestCode = source;
+        test.TestState.AnalyzerConfigFiles.Add(("/.editorconfig", editorConfig));
+
+        test.ExpectedDiagnostics.Add(
+            new DiagnosticResult(expectedDiagnostic).WithArguments(arguments));
 
         return test.RunAsync(CancellationToken.None);
     }

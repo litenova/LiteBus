@@ -1,7 +1,8 @@
 using System;
-using System.Runtime.ExceptionServices;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Pipeline;
 
 namespace LiteBus.Messaging.MediationStrategies;
 
@@ -11,10 +12,12 @@ namespace LiteBus.Messaging.MediationStrategies;
 /// <typeparam name="TMessage">The type of message being mediated.</typeparam>
 /// <remarks>
 ///     This strategy ensures that only one handler is registered for the message type and then:
-///     1. Executes pre-handlers.
+///     1. Executes the pre stages, stopping early when a guard denies, a validator reports the message malformed,
+///     or a shortcut answers.
 ///     2. Delegates the message processing to the registered handler.
-///     3. Executes post-handlers.
-///     In case of any exception during the process, it delegates the error handling to the registered error handlers.
+///     3. Executes post-handlers, unless the pipeline suppressed them.
+///     4. Routes exceptions to registered error handlers.
+///     5. Reports the outcome to completion handlers, on every path.
 /// </remarks>
 public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task>
     where TMessage : notnull
@@ -37,7 +40,8 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
     /// <remarks>
     ///     The mediation process includes executing pre-handlers, the main handler, and post-handlers in sequence.
     ///     If an exception occurs during any stage, the appropriate error handlers are executed.
-    ///     If a <see cref="LiteBusExecutionAbortedException" /> is caught, the mediation process is aborted without error.
+    ///     When a decision stops the pipeline, the mediation ends with <see cref="MediationOutcome.Answered" /> or
+    ///     <see cref="MediationOutcome.Denied" /> and the main handler never runs.
     /// </remarks>
     public async Task Mediate(
         TMessage message,
@@ -45,12 +49,42 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
         IExecutionContext executionContext)
     {
         object? messageResult = null;
+        var startedAt = Stopwatch.GetTimestamp();
+        using var activity = MediationTelemetry.StartMediation(message.GetType());
+        var outcome = MediationOutcome.Succeeded;
+        Exception? failure = null;
+        string? reason = null;
+        string? code = null;
 
         try
         {
             using (AmbientExecutionContext.CreateScope(executionContext))
             {
-                await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken).ConfigureAwait(false);
+                var decision = await messageDependencies
+                    .RunAsyncPreStages(message, executionContext.CancellationToken)
+                    .ConfigureAwait(false);
+
+                if (decision.StopsPipeline)
+                {
+                    outcome = decision.Outcome;
+                    reason = decision.Reason;
+                    code = decision.Code;
+
+                    // Only a Try call installs a capture, so this is a dictionary miss on every ordinary mediation.
+                    MediationEndingCapture.Record(executionContext, decision);
+
+                    if (decision.IsRefusal)
+                    {
+                        // A message that produces no result has nothing a refusal mapper could return, so a refusal
+                        // always reaches the caller as an exception. It is excluded from the recoverable filter, so
+                        // error handlers do not see a decision as a fault.
+                        var refusal = decision.CreateRefusalException(message.GetType());
+                        failure = refusal;
+                        throw refusal;
+                    }
+
+                    return;
+                }
 
                 var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
 
@@ -65,20 +99,37 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
                     executionContext.CancellationToken).ConfigureAwait(false);
             }
         }
-        catch (LiteBusExecutionAbortedException)
+        catch (OperationCanceledException canceledException)
         {
-            // Execution was aborted, no action needed.
+            outcome = MediationOutcome.Canceled;
+            failure = canceledException;
+            throw;
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            using (AmbientExecutionContext.CreateScope(executionContext))
-            {
-                await messageDependencies.RunAsyncErrorHandlers(
+            outcome = MediationOutcome.Failed;
+            failure = e;
+
+            await messageDependencies
+                .RunAsyncErrorHandlers(message, messageResult, e, executionContext)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            var elapsed = Stopwatch.GetElapsedTime(startedAt);
+            MediationTelemetry.RecordMediation(activity, message.GetType(), outcome, code, elapsed);
+
+            await messageDependencies
+                .RunAsyncCompletionHandlers(
                     message,
+                    executionContext,
+                    outcome,
+                    failure,
+                    reason,
+                    code,
                     messageResult,
-                    ExceptionDispatchInfo.Capture(e),
-                    executionContext.CancellationToken).ConfigureAwait(false);
-            }
+                    elapsed)
+                .ConfigureAwait(false);
         }
     }
 }

@@ -59,7 +59,7 @@ LiteBus capability axes
 |
 +-- Platform foundation
 |     runtime (module graph, registry, mediator engine, contracts, serialization)
-|     analyzers (compile-time LB1001-LB1017 rules)
+|     analyzers (compile-time LB1001-LB1021 rules)
 |
 +-- In-process mediation
 |     mediator (commands, queries, events, pipeline, registration)
@@ -229,10 +229,12 @@ One row per capability. Packages list primary install targets; transitive abstra
 | --- | --- | --- | --- | --- | --- | --- |
 | `mediator.commands` | Commands | mediator | GA | State-changing messages with exactly one main handler | `LiteBus.Commands` | [commands.md](../catalog/mediator/commands.md) |
 | `mediator.events` | Events | mediator | GA | Publish facts to zero or many handlers | `LiteBus.Events` | [events.md](../catalog/mediator/events.md) |
-| `mediator.execution-context` | Execution context | mediator | GA | Share state, abort, and override results within one call | `LiteBus.Messaging.Abstractions` | [execution-context.md](../catalog/mediator/execution-context.md) |
+| `mediator.execution-context` | Execution context | mediator | GA | Share state, suppress post-handlers, and override results within one call | `LiteBus.Messaging.Abstractions` | [execution-context.md](../catalog/mediator/execution-context.md) |
 | `mediator.generic-messages` | Generic messages | mediator | GA | Parameterized messages and handlers by entity type | `LiteBus.Commands`, `LiteBus.Queries` | [generic-messages-and-handlers.md](../catalog/mediator/generic-messages-and-handlers.md) |
 | `mediator.handler-filtering` | Handler filtering | mediator | GA | Select handlers per call with tags and predicates | `LiteBus.Messaging` | [handler-filtering.md](../catalog/mediator/handler-filtering.md) |
-| `mediator.handler-pipeline` | Handler pipeline | mediator | GA | Pre, main, post, and error stages shared by all kinds | `LiteBus.Messaging` | [handler-pipeline.md](../catalog/mediator/handler-pipeline.md) |
+| `mediator.handler-pipeline` | Handler pipeline | mediator | GA | Pre, main, post, error, and completion stages shared by all kinds | `LiteBus.Messaging` | [handler-pipeline.md](../catalog/mediator/handler-pipeline.md) |
+| `mediator.auditing` | Audit trail | mediator | GA | Audit records at the boundary on every outcome | `LiteBus.Messaging`, `LiteBus.Commands`, `LiteBus.Queries` | [auditing.md](../catalog/mediator/auditing.md) |
+| `mediator.message-definitions` | Message definitions | mediator | GA | Declarative per-message metadata read by pipeline stages | `LiteBus.Messaging` | [message-definitions.md](../catalog/mediator/message-definitions.md) |
 | `mediator.handler-priority` | Handler priority | mediator | GA | Order handlers within a pipeline stage | `LiteBus.Messaging` | [handler-priority.md](../catalog/mediator/handler-priority.md) |
 | `mediator.mediation-settings` | Mediation settings | mediator | GA | Per-invocation routing, execution, and context items | `LiteBus.Commands.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Events.Abstractions` | [mediation-settings.md](../catalog/mediator/mediation-settings.md) |
 | `mediator.module-registration` | Module registration | mediator | GA | Register messages and handlers through module builders | `LiteBus.Messaging`, semantic modules | [module-registration.md](../catalog/mediator/module-registration.md) |
@@ -331,7 +333,7 @@ One row per capability. Packages list primary install targets; transitive abstra
 
 ### [Analyzers](../catalog/analyzers/README.md) (15 capabilities)
 
-Compile-time Roslyn rules (LB1001 through LB1017) that guard handler registration, durable contracts, inbox accept semantics, EF transactional wiring, and processor/dispatcher coupling. No runtime dependency on LiteBus libraries.
+Compile-time Roslyn rules (LB1001 through LB1019) that guard handler registration, durable contracts, inbox accept semantics, EF transactional wiring, and processor/dispatcher coupling. No runtime dependency on LiteBus libraries.
 
 **Key requires:** application projects reference `LiteBus.Analyzers`; protected axes (mediator, durable core, dispatch, storage) must be composed for rules to apply meaningfully.
 
@@ -470,7 +472,7 @@ Each capability file ends with **Test coverage**:
 | Hosting | [catalog/hosting/README.md](../catalog/hosting/README.md) | `Runtime`, `Extensions`, OpenTelemetry integration tests |
 | Saga | [catalog/saga/README.md](../catalog/saga/README.md) | `LiteBus.Saga.UnitTests`, `LiteBus.Saga.Storage.PostgreSql.UnitTests`, `LiteBus.Storage.IntegrationTests`, `LiteBus.Runtime.UnitTests` |
 | Runtime | [catalog/runtime/README.md](../catalog/runtime/README.md) | `LiteBus.Runtime*`, `Messaging` unit tests |
-| Analyzers | [catalog/analyzers/README.md](../catalog/analyzers/README.md) | `LiteBus.Analyzers.UnitTests` (LB1001-LB1017) |
+| Analyzers | [catalog/analyzers/README.md](../catalog/analyzers/README.md) | `LiteBus.Analyzers.UnitTests` (LB1001-LB1021) |
 
 ---
 
@@ -517,7 +519,7 @@ To add a new LiteBus capability:
    - [Roadmap.md](../roadmap/README.md) when planned scope changes or becomes part of the current product
    - Feature guides (`Inbox.md`, transport guides, and similar) for narrative registration recipes
    - [Analyzers.md](analyzers.md) and `LiteBus.Analyzers` tests if compile-time rules apply
-   - [Feature Index](feature-index-v6.md) when the capability belongs in the quick package map
+   - [Feature Index](feature-index-v7.md) when the capability belongs in the quick package map
 
 5. **Preserve granular packaging.** Do not merge orthogonal adapters into kitchen-sink packages unless an explicit breaking packaging change is approved.
 

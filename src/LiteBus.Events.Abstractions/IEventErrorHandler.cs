@@ -11,4 +11,4 @@ namespace LiteBus.Events.Abstractions;
 ///     Multiple error handlers can be registered to implement different error handling strategies such as
 ///     logging, retries, or custom recovery logic for all events.
 /// </remarks>
-public interface IEventErrorHandler : IAsyncMessageErrorHandler<IEvent, object>;
+public interface IEventErrorHandler : IMessageErrorHandler<IEvent, object>;

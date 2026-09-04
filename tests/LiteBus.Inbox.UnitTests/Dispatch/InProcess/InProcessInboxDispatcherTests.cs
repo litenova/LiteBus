@@ -394,6 +394,33 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         {
             return Task.FromResult<TResult>(default!);
         }
+    
+        /// <inheritdoc />
+        public Task<MediationResult> TrySendAsync(
+            ICommand command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationResult.Succeeded());
+        }
+
+        /// <inheritdoc />
+        public Task<MediationResult<TCommandResult>> TrySendAsync<TCommandResult>(
+            ICommand<TCommandResult> command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationResult<TCommandResult>.Succeeded(default!));
+        }
+
+        /// <inheritdoc />
+        public Task<MediationDecision> EvaluateAsync(
+            ICommand command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationDecision.Allowed);
+        }
     }
 
     internal sealed class CancellationRecordingSerializer : IMessageSerializer
@@ -439,6 +466,33 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         public Task<TResult> SendAsync<TResult>(ICommand<TResult> command, CommandMediationSettings? settings = null, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
+        }
+    
+        /// <inheritdoc />
+        public Task<MediationResult> TrySendAsync(
+            ICommand command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationResult.Succeeded());
+        }
+
+        /// <inheritdoc />
+        public Task<MediationResult<TCommandResult>> TrySendAsync<TCommandResult>(
+            ICommand<TCommandResult> command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationResult<TCommandResult>.Succeeded(default!));
+        }
+
+        /// <inheritdoc />
+        public Task<MediationDecision> EvaluateAsync(
+            ICommand command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationDecision.Allowed);
         }
     }
 }

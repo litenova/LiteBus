@@ -1,4 +1,4 @@
-﻿using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Events.Abstractions;
 
@@ -13,4 +13,4 @@ namespace LiteBus.Events.Abstractions;
 ///     This allows for implementing specialized error handling strategies for different event types,
 ///     such as custom recovery logic, retry policies, or specific error reporting for critical events.
 /// </remarks>
-public interface IEventErrorHandler<TEvent> : IAsyncMessageErrorHandler<TEvent, object> where TEvent : notnull;
+public interface IEventErrorHandler<TEvent> : IMessageErrorHandler<TEvent, object> where TEvent : notnull;

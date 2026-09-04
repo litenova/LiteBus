@@ -115,8 +115,10 @@ public sealed class QueryModuleTests : LiteBusTestBase
         // Assert
         queryResult.First().CorrelationId.Should().Be(query.CorrelationId);
         query.ExecutedTypes.Should().HaveCount(6);
-        query.ExecutedTypes[0].Should().Be<GlobalQueryPreHandler>();
-        query.ExecutedTypes[1].Should().Be<StreamProductsQueryHandlerPreHandler>();
+
+        // The shortcut stage runs before the pre-handler stage, so the shortcut is consulted first.
+        query.ExecutedTypes[0].Should().Be<StreamProductsQueryShortcut>();
+        query.ExecutedTypes[1].Should().Be<GlobalQueryPreHandler>();
         query.ExecutedTypes[2].Should().Be<StreamProductsQueryHandler>();
         query.ExecutedTypes[3].Should().Be<StreamProductsQueryHandlerPostHandler1>();
         query.ExecutedTypes[4].Should().Be<StreamProductsQueryHandlerPostHandler2>();
@@ -246,7 +248,7 @@ public sealed class QueryModuleTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task mediating_a_stream_query_that_is_aborted_in_pre_handler_goes_through_correct_handlers()
+    public async Task mediating_a_stream_query_answered_by_a_shortcut_goes_through_correct_handlers()
     {
         // Arrange
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
@@ -262,16 +264,17 @@ public sealed class QueryModuleTests : LiteBusTestBase
         }).BuildServiceProvider();
 
         var queryMediator = serviceProvider.GetRequiredService<IQueryMediator>();
-        var query = new StreamProductsQuery { AbortInPreHandler = true };
+        var query = new StreamProductsQuery { AnswerFromShortcut = true };
 
         // Act
         var queryResult = await queryMediator.StreamAsync(query).ToListAsync().ConfigureAwait(true);
 
         // Assert
         queryResult.Should().BeEmpty();
-        query.ExecutedTypes.Should().HaveCount(2);
-        query.ExecutedTypes[0].Should().Be<GlobalQueryPreHandler>();
-        query.ExecutedTypes[1].Should().Be<StreamProductsQueryHandlerPreHandler>();
+
+        // An answered query reaches nothing else. Answering with no stream is legitimate: the caller enumerates
+        // nothing.
+        query.ExecutedTypes.Should().ContainSingle().Which.Should().Be<StreamProductsQueryShortcut>();
     }
 
     [Fact]

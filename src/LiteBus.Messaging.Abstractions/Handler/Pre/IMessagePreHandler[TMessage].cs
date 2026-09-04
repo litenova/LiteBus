@@ -1,42 +1,43 @@
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Represents a generic interface defining a pre-handler for messages of a specified type, intended to preprocess
-///     messages before they are handled by the primary message handler.
+///     Prepares a message that is going to be handled.
 /// </summary>
-/// <typeparam name="TMessage">
-///     The type of the message that is to be pre-handled, allowing for type-specific pre-handling
-///     logic to be implemented.
-/// </typeparam>
-public interface IMessagePreHandler<in TMessage> : IMessagePreHandler where TMessage : notnull
+/// <typeparam name="TMessage">The type of message this pre-handler runs for.</typeparam>
+/// <remarks>
+///     <para>
+///         This contract is named for its position rather than its role, and deliberately so: it is the one pre-stage
+///         contract whose role LiteBus does not name. Enrichment, tracing, opening a unit of work, and anything else a
+///         message needs before it is handled all live here.
+///     </para>
+///     <para>
+///         The three roles LiteBus does name have their own contracts, because the framework acts on the difference.
+///         <see cref="IMessageGuard{TMessage}" /> refuses, <see cref="IMessageValidator{TMessage}" /> reports the
+///         message malformed, and <see cref="IMessageShortcut{TMessage}" /> answers work that is already done. Reach for
+///         one of those when it fits; reach for this contract when none does.
+///     </para>
+///     <para>
+///         A pre-handler cannot stop the pipeline by returning, which is deliberate: deciding whether the work happens
+///         is a capability that belongs to the three decision stages, so a pre-handler cannot skip the work by accident.
+///         Throwing stops the pipeline and routes to error handlers, and the completion stage records the failure either
+///         way.
+///     </para>
+///     <para>
+///         This stage runs after all three decision stages, so a pre-handler only ever sees a message that every guard
+///         allowed, every validator accepted, and no shortcut answered.
+///     </para>
+/// </remarks>
+public interface IMessagePreHandler<in TMessage> : IMessagePreStageHandler
+    where TMessage : notnull
 {
     /// <summary>
-    ///     Implements the pre-processing logic for a message using a specific type, before it is handled by the primary
-    ///     handler. This method is invoked internally to cast the message to the correct type and delegate the pre-handling to
-    ///     the type-specific <see cref="PreHandle(TMessage)" /> method.
+    ///     Runs before the main handler.
     /// </summary>
-    /// <param name="message">
-    ///     The original message to be pre-processed, presented as an object which will be cast to the
-    ///     type-specific representation for further processing.
-    /// </param>
-    /// <returns>
-    ///     The result of the pre-processing, which may be a transformed version of the original message or other data
-    ///     derived from the pre-processing actions, ready to be passed on to the primary handler.
-    /// </returns>
-    object IMessagePreHandler.PreHandle(object message)
-    {
-        return PreHandle((TMessage) message);
-    }
-
-    /// <summary>
-    ///     Defines the pre-processing actions to be taken on a message of a specified type before it undergoes handling by the
-    ///     primary message handler. This method should encapsulate the logic necessary to prepare the message for subsequent
-    ///     handling.
-    /// </summary>
-    /// <param name="message">The original message of type <typeparamref name="TMessage" /> that requires pre-processing.</param>
-    /// <returns>
-    ///     The outcome of the pre-processing, potentially modifying the message or producing other data as necessary for
-    ///     the subsequent handling stages.
-    /// </returns>
-    object PreHandle(TMessage message);
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
+    /// <returns>A task representing the asynchronous pre-handling operation.</returns>
+    Task PreHandleAsync(TMessage message, CancellationToken cancellationToken = default);
 }

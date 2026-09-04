@@ -1,4 +1,4 @@
-# Build & Test - mandatory CI gates for v6 GA
+# Build & Test - mandatory CI gates
 #
 # Skip waiver policy:
 #   - [Fact(Skip = ...)] is blocked by verify-no-fact-skips.sh on all branches except quarantine.
@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CI_PACKAGE_VERSION: 6.0.0-ci.${{ github.run_number }}
+  CI_PACKAGE_VERSION: 7.0.0-ci.${{ github.run_number }}
 
 on:
   push:
@@ -38,7 +38,9 @@ on:
       - '.github/workflows/**'
       - '.github/scripts/**'
   pull_request:
-    branches: [ main ]
+    # Version branches carry a release line until it merges, and a pre-release can be cut from one, so a pull
+    # request into one has to clear the same gates a pull request into main does.
+    branches: [ main, 'v[0-9]*' ]
     paths:
       - 'LiteBus.slnx'
       - 'Changelog.md'
@@ -80,6 +82,21 @@ jobs:
       - name: Validate Documentation
         shell: pwsh
         run: ./scripts/Test-Documentation.ps1
+
+      - name: Check Documentation Version Snapshots
+        shell: pwsh
+        run: |
+          # Reports, rather than fails: a snapshot falls behind when a fix lands on the branch it tracks, which is work
+          # on another branch. Blocking this one for it would stop unrelated changes from merging.
+          $output = ./scripts/Test-VersionSnapshots.ps1 2>&1 | Out-String
+          Write-Host $output
+
+          if ($output -match 'differs from') {
+            Write-Host "::warning::A documentation version snapshot has fallen behind the branch it tracks, so the published documentation for that line is stale. See the job log for the files and the command to fix it."
+          }
+
+          "## Documentation version snapshots", '```', $output.TrimEnd(), '```' |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
       - name: Validate Documentation Site
         working-directory: site

@@ -21,10 +21,15 @@ public sealed class EventModuleBuilder
         typeof(IEventHandler<>),
         typeof(IEventPreHandler),
         typeof(IEventPreHandler<>),
+        typeof(IEventGuard<>),
+        typeof(IEventValidator<>),
+        typeof(IEventShortcut<>),
         typeof(IEventPostHandler),
         typeof(IEventPostHandler<>),
         typeof(IEventErrorHandler),
-        typeof(IEventErrorHandler<>)
+        typeof(IEventErrorHandler<>),
+        typeof(IEventCompletionHandler),
+        typeof(IEventCompletionHandler<>)
     ];
 
     /// <summary>
@@ -48,6 +53,38 @@ public sealed class EventModuleBuilder
     ///     Gets the message contract writer for persisted event contracts.
     /// </summary>
     public IContractWriter Contracts { get; }
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="EnableAuditing" /> was called.
+    /// </summary>
+    /// <remarks>
+    ///     The module reads this after the configuration action runs, so it can register the diagnostic probe that
+    ///     reports a missing <see cref="IAuditTrail" /> before the first audited publish fails inside the completion
+    ///     stage.
+    /// </remarks>
+    internal bool AuditingEnabled { get; private set; }
+
+    /// <summary>
+    ///     Registers the LiteBus event audit writer, so every event mediation produces an audit record when the message
+    ///     declares one.
+    /// </summary>
+    /// <returns>The current <see cref="EventModuleBuilder" /> instance for method chaining.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         A domain fact is frequently the thing a review most wants recorded, so the event axis carries the same
+    ///         switch the command and query axes do. A message is recorded only when it declares an audited position
+    ///         through <see cref="AuditedAttribute" /> or an <c>IAuditDefinition&lt;TMessage&gt;</c>.
+    ///     </para>
+    ///     <para>
+    ///         One record per publish, not per handler: the mediation is the unit being audited, and a record per
+    ///         subscriber would turn one fact into as many entries as there happen to be reactions.
+    ///     </para>
+    /// </remarks>
+    public EventModuleBuilder EnableAuditing()
+    {
+        AuditingEnabled = true;
+        return Register<EventAuditCompletionHandler>();
+    }
 
     /// <summary>
     ///     Registers an event type for the message registry.
@@ -90,7 +127,7 @@ public sealed class EventModuleBuilder
         foreach (var registrableEventConstruct in assembly.GetTypes()
                      .Where(static type => type is { IsClass: true, IsAbstract: false } && IsEventConstruct(type)))
         {
-            _messageRegistry.Register(registrableEventConstruct);
+            _messageRegistry.RegisterFromScan(registrableEventConstruct);
         }
 
         return this;
@@ -110,8 +147,31 @@ public sealed class EventModuleBuilder
 
         return type.GetInterfaces().Any(static contract =>
         {
-            var contractDefinition = contract.IsGenericType ? contract.GetGenericTypeDefinition() : contract;
-            return HandlerContracts.Contains(contractDefinition);
+            if (!contract.IsGenericType)
+            {
+                return HandlerContracts.Contains(contract);
+            }
+
+            var contractDefinition = contract.GetGenericTypeDefinition();
+
+            // A message definition declares metadata for an event rather than implementing a handler contract.
+            // Both shapes count: the keyed one that types a single declaration, and the describe one that declares
+            // several without an explicit interface implementation per value.
+            if (contractDefinition == typeof(IMessageDefinition<,>) ||
+                contractDefinition == typeof(IMessageDefinition<>))
+            {
+                return typeof(IEvent).IsAssignableFrom(contract.GetGenericArguments()[0]);
+            }
+
+            if (HandlerContracts.Contains(contractDefinition))
+            {
+                return true;
+            }
+
+            // A pipeline handler written against the messaging-level contract counts when its message type is
+            // constrained to this axis. Without this, a cross-cutting guard has to be written once per axis, and the
+            // code being copied is usually the code least safe to have two copies of.
+            return MessagingHandlerContracts.NamesMessageAssignableTo(contract, typeof(IEvent));
         });
     }
 }

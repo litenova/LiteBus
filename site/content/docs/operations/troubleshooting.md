@@ -41,29 +41,65 @@ Fix:
 
 ## UnsupportedOpenGenericHandlerException
 
-Message: `Open generic handler type '<Type>' declares <n> generic parameters. LiteBus supports open generic handlers with exactly one generic parameter.`
+Message: `Open generic handler type '<Type>' declares <n> generic parameters. LiteBus closes one, binding the message type, or two, binding the message type and the result type the message declares. Any other arity has nothing to bind to.`
 
-Thrown at registration when an open generic handler declares more than one type parameter, such as `MyHandler<TCommand, TResult>`. LiteBus closes open generic handlers only when they have exactly one type parameter.
-
-Fix:
-
-- Reduce the handler to a single type parameter, for example `ICommandPreHandler<T>`.
-- If you need the result type, read it inside the handler rather than as a second type parameter, or use a concrete handler. See [Open Generic Handlers](../concepts/open-generic-handlers.md).
-
-## LiteBusExecutionAbortedException
-
-Thrown internally when a handler calls `AmbientExecutionContext.Current.Abort(...)`. In a command or query pipeline the single-handler strategy catches it and ends mediation cleanly, so you should not see it escape. You will see it escape if you call `Abort` inside an event pipeline, where the broadcast strategy treats it as an ordinary exception and routes it to error-handlers (which rethrow if none are registered).
+Thrown at registration when an open generic handler declares a type-parameter shape the registry cannot close. One parameter is always fine. Two are fine when the handler implements a contract taking both of them in order, such as `ICommandPostHandler<TCommand, TCommandResult>`, because then the second binds to the result type the message declares. Two where the second is the handler's own invention, a `TContext` or a `TStore`, has nothing to bind to, because the registry closes by position.
 
 Fix:
 
-- Use `Abort` only in command and query pipelines, typically a pre-handler returning a cached result.
-- To skip event handlers, filter them with tags or a predicate instead. See [Handler Filtering](../concepts/handler-filtering.md).
+- To reach the typed result, implement the two-parameter contract: `ICommandPostHandler<TCommand, TCommandResult>` with `where TCommand : ICommand<TCommandResult>`.
+- For an auxiliary parameter, take the dependency through the constructor instead, or use a concrete handler. See [Open Generic Handlers](../concepts/open-generic-handlers.md#reaching-the-typed-result).
 
-## InvalidOperationException When Aborting a Result Message
+## A Decision Did Not Stop the Pipeline
 
-Thrown when you call `Abort()` without a value on a result-returning command or query. The caller is owed a result, so an abort must supply one.
+Stopping the pipeline is a return value, not an exception. A pre-stage handler stops it only when it implements a guard contract such as `ICommandGuard<TCommand>` and returns `Verdict.Deny` from `DecideAsync`, a validator contract such as `ICommandValidator<TCommand>` and returns `Validity.Invalid` from `ValidateAsync`, or a shortcut contract such as `IQueryShortcut<TQuery, TResult>` and returns an answer from `TryAnswerAsync`.
 
-Fix: pass the value, `Abort(result)`. For a void command (`ICommand`), `Abort()` with no argument is correct. See [Execution Context](../concepts/execution-context.md).
+Common causes when a decision appears to be ignored:
+
+- The handler implements the plain `ICommandPreHandler<TCommand>` contract, which cannot stop the pipeline by design.
+- The handler was not registered. Every module builder gates assembly scanning on a handler-contract allowlist, so a handler implementing an unrecognized contract is skipped silently.
+- The decision was constructed but not returned. `Verdict.Deny(...)` and `Shortcut.Answer(...)` have no effect until they are the return value.
+- An earlier stage stopped first. Guards run before validators, validators before shortcuts, and shortcuts before pre-handlers, whatever priority each carries.
+
+To skip the post-handlers after the work has already run, call `IExecutionContext.SuppressPostHandlers()` instead. That reports `MediationOutcome.Succeeded`, because the main handler ran.
+
+## PipelineContractException for an Untyped Shortcut on a Result Message
+
+The untyped shortcut contract cannot carry a value, so it cannot answer a command or query that produces one. This is reported at whichever of two points can prove it.
+
+**At registration**, when the shortcut names the message directly. The message reads `Shortcut 'X' implements the untyped shortcut contract for 'Y', which produces 'Z'`. Registration linked the shortcut to a message whose main handler produces a result, which is enough to prove the shortcut can never answer it.
+
+**At dispatch**, when the shortcut was registered against a base type or interface. A shortcut for `ICommand` is correct for every result-less command beneath it, so nothing before dispatch knows which message it will answer. The message names the shortcut that answered, so several globally registered shortcuts can still be told apart.
+
+Fix, in both cases: implement the typed shortcut, `ICommandShortcut<TCommand, TCommandResult>` or `IQueryShortcut<TQuery, TQueryResult>`, and return `Shortcut<TResult>.Answer(result)`. The compiler then requires the result. A shortcut registered against a base type must return `Shortcut.None` for the messages beneath it that produce a result.
+
+A guard or a validator needs no such change, because a denial never owes the caller a result. See [The Handler Pipeline](../concepts/handler-pipeline.md) and [Mediation Layer Design Rules](../architecture/mediation-design.md).
+
+Reference `LiteBus.Analyzers` to catch this at build time. `ICommand<TResult>` derives from `ICommand`, so the untyped contract compiles for a message that produces a result; `LB1019` reports the declaration and names the typed contract to use instead. See [Analyzers](../reference/analyzers.md).
+
+## LiteBusMessageDeniedException or LiteBusMessageInvalidException Reached the Caller
+
+A guard refused the message, or a validator reported it malformed, and no refusal mapper covers it, so there was nothing to hand back. Both are decisions rather than faults: neither reaches error handlers, the mediation reports `MediationOutcome.Denied` or `Invalid`, and an audit trail records it accordingly. `LiteBusMessageInvalidException.Failures` carries every failure the validator stage collected.
+
+If the caller should receive a value instead of an exception, register an `IMessageRefusalMapper<TMessage, TMessageResult>`. One registration against `ICommand` or `IQuery` covers the whole axis, and a mapper registered against a concrete message overrides it. A message that produces no result, and any event, has nothing a mapper could return, so a refusal there always raises.
+
+If the caller should branch on the refusal rather than receive a value of its own, call `TrySendAsync` or `TryQueryAsync` instead. Both return a `MediationResult` carrying the outcome, the reason, the code and any validation failures, so an HTTP boundary produces a 403 or a 400 without catching anything. A genuine fault still throws, which is deliberate: a database timeout is not something a boundary should branch on.
+
+## PipelineContractException Naming More Than One Refusal Mapper
+
+Two mappers producing the same result type are registered at the same level of specificity, so which one applied would depend on assembly scanning order. Remove one, or register the one that should win against the concrete message type, which takes precedence over a mapper registered for a base type.
+
+## An Inbox Message Dead-Lettered Without Retrying
+
+A refusal and a missing handler produce the same outcome on every attempt, so both processors retire such a message on its first attempt rather than spending the retry schedule on an answer that cannot change. Check the dead-letter error text: `LiteBusMessageDeniedException` and `LiteBusMessageInvalidException` are decisions about the message itself, and `NoHandlerFoundException` means nothing is registered to handle it.
+
+## An Audit Record Is Missing for a Cancelled or Failed Mediation
+
+The completion stage is not cancellable and its handlers receive `CancellationToken.None`, so cancellation alone does not drop a record. Check in this order:
+
+- The message declares no audited position. An exempt or undeclared message produces no record.
+- No `IAuditTrail` is registered. Run the `litebus.audit.trail` diagnostic probe, which reports unhealthy in that case.
+- The trail threw while the mediation was already failing. That fault cannot replace the original exception, so it is attached to it: read `exception.Data[MediationExceptionData.SuppressedCompletionFaults]`, which holds an `IReadOnlyList<Exception>`.
 
 ## LB1004: Command with Result Scheduled to Inbox
 
@@ -87,7 +123,7 @@ Behavior. A published event ran no handler. Causes:
 
 ## Handlers Ran in an Unexpected Order
 
-Behavior. Within a stage, handlers run in ascending `[HandlerPriority]` (default `0`). Across the onion, global pre-handlers run before specific ones and specific post-handlers run before global ones. For events, priority groups and within-group execution follow the concurrency switches on `EventMediationSettings.Execution`; parallel execution makes order non-deterministic.
+Behavior. Within a stage, handlers run in ascending `[HandlerPriority]` (default `0`), with registration order breaking ties. Across the onion, global pre-handlers run before specific ones and specific post-handlers run before global ones. The completion stage is the exception: it merges the global and specific sets and orders by priority alone, because the order there decides whether an application's unit-of-work commit runs before or after LiteBus writes its audit record. For events, priority groups and within-group execution follow the concurrency switches on `EventMediationSettings.Execution`; parallel execution makes order non-deterministic.
 
 Fix: set explicit priorities, or switch event execution to `Sequential`. See [Handler Priority](../concepts/handler-priority.md).
 

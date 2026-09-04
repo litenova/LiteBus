@@ -52,21 +52,21 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
 
         if (_builder is null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "OutboxModule.Build was called without a prior DeclareChildren call. " +
                 "Register the module through IModuleRegistry.");
         }
 
         if (!_builder.IsStorageConfigured)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Outbox storage is required because AddOutboxModule registers IOutbox and related writer services. " +
                 "Call UseInMemoryStorage, UsePostgreSqlStorage, or UseEntityFrameworkCoreStorage inside AddOutboxModule(...).");
         }
 
         if (_builder.IsOutboxProcessorEnabled && !_builder.IsDispatcherConfigured)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "EnableOutboxProcessor requires an outbox dispatcher. " +
                 "Call UseInProcessDispatch, a broker-specific Use*Dispatch extension, or RegisterDispatcher inside AddOutboxModule(...).");
         }

@@ -40,12 +40,12 @@ public sealed class AzureServiceBusInboxIngressModule :
         var moduleBuilder = _moduleBuilder;
 
         var options = moduleBuilder.Options ??
-                      throw new LiteBusConfigurationException(
+                      throw new DurableStorageConfigurationException(
                           $"{nameof(AzureServiceBusInboxIngressOptions)} must be configured before registering Azure Service Bus inbox ingress.");
 
         if (string.IsNullOrWhiteSpace(options.Destination))
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 $"{nameof(AzureServiceBusInboxIngressOptions.Destination)} must be configured before registering Azure Service Bus inbox ingress.");
         }
 

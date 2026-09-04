@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Commands.Idempotency;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
@@ -22,12 +23,20 @@ public sealed class CommandModuleBuilder
         typeof(ICommandHandler<,>),
         typeof(ICommandPreHandler),
         typeof(ICommandPreHandler<>),
+        typeof(ICommandGuard<>),
+        typeof(ICommandValidator<>),
+        typeof(ICommandShortcut<>),
+        typeof(ICommandShortcut<,>),
+        typeof(ICommandRefusalMapper<,>),
         typeof(ICommandPostHandler),
         typeof(ICommandPostHandler<>),
         typeof(ICommandPostHandler<,>),
         typeof(ICommandErrorHandler),
         typeof(ICommandErrorHandler<>),
-        typeof(ICommandErrorHandler<,>)
+        typeof(ICommandErrorHandler<,>),
+        typeof(ICommandCompletionHandler),
+        typeof(ICommandCompletionHandler<>),
+        typeof(ICommandCompletionHandler<,>)
     ];
 
     /// <summary>
@@ -51,6 +60,83 @@ public sealed class CommandModuleBuilder
     ///     Gets the message contract writer for persisted command contracts.
     /// </summary>
     public IContractWriter Contracts { get; }
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="EnableAuditing" /> was called.
+    /// </summary>
+    /// <remarks>
+    ///     The module reads this after the configuration action runs, so it can register the diagnostic probe that reports
+    ///     a missing <see cref="IAuditTrail" /> before the first audited mediation fails inside the completion stage.
+    /// </remarks>
+    internal bool AuditingEnabled { get; private set; }
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="EnableIdempotency" /> was called.
+    /// </summary>
+    /// <remarks>
+    ///     The module reads this after the configuration action runs, so it can register the diagnostic probe that
+    ///     reports a missing <c>IIdempotencyStore</c> before the first declaring command arrives.
+    /// </remarks>
+    internal bool IdempotencyEnabled { get; private set; }
+
+    /// <summary>
+    ///     Registers the LiteBus command audit writer, so every command mediation produces an audit record when the
+    ///     message declares one.
+    /// </summary>
+    /// <returns>The current <see cref="CommandModuleBuilder" /> instance for method chaining.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         The writer runs at the completion stage, so refusals, failures and cancellations are recorded as well as
+    ///         successes. A message is recorded only when it declares an audited position through
+    ///         <see cref="AuditedAttribute" /> or an <c>IAuditDefinition&lt;TMessage&gt;</c>.
+    ///     </para>
+    ///     <para>
+    ///         The application must register an <see cref="IAuditTrail" /> implementation; the
+    ///         <c>litebus.audit.trail</c> diagnostic probe reports when it is missing. Registering an
+    ///         <see cref="IAuditOutcomeMapper" /> is optional and lets a refusal raised as an exception be recorded as
+    ///         <see cref="AuditOutcome.Denied" /> rather than <see cref="AuditOutcome.Failed" />; a refusal from a guard
+    ///         is already recorded as a denial without one.
+    ///     </para>
+    /// </remarks>
+    public CommandModuleBuilder EnableAuditing()
+    {
+        AuditingEnabled = true;
+        return Register<CommandAuditCompletionHandler>();
+    }
+
+    /// <summary>
+    ///     Registers the LiteBus in-process idempotency handlers, so a command declaring an idempotency key is applied
+    ///     at most once.
+    /// </summary>
+    /// <returns>The current <see cref="CommandModuleBuilder" /> instance for method chaining.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Three handlers, all of which ignore a command that declares no
+    ///         <c>IdempotencyDeclaration</c>, so one call covers the axis and only the declaring commands pay for it.
+    ///         Two shortcuts claim the key, one for commands that produce a result and one for those that do not, and a
+    ///         completion handler settles the claim: applied on success, released on anything else, so a transient
+    ///         failure does not burn the key and turn the retry into a false repeat.
+    ///     </para>
+    ///     <para>
+    ///         The application must register an <c>IIdempotencyStore</c>; the <c>litebus.idempotency.store</c>
+    ///         diagnostic probe reports when it is missing. Make its claim atomic by letting the storage engine refuse
+    ///         the duplicate, and write it through the same unit of work the handler uses, or a crash between the claim
+    ///         and the change leaves a key claimed for work that never happened.
+    ///     </para>
+    ///     <para>
+    ///         The shortcut stage runs after guards and validators, so an unauthorized or malformed command cannot
+    ///         claim a key.
+    ///     </para>
+    /// </remarks>
+    public CommandModuleBuilder EnableIdempotency()
+    {
+        IdempotencyEnabled = true;
+
+        Register(typeof(IdempotentCommandShortcut<>));
+        Register(typeof(IdempotentCommandShortcut<,>));
+
+        return Register<IdempotencyCompletionHandler>();
+    }
 
     /// <summary>
     ///     Registers a command type for the message registry.
@@ -93,7 +179,7 @@ public sealed class CommandModuleBuilder
         foreach (var registrableCommandConstruct in assembly.GetTypes()
                      .Where(static type => type is { IsClass: true, IsAbstract: false } && IsCommandConstruct(type)))
         {
-            _messageRegistry.Register(registrableCommandConstruct);
+            _messageRegistry.RegisterFromScan(registrableCommandConstruct);
         }
 
         return this;
@@ -113,8 +199,31 @@ public sealed class CommandModuleBuilder
 
         return type.GetInterfaces().Any(static contract =>
         {
-            var contractDefinition = contract.IsGenericType ? contract.GetGenericTypeDefinition() : contract;
-            return HandlerContracts.Contains(contractDefinition);
+            if (!contract.IsGenericType)
+            {
+                return HandlerContracts.Contains(contract);
+            }
+
+            var contractDefinition = contract.GetGenericTypeDefinition();
+
+            // A message definition declares metadata for a command rather than implementing a handler contract.
+            // Both shapes count: the keyed one that types a single declaration, and the describe one that declares
+            // several without an explicit interface implementation per value.
+            if (contractDefinition == typeof(IMessageDefinition<,>) ||
+                contractDefinition == typeof(IMessageDefinition<>))
+            {
+                return typeof(ICommand).IsAssignableFrom(contract.GetGenericArguments()[0]);
+            }
+
+            if (HandlerContracts.Contains(contractDefinition))
+            {
+                return true;
+            }
+
+            // A pipeline handler written against the messaging-level contract counts when its message type is
+            // constrained to this axis. Without this, a cross-cutting guard has to be written once per axis, and the
+            // code being copied is usually the code least safe to have two copies of.
+            return MessagingHandlerContracts.NamesMessageAssignableTo(contract, typeof(ICommand));
         });
     }
 }

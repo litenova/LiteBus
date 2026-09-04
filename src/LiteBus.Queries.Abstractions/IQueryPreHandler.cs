@@ -11,4 +11,4 @@ namespace LiteBus.Queries.Abstractions;
 ///     that should be applied to all queries. Multiple pre-handlers can be registered in the application
 ///     and they will all execute before each query is handled.
 /// </remarks>
-public interface IQueryPreHandler : IAsyncMessagePreHandler<IQuery>;
+public interface IQueryPreHandler : IMessagePreHandler<IQuery>;

@@ -10,4 +10,7 @@ internal sealed class PostHandlerDescriptor : HandlerDescriptorBase, IPostHandle
 {
     /// <inheritdoc />
     public required Type MessageResultType { get; init; }
+
+    /// <inheritdoc />
+    public PipelineDispatch? Dispatch { get; init; }
 }

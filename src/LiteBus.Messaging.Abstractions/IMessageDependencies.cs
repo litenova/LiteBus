@@ -1,4 +1,4 @@
-namespace LiteBus.Messaging.Abstractions;
+﻿namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
 ///     Defines a contract for an object that holds the dependencies needed to handle messages within a given context,
@@ -26,23 +26,24 @@ public interface IMessageDependencies
     ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> IndirectMainHandlers { get; }
 
     /// <summary>
-    ///     Gets a lazy initialized read-only collection of direct pre-message handlers. These handlers are invoked before the
-    ///     primary message handlers and can be used for tasks such as validation or logging.
+    ///     Gets a lazy initialized read-only collection of the pre-stage handlers registered directly for this message
+    ///     type. Every pre-stage role shares this collection: guards, validators, shortcuts, and pre-handlers.
     /// </summary>
     /// <value>
-    ///     The collection of direct pre-message handlers.
+    ///     The collection of direct pre-stage handlers, ordered once by priority. Read
+    ///     <see cref="IPreStageHandlerDescriptor.Stage" /> to tell which role a handler plays.
     /// </value>
-    ILazyHandlerCollection<IMessagePreHandler, IPreHandlerDescriptor> PreHandlers { get; }
+    ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor> PreStageHandlers { get; }
 
     /// <summary>
-    ///     Gets a lazy initialized read-only collection of indirect pre-message handlers. These handlers are invoked before
-    ///     the primary message handlers, potentially handling a variety of different message types or performing logging or
-    ///     other cross-cutting concerns.
+    ///     Gets a lazy initialized read-only collection of the pre-stage handlers registered for a base type or interface
+    ///     this message type implements, such as a guard covering every command.
     /// </summary>
     /// <value>
-    ///     The collection of indirect pre-message handlers.
+    ///     The collection of indirect pre-stage handlers. Within each stage these run before the direct ones, so a
+    ///     cross-cutting concern wraps a message-specific one.
     /// </value>
-    ILazyHandlerCollection<IMessagePreHandler, IPreHandlerDescriptor> IndirectPreHandlers { get; }
+    ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor> IndirectPreStageHandlers { get; }
 
     /// <summary>
     ///     Gets a lazy initialized read-only collection of direct post-message handlers. These handlers are invoked after the
@@ -81,4 +82,65 @@ public interface IMessageDependencies
     ///     The collection of indirect message error handlers.
     /// </value>
     ILazyHandlerCollection<IMessageErrorHandler, IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
+
+    /// <summary>
+    ///     Determines whether any handler is registered for the given stage of the pre stage.
+    /// </summary>
+    /// <param name="stage">The stage to test.</param>
+    /// <returns><see langword="true" /> when at least one handler runs in that stage.</returns>
+    /// <remarks>
+    ///     Every pre-stage role shares one descriptor collection, so running a stage means a filtered pass over it. Most
+    ///     messages have no guard, validator, or shortcut at all, and this lets those stages be skipped without
+    ///     enumerating. The default implementation is correct for any implementation of this interface; LiteBus's own
+    ///     answers from a mask computed once when the dependencies are resolved.
+    /// </remarks>
+    bool HasPreStageHandlers(PreStage stage)
+    {
+        foreach (var handler in PreStageHandlers)
+        {
+            if (handler.Descriptor.Stage == stage)
+            {
+                return true;
+            }
+        }
+
+        foreach (var handler in IndirectPreStageHandlers)
+        {
+            if (handler.Descriptor.Stage == stage)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Gets the refusal mappers registered for this specific message type.
+    /// </summary>
+    ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> RefusalMappers { get; }
+
+    /// <summary>
+    ///     Gets the refusal mappers registered for a base type or interface that this message type implements.
+    /// </summary>
+    ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> IndirectRefusalMappers { get; }
+
+    /// <summary>
+    ///     Gets a lazy initialized read-only collection of every completion handler that observes this message, ordered
+    ///     by priority. These handlers are invoked once the mediation ends, on every path, allowing the outcome of the
+    ///     operation to be observed and recorded.
+    /// </summary>
+    /// <value>
+    ///     The collection of completion handlers, in the order they run.
+    /// </value>
+    /// <remarks>
+    ///     Unlike every other role, the completion stage does not separate handlers registered for the message type from
+    ///     handlers registered for a base type or interface. Completion handlers observe rather than wrap, so there is
+    ///     no onion for a specific handler to sit inside, and a split collection would make
+    ///     <see cref="HandlerPriorityAttribute" /> unable to order a message-specific handler against a broad one. That
+    ///     matters because the order decides whether an application's unit of work commits before or after LiteBus
+    ///     writes its audit record. Priority is the only rule here, with
+    ///     <see cref="IHandlerDescriptor.RegistrationSequence" /> breaking ties.
+    /// </remarks>
+    ILazyHandlerCollection<IMessageCompletionHandler, ICompletionHandlerDescriptor> CompletionHandlers { get; }
 }

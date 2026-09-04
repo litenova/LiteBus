@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
-using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Pipeline;
 
 namespace LiteBus.Events.MediationStrategies;
 
@@ -60,10 +62,39 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         ArgumentNullException.ThrowIfNull(executionContext);
 
         var executionTaskOfAllHandlers = Task.CompletedTask;
+        var startedAt = Stopwatch.GetTimestamp();
+        using var activity = MediationTelemetry.StartMediation(message.GetType());
+        var outcome = MediationOutcome.Succeeded;
+        Exception? failure = null;
+        string? reason = null;
+        string? code = null;
 
         try
         {
-            await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken).ConfigureAwait(false);
+            var decision = await messageDependencies
+                .RunAsyncPreStages(message, executionContext.CancellationToken)
+                .ConfigureAwait(false);
+
+            if (decision.StopsPipeline)
+            {
+                outcome = decision.Outcome;
+                reason = decision.Reason;
+                code = decision.Code;
+
+                // Only a Try call installs a capture, so this is a dictionary miss on every ordinary publish.
+                MediationEndingCapture.Record(executionContext, decision);
+
+                if (decision.IsRefusal)
+                {
+                    // An event produces no result, so a refusal has nothing a mapper could return and always reaches
+                    // the publisher as an exception.
+                    var refusal = decision.CreateRefusalException(message.GetType());
+                    failure = refusal;
+                    throw refusal;
+                }
+
+                return;
+            }
 
             var allMainHandlers = messageDependencies.MainHandlers
                 .Concat(messageDependencies.IndirectMainHandlers)
@@ -89,13 +120,39 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
                 executionTaskOfAllHandlers,
                 executionContext.CancellationToken).ConfigureAwait(false);
         }
+        catch (OperationCanceledException canceledException)
+        {
+            outcome = MediationOutcome.Canceled;
+            failure = canceledException;
+            throw;
+        }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            await messageDependencies.RunAsyncErrorHandlers(
-                message,
-                executionTaskOfAllHandlers,
-                ExceptionDispatchInfo.Capture(e),
-                executionContext.CancellationToken).ConfigureAwait(false);
+            outcome = MediationOutcome.Failed;
+            failure = e;
+
+            await messageDependencies
+                .RunAsyncErrorHandlers(message, executionTaskOfAllHandlers, e, executionContext)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            // An event produces no result. The task that tracks its handlers is not one, so completion handlers
+            // see none rather than seeing a Task where a message result belongs.
+            var elapsed = Stopwatch.GetElapsedTime(startedAt);
+            MediationTelemetry.RecordMediation(activity, message.GetType(), outcome, code, elapsed);
+
+            await messageDependencies
+                .RunAsyncCompletionHandlers(
+                    message,
+                    executionContext,
+                    outcome,
+                    failure,
+                    reason,
+                    code,
+                    messageResult: null,
+                    elapsed)
+                .ConfigureAwait(false);
         }
     }
 

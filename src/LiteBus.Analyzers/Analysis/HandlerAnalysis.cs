@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -30,7 +30,29 @@ internal static class HandlerAnalysis
         ("LiteBus.Commands.Abstractions.ICommandErrorHandler`2", "command error-handler"),
         ("LiteBus.Events.Abstractions.IEventErrorHandler`1", "event error-handler"),
         ("LiteBus.Queries.Abstractions.IQueryErrorHandler`1", "query error-handler"),
-        ("LiteBus.Queries.Abstractions.IQueryErrorHandler`2", "query error-handler")
+        ("LiteBus.Queries.Abstractions.IQueryErrorHandler`2", "query error-handler"),
+        ("LiteBus.Commands.Abstractions.ICommandPostHandler`2", "command post-handler"),
+        ("LiteBus.Queries.Abstractions.IQueryPostHandler`2", "query post-handler"),
+        ("LiteBus.Queries.Abstractions.IStreamQueryPostHandler`2", "stream query post-handler"),
+        ("LiteBus.Commands.Abstractions.ICommandGuard`1", "command guard"),
+        ("LiteBus.Queries.Abstractions.IQueryGuard`1", "query guard"),
+        ("LiteBus.Events.Abstractions.IEventGuard`1", "event guard"),
+        ("LiteBus.Commands.Abstractions.ICommandValidator`1", "command validator"),
+        ("LiteBus.Queries.Abstractions.IQueryValidator`1", "query validator"),
+        ("LiteBus.Events.Abstractions.IEventValidator`1", "event validator"),
+        ("LiteBus.Commands.Abstractions.ICommandRefusalMapper`2", "command refusal-mapper"),
+        ("LiteBus.Queries.Abstractions.IQueryRefusalMapper`2", "query refusal-mapper"),
+        ("LiteBus.Queries.Abstractions.IStreamQueryRefusalMapper`2", "stream query refusal-mapper"),
+        ("LiteBus.Commands.Abstractions.ICommandShortcut`1", "command shortcut"),
+        ("LiteBus.Commands.Abstractions.ICommandShortcut`2", "command shortcut"),
+        ("LiteBus.Queries.Abstractions.IQueryShortcut`2", "query shortcut"),
+        ("LiteBus.Queries.Abstractions.IStreamQueryShortcut`2", "stream query shortcut"),
+        ("LiteBus.Events.Abstractions.IEventShortcut`1", "event shortcut"),
+        ("LiteBus.Commands.Abstractions.ICommandCompletionHandler`1", "command completion-handler"),
+        ("LiteBus.Commands.Abstractions.ICommandCompletionHandler`2", "command completion-handler"),
+        ("LiteBus.Queries.Abstractions.IQueryCompletionHandler`1", "query completion-handler"),
+        ("LiteBus.Queries.Abstractions.IQueryCompletionHandler`2", "query completion-handler"),
+        ("LiteBus.Events.Abstractions.IEventCompletionHandler`1", "event completion-handler")
     ];
 
     /// <summary>
@@ -241,7 +263,48 @@ internal static class HandlerAnalysis
             return false;
         }
 
-        return openDefinition.TypeParameters.Length != 1;
+        return openDefinition.TypeParameters.Length switch
+        {
+            1 => false,
+
+            // Two parameters are closable only when the handler implements a contract taking both, in which case the
+            // second binds to the result type the message declares. A second parameter the handler invented, a
+            // TContext or a TStore, has nothing to bind to.
+            2 => !BindsBothParametersToATypedContract(openDefinition),
+            _ => true
+        };
+    }
+
+    /// <summary>
+    ///     Determines whether an arity-2 handler implements a contract taking both of its type parameters, in order.
+    /// </summary>
+    /// <param name="openDefinition">The open generic handler type definition.</param>
+    /// <returns><see langword="true" /> when the second parameter binds to a result type rather than to nothing.</returns>
+    /// <remarks>
+    ///     The interface list is the transitive closure, so matching a two-argument handler contract covers both the
+    ///     messaging-level shape and the axis shape that derives from it. The name is not checked against a list: any
+    ///     handler interface taking the handler's two parameters in order is closable, because the registry closes it by
+    ///     position.
+    /// </remarks>
+    private static bool BindsBothParametersToATypedContract(INamedTypeSymbol openDefinition)
+    {
+        var parameters = openDefinition.TypeParameters;
+
+        foreach (var handlerInterface in openDefinition.AllInterfaces)
+        {
+            if (handlerInterface.TypeArguments.Length != 2)
+            {
+                continue;
+            }
+
+            if (SymbolEqualityComparer.Default.Equals(handlerInterface.TypeArguments[0], parameters[0]) &&
+                SymbolEqualityComparer.Default.Equals(handlerInterface.TypeArguments[1], parameters[1]))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-# LiteBus Documentation
+﻿# LiteBus Documentation
 
 LiteBus provides command, query, and event mediation for .NET 10 applications. Durable modules add inbox, outbox, saga, storage, dispatch, ingress, hosting, and operational APIs.
 
@@ -11,7 +11,7 @@ These pages describe the current released API and behavior. Historical API and d
 | Install LiteBus and run a handler | [Getting Started](getting-started/README.md) |
 | Run a compile-checked application | [LiteBus Sample](https://github.com/litenova/LiteBus/blob/main/samples/LiteBus.Sample/README.md) |
 | Select packages and integrations | [Dependency Graph](architecture/dependency-graph.md) |
-| Review supported capabilities | [Feature Index](reference/feature-index-v6.md) |
+| Review supported capabilities | [Feature Index](reference/feature-index-v7.md) |
 | Find a contract, builder, or adapter | [Capability Catalog](reference/capability-catalog.md) |
 | Diagnose configuration or runtime behavior | [Troubleshooting](operations/troubleshooting.md) |
 
@@ -26,7 +26,7 @@ These pages describe the current released API and behavior. Historical API and d
 | [Operations](operations/README.md) | Diagnostics, security, management, performance, and troubleshooting |
 | [Testing](testing/README.md) | Application testing, repository suites, and integration categories |
 | [Extending](extending/README.md) | Custom modules, stores, dispatchers, and host adapters |
-| [Reference](reference/feature-index-v6.md) | Feature inventory, analyzers, glossary, and semantic validation |
+| [Reference](reference/feature-index-v7.md) | Feature inventory, analyzers, glossary, and semantic validation |
 | [Catalog](catalog/mediator/README.md) | Contract-level capability pages grouped by subsystem |
 | [Migration](migration/README.md) | Historical version and MediatR migration procedures |
 | [Roadmap](roadmap/README.md) | Planned work that is not part of the current product |
@@ -35,12 +35,23 @@ These pages describe the current released API and behavior. Historical API and d
 
 - [Commands](concepts/commands.md), [Queries](concepts/queries.md), and [Events](concepts/events.md)
 - [Handler Pipeline](concepts/handler-pipeline.md) and [Execution Context](concepts/execution-context.md)
+- [Mediation Layer Design Rules](architecture/mediation-design.md) and [Glossary](reference/glossary.md)
 - [Inbox](reliable-messaging/inbox.md), [Outbox](reliable-messaging/outbox.md), and [Saga](reliable-messaging/saga.md)
 - [Transactional Messaging Writes](reliable-messaging/transactional-writes.md)
 - [PostgreSQL Schema Management](integrations/postgresql-schema-management.md)
 - [Hosted Services](architecture/hosted-services.md)
 - [Diagnostics and Health](operations/diagnostics-and-health.md)
 - [Production Runbook](operations/runbook.md)
+
+## Reading These Pages as Plain Text
+
+These pages are also served as plain text, following the [llms.txt convention](https://llmstxt.org), for language models and agents that would otherwise read rendered HTML.
+
+- [llms.txt](https://litebus.io/llms.txt) indexes every page of the latest stable documentation with a one-line description of each.
+- [llms-full.txt](https://litebus.io/llms-full.txt) holds the complete text of those pages in one document.
+- Appending `.md` to any documentation URL returns that page's Markdown source.
+
+A line served under a version prefix indexes itself at `<prefix>/docs/llms.txt` and `<prefix>/docs/llms-full.txt`, because the root index describes a different release.
 
 ## Documentation Checks
 

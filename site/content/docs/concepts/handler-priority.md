@@ -6,9 +6,9 @@
 
 Handler Priority defines the sequence in which handlers of the same type (e.g., pre-handlers, post-handlers, or event handlers) are executed.
 
-- **Lower numbers have higher priority** (i.e., they execute first).
+- Handlers run in **ascending** priority order, so a lower number runs earlier and a higher number runs later.
 - The default priority for any handler without the attribute is `0`.
-- Handlers with the same priority value are not guaranteed to execute in a specific order relative to each other (unless configured for sequential execution in the Event Module).
+- Ties break on registration order. Two handlers at the same priority run in the order their modules registered them, except in the Event Module, where the concurrency settings decide whether a priority group runs sequentially at all.
 
 This feature replaces the `[HandlerOrder]` attribute from versions prior to v4.0.
 
@@ -97,18 +97,55 @@ In the example above, `SaveToReadModelHandler` completes before the two notifica
 
 For more details, see the [Event Module](events.md) documentation.
 
+## The Reserved Framework Window
+
+LiteBus ships pipeline handlers of its own, such as the audit record writer registered by `EnableAuditing()`. Those handlers need a documented position so that ordering against them is a guarantee rather than something each application rediscovers by experiment.
+
+`HandlerPriorities` names the window and the two application bands around it:
+
+| Constant | Value | Used by |
+| --- | --- | --- |
+| `Default` | `0` | Any handler with no `[HandlerPriority]` |
+| `ReservedFloor` | `1_000_000` | The lowest value reserved for LiteBus |
+| `Persistence` | `ReservedFloor + 100` | LiteBus handlers that persist state |
+| `Observability` | `ReservedFloor + 200` | LiteBus handlers that observe and record |
+| `ReservedCeiling` | `2_000_000` | The first value above the reserved window. A boundary marker; nothing sits on it |
+| `UnitOfWork` | `ReservedCeiling + 100` | An application's unit-of-work commit |
+
+Application handlers belong below `ReservedFloor` or at or above `ReservedCeiling`. Nothing inside the window is yours: `Persistence` and `Observability` may be reordered relative to each other between releases. The floor and the ceiling are stable, so both application bands are stable.
+
+The band from `ReservedCeiling` up to `UnitOfWork` is for application infrastructure that has to run after every LiteBus handler and still before the commit, such as a handler flushing a buffered projection the same commit will write. The two constants shared the value `2_000_000` in earlier previews, which left no such band: a handler on the ceiling tied with the commit and the order resolved by registration sequence, which is assembly scan order.
+
+Because handlers run in ascending order and an unannotated handler sits at zero, your handlers run before LiteBus's by default. To run *after* every LiteBus handler, use the band above the ceiling:
+
+```csharp
+[HandlerPriority(HandlerPriorities.UnitOfWork)]
+public sealed class CommitUnitOfWork : ICommandCompletionHandler
+{
+    // Runs after the audit writer, so a record the trail staged is part of this commit.
+}
+```
+
+### Why There Is a Band Above the Framework
+
+An application that needs its audit record to be atomic with the change it describes cannot commit before the record exists. The audit writer runs at `Observability`, so the commit has to run after it, which means it has to sit outside the reserved window on the far side. That is the whole reason `ReservedCeiling` exists, and it is why `UnitOfWork` is a named constant instead of advice to add one to `Observability`. It sits above the ceiling rather than on it so the ceiling stays a boundary with nothing to tie with. See [Auditing](auditing.md) for the full pattern, including what happens to a record for a failed mediation.
+
+Priority is the only ordering rule in the completion stage. Every other role runs handlers registered for the message type before handlers registered for a base type or interface, but the completion stage merges the two and sorts by priority alone. A commit that must follow a broadly registered framework writer would otherwise be unorderable.
+
 ## Best Practices
 
 1.  **Use for Determinism**: Only apply priority when a specific execution order is required for correctness (e.g., validation before action).
 2.  **Keep Gaps**: Leave gaps between priority numbers (e.g., 10, 20, 30) to make it easier to insert new handlers in the future without re-numbering.
 3.  **Use Constants**: Define priority levels as constants in a shared class to improve readability and avoid magic numbers.
 
+Name your own bands in your own class. Do not add members to a class called `HandlerPriorities`; that name is taken by LiteBus, and the framework values have to keep meaning what they say.
+
 ```csharp
-public static class HandlerPriorities
+public static class AppPriorities
 {
     public const int Validation = 10;
     public const int Enrichment = 20;
-    public const int Auditing = 100;
+    public const int Notification = 100;
 }
 ```
 

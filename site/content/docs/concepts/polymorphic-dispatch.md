@@ -82,8 +82,8 @@ This behavior is enabled by the contravariant type parameter (`in TMessage`) on 
 
 ```csharp
 // The 'in' keyword allows a handler for a base type to accept a derived type.
-public interface IAsyncMessagePreHandler<in TMessage> { ... }
-public interface IAsyncMessagePostHandler<in TMessage> { ... }
+public interface IMessagePreHandler<in TMessage> { ... }
+public interface IMessagePostHandler<in TMessage, in TMessageResult> { ... }
 ```
 
 When LiteBus resolves handlers, its `ActualTypeOrFirstAssignableTypeMessageResolveStrategy` finds handlers for both the concrete message type and any of its base types or implemented interfaces.

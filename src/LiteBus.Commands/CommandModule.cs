@@ -3,6 +3,8 @@ using System.Linq;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Audit;
+using LiteBus.Messaging.Idempotency;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Commands;
@@ -46,7 +48,34 @@ public sealed class CommandModule : IModule, IRequires<MessageModule>
         var moduleBuilder = new CommandModuleBuilder(messageRegistry, contractRegistry);
         _builder(moduleBuilder);
 
+        // AddAuditing on the messaging module selects the axes, so a consumer configures the feature once instead of
+        // repeating the decision here. EnableAuditing stays the primitive, and registering the same handler twice is a
+        // no-op in the registry.
+        if (configuration.TryGetContext<AuditingComposition>(out var auditing) && auditing?.Commands == true)
+        {
+            moduleBuilder.EnableAuditing();
+        }
+
+        if (moduleBuilder.AuditingEnabled)
+        {
+            configuration.RegisterDiagnosticCheck(typeof(AuditTrailDiagnosticCheck), AuditTrailDiagnosticCheck.CheckName);
+        }
+
+        if (moduleBuilder.IdempotencyEnabled)
+        {
+            configuration.RegisterDiagnosticCheck(
+                typeof(IdempotencyStoreDiagnosticCheck),
+                IdempotencyStoreDiagnosticCheck.CheckName);
+        }
+
         RegisterCommandServices(configuration);
+        // Recorded for the composition summary. Only this module knows how many messages belong to its axis, because
+        // the messaging registry does not reference the axis contracts.
+        if (configuration.TryGetContext<LiteBusCompositionSummary>(out var summary) && summary is not null)
+        {
+            summary.RecordAxis("commands", CountAxisMessages(messageRegistry));
+        }
+
         RegisterNewHandlers(configuration, messageRegistry, startIndex);
     }
 
@@ -59,6 +88,31 @@ public sealed class CommandModule : IModule, IRequires<MessageModule>
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ICommandMediator),
             typeof(CommandMediator)));
+    }
+
+    /// <summary>
+    ///     Counts the concrete command types registered so far, for the composition summary.
+    /// </summary>
+    /// <param name="reader">The registry holding every registered message descriptor.</param>
+    /// <returns>The number of concrete command types.</returns>
+    /// <remarks>
+    ///     Abstract types and interfaces are excluded, because they are shapes rather than messages and counting them
+    ///     would make the reported total disagree with the number of things that can be mediated.
+    /// </remarks>
+    private static int CountAxisMessages(IMessageReader reader)
+    {
+        var count = 0;
+
+        foreach (var descriptor in reader)
+        {
+            if (descriptor.MessageType is { IsAbstract: false, IsInterface: false } &&
+                typeof(ICommand).IsAssignableFrom(descriptor.MessageType))
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     /// <summary>

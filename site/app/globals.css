@@ -650,3 +650,87 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Documentation versions */
+
+.litebus-version-switcher {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--color-fd-card) 80%, transparent);
+}
+
+.litebus-version-switcher-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-fd-muted-foreground);
+}
+
+.litebus-version-switcher-select {
+  width: 100%;
+  padding: 0.25rem 0.375rem;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.375rem;
+  background: var(--color-fd-background);
+  color: var(--color-fd-foreground);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.litebus-version-switcher-select:focus-visible {
+  outline: 2px solid var(--litebus-yellow);
+  outline-offset: 1px;
+}
+
+.litebus-version-switcher-release {
+  font-size: 0.75rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+.litebus-version-notice {
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid color-mix(in oklab, var(--litebus-yellow) 55%, var(--color-fd-border));
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--litebus-yellow) 12%, transparent);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.litebus-docs-not-found {
+  max-width: 44rem;
+  padding: 3rem 1.5rem;
+}
+
+.litebus-docs-not-found h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.litebus-docs-not-found h2 {
+  margin-top: 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.litebus-docs-not-found p {
+  margin-top: 0.75rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+.litebus-docs-not-found ul {
+  margin-top: 0.5rem;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.litebus-docs-not-found a {
+  color: var(--color-fd-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

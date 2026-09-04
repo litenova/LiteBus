@@ -47,7 +47,7 @@ public static class DiagnosticDescriptors
     internal static readonly DiagnosticDescriptor UnsupportedOpenGenericHandler = new(
         DiagnosticIds.UnsupportedOpenGenericHandler,
         "Unsupported open generic handler",
-        "Open generic handler '{0}' exposes {1} type parameters. LiteBus open generic handlers must expose exactly one type parameter that matches the handled message type.",
+        "Open generic handler '{0}' exposes {1} type parameters. LiteBus closes one, binding the handled message type, or two, binding the message type and the result type the message declares.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Error,
         true);
@@ -179,4 +179,57 @@ public static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         true,
         customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     A command or query type states no audit position.
+    /// </summary>
+    /// <remarks>
+    ///     Disabled by default. Enable with <c>dotnet_diagnostic.LB1018.severity = warning</c> once the codebase has
+    ///     declared its position, since turning it on silently would break every existing compilation.
+    /// </remarks>
+    internal static readonly DiagnosticDescriptor MissingAuditDeclaration = new(
+        DiagnosticIds.MissingAuditDeclaration,
+        "Message states no audit position",
+        "Message type '{0}' declares neither [Audited] nor [AuditExempt] and has no IAuditDefinition. State the position explicitly so that an unaudited message is a recorded decision rather than an oversight.",
+        "LiteBus.Auditing",
+        DiagnosticSeverity.Warning,
+        false,
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     A message states no position on a metadata value type the project requires it to declare.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor MissingDeclaration = new(
+        DiagnosticIds.MissingDeclaration,
+        "Message states no position on a required declaration",
+        "Message type '{0}' declares no '{1}'. Declare it with a definition class or an attribute annotated [MessageDeclaration(typeof({1}))], or record why it does not need one with [DeclarationExempt(typeof({1}), \"rationale\")].",
+        "LiteBus.Declarations",
+        DiagnosticSeverity.Warning,
+        false,
+        description: "Configure the required value types with litebus_required_declarations in .editorconfig, then enable this rule. It turns a written policy such as \"every command states the permission it requires\" into a build failure.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     A required declaration type named in configuration cannot be resolved in the compilation.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor UnresolvedRequiredDeclaration = new(
+        DiagnosticIds.UnresolvedRequiredDeclaration,
+        "Required declaration type not found",
+        "litebus_required_declarations names '{0}', which does not resolve in this compilation. Use the full metadata name and make sure the project references the assembly declaring it.",
+        "LiteBus.Declarations",
+        DiagnosticSeverity.Warning,
+        true,
+        description: "A name that does not resolve would silently disable the requirement it configures, so it is reported rather than skipped.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     A shortcut uses the untyped shortcut contract for a message that produces a result.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor UntypedShortcutOnResultMessage = new(
+        DiagnosticIds.UntypedShortcutOnResultMessage,
+        "Untyped shortcut on a message that produces a result",
+        "Shortcut '{0}' implements the untyped shortcut contract for '{1}', which produces '{2}'. The untyped answer cannot carry a result, so answering fails at runtime with LiteBusConfigurationException. Implement {3}<{1}, {2}> instead.",
+        "LiteBus.Handlers",
+        DiagnosticSeverity.Warning,
+        true);
 }

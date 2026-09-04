@@ -19,6 +19,7 @@ internal sealed class ExecutionContext : IExecutionContext
         CancellationToken = cancellationToken;
         Tags = tags.ToList();
         Items = new Dictionary<string, object>(items);
+        Data = new HandleContextData();
     }
 
     /// <inheritdoc />
@@ -28,15 +29,20 @@ internal sealed class ExecutionContext : IExecutionContext
     public IDictionary<string, object> Items { get; }
 
     /// <inheritdoc />
+    public IHandleContextData Data { get; }
+
+    /// <inheritdoc />
     public IReadOnlyCollection<string> Tags { get; }
 
     /// <inheritdoc />
     public object? MessageResult { get; set; }
 
     /// <inheritdoc />
-    public void Abort(object? messageResult = null)
+    public bool PostHandlersSuppressed { get; private set; }
+
+    /// <inheritdoc />
+    public void SuppressPostHandlers()
     {
-        MessageResult = messageResult;
-        throw new LiteBusExecutionAbortedException();
+        PostHandlersSuppressed = true;
     }
 }

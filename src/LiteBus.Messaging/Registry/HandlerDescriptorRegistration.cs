@@ -1,4 +1,4 @@
-using LiteBus.Messaging.Abstractions;
+﻿using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Registry.Descriptors;
 
 namespace LiteBus.Messaging.Registry;
@@ -25,15 +25,30 @@ internal static class HandlerDescriptorRegistration
                 Priority = main.Priority,
                 RegistrationSequence = registrationSequence,
                 Tags = main.Tags,
-                HandlerType = main.HandlerType
+                HandlerType = main.HandlerType,
+                ContractType = main.ContractType
             },
-            PreHandlerDescriptor pre => new PreHandlerDescriptor
+            PreStageHandlerDescriptor pre => new PreStageHandlerDescriptor
             {
                 MessageType = pre.MessageType,
                 Priority = pre.Priority,
                 RegistrationSequence = registrationSequence,
                 Tags = pre.Tags,
-                HandlerType = pre.HandlerType
+                HandlerType = pre.HandlerType,
+                ContractType = pre.ContractType,
+                Stage = pre.Stage,
+                Dispatch = pre.Dispatch
+            },
+            RefusalMapperDescriptor mapper => new RefusalMapperDescriptor
+            {
+                MessageType = mapper.MessageType,
+                MessageResultType = mapper.MessageResultType,
+                Priority = mapper.Priority,
+                RegistrationSequence = registrationSequence,
+                Tags = mapper.Tags,
+                HandlerType = mapper.HandlerType,
+                ContractType = mapper.ContractType,
+                Dispatch = mapper.Dispatch
             },
             PostHandlerDescriptor post => new PostHandlerDescriptor
             {
@@ -42,7 +57,20 @@ internal static class HandlerDescriptorRegistration
                 Priority = post.Priority,
                 RegistrationSequence = registrationSequence,
                 Tags = post.Tags,
-                HandlerType = post.HandlerType
+                HandlerType = post.HandlerType,
+                ContractType = post.ContractType,
+                Dispatch = post.Dispatch
+            },
+            CompletionHandlerDescriptor completion => new CompletionHandlerDescriptor
+            {
+                MessageType = completion.MessageType,
+                MessageResultType = completion.MessageResultType,
+                Priority = completion.Priority,
+                RegistrationSequence = registrationSequence,
+                Tags = completion.Tags,
+                HandlerType = completion.HandlerType,
+                ContractType = completion.ContractType,
+                Dispatch = completion.Dispatch
             },
             ErrorHandlerDescriptor error => new ErrorHandlerDescriptor
             {
@@ -51,7 +79,8 @@ internal static class HandlerDescriptorRegistration
                 Priority = error.Priority,
                 RegistrationSequence = registrationSequence,
                 Tags = error.Tags,
-                HandlerType = error.HandlerType
+                HandlerType = error.HandlerType,
+                ContractType = error.ContractType
             },
             _ => descriptor
         };

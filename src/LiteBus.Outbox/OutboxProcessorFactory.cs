@@ -102,7 +102,7 @@ internal static class OutboxProcessorFactory
             return service;
         }
 
-        throw new LiteBusConfigurationException(
+        throw new DurableStorageConfigurationException(
             $"Outbox processor requires {typeof(T).FullName} to be registered. " +
             "Configure outbox storage and dispatcher inside AddOutboxModule(...).");
     }

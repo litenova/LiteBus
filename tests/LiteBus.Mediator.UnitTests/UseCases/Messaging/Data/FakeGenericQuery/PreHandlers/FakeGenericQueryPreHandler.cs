@@ -1,7 +1,7 @@
 using LiteBus.Mediator.UnitTests.UseCases.Messaging.Data.FakeGenericQuery.Messages;
 using LiteBus.Queries.Abstractions;
 
-namespace LiteBus.Mediator.UnitTests.UseCases.Messaging.Data.FakeGenericQuery.PreHandlers;
+namespace LiteBus.Mediator.UnitTests.UseCases.Messaging.Data.FakeGenericQuery.PreStageHandlers;
 
 public sealed class FakeGenericQueryPreHandler<TPayload> : IQueryPreHandler<FakeGenericQuery<TPayload>>
 {

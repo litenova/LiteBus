@@ -1,4 +1,4 @@
-using System.Diagnostics.Metrics;
+﻿using System.Diagnostics.Metrics;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging.Abstractions;
@@ -119,6 +119,68 @@ public sealed class InboxProcessorCorrectnessTests
         updated!.Status.Should().Be(InboxStatus.Failed);
         hook.PrepareCount.Should().Be(1);
         hook.AbandonCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_when_dispatch_is_denied_should_dead_letter_on_the_first_attempt()
+    {
+        var envelope = new InboxEnvelope
+        {
+            Id = Guid.NewGuid(),
+            ContractName = "orders.commands.ship",
+            ContractVersion = 1,
+            Payload = "{}",
+            CreatedAt = BaseTime,
+            AttemptCount = 1,
+            Status = InboxStatus.Processing
+        };
+
+        var updated = await InboxProcessorEnvelopeHandler.ProcessAsync(
+            envelope,
+            new CountingInboxDispatcher(() => throw new LiteBusMessageDeniedException(
+                typeof(object),
+                "the caller may not do this")),
+            new InboxProcessorOptions { Retry = new RetryOptions { MaxAttempts = 5, UseJitter = false } },
+            TimeProvider.System,
+            new ProcessorPassAccumulator<InboxEnvelope>(),
+            NullLogger.Instance,
+            [],
+            CancellationToken.None).ConfigureAwait(false);
+
+        // A guard refuses the same message identically on every attempt, so spending the retry schedule on it only
+        // delays the dead-letter entry an operator is waiting to see.
+        updated.Should().NotBeNull();
+        updated!.Status.Should().Be(InboxStatus.DeadLettered);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_when_dispatch_is_invalid_should_dead_letter_on_the_first_attempt()
+    {
+        var envelope = new InboxEnvelope
+        {
+            Id = Guid.NewGuid(),
+            ContractName = "orders.commands.ship",
+            ContractVersion = 1,
+            Payload = "{}",
+            CreatedAt = BaseTime,
+            AttemptCount = 1,
+            Status = InboxStatus.Processing
+        };
+
+        var updated = await InboxProcessorEnvelopeHandler.ProcessAsync(
+            envelope,
+            new CountingInboxDispatcher(() => throw new LiteBusMessageInvalidException(
+                typeof(object),
+                [new ValidationFailure("the amount must be positive", "Amount")])),
+            new InboxProcessorOptions { Retry = new RetryOptions { MaxAttempts = 5, UseJitter = false } },
+            TimeProvider.System,
+            new ProcessorPassAccumulator<InboxEnvelope>(),
+            NullLogger.Instance,
+            [],
+            CancellationToken.None).ConfigureAwait(false);
+
+        updated.Should().NotBeNull();
+        updated!.Status.Should().Be(InboxStatus.DeadLettered);
     }
 
     [Fact]

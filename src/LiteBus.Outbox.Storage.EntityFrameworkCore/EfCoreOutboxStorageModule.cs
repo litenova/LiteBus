@@ -38,13 +38,13 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<
 
         if (moduleBuilder.DbContextType is null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "An outbox database context must be configured. Call UseDbContext<TContext>() on the EF Core outbox storage builder.");
         }
 
         if (moduleBuilder is { RequireTransactionalSetup: true, RegisterSaveChangesInterceptor: false })
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "EnforceTransactionalSetup() is enabled but EnableSaveChangesInterceptor() was not called. " +
                 "Call EnableSaveChangesInterceptor() on the EF Core outbox storage builder and add " +
                 "optionsBuilder.AddLiteBusOutboxInterceptor(interceptor) to your DbContext configuration. " +
@@ -186,7 +186,7 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<
     /// <returns>The context factory adapter.</returns>
     private static object CreateDbContextFactory(IServiceProvider serviceProvider, Type? dbContextType)
     {
-        var contextType = dbContextType ?? throw new LiteBusConfigurationException(
+        var contextType = dbContextType ?? throw new DurableStorageConfigurationException(
             "An outbox database context must be configured before the context factory is created.");
         var factoryContract = typeof(Microsoft.EntityFrameworkCore.IDbContextFactory<>).MakeGenericType(contextType);
         var factory = serviceProvider.GetRequiredService(factoryContract);

@@ -20,7 +20,17 @@ Call `services.AddLiteBus(builder => ...)` using `ILiteBusBuilder` from `LiteBus
 
 Manifest-registered background services and startup tasks are composed as **singleton** host adapters. Microsoft DI and Autofac integrations register one `IMessageDispatchScopeFactory`, and processors use it to open a fresh scope for every leased envelope.
 
-When handlers need a per-request `DbContext` or another scoped service, register handlers with scoped lifetime (the default from `RegisterFromAssembly`). `MessageMediator` creates a per-mediation dispatch scope through `IMessageDispatchScopeFactory`, so in-process `SendAsync` / `PublishAsync` calls resolve distinct scoped handler instances without manual scoping. EF stores use application-registered `IDbContextFactory<TContext>` instances for operation contexts. Do not inject scoped services directly into singleton processor services.
+When handlers need a `DbContext` or another scoped service, register handlers with scoped lifetime (the default from `RegisterFromAssembly`). `MessageMediator` creates one dispatch scope per mediation through `IMessageDispatchScopeFactory` and resolves every handler from it, so `SendAsync` / `PublishAsync` get distinct scoped instances without manual scoping. EF stores use application-registered `IDbContextFactory<TContext>` instances for operation contexts. Do not inject scoped services directly into singleton processor services.
+
+Scoped means per mediation, not per request. The dispatch scope is created from the root `IServiceScopeFactory`, so it is a sibling of the ambient HTTP request scope rather than a child of it. Three consequences are worth knowing before designing around it:
+
+- A scoped `DbContext` injected into a handler is not the request's `DbContext`. Middleware that opens a transaction on the request-scoped context and a handler that writes through its own are working on two connections.
+- Two `SendAsync` calls inside one HTTP request get two different scoped instances of everything. A unit of work cannot span two commands, which is consistent with the commit position at `HandlerPriorities.UnitOfWork`: one command, one transaction.
+- A test that resolves a scoped service from its own scope to seed or assert on it is not touching the instance the handler used.
+
+The default is a fresh scope rather than a nested one because a mediation from a background loop, an inbox processor, or a saga has no ambient scope to nest in. Nesting cannot be the default without making the mediator's behavior depend on its caller.
+
+For per-mediation state, take `IExecutionContext` as an ordinary constructor dependency and use its `Data` store. It is registered scoped and resolves the context of the mediation in flight, which is state that belongs to the message rather than to whichever scope happens to surround it.
 
 `IDiagnosticCheck.Name` must match the name passed to `AddDiagnosticCheck<TCheck>(string name)` on the inbox or outbox module builder. The health bridge validates the names at runtime.
 

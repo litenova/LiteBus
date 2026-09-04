@@ -25,8 +25,11 @@
 | [analyzers.transactional-ef-interceptor](transactional-ef-interceptor.md) | Transactional EF storage missing save interceptor | GA |
 | [analyzers.transactional-inbox-dbcontext](transactional-inbox-wiring.md) | Transactional inbox store injected without DbContext | GA |
 | [analyzers.transactional-outbox-dbcontext](transactional-outbox-wiring.md) | Transactional outbox store injected without DbContext | GA |
+| [analyzers.missing-audit-declaration](audit-declaration.md) | Command or query states no audit position | GA |
+| [analyzers.untyped-shortcut-on-result-message](shortcut-contracts.md) | Untyped shortcut on a message that produces a result | GA |
+| [analyzers.missing-declaration](required-declarations.md) | Command or query states no position on a required declaration | GA |
 
-## Diagnostic Inventory (LB1001-LB1017)
+## Diagnostic Inventory (LB1001-LB1021)
 
 | ID | Severity | Category | Rule | Capability page |
 | --- | --- | --- | --- | --- |
@@ -47,6 +50,10 @@
 | `LB1015` | Warning | `LiteBus.Configuration` | Transactional EF storage enforces setup without save interceptor | [transactional-ef-interceptor.md](transactional-ef-interceptor.md) |
 | `LB1016` | Warning | `LiteBus.Inbox` | Constructor injects `ITransactionalInboxStore` without `DbContext` | [transactional-inbox-wiring.md](transactional-inbox-wiring.md) |
 | `LB1017` | Warning | `LiteBus.Contracts` | `[MessageContract]` type has no explicit `Register` or `RegisterFromAssembly` | [contract-registration.md](contract-registration.md) |
+| `LB1018` | Warning (off by default) | `LiteBus.Auditing` | Command or query type states no audit position | [audit-declaration.md](audit-declaration.md) |
+| `LB1019` | Warning | `LiteBus.Handlers` | Shortcut uses the untyped contract for a message that produces a result | [shortcut-contracts.md](shortcut-contracts.md) |
+| `LB1020` | Warning (off by default) | `LiteBus.Declarations` | Command or query type states no position on a configured declaration | [required-declarations.md](required-declarations.md) |
+| `LB1021` | Warning | `LiteBus.Declarations` | `litebus_required_declarations` names a type that does not resolve | [required-declarations.md](required-declarations.md) |
 
 ## Suppression Policy
 

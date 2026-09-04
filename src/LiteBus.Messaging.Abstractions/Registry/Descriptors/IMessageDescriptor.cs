@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -26,6 +26,15 @@ public interface IMessageDescriptor
     ///     This property is used to determine if special handling is required for generic message types.
     /// </remarks>
     bool IsGeneric { get; }
+
+    /// <summary>
+    ///     Gets the declarative metadata resolved for this message type.
+    /// </summary>
+    /// <remarks>
+    ///     Metadata is populated once during registration, from attributes applied to the message type and from message
+    ///     definitions. Pipeline stages read it instead of reflecting over the message on every dispatch.
+    /// </remarks>
+    IMessageMetadata Metadata { get; }
 
     /// <summary>
     ///     Gets a read-only collection of main handlers directly registered for this message type.
@@ -65,7 +74,7 @@ public interface IMessageDescriptor
     /// <remarks>
     ///     These are pre-handlers that were explicitly registered to handle this specific message type.
     /// </remarks>
-    IReadOnlyCollection<IPreHandlerDescriptor> PreHandlers { get; }
+    IReadOnlyCollection<IPreStageHandlerDescriptor> PreStageHandlers { get; }
 
     /// <summary>
     ///     Gets a read-only collection of pre-handlers indirectly applicable to this message type.
@@ -73,7 +82,23 @@ public interface IMessageDescriptor
     /// <remarks>
     ///     These are pre-handlers registered for a base type or interface that this message type implements.
     /// </remarks>
-    IReadOnlyCollection<IPreHandlerDescriptor> IndirectPreHandlers { get; }
+    IReadOnlyCollection<IPreStageHandlerDescriptor> IndirectPreStageHandlers { get; }
+
+    /// <summary>
+    ///     Gets a read-only collection of completion handlers directly registered for this message type.
+    /// </summary>
+    /// <remarks>
+    ///     These are completion handlers that were explicitly registered to observe this specific message type.
+    /// </remarks>
+    IReadOnlyCollection<ICompletionHandlerDescriptor> CompletionHandlers { get; }
+
+    /// <summary>
+    ///     Gets a read-only collection of completion handlers indirectly applicable to this message type.
+    /// </summary>
+    /// <remarks>
+    ///     These are completion handlers registered for a base type or interface that this message type implements.
+    /// </remarks>
+    IReadOnlyCollection<ICompletionHandlerDescriptor> IndirectCompletionHandlers { get; }
 
     /// <summary>
     ///     Gets a read-only collection of error handlers directly registered for this message type.
@@ -90,4 +115,22 @@ public interface IMessageDescriptor
     ///     These are error handlers registered for a base type or interface that this message type implements.
     /// </remarks>
     IReadOnlyCollection<IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
+
+    /// <summary>
+    ///     Gets the refusal mappers registered for this specific message type.
+    /// </summary>
+    /// <remarks>
+    ///     A mapper turns a guard refusal or a validation failure into the result the caller receives. A mapper
+    ///     registered here wins over one registered for a base type.
+    /// </remarks>
+    IReadOnlyCollection<IRefusalMapperDescriptor> RefusalMappers { get; }
+
+    /// <summary>
+    ///     Gets the refusal mappers registered for a base type or interface that this message type implements.
+    /// </summary>
+    /// <remarks>
+    ///     This is where an application-wide mapper lands, such as one registered for <c>ICommand</c> that turns every
+    ///     refusal into a failed result object.
+    /// </remarks>
+    IReadOnlyCollection<IRefusalMapperDescriptor> IndirectRefusalMappers { get; }
 }

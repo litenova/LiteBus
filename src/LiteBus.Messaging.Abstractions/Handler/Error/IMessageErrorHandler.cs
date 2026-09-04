@@ -1,12 +1,18 @@
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Defines a contract for a message error handler that offers a mechanism to handle errors occurring during message
-///     processing.
+///     Marks a type as an error handler so the message registry can discover it, and carries the untyped entry point the
+///     pipeline dispatches through.
 /// </summary>
+/// <remarks>
+///     Implement <see cref="IMessageErrorHandler{TMessage,TMessageResult}" />, which names the message type and supplies
+///     this member through a default implementation. The error stage holds a single role, so the marker and the role
+///     share a name; the pre stage holds four, which is why its family carries the separate name
+///     <see cref="IMessagePreStageHandler" />.
+/// </remarks>
 public interface IMessageErrorHandler
 {
     /// <summary>

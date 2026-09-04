@@ -79,4 +79,24 @@ internal static class DiagnosticIds
     ///     Message type declares <c>[MessageContract]</c> but lacks explicit contract registration.
     /// </summary>
     internal const string ExplicitMessageContractRegistration = "LB1017";
+
+    /// <summary>
+    ///     Command or query type states no audit position.
+    /// </summary>
+    internal const string MissingAuditDeclaration = "LB1018";
+
+    /// <summary>
+    ///     Shortcut uses the untyped shortcut contract for a message that produces a result.
+    /// </summary>
+    internal const string UntypedShortcutOnResultMessage = "LB1019";
+
+    /// <summary>
+    ///     A message states no position on a metadata value type the project requires it to declare.
+    /// </summary>
+    internal const string MissingDeclaration = "LB1020";
+
+    /// <summary>
+    ///     A required declaration type named in configuration cannot be resolved in the compilation.
+    /// </summary>
+    internal const string UnresolvedRequiredDeclaration = "LB1021";
 }
