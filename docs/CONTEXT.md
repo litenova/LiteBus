@@ -275,11 +275,12 @@ var commandMediator = container.Resolve<ICommandMediator>();
 | Method | Package | Registers |
 | --- | --- | --- |
 | `AddMessaging(Action<MessageModuleBuilder>)` | `LiteBus.Messaging` | `MessageModule` |
-| `AddCommands(Action<CommandModuleBuilder>)` | `LiteBus.Commands` | `CommandModule` (requires `MessageModule`) |
+| `AddCommands(Action<CommandModuleBuilder>)` | `LiteBus.Commands` | `CommandModule` (composite; requires `MessageModule`) |
 | `AddQueries(Action<QueryModuleBuilder>)` | `LiteBus.Queries` | `QueryModule` (requires `MessageModule`) |
 | `AddEvents(Action<EventModuleBuilder>)` | `LiteBus.Events` | `EventModule` (requires `MessageModule`) |
 | `AddInbox(Action<InboxModuleBuilder>)` | `LiteBus.Inbox` | `InboxModule` (composite; requires `MessageModule`) |
 | `AddOutbox(Action<OutboxModuleBuilder>)` | `LiteBus.Outbox` | `OutboxModule` (composite; requires `MessageModule`) |
+| `commands.AddRecurring<TCommand>(...)` | `LiteBus.Commands.Recurring` | `RecurringCommandModule<TCommand>` as a child of `CommandModule`, and `RecurringCommandBackgroundService<TCommand>` on the host manifest |
 | `AddInMemoryTransport()` | `LiteBus.Transport.InMemory` | `InMemoryTransportModule` |
 | `AddAmqpTransport(AmqpConnectionOptions)` | `LiteBus.Transport.Amqp` | `AmqpTransportModule` |
 | `AddKafkaTransport(KafkaTransportOptions)` | `LiteBus.Transport.Kafka` | `KafkaTransportModule` |
@@ -483,7 +484,7 @@ Conventions used below: "Required?" means the compiler or a runtime guard forces
 
 | Property Name | Data Type | Default Value | Required? | Description & Impact |
 | --- | --- | --- | --- | --- |
-| `ThrowIfNoHandlerFound` | `bool` | `false` | No | When `true`, publishing an event with zero applicable main handlers throws `NoHandlerFoundException`. When `false` the publish silently no-ops after the pre-stages. |
+| `ThrowIfNoHandlerFound` | `bool` | `false` | No | When `true`, publishing an event with zero applicable main handlers throws `NoHandlerFoundException`. When `false` the publish silently no-ops after the pre-stages. Outbox in-process dispatch sets it to `true` by default (`InProcessOutboxDispatchOptions.RequireHandler`), because a durable dispatch that reached nothing is a failure rather than a success. |
 | `AutoRegisterUnregisteredMessageTypes` | `bool` | `false` | No | Sets `MessageMediationRequest.RegisterPlainMessagesOnSpot`. When `true`, an unknown event type is registered into the `IMessageRegistry` at publish time instead of throwing `NoHandlerFoundException`. |
 | `Routing` | `EventRoutingSettings` | `new EventRoutingSettings()` | No | Tag and predicate filters. |
 | `Execution` | `EventExecutionSettings` | `new EventExecutionSettings()` | No | Concurrency and fault aggregation for the broadcast. |
@@ -502,7 +503,7 @@ Conventions used below: "Required?" means the compiler or a runtime guard forces
 | --- | --- | --- | --- | --- |
 | `PriorityGroupsConcurrencyMode` | `ConcurrencyMode` | `Sequential` | No | `Sequential` runs each priority group to completion before the next; `Parallel` starts every priority group at once, discarding priority as an ordering guarantee. |
 | `HandlersWithinSamePriorityConcurrencyMode` | `ConcurrencyMode` | `Sequential` | No | Controls whether handlers sharing one priority run one at a time (ordered by `RegistrationSequence`) or concurrently. |
-| `ParallelFaultMode` | `ParallelFaultMode` | `PropagateFirst` | No | `PropagateFirst` uses `Task.WhenAll`, surfacing the first fault after siblings settle. `AggregateAll` awaits every task individually and throws the single exception, or an `AggregateException` when more than one failed. |
+| `FaultMode` | `HandlerFaultMode` | `PropagateFirst` | No | Applies to sequential and parallel execution alike. `PropagateFirst` stops the group at the first fault. `ContinueAndAggregate` runs every handler in the group and throws the single exception, or an `AggregateException` when more than one failed. Never carries across priority groups. |
 
 #### `MessageMediationRequest<TMessage, TMessageResult>` (`LiteBus.Messaging.Abstractions`, sealed record)
 
@@ -526,10 +527,11 @@ The low-level request object accepted by `IMessageMediator.Mediate`. Build one d
 | `MaxAttempts` | `int` | `5` | No | When `envelope.AttemptCount >= MaxAttempts` after a dispatch failure the envelope is dead-lettered instead of retried. Validated `> 0`. |
 | `InitialDelay` | `TimeSpan` | `5 seconds` | No | Base delay for attempt 1. Validated `>= TimeSpan.Zero`. |
 | `MaxDelay` | `TimeSpan` | `5 minutes` | No | Hard cap applied before and after jitter. Validated `>= TimeSpan.Zero`. |
-| `Backoff` | `RetryBackoff` | `Exponential` | No | `Fixed` always uses `InitialDelay`; `Exponential` uses `InitialDelay * 2^(attemptCount-1)`. Validated with `Enum.IsDefined`. |
-| `UseJitter` | `bool` | `true` | No | Multiplies the computed delay by a random factor in `[0.8, 1.2)`, then re-caps at `MaxDelay`. Disable for deterministic tests. |
+| `Backoff` | `RetryBackoff` | `Exponential` | No | `Fixed` always uses `InitialDelay`; `Exponential` uses `InitialDelay * 2^(attemptCount-1)`; `Schedule` reads `Delays`. Validated with `Enum.IsDefined`. |
+| `Delays` | `IReadOnlyList<TimeSpan>` | `[]` | Only for `Schedule` | The explicit ladder, one delay per retry in order. An attempt past the end repeats the last entry. `MaxDelay` does not clamp these entries, because the ladder is the policy. Must be non-empty and free of negative entries when `Backoff` is `Schedule`; ignored otherwise. |
+| `UseJitter` | `bool` | `true` | No | Multiplies the computed delay by a random factor in `[0.8, 1.2)`, then re-caps at `MaxDelay`. Under `Schedule` the jitter is bounded by the ladder entry rather than by `MaxDelay`. Disable for deterministic tests. |
 
-Method: `TimeSpan CalculateDelay(int attemptCount)`.
+Methods: `TimeSpan CalculateDelay(int attemptCount)` and `void Validate()`. Both inbox and outbox modules call `Validate()` when the processor is enabled, so a misconfigured ladder fails at boot rather than on the first failure.
 
 #### `ProcessorOptions` (`LiteBus.Messaging.Abstractions.Processing`, public record; base of `InboxProcessorOptions` and `OutboxProcessorOptions`)
 
@@ -728,8 +730,13 @@ Statics: `From(TEvent)`, `From(TEvent, OutboxEnqueueMetadata)`, `ScheduledAt`, `
 | `TenantId` | `string?` | `null` | No | `tenant_id`. |
 | `TraceContext` | `string?` | `null` | No | `trace_context`; W3C trace parent string or a JSON object with `traceparent` and optional `tracestate`. |
 | `CompletedAt` | `DateTimeOffset?` | `null` | No | `completed_at`; retention cutoff column. |
+| `LastAttemptedAt` | `DateTimeOffset?` | `null` | No | `last_attempted_at`; stamped on each lease. |
+| `FirstFailedAt` | `DateTimeOffset?` | `null` | No | `first_failed_at`; set on the first failure only, so it keeps naming the first one. |
+| `DeadLetteredAt` | `DateTimeOffset?` | `null` | No | `dead_lettered_at`; the column a dead-letter listing sorts by. |
+| `LastLeaseOwner` | `string?` | `null` | No | `last_lease_owner`; survives the lease being released, so it still names the instance that was handling a failed message. |
+| `ErrorType` | `string?` | `null` | No | `error_type`; the CLR type behind `LastError`, stored apart from it so failures can be grouped without parsing text. |
 
-Transitions: `AsLeased(owner, expiresAt)` (from any status), `AsCompleted()`, `AsFailed(error, visibleAfter?)`, `AsDeadLettered(reason)` (all three require `Processing`), `AsRequeued()` (requires `DeadLettered`; resets `VisibleAfter`, `AttemptCount`, lease fields and `LastError`). A wrong source status throws `InvalidOperationException`. `AsFailed`/`AsDeadLettered` throw `ArgumentException` on a null or whitespace reason.
+Transitions: `AsLeased(owner, expiresAt)` (from any status; records `LastLeaseOwner`), `AsCompleted()`, `AsFailed(MessageFailure, visibleAfter?)`, `AsDeadLettered(MessageFailure)` (all three require `Processing`), `AsRequeued()` (requires `DeadLettered`; resets `VisibleAfter`, `AttemptCount`, lease fields, `LastError`, `ErrorType`, `FirstFailedAt` and `DeadLetteredAt`, and keeps `LastAttemptedAt` and `LastLeaseOwner` as the record of what happened before). A wrong source status throws `InvalidOperationException`. `AsFailed`/`AsDeadLettered` throw `ArgumentNullException` on a null failure.
 
 #### `OutboxEnvelope` (sealed record)
 
@@ -741,9 +748,19 @@ Identical to `InboxEnvelope` except for these members:
 | `Status` | `OutboxStatus` | none | **Yes** (`required`) | `Pending` / `Publishing` / `Published` / `Failed` / `DeadLettered`. |
 | `PublishedAt` | `DateTimeOffset?` | `null` | No | `published_at`; retention cutoff column. |
 
-Transitions: `AsLeased`, `AsPublished(DateTimeOffset publishedAt)` (requires `Publishing`), `AsFailed`, `AsDeadLettered`, `AsRequeued`.
+Transitions: `AsLeased`, `AsPublished(DateTimeOffset publishedAt)` (requires `Publishing`), `AsFailed(MessageFailure, visibleAfter?)`, `AsDeadLettered(MessageFailure)`, `AsRequeued`.
 
-Both relational schemas additionally persist operational columns that are not on the envelope record: `last_attempted_at`, `first_failed_at`, `dead_lettered_at`, `last_lease_owner`, `error_type`.
+The operational columns `last_attempted_at`, `first_failed_at`, `dead_lettered_at`, `last_lease_owner` and `error_type` are on both envelope records and are written and read by every store adapter, so `IInboxManager.QueryAsync` and `IOutboxManager.QueryAsync` return them. Before preview.5 the columns existed in the schema and were validated at boot, but nothing wrote four of the five and the envelope exposed none, so an operator query against them read nulls.
+
+#### `MessageFailure` (`LiteBus.Messaging.Abstractions`, sealed record)
+
+| Property Name | Data Type | Required? | Description & Impact |
+| --- | --- | --- | --- |
+| `Error` | `string` | **Yes** (`required`) | The formatted, length-capped text persisted to `last_error`. |
+| `ErrorType` | `string?` | No | The full CLR type name of the exception, or null when the failure carried none. |
+| `OccurredAt` | `DateTimeOffset` | **Yes** (`required`) | The UTC timestamp the attempt failed, used for `first_failed_at` and `dead_lettered_at`. |
+
+Statics: `MessageFailure.From(Exception, DateTimeOffset)` formats the error and captures the type; `MessageFailure.FromError(string, DateTimeOffset)` covers a reason with no exception, such as a lost lease, and records no `ErrorType`.
 
 ### 3.5 Query / purge filters and paging
 
@@ -1296,10 +1313,28 @@ AuditActor.User(account.Id.ToString()) with { DisplayName = account.Email };
 | --- | --- | --- |
 | `Contracts` | `IContractWriter { get; }` | Live contract registry writer. |
 | `UseTimeProvider` | `(TimeProvider) -> MessageModuleBuilder` | Registers the `TimeProvider` used by auditing, envelope factories, processors and stores. |
+| `UseSerializer<TMessageSerializer>` | `(InstanceLifetime lifetime = Singleton) -> MessageModuleBuilder`, `TMessageSerializer : class, IMessageSerializer` | Container-constructed serializer. Decides the wire format of every persisted message. |
+| `UseSerializerInstance` | `(IMessageSerializer) -> MessageModuleBuilder` | Pre-created serializer, necessarily a **Singleton**. The overload to reach for when the serializer is configured rather than injected: `UseSerializerInstance(new SystemTextJsonMessageSerializer(options))`. |
+| `UseTelemetry` | `(MediationTelemetryOptions) -> MessageModuleBuilder` | Sets the process-wide `ActivitySource` and `Meter` options. Applied before anything mediates. |
 | `UseAuditTrail<TAuditTrail>` | `(InstanceLifetime lifetime = Scoped) -> MessageModuleBuilder`, `TAuditTrail : class, IAuditTrail` | Container-constructed trail. The lifetime is an explicit parameter, not a consequence of the overload reached for. |
 | `UseAuditTrailInstance` | `(IAuditTrail) -> MessageModuleBuilder` | Pre-created trail, necessarily a **Singleton**. The name carries the lifetime, because a trail built here with a scoped session captures it for the life of the process. |
+| `UseAuditRecordWriter<TAuditRecordWriter>` | `(InstanceLifetime lifetime = Scoped) -> MessageModuleBuilder` | Replaces the built-in record writer so the application owns the record shape. |
+| `UseAuditRecordWriterInstance` | `(IAuditRecordWriter) -> MessageModuleBuilder` | Pre-created record writer, necessarily a **Singleton**. |
+| `UseAuditActorResolver<TAuditActorResolver>` | `(InstanceLifetime lifetime = Scoped) -> MessageModuleBuilder` | Container-constructed actor resolver. |
+| `UseAuditActorResolver` | `(Func<IServiceProvider, IAuditActorResolver>, InstanceLifetime) -> MessageModuleBuilder` | Factory-constructed actor resolver. |
+| `UseAuditActorResolverInstance` | `(IAuditActorResolver) -> MessageModuleBuilder` | Pre-created actor resolver, necessarily a **Singleton**. |
 | `UseAuditOutcomeMapper` | `(IAuditOutcomeMapper) -> MessageModuleBuilder` | Overrides `DefaultAuditOutcomeMapper`. |
 | `UseAuditOutcomeMapper<T>` | `() -> MessageModuleBuilder`, `T : IAuditOutcomeMapper, new()` | Constructs and registers the mapper. |
+| `AddAuditing` | `(Action<AuditingBuilder>) -> MessageModuleBuilder` | Configures the whole auditing feature in one call, including axis selection. **The path to take**; the per-axis primitives above are what it composes. |
+| `RequireDeclaration<TValue>` | `() -> MessageModuleBuilder` | Every message must state a position on `TValue`. Unscoped, so it applies to commands, queries and events alike. That is usually too wide. |
+| `RequireDeclaration<TValue, TScope>` | `() -> MessageModuleBuilder` | Only messages assignable to `TScope` must declare. **The form to reach for.** |
+| `RequireDeclaration<TValue>` | `(Func<Type, bool> scope, string scopeDescription) -> MessageModuleBuilder` | Predicate scope, with a description used in the failure message. |
+| `RequireUniqueAuditActions` | `() -> MessageModuleBuilder` | Two messages sharing an action code make the trail unqueryable by use case. Raises `AuditConfigurationException` naming each duplicate and its claimants. |
+| `RequireAuditActionFormat` | `(string pattern = DefaultAuditActionPattern) -> MessageModuleBuilder` | Defaults to the `category.kebab-action` convention. Raises `AuditConfigurationException` naming each offender and its action. |
+| `RequireExplicitOpenGenerics` | `() -> MessageModuleBuilder` | Open generic handlers must be closed explicitly rather than inferred. |
+| `ValidateComposition` | `(Action<IMessageCatalog>) -> MessageModuleBuilder` | Runs an application check over the composed catalog at build time. |
+| `DeclareDefault<TScope, TValue>` | `(TValue value) -> MessageModuleBuilder` | Supplies a default declaration value for every message in scope. |
+| `DeclareDefault` | `(MessageDeclarationItem) -> MessageModuleBuilder` | The untyped form of the same. |
 | `Register<T>()` / `Register(Type)` | `-> MessageModuleBuilder` | Registers any message or handler type with no axis validation. |
 | `RegisterFromAssembly` | `(Assembly) -> MessageModuleBuilder` | Registers **every** type in the assembly with the message registry and calls `Contracts.AddFromAssembly`. |
 
@@ -1312,6 +1347,10 @@ AuditActor.User(account.Id.ToString()) with { DisplayName = account.Email };
 | `EnableIdempotency()` | Commands only. Registers `IdempotentCommandShortcut<>` and `IdempotentCommandShortcut<,>`, `IdempotencyCompletionHandler` (priority `HandlerPriorities.Persistence`), and the `litebus.idempotency.store` probe. |
 | `Register<T>()` / `Register(Type)` | Validates that the type is a command/query construct, otherwise throws `LiteBusNotSupportedException`. |
 | `RegisterFromAssembly(Assembly)` | Registers every concrete, non-abstract command/query construct found. |
+| `RegisterChildModule(IModule)` | Commands only. Declares a child module owned by `CommandModule`, which is the seam feature packages compose through. |
+| `AddRecurring<TCommand>(...)` | Commands only, from `LiteBus.Commands.Recurring`. Sends one command on a fixed interval for the life of the host. |
+
+`CommandModule` is an `ICompositeModule`: its configuration action runs during `DeclareChildren`, so registrations are **queued** on the builder and applied to the live registry during `Build`. That is what lets a feature package register a child module from inside `AddCommands`. The order is contracts, then the axis selection `AddAuditing` implies, then queued type and assembly registrations.
 
 A **command construct** is a type assignable to `ICommand`, or implementing any of `ICommandHandler<>`, `ICommandHandler<,>`, `ICommandPreHandler`, `ICommandPreHandler<>`, `ICommandGuard<>`, `ICommandValidator<>`, `ICommandShortcut<>`, `ICommandShortcut<,>`, `ICommandRefusalMapper<,>`, `ICommandPostHandler`, `ICommandPostHandler<>`, `ICommandPostHandler<,>`, `ICommandErrorHandler`, `ICommandErrorHandler<>`, `ICommandErrorHandler<,>`, `ICommandCompletionHandler`, `ICommandCompletionHandler<>`, `ICommandCompletionHandler<,>`, or an `IMessageDefinition<TMessage, TValue>` whose `TMessage` is an `ICommand`.
 
@@ -1655,7 +1694,7 @@ Extensions: `PublishAsync(@event, ct)`, `PublishAsync(@event, tag, ct)`, `Publis
 1. Runs the pre-stages once for the event. A refusal throws (`LiteBusMessageDeniedException` / `LiteBusMessageInvalidException`); an `Answered` shortcut returns without running handlers.
 2. Concatenates direct + indirect main handlers, orders them by `Priority` then `RegistrationSequence`, and groups by `Priority`.
 3. Runs the priority groups per `PriorityGroupsConcurrencyMode`, and handlers inside a group per `HandlersWithinSamePriorityConcurrencyMode`.
-4. Parallel awaits obey `ParallelFaultMode`.
+4. Sequential and parallel handler groups both obey `FaultMode`: `ContinueAndAggregate` runs every handler in the group and aggregates the failures, `PropagateFirst` stops the group. It never carries across priority groups.
 5. Runs post-handlers with the *task* of the handler batch as the "result" argument, then error handlers on a recoverable fault, then completion handlers with `messageResult: null`.
 6. Each handler invocation opens its own `AmbientExecutionContext` scope so the ambient context is correct even under parallel execution.
 
@@ -1682,7 +1721,7 @@ await eventMediator.PublishAsync(new OrderPlaced(id, total), new EventMediationS
     {
         PriorityGroupsConcurrencyMode = ConcurrencyMode.Parallel,
         HandlersWithinSamePriorityConcurrencyMode = ConcurrencyMode.Parallel,
-        ParallelFaultMode = ParallelFaultMode.AggregateAll
+        FaultMode = HandlerFaultMode.ContinueAndAggregate
     }
 }, cancellationToken);
 ```
@@ -3435,12 +3474,16 @@ The analyzer package is held on Roslyn 4.x (`Microsoft.CodeAnalysis.CSharp` 4.14
 | `Unhandled` | `0` | Default. The pipeline rethrows the original exception after error handlers run. |
 | `Handled` | `1` | The pipeline suppresses the exception and may return `HandledResult`. |
 
-#### `ParallelFaultMode` (`LiteBus.Messaging.Abstractions`)
+#### `HandlerFaultMode` (`LiteBus.Messaging.Abstractions`)
+
+Renamed from `ParallelFaultMode` in preview.5 and now applied to sequential execution as well, because it is a policy about fault isolation rather than about concurrency.
 
 | Member | Value | Meaning |
 | --- | --- | --- |
-| `PropagateFirst` | `0` | `Task.WhenAll`: one failure propagates once already-started siblings settle. |
-| `AggregateAll` | `1` | Every handler runs to completion; failures are aggregated (single exception rethrown as-is, several wrapped in `AggregateException`). |
+| `PropagateFirst` | `0` | One failure stops the group. Already-started siblings settle first; handlers not yet started do not run. |
+| `ContinueAndAggregate` | `1` | Every handler in the group runs regardless of its siblings; failures are aggregated (single exception rethrown as-is, several wrapped in `AggregateException`). |
+
+The mode governs handlers inside one priority group and never carries across groups.
 
 #### `AuditOutcome` (`LiteBus.Messaging.Abstractions`)
 
@@ -3465,6 +3508,7 @@ The analyzer package is held on Roslyn 4.x (`Microsoft.CodeAnalysis.CSharp` 4.14
 | --- | --- | --- |
 | `Fixed` | `0` | Every retry uses `InitialDelay` before jitter. |
 | `Exponential` | `1` | Delay grows as `InitialDelay * 2^(attemptCount-1)` before the `MaxDelay` cap and jitter. |
+| `Schedule` | `2` | Delay is read from the explicit `RetryOptions.Delays` ladder. An attempt past the end repeats the last entry, and `MaxDelay` does not clamp the entries. |
 
 #### `IdempotencyConflictMode` (`LiteBus.Messaging.Abstractions.DurableMessaging`)
 
@@ -4174,7 +4218,7 @@ await eventMediator.PublishAsync(new PaymentProcessed(id, amount), new EventMedi
     {
         PriorityGroupsConcurrencyMode = ConcurrencyMode.Sequential,
         HandlersWithinSamePriorityConcurrencyMode = ConcurrencyMode.Parallel,
-        ParallelFaultMode = ParallelFaultMode.AggregateAll
+        FaultMode = HandlerFaultMode.ContinueAndAggregate
     }
 }, cancellationToken);
 ```

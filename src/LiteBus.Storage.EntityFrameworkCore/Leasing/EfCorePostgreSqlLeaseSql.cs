@@ -40,7 +40,8 @@ internal static class EfCorePostgreSqlLeaseSql
                    lease_expires_at = {6}::timestamptz,
                    lease_generation = __ALIAS__.lease_generation + 1,
                    attempt_count = __ALIAS__.attempt_count + 1,
-                   last_attempted_at = {2}::timestamptz
+                   last_attempted_at = {2}::timestamptz,
+                   last_lease_owner = {5}::text
                FROM candidates
                WHERE __ALIAS__.__ID_COLUMN__ = candidates.__ID_COLUMN__
                RETURNING
@@ -76,7 +77,12 @@ internal static class EfCorePostgreSqlLeaseSql
                 {alias}.causation_id,
                 {alias}.tenant_id,
                 {alias}.trace_context,
-                {alias}.lease_generation
+                {alias}.lease_generation,
+                {alias}.last_attempted_at,
+                {alias}.first_failed_at,
+                {alias}.dead_lettered_at,
+                {alias}.last_lease_owner,
+                {alias}.error_type
                 """;
     }
 
@@ -104,7 +110,12 @@ internal static class EfCorePostgreSqlLeaseSql
                 {alias}.causation_id,
                 {alias}.tenant_id,
                 {alias}.trace_context,
-                {alias}.lease_generation
+                {alias}.lease_generation,
+                {alias}.last_attempted_at,
+                {alias}.first_failed_at,
+                {alias}.dead_lettered_at,
+                {alias}.last_lease_owner,
+                {alias}.error_type
                 """;
     }
 }

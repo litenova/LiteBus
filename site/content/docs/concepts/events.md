@@ -27,6 +27,26 @@ public sealed record OrderShipped(Guid OrderId, string TrackingNumber, DateTime 
 
 Publish a POCO through the generic overload, `PublishAsync<TEvent>(TEvent @event, ...)`. Publish an `IEvent` through either overload.
 
+A POCO event is a first-class event on every role of the axis, not only on `IEventHandler<TEvent>`. `IEventGuard<TEvent>`, `IEventValidator<TEvent>`, `IEventShortcut<TEvent>`, `IEventPreHandler<TEvent>`, `IEventPostHandler<TEvent>`, `IEventErrorHandler<TEvent>` and `IEventCompletionHandler<TEvent>` all constrain `TEvent` to `notnull`, so an unmarked domain event can carry a full pipeline:
+
+```csharp
+// Commits the unit of work after every LiteBus completion handler, on every path.
+[HandlerPriority(HandlerPriorities.UnitOfWork)]
+public sealed class CommitDomainWork : IEventCompletionHandler<OrderShipped>
+{
+    public Task HandleAsync(
+        MessageCompletionContext<OrderShipped> context,
+        CancellationToken cancellationToken = default)
+    {
+        return context.Outcome == MediationOutcome.Succeeded
+            ? _session.SaveChangesAsync(cancellationToken)
+            : Task.CompletedTask;
+    }
+}
+```
+
+`EventModuleBuilder.RegisterFromAssembly` discovers these the same way it discovers handlers. It also registers an `IMessageDefinition<TEvent, TValue>` declared over an unmarked event, because a POCO event that can be handled, guarded and validated should be able to carry the audit or idempotency metadata that belongs beside it.
+
 ## Event Handlers
 
 A handler reacts to an event. Any number of handlers can subscribe to the same event, each with one responsibility.
@@ -124,19 +144,35 @@ The two switches compose. Sequential groups with parallel handlers gives ordered
 
 #### Concurrency and Fault-Mode Decision Table
 
-Use the table below when choosing `EventExecutionSettings` for a publish call. Defaults are sequential groups, sequential handlers within a group, and `ParallelFaultMode.PropagateFirst`.
+Use the table below when choosing `EventExecutionSettings` for a publish call. Defaults are sequential groups, sequential handlers within a group, and `HandlerFaultMode.PropagateFirst`.
 
-| Priority groups | Handlers in same group | Parallel fault mode | Execution shape | Ordering guarantee | Failure behavior |
+| Priority groups | Handlers in same group | Fault mode | Execution shape | Ordering guarantee | Failure behavior |
 | --- | --- | --- | --- | --- | --- |
-| Sequential | Sequential | n/a | Strict pipeline | Full handler order preserved | First fault stops the stage |
+| Sequential | Sequential | PropagateFirst | Strict pipeline | Full handler order preserved | First fault stops the group; handlers behind it do not run |
+| Sequential | Sequential | ContinueAndAggregate | Strict pipeline | Full handler order preserved | Every handler in the group runs; failures aggregate into one exception |
 | Sequential | Parallel | PropagateFirst | Phased fan-out | Groups run in priority order; within-group order not guaranteed | One fault is reported after already-started siblings in the group settle |
-| Sequential | Parallel | AggregateAll | Phased fan-out | Groups run in priority order; within-group order not guaranteed | All handlers in the group run; failures aggregate into one exception |
-| Parallel | Sequential | n/a | Concurrent groups | Priority order not guaranteed across groups | First fault stops the stage |
+| Sequential | Parallel | ContinueAndAggregate | Phased fan-out | Groups run in priority order; within-group order not guaranteed | All handlers in the group run; failures aggregate into one exception |
+| Parallel | Sequential | PropagateFirst | Concurrent groups | Priority order not guaranteed across groups | First fault stops its group |
 | Parallel | Parallel | PropagateFirst | Maximum concurrency | No order guarantees | One fault is reported after already-started siblings settle |
-| Parallel | Parallel | AggregateAll | Maximum concurrency | No order guarantees | All parallel tasks run; failures aggregate |
+| Parallel | Parallel | ContinueAndAggregate | Maximum concurrency | No order guarantees | All parallel tasks run; failures aggregate |
 
-`ParallelFaultMode` applies only when handlers execute with `ConcurrencyMode.Parallel` at the priority-group level, within the same priority group, or both. Sequential stages always stop at the first unhandled fault regardless of fault mode.
-Neither parallel fault mode cancels sibling work. Cancellation remains cooperative through the token supplied to `PublishAsync`.
+`HandlerFaultMode` is a policy about fault isolation rather than about concurrency, so it applies to sequential and parallel execution alike. Fault isolation therefore does not cost a move to `ConcurrencyMode.Parallel`, which matters when handlers share a resource that is not thread-safe, such as an ORM session: those handlers must stay sequential, and stopping the broadcast at the first failure would silently drop the subscribers behind it.
+
+```csharp
+var settings = new EventMediationSettings
+{
+    Execution = new EventExecutionSettings
+    {
+        FaultMode = HandlerFaultMode.ContinueAndAggregate
+    }
+};
+
+await _eventMediator.PublishAsync(orderConfirmed, settings);
+```
+
+The mode governs handlers inside one priority group. It never carries across priority groups: under sequential group execution, a later group does not run after an earlier one failed, because a priority difference is the explicit statement that the later group runs after the earlier one. Handlers that must be isolated from each other belong in the same group.
+
+Neither fault mode cancels sibling work. Cancellation remains cooperative through the token supplied to `PublishAsync`, and a cancelled broadcast stops immediately under both modes.
 
 ### Routing: Selecting Handlers
 

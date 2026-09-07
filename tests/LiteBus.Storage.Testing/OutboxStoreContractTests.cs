@@ -1,6 +1,7 @@
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Storage.Testing;
 
@@ -9,6 +10,16 @@ namespace LiteBus.Storage.Testing;
 /// </summary>
 public abstract class OutboxStoreContractTests
 {
+    /// <summary>
+    ///     Builds a failure for a transition under test from error text alone.
+    /// </summary>
+    /// <param name="error">The error text to persist.</param>
+    /// <returns>A failure stamped with the current time.</returns>
+    protected static MessageFailure Failure(string error)
+    {
+        return MessageFailure.FromError(error, DateTimeOffset.UtcNow);
+    }
+
     /// <summary>
     ///     Gets the UTC timestamp used as the baseline for lease and visibility assertions.
     /// </summary>
@@ -108,7 +119,7 @@ public abstract class OutboxStoreContractTests
         leased[0].Status.Should().Be(OutboxStatus.Publishing);
         leased[0].AttemptCount.Should().Be(1);
 
-        await store.StateWriter.PersistAsync([leased[0].AsFailed("publisher unavailable", visibleAfter)]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsFailed(Failure("publisher unavailable"), visibleAfter)]).ConfigureAwait(false);
 
         await WaitUntilVisibleAsync(visibleAfter).ConfigureAwait(false);
 
@@ -398,7 +409,7 @@ public abstract class OutboxStoreContractTests
 
         leased.Should().ContainSingle();
 
-        await store.StateWriter.PersistAsync([leased[0].AsFailed("broker down", visibleAfter)]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsFailed(Failure("broker down"), visibleAfter)]).ConfigureAwait(false);
 
         var stored = await store.MessageQuery.QueryAsync(
             new OutboxMessageFilter { MessageId = messageId },
@@ -408,6 +419,77 @@ public abstract class OutboxStoreContractTests
         stored.Items[0].Status.Should().Be(OutboxStatus.Failed);
         stored.Items[0].VisibleAfter.Should().Be(visibleAfter);
         stored.Items[0].LastError.Should().Be("broker down");
+    }
+
+    /// <summary>
+    ///     Verifies that the operational forensics an operator dashboard reads are persisted and read back by every
+    ///     store adapter.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    /// <remarks>
+    ///     These columns existed in the schema and were validated at boot before anything wrote them, so a dead-letter
+    ///     listing that queried them read nulls forever. This test is what stops that from being true again.
+    /// </remarks>
+    [Fact]
+    public async Task PersistAsync_ShouldRecordOperationalFieldsOnDeadLetter()
+    {
+        var store = CreateStore();
+        var messageId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-1",
+            Now = now,
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle();
+        leased[0].LastAttemptedAt.Should().NotBeNull();
+
+        var failure = MessageFailure.From(new TimeoutException("broker down"), now);
+
+        // Left immediately visible so the second lease does not have to wait out a retry window; this test is about
+        // what the columns record, not about visibility scheduling.
+        await store.StateWriter.PersistAsync([leased[0].AsFailed(failure)]).ConfigureAwait(false);
+
+        var afterFailure = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { MessageId = messageId },
+            new OutboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
+
+        afterFailure.Items[0].ErrorType.Should().Be(typeof(TimeoutException).FullName);
+        afterFailure.Items[0].FirstFailedAt.Should().NotBeNull();
+        afterFailure.Items[0].LastLeaseOwner.Should().Be("publisher-1");
+        afterFailure.Items[0].DeadLetteredAt.Should().BeNull();
+
+        var released = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-2",
+            Now = now.AddMinutes(10),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        }).ConfigureAwait(false);
+
+        released.Should().ContainSingle();
+
+        var giveUp = MessageFailure.From(new InvalidOperationException("poison"), now.AddMinutes(10));
+
+        await store.StateWriter.PersistAsync([released[0].AsDeadLettered(giveUp)]).ConfigureAwait(false);
+
+        var afterDeadLetter = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { MessageId = messageId },
+            new OutboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
+
+        afterDeadLetter.Items[0].Status.Should().Be(OutboxStatus.DeadLettered);
+        afterDeadLetter.Items[0].DeadLetteredAt.Should().NotBeNull();
+        afterDeadLetter.Items[0].ErrorType.Should().Be(typeof(InvalidOperationException).FullName);
+        afterDeadLetter.Items[0].LastLeaseOwner.Should().Be("publisher-2");
+
+        // The first failure keeps naming the first failure, not the most recent one.
+        afterDeadLetter.Items[0].FirstFailedAt.Should().Be(afterFailure.Items[0].FirstFailedAt);
     }
 
     /// <summary>
@@ -431,7 +513,7 @@ public abstract class OutboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered("poison message")]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("poison message"))]).ConfigureAwait(false);
 
         var afterDeadLetter = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -672,7 +754,7 @@ public abstract class OutboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered("manual replay")]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("manual replay"))]).ConfigureAwait(false);
 
         await store.DeadLetterStore.RequeueAsync(messageId).ConfigureAwait(false);
 
@@ -737,10 +819,10 @@ public abstract class OutboxStoreContractTests
         {
             leased[0].AsPublished(now),
             leased[1].AsPublished(now.AddSeconds(1)),
-            leased[2].AsFailed("temporary-1", now.AddMinutes(5)),
-            leased[3].AsFailed("temporary-2", now.AddMinutes(5)),
-            leased[4].AsDeadLettered("poison-1"),
-            leased[5].AsDeadLettered("poison-2")
+            leased[2].AsFailed(Failure("temporary-1"), now.AddMinutes(5)),
+            leased[3].AsFailed(Failure("temporary-2"), now.AddMinutes(5)),
+            leased[4].AsDeadLettered(Failure("poison-1")),
+            leased[5].AsDeadLettered(Failure("poison-2"))
         };
 
         var result = await store.StateWriter.PersistAsync(terminal).ConfigureAwait(false);
@@ -780,7 +862,7 @@ public abstract class OutboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(5)
         }).ConfigureAwait(false);
         await store.StateWriter.PersistAsync(
-            leased.Select(envelope => envelope.AsDeadLettered("manual replay")).ToArray()).ConfigureAwait(false);
+            leased.Select(envelope => envelope.AsDeadLettered(Failure("manual replay"))).ToArray()).ConfigureAwait(false);
 
         var result = await store.DeadLetterStore.RequeueAsync(
             source.Select(envelope => envelope.Id.ToString("D")).ToArray()).ConfigureAwait(false);

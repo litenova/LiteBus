@@ -19,7 +19,9 @@ See [Transactional messaging writes](../reliable-messaging/transactional-writes.
 
 Message: `No handler found for message type '<Type>'`.
 
-Thrown by the mediator when it cannot resolve a descriptor for the message: the message type, or a handler for it, was never registered. For events it is thrown only when `EventMediationSettings.ThrowIfNoHandlerFound` is `true`; otherwise a published event with no handler returns silently.
+Thrown by the mediator when it cannot resolve a descriptor for the message: the message type, or a handler for it, was never registered. For an immediate publish it is thrown only when `EventMediationSettings.ThrowIfNoHandlerFound` is `true`; otherwise a published event with no handler returns silently, because the caller is standing right there and can see there are no subscribers.
+
+Outbox in-process dispatch is the exception: it requires a handler by default, because a durable dispatch has no such caller and the whole promise of the outbox is that a committed message reached somewhere. Without that default, registering the event axis over an assembly that does not hold the handlers leaves every outbox message leased, dispatched and marked `Published` without ever leaving the process, with no exception, no dead letter, and a backlog reading of zero. Set `UseInProcessDispatch(dispatch => dispatch.RequireHandler = false)` only when publishing to zero handlers is a state the application deliberately allows.
 
 Fix:
 

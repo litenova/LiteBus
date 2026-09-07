@@ -10,6 +10,7 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Commands.Abstractions` | `LiteBus.Messaging.Abstractions` | none |
 | `LiteBus.Commands.Extensions.Autofac` | `LiteBus.Commands`, `LiteBus.Runtime.Extensions.Autofac` | none |
 | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection` | `LiteBus.Commands`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | none |
+| `LiteBus.Commands.Recurring` | `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
 | `LiteBus.DurableMessaging.Abstractions` | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Events` | `LiteBus.Events.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Events.Abstractions` | `LiteBus.Messaging.Abstractions` | none |

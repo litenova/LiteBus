@@ -104,6 +104,22 @@ Disable host schema work with `postgres.DisableSchemaInitialization()` when DDL 
 
 Register `AddAmqpTransport(connectionOptions)` once at the root composition boundary. AMQP ingress and dispatch declare that module as a dependency and share its `IMessageConsumer` and `ITransportPublisher`; neither feature adapter creates broker connectivity during `Build()`.
 
+## Recurring Commands
+
+`CommandModuleBuilder.AddRecurring` from `LiteBus.Commands.Recurring` registers `RecurringCommandBackgroundService<TCommand>` through the manifest, one per registered command type.
+
+```csharp
+registry.AddCommands(commands => commands
+    .RegisterFromAssembly(typeof(SendDueRemindersCommand).Assembly)
+    .AddRecurring(
+        () => new SendDueRemindersCommand { BatchSize = 50 },
+        host => host.Interval = TimeSpan.FromMinutes(5)));
+```
+
+Each pass opens its own dispatch scope and sends one command. A pass that throws is logged and the loop continues after `ErrorBackoff`. A result implementing `IRecurringWorkReport` can skip the interval so a backlog clears in one busy period.
+
+The loop runs on every host instance, because LiteBus has no leader election. That suits a command that drains work by leasing rows; work that must be claimed exactly once belongs on the inbox or outbox processors, which lease and fence per message. See [Recurring Commands](../concepts/recurring-commands.md).
+
 ## Manual Execution
 
 Resolve `InboxProcessorBackgroundService` (or any manifest `IBackgroundService`) and call `ExecuteAsync` when you do not use the generic host. Resolve schema initializers (or any `IStartupTask`) and call `RunAsync` for manual startup work.

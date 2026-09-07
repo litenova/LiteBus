@@ -74,6 +74,7 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
         if (_builder.IsOutboxProcessorEnabled)
         {
             _builder.ProcessorHostOptions.Validate();
+            _builder.ProcessorOptions.Retry.Validate();
         }
 
         if (_builder.IsCleanupEnabled)

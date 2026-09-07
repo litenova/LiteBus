@@ -474,6 +474,66 @@ public sealed class MessageModuleBuilder
     }
 
     /// <summary>
+    ///     Gets the message serializer the module registers, as an instance or an implementation type.
+    /// </summary>
+    /// <value>
+    ///     The instance passed to <see cref="UseSerializerInstance" />, the type passed to
+    ///     <see cref="UseSerializer{TMessageSerializer}" />, or <see langword="null" /> to use
+    ///     <see cref="SystemTextJsonMessageSerializer" /> with web defaults.
+    /// </value>
+    internal object? Serializer { get; private set; }
+
+    /// <summary>
+    ///     Gets the lifetime a serializer implementation type is registered with.
+    /// </summary>
+    internal InstanceLifetime SerializerLifetime { get; private set; } = InstanceLifetime.Singleton;
+
+    /// <summary>
+    ///     Registers the <see cref="IMessageSerializer" /> that produces and reads persisted message payloads.
+    /// </summary>
+    /// <typeparam name="TMessageSerializer">The serializer implementation to construct from the container.</typeparam>
+    /// <param name="lifetime">The lifetime the implementation is registered with. Singleton by default.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         The serializer decides the wire format of every durable message, so it is a compose-time decision like
+    ///         <see cref="UseTimeProvider" /> and belongs here rather than in a container registration that replaces
+    ///         the default afterwards. A replacement made outside composition is invisible to composition checks, and
+    ///         forgetting it renames every property of every stored message without failing at startup.
+    ///     </para>
+    ///     <para>
+    ///         The default is <see cref="SystemTextJsonMessageSerializer" /> with
+    ///         <see cref="System.Text.Json.JsonSerializerDefaults.Web" />, which is camel case. Applications whose
+    ///         published payloads are read by other systems should state the format here rather than inherit it.
+    ///     </para>
+    /// </remarks>
+    public MessageModuleBuilder UseSerializer<TMessageSerializer>(InstanceLifetime lifetime = InstanceLifetime.Singleton)
+        where TMessageSerializer : class, IMessageSerializer
+    {
+        Serializer = typeof(TMessageSerializer);
+        SerializerLifetime = lifetime;
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers a pre-created <see cref="IMessageSerializer" /> that produces and reads persisted message payloads.
+    /// </summary>
+    /// <param name="messageSerializer">The serializer instance, shared by every mediation for the life of the process.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     The overload to reach for when the serializer is configured rather than injected, which is the common case:
+    ///     <c>UseSerializerInstance(new SystemTextJsonMessageSerializer(options))</c> states the wire format at the
+    ///     composition root where the rest of the durable configuration already lives.
+    /// </remarks>
+    public MessageModuleBuilder UseSerializerInstance(IMessageSerializer messageSerializer)
+    {
+        ArgumentNullException.ThrowIfNull(messageSerializer);
+        Serializer = messageSerializer;
+        SerializerLifetime = InstanceLifetime.Singleton;
+        return this;
+    }
+
+    /// <summary>
     ///     Gets the optional audit outcome mapper exposed through dependency injection.
     /// </summary>
     internal IAuditOutcomeMapper? AuditOutcomeMapper { get; private set; }

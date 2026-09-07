@@ -207,18 +207,17 @@ Integration tests use the same pattern in the `ScopedTransactionProvider` helper
 
 ### 3. Enlist Marten on the Same Transaction
 
-Your unit of work implements `IPostgreSqlTransactionProvider`. After `BeginAsync`, pass the same connection and transaction to Marten and to LiteBus (via `TryGetCurrent` when the handler calls `ITransactionalOutbox`):
+Your unit of work implements `IPostgreSqlTransactionProvider` and owns the transaction. Marten joins it through `SessionOptions.ForTransaction`, and LiteBus resolves a bound store from the same provider when the handler injects `ITransactionalOutbox`:
 
 ```csharp
 await unitOfWork.BeginAsync(dataSource, cancellationToken);
 
-if (!unitOfWork.TryGetCurrent(out var connection, out var transaction))
+if (!unitOfWork.TryGetCurrent(out _, out var transaction))
 {
     throw new InvalidOperationException("Unit of work did not activate a transaction.");
 }
 
-await using var session = documentStore.LightweightSession(
-    new SessionOptions { Connection = connection, Transaction = transaction });
+await using var session = documentStore.LightweightSession(SessionOptions.ForTransaction(transaction));
 
 session.Store(order);
 await transactionalOutbox.EnqueueAsync(
@@ -227,6 +226,14 @@ await transactionalOutbox.EnqueueAsync(
 await session.SaveChangesAsync(cancellationToken);
 await unitOfWork.CommitAsync(cancellationToken);
 ```
+
+`SessionOptions` is in the `Marten.Services` namespace.
+
+**The read path stays out of this.** The session above is constructed at the point of the write, so a session used for queries is resolved separately and never opens a write transaction. Registering one Marten session for both reads and writes is what would make every query hold a write transaction for its duration; that is an application composition choice, not something the ambient provider requires.
+
+`ITransactionalOutbox` binds its store when it is **resolved**, not when `EnqueueAsync` is called. A handler that injects it without an open unit of work therefore fails at injection with `InvalidOperationException`, which is what `TransactionalWriteMode.RequireActiveTransaction` is for: the alternative would be silently committing the outbox row on its own connection.
+
+Covered by `PostgreSqlMartenTransactionalOutboxTests` in `LiteBus.Storage.IntegrationTests`, which asserts that the document and the outbox row commit together, that neither survives a rollback, and that the writer refuses to resolve with no active transaction.
 
 ### `TransactionalWriteMode`
 

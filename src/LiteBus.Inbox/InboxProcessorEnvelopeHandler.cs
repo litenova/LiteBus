@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -150,7 +150,7 @@ internal static class InboxProcessorEnvelopeHandler
         // Handler, mediator, and hook failures surface as unrelated exception types; map them to retry or dead-letter transitions.
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            var error = MessageProcessorDiagnostics.FormatError(exception);
+            var failure = MessageFailure.From(exception, clock.GetUtcNow());
 
             InboxProcessorLogMessages.DispatchFailed(
                 logger,
@@ -163,11 +163,11 @@ internal static class InboxProcessorEnvelopeHandler
             if (envelope.AttemptCount >= options.Retry.MaxAttempts
                 || !MediationExceptionFilters.IsRetryableDispatchException(exception))
             {
-                return envelope.AsDeadLettered(error);
+                return envelope.AsDeadLettered(failure);
             }
 
             var visibleAfter = clock.GetUtcNow().Add(options.Retry.CalculateDelay(envelope.AttemptCount));
-            return envelope.AsFailed(error, visibleAfter);
+            return envelope.AsFailed(failure, visibleAfter);
         }
         finally
         {

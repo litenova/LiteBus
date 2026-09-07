@@ -8,7 +8,7 @@
 
 Analyzers have no runtime dependency on LiteBus libraries.
 
-## Rule Inventory (LB1001-LB1021)
+## Rule Inventory (LB1001-LB1022)
 
 | ID | Severity | Category | Summary |
 | --- | --- | --- | --- |
@@ -32,6 +32,35 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | LB1019 | Warning | Handlers | Shortcut implements `IMessageShortcut<TMessage>` for a message that produces a result |
 | LB1020 | Warning (disabled by default) | Declarations | Command or query type states no position on a metadata value type named in `litebus_required_declarations` |
 | LB1021 | Warning | Declarations | `litebus_required_declarations` names a type that does not resolve in the compilation |
+| LB1022 | Warning | Handlers | `[HandlerPriority]` value falls inside the range LiteBus reserves for its own handlers |
+
+### Reserved Handler Priority (LB1022)
+
+`HandlerPriorities` reserves the window from `ReservedFloor` (1,000,000) up to but not including `ReservedCeiling` (2,000,000) for the handlers LiteBus ships, such as the persistence writer and the audit writer. Applications own everything below the floor and everything at or above the ceiling.
+
+Reaching for a stage constant to order two application handlers against each other compiles and runs, and produces an ordering against the library's stages rather than against the sibling the author meant:
+
+```csharp
+// Wrong: ordered against LiteBus's own commit, not against the other handler.
+[HandlerPriority(HandlerPriorities.Persistence)]
+public sealed class AdvancePriceTiers : IEventHandler<OrderConfirmedEvent>;
+```
+
+Order application handlers against each other with plain values below the floor, and use the band at or above `ReservedCeiling` for infrastructure that has to run after every LiteBus handler:
+
+```csharp
+[HandlerPriority(10)]
+public sealed class IssueTickets : IEventHandler<OrderConfirmedEvent>;
+
+[HandlerPriority(20)]
+public sealed class AdvancePriceTiers : IEventHandler<OrderConfirmedEvent>;
+
+// Runs after every LiteBus handler, so an audit record written at Observability is inside the transaction.
+[HandlerPriority(HandlerPriorities.UnitOfWork)]
+public sealed class CommitUnitOfWork : IEventCompletionHandler<OrderConfirmedEvent>;
+```
+
+Only `Persistence` and `Observability` may be reordered between LiteBus releases, and only relative to each other. The floor and the ceiling are stable, so the two application bands they delimit are stable too.
 
 ### Audit Declaration (LB1018)
 

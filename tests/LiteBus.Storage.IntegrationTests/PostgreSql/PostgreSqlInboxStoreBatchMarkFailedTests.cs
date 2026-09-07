@@ -4,6 +4,7 @@ using LiteBus.Storage.PostgreSql;
 using LiteBus.Inbox;
 using LiteBus.Outbox;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Storage.IntegrationTests.PostgreSql;
 
@@ -46,8 +47,8 @@ public sealed class PostgreSqlInboxStoreBatchMarkFailedTests : IClassFixture<Pos
 
         await store.PersistAsync(
         [
-            leased.Single(envelope => envelope.Id == firstId).AsFailed("e1"),
-            leased.Single(envelope => envelope.Id == secondId).AsFailed("e2")
+            leased.Single(envelope => envelope.Id == firstId).AsFailed(MessageFailure.FromError("e1", DateTimeOffset.UtcNow)),
+            leased.Single(envelope => envelope.Id == secondId).AsFailed(MessageFailure.FromError("e2", DateTimeOffset.UtcNow))
         ]).ConfigureAwait(false);
 
         var firstRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, firstId).ConfigureAwait(false);

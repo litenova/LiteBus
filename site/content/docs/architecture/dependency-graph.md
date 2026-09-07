@@ -79,6 +79,7 @@ Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactor
 | `LiteBus.Messaging` | Registry, mediators, serializer, contract registry | `DurableMessaging.Abstractions`, `Messaging.Abstractions`, `Runtime.Abstractions` | logging abstractions |
 | `LiteBus.Commands.Abstractions` | Command contracts and handlers | `Messaging.Abstractions` | none |
 | `LiteBus.Commands` | Command mediator and module | `Commands.Abstractions`, `Messaging`, `Runtime.Abstractions` | none |
+| `LiteBus.Commands.Recurring` | `AddRecurring` and the background loop that sends one command on an interval | `Commands`, `Commands.Abstractions`, `Messaging.Abstractions`, `Runtime.Abstractions` | logging abstractions |
 | `LiteBus.Queries.Abstractions` | Query and stream query contracts | `Messaging.Abstractions` | none |
 | `LiteBus.Queries` | Query mediator and module | `Queries.Abstractions`, `Messaging`, `Runtime.Abstractions` | none |
 | `LiteBus.Events.Abstractions` | Event contracts and handlers | `Messaging.Abstractions` | none |
@@ -202,6 +203,7 @@ Additional rules:
 | `UseAwsSqsIngress(...)` | `LiteBus.Inbox.Ingress.AwsSqs` |
 | `UseKafkaIngress(...)` | `LiteBus.Inbox.Ingress.Kafka` |
 | `UseInMemoryIngress(...)` | `LiteBus.Inbox.Ingress.InMemory` |
+| `AddRecurring(...)` (commands) | `LiteBus.Commands.Recurring` |
 | `EnableSaga(...)` | `LiteBus.Saga.InboxIntegration` |
 | `UseInMemoryStorage()` (outbox) | `LiteBus.Outbox.Storage.InMemory` |
 | `UsePostgreSqlStorage(...)` (outbox) | `LiteBus.Outbox.Storage.PostgreSql` |

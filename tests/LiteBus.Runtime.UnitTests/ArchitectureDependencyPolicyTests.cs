@@ -294,6 +294,16 @@ public sealed class ArchitectureDependencyPolicyTests
                    referencedProject.StartsWith("LiteBus.Runtime", StringComparison.Ordinal);
         }
 
+        // The recurring host bridges the command axis to the runtime background-service manifest. It must not reach
+        // for a durable axis: a loop that leased rows itself would duplicate what the inbox and outbox processors do,
+        // with none of their fencing.
+        if (projectName == "LiteBus.Commands.Recurring")
+        {
+            return referencedProject.StartsWith("LiteBus.Commands", StringComparison.Ordinal) ||
+                   referencedProject.StartsWith("LiteBus.Messaging", StringComparison.Ordinal) ||
+                   referencedProject.StartsWith("LiteBus.Runtime", StringComparison.Ordinal);
+        }
+
         return true;
     }
 
@@ -446,7 +456,8 @@ public sealed class ArchitectureDependencyPolicyTests
             projectName.StartsWith("LiteBus.Outbox.Dispatch", StringComparison.Ordinal) ||
             projectName.StartsWith("LiteBus.Outbox.Storage", StringComparison.Ordinal) ||
             projectName.StartsWith("LiteBus.Saga.Storage", StringComparison.Ordinal) ||
-            projectName == "LiteBus.Saga.InboxIntegration")
+            projectName == "LiteBus.Saga.InboxIntegration" ||
+            projectName == "LiteBus.Commands.Recurring")
         {
             role = ProjectRole.FeatureBridge;
             return true;

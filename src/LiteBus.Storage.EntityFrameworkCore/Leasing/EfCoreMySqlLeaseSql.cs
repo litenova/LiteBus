@@ -57,7 +57,8 @@ internal static class EfCoreMySqlLeaseSql
                    `__ALIAS__`.`lease_expires_at` = {6},
                    `__ALIAS__`.`lease_generation` = `__ALIAS__`.`lease_generation` + 1,
                    `__ALIAS__`.`attempt_count` = `__ALIAS__`.`attempt_count` + 1,
-                   `__ALIAS__`.`last_attempted_at` = {2}
+                   `__ALIAS__`.`last_attempted_at` = {2},
+                   `__ALIAS__`.`last_lease_owner` = {5}
                WHERE `__ALIAS__`.`__ID_COLUMN__` IN (__IN_CLAUSE__)
                """
             .Replace("__TABLE__", qualifiedTableName, StringComparison.Ordinal)
@@ -76,8 +77,8 @@ internal static class EfCoreMySqlLeaseSql
         var idColumn = EfCoreLeaseTableMetadata.GetIdColumn(component);
 
         var selectList = component == EfCoreLeaseComponent.Inbox
-            ? "`__ID_COLUMN__`, `contract_name`, `contract_version`, `payload`, `created_at`, `visible_after`, `attempt_count`, `status`, `idempotency_key`, `lease_owner`, `lease_expires_at`, `last_error`, `correlation_id`, `causation_id`, `tenant_id`, `trace_context`, `lease_generation`"
-            : "`__ID_COLUMN__`, `contract_name`, `contract_version`, `payload`, `topic`, `created_at`, `visible_after`, `attempt_count`, `status`, `lease_owner`, `lease_expires_at`, `last_error`, `correlation_id`, `causation_id`, `tenant_id`, `trace_context`, `lease_generation`";
+            ? "`__ID_COLUMN__`, `contract_name`, `contract_version`, `payload`, `created_at`, `visible_after`, `attempt_count`, `status`, `idempotency_key`, `lease_owner`, `lease_expires_at`, `last_error`, `correlation_id`, `causation_id`, `tenant_id`, `trace_context`, `lease_generation`, `last_attempted_at`, `first_failed_at`, `dead_lettered_at`, `last_lease_owner`, `error_type`"
+            : "`__ID_COLUMN__`, `contract_name`, `contract_version`, `payload`, `topic`, `created_at`, `visible_after`, `attempt_count`, `status`, `lease_owner`, `lease_expires_at`, `last_error`, `correlation_id`, `causation_id`, `tenant_id`, `trace_context`, `lease_generation`, `last_attempted_at`, `first_failed_at`, `dead_lettered_at`, `last_lease_owner`, `error_type`";
 
         return """
                SELECT __SELECT_LIST__

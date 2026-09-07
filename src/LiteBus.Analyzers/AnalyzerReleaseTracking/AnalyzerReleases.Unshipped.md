@@ -21,3 +21,4 @@
  LB1019  | LiteBus.Handlers      | Warning  | Untyped shortcut on a result message               
  LB1020  | LiteBus.Declarations  | Warning  | Message states no position on a required declaration
  LB1021  | LiteBus.Declarations  | Warning  | Required declaration type not found                         
+ LB1022  | LiteBus.Handlers      | Warning  | Handler priority inside the LiteBus reserved range 

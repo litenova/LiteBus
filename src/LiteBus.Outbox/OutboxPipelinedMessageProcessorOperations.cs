@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -180,7 +180,9 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
         CancellationToken cancellationToken)
     {
         var visibleAfter = _clock.GetUtcNow().Add(options.Retry.CalculateDelay(sourceEnvelope.AttemptCount));
-        var updated = sourceEnvelope.AsFailed(MessageProcessorDiagnostics.LeaseLostDuringProcessingError, visibleAfter);
+        var updated = sourceEnvelope.AsFailed(
+            MessageFailure.FromError(MessageProcessorDiagnostics.LeaseLostDuringProcessingError, _clock.GetUtcNow()),
+            visibleAfter);
         var persistToken = options.HonorShutdownTokenOnPersist ? cancellationToken : CancellationToken.None;
 
         var persistResult = await _stateWriter.PersistAsync([updated], persistToken).ConfigureAwait(false);
@@ -234,11 +236,9 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
                 }
                 else
                 {
-                    var error = MessageProcessorDiagnostics.FormatError(exception);
-
                     OutboxProcessorLogMessages.AfterDispatchDeadLettered(logger, updated.Id, exception);
 
-                    terminal = sourceEnvelope.AsDeadLettered(error);
+                    terminal = sourceEnvelope.AsDeadLettered(MessageFailure.From(exception, _clock.GetUtcNow()));
                 }
             }
             finally

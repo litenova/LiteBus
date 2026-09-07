@@ -124,13 +124,80 @@ public sealed class EventModuleBuilder
     {
         ArgumentNullException.ThrowIfNull(assembly);
 
-        foreach (var registrableEventConstruct in assembly.GetTypes()
-                     .Where(static type => type is { IsClass: true, IsAbstract: false } && IsEventConstruct(type)))
+        var candidates = assembly.GetTypes()
+            .Where(static type => type is { IsClass: true, IsAbstract: false })
+            .ToList();
+
+        var pocoEventTypes = CollectPocoEventTypes(candidates);
+
+        foreach (var registrableEventConstruct in candidates.Where(type => IsEventConstruct(type) || DeclaresFor(type, pocoEventTypes)))
         {
             _messageRegistry.RegisterFromScan(registrableEventConstruct);
         }
 
         return this;
+    }
+
+    /// <summary>
+    ///     Collects the unmarked message types the assembly handles as events.
+    /// </summary>
+    /// <param name="candidates">The concrete types found in the assembly being scanned.</param>
+    /// <returns>The set of message types named by an <see cref="IEventHandler{TEvent}" /> that do not implement <see cref="IEvent" />.</returns>
+    /// <remarks>
+    ///     A type with no LiteBus marker is an event because something handles it as one. That is the only evidence
+    ///     available for a POCO event, and it is the same evidence the handler registration itself relies on.
+    /// </remarks>
+    private static HashSet<Type> CollectPocoEventTypes(IEnumerable<Type> candidates)
+    {
+        var pocoEventTypes = new HashSet<Type>();
+
+        foreach (var contract in candidates.SelectMany(static type => type.GetInterfaces()))
+        {
+            if (!contract.IsGenericType || contract.GetGenericTypeDefinition() != typeof(IEventHandler<>))
+            {
+                continue;
+            }
+
+            var eventType = contract.GetGenericArguments()[0];
+
+            if (!typeof(IEvent).IsAssignableFrom(eventType))
+            {
+                pocoEventTypes.Add(eventType);
+            }
+        }
+
+        return pocoEventTypes;
+    }
+
+    /// <summary>
+    ///     Determines whether a type declares metadata for one of the assembly's unmarked event types.
+    /// </summary>
+    /// <param name="type">The candidate type.</param>
+    /// <param name="pocoEventTypes">The unmarked event types the assembly handles.</param>
+    /// <returns><see langword="true" /> when the type is a message definition over one of those events.</returns>
+    /// <remarks>
+    ///     Without this, a POCO event can be handled, guarded and validated but cannot carry a declaration, so the
+    ///     axis would accept the handler and reject the audit or idempotency metadata that belongs beside it.
+    /// </remarks>
+    private static bool DeclaresFor(Type type, HashSet<Type> pocoEventTypes)
+    {
+        if (pocoEventTypes.Count == 0)
+        {
+            return false;
+        }
+
+        return type.GetInterfaces().Any(contract =>
+        {
+            if (!contract.IsGenericType)
+            {
+                return false;
+            }
+
+            var contractDefinition = contract.GetGenericTypeDefinition();
+
+            return (contractDefinition == typeof(IMessageDefinition<,>) || contractDefinition == typeof(IMessageDefinition<>))
+                   && pocoEventTypes.Contains(contract.GetGenericArguments()[0]);
+        });
     }
 
     /// <summary>

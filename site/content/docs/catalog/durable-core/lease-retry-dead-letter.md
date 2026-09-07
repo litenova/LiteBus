@@ -16,7 +16,7 @@ Lease stores atomically claim due rows with `lease_owner`, `lease_generation`, a
 ### Consumer Contracts
 
 - **`ProcessorOptions`**: Shared base for inbox/outbox processor options including lease and retry settings.
-- **`RetryOptions`**: `MaxAttempts`, initial delay, backoff strategy, multiplier, and jitter.
+- **`RetryOptions`**: `MaxAttempts`, initial delay, backoff strategy (`Fixed`, `Exponential`, or `Schedule` with an explicit `Delays` ladder), multiplier, and jitter.
 - **`IInboxLeaseStore` / `IOutboxLeaseStore`**: Atomic claim of due pending or failed-visible rows.
 - **`LeaseRenewalRequest`**: Heartbeat input carrying envelope id, lease owner, fencing generation, extension duration, and an in-memory expiry fallback.
 - **`IInboxManager` / `IOutboxManager`**: Operator requeue and dead-letter query APIs.
@@ -40,7 +40,7 @@ Lease stores atomically claim due rows with `lease_owner`, `lease_generation`, a
 
 - **`LeaseDuration`**: Claim TTL; stale processing rows become reclaimable after expiry.
 - **`LeaseHeartbeatInterval`**: Renewal cadence; must be `<= LeaseDuration / 2`.
-- **`Retry`**: `MaxAttempts`, delay, fixed or exponential backoff, optional jitter.
+- **`Retry`**: `MaxAttempts`, delay, fixed, exponential, or explicit-schedule backoff, optional jitter.
 - **`LeaseOwner`**: Optional operator label with an opaque random session suffix per processor instance. The suffix fences stale sessions that reuse the same configured label.
 
 ### Extension Points

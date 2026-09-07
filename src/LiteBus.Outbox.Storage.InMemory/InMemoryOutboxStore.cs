@@ -274,7 +274,9 @@ public sealed class InMemoryOutboxStore :
                 .Where(envelope => IsAvailable(envelope, now, staleCutoff))
                 .OrderBy(envelope => envelope.CreatedAt)
                 .Take(request.BatchSize)
-                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt))
+                // The relational stores stamp last_attempted_at in the lease statement itself, so the
+                // in-memory store stamps it here to keep the three adapters answering the same question.
+                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt) with { LastAttemptedAt = now })
                 .ToArray();
 
             foreach (var envelope in leased)

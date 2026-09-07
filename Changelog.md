@@ -2,6 +2,124 @@
 
 All notable changes to this project will be documented in this file.
 
+## v7.0.0-preview.5
+
+What changed since `v7.0.0-preview.4`. Acts on a field report from a production .NET 10 application that ported off
+its hand-written outbox and domain-event dispatcher onto LiteBus. The theme is honesty about durable messaging: a
+dispatch that reached nothing is no longer reported as a success, the operational columns the schema always created
+are now written and readable, and three places where the library made a decision the application should have made are
+now composition-time choices.
+
+### Added
+
+- `RetryBackoff.Schedule` and `RetryOptions.Delays` take the retry ladder directly. `Fixed` and `Exponential` derive
+  every delay from `InitialDelay` under the `MaxDelay` cap, which cannot express a window that starts inside a minute
+  and still reaches days: exponential from one minute reaches roughly four hours by the ninth attempt, and stretching
+  the tail to a week also pushes the first few retries hours apart, which is the opposite of what a receiver that
+  blipped needs. A retry window is a customer-visible guarantee for partner-facing delivery, so it is stated rather
+  than approximated. An attempt past the end of the ladder repeats the last entry; `MaxDelay` does not clamp the
+  entries, because a cap that silently shortened a declared seven-day tail would defeat the reason for declaring it.
+  `RetryOptions.Validate()` runs when the module builds, so an empty or negative ladder fails at boot rather than on
+  the first failure, which is the one moment nobody is watching the retry policy.
+- `MessageModuleBuilder.UseSerializer<TMessageSerializer>(lifetime)` and `UseSerializerInstance` state the wire format
+  of persisted messages at the composition root. The default is `JsonSerializerDefaults.Web`, which is camel case, and
+  the only way to change it was to replace the container registration after `AddLiteBus`: one line outside composition
+  that no analyzer can see and no startup check can miss. Forgetting it renames every property of every durable
+  message on the wire, every consumer breaks, and nothing fails at boot. The builder already owned `UseTimeProvider`,
+  `UseAuditTrail` and `UseAuditOutcomeMapper`; the wire format of a stored message is at least as consequential.
+- `IdempotencyDeclaration.KeyedByContext()` and `SuppliedIdempotencyKey` cover a key that cannot be projected from the
+  message. A processor webhook carries a raw body and a signature and nothing else, deliberately, so that nothing
+  unverified reaches a decision; its deduplication key is the provider's event id, which is knowable only after the
+  signature is checked and the body parsed. That is a lookup, and a lookup needs services. A guard does the work and
+  hands the key forward through `IExecutionContext.Data`, and the pre stage already runs guards before shortcuts. The
+  key is read once and reused by both the shortcut that claims it and the completion handler that settles it, so the
+  verification happens once per mediation rather than once per stage. It is deliberately not a container-resolved
+  provider: each stage resolves the key independently, so a provider would pay the cost twice and, if it were not
+  perfectly deterministic, write a different key at each stage. A message declared this way that reaches the shortcut
+  with no key raises `AuditConfigurationException` naming the message type, because a generated fallback would make
+  every delivery look distinct and the declaration would appear to work while doing nothing.
+- `LiteBus.Commands.Recurring` sends one command on a fixed interval for the life of the host, registered through
+  `CommandModuleBuilder.AddRecurring`. It replaces the hosted service most CQRS applications write once per background
+  job: create a scope, resolve the mediator, send one command, sleep, back off on failure, and never let an exception
+  escape the loop. A result implementing `IRecurringWorkReport` can report that work remains, which skips the interval
+  and turns a large backlog into one busy period instead of one batch per interval. The package is explicit about what
+  it is not: there is no cron expression, no missed-run catch-up, and no leader election, so the loop runs on every
+  host instance concurrently. That suits a command that drains work by leasing rows, where the store arbitrates; work
+  that must be claimed exactly once belongs on the durable axes, which lease and fence per message.
+- `LB1022` warns when `[HandlerPriority]` falls inside the range LiteBus reserves for its own handlers. Reaching for
+  `HandlerPriorities.Persistence` to order two application handlers against each other compiles and runs, and produces
+  an ordering against the library's commit rather than against the sibling it was meant to be ordered against. The
+  bands were already documented; they were not enforceable.
+- `InProcessOutboxDispatchOptions.RequireHandler`, configured through `UseInProcessDispatch(dispatch => ...)`,
+  controls whether a dispatched message with no handler fails the attempt. It defaults to `true`; see **Changed**.
+- `CommandModuleBuilder.RegisterChildModule` is the seam feature packages compose through, so a capability layered on
+  the command axis is registered inside `AddCommands` rather than as a second top-level module the caller has to
+  remember to add. `CommandModule` is now an `ICompositeModule`.
+
+### Changed
+
+- Outbox in-process dispatch requires a handler by default. `EventMediationSettings.ThrowIfNoHandlerFound` defaults to
+  `false`, and `EventOutboxDispatcher` used it as-is, so an event with no registered handler was leased, dispatched
+  and marked `Published` without ever leaving the process. If the assembly holding the handlers is not scanned by
+  `AddEvents`, that is total data loss with no exception, no dead letter, and a backlog reading of zero. A silent
+  no-op is a defensible default for an immediate publish, where the caller can see there are no subscribers; a durable
+  dispatch has no such caller, and the whole promise of the outbox is that a committed message reached somewhere. The
+  inbox axis could never have this failure, because command mediation requires exactly one handler, so the two durable
+  axes disagreed about whether a dispatch with nowhere to go was an error. Set `RequireHandler = false` to restore the
+  old behavior where publishing to zero handlers is deliberate.
+- The operational columns are written and readable. `last_attempted_at`, `first_failed_at`, `dead_lettered_at`,
+  `last_lease_owner` and `error_type` were created by the DDL, validated by the schema check at boot, and mapped by
+  the EF Core model, and four of the five were written by nothing and read by nothing. An operator dashboard querying
+  them read nulls forever. They are now on `InboxEnvelope` and `OutboxEnvelope`, written by every store adapter on
+  every terminal transition, and returned by `IInboxManager.QueryAsync` and `IOutboxManager.QueryAsync`, so a
+  dead-letter listing no longer needs a second statement against the library's own table. `FirstFailedAt` is set once
+  and is not moved by later failures, so it keeps answering how long a message struggled; `AsRequeued` clears the
+  failure record and keeps the attempt history.
+- The event axis agrees on one message constraint. `IEventGuard<TEvent>`, `IEventValidator<TEvent>`,
+  `IEventShortcut<TEvent>` and `IEventCompletionHandler<TEvent>` constrained `TEvent : IEvent` while
+  `IEventHandler<TEvent>` and the pre, post and error roles constrained `notnull`. There was no principle that made a
+  guard need the marker interface when the handler it guards did not, so a domain event with no LiteBus marker could
+  be handled and nothing else. All four are now `notnull`, and `EventModuleBuilder.RegisterFromAssembly` also
+  registers an `IMessageDefinition` declared over an unmarked event, so a POCO event can carry the audit or
+  idempotency metadata that belongs beside its handler.
+
+### Fixed
+
+- The `LB1014` dispatcher detection missed an extension method that takes an optional argument. It read
+  `Parameters[0]` of the reduced symbol before falling back to `ReducedFrom`, so the check only recognized extensions
+  that take nothing beyond the builder. Adding a configuration parameter to any `Use*Dispatch` extension would have
+  reported a correctly configured processor as missing its dispatcher.
+- The Marten path is tested and the snippet documenting it is correct. `PostgreSqlMartenTransactionalOutboxTests`
+  asserts that a Marten document and an outbox row commit together, that neither survives a rollback, and that the
+  writer refuses to resolve with no active transaction. The guide's snippet assigned `SessionOptions.Connection` and
+  `Transaction`, which are read-only in current Marten; it now uses `SessionOptions.ForTransaction`. The
+  `EnableAmbientTransactionProvider` remarks and the `RequireActiveTransaction` exception message now say that another
+  ORM joins the transaction rather than owning one, because both are where someone concluding the path does not exist
+  actually looks. A consumer reading the docs concluded exactly that and hand-wrote inserts against the outbox table,
+  whose schema LiteBus creates, versions and validates.
+
+### Breaking
+
+- `ParallelFaultMode` is now `HandlerFaultMode`, `AggregateAll` is now `ContinueAndAggregate`, and
+  `EventExecutionSettings.ParallelFaultMode` is now `FaultMode`. The old name described a mechanism when the thing it
+  configures is a policy: whether a failing handler suppresses its siblings. It now applies to sequential execution as
+  well, which is the substantive change. Under sequential broadcast the first handler that threw stopped every handler
+  behind it, and the only escape was turning on parallel execution, which forces thread-safety onto handlers that
+  share a resource such as an ORM session. Fault isolation no longer costs a move to `Parallel`. The mode governs
+  handlers inside one priority group and never carries across groups, because a priority difference is the explicit
+  statement that the later group runs after the earlier one.
+- `AsFailed` and `AsDeadLettered` on both envelopes take a `MessageFailure` instead of a string. The three parts of a
+  failure answer three different questions: the formatted text is what a person reads, the exception type is what a
+  dashboard groups by, and the timestamp is what fills `first_failed_at` and `dead_lettered_at`. Storing only the
+  formatted string forced every consumer to parse it back apart. Use `MessageFailure.From(exception, occurredAt)`, or
+  `MessageFailure.FromError(text, occurredAt)` for a failure with a reason but no exception.
+- `IdempotencyDeclaration.KeySelector` is nullable. It is `null` for a declaration created by `KeyedByContext()`,
+  whose key comes from the execution context rather than from the message.
+- `CommandModuleBuilder` no longer takes an `IMessageRegistry` and an `IContractWriter`, and queues registrations
+  instead of writing them straight through. `CommandModule` is an `ICompositeModule`, so its configuration action runs
+  during `DeclareChildren`, before the live registry exists. Applications are unaffected; code that constructed the
+  builder directly is not.
+
 ## v7.0.0-preview.4
 
 What changed since `v7.0.0-preview.3`. Acts on the second round of feedback from the application migrating onto the v7

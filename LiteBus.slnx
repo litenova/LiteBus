@@ -43,6 +43,7 @@
         <Project Path="src/LiteBus.Commands.Extensions.Autofac/LiteBus.Commands.Extensions.Autofac.csproj"/>
         <Project
                 Path="src/LiteBus.Commands.Extensions.Microsoft.DependencyInjection/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <Project Path="src/LiteBus.Commands.Recurring/LiteBus.Commands.Recurring.csproj"/>
         <Project Path="src/LiteBus.Commands/LiteBus.Commands.csproj"/>
         <Project Path="src/LiteBus.Events.Abstractions/LiteBus.Events.Abstractions.csproj"/>
         <Project Path="src/LiteBus.Events.Extensions.Autofac/LiteBus.Events.Extensions.Autofac.csproj"/>

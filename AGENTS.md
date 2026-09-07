@@ -420,6 +420,10 @@ Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs du
 
 **Compose through parent module builders.** Register storage, dispatch, and ingress inside the parent module builder via `Use*` extensions. Do not add new top-level `IModuleRegistry` shortcuts that bypass the parent builder. Mark obsolete patterns rather than extending them.
 
+**A builder that declares children must defer its registrations.** `DeclareChildren` runs before the live `IMessageRegistry` and contract registry exist, so a builder whose configuration action runs there queues type and assembly registrations and applies them in `Build()`. `CommandModuleBuilder` and `OutboxModuleBuilder` both do this; `MessageContractBuilder` is the shared deferred contract writer. Two ordering rules follow, and getting either wrong is silent: apply queued registrations **after** every source of registrations has run, including conditional enablement such as the axis selection `AddAuditing` implies, and apply contracts before registrations. A registration queued after `ApplyRegistrations` is dropped without an error.
+
+**A feature package layered on an axis registers a child module through the axis builder.** `CommandModuleBuilder.RegisterChildModule` is the seam; `LiteBus.Commands.Recurring` is the worked example. The package is a feature bridge, not a host adapter, when it needs no host framework SDK and reaches the generic host only through the manifest. Add its role to `TryGetRole` in `ArchitectureDependencyPolicyTests` and constrain what it may reference in `IsFeatureBridgeReferenceAllowed`: the policy test fails a package with no assigned role, which is the intended gate.
+
 ### Composition rules
 
 - Applications reference only packages they compose. See **Granular opt-in packages** above; never widen a package reference graph because another integration exists in the same repo.

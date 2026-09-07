@@ -278,7 +278,6 @@ No dedicated transactional-write meter. Success and failure appear through appli
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| Marten session + transactional outbox | Yes | Pattern documented; no Marten fixture test | Integration | Low |
 | Ingress joined to domain transaction | No (by design) | N/A |: |: |
 | SQL Server transactional stores | No | Not shipped |: |: |
 

@@ -20,7 +20,52 @@ public sealed class ApplyPaymentCommandDefinition : IIdempotencyDefinition<Apply
 }
 ```
 
-The selector is a pure projection over the message: read fields, format them. It runs once per mediation and cannot resolve services, because a declaration is created once at registration. Anything needing a lookup belongs in a guard, which can hand its result forward through [`IExecutionContext.Data`](execution-context.md).
+The selector is a pure projection over the message: read fields, format them. It runs once per mediation and cannot resolve services, because a declaration is created once at registration. When deriving the key needs services, declare `KeyedByContext()` and let a guard supply it.
+
+## Keys That Need Services
+
+Some keys cannot be projected from the message. A processor webhook carries a raw body and a signature and nothing else, deliberately, so that nothing unverified reaches a decision; its deduplication key is the provider's event id, which is only knowable after the signature is checked and the body parsed. That is a lookup, and a lookup needs services.
+
+Declare the message with `KeyedByContext()` and resolve the key in a guard. The pre stage runs guards before shortcuts, so the key is present by the time idempotency asks for it:
+
+```csharp
+public sealed class ProcessorWebhookCommandDefinition : IIdempotencyDefinition<ProcessorWebhookCommand>
+{
+    public IdempotencyDeclaration Idempotency =>
+        IdempotencyDeclaration.KeyedByContext() with { Scope = "processor-webhook" };
+}
+
+public sealed class VerifyProcessorWebhookGuard : ICommandGuard<ProcessorWebhookCommand>
+{
+    private readonly IProcessorWebhookVerifier _verifier;
+    private readonly IExecutionContext _context;
+
+    public VerifyProcessorWebhookGuard(IProcessorWebhookVerifier verifier, IExecutionContext context)
+    {
+        _verifier = verifier;
+        _context = context;
+    }
+
+    public async Task<Verdict> DecideAsync(
+        ProcessorWebhookCommand message,
+        CancellationToken cancellationToken = default)
+    {
+        var verified = await _verifier.VerifyAsync(message.RawBody, message.SignatureHeader, cancellationToken);
+
+        if (verified is null)
+        {
+            return Verdict.Deny("the webhook signature did not verify");
+        }
+
+        _context.Data.Set(new SuppliedIdempotencyKey(verified.EventId));
+        return Verdict.Allow;
+    }
+}
+```
+
+The key is read once and reused by both the shortcut that claims it and the completion handler that settles it, so the expensive verification happens once per mediation rather than once per stage. This is why the key is supplied rather than resolved through a container-registered provider: a provider would be invoked by each stage independently, paying the cost twice and, if it were not perfectly deterministic, writing a different key at each stage.
+
+A message declared this way that reaches the shortcut with no key in context raises `AuditConfigurationException` naming the message type. It is reported rather than defaulted: a generated fallback would make every delivery of the same intent look distinct, so the store would accept them all and the declaration would appear to work while doing nothing.
 
 | Member | Meaning |
 | --- | --- |

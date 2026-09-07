@@ -165,6 +165,28 @@ The integration test `ProcessPendingAsync_WhenPersistSkippedAfterPublish_ShouldR
 | `IOutboxRetentionStore` | Cleanup services | Delete published messages past retention |
 | `IOutboxDiagnosticsStore` | Operators | Status counts |
 
+## In-Process Dispatch
+
+`UseInProcessDispatch` replays stored events into the local event pipeline instead of a broker.
+
+```csharp
+outbox.UseInProcessDispatch();
+```
+
+A dispatched message with no registered handler fails the attempt by default, so it retries and eventually dead-letters rather than being marked `Published`. An immediate `PublishAsync` treats zero subscribers as a silent no-op, which is defensible when the caller can see there are none. A durable dispatch has no such caller, so the two axes deliberately disagree.
+
+The failure this default prevents is silent and total: if the assembly holding the handlers is never scanned by `AddEvents`, every outbox message is leased, dispatched, and marked `Published` without leaving the process, and the backlog reads zero throughout.
+
+```csharp
+// Only when publishing to zero handlers is a state the application deliberately allows.
+outbox.UseInProcessDispatch(dispatch => dispatch.RequireHandler = false);
+```
+
+| Option | Default | Behavior |
+| --- | --- | --- |
+| `RequireHandler` | `true` | A message with no handler fails the dispatch attempt, retries, and dead-letters |
+| `RequireHandler` | `false` | A message with no handler completes and is marked `Published` |
+
 ## Retry and Dead Letter
 
 ```csharp
@@ -184,6 +206,41 @@ outbox.UseProcessorOptions(new OutboxProcessorOptions
 ```
 
 `Retry.MaxAttempts` counts dispatch attempts recorded on the leased envelope. Requeue operations through `IOutboxManager.RequeueAsync` return `RequeueResult { Requested, Requeued }`.
+
+### Explicit Retry Schedules
+
+`RetryBackoff.Fixed` and `RetryBackoff.Exponential` derive every delay from `InitialDelay` under the `MaxDelay` cap. That cannot express a window that starts inside a minute and still reaches days, which is what a customer-visible delivery guarantee usually needs: exponential from one minute reaches roughly four hours by the ninth attempt, and stretching the tail to a week also pushes the first few retries hours apart, which is the opposite of what a receiver that blipped needs.
+
+`RetryBackoff.Schedule` takes the ladder directly:
+
+```csharp
+Retry = new RetryOptions
+{
+    MaxAttempts = 8,
+    Backoff = RetryBackoff.Schedule,
+    Delays =
+    [
+        TimeSpan.FromMinutes(1),
+        TimeSpan.FromMinutes(5),
+        TimeSpan.FromMinutes(30),
+        TimeSpan.FromHours(2),
+        TimeSpan.FromHours(8),
+        TimeSpan.FromDays(1),
+        TimeSpan.FromDays(3),
+        TimeSpan.FromDays(7)
+    ]
+}
+```
+
+| Rule | Behavior |
+| --- | --- |
+| Attempt past the end of the ladder | Repeats the last entry rather than failing or wrapping |
+| `MaxDelay` | Does not clamp ladder entries; the ladder is the policy |
+| `UseJitter` | Still applies, bounded by the ladder entry rather than by `MaxDelay` |
+| Empty `Delays` with `Backoff = Schedule` | Refused at composition, not at the first failure |
+| `Delays` with any other backoff | Ignored |
+
+`Delays` is validated when the module builds, so a misconfigured ladder fails at boot rather than on the first failure, which is the one moment nobody is watching the retry policy.
 
 After-dispatch hook failures follow `HookFailurePolicy` on `OutboxProcessorOptions`:
 

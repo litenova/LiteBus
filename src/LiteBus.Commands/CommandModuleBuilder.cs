@@ -5,6 +5,8 @@ using System.Reflection;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Commands.Idempotency;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Registry;
+using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Commands;
@@ -40,26 +42,34 @@ public sealed class CommandModuleBuilder
     ];
 
     /// <summary>
-    ///     Gets the message registry to which command types are registered.
+    ///     Deferred contract registrations, applied when the module builds.
     /// </summary>
-    private readonly IMessageRegistry _messageRegistry;
+    private readonly MessageContractBuilder _contracts = new();
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="CommandModuleBuilder" /> class.
+    ///     Command construct types registered one at a time, in call order.
     /// </summary>
-    /// <param name="messageRegistry">The message registry to which commands will be registered.</param>
-    /// <param name="contracts">The contract writer used during module configuration.</param>
-    public CommandModuleBuilder(IMessageRegistry messageRegistry, IContractWriter contracts)
-    {
-        _messageRegistry = messageRegistry;
-        ArgumentNullException.ThrowIfNull(contracts);
-        Contracts = contracts;
-    }
+    private readonly List<Type> _types = [];
+
+    /// <summary>
+    ///     Assemblies scanned for command constructs, in call order.
+    /// </summary>
+    private readonly List<Assembly> _assemblies = [];
+
+    /// <summary>
+    ///     Child modules declared by feature packages composing through this builder.
+    /// </summary>
+    private readonly List<IModule> _childModules = [];
 
     /// <summary>
     ///     Gets the message contract writer for persisted command contracts.
     /// </summary>
-    public IContractWriter Contracts { get; }
+    /// <remarks>
+    ///     Registrations are collected here and applied to the shared registry when the module builds, because the
+    ///     configuration action now runs while the module graph is still being declared and the live registry does not
+    ///     exist yet.
+    /// </remarks>
+    public IContractWriter Contracts => _contracts;
 
     /// <summary>
     ///     Gets a value indicating whether <see cref="EnableAuditing" /> was called.
@@ -162,7 +172,7 @@ public sealed class CommandModuleBuilder
             throw new LiteBusNotSupportedException($"The given type '{type.Name}' is not a command construct and cannot be registered.");
         }
 
-        _messageRegistry.Register(type);
+        _types.Add(type);
         return this;
     }
 
@@ -176,13 +186,69 @@ public sealed class CommandModuleBuilder
     {
         ArgumentNullException.ThrowIfNull(assembly);
 
-        foreach (var registrableCommandConstruct in assembly.GetTypes()
-                     .Where(static type => type is { IsClass: true, IsAbstract: false } && IsCommandConstruct(type)))
+        _assemblies.Add(assembly);
+        return this;
+    }
+
+    /// <summary>
+    ///     Declares a child module owned by the command module.
+    /// </summary>
+    /// <param name="module">The child module to build alongside the command module.</param>
+    /// <returns>The current <see cref="CommandModuleBuilder" /> instance for method chaining.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="module" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     The seam feature packages compose through, so a capability layered on the command axis is registered inside
+    ///     <c>AddCommands</c> rather than as a second top-level module the caller has to remember to add.
+    /// </remarks>
+    public CommandModuleBuilder RegisterChildModule(IModule module)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+
+        _childModules.Add(module);
+        return this;
+    }
+
+    /// <summary>
+    ///     Collects the child modules declared on this builder.
+    /// </summary>
+    /// <returns>The child modules, in declaration order.</returns>
+    public IReadOnlyList<IModule> CollectSubModules()
+    {
+        return _childModules;
+    }
+
+    /// <summary>
+    ///     Applies deferred contract registrations to the live registry.
+    /// </summary>
+    /// <param name="registry">The shared message contract registry.</param>
+    public void ApplyContracts(IMessageContractRegistry registry)
+    {
+        _contracts.ApplyTo(registry);
+    }
+
+    /// <summary>
+    ///     Applies deferred type and assembly registrations to the live message registry.
+    /// </summary>
+    /// <param name="messageRegistry">The message registry the command module builds against.</param>
+    /// <remarks>
+    ///     Explicit registrations are applied before assembly scans, matching the order in which the configuration
+    ///     action expressed them: a type named directly is registered as declared, and a scan then fills in the rest.
+    /// </remarks>
+    internal void ApplyRegistrations(IMessageRegistry messageRegistry)
+    {
+        foreach (var type in _types)
         {
-            _messageRegistry.RegisterFromScan(registrableCommandConstruct);
+            messageRegistry.Register(type);
         }
 
-        return this;
+        foreach (var assembly in _assemblies)
+        {
+            foreach (var registrableCommandConstruct in assembly.GetTypes()
+                         .Where(static type => type is { IsClass: true, IsAbstract: false } && IsCommandConstruct(type)))
+            {
+                messageRegistry.RegisterFromScan(registrableCommandConstruct);
+            }
+        }
     }
 
     /// <summary>

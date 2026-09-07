@@ -11,7 +11,7 @@ LiteBus provides semantic command, query, and event mediation. Durable messaging
 | Durable contracts | Durable metadata, leases, processor hooks, and axis contracts | `LiteBus.DurableMessaging.Abstractions`, inbox/outbox/saga abstractions |
 | Core implementations | Module runtime, mediation, semantic mediators, and durable processors | `LiteBus.Runtime`, `LiteBus.Messaging`, `LiteBus.Commands`, `LiteBus.Queries`, `LiteBus.Events`, `LiteBus.Inbox`, `LiteBus.Outbox`, `LiteBus.Saga` |
 | Technology adapters | Broker and persistence SDK ownership | `LiteBus.Transport.*`, `LiteBus.Storage.PostgreSql`, `LiteBus.Storage.EntityFrameworkCore` |
-| Feature bridges | Storage, dispatch, ingress, and saga-to-inbox mapping | `LiteBus.Inbox.*`, `LiteBus.Outbox.*`, `LiteBus.Saga.InboxIntegration`, `LiteBus.Saga.Storage.*` adapters |
+| Feature bridges | Storage, dispatch, ingress, saga-to-inbox mapping, and the recurring command host | `LiteBus.Inbox.*`, `LiteBus.Outbox.*`, `LiteBus.Saga.InboxIntegration`, `LiteBus.Saga.Storage.*` adapters, `LiteBus.Commands.Recurring` |
 | Host adapters | DI, hosting, telemetry, health, and ASP.NET Core mapping | `LiteBus.Runtime.Extensions.*`, `LiteBus.*.Extensions.*`, `LiteBus.Extensions.*` |
 | Consumer tooling | Analyzer and application test support | `LiteBus.Analyzers`, `LiteBus.Testing`, `LiteBus.Testing.Mediation`, `LiteBus.Testing.Transport`, `LiteBus.Testing.DurableMessaging`, `LiteBus.Testing.Hosting` |
 

@@ -232,4 +232,19 @@ public static class DiagnosticDescriptors
         "LiteBus.Handlers",
         DiagnosticSeverity.Warning,
         true);
+
+    /// <summary>
+    ///     A handler priority falls inside the range LiteBus reserves for the handlers it ships.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor ReservedHandlerPriority = new(
+        DiagnosticIds.ReservedHandlerPriority,
+        "Handler priority is inside the range reserved by LiteBus",
+        "Handler '{0}' has priority {1}, which is inside the range LiteBus reserves for its own handlers "
+        + "(HandlerPriorities.ReservedFloor to ReservedCeiling). It is ordered against LiteBus stages such as the "
+        + "persistence and audit writers rather than against other application handlers, and the position can move "
+        + "between releases. Use a value below HandlerPriorities.ReservedFloor to run before every LiteBus handler, "
+        + "or at or above HandlerPriorities.ReservedCeiling to run after them.",
+        "LiteBus.Handlers",
+        DiagnosticSeverity.Warning,
+        true);
 }

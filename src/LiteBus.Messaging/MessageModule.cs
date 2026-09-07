@@ -66,6 +66,8 @@ public sealed class MessageModule : IModule
             messageRegistry,
             messageContractRegistry,
             moduleBuilder.TimeProvider,
+            moduleBuilder.Serializer,
+            moduleBuilder.SerializerLifetime,
             moduleBuilder.AuditOutcomeMapper,
             moduleBuilder.AuditTrail,
             moduleBuilder.AuditTrailLifetime,
@@ -238,6 +240,8 @@ public sealed class MessageModule : IModule
     /// <param name="messageRegistry">The message registry instance.</param>
     /// <param name="messageContractRegistry">The message contract registry instance.</param>
     /// <param name="timeProvider">The optional time provider registered for messaging services.</param>
+    /// <param name="messageSerializer">The serializer instance or implementation type, or null for the built-in one.</param>
+    /// <param name="messageSerializerLifetime">The lifetime a serializer implementation type is registered with.</param>
     /// <param name="auditOutcomeMapper">The optional audit outcome mapper registered for the audit writer.</param>
     /// <param name="auditTrail">The audit trail registered through the builder, when the application supplied one there.</param>
     /// <param name="auditTrailLifetime">The lifetime an audit trail implementation type is registered with.</param>
@@ -250,6 +254,8 @@ public sealed class MessageModule : IModule
         IMessageRegistry messageRegistry,
         MessageContractRegistry messageContractRegistry,
         TimeProvider? timeProvider,
+        object? messageSerializer,
+        InstanceLifetime messageSerializerLifetime,
         IAuditOutcomeMapper? auditOutcomeMapper,
         object? auditTrail,
         InstanceLifetime auditTrailLifetime,
@@ -298,9 +304,7 @@ public sealed class MessageModule : IModule
             typeof(IContractWriter),
             messageContractRegistry));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IMessageSerializer),
-            typeof(SystemTextJsonMessageSerializer)));
+        RegisterMessageSerializer(configuration, messageSerializer, messageSerializerLifetime);
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(TimeProvider),
@@ -507,6 +511,50 @@ public sealed class MessageModule : IModule
                     handlerType,
                     InstanceLifetime.Scoped));
             }
+        }
+    }
+
+    /// <summary>
+    ///     Registers the serializer that produces and reads persisted message payloads.
+    /// </summary>
+    /// <param name="configuration">The module configuration.</param>
+    /// <param name="messageSerializer">The serializer instance or implementation type, or null for the built-in one.</param>
+    /// <param name="lifetime">The lifetime an implementation type is registered with.</param>
+    /// <exception cref="LiteBusConfigurationException">The builder held a value that is not a serializer.</exception>
+    /// <remarks>
+    ///     Falling back to <see cref="SystemTextJsonMessageSerializer" /> keeps the default wire format unchanged for
+    ///     applications that never state one.
+    /// </remarks>
+    private static void RegisterMessageSerializer(
+        IModuleConfiguration configuration,
+        object? messageSerializer,
+        InstanceLifetime lifetime)
+    {
+        switch (messageSerializer)
+        {
+            case null:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IMessageSerializer),
+                    typeof(SystemTextJsonMessageSerializer)));
+                break;
+
+            case Type implementationType:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IMessageSerializer),
+                    implementationType,
+                    lifetime));
+                break;
+
+            case IMessageSerializer instance:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IMessageSerializer),
+                    instance));
+                break;
+
+            default:
+                throw new LiteBusConfigurationException(
+                    $"The configured message serializer '{messageSerializer.GetType().Name}' is neither an "
+                    + $"{nameof(IMessageSerializer)} instance nor an implementation type.");
         }
     }
 }

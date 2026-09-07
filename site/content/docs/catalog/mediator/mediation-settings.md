@@ -31,7 +31,7 @@ var settings = new EventMediationSettings
     {
         PriorityGroupsConcurrencyMode = ConcurrencyMode.Sequential,
         HandlersWithinSamePriorityConcurrencyMode = ConcurrencyMode.Parallel,
-        ParallelFaultMode = ParallelFaultMode.AggregateAll
+        FaultMode = HandlerFaultMode.ContinueAndAggregate
     }
 };
 

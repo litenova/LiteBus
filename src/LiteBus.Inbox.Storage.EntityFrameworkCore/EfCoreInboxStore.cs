@@ -702,7 +702,9 @@ public sealed class EfCoreInboxStore :
                         .SetProperty(message => message.Status, InboxStatus.Completed)
                         .SetProperty(message => message.LeaseOwner, (string?) null)
                         .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
+                        .SetProperty(message => message.LastLeaseOwner, envelope.LeaseOwner)
                         .SetProperty(message => message.LastError, (string?) null)
+                        .SetProperty(message => message.ErrorType, (string?) null)
                         .SetProperty(message => message.CompletedAt, completedAt),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -795,7 +797,10 @@ public sealed class EfCoreInboxStore :
                         .SetProperty(message => message.AttemptCount, envelope.AttemptCount)
                         .SetProperty(message => message.LeaseOwner, (string?) null)
                         .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
-                        .SetProperty(message => message.LastError, envelope.LastError),
+                        .SetProperty(message => message.LastLeaseOwner, envelope.LeaseOwner)
+                        .SetProperty(message => message.LastError, envelope.LastError)
+                        .SetProperty(message => message.ErrorType, envelope.ErrorType)
+                        .SetProperty(message => message.FirstFailedAt, message => message.FirstFailedAt ?? envelope.FirstFailedAt),
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -883,7 +888,11 @@ public sealed class EfCoreInboxStore :
                         .SetProperty(message => message.AttemptCount, envelope.AttemptCount)
                         .SetProperty(message => message.LeaseOwner, (string?) null)
                         .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
-                        .SetProperty(message => message.LastError, envelope.LastError),
+                        .SetProperty(message => message.LastLeaseOwner, envelope.LeaseOwner)
+                        .SetProperty(message => message.LastError, envelope.LastError)
+                        .SetProperty(message => message.ErrorType, envelope.ErrorType)
+                        .SetProperty(message => message.FirstFailedAt, message => message.FirstFailedAt ?? envelope.FirstFailedAt)
+                        .SetProperty(message => message.DeadLetteredAt, envelope.DeadLetteredAt ?? DateTimeOffset.UtcNow),
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -1355,7 +1364,12 @@ public sealed class EfCoreInboxStore :
             CausationId = entity.CausationId,
             TenantId = entity.TenantId,
             TraceContext = EfCoreJsonTextNormalizer.Normalize(entity.TraceContext),
-            CompletedAt = entity.CompletedAt
+            CompletedAt = entity.CompletedAt,
+            LastAttemptedAt = entity.LastAttemptedAt,
+            FirstFailedAt = entity.FirstFailedAt,
+            DeadLetteredAt = entity.DeadLetteredAt,
+            LastLeaseOwner = entity.LastLeaseOwner,
+            ErrorType = entity.ErrorType
         };
     }
 
@@ -1384,7 +1398,12 @@ public sealed class EfCoreInboxStore :
             CorrelationId = row.CorrelationId,
             CausationId = row.CausationId,
             TenantId = row.TenantId,
-            TraceContext = EfCoreJsonTextNormalizer.Normalize(row.TraceContext)
+            TraceContext = EfCoreJsonTextNormalizer.Normalize(row.TraceContext),
+            LastAttemptedAt = row.LastAttemptedAt,
+            FirstFailedAt = row.FirstFailedAt,
+            DeadLetteredAt = row.DeadLetteredAt,
+            LastLeaseOwner = row.LastLeaseOwner,
+            ErrorType = row.ErrorType
         };
     }
 
@@ -1442,6 +1461,23 @@ public sealed class EfCoreInboxStore :
             : envelope.LeaseExpiresAt;
 
         entity.LastError = envelope.LastError;
+        entity.ErrorType = envelope.ErrorType;
+
+        // The lease owner is cleared on every terminal status, so it is copied aside first. Without it the one
+        // question a dead-letter listing always asks, which instance was handling this, has no answer.
+        if (envelope.LastLeaseOwner is not null)
+        {
+            entity.LastLeaseOwner = envelope.LastLeaseOwner;
+        }
+
+        // Only ever set once, so it keeps naming the first failure rather than the most recent one.
+        entity.FirstFailedAt = envelope.FirstFailedAt is null
+            ? null
+            : entity.FirstFailedAt ?? envelope.FirstFailedAt;
+
+        entity.DeadLetteredAt = envelope.Status == InboxStatus.DeadLettered
+            ? envelope.DeadLetteredAt ?? DateTimeOffset.UtcNow
+            : envelope.DeadLetteredAt;
 
         if (envelope.Status == InboxStatus.Processing && leasedAt is not null)
         {
@@ -1697,7 +1733,37 @@ public sealed class EfCoreInboxStore :
         /// </summary>
         [Column("trace_context")]
         public string? TraceContext { get; set; }
-    }
+    
+        /// <summary>
+        ///     Gets or sets the last attempt timestamp column.
+        /// </summary>
+        [Column("last_attempted_at")]
+        public DateTimeOffset? LastAttemptedAt { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the first failure timestamp column.
+        /// </summary>
+        [Column("first_failed_at")]
+        public DateTimeOffset? FirstFailedAt { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the dead-letter timestamp column.
+        /// </summary>
+        [Column("dead_lettered_at")]
+        public DateTimeOffset? DeadLetteredAt { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the most recent lease owner column.
+        /// </summary>
+        [Column("last_lease_owner")]
+        public string? LastLeaseOwner { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the failure type column.
+        /// </summary>
+        [Column("error_type")]
+        public string? ErrorType { get; set; }
+}
 
     /// <summary>
     ///     Throws when a duplicate idempotency key or message identifier is rejected under strict conflict mode.

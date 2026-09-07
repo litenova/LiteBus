@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Mediator.UnitTests.UseCases.Events;
 
-public sealed class ParallelFaultModeTests
+public sealed class HandlerFaultModeTests
 {
     [Fact]
     public async Task PropagateFirst_waits_for_started_siblings_before_surfacing_one_failure()
@@ -28,7 +28,7 @@ public sealed class ParallelFaultModeTests
         var @event = new PropagateFirstEvent();
         var publication = serviceProvider.GetRequiredService<IEventMediator>().PublishAsync(
             @event,
-            CreateParallelSettings(ParallelFaultMode.PropagateFirst));
+            CreateParallelSettings(HandlerFaultMode.PropagateFirst));
 
         await @event.BothHandlersStarted.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
@@ -43,7 +43,7 @@ public sealed class ParallelFaultModeTests
     }
 
     [Fact]
-    public async Task AggregateAll_waits_for_started_siblings_and_surfaces_every_failure()
+    public async Task ContinueAndAggregate_waits_for_started_siblings_and_surfaces_every_failure()
     {
         await using var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
         {
@@ -58,10 +58,10 @@ public sealed class ParallelFaultModeTests
             });
         }).BuildServiceProvider();
 
-        var @event = new AggregateAllEvent();
+        var @event = new ContinueAndAggregateEvent();
         var publication = serviceProvider.GetRequiredService<IEventMediator>().PublishAsync(
             @event,
-            CreateParallelSettings(ParallelFaultMode.AggregateAll));
+            CreateParallelSettings(HandlerFaultMode.ContinueAndAggregate));
 
         await @event.BothHandlersStarted.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
@@ -78,14 +78,14 @@ public sealed class ParallelFaultModeTests
             .Should().ContainSingle().Which.Message.Should().Be("second failure");
     }
 
-    private static EventMediationSettings CreateParallelSettings(ParallelFaultMode faultMode)
+    private static EventMediationSettings CreateParallelSettings(HandlerFaultMode faultMode)
     {
         return new EventMediationSettings
         {
             Execution = new EventExecutionSettings
             {
                 HandlersWithinSamePriorityConcurrencyMode = ConcurrencyMode.Parallel,
-                ParallelFaultMode = faultMode
+                FaultMode = faultMode
             }
         };
     }
@@ -142,7 +142,7 @@ public sealed class ParallelFaultModeTests
         }
     }
 
-    private sealed class AggregateAllEvent : IEvent
+    private sealed class ContinueAndAggregateEvent : IEvent
     {
         private readonly TaskCompletionSource _bothHandlersStarted =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -173,9 +173,9 @@ public sealed class ParallelFaultModeTests
         }
     }
 
-    private sealed class FirstAggregatedFailureHandler : IEventHandler<AggregateAllEvent>
+    private sealed class FirstAggregatedFailureHandler : IEventHandler<ContinueAndAggregateEvent>
     {
-        public async Task HandleAsync(AggregateAllEvent message, CancellationToken cancellationToken = default)
+        public async Task HandleAsync(ContinueAndAggregateEvent message, CancellationToken cancellationToken = default)
         {
             message.RecordHandlerStarted();
             await message.WaitForReleaseAsync(cancellationToken).ConfigureAwait(false);
@@ -183,9 +183,9 @@ public sealed class ParallelFaultModeTests
         }
     }
 
-    private sealed class SecondAggregatedFailureHandler : IEventHandler<AggregateAllEvent>
+    private sealed class SecondAggregatedFailureHandler : IEventHandler<ContinueAndAggregateEvent>
     {
-        public async Task HandleAsync(AggregateAllEvent message, CancellationToken cancellationToken = default)
+        public async Task HandleAsync(ContinueAndAggregateEvent message, CancellationToken cancellationToken = default)
         {
             message.RecordHandlerStarted();
             await message.WaitForReleaseAsync(cancellationToken).ConfigureAwait(false);

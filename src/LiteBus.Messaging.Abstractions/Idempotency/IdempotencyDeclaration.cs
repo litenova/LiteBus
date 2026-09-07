@@ -14,8 +14,9 @@ namespace LiteBus.Messaging.Abstractions;
 ///     <para>
 ///         The selector runs once per mediation, so keep it a pure projection: read fields off the message and format
 ///         them. It cannot resolve services, because a declaration is created once at registration and takes no
-///         dependencies. Anything needing a lookup belongs in a guard, which can hand its result forward through
-///         <see cref="IExecutionContext.Data" />.
+///         dependencies. Anything needing a lookup belongs in a guard, which declares
+///         <see cref="KeyedByContext" /> and hands the key forward through <see cref="IExecutionContext.Data" /> as a
+///         <see cref="SuppliedIdempotencyKey" />.
 ///     </para>
 /// </remarks>
 /// <example>
@@ -42,9 +43,21 @@ public sealed record IdempotencyDeclaration
     }
 
     /// <summary>
+    ///     Initializes a new instance of the <see cref="IdempotencyDeclaration" /> class whose key is supplied by a
+    ///     pipeline stage rather than projected from the message.
+    /// </summary>
+    private IdempotencyDeclaration()
+    {
+    }
+
+    /// <summary>
     ///     Gets the projection from the message to its idempotency key.
     /// </summary>
-    public Func<object, string> KeySelector { get; init; }
+    /// <value>
+    ///     The selector, or <see langword="null" /> when the declaration was created by
+    ///     <see cref="KeyedByContext" /> and the key is supplied through the execution context instead.
+    /// </value>
+    public Func<object, string>? KeySelector { get; init; }
 
     /// <summary>
     ///     Gets the prefix that separates this message's keys from every other message's.
@@ -86,5 +99,52 @@ public sealed record IdempotencyDeclaration
     {
         ArgumentNullException.ThrowIfNull(keySelector);
         return new IdempotencyDeclaration(message => keySelector((TMessage) message));
+    }
+
+    /// <summary>
+    ///     Creates a declaration whose key an earlier pipeline stage supplies through the execution context.
+    /// </summary>
+    /// <returns>The declaration.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Use this when the key cannot be read off the message because deriving it needs services: a signature to
+    ///         verify, a payload to parse, a lookup to perform. A guard does that work and stores the result as a
+    ///         <see cref="SuppliedIdempotencyKey" /> in <see cref="IExecutionContext.Data" />; guards run before
+    ///         shortcuts, so the key is present by the time idempotency asks for it.
+    ///     </para>
+    ///     <para>
+    ///         A message declared this way that reaches the shortcut with no key in context is a configuration error
+    ///         and is reported as one. Falling back to a generated key would make every delivery look distinct, which
+    ///         is idempotency silently not working.
+    ///     </para>
+    /// </remarks>
+    /// <example>
+    ///     <code><![CDATA[
+    /// public sealed class ProcessorWebhookCommandDefinition : IIdempotencyDefinition<ProcessorWebhookCommand>
+    /// {
+    ///     public IdempotencyDeclaration Idempotency =>
+    ///         IdempotencyDeclaration.KeyedByContext() with { Scope = "processor-webhook" };
+    /// }
+    ///
+    /// public sealed class VerifyProcessorWebhookGuard : ICommandGuard<ProcessorWebhookCommand>
+    /// {
+    ///     public async Task<Verdict> DecideAsync(ProcessorWebhookCommand message, CancellationToken cancellationToken = default)
+    ///     {
+    ///         var verified = await _verifier.VerifyAsync(message.RawBody, message.SignatureHeader, cancellationToken);
+    ///
+    ///         if (verified is null)
+    ///         {
+    ///             return Verdict.Deny("the webhook signature did not verify");
+    ///         }
+    ///
+    ///         _context.Data.Set(new SuppliedIdempotencyKey(verified.EventId));
+    ///         return Verdict.Allow;
+    ///     }
+    /// }
+    /// ]]></code>
+    /// </example>
+    public static IdempotencyDeclaration KeyedByContext()
+    {
+        return new IdempotencyDeclaration();
     }
 }

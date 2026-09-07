@@ -2,6 +2,7 @@ using System.Text.Json;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Storage.Testing;
 
@@ -10,6 +11,16 @@ namespace LiteBus.Storage.Testing;
 /// </summary>
 public abstract class InboxStoreContractTests
 {
+    /// <summary>
+    ///     Builds a failure for a transition under test from error text alone.
+    /// </summary>
+    /// <param name="error">The error text to persist.</param>
+    /// <returns>A failure stamped with the current time.</returns>
+    protected static MessageFailure Failure(string error)
+    {
+        return MessageFailure.FromError(error, DateTimeOffset.UtcNow);
+    }
+
     /// <summary>
     ///     Gets the UTC timestamp used as the baseline for lease and visibility assertions.
     /// </summary>
@@ -432,7 +443,7 @@ public abstract class InboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
-        await roles.StateWriter.PersistAsync([leased[0].AsFailed("transient failure", visibleAfter)]);
+        await roles.StateWriter.PersistAsync([leased[0].AsFailed(Failure("transient failure"), visibleAfter)]);
 
         var stored = await roles.MessageQuery.QueryAsync(
             new InboxMessageFilter { MessageId = commandId },
@@ -465,7 +476,7 @@ public abstract class InboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
-        await roles.StateWriter.PersistAsync([firstLease[0].AsFailed("retry me", visibleAfter)]);
+        await roles.StateWriter.PersistAsync([firstLease[0].AsFailed(Failure("retry me"), visibleAfter)]);
 
         await WaitUntilVisibleAsync(visibleAfter).ConfigureAwait(false);
 
@@ -502,7 +513,7 @@ public abstract class InboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
-        await roles.StateWriter.PersistAsync([leased[0].AsDeadLettered("exhausted retries")]);
+        await roles.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("exhausted retries"))]);
 
         var afterDeadLetter = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -540,7 +551,7 @@ public abstract class InboxStoreContractTests
         firstLease[0].AttemptCount.Should().Be(1);
         firstLease[0].LeaseExpiresAt.Should().NotBeNull();
 
-        await roles.StateWriter.PersistAsync([firstLease[0].AsFailed("retry", visibleAfter)]);
+        await roles.StateWriter.PersistAsync([firstLease[0].AsFailed(Failure("retry"), visibleAfter)]);
 
         await WaitUntilVisibleAsync(visibleAfter).ConfigureAwait(false);
 
@@ -790,7 +801,7 @@ public abstract class InboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
-        await roles.StateWriter.PersistAsync([leased[0].AsDeadLettered("manual replay")]);
+        await roles.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("manual replay"))]);
 
         await roles.DeadLetterStore.RequeueAsync(commandId);
 
@@ -830,7 +841,7 @@ public abstract class InboxStoreContractTests
                 LeaseDuration = TimeSpan.FromMinutes(1)
             });
 
-            await roles.StateWriter.PersistAsync([leased[0].AsDeadLettered("bulk replay")]);
+            await roles.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("bulk replay"))]);
         }
 
         await roles.DeadLetterStore.RequeueAsync(
@@ -1080,10 +1091,10 @@ public abstract class InboxStoreContractTests
         {
             leased[0].AsCompleted(),
             leased[1].AsCompleted(),
-            leased[2].AsFailed("temporary-1", now.AddMinutes(5)),
-            leased[3].AsFailed("temporary-2", now.AddMinutes(5)),
-            leased[4].AsDeadLettered("poison-1"),
-            leased[5].AsDeadLettered("poison-2")
+            leased[2].AsFailed(Failure("temporary-1"), now.AddMinutes(5)),
+            leased[3].AsFailed(Failure("temporary-2"), now.AddMinutes(5)),
+            leased[4].AsDeadLettered(Failure("poison-1")),
+            leased[5].AsDeadLettered(Failure("poison-2"))
         };
 
         var result = await roles.StateWriter.PersistAsync(terminal).ConfigureAwait(false);

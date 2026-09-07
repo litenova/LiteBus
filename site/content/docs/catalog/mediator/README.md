@@ -13,6 +13,7 @@ The mediator axis provides in-process command, query, and event mediation on top
 | [mediator.handler-filtering](handler-filtering.md) | Handler filtering | GA |
 | [mediator.handler-priority](handler-priority.md) | Handler priority | GA |
 | [mediator.mediation-settings](mediation-settings.md) | Mediation settings | GA |
+| [mediator.recurring-commands](recurring-commands.md) | Recurring commands | GA |
 | [mediator.module-registration](module-registration.md) | Module registration | GA |
 | [mediator.execution-context](execution-context.md) | Execution context | GA |
 | [mediator.generic-messages](generic-messages-and-handlers.md) | Generic messages and handlers | GA |

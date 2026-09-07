@@ -99,4 +99,9 @@ internal static class DiagnosticIds
     ///     A required declaration type named in configuration cannot be resolved in the compilation.
     /// </summary>
     internal const string UnresolvedRequiredDeclaration = "LB1021";
+
+    /// <summary>
+    ///     A handler priority falls inside the range LiteBus reserves for the handlers it ships.
+    /// </summary>
+    internal const string ReservedHandlerPriority = "LB1022";
 }

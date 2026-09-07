@@ -60,17 +60,24 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     private readonly IOutboxPayloadProtector? _payloadProtector;
 
     /// <summary>
+    ///     Gets the dispatch options that decide how a message with no handler is treated.
+    /// </summary>
+    private readonly InProcessOutboxDispatchOptions _options;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="EventOutboxDispatcher" /> class.
     /// </summary>
     /// <param name="eventPublisher">The LiteBus event publisher used as the dispatch target.</param>
     /// <param name="contractRegistry">The registry used to resolve persisted contracts back to event types.</param>
     /// <param name="messageSerializer">The serializer used to hydrate the persisted payload.</param>
     /// <param name="payloadProtector">The optional outbox protector used to decrypt stored payloads before deserialization.</param>
+    /// <param name="options">The dispatch options, or null to require a handler for every dispatched message.</param>
     public EventOutboxDispatcher(
         IEventMediator eventPublisher,
         IContractReader contractRegistry,
         IMessageSerializer messageSerializer,
-        IOutboxPayloadProtector? payloadProtector = null)
+        IOutboxPayloadProtector? payloadProtector = null,
+        InProcessOutboxDispatchOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(eventPublisher);
 
@@ -82,6 +89,7 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
 
         _messageSerializer = messageSerializer;
         _payloadProtector = payloadProtector;
+        _options = options ?? new InProcessOutboxDispatchOptions();
     }
 
     /// <inheritdoc />
@@ -108,7 +116,7 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
                 .ConfigureAwait(false);
 
             var messageInstance = await _messageSerializer.DeserializeAsync(messageType, payload, cancellationToken).ConfigureAwait(false);
-            var mediationSettings = CreateMediationSettings(message);
+            var mediationSettings = CreateMediationSettings(message, _options);
 
             if (messageInstance is IEvent liteBusEvent)
             {
@@ -128,7 +136,9 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
             throw new LiteBusDispatchException(
                 $"Outbox dispatch failed for contract '{message.ContractName}' version {message.ContractVersion}. " +
                 "Verify the event type is registered with Contracts.Register, implements IEvent or is a supported POCO event, " +
-                "and that AddEventModule registered handlers for the event.",
+                "and that AddEventModule registered handlers for the event. When the event handlers live in an assembly " +
+                "AddEvents does not scan, the message is dispatched to nothing; set RequireHandler to false on " +
+                "UseInProcessDispatch only when publishing to zero handlers is intended.",
                 exception);
         }
     }
@@ -179,10 +189,16 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     ///     Creates event mediation settings with trace metadata copied from the outbox envelope.
     /// </summary>
     /// <param name="message">The outbox message whose correlation, causation, and tenant values should be applied.</param>
+    /// <param name="options">The dispatch options that decide how a message with no handler is treated.</param>
     /// <returns>Event mediation settings configured for outbox replay.</returns>
-    private static EventMediationSettings CreateMediationSettings(OutboxEnvelope message)
+    private static EventMediationSettings CreateMediationSettings(
+        OutboxEnvelope message,
+        InProcessOutboxDispatchOptions options)
     {
-        var settings = new EventMediationSettings();
+        var settings = new EventMediationSettings
+        {
+            ThrowIfNoHandlerFound = options.RequireHandler
+        };
 
         MessageProcessorDiagnostics.ApplyTraceMetadata(
             settings.Items,

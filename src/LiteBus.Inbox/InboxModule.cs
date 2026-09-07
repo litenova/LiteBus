@@ -73,6 +73,7 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
         if (_builder.IsInboxProcessorEnabled)
         {
             _builder.ProcessorHostOptions.Validate();
+            _builder.ProcessorOptions.Retry.Validate();
         }
 
         if (_builder.IsCleanupEnabled)

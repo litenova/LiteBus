@@ -207,24 +207,79 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         {
             var handlerTasks = orderedHandlers.Select(lazyHandler => ExecuteSingleHandler(message, lazyHandler, executionContext)).ToArray();
             await AwaitParallelTasksAsync(handlerTasks).ConfigureAwait(false);
+            return;
         }
-        else
+
+        await ExecuteHandlersSequentiallyAsync(message, orderedHandlers, executionContext).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Runs handlers one after another, applying <see cref="EventExecutionSettings.FaultMode" /> to their failures.
+    /// </summary>
+    /// <param name="message">The message being broadcast to handlers.</param>
+    /// <param name="orderedHandlers">The handlers in the order they must run.</param>
+    /// <param name="executionContext">The execution context propagated to each handler invocation.</param>
+    /// <returns>A task that completes when the group has finished or faults according to the fault mode.</returns>
+    /// <remarks>
+    ///     Under <see cref="HandlerFaultMode.ContinueAndAggregate" /> a handler that throws does not stop the handlers
+    ///     behind it, which is what lets independent subscribers stay isolated without moving the group to parallel
+    ///     execution. Cancellation is not a handler fault and stops the group immediately either way, because a
+    ///     cancelled host is not asking for the rest of the broadcast.
+    /// </remarks>
+    private async Task ExecuteHandlersSequentiallyAsync(TMessage message,
+                                                        IReadOnlyList<LazyHandler<IMessageHandler, IMainHandlerDescriptor>> orderedHandlers,
+                                                        IExecutionContext executionContext)
+    {
+        if (_settings.Execution.FaultMode != HandlerFaultMode.ContinueAndAggregate)
         {
             foreach (var lazyHandler in orderedHandlers)
             {
                 await ExecuteSingleHandler(message, lazyHandler, executionContext).ConfigureAwait(false);
             }
+
+            return;
         }
+
+        List<Exception>? exceptions = null;
+
+        foreach (var lazyHandler in orderedHandlers)
+        {
+            try
+            {
+                await ExecuteSingleHandler(message, lazyHandler, executionContext).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+#pragma warning disable CA1031 // Do not catch general exception types
+            catch (Exception exception)
+            {
+                // ContinueAndAggregate keeps the remaining handlers running and collects every failure instead.
+                exceptions ??= [];
+                exceptions.Add(exception);
+            }
+#pragma warning restore CA1031
+        }
+
+        if (exceptions is null)
+        {
+            return;
+        }
+
+        throw exceptions.Count == 1
+            ? exceptions[0]
+            : new AggregateException(exceptions);
     }
 
     /// <summary>
-    ///     Awaits parallel handler tasks using the configured <see cref="EventExecutionSettings.ParallelFaultMode" />.
+    ///     Awaits parallel handler tasks using the configured <see cref="EventExecutionSettings.FaultMode" />.
     /// </summary>
     /// <param name="tasks">The handler tasks executing concurrently.</param>
     /// <returns>A task that completes when every handler task has finished or faults according to fault mode.</returns>
     private async Task AwaitParallelTasksAsync(IReadOnlyList<Task> tasks)
     {
-        if (_settings.Execution.ParallelFaultMode == ParallelFaultMode.AggregateAll)
+        if (_settings.Execution.FaultMode == HandlerFaultMode.ContinueAndAggregate)
         {
             var exceptions = new List<Exception>();
 
@@ -237,7 +292,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 #pragma warning disable CA1031 // Do not catch general exception types
                 catch (Exception exception)
                 {
-                    // AggregateAll fault mode collects every handler failure before surfacing a combined exception.
+                    // ContinueAndAggregate collects every handler failure before surfacing a combined exception.
                     exceptions.Add(exception);
                 }
 #pragma warning restore CA1031
