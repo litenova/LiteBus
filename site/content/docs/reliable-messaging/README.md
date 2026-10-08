@@ -91,4 +91,5 @@ See [Dependency Graph](../architecture/dependency-graph.md) for package boundari
 ## Next
 
 - Contracts and registration: [Inbox](inbox.md), [Outbox](outbox.md)
+- Ordering and concurrency: [Ordering and concurrency guarantees](ordering.md)
 - Atomic domain + messaging: [Transactional messaging writes](transactional-writes.md)

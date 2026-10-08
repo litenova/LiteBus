@@ -21,6 +21,11 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
 
     /// <summary>
+    ///     Tracks whether asynchronous disposal has started.
+    /// </summary>
+    private int _disposed;
+
+    /// <summary>
     ///     Gets the transport options controlling reconnect backoff.
     /// </summary>
     private readonly AzureServiceBusTransportOptions _options;
@@ -168,6 +173,11 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         await StopAsync().ConfigureAwait(false);
         _lifecycleGate.Dispose();
     }

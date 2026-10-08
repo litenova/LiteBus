@@ -301,6 +301,22 @@ would be permitted without being performed. Persistence schemas and transport be
 
 ### Added
 
+- `ILeaseRenewable.ReleaseLeaseAsync(LeaseReleaseRequest, CancellationToken)` returns a leased message to the queue
+  without charging the attempt its lease consumed. The pipelined processor calls it for every dispatch it cancelled
+  during shutdown or a drain, so a host restart no longer moves `attempt_count`. Implemented by the in-memory,
+  PostgreSQL and EF Core inbox and outbox stores; the default implementation releases nothing, so a custom store still
+  compiles and falls back to lease expiry. `OutboxEnvelope.AsReleased` and `InboxEnvelope.AsReleased` are the matching
+  transitions. EventIds 3011 (Debug) and 3012 (Warning, release failed) record the outcome.
+- `MediationExceptionFilters.IsCallerCancellation` recognizes the caller's cancellation even when a dispatcher wrapped it
+  in its own exception type.
+- `RecurringCommandHostOptions.IsConcurrencyConflict`, defaulting to `IsConcurrencyConflictByTypeName`. A send that
+  loses an optimistic-concurrency race to another instance is logged at Information (EventId 2104) and the loop waits
+  `Interval` rather than `ErrorBackoff`, because the work it wanted is already done.
+- `InMemoryTransportBroker` implements `IDisposable` and completes its destination channels.
+- Two operator pages: [Message States and Alerting](site/content/docs/operations/message-states.md) and
+  [Ordering and Concurrency Guarantees](site/content/docs/reliable-messaging/ordering.md), and two roadmap design notes
+  from an integrator field report: a Marten transactional outbox writer, and analyzer and API gaps.
+
 - A fifth pipeline stage. `IMessageCompletionHandler<TMessage>`, `IMessageCompletionHandler<TMessage, TMessageResult>`,
   and the axis contracts `ICommandCompletionHandler`, `IQueryCompletionHandler`, and `IEventCompletionHandler` run in a
   `finally` on every mediation path, exactly once, and receive a read-only `MessageCompletionContext` carrying the
@@ -613,6 +629,21 @@ would be permitted without being performed. Persistence schemas and transport be
 
 ### Changed
 
+- PostgreSQL modules register every store and the work signal through singleton factories that resolve a
+  container-owned `PostgreSqlDataSourceOwner<TModule>`. A data source created by `UseConnectionString` is now disposed
+  with the service provider under Microsoft dependency injection, which never disposed the prebuilt instance it was
+  registered as before; the documentation already claimed it was. `UseDataSource` still leaves ownership with the
+  application.
+- `IProcessorWorkSignal` extends `IAsyncDisposable`, so the dedicated LISTEN connection of a PostgreSQL work signal is
+  disposed by the container that created it. `PostgreSqlWorkSignal` disposal is idempotent and no longer races a
+  listener startup; a wait after disposal falls back to the poll interval.
+- The outbox in-process dispatch failure message carries contract-registration guidance only when the cause is a
+  missing contract or handler, instead of on every failure including concurrency conflicts and cancellations.
+- `MediationExceptionFilters.IsRetryableDispatchException` inspects the inner exception chain, so a refusal or missing
+  handler wrapped by a dispatcher is dead-lettered on its first attempt instead of spending the retry schedule.
+- The documentation site is rebuilt as a plain, single-stylesheet site: `fumadocs-ui` and Tailwind are removed, and the
+  layout, sidebar, search box and code blocks are small components in `site/components/`.
+
 - Every module builder recognizes guard, validator, shortcut, and refusal mapper contracts, completion handler
   contracts, and message definitions as registrable constructs, so `RegisterFromAssembly` discovers them.
 - The completion stage orders handlers by priority alone. Every other role runs handlers registered for the message
@@ -709,6 +740,20 @@ would be permitted without being performed. Persistence schemas and transport be
 
 ### Fixed
 
+- A dispatch cancelled by host shutdown, a drain or a lease loss was recorded as a failure: `EventOutboxDispatcher`
+  wrapped the `OperationCanceledException` in `LiteBusDispatchException`, so the envelope handler charged it to the
+  retry budget, logged it at Error, pushed the message's visibility out by the backoff, and eventually dead-lettered
+  messages that had never failed. The dispatcher now rethrows the caller's cancellation and both envelope handlers treat
+  it as no outcome.
+- Disposing a transport consumer twice threw `ObjectDisposedException` (Kafka, in-memory, SQS, Azure Service Bus, AMQP
+  consumers and `AmqpConnectionManager`). `AzureServiceBusPublisher.Dispose` blocked without a bound and let close
+  errors escape; it now waits at most five seconds.
+- `BackgroundServiceHostWrapper` leaked its stopping token source and abandoned a loop that ignored shutdown without a
+  trace; it disposes the source and logs EventId 6001 naming the service.
+- The inbox and outbox cleanup loops threw `OperationCanceledException` out of `ExecuteAsync` when the host stopped
+  during their error backoff.
+- `TransportInboxIngressConsumer` could recreate its admission semaphore after disposal and release a disposed one.
+
 - Publishing to and consuming from Amazon SQS no longer raises `NullReferenceException`. AWSSDK 4 stopped initializing
   the `MessageAttributes` and `Attributes` collections, which the mapper wrote to and read from directly, so every
   publish failed on the first attribute write. The mapper now supplies its own attribute dictionary and treats an absent
@@ -726,6 +771,9 @@ would be permitted without being performed. Persistence schemas and transport be
   so enabling auditing on the event axis no longer fails to resolve the handler on the first audited publish.
 
 ### Breaking
+
+- `IProcessorWorkSignal` now extends `IAsyncDisposable`. A custom work signal must implement `DisposeAsync`, and
+  should also implement `IDisposable` when the container may be disposed synchronously.
 
 - `IExecutionContext.Abort` and `LiteBusExecutionAbortedException` are removed. A pre-handler that stopped the pipeline
   now implements a guard contract and returns a `Verdict`, or a shortcut contract and returns a `Shortcut`. The break is

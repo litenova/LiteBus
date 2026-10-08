@@ -423,6 +423,39 @@ public sealed class PostgreSqlInboxStore :
     }
 
     /// <inheritdoc />
+    public async Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+
+        var sql = $"""
+                   UPDATE {_tableName}
+                   SET
+                       status = CASE WHEN last_error IS NULL THEN @pending_status ELSE @failed_status END,
+                       lease_owner = NULL,
+                       lease_expires_at = NULL,
+                       attempt_count = GREATEST(attempt_count - 1, 0)
+                   WHERE message_id = @message_id
+                       AND status = @processing_status
+                       AND lease_owner = @lease_owner
+                       AND lease_generation = @lease_generation;
+                   """;
+
+        using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("pending_status", (int) InboxStatus.Pending);
+        command.Parameters.AddWithValue("failed_status", (int) InboxStatus.Failed);
+        command.Parameters.AddWithValue("processing_status", (int) InboxStatus.Processing);
+        command.Parameters.AddWithValue("message_id", request.MessageId);
+        command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
+        command.Parameters.AddWithValue("lease_generation", request.LeaseGeneration);
+
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affected > 0;
+    }
+
+    /// <inheritdoc />
     public async Task<PersistResult> PersistAsync(
         IReadOnlyList<InboxEnvelope> envelopes,
         CancellationToken cancellationToken = default)

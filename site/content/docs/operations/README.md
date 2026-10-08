@@ -103,4 +103,5 @@ operator safety rejections return **400**; unexpected failures return **500**.
 
 * [Diagnostics and health](diagnostics-and-health.md)
 * [Hosted services](../architecture/hosted-services.md)
+* [Message states and alerting](message-states.md)
 * [Production runbook](runbook.md)

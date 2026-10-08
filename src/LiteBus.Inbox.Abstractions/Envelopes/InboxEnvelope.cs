@@ -158,6 +158,29 @@ public sealed record InboxEnvelope
     public string? ErrorType { get; init; }
 
     /// <summary>
+    ///     Returns a new envelope released from its lease without charging the attempt the lease consumed.
+    /// </summary>
+    /// <returns>
+    ///     The envelope in <see cref="InboxStatus.Pending" />, or <see cref="InboxStatus.Failed" /> when it already
+    ///     carries an error, with its lease cleared and its attempt count decremented. Visibility is unchanged.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    ///     The envelope is not in the <see cref="InboxStatus.Processing" /> state.
+    /// </exception>
+    public InboxEnvelope AsReleased()
+    {
+        EnsureStatus(InboxStatus.Processing);
+
+        return this with
+        {
+            Status = LastError is null ? InboxStatus.Pending : InboxStatus.Failed,
+            LeaseOwner = null,
+            LeaseExpiresAt = null,
+            AttemptCount = Math.Max(0, AttemptCount - 1)
+        };
+    }
+
+    /// <summary>
     ///     Returns a new envelope with an active lease and an incremented attempt count.
     /// </summary>
     /// <param name="leaseOwner">The processor instance that claimed the envelope.</param>

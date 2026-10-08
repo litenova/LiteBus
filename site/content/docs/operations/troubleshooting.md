@@ -93,7 +93,7 @@ Two mappers producing the same result type are registered at the same level of s
 
 ## An Inbox Message Dead-Lettered Without Retrying
 
-A refusal and a missing handler produce the same outcome on every attempt, so both processors retire such a message on its first attempt rather than spending the retry schedule on an answer that cannot change. Check the dead-letter error text: `LiteBusMessageDeniedException` and `LiteBusMessageInvalidException` are decisions about the message itself, and `NoHandlerFoundException` means nothing is registered to handle it.
+A refusal and a missing handler produce the same outcome on every attempt, so both processors retire such a message on its first attempt rather than spending the retry schedule on an answer that cannot change. `MediationExceptionFilters.IsRetryableDispatchException` inspects the inner exception chain, so a refusal or missing handler wrapped by a dispatcher in its own exception type is still retired on the first attempt. Check the dead-letter error text: `LiteBusMessageDeniedException` and `LiteBusMessageInvalidException` are decisions about the message itself, and `NoHandlerFoundException` means nothing is registered to handle it.
 
 ## An Audit Record Is Missing for a Cancelled or Failed Mediation
 

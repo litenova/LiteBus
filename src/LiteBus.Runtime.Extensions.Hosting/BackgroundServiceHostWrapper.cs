@@ -3,6 +3,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Runtime.Abstractions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LiteBus.Runtime.Extensions.Hosting;
 
@@ -18,6 +20,11 @@ internal sealed class BackgroundServiceHostWrapper : IHostedService
     private readonly IBackgroundService _backgroundService;
 
     /// <summary>
+    ///     The logger used for host shutdown diagnostics.
+    /// </summary>
+    private readonly ILogger<BackgroundServiceHostWrapper> _logger;
+
+    /// <summary>
     ///     The task executing the background service loop.
     /// </summary>
     private Task? _executeTask;
@@ -31,11 +38,13 @@ internal sealed class BackgroundServiceHostWrapper : IHostedService
     ///     Initializes a new instance of the <see cref="BackgroundServiceHostWrapper" /> class.
     /// </summary>
     /// <param name="backgroundService">The background service executed by the wrapper.</param>
-    public BackgroundServiceHostWrapper(IBackgroundService backgroundService)
+    /// <param name="logger">The optional logger for host shutdown diagnostics.</param>
+    public BackgroundServiceHostWrapper(IBackgroundService backgroundService, ILogger<BackgroundServiceHostWrapper>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(backgroundService);
 
         _backgroundService = backgroundService;
+        _logger = logger ?? NullLogger<BackgroundServiceHostWrapper>.Instance;
     }
 
     /// <inheritdoc />
@@ -49,14 +58,32 @@ internal sealed class BackgroundServiceHostWrapper : IHostedService
     /// <inheritdoc />
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        if (_stoppingCts is not null)
+        try
         {
-            await _stoppingCts.CancelAsync().ConfigureAwait(false);
-        }
+            if (_stoppingCts is not null)
+            {
+                await _stoppingCts.CancelAsync().ConfigureAwait(false);
+            }
 
-        if (_executeTask is not null)
+            if (_executeTask is not null)
+            {
+                try
+                {
+                    await _executeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!_executeTask.IsCompleted)
+                {
+                    var serviceType = _backgroundService.GetType();
+                    BackgroundServiceHostWrapperLogMessages.LoopAbandoned(
+                        _logger,
+                        serviceType.FullName ?? serviceType.Name);
+                }
+            }
+        }
+        finally
         {
-            await _executeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            _stoppingCts?.Dispose();
+            _stoppingCts = null;
         }
     }
 }

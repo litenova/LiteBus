@@ -6,7 +6,7 @@
 
 ## What It Does
 
-`AddRecurring` declares a child module of `CommandModule` that registers a `RecurringCommandBackgroundService<TCommand>` through the host manifest. Each pass opens its own dispatch scope, resolves `ICommandMediator`, and sends one command produced by the registered factory. A pass that throws is logged and the loop continues after `ErrorBackoff`; an exception never escapes the loop. A result implementing `IRecurringWorkReport` with `HasMoreWork` set skips the interval so the next pass starts immediately.
+`AddRecurring` declares a child module of `CommandModule` that registers a `RecurringCommandBackgroundService<TCommand>` through the host manifest. Each pass opens its own dispatch scope, resolves `ICommandMediator`, and sends one command produced by the registered factory. A pass that throws is logged and the loop continues after `ErrorBackoff`, except a pass the `IsConcurrencyConflict` predicate classifies as an optimistic-concurrency conflict, which is logged at Information (EventId 2104) and waits `Interval`; an exception never escapes the loop. A result implementing `IRecurringWorkReport` with `HasMoreWork` set skips the interval so the next pass starts immediately.
 
 ## Public Surface
 
@@ -17,7 +17,7 @@
 | `CommandModuleBuilder.AddRecurring<TCommand>(Func<TCommand>, Action<RecurringCommandHostOptions>?)` | Declares a loop with an explicit command factory |
 | `CommandModuleBuilder.AddRecurring<TCommand>(Action<RecurringCommandHostOptions>?)` | Declares a loop for a command with a parameterless constructor |
 | `IRecurringWorkReport.HasMoreWork` | Optional result contract that skips the interval when work remains |
-| `RecurringCommandHostOptions` | `Enabled`, `Interval`, `StartupDelay`, `ErrorBackoff` |
+| `RecurringCommandHostOptions` | `Enabled`, `Interval`, `StartupDelay`, `ErrorBackoff`, `IsConcurrencyConflict` (default `IsConcurrencyConflictByTypeName`; `null` treats conflicts as failures) |
 | `RecurringCommandDeclaration<TCommand>` | The registered factory and options, resolved by the loop |
 
 ### Registration
@@ -30,6 +30,7 @@
 
 - Timing values are validated when the module builds, so a negative interval fails at boot.
 - `Enabled = false` logs once and never sends.
+- `IsConcurrencyConflict` defaults to `IsConcurrencyConflictByTypeName`, which matches a type name ending in `ConcurrencyException` in the inner or aggregate chain.
 
 ## Packages
 
@@ -62,6 +63,7 @@
 | `2101` `LoopStarted` | Information | The loop started, with its interval |
 | `2102` `LoopDisabled` | Information | `Enabled` was false, so the loop will not run |
 | `2103` `PassFailed` | Error | A send threw; the loop continues after `ErrorBackoff` |
+| `2104` `PassConflicted` | Information | A send lost a concurrency race; the loop continues at `Interval` |
 
 ## Deep Docs
 

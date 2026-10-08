@@ -110,7 +110,9 @@ internal static class OutboxProcessorEnvelopeHandler
             dispatchCompleted = true;
             return published;
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        // A cancelled dispatch leaves the row untouched: no attempt consumed, no error recorded, no visibility moved.
+        // The filter also sees a cancellation a dispatcher wrapped in its own exception type.
+        catch (Exception exception) when (MediationExceptionFilters.IsCallerCancellation(exception, cancellationToken))
         {
             return null;
         }

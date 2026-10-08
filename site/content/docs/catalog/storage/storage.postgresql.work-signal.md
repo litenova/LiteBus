@@ -21,6 +21,7 @@
 ## Concurrency and Reliability
 
 - A dedicated listener connection is opened for each work signal instance.
+- `IProcessorWorkSignal` extends `IAsyncDisposable`, and built-in signals also implement `IDisposable`. PostgreSQL LISTEN work signals register through singleton factories so the container disposes them, closing the dedicated LISTEN connection.
 - Listener loop catches Npgsql and generic runtime failures, invalidates connection, then reconnects.
 - Reconnect backoff is one second in `PostgreSqlWorkSignal`.
 - Notification delivery improves wake latency but does not change correctness rules.

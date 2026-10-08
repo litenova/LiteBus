@@ -1402,7 +1402,7 @@ Same shape minus ingress and saga, with `EnableOutboxProcessor` and `IsOutboxPro
 
 | Member | Default | Description & Impact |
 | --- | --- | --- |
-| `DataSource` | `null` | Set by `UseDataSource(NpgsqlDataSource)` (not owned) or `UseConnectionString(string)` (owned and registered so the container disposes it). **Required** - `Build` throws when null. |
+| `DataSource` | `null` | Set by `UseDataSource(NpgsqlDataSource)` (not owned) or `UseConnectionString(string)` (owned: the module registers it through a container-owned `PostgreSqlDataSourceOwner<TModule>` that every store registration resolves, so disposing the service provider disposes it; verified with Microsoft.Extensions.DependencyInjection by `PostgreSqlDataSourceOwnershipTests`). **Required** - `Build` throws when null. |
 | `Options` | `new()` | `UseOptions(...)`. |
 | `EnableSchemaInitialization` | `true` | `DisableSchemaInitialization()` removes the startup task. |
 | `EnsureSchemaCreationOnStartup()` | - | Sets `Options.EnsureSchemaCreationOnStartup = true`. |
@@ -3086,7 +3086,7 @@ inbox.UsePostgreSqlStorage(pg => pg
     .EnableAmbientTransactionProvider(TransactionalWriteMode.RequireActiveTransaction));
 ```
 
-Registers the store under every role, `PostgreSqlInboxStoreRegistration`, the `PostgreSqlInboxSchemaInitializer` startup task (unless disabled), the `inbox.postgresql.schema` diagnostic probe, and the work signal (LISTEN/NOTIFY or polling). `UseConnectionString` creates and registers an `NpgsqlDataSource` the container disposes; `UseDataSource` does not take ownership. Omitting both throws `InboxPostgreSqlStorageConfigurationException`.
+Registers the store under every role, `PostgreSqlInboxStoreRegistration`, the `PostgreSqlInboxSchemaInitializer` startup task (unless disabled), the `inbox.postgresql.schema` diagnostic probe, and the work signal (LISTEN/NOTIFY or polling). `UseConnectionString` creates an `NpgsqlDataSource` the module owns: it is held by a `PostgreSqlDataSourceOwner<PostgreSqlInboxModule>` registered through a singleton factory and resolved by every store and work-signal registration, so disposing the service provider disposes the data source and the LISTEN work signal. `UseDataSource` leaves ownership with the application, which disposes the data source itself. Omitting both throws `InboxPostgreSqlStorageConfigurationException`.
 
 With `EnableAmbientTransactionProvider`, a scoped `PostgreSqlTransactionalInboxParticipant` resolves the store bound to the ambient `IPostgreSqlTransactionProvider` connection and transaction. `TransactionalWriteMode.RequireActiveTransaction` throws when no ambient transaction is present; `AllowImmediateCommit` falls back to the auto-commit singleton store and is documented as development/test only.
 

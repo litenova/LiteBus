@@ -123,6 +123,46 @@ public sealed class RecurringCommandHostTests
     }
 
     [Fact]
+    public async Task A_concurrency_conflict_skips_the_error_backoff()
+    {
+        var log = new SendLog { ConflictUntil = 2 };
+        await using var serviceProvider = BuildProvider(
+            log,
+            host =>
+            {
+                host.Interval = TimeSpan.FromMilliseconds(5);
+
+                // A conflict that waited out this backoff would never reach the fourth send inside the wait timeout.
+                host.ErrorBackoff = TimeSpan.FromHours(1);
+            });
+
+        var service = ResolveLoop<DrainCommand>(serviceProvider);
+        using var cancellation = new CancellationTokenSource();
+
+        var run = service.ExecuteAsync(cancellation.Token);
+        await log.WaitForSendsAsync(4).ConfigureAwait(false);
+        await cancellation.CancelAsync().ConfigureAwait(false);
+        await run.ConfigureAwait(false);
+
+        log.Count.Should().BeGreaterThanOrEqualTo(4);
+    }
+
+    [Fact]
+    public void The_default_conflict_predicate_recognizes_wrapped_and_aggregated_conflicts()
+    {
+        var conflict = new StubConcurrencyException();
+
+        RecurringCommandHostOptions.IsConcurrencyConflictByTypeName(conflict).Should().BeTrue();
+        RecurringCommandHostOptions.IsConcurrencyConflictByTypeName(new InvalidOperationException("wrapper", conflict))
+            .Should().BeTrue();
+        RecurringCommandHostOptions.IsConcurrencyConflictByTypeName(
+                new AggregateException(new InvalidOperationException("other"), conflict))
+            .Should().BeTrue();
+        RecurringCommandHostOptions.IsConcurrencyConflictByTypeName(new TimeoutException("database unreachable"))
+            .Should().BeFalse();
+    }
+
+    [Fact]
     public void A_negative_interval_is_refused_at_composition()
     {
         var act = () => new ServiceCollection().AddLiteBus(registry =>
@@ -185,6 +225,11 @@ public sealed class RecurringCommandHostTests
         public int FailUntil { get; init; }
 
         /// <summary>
+        ///     Gets or sets the send number up to which the handler throws a concurrency conflict.
+        /// </summary>
+        public int ConflictUntil { get; init; }
+
+        /// <summary>
         ///     Gets or sets the send number up to which the result reports more work.
         /// </summary>
         public int HasMoreWorkUntil { get; init; }
@@ -218,6 +263,20 @@ public sealed class RecurringCommandHostTests
 
     public sealed class DrainCommand : ICommand;
 
+    /// <summary>
+    ///     Stands in for a persistence library's optimistic-concurrency exception, recognized by its type name.
+    /// </summary>
+    public sealed class StubConcurrencyException : Exception
+    {
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="StubConcurrencyException" /> class.
+        /// </summary>
+        public StubConcurrencyException()
+            : base("Another instance changed the same record.")
+        {
+        }
+    }
+
     public sealed record DrainResult(bool HasMoreWork) : IRecurringWorkReport;
 
     public sealed class ReportingCommand : ICommand<DrainResult>;
@@ -238,6 +297,11 @@ public sealed class RecurringCommandHostTests
             if (ordinal <= _log.FailUntil)
             {
                 throw new InvalidOperationException($"pass {ordinal} failed");
+            }
+
+            if (ordinal <= _log.ConflictUntil)
+            {
+                throw new StubConcurrencyException();
             }
 
             return Task.CompletedTask;

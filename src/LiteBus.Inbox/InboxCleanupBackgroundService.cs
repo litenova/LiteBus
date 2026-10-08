@@ -114,7 +114,14 @@ public sealed class InboxCleanupBackgroundService : IBackgroundService
                 CleanupErrorCounter.Add(1);
                 _retentionCoordinator.RecordFailure(exception.Message, _timeProvider.GetUtcNow());
                 InboxCleanupLogMessages.CleanupFailed(_logger, exception, backoff);
-                await Task.Delay(backoff, stoppingToken).ConfigureAwait(false);
+                try
+                {
+                    await Task.Delay(backoff, stoppingToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
                 backoff = TimeSpan.FromMilliseconds(Math.Min(backoff.TotalMilliseconds * 2, TimeSpan.FromMinutes(5).TotalMilliseconds));
             }
 #pragma warning restore CA1031

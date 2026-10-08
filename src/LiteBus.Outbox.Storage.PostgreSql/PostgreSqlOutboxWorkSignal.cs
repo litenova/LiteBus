@@ -10,7 +10,7 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 /// <summary>
 ///     Listens for PostgreSQL <c>NOTIFY</c> events on the outbox work channel and falls back to polling delays.
 /// </summary>
-public sealed class PostgreSqlOutboxWorkSignal : IOutboxWorkSignal, IAsyncDisposable
+public sealed class PostgreSqlOutboxWorkSignal : IOutboxWorkSignal, IDisposable
 {
     /// <summary>
     ///     The shared PostgreSQL listener used by this adapter.
@@ -30,6 +30,12 @@ public sealed class PostgreSqlOutboxWorkSignal : IOutboxWorkSignal, IAsyncDispos
     public ValueTask DisposeAsync()
     {
         return _inner.DisposeAsync();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _inner.Dispose();
     }
 
     /// <inheritdoc />

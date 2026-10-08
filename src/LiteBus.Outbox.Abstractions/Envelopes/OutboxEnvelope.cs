@@ -163,6 +163,29 @@ public sealed record OutboxEnvelope
     public string? ErrorType { get; init; }
 
     /// <summary>
+    ///     Returns a new envelope released from its lease without charging the attempt the lease consumed.
+    /// </summary>
+    /// <returns>
+    ///     The envelope in <see cref="OutboxStatus.Pending" />, or <see cref="OutboxStatus.Failed" /> when it already
+    ///     carries an error, with its lease cleared and its attempt count decremented. Visibility is unchanged.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    ///     The envelope is not in the <see cref="OutboxStatus.Publishing" /> state.
+    /// </exception>
+    public OutboxEnvelope AsReleased()
+    {
+        EnsureStatus(OutboxStatus.Publishing);
+
+        return this with
+        {
+            Status = LastError is null ? OutboxStatus.Pending : OutboxStatus.Failed,
+            LeaseOwner = null,
+            LeaseExpiresAt = null,
+            AttemptCount = Math.Max(0, AttemptCount - 1)
+        };
+    }
+
+    /// <summary>
     ///     Returns a new envelope with an active lease and an incremented attempt count.
     /// </summary>
     /// <param name="leaseOwner">The processor instance that claimed the envelope.</param>

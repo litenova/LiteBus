@@ -38,6 +38,7 @@ Each registration gets its own loop and its own options. The loop registers as a
 | `Interval` | 1 minute | Delay between sends when the previous send reported no more work |
 | `StartupDelay` | `TimeSpan.Zero` | Delay after host start before the first send |
 | `ErrorBackoff` | 5 minutes | Delay after a send throws, instead of `Interval` |
+| `IsConcurrencyConflict` | `IsConcurrencyConflictByTypeName` | Predicate recognizing an optimistic-concurrency conflict; a conflict waits `Interval` instead of `ErrorBackoff`, and `null` treats every exception as a failure |
 
 Timing values are validated when the module builds, so a negative interval fails at boot rather than at the first pass.
 
@@ -63,7 +64,7 @@ Implementing it is optional. A command with no result, or one whose result does 
 
 ## Failure Behavior
 
-A pass that throws is logged and the loop continues after `ErrorBackoff`. An exception never escapes the loop, because a background service that ends on the first transient database blip is a scheduled outage. A failing dependency is usually still failing one interval later, which is why the error delay is longer than the poll interval by default: it keeps a broken loop from filling the log at the polling rate.
+A pass that throws is logged and the loop continues after `ErrorBackoff`, unless the `IsConcurrencyConflict` predicate classifies the exception as an optimistic-concurrency conflict: a conflict is logged at Information (EventId 2104) and the loop waits `Interval`, because another instance already did the work. The default predicate, `IsConcurrencyConflictByTypeName`, matches a type name ending in `ConcurrencyException` anywhere in the inner or aggregate exception chain; set the predicate to `null` to treat conflicts as failures. An exception never escapes the loop, because a background service that ends on the first transient database blip is a scheduled outage. A failing dependency is usually still failing one interval later, which is why the error delay is longer than the poll interval by default: it keeps a broken loop from filling the log at the polling rate.
 
 Cancellation ends the loop immediately. The host's shutdown token is passed to the send, so an in-flight command observes it.
 

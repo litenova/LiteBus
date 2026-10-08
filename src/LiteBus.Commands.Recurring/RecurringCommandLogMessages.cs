@@ -36,6 +36,15 @@ internal static class RecurringCommandLogMessages
             "Recurring command {CommandType} failed. The loop continues after the configured error backoff.");
 
     /// <summary>
+    ///     The delegate that writes a concurrency-conflict event.
+    /// </summary>
+    private static readonly Action<ILogger, string, string, Exception?> PassConflictedMessage =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Information,
+            new EventId(2104, nameof(PassConflicted)),
+            "Recurring command {CommandType} lost a concurrency race ({ConflictType}); another instance changed the same data. The loop continues at its normal interval.");
+
+    /// <summary>
     ///     Writes the loop start event.
     /// </summary>
     /// <param name="logger">The logger receiving the event.</param>
@@ -65,5 +74,16 @@ internal static class RecurringCommandLogMessages
     internal static void PassFailed(ILogger logger, string commandType, Exception exception)
     {
         PassFailedMessage(logger, commandType, exception);
+    }
+
+    /// <summary>
+    ///     Writes a concurrency-conflict event.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="commandType">The command type sent by the loop.</param>
+    /// <param name="conflictType">The type name of the exception classified as a conflict.</param>
+    internal static void PassConflicted(ILogger logger, string commandType, string conflictType)
+    {
+        PassConflictedMessage(logger, commandType, conflictType, null);
     }
 }

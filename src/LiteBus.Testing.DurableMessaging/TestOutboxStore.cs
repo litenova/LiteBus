@@ -77,6 +77,14 @@ public sealed class TestOutboxStore :
     }
 
     /// <inheritdoc />
+    public Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return _inner.ReleaseLeaseAsync(request, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task<PersistResult> PersistAsync(IReadOnlyList<OutboxEnvelope> envelopes, CancellationToken cancellationToken = default)
     {
         return _inner.PersistAsync(envelopes, cancellationToken);

@@ -74,6 +74,52 @@ public sealed class InboxCleanupBackgroundServiceTests
     /// <param name="createdAt">The creation timestamp.</param>
     /// <param name="status">The inbox status.</param>
     /// <returns>The envelope.</returns>
+    /// <summary>
+    ///     Verifies host cancellation during the error backoff ends the loop without surfacing cancellation.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task ExecuteAsync_WhenCancelledDuringErrorBackoff_ShouldCompleteWithoutThrowing()
+    {
+        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 6, 6, 12, 0, 0, TimeSpan.Zero));
+        var options = new InboxCleanupHostOptions
+        {
+            Enabled = true,
+            Interval = TimeSpan.FromMinutes(5),
+            Retention = TimeSpan.FromHours(1)
+        };
+        var coordinator = new InboxRetentionCoordinator(options);
+        var cleanup = new InboxCleanupBackgroundService(new ThrowingRetentionStore(), options, clock, coordinator);
+
+        using var cancellation = new CancellationTokenSource();
+        var execution = cleanup.ExecuteAsync(cancellation.Token);
+
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+
+        while (coordinator.GetStatus().LastError is null && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10).ConfigureAwait(false);
+        }
+
+        coordinator.GetStatus().LastError.Should().NotBeNull();
+        await cancellation.CancelAsync().ConfigureAwait(false);
+        await execution.ConfigureAwait(false);
+
+        coordinator.GetStatus().LastError.Should().Contain("retention store unavailable");
+    }
+
+    /// <summary>
+    ///     Retention store that fails every delete so the error backoff path can be observed.
+    /// </summary>
+    private sealed class ThrowingRetentionStore : IInboxRetentionStore
+    {
+        /// <inheritdoc />
+        public Task<int> DeleteCompletedOlderThanAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
+        {
+            return Task.FromException<int>(new IOException("retention store unavailable"));
+        }
+    }
+
     private static InboxEnvelope CreateEnvelope(Guid id, DateTimeOffset createdAt, InboxStatus status)
     {
         return new InboxEnvelope

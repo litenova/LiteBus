@@ -5,12 +5,17 @@ namespace LiteBus.Transport.InMemory;
 /// <summary>
 ///     Channel-backed broker that routes in-memory deliveries to named destinations.
 /// </summary>
-public sealed class InMemoryTransportBroker
+public sealed class InMemoryTransportBroker : IDisposable
 {
     /// <summary>
     ///     Gets the maximum number of unsettled deliveries admitted per destination.
     /// </summary>
     private readonly int _destinationCapacity;
+
+    /// <summary>
+    ///     Tracks whether disposal has started.
+    /// </summary>
+    private int _disposed;
 
     /// <summary>
     ///     Gets the destination endpoints keyed by destination name.
@@ -63,5 +68,22 @@ public sealed class InMemoryTransportBroker
         }
 
         _endpoints.Clear();
+    }
+
+    /// <summary>
+    ///     Completes every destination channel and releases destination resources.
+    /// </summary>
+    /// <remarks>
+    ///     Disposal reuses the reset path so channel writers complete and capacity guards dispose. Repeated calls
+    ///     return without touching cleared state.
+    /// </remarks>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        Reset();
     }
 }

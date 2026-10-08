@@ -116,7 +116,7 @@ registry.AddCommands(commands => commands
         host => host.Interval = TimeSpan.FromMinutes(5)));
 ```
 
-Each pass opens its own dispatch scope and sends one command. A pass that throws is logged and the loop continues after `ErrorBackoff`. A result implementing `IRecurringWorkReport` can skip the interval so a backlog clears in one busy period.
+Each pass opens its own dispatch scope and sends one command. A pass that throws is logged and the loop continues after `ErrorBackoff`, except a pass classified as an optimistic-concurrency conflict by `RecurringCommandHostOptions.IsConcurrencyConflict`, which is logged at Information (EventId 2104) and waits `Interval`. A result implementing `IRecurringWorkReport` can skip the interval so a backlog clears in one busy period.
 
 The loop runs on every host instance, because LiteBus has no leader election. That suits a command that drains work by leasing rows; work that must be claimed exactly once belongs on the inbox or outbox processors, which lease and fence per message. See [Recurring Commands](../concepts/recurring-commands.md).
 

@@ -131,16 +131,45 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         {
             throw;
         }
+
+        // The caller's cancellation is a decision, not a dispatch failure. Wrapping it would hide it from the envelope
+        // handler, which then charges a shutdown or a drain to the message's retry budget.
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception exception)
         {
-            throw new LiteBusDispatchException(
-                $"Outbox dispatch failed for contract '{message.ContractName}' version {message.ContractVersion}. " +
-                "Verify the event type is registered with Contracts.Register, implements IEvent or is a supported POCO event, " +
-                "and that AddEventModule registered handlers for the event. When the event handlers live in an assembly " +
-                "AddEvents does not scan, the message is dispatched to nothing; set RequireHandler to false on " +
-                "UseInProcessDispatch only when publishing to zero handlers is intended.",
-                exception);
+            throw new LiteBusDispatchException(CreateFailureMessage(message, exception), exception);
         }
+    }
+
+    /// <summary>
+    ///     Builds the operator-facing message for a failed dispatch.
+    /// </summary>
+    /// <param name="message">The outbox envelope that failed to dispatch.</param>
+    /// <param name="exception">The exception that ended the dispatch.</param>
+    /// <returns>The failure message, with registration guidance only when the cause is a registration problem.</returns>
+    /// <remarks>
+    ///     Registration guidance on an unrelated failure, such as a concurrency conflict raised by a handler, sends the
+    ///     reader after a configuration bug that does not exist, so it is added only for the failures it explains.
+    /// </remarks>
+    private static string CreateFailureMessage(OutboxEnvelope message, Exception exception)
+    {
+        var summary =
+            $"Outbox dispatch failed for contract '{message.ContractName}' version {message.ContractVersion}: " +
+            $"{exception.GetType().Name}: {exception.Message}";
+
+        if (exception is not (MessageContractNotRegisteredException or NoHandlerFoundException))
+        {
+            return summary;
+        }
+
+        return summary +
+               " Verify the event type is registered with Contracts.Register, implements IEvent or is a supported POCO " +
+               "event, and that AddEventModule registered handlers for the event. When the event handlers live in an " +
+               "assembly AddEvents does not scan, the message is dispatched to nothing; set RequireHandler to false on " +
+               "UseInProcessDispatch only when publishing to zero handlers is intended.";
     }
 
     /// <summary>

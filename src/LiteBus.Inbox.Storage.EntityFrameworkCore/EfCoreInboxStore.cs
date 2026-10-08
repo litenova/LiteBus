@@ -94,7 +94,12 @@ public sealed class EfCoreInboxStore :
     /// <summary>
     ///     Initializes a new instance of the <see cref="EfCoreInboxStore" /> class using a custom context factory.
     /// </summary>
-    /// <param name="contextFactory">A factory that returns a context for one store operation.</param>
+    /// <param name="contextFactory">
+    ///     A factory that returns the context for one store operation. The store does not dispose the returned context:
+    ///     the caller owns it, whether the factory returns one shared context or a new one per call. A factory that
+    ///     creates a new context per call must track and dispose those contexts itself; the storage module registration
+    ///     avoids this by creating and disposing one context per operation through <c>IDbContextFactory</c>.
+    /// </param>
     /// <param name="options">The store options.</param>
     public EfCoreInboxStore(
         Func<CancellationToken, Task<IInboxDbContext>> contextFactory,
@@ -292,6 +297,53 @@ public sealed class EfCoreInboxStore :
                     token),
                 renewalQuery,
                 entity => entity.LeaseExpiresAt = expiresAt,
+                token).ConfigureAwait(false);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+
+        return ExecuteAsync(async (context, token) =>
+        {
+            if (context is not DbContext dbContext)
+            {
+                throw new InvalidOperationException("Lease release requires a DbContext-backed inbox database context.");
+            }
+
+            var releaseQuery = dbContext.Set<InboxMessageEntity>()
+                .Where(message =>
+                    message.Id == request.MessageId &&
+                    message.Status == InboxStatus.Processing &&
+                    message.LeaseOwner == request.LeaseOwner &&
+                    message.LeaseGeneration == request.LeaseGeneration);
+
+            return await EfCoreDurableStoreOperations.ExecuteUpdateOrTrackAsync(
+                dbContext,
+                () => releaseQuery.ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(
+                            message => message.Status,
+                            message => message.LastError == null ? InboxStatus.Pending : InboxStatus.Failed)
+                        .SetProperty(message => message.LeaseOwner, (string?) null)
+                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
+                        .SetProperty(
+                            message => message.AttemptCount,
+                            message => message.AttemptCount > 0 ? message.AttemptCount - 1 : 0),
+                    token),
+                releaseQuery,
+                entity =>
+                {
+                    entity.Status = entity.LastError == null ? InboxStatus.Pending : InboxStatus.Failed;
+                    entity.LeaseOwner = null;
+                    entity.LeaseExpiresAt = null;
+                    entity.AttemptCount = Math.Max(0, entity.AttemptCount - 1);
+                },
                 token).ConfigureAwait(false);
         }, cancellationToken);
     }
@@ -973,6 +1025,8 @@ public sealed class EfCoreInboxStore :
 
         if (_contextFactory is not null)
         {
+            // The caller owns contexts this factory returns: callers commonly hand back one shared context, which
+            // disposing here would break on the next operation.
             var context = await _contextFactory(cancellationToken).ConfigureAwait(false);
             return await action(context, cancellationToken).ConfigureAwait(false);
         }

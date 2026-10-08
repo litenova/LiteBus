@@ -26,6 +26,11 @@ public sealed class AzureServiceBusPublisher : ITransportPublisher, IDisposable,
         new(StringComparer.Ordinal);
 
     /// <summary>
+    ///     Tracks whether disposal has started.
+    /// </summary>
+    private int _disposed;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="AzureServiceBusPublisher" /> class.
     /// </summary>
     /// <param name="client">The shared Service Bus client used to create senders.</param>
@@ -43,14 +48,38 @@ public sealed class AzureServiceBusPublisher : ITransportPublisher, IDisposable,
     /// <summary>
     ///     Releases cached senders using the synchronous disposal path required by dependency injection scopes.
     /// </summary>
+    /// <remarks>
+    ///     Dispose runs on dispatch-scope teardown, so a sender close failure or timeout must not fail the scope.
+    ///     The asynchronous close is bounded with a timeout and close errors are not propagated.
+    /// </remarks>
     public void Dispose()
     {
-        DisposeAsync().AsTask().ConfigureAwait(false).GetAwaiter().GetResult();
+        try
+        {
+            DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+        }
+        catch (TimeoutException)
+        {
+            // Bounded teardown: a slow broker close must not block scope disposal.
+        }
+        catch (ServiceBusException)
+        {
+            // A sender close failure must not fail the dispatch scope.
+        }
+        catch (ObjectDisposedException)
+        {
+            // A prior disposal already released the cached senders.
+        }
     }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         foreach (var sender in _senders.Values)
         {
             await sender.DisposeAsync().ConfigureAwait(false);

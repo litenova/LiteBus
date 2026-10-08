@@ -89,5 +89,13 @@ public sealed class ChaosLeaseExpiryFixture
 
             return _inner.RenewLeaseAsync(request, cancellationToken);
         }
+
+        /// <inheritdoc />
+        public Task<bool> ReleaseLeaseAsync(
+            LeaseReleaseRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return _inner.ReleaseLeaseAsync(request, cancellationToken);
+        }
     }
 }

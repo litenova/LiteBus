@@ -24,6 +24,11 @@ public sealed class KafkaConsumer : IMessageConsumer
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
 
     /// <summary>
+    ///     Tracks whether asynchronous disposal has started.
+    /// </summary>
+    private int _disposed;
+
+    /// <summary>
     ///     Tracks repeated seek failures and computes consume delays between retries.
     /// </summary>
     private readonly KafkaSeekBackoff _seekBackoff;
@@ -193,6 +198,11 @@ public sealed class KafkaConsumer : IMessageConsumer
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         try
         {
             await StopAsync().ConfigureAwait(false);

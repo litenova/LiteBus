@@ -120,6 +120,12 @@ public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundSer
             {
                 return;
             }
+            catch (Exception exception) when (_options.IsConcurrencyConflict?.Invoke(exception) == true)
+            {
+                // Another instance won the race for the same data, so the work this send wanted is already done or
+                // will be retried by the next pass. Waiting out the error backoff would only delay that pass.
+                RecurringCommandLogMessages.PassConflicted(_logger, typeof(TCommand).Name, exception.GetType().Name);
+            }
 #pragma warning disable CA1031 // Do not catch general exception types
             catch (Exception exception)
             {

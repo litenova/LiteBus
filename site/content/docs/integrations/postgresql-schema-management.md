@@ -117,6 +117,8 @@ Placeholders use the form `{{TokenName}}`. Prefer `GetCreateScript(options)` ove
 | `UseDataSource(NpgsqlDataSource)` | Production apps that already build one shared data source for pooling, health checks, and tracing |
 | `UseConnectionString(string)` | Samples, tests, and small services where the module should create and register the data source |
 
+Ownership follows the overload. `UseConnectionString` creates a data source the module owns, and disposing the service provider disposes it and closes its pool, together with the dedicated LISTEN connection of a `UseListenNotify` work signal. `UseDataSource` leaves ownership with the application: the provider never disposes a data source it was given, so dispose it where you created it. Both behaviours are covered with Microsoft.Extensions.DependencyInjection by `PostgreSqlDataSourceOwnershipTests`; Autofac disposes the same registrations when its container is disposed.
+
 When inbox and outbox share one database, build a single `NpgsqlDataSource` and pass it to both stores with `UseDataSource`. Calling `UseConnectionString` on both stores creates two pools against the same server.
 
 ```csharp

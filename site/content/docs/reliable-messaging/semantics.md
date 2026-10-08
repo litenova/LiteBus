@@ -39,7 +39,7 @@ Processors lease batches with `lease_owner` and `lease_expires_at`. Heartbeat re
 * Another worker may lease the same row
 * Terminal persist uses conditional update (`lease_owner` match) to avoid overwriting a newer attempt
 
-PostgreSQL and EF Core stores use atomic conditional persist.
+PostgreSQL and EF Core stores use atomic conditional persist. When the processor cancels a dispatch itself during shutdown or drain, it releases the lease through `ILeaseRenewable.ReleaseLeaseAsync`, returning the row to `Pending` (or `Failed` when it already carries an error) with the attempt count decremented instead of spending an attempt; the InMemory, PostgreSQL, and EF Core inbox and outbox stores implement it.
 
 ## Drain Before Stop
 

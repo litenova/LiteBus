@@ -170,7 +170,7 @@ Inbox processing is **at-least-once**, not exactly-once. A handler may run more 
 | `false` (default) | Terminal `PersistAsync` receives `CancellationToken.None`. Shutdown may block until persist completes; lower risk of duplicate dispatch if persist is interrupted. |
 | `true` | Terminal persist receives the shutdown token. Faster drain on host stop; higher risk of duplicate dispatch if persist is canceled mid-write. |
 
-On graceful shutdown, in-flight envelopes may remain in `Processing` until the lease expires unless the processor drains or releases leases. When lease heartbeat renewal fails during dispatch, the processor persists a retryable `Failed` outcome instead of leaving the row in `Processing`. Document operator expectations for your deployment.
+On graceful shutdown or drain, a dispatch the processor cancels is released through `ILeaseRenewable.ReleaseLeaseAsync`: the row returns to `Pending` (or `Failed` when it already carries an error) with its lease cleared, its attempt count decremented, and its visibility unchanged, so the cancellation does not spend an attempt. The release runs under a 5 second budget and logs EventId 3011 at Debug; when it fails, EventId 3012 is logged at Warning and the lease simply expires. When lease heartbeat renewal fails during dispatch, the processor persists a retryable `Failed` outcome instead of leaving the row in `Processing`. Document operator expectations for your deployment.
 
 ## Saga Orchestration
 

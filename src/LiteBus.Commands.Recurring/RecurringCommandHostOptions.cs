@@ -52,6 +52,60 @@ public sealed class RecurringCommandHostOptions
     public TimeSpan ErrorBackoff { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
+    ///     Gets or sets the predicate that recognizes an optimistic-concurrency conflict thrown by a send.
+    /// </summary>
+    /// <value>
+    ///     The default is <see cref="IsConcurrencyConflictByTypeName" />. Set it when the application's persistence
+    ///     reports conflicts with an exception type the default does not recognize, or to <see langword="null" /> to treat
+    ///     every exception as a failure.
+    /// </value>
+    /// <remarks>
+    ///     Because the loop runs on every host instance, two instances sending the command at the same time can both
+    ///     reach the same record, and the one that loses the race gets a conflict for work the other already did. That is
+    ///     a normal outcome, not a fault: a send classified as a conflict is logged at Information and the loop waits
+    ///     <see cref="Interval" /> rather than <see cref="ErrorBackoff" />.
+    /// </remarks>
+    public Func<Exception, bool>? IsConcurrencyConflict { get; set; } = IsConcurrencyConflictByTypeName;
+
+    /// <summary>
+    ///     Recognizes an optimistic-concurrency conflict by the shape of its exception type name.
+    /// </summary>
+    /// <param name="exception">The exception a send threw.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the exception, an inner exception, or an exception aggregated in an
+    ///     <see cref="AggregateException" /> has a type name ending in <c>ConcurrencyException</c>.
+    /// </returns>
+    /// <remarks>
+    ///     Matching by name keeps this package free of persistence references while recognizing the conflict types common
+    ///     .NET persistence libraries throw, such as <c>DbUpdateConcurrencyException</c> from Entity Framework Core and
+    ///     the <c>ConcurrencyException</c> Marten raises through JasperFx.
+    /// </remarks>
+    public static bool IsConcurrencyConflictByTypeName(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        if (exception.GetType().Name.EndsWith("ConcurrencyException", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (exception is AggregateException aggregate)
+        {
+            foreach (var inner in aggregate.InnerExceptions)
+            {
+                if (IsConcurrencyConflictByTypeName(inner))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return exception.InnerException is not null && IsConcurrencyConflictByTypeName(exception.InnerException);
+    }
+
+    /// <summary>
     ///     Validates the timing values before the loop starts.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">A delay is negative.</exception>

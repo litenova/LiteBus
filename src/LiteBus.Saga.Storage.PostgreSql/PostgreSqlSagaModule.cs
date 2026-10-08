@@ -1,7 +1,9 @@
+using System;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Saga.Abstractions;
+using LiteBus.Storage.PostgreSql;
 using Npgsql;
 
 namespace LiteBus.Saga.Storage.PostgreSql;
@@ -41,11 +43,16 @@ public sealed class PostgreSqlSagaModule : ISagaStorageModule
                 "Call UseDataSource(NpgsqlDataSource) or UseConnectionString(string).");
         }
 
+        var dataSourceOwner = new PostgreSqlDataSourceOwner<PostgreSqlSagaModule>(moduleBuilder.DataSource, moduleBuilder.OwnsDataSource);
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(PostgreSqlDataSourceOwner<PostgreSqlSagaModule>),
+            _ => dataSourceOwner,
+            InstanceLifetime.Singleton));
+
         if (moduleBuilder.OwnsDataSource)
         {
-            configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(NpgsqlDataSource),
-                moduleBuilder.DataSource));
+            configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(NpgsqlDataSource), moduleBuilder.DataSource));
         }
 
         var registration = new PostgreSqlSagaStoreRegistration(moduleBuilder.DataSource, moduleBuilder.Options);
@@ -57,7 +64,8 @@ public sealed class PostgreSqlSagaModule : ISagaStorageModule
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ISagaStore),
             services => new PostgreSqlSagaStore(
-                registration.DataSource,
+                ((PostgreSqlDataSourceOwner<PostgreSqlSagaModule>) services.GetService(
+                    typeof(PostgreSqlDataSourceOwner<PostgreSqlSagaModule>))!).DataSource,
                 (IMessageSerializer) services.GetService(
                     typeof(IMessageSerializer))!,
                 registration.Options,
@@ -72,5 +80,29 @@ public sealed class PostgreSqlSagaModule : ISagaStorageModule
 
             configuration.RegisterStartupTask(typeof(PostgreSqlSagaSchemaInitializer));
         }
+    }
+
+    /// <summary>
+    ///     Creates a singleton registration that resolves the module's data source owner before returning
+    ///     <paramref name="instance" />.
+    /// </summary>
+    /// <param name="dependencyType">The service type to register.</param>
+    /// <param name="instance">The prebuilt service the registration returns.</param>
+    /// <returns>A singleton factory registration.</returns>
+    /// <remarks>
+    ///     Resolving the owner from every store registration makes the container create and capture it the first time
+    ///     any of the module's services is used, so disposing the container disposes a data source the module created.
+    ///     A prebuilt instance registration would not: Microsoft dependency injection never disposes one.
+    /// </remarks>
+    private static DependencyDescriptor CreateOwnedRegistration(Type dependencyType, object instance)
+    {
+        return new DependencyDescriptor(
+            dependencyType,
+            services =>
+            {
+                _ = services.GetService(typeof(PostgreSqlDataSourceOwner<PostgreSqlSagaModule>));
+                return instance;
+            },
+            InstanceLifetime.Singleton);
     }
 }

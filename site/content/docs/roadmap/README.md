@@ -11,6 +11,7 @@ The [Reliability Roadmap](reliability.md) tracks provider conformance, lease rec
 ## Storage and Persistence
 
 - [Deep Storage Deduplication](storage-deduplication.md) for shared PostgreSQL and Entity Framework Core orchestration behind thin inbox and outbox adapters.
+- [Marten Transactional Outbox Writer](marten-outbox-writer.md) for a Marten-backed transactional outbox writer that enlists in the caller document session transaction.
 - SQL Server inbox and outbox storage adapters using application-owned migrations and the same storage role boundaries as existing relational adapters.
 - Contract payload upgrader hooks for in-flight envelopes.
 - An optional handler-level idempotency record store beyond inbox acceptance metadata.
@@ -35,6 +36,7 @@ The [Reliability Roadmap](reliability.md) tracks provider conformance, lease rec
 - A contract catalog CLI with JSON Schema export.
 - NativeAOT smoke builds for mediator, durable, and transport paths.
 - Additional analyzers for configuration combinations not covered by the current rules.
+- [Integrator Feedback](integrator-feedback.md) for design notes on analyzer coverage and API gaps reported by an integrator.
 
 ## Boundaries to Preserve
 
