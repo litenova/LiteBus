@@ -1,11 +1,69 @@
-import Image from 'next/image';
-import { DocsLayout } from 'fumadocs-ui/layouts/docs';
+import type { Item, Node, Root } from 'fumadocs-core/page-tree';
+import { DocsSidebar, type SidebarNode, type SidebarPage } from '@/components/docs-sidebar';
+import { SiteFooter } from '@/components/site-footer';
+import { SiteHeader } from '@/components/site-header';
 import { getSource } from '@/lib/source';
 import type { DocsVersion } from '@/lib/versions';
-import { VersionSwitcher } from '@/components/version-switcher';
 
 /**
- * The documentation shell for one version: navigation, the version switcher, and the page tree of that version alone.
+ * The display text of a page tree node.
+ *
+ * These trees always name nodes with plain strings, so anything else falls back to the given default rather than
+ * carrying a React node across the server to client boundary.
+ */
+function nodeText(name: unknown, fallback: string): string {
+  if (typeof name === 'string' && name.length > 0) {
+    return name;
+  }
+
+  if (typeof name === 'number') {
+    return String(name);
+  }
+
+  return fallback;
+}
+
+/**
+ * A page tree item as serialisable sidebar data.
+ */
+function toSidebarPage(item: Item): SidebarPage {
+  return {
+    type: 'page',
+    name: nodeText(item.name, item.url),
+    url: item.url,
+    external: item.external ?? false,
+  };
+}
+
+/**
+ * A page tree node as serialisable sidebar data.
+ */
+function toSidebarNode(node: Node): SidebarNode {
+  if (node.type === 'page') {
+    return toSidebarPage(node);
+  }
+
+  if (node.type === 'separator') {
+    return { type: 'separator', name: nodeText(node.name, '') };
+  }
+
+  return {
+    type: 'folder',
+    name: nodeText(node.name, 'Documentation'),
+    index: node.index === undefined ? undefined : toSidebarPage(node.index),
+    children: node.children.map(toSidebarNode),
+  };
+}
+
+/**
+ * A page tree as the serialisable list the sidebar renders.
+ */
+function toSidebarTree(tree: Root): SidebarNode[] {
+  return tree.children.map(toSidebarNode);
+}
+
+/**
+ * The documentation shell for one version: header, sidebar, and footer around the page.
  *
  * Every version renders its own shell, so the sidebar never lists pages the reader cannot reach from where they are.
  */
@@ -13,25 +71,21 @@ export async function DocsShell({
   version,
   children,
 }: Readonly<{ version: DocsVersion; children: React.ReactNode }>) {
-  const docs = await getSource(version.id);
+  const tree = toSidebarTree((await getSource(version.id)).getPageTree());
 
   return (
-    <DocsLayout
-      tree={docs.getPageTree()}
-      nav={{
-        title: (
-          <span className="litebus-nav-brand">
-            <Image src="/icon.svg" alt="" width={24} height={24} />
-            <span>LiteBus</span>
-          </span>
-        ),
-        url: '/',
-      }}
-      sidebar={{
-        banner: <VersionSwitcher current={version.id} />,
-      }}
-    >
-      {children}
-    </DocsLayout>
+    <>
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
+      <div className="wrap wide">
+        <SiteHeader current="docs" />
+        <div className="docs">
+          {children}
+          <DocsSidebar tree={tree} versionId={version.id} />
+        </div>
+        <SiteFooter />
+      </div>
+    </>
   );
 }

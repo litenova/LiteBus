@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { Providers } from '@/app/providers';
 import {
   authorName,
   authorUrl,
@@ -72,16 +71,16 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   colorScheme: 'light dark',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fdbf00' },
-    { media: '(prefers-color-scheme: dark)', color: '#241f2b' },
+    { media: '(prefers-color-scheme: light)', color: '#fbfbfc' },
+    { media: '(prefers-color-scheme: dark)', color: '#131217' },
   ],
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="flex min-h-screen flex-col">
-        <Providers>{children}</Providers>
+      <body>
+        {children}
       </body>
     </html>
   );

@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
-import Link from 'next/link';
+import { SiteFooter } from '@/components/site-footer';
+import { SiteHeader } from '@/components/site-header';
 import { companyName, companyUrl, repositoryUrl, siteName, siteUrl } from '@/lib/site';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Privacy statement',
@@ -19,27 +20,23 @@ export const metadata: Metadata = {
 
 const LAST_UPDATED = '18 July 2026';
 
+/**
+ * Privacy statement for the LiteBus documentation website.
+ *
+ * Keeps the legal text unchanged and presents it in the shared Fuse-style
+ * frame used by the landing page.
+ */
 export default function PrivacyPage() {
   return (
-    <div className="litebus-home">
-      <header className="litebus-home-header">
-        <div className="litebus-header-inner">
-          <Link className="litebus-brand" href="/">
-            <Image src="/icon.svg" alt="" width={32} height={32} />
-            <span>LiteBus</span>
-          </Link>
-          <nav className="litebus-home-nav" aria-label="Main navigation">
-            <Link href="/docs">Documentation</Link>
-            <Link href="/docs/getting-started">Get Started</Link>
-            <Link href={repositoryUrl}>GitHub</Link>
-          </nav>
-        </div>
-      </header>
-
-      <main>
-        <article className="litebus-legal">
+    <>
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
+      <div className="wrap">
+        <SiteHeader />
+        <main id="main" className="page" tabIndex={-1}>
           <h1>Privacy statement</h1>
-          <p className="litebus-legal-meta">Last updated: {LAST_UPDATED}</p>
+          <p>Last updated: {LAST_UPDATED}</p>
 
           <p>
             This privacy statement explains how the {siteName} documentation website (
@@ -55,10 +52,10 @@ export default function PrivacyPage() {
             The controller for the processing described here is {companyName}, the company behind
             {' '}
             {siteName}. You can reach {companyName} through its website at{' '}
-            <Link href={companyUrl}>{companyUrl.replace('https://', '')}</Link>. For any question
+            <a href={companyUrl}>{companyUrl.replace('https://', '')}</a>. For any question
             about this statement or about your personal data, use the contact options listed there.
             Security issues can also be reported privately through the project on{' '}
-            <Link href={repositoryUrl}>GitHub</Link>.
+            <a href={repositoryUrl}>GitHub</a>.
           </p>
 
           <h2>What data is processed</h2>
@@ -135,9 +132,9 @@ export default function PrivacyPage() {
           <p>
             If you believe your personal data is handled incorrectly, you can lodge a complaint with
             the Dutch data protection authority, the Autoriteit Persoonsgegevens, at{' '}
-            <Link href="https://www.autoriteitpersoonsgegevens.nl">
+            <a href="https://www.autoriteitpersoonsgegevens.nl">
               autoriteitpersoonsgegevens.nl
-            </Link>
+            </a>
             .
           </p>
 
@@ -150,28 +147,9 @@ export default function PrivacyPage() {
           <p>
             <Link href="/">Back to home</Link>
           </p>
-        </article>
-      </main>
-
-      <footer className="litebus-footer">
-        <div className="litebus-footer-inner">
-          <div>
-            <Link className="litebus-brand" href="/">
-              <Image src="/icon.svg" alt="" width={24} height={24} />
-              <span>LiteBus</span>
-            </Link>
-            <p>
-              A <Link href={companyUrl}>{companyName}</Link> project.
-            </p>
-          </div>
-          <nav aria-label="Footer navigation">
-            <Link href="/docs">Documentation</Link>
-            <Link href="/docs/getting-started">Get Started</Link>
-            <Link href="/privacy">Privacy</Link>
-            <Link href={repositoryUrl}>GitHub</Link>
-          </nav>
-        </div>
-      </footer>
-    </div>
+        </main>
+        <SiteFooter />
+      </div>
+    </>
   );
 }

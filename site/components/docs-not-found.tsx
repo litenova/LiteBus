@@ -23,9 +23,9 @@ export function DocsNotFound() {
   const others = docsVersions.filter((candidate) => candidate.id !== version.id);
 
   return (
-    <main className="litebus-docs-not-found">
+    <main id="main" className="page" tabIndex={-1}>
       <h1>That page is not in {version.label}</h1>
-      <p>
+      <p className="intro">
         <code>{pathname}</code> does not exist in the {version.label} documentation.
       </p>
       {slug.length > 0 ? (

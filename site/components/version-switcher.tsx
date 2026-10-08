@@ -19,13 +19,12 @@ export function VersionSwitcher({ current }: Readonly<{ current: string }>) {
   const selected = findVersion(current) ?? docsVersions[0];
 
   return (
-    <div className="litebus-version-switcher">
-      <label className="litebus-version-switcher-label" id={labelId} htmlFor={`${labelId}-select`}>
+    <div className="version">
+      <label id={labelId} htmlFor={`${labelId}-select`}>
         Version
       </label>
       <select
         id={`${labelId}-select`}
-        className="litebus-version-switcher-select"
         value={selected.id}
         onChange={(event) => {
           const target = findVersion(event.target.value);
@@ -41,7 +40,7 @@ export function VersionSwitcher({ current }: Readonly<{ current: string }>) {
           </option>
         ))}
       </select>
-      <span className="litebus-version-switcher-release">
+      <span>
         Documents {selected.release}
         {selected.status === 'prerelease' ? ' (pre-release)' : ''}
       </span>
