@@ -1,5 +1,6 @@
 using LiteBus.Storage.Testing;
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore;
 
 namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Outbox;
 
@@ -26,15 +27,15 @@ public sealed class EfCoreOutboxRetentionStorePostgreSqlContractTests : OutboxRe
     /// <inheritdoc />
     protected override OutboxStoreContracts CreateStore()
     {
-        EfCorePostgreSqlTestInfrastructure.ResetOutboxTableAsync(_fixture.ConnectionString)
+        EfCoreProviderTestInfrastructure.ResetOutboxTableAsync(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString)
             .GetAwaiter()
             .GetResult();
 
-        var options = EfCorePostgreSqlTestInfrastructure.OutboxStoreOptions;
+        var options = EfCoreProviderTestInfrastructure.OutboxStoreOptions(EfCoreStorageProvider.PostgreSql);
 
         var store = new EfCoreOutboxStore(
             _ => Task.FromResult<IOutboxDbContext>(
-                EfCorePostgreSqlTestInfrastructure.CreateOutboxContext(_fixture.ConnectionString)),
+                EfCoreProviderTestInfrastructure.CreateOutboxContext(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString)),
             options);
 
         return new OutboxStoreContracts(store, store, store, store, store);

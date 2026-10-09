@@ -30,7 +30,32 @@ public abstract class InboxStoreContractTests
     ///     Creates a fresh store instance for one test.
     /// </summary>
     /// <returns>The writer, lease, terminal, retention, and diagnostics roles backed by the same store instance.</returns>
-    protected abstract InboxStoreRoles CreateStore();
+    protected abstract InboxStoreContractRoles CreateStore();
+
+    /// <summary>
+    ///     Gets whether the store under test orders leases by its own database clock.
+    /// </summary>
+    /// <remarks>
+    ///     Stores with a database clock ignore the request timestamps and evaluate lease expiry against that clock, so
+    ///     expiry tests must wait in real time. Stores without one honor the caller timestamp, so the same tests reclaim
+    ///     with an advanced timestamp and no wait.
+    /// </remarks>
+    protected virtual bool UsesDatabaseClock => true;
+
+    /// <summary>
+    ///     The scheduling margin added past a lease expiry before a reclaim is attempted.
+    /// </summary>
+    private static readonly TimeSpan LeaseExpiryMargin = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
+    ///     Waits for a database clock to pass a lease expiry, plus a scheduling margin.
+    /// </summary>
+    /// <param name="leaseDuration">The lease duration that must elapse on the database clock.</param>
+    /// <returns>A task that completes once the lease has expired.</returns>
+    private static async Task WaitForDatabaseClockLeaseExpiryAsync(TimeSpan leaseDuration)
+    {
+        await Task.Delay(leaseDuration.Add(LeaseExpiryMargin)).ConfigureAwait(false);
+    }
 
     /// <summary>
     ///     Verifies logical schema reads honor cancellation even when no database query is required.
@@ -643,13 +668,23 @@ public abstract class InboxStoreContractTests
         });
 
         staleLease.Should().ContainSingle();
-        await Task.Delay(leaseDuration.Add(TimeSpan.FromMilliseconds(250))).ConfigureAwait(false);
+
+        DateTimeOffset reclaimNow;
+        if (UsesDatabaseClock)
+        {
+            await WaitForDatabaseClockLeaseExpiryAsync(leaseDuration).ConfigureAwait(false);
+            reclaimNow = DateTimeOffset.UtcNow;
+        }
+        else
+        {
+            reclaimNow = now.Add(leaseDuration).Add(LeaseExpiryMargin);
+        }
 
         var reclaimed = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 1,
             LeaseOwner = "worker",
-            Now = DateTimeOffset.UtcNow,
+            Now = reclaimNow,
             LeaseDuration = TimeSpan.FromMinutes(1)
         });
 
@@ -1259,7 +1294,7 @@ public abstract class InboxStoreContractTests
     /// <param name="DiagnosticsStore">The diagnostics role used by operators.</param>
     /// <param name="MessageQuery">The message query role used by browse APIs.</param>
     /// <param name="PurgeStore">The purge role used by operator cleanup.</param>
-    public sealed record InboxStoreRoles(
+    public sealed record InboxStoreContractRoles(
         IInboxStore Writer,
         IInboxLeaseStore LeaseStore,
         IInboxStateWriter StateWriter,

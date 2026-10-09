@@ -32,6 +32,31 @@ public abstract class OutboxStoreContractTests
     protected abstract OutboxStoreContracts CreateStore();
 
     /// <summary>
+    ///     Gets whether the store under test orders leases by its own database clock.
+    /// </summary>
+    /// <remarks>
+    ///     Stores with a database clock ignore the request timestamps and evaluate lease expiry against that clock, so
+    ///     expiry tests must wait in real time. Stores without one honor the caller timestamp, so the same tests reclaim
+    ///     with an advanced timestamp and no wait.
+    /// </remarks>
+    protected virtual bool UsesDatabaseClock => true;
+
+    /// <summary>
+    ///     The scheduling margin added past a lease expiry before a reclaim is attempted.
+    /// </summary>
+    private static readonly TimeSpan LeaseExpiryMargin = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
+    ///     Waits for a database clock to pass a lease expiry, plus a scheduling margin.
+    /// </summary>
+    /// <param name="leaseDuration">The lease duration that must elapse on the database clock.</param>
+    /// <returns>A task that represents the asynchronous wait.</returns>
+    private static async Task WaitForDatabaseClockLeaseExpiryAsync(TimeSpan leaseDuration)
+    {
+        await Task.Delay(leaseDuration.Add(LeaseExpiryMargin)).ConfigureAwait(false);
+    }
+
+    /// <summary>
     ///     Verifies logical schema reads honor cancellation even when no database query is required.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
@@ -549,13 +574,23 @@ public abstract class OutboxStoreContractTests
         }).ConfigureAwait(false);
 
         staleLease.Should().ContainSingle();
-        await Task.Delay(leaseDuration.Add(TimeSpan.FromMilliseconds(250))).ConfigureAwait(false);
+
+        DateTimeOffset reclaimNow;
+        if (UsesDatabaseClock)
+        {
+            await WaitForDatabaseClockLeaseExpiryAsync(leaseDuration).ConfigureAwait(false);
+            reclaimNow = DateTimeOffset.UtcNow;
+        }
+        else
+        {
+            reclaimNow = now.Add(leaseDuration).Add(LeaseExpiryMargin);
+        }
 
         var reclaimed = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
             BatchSize = 1,
             LeaseOwner = "publisher",
-            Now = DateTimeOffset.UtcNow,
+            Now = reclaimNow,
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 

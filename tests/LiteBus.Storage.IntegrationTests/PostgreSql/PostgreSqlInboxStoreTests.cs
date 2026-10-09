@@ -37,11 +37,11 @@ public sealed class PostgreSqlInboxStoreTests : ContractTests, IClassFixture<Pos
     }
 
     /// <inheritdoc />
-    protected override InboxStoreRoles CreateStore()
+    protected override InboxStoreContractRoles CreateStore()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).GetAwaiter().GetResult();
         var store = new PostgreSqlInboxStore(_fixture.DataSource, options);
-        return new InboxStoreRoles(store, store, store, store, store, store, store, store);
+        return new InboxStoreContractRoles(store, store, store, store, store, store, store, store);
     }
 }

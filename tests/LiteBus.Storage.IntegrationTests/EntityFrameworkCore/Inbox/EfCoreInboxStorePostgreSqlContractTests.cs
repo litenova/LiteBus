@@ -1,5 +1,6 @@
 using LiteBus.Storage.Testing;
 using LiteBus.Inbox.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore;
 
 namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Inbox;
 
@@ -33,19 +34,19 @@ public sealed class EfCoreInboxStorePostgreSqlContractTests : InboxStoreContract
     }
 
     /// <inheritdoc />
-    protected override InboxStoreRoles CreateStore()
+    protected override InboxStoreContractRoles CreateStore()
     {
-        EfCorePostgreSqlTestInfrastructure.ResetInboxTableAsync(_fixture.ConnectionString)
+        EfCoreProviderTestInfrastructure.ResetInboxTableAsync(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString)
             .GetAwaiter()
             .GetResult();
 
-        var options = EfCorePostgreSqlTestInfrastructure.InboxStoreOptions;
+        var options = EfCoreProviderTestInfrastructure.InboxStoreOptions(EfCoreStorageProvider.PostgreSql);
 
         var store = new EfCoreInboxStore(
             _ => Task.FromResult<IInboxDbContext>(
-                EfCorePostgreSqlTestInfrastructure.CreateInboxContext(_fixture.ConnectionString)),
+                EfCoreProviderTestInfrastructure.CreateInboxContext(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString)),
             options);
 
-        return new InboxStoreRoles(store, store, store, store, store, store, store, store);
+        return new InboxStoreContractRoles(store, store, store, store, store, store, store, store);
     }
 }

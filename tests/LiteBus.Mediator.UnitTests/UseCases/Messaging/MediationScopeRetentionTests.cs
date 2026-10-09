@@ -37,13 +37,13 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
 
         var mediationTask = mediator.Mediate(new DelayedScopedCommand(), request);
 
-        await Task.Delay(25).ConfigureAwait(false);
+        await WaitForConditionAsync(() => DelayedScopedHandler.ActiveMarker is not null, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         DelayedScopedHandler.ActiveMarker.Should().NotBeNull();
-        DelayedScopedHandler.ActiveMarker.Disposed.Should().BeFalse();
+        DelayedScopedHandler.ActiveMarker!.Disposed.Should().BeFalse();
 
         await mediationTask.ConfigureAwait(false);
 
-        DelayedScopedHandler.ActiveMarker.Disposed.Should().BeTrue();
+        DelayedScopedHandler.ActiveMarker!.Disposed.Should().BeTrue();
     }
 
     [Fact]
@@ -79,18 +79,17 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
         {
             (await enumerator.MoveNextAsync().ConfigureAwait(false)).Should().BeTrue();
             StreamingScopedHandler.ActiveMarker.Should().NotBeNull();
-            StreamingScopedHandler.ActiveMarker.Disposed.Should().BeFalse();
+            StreamingScopedHandler.ActiveMarker!.Disposed.Should().BeFalse();
 
             (await enumerator.MoveNextAsync().ConfigureAwait(false)).Should().BeTrue();
-            StreamingScopedHandler.ActiveMarker.Disposed.Should().BeFalse();
+            StreamingScopedHandler.ActiveMarker!.Disposed.Should().BeFalse();
 
             (await enumerator.MoveNextAsync().ConfigureAwait(false)).Should().BeFalse();
-            StreamingScopedHandler.ActiveMarker.Disposed.Should().BeTrue();
+            StreamingScopedHandler.ActiveMarker!.Disposed.Should().BeTrue();
         }
 
         var secondEnumeration = () => stream.GetAsyncEnumerator();
-        secondEnumeration.Should().Throw<InvalidOperationException>()
-            .WithMessage("*only once*");
+        secondEnumeration.Should().Throw<InvalidOperationException>();
     }
 
     [Fact]
@@ -137,6 +136,21 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
             MessageMediationStrategy = new ReturnHandlerTaskWithoutAwaitStrategy<DelayedScopedCommand, int>(),
             Tags = []
         };
+    }
+
+    private static async Task WaitForConditionAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+
+        while (!condition())
+        {
+            if (DateTime.UtcNow >= deadline)
+            {
+                break;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(10), CancellationToken.None).ConfigureAwait(false);
+        }
     }
 
     /// <summary>

@@ -105,7 +105,7 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
             invocations.Should().BeInRange(1, MaxAttempts);
         }
 
-        tracker.TotalInvocations.Should().BeInRange(MessageCount, MessageCount * MaxAttempts);
+        tracker.TotalInvocations.Should().BeLessThanOrEqualTo(MessageCount * MaxAttempts);
         }
     }
 

@@ -1,5 +1,6 @@
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore;
 
 namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Outbox;
 
@@ -22,12 +23,12 @@ public sealed class EfCoreOutboxStoreConcurrencyTests : IClassFixture<PostgreSql
     [Fact]
     public async Task PersistAsync_WhenTwoWorkersPersistSameEnvelopeConcurrently_ShouldApplyExactlyOnce()
     {
-        await EfCorePostgreSqlTestInfrastructure.ResetOutboxTableAsync(_fixture.ConnectionString).ConfigureAwait(false);
+        await EfCoreProviderTestInfrastructure.ResetOutboxTableAsync(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString).ConfigureAwait(false);
 
         var store = new EfCoreOutboxStore(
             _ => Task.FromResult<IOutboxDbContext>(
-                EfCorePostgreSqlTestInfrastructure.CreateOutboxContext(_fixture.ConnectionString)),
-            EfCorePostgreSqlTestInfrastructure.OutboxStoreOptions);
+                EfCoreProviderTestInfrastructure.CreateOutboxContext(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString)),
+            EfCoreProviderTestInfrastructure.OutboxStoreOptions(EfCoreStorageProvider.PostgreSql));
 
         var messageId = Guid.NewGuid();
         var now = new DateTimeOffset(2026, 6, 10, 12, 0, 0, TimeSpan.Zero);
@@ -68,7 +69,7 @@ public sealed class EfCoreOutboxStoreConcurrencyTests : IClassFixture<PostgreSql
 
         (firstResult.AppliedCount + secondResult.AppliedCount).Should().Be(1);
 
-         var verificationContext = EfCorePostgreSqlTestInfrastructure.CreateOutboxContext(_fixture.ConnectionString);
+         var verificationContext = EfCoreProviderTestInfrastructure.CreateOutboxContext(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString);
          await using (verificationContext.ConfigureAwait(false))
          {
         var stored = await verificationContext.OutboxMessages.FindAsync(messageId).ConfigureAwait(false);

@@ -16,7 +16,7 @@ public abstract class InboxRetentionStoreContractTests
     ///     Creates a fresh store instance for one retention test.
     /// </summary>
     /// <returns>The writer, lease, state, retention, and diagnostics roles backed by the same store instance.</returns>
-    protected abstract InboxStoreRoles CreateStore();
+    protected abstract InboxRetentionStoreContractRoles CreateStore();
 
     /// <summary>
     ///     Verifies that completed rows older than the retention cutoff are deleted.
@@ -151,7 +151,7 @@ public abstract class InboxRetentionStoreContractTests
     /// <param name="StateWriter">The state writer role used by the processor.</param>
     /// <param name="RetentionStore">The retention role used by cleanup.</param>
     /// <param name="DiagnosticsStore">The diagnostics role used by operators.</param>
-    public sealed record InboxStoreRoles(
+    public sealed record InboxRetentionStoreContractRoles(
         IInboxStore Writer,
         IInboxLeaseStore LeaseStore,
         IInboxStateWriter StateWriter,

@@ -80,7 +80,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorAbortTests : IClassFixture
     {
         var options = new EntityFrameworkCoreOutboxStoreOptions
         {
-            SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
+            SchemaName = EfCoreProviderTestInfrastructure.SchemaName,
             TableName = $"outbox_ef_abort_{Guid.NewGuid():N}"
         };
 
@@ -113,7 +113,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorAbortTests : IClassFixture
         LiteBusOutboxSaveChangesInterceptor? interceptor = null)
     {
         var builder = new DbContextOptionsBuilder<IntegrationOutboxAbortDbContext>()
-            .UseNpgsql(EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(_fixture.ConnectionString, storeOptions));
+            .UseNpgsql(EfCoreProviderTestInfrastructure.CreateOutboxScopedConnectionString(_fixture.ConnectionString, storeOptions));
 
         if (interceptor is not null)
         {

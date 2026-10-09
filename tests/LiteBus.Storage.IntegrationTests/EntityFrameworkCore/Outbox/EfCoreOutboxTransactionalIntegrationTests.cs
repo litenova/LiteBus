@@ -113,7 +113,7 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
 
         var storeOptions = new EntityFrameworkCoreOutboxStoreOptions
         {
-            SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
+            SchemaName = EfCoreProviderTestInfrastructure.SchemaName,
             TableName = $"outbox_ef_tx_{suffix}"
         };
 

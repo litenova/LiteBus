@@ -73,13 +73,23 @@ public sealed class PostgreSqlProcessCrashIntegrationTests : LiteBusTestBase, IC
             worker.Kill(true);
             await worker.WaitForExitAsync().WaitAsync(TestTimeout).ConfigureAwait(false);
 
-            await WaitForLeaseExpiryAsync(leasedRow.LeaseExpiresAt).ConfigureAwait(false);
-
             var recoveryProvider = BuildProvider(options, null, false, "replacement-worker");
             await using (recoveryProvider.ConfigureAwait(false))
             {
                 var processor = recoveryProvider.GetRequiredService<IInboxProcessor>();
-                await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+                var recovered = await WaitUntilAsync(
+                    async () =>
+                    {
+                        await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+                        var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
+
+                        return row is not null && row.Status == InboxStatus.Completed;
+                    },
+                    TestTimeout).ConfigureAwait(false);
+
+                recovered.Should().BeTrue("the replacement worker should reclaim and complete the command after the abandoned lease expires");
             }
 
             var recoveredRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
@@ -244,17 +254,6 @@ public sealed class PostgreSqlProcessCrashIntegrationTests : LiteBusTestBase, IC
         }
 
         throw new DirectoryNotFoundException("Could not locate the LiteBus repository root.");
-    }
-
-    private static async Task WaitForLeaseExpiryAsync(DateTimeOffset? leaseExpiresAt)
-    {
-        leaseExpiresAt.Should().HaveValue();
-        var delay = leaseExpiresAt!.Value - DateTimeOffset.UtcNow + TimeSpan.FromMilliseconds(250);
-
-        if (delay > TimeSpan.Zero)
-        {
-            await Task.Delay(delay).ConfigureAwait(false);
-        }
     }
 
     private static async Task<bool> WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)

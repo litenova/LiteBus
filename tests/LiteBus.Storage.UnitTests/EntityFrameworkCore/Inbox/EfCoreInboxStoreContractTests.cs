@@ -78,10 +78,10 @@ public sealed class EfCoreInboxStoreContractTests : InboxStoreContractTests
     }
 
     /// <inheritdoc />
-    protected override InboxStoreRoles CreateStore()
+    protected override InboxStoreContractRoles CreateStore()
     {
         var store = new EfCoreInboxStore(_ => Task.FromResult<IInboxDbContext>(CreateContext()), new EntityFrameworkCoreInboxStoreOptions());
-        return new InboxStoreRoles(store, store, store, store, store, store, store, store);
+        return new InboxStoreContractRoles(store, store, store, store, store, store, store, store);
     }
 
     /// <summary>

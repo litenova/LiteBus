@@ -60,7 +60,7 @@ public sealed class EfCoreInboxSaveChangesInterceptorRollbackTests : IClassFixtu
     {
         var options = new EntityFrameworkCoreInboxStoreOptions
         {
-            SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
+            SchemaName = EfCoreProviderTestInfrastructure.SchemaName,
             TableName = $"inbox_ef_rollback_{Guid.NewGuid():N}"
         };
 

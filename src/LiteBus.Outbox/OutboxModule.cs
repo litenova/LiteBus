@@ -193,15 +193,14 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
     ///     Registers consumer-owned diagnostic probes collected by the outbox module builder.
     /// </summary>
     /// <param name="configuration">The module configuration receiving probe registrations.</param>
+    /// <remarks>
+    ///     Only the manifest entry is recorded. The host adapter called from AddLiteBus registers every manifest
+    ///     probe in the container once, so registering it here as well would add a second descriptor.
+    /// </remarks>
     private void RegisterDiagnosticChecks(IModuleConfiguration configuration)
     {
         foreach (var registration in _builder!.CollectDiagnosticChecks())
         {
-            configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                registration.ImplementationType,
-                registration.ImplementationType,
-                InstanceLifetime.Singleton));
-
             configuration.RegisterDiagnosticCheck(registration.ImplementationType, registration.Name);
         }
     }

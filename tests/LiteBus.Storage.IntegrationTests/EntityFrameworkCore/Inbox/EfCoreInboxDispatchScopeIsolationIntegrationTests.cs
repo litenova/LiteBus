@@ -50,7 +50,7 @@ public sealed class EfCoreInboxDispatchScopeIsolationIntegrationTests : LiteBusT
         services.AddSingleton(storeOptions);
         services.AddDbContextFactory<StorageScopeInboxDbContext>(options =>
             options.UseNpgsql(
-                EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(_fixture.ConnectionString, storeOptions)));
+                EfCoreProviderTestInfrastructure.CreateInboxScopedConnectionString(_fixture.ConnectionString, storeOptions)));
 
         services.AddLiteBus(registry =>
         {

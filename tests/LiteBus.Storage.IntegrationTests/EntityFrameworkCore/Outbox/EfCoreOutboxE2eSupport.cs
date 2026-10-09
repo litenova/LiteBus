@@ -21,7 +21,7 @@ internal static class EfCoreOutboxE2eSupport
     {
         return new EntityFrameworkCoreOutboxStoreOptions
         {
-            SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
+            SchemaName = EfCoreProviderTestInfrastructure.SchemaName,
             TableName = tableName
         };
     }
@@ -63,7 +63,7 @@ internal static class EfCoreOutboxE2eSupport
 
         services.AddSingleton(storeOptions);
         services.AddDbContextFactory<TDbContext>(options =>
-            options.UseNpgsql(EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(connectionString, storeOptions)));
+            options.UseNpgsql(EfCoreProviderTestInfrastructure.CreateOutboxScopedConnectionString(connectionString, storeOptions)));
 
         services.AddLiteBus(registry =>
         {
