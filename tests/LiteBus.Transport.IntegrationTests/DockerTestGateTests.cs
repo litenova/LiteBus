@@ -27,6 +27,20 @@ public sealed class DockerTestGateTests
     }
 
     /// <summary>
+    ///     Verifies a broker-side pipe failure is not classified as Docker-unavailable.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_WithBrokerPipeFailure_ShouldPropagateOriginal()
+    {
+        var original = new InvalidOperationException("broken pipe while publishing to the broker");
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => DockerTestGate.RunAsync(() => Task.FromException(original))).ConfigureAwait(false);
+
+        thrown.Should().BeSameAs(original);
+    }
+
+    /// <summary>
     ///     Verifies successful broker initialization completes without throwing.
     /// </summary>
     [Fact]

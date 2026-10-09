@@ -93,7 +93,7 @@ Transport platform: `LiteBus.Transport.*`. Kafka transport is GA; AWS SQS and Az
 
 ## Analyzers
 
-See [Analyzers](analyzers.md) for LB1001-LB1021. Highlights:
+See [Analyzers](analyzers.md) for LB1001-LB1022; LB1002 and LB1006 are reserved and never shipped. Highlights:
 
 | Rule | Topic |
 | --- | --- |
@@ -103,6 +103,7 @@ See [Analyzers](analyzers.md) for LB1001-LB1021. Highlights:
 | LB1018 | Message states no audit position |
 | LB1019 | Untyped shortcut on a message that produces a result |
 | LB1020 / LB1021 | Message states no position on a required declaration; required declaration type not found |
+| LB1022 | `[HandlerPriority]` value inside the range LiteBus reserves for its own handlers |
 
 ## Related Documentation
 

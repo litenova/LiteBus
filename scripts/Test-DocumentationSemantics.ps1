@@ -204,6 +204,32 @@ if (-not $reservedAnalyzerIds.SetEquals([string[]] @('LB1002', 'LB1006'))) {
         -Message "Reserved analyzer inventory must contain exactly LB1002 and LB1006, the IDs that were reserved and never shipped. Found: $($reservedAnalyzerIds -join ', ')."
 }
 
+# docs/CONTEXT.md lists the analyzer inventory in one line; it must name the same IDs as DiagnosticIds.
+$contextPath = Join-Path $repositoryRoot 'docs/CONTEXT.md'
+$contextInventoryLine = [regex]::Split([IO.File]::ReadAllText($contextPath), '?
+') |
+    Where-Object { $_.StartsWith('`LB1001` DuplicateCommandHandler', [StringComparison]::Ordinal) } |
+    Select-Object -First 1
+
+if ($null -eq $contextInventoryLine) {
+    Add-Violation -Path $contextPath -Line 1 -Message 'docs/CONTEXT.md has no analyzer inventory line starting with `LB1001` DuplicateCommandHandler.'
+}
+else {
+    $listedPart = $contextInventoryLine.Split('(')[0]
+    $contextAnalyzerIds = New-OrdinalSet
+
+    foreach ($match in [regex]::Matches($listedPart, '`(?<id>LB\d{4})`')) {
+        [void] $contextAnalyzerIds.Add($match.Groups['id'].Value)
+    }
+
+    if (-not $implementedAnalyzerIds.SetEquals($contextAnalyzerIds)) {
+        Add-Violation `
+            -Path $contextPath `
+            -Line 1 `
+            -Message "docs/CONTEXT.md analyzer inventory does not match compiled diagnostic IDs. Code: $($implementedAnalyzerIds -join ', '). Docs: $($contextAnalyzerIds -join ', ')."
+    }
+}
+
 # Keep the dependency-graph package table aligned with the generated package inventory.
 $dependencyGraphPath = Join-Path $documentationRoot 'architecture/dependency-graph.md'
 $packageInventoryDocPath = Join-Path $documentationRoot 'architecture/generated-package-inventory.md'
