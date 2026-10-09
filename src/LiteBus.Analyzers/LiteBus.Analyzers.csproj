@@ -2,7 +2,9 @@
 
     <PropertyGroup>
         <TargetFramework>netstandard2.0</TargetFramework>
-        <!-- Clears the TargetFrameworks list src/Directory.Build.props sets, so this project builds netstandard2.0 only. -->
+        <!-- Clears the TargetFrameworks list src/Directory.Build.props sets, so this project builds netstandard2.0 only.
+             Setting TargetFrameworks to netstandard2.0 instead makes this a cross-targeting project: the pack item for
+             the analyzer DLL then misses the output path and the analyzer test project's reference stops resolving. -->
         <TargetFrameworks></TargetFrameworks>
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
