@@ -93,7 +93,7 @@ public sealed class AdvanceOrderSagaCommandHandler : ICommandHandler<AdvanceOrde
 }
 ```
 
-Call `Complete()` when the workflow reaches a terminal business state. The hook marks the saga instance completed after dispatch succeeds. Do not call `Complete()` and `SetState()` in the same dispatch; persist final state on one message and complete on a later correlated message.
+Call `Complete()` when the workflow reaches a terminal business state. The hook marks the saga instance completed after dispatch succeeds. Do not combine `Complete()` with a state change in the same dispatch; persist final state on one message and complete on a later correlated message. Reading state with `GetState` and then calling `Complete()` is allowed. In-place mutations count as a state change: the hook compares the serialized state against the load snapshot, so mutated state is persisted even without `SetState()`.
 
 ## Correlation and Tenancy
 
@@ -120,12 +120,35 @@ Messages without correlation dispatch normally but skip saga scope (`ISagaContex
 | Handler succeeds, `SetState` called | State persisted with optimistic concurrency (`SagaConcurrencyException` on conflict) |
 | Dirty-state `SagaConcurrencyException` after dispatch | Hook propagates the conflict without reloading or replacing the concurrent state; inbox failure policy handles the message |
 | Completion-only `SagaConcurrencyException` after dispatch | Hook reloads and retries against the current version up to three attempts; an already completed saga is treated as success |
-| At-least-once redelivery | The store records the last applied message ID, but handlers and external side effects must remain **idempotent** across crashes |
+| At-least-once redelivery | The store records only the last applied message ID. When an inbox terminal persist fails after a save, a newer message for the same correlation can advance the row before the failed message retries, and the retry then runs its handler again. Handlers and external side effects must remain **idempotent** across crashes; see [Idempotency](../concepts/idempotency.md) |
 | Completed saga | Further correlated messages dispatch without active saga scope |
 
 `SagaExecutionContext` registers as a singleton. Each active scope is keyed by the durable message ID, and an instance `AsyncLocal` attaches that scope to the current dispatch flow. `SagaProcessorHook.PrepareDispatchScope` runs synchronously after `BeforeDispatchAsync` so the dispatcher inherits the attached scope. `SagaInboxCommandScopePreHandler` attaches the same message-keyed scope before in-process command handlers. The hook serializes active dispatches for the same tenant, definition, and correlation inside one process. PostgreSQL optimistic concurrency remains the cross-process fence. Failed dispatches call `AbandonDispatchScope` and remove their entries from the singleton context.
 
 Correlation serialization is not message ordering. Inbox acquisition is FIFO-like by `created_at`, but equal timestamps, retries, and multiple workers prevent a strict FIFO guarantee. Enqueue a causally dependent saga step only after its prerequisite is durable, or make the handler reject and retry an early step safely.
+
+## Evolving State Shape
+
+Saga state JSON carries no schema version. Renaming the state class breaks deserialization with a typed `MessageSerializationException`, but renaming a property is silent: unknown members are ignored and missing members take defaults, so an older row can deserialize into a state object that looks valid and has lost fields. Keep a `Version` property inside the state class that the handler checks and upgrades:
+
+```csharp
+public sealed class OrderSagaState
+{
+    public int Version { get; set; } = 2;
+    public int Step { get; set; }
+}
+```
+
+```csharp
+var state = _sagaContext.GetState<OrderSagaState>();
+
+if (state.Version < 2)
+{
+    // Rows written before Version existed deserialize with Version 0; map retired fields here.
+    state.Version = 2;
+    _sagaContext.SetState(state);
+}
+```
 
 ## Durability Model
 
@@ -175,7 +198,7 @@ Inbox processor options (`BatchSize`, `LeaseDuration`, and similar) apply unchan
 
 ## Operations
 
-Monitor inbox processor metrics and saga row growth when using PostgreSQL storage. Use `ISagaStore.QueryAsync` and `PurgeAsync` for retention jobs.
+Monitor inbox processor metrics and saga row growth when using PostgreSQL storage. Use `ISagaStore.QueryAsync` and `PurgeAsync` for retention jobs. Scope a purge with a predicate or bound it with `SagaPurgeFilter.Take`, which deletes the oldest matches first; a purge with no predicates and no limit is rejected.
 
 For dirty-state optimistic concurrency failures, retry the inbox message or reconcile state manually. Completion-only conflicts retry inside the hook up to three attempts.
 

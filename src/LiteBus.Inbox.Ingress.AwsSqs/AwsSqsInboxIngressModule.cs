@@ -50,8 +50,7 @@ public sealed class AwsSqsInboxIngressModule :
         }
 
         options.Safety.Validate();
-        ArgumentOutOfRangeException.ThrowIfLessThan(options.ReceiveBatchSize, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.ReceiveBatchSize, 10);
+        IngressAdapterOptionsValidator.ValidateReceiveBatchSize(options.ReceiveBatchSize);
 
         var ingressOptions = new TransportInboxIngressOptions
         {

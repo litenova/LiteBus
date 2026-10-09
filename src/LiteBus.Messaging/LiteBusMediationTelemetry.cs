@@ -41,9 +41,11 @@ public static class LiteBusMediationTelemetry
     ///     The counter instrument name incremented once per completed mediation.
     /// </summary>
     /// <remarks>
-    ///     Tagged with the outcome and, for a stopped mediation, the decision's code. That is what answers "what is
+    ///     Recorded with two tag shapes: a mediation no decision stopped carries <c>litebus.message</c> and
+    ///     <c>litebus.outcome</c> only, while a mediation a decision stopped adds <c>litebus.code</c> with the
+    ///     decision's code. That is what answers "what is
     ///     being denied, and why" without a single log line, which is the question the audit and authorization
-    ///     features exist to serve.
+    ///     features exist to serve. A query grouping by the tag set sees the two shapes as separate series.
     /// </remarks>
     public const string CountInstrumentName = "litebus.mediation.count";
 

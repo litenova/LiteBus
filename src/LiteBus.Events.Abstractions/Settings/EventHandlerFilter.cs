@@ -126,7 +126,7 @@ namespace LiteBus.Events.Abstractions;
 /// {
 ///     var isPeakHours = DateTime.Now.Hour >= 9 && DateTime.Now.Hour <= 17;
 ///     var isExpensiveAnalytics = descriptor.HandlerType.Name.Contains("Analytics") && 
-///                               descriptor.Order > 5;
+///                               descriptor.Priority > 5;
 ///     var isCritical = descriptor.Tags.Contains("Critical") || 
 ///                    descriptor.Tags.Contains("Emergency");
 ///     
@@ -186,7 +186,7 @@ namespace LiteBus.Events.Abstractions;
 ///     if (systemMetrics.CpuUsage > 80 || systemMetrics.MemoryUsage > 90)
 ///     {
 ///         // Only execute critical handlers during high load
-///         return descriptor.Tags.Contains("Critical") || descriptor.Order <= 2;
+///         return descriptor.Tags.Contains("Critical") || descriptor.Priority <= 2;
 ///     }
 ///     return true;
 /// };

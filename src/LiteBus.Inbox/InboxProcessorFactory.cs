@@ -46,20 +46,6 @@ internal static class InboxProcessorFactory
     }
 
     /// <summary>
-    ///     Resolves the lease owner name for a processor instance.
-    /// </summary>
-    /// <param name="options">The processor options.</param>
-    /// <returns>The effective lease owner string.</returns>
-    public static string ResolveLeaseOwner(InboxProcessorOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-
-        return string.IsNullOrWhiteSpace(options.LeaseOwner)
-            ? $"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}"
-            : options.LeaseOwner;
-    }
-
-    /// <summary>
     ///     Validates processor option values shared by all inbox processor implementations.
     /// </summary>
     /// <param name="options">The processor options to validate.</param>

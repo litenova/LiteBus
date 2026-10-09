@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -77,14 +78,45 @@ internal static class ProcessorHookRunner
     /// </summary>
     /// <param name="hooks">The registered orchestration hooks.</param>
     /// <param name="envelope">The leased envelope being dispatched.</param>
+    /// <remarks>
+    ///     Every hook runs even when an earlier hook throws, so one failing hook cannot leak another hook's
+    ///     correlation gate or scope. After all hooks run, the first failure is rethrown with its original stack
+    ///     trace when exactly one hook failed, or wrapped in an <see cref="AggregateException" /> when several
+    ///     failed. The catch stays broad because hooks are application-owned implementations whose failure types the
+    ///     runner cannot enumerate.
+    /// </remarks>
     internal static void RunAbandonDispatchScopes(
         IReadOnlyList<IProcessorEnvelopeHook> hooks,
         IProcessorEnvelope envelope)
     {
+        List<Exception>? failures = null;
+
         foreach (var hook in hooks)
         {
-            hook.AbandonDispatchScope(envelope);
+#pragma warning disable CA1031 // Hooks are application-owned; every failure type must still release later hooks.
+            try
+            {
+                hook.AbandonDispatchScope(envelope);
+            }
+            catch (Exception exception)
+            {
+                failures ??= [];
+                failures.Add(exception);
+            }
+#pragma warning restore CA1031
         }
+
+        if (failures is null)
+        {
+            return;
+        }
+
+        if (failures.Count > 1)
+        {
+            throw new AggregateException(failures);
+        }
+
+        ExceptionDispatchInfo.Capture(failures[0]).Throw();
     }
 
     /// <summary>

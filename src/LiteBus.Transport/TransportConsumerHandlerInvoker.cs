@@ -96,6 +96,12 @@ public static class TransportConsumerHandlerInvoker
     /// <param name="handler">The handler invoked for the delivery.</param>
     /// <param name="cancellationToken">The token used to cancel handler execution.</param>
     /// <returns>The settlement outcome observed by the caller.</returns>
+    /// <remarks>
+    ///     The handler catch is intentionally broad: handlers are caller-supplied, so no fixed exception list
+    ///     covers every failure, and any unexpected failure must return the delivery to the broker for
+    ///     redelivery instead of killing the consume loop. Graceful shutdown is excluded through
+    ///     <see cref="ShouldRequeueOnFailure" />.
+    /// </remarks>
     public static async Task<TransportConsumerInvocationOutcome> InvokeWithOutcomeAsync(
         TransportMessage message,
         Func<TransportMessage, CancellationToken, Task> handler,
@@ -115,7 +121,7 @@ public static class TransportConsumerHandlerInvoker
         {
             throw;
         }
-#pragma warning disable CA1031 // Handler failures are intentionally broad; requeue policy filters graceful shutdown.
+#pragma warning disable CA1031
         catch (Exception exception) when (ShouldRequeueOnFailure(exception, cancellationToken))
 #pragma warning restore CA1031
         {

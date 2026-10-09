@@ -1,4 +1,7 @@
 using System;
+using System.Linq;
+using LiteBus.Commands.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Commands.Recurring;
 
@@ -19,11 +22,19 @@ public static class CommandModuleBuilderRecurringExtensions
     /// <param name="configure">An optional action that adjusts the loop's timing and lifecycle.</param>
     /// <returns>The command module builder for chaining.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="builder" /> or <paramref name="commandFactory" /> is <see langword="null" />.</exception>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     <typeparamref name="TCommand" /> implements more than one <see cref="ICommand{TCommandResult}" /> contract.
+    /// </exception>
     /// <remarks>
     ///     <para>
     ///         Replaces the hosted service most CQRS applications end up writing once per background job: create a
     ///         scope, resolve the mediator, send one command, sleep, back off on failure, and never let an exception
     ///         escape the loop. Each registration gets its own loop and its own options.
+    ///     </para>
+    ///     <para>
+    ///         Registers <typeparamref name="TCommand" /> with the command module, so calling only this method is
+    ///         enough for the loop to send. The registration is queued on the parent builder and applied before
+    ///         registrations are flushed, because the child module builds after the parent and cannot register it.
     ///     </para>
     ///     <para>
     ///         <strong>This is a poll loop and not a scheduler.</strong> There is no cron expression and no
@@ -63,6 +74,23 @@ public static class CommandModuleBuilderRecurringExtensions
         var hostOptions = new RecurringCommandHostOptions();
         configure?.Invoke(hostOptions);
 
+        var commandType = typeof(TCommand);
+        var declaredResultCount = commandType
+            .GetInterfaces()
+            .Count(static contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(ICommand<>));
+
+        if (declaredResultCount > 1)
+        {
+            throw new LiteBusConfigurationException(
+                $"The command type '{commandType.FullName}' implements more than one ICommand<> contract. "
+                + "A recurring command must declare at most one result type.");
+        }
+
+        builder.Register(commandType);
+
+        // Validates the declared contract now so a two-contract command fails at composition time.
+        RecurringCommandContracts.FindResultContract(commandType);
+
         var declaration = new RecurringCommandDeclaration<TCommand>(commandFactory, hostOptions);
 
         return builder.RegisterChildModule(new RecurringCommandModule<TCommand>(declaration));
@@ -76,6 +104,9 @@ public static class CommandModuleBuilderRecurringExtensions
     /// <param name="configure">An optional action that adjusts the loop's timing and lifecycle.</param>
     /// <returns>The command module builder for chaining.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="builder" /> is <see langword="null" />.</exception>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     <typeparamref name="TCommand" /> implements more than one <see cref="ICommand{TCommandResult}" /> contract.
+    /// </exception>
     /// <remarks>
     ///     The overload to reach for when the command carries no configuration of its own. See
     ///     <see cref="AddRecurring{TCommand}(CommandModuleBuilder, Func{TCommand}, Action{RecurringCommandHostOptions})" />

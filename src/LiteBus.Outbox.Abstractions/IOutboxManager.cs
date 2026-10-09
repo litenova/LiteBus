@@ -90,5 +90,6 @@ public interface IOutboxManager
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the purge operation.</param>
     /// <returns>The number of rows deleted.</returns>
+    /// <exception cref="OutboxManagementException">Thrown when retention is null or non-positive.</exception>
     Task<int> RunRetentionPurgeAsync(CancellationToken cancellationToken = default);
 }

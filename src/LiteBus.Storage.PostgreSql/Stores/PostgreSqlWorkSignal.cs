@@ -281,6 +281,18 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable, IDisposable
     }
 
     /// <summary>
+    ///     Builds the <c>LISTEN</c> command text for a work channel name.
+    /// </summary>
+    /// <param name="channelName">The notification channel name.</param>
+    /// <returns>The <c>LISTEN</c> command with the quoted channel name.</returns>
+    internal static string BuildListenCommand(string channelName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channelName);
+
+        return $"LISTEN {PostgreSqlIdentifier.Quote(channelName)}";
+    }
+
+    /// <summary>
     ///     Opens the listener connection and subscribes to work notifications.
     /// </summary>
     /// <param name="cancellationToken">A token used to cancel listener startup.</param>
@@ -323,7 +335,7 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable, IDisposable
             try
             {
                 using var command = connection.CreateCommand();
-                command.CommandText = $"LISTEN {_channelName}";
+                command.CommandText = BuildListenCommand(_channelName);
                 await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                 SetListenerConnection(connection);
             }

@@ -1,6 +1,7 @@
 ﻿using System;
 using Autofac;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Runtime.Composition;
 using LiteBus.Runtime.Extensions.Autofac;
@@ -16,6 +17,11 @@ namespace LiteBus.Extensions.Autofac;
 public static class ContainerBuilderExtensions
 {
     /// <summary>
+    ///     Marks a <see cref="ContainerBuilder" /> that already ran <see cref="AddLiteBus" /> so a second call fails fast.
+    /// </summary>
+    private const string CompositionMarkerKey = "LiteBus.AddLiteBus.Composed";
+
+    /// <summary>
     ///     Adds LiteBus to the Autofac container builder through the package-neutral composition builder.
     /// </summary>
     /// <param name="builder">The Autofac container builder to add LiteBus to.</param>
@@ -26,10 +32,23 @@ public static class ContainerBuilderExtensions
     /// <exception cref="ArgumentNullException">
     ///     Thrown when <paramref name="builder" /> or <paramref name="configure" /> is <see langword="null" />.
     /// </exception>
+    /// <exception cref="ModuleCompositionException">
+    ///     Thrown when <see cref="AddLiteBus" /> was already called on <paramref name="builder" />. Each container
+    ///     builder hosts a single LiteBus composition.
+    /// </exception>
     public static ContainerBuilder AddLiteBus(this ContainerBuilder builder, Action<ILiteBusBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configure);
+
+        if (builder.Properties.ContainsKey(CompositionMarkerKey))
+        {
+            throw new ModuleCompositionException(
+                "AddLiteBus was already called on this container builder. " +
+                "Each container builder hosts a single LiteBus composition; create a new builder for another composition.");
+        }
+
+        builder.Properties[CompositionMarkerKey] = true;
 
         RegisterServiceProviderAdapter(builder);
 

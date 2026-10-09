@@ -12,7 +12,8 @@ namespace LiteBus.Inbox.Ingress;
 public static class IngressAckPolicy
 {
     /// <summary>
-    ///     Determines whether a failed delivery should be requeued for retry.
+    ///     Determines whether a failed delivery should be requeued for retry. Cancellation is never requeued so a
+    ///     cancelled acceptance leaves the delivery unacknowledged and the channel close requeues it.
     /// </summary>
     /// <param name="exception">The exception thrown while accepting the delivery.</param>
     /// <param name="requeueOnFailure">A value indicating whether failed store writes should be requeued by the broker.</param>
@@ -34,7 +35,8 @@ public static class IngressAckPolicy
             or InvalidOperationException
             or ArgumentException
             or FormatException
-            or JsonException);
+            or JsonException
+            or OperationCanceledException);
     }
 
     /// <summary>

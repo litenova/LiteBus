@@ -21,6 +21,12 @@ public interface ISagaContext
     /// <typeparam name="TState">The saga state type.</typeparam>
     /// <returns>The current state instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown when no saga scope is active.</exception>
+    /// <remarks>
+    ///     Reading state never marks the scope changed, so reading state and then calling <see cref="Complete" />
+    ///     completes the saga. In-place mutations of the returned instance are detected by comparing its serialized
+    ///     form against the load snapshot and are persisted without calling <see cref="SetState" />; combining a
+    ///     state change with <see cref="Complete" /> in one dispatch is rejected.
+    /// </remarks>
     TState GetState<TState>()
         where TState : class, new();
 

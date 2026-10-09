@@ -52,9 +52,13 @@ public sealed record TransportInboxIngressSafetyOptions
     public Func<TransportMessage, CancellationToken, Task>? AuthorizeDeliveryAsync { get; init; }
 
     /// <summary>
-    ///     Gets the maximum number of ingress delivery handlers that LiteBus may execute concurrently.
+    ///     Gets the requested maximum number of ingress delivery handlers that LiteBus may execute concurrently.
     /// </summary>
-    /// <value>Default is <see cref="DefaultMaxInFlightMessages" />.</value>
+    /// <value>
+    ///     Default is <see cref="DefaultMaxInFlightMessages" />. The enforced bound is one for the AMQP, Kafka, AWS
+    ///     SQS, and in-memory adapters, which run one handler at a time; only the Azure Service Bus adapter honours a
+    ///     configured value above one.
+    /// </value>
     public int MaxInFlightMessages { get; init; } = DefaultMaxInFlightMessages;
 
     /// <summary>

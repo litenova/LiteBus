@@ -50,12 +50,8 @@ public sealed class AzureServiceBusInboxIngressModule :
         }
 
         options.Safety.Validate();
-        ArgumentOutOfRangeException.ThrowIfNegative(options.PrefetchCount);
-
-        if (options.MaxConcurrentCalls is { } maxConcurrentCalls)
-        {
-            ArgumentOutOfRangeException.ThrowIfLessThan(maxConcurrentCalls, 1);
-        }
+        IngressAdapterOptionsValidator.ValidatePrefetchCount(options.PrefetchCount);
+        IngressAdapterOptionsValidator.ValidateMaxConcurrentCalls(options.MaxConcurrentCalls);
 
         var ingressOptions = new TransportInboxIngressOptions
         {

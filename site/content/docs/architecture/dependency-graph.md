@@ -63,7 +63,7 @@ Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactor
 | `LiteBus.Runtime.Abstractions` | DI-neutral modules, `ILiteBusBuilder`, dispatch-scope contracts, and shared W3C trace context parsing | none | none |
 | `LiteBus.Runtime` | Module registry, dependency descriptors, and advanced module composition | `Runtime.Abstractions` | none |
 | `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | Microsoft DI adapter; defines `AddLiteBus` in namespace `LiteBus.Extensions.Microsoft.DependencyInjection` | `Runtime`, `Runtime.Extensions.Microsoft.Hosting` | `Microsoft.Extensions.DependencyInjection.Abstractions` |
-| `LiteBus.Runtime.Extensions.Autofac` | Autofac adapter | `Runtime`, `Runtime.Extensions.Autofac.Hosting` | `Autofac` |
+| `LiteBus.Runtime.Extensions.Autofac` | Autofac adapter | `Runtime`, `Runtime.Extensions.Autofac.Hosting` | `Autofac`, `Autofac.Extensions.DependencyInjection` |
 | `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection` | Microsoft DI mediator registration | `Messaging`, runtime DI adapter | Microsoft DI |
 | `LiteBus.Messaging.Extensions.Autofac` | Autofac mediator registration | `Messaging`, runtime Autofac adapter | Autofac |
 | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection` | Microsoft DI command registration | `Commands`, runtime DI adapter | Microsoft DI |

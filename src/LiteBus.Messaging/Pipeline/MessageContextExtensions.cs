@@ -38,12 +38,17 @@ public static class MessageContextExtensions
     ///     cannot run ahead of a message-specific authorization guard, which the single pre-handler stage of earlier
     ///     versions could not express.
     /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="messageDependencies" /> or <paramref name="message" /> is <see langword="null" />.
+    /// </exception>
     public static async Task<PipelineDecision> RunAsyncPreStages(
         this IMessageDependencies messageDependencies,
         object message,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(messageDependencies);
+
+        ArgumentNullException.ThrowIfNull(message);
 
         var messageType = message.GetType();
 
@@ -158,12 +163,18 @@ public static class MessageContextExtensions
     ///     here reports <see cref="MediationOutcome.Invalid" />. A second collecting stage would have to decide what it
     ///     produces before reusing this.
     /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="messageDependencies" /> or <paramref name="message" /> is <see langword="null" />.
+    /// </exception>
     private static async Task<PipelineDecision> RunAsyncCollectingStage(
         this IMessageDependencies messageDependencies,
         PreStage stage,
         object message,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(messageDependencies);
+        ArgumentNullException.ThrowIfNull(message);
+
         if (!messageDependencies.HasPreStageHandlers(stage))
         {
             return PipelineDecision.Continue;
@@ -197,6 +208,9 @@ public static class MessageContextExtensions
     /// <exception cref="LiteBusMessageDeniedException">A guard denied and no mapper covers the message.</exception>
     /// <exception cref="LiteBusMessageInvalidException">
     ///     The validator stage reported failures and no mapper covers the message.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="messageDependencies" /> or <paramref name="message" /> is <see langword="null" />.
     /// </exception>
     /// <exception cref="PipelineContractException">
     ///     More than one mapper is registered at the same level of specificity, so which one applies would depend on
@@ -300,6 +314,10 @@ public static class MessageContextExtensions
     ///     to remember to. With no error handler registered, or with every handler leaving the outcome unhandled, the
     ///     fault is rethrown rather than being swallowed by the stage that observed it.
     /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="messageDependencies" />, <paramref name="message" />,
+    ///     <paramref name="failure" /> or <paramref name="executionContext" /> is <see langword="null" />.
+    /// </exception>
     public static async Task<MessageErrorContext> RunAsyncErrorHandlers(
         this IMessageDependencies messageDependencies,
         object message,
@@ -308,6 +326,8 @@ public static class MessageContextExtensions
         IExecutionContext executionContext)
     {
         ArgumentNullException.ThrowIfNull(messageDependencies);
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(failure);
         ArgumentNullException.ThrowIfNull(executionContext);
 
         // Capturing here rather than at each call site is what stops a strategy rethrowing without the original stack.
@@ -362,12 +382,18 @@ public static class MessageContextExtensions
     ///     Suppression is re-checked before each handler, so a post-handler that calls
     ///     <see cref="IExecutionContext.SuppressPostHandlers" /> stops the ones that have not run yet.
     /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="messageDependencies" /> or <paramref name="message" /> is <see langword="null" />.
+    /// </exception>
     public static async Task RunAsyncPostHandlers(
         this IMessageDependencies messageDependencies,
         object message,
         object? messageResult,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(messageDependencies);
+        ArgumentNullException.ThrowIfNull(message);
+
         var executionContext = AmbientExecutionContext.GetCurrentOrDefault();
 
         foreach (var postHandler in messageDependencies.PostHandlers)
@@ -420,6 +446,9 @@ public static class MessageContextExtensions
     ///         <see cref="MediationExceptionData.SuppressedCompletionFaults" /> rather than replacing it.
     ///     </para>
     /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="messageDependencies" /> or <paramref name="context" /> is <see langword="null" />.
+    /// </exception>
     public static async Task RunAsyncCompletionHandlers(
         this IMessageDependencies messageDependencies,
         MessageCompletionContext context)
@@ -464,6 +493,10 @@ public static class MessageContextExtensions
     ///     got. That is resolved here rather than at each call site: getting it wrong reports the handler's own value to
     ///     an audit trail while the caller received a different one.
     /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="messageDependencies" />, <paramref name="message" /> or
+    ///     <paramref name="executionContext" /> is <see langword="null" />.
+    /// </exception>
     public static async Task RunAsyncCompletionHandlers(
         this IMessageDependencies messageDependencies,
         object message,
@@ -476,6 +509,7 @@ public static class MessageContextExtensions
         TimeSpan duration)
     {
         ArgumentNullException.ThrowIfNull(messageDependencies);
+        ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(executionContext);
 
         if (messageDependencies.CompletionHandlers.Count == 0)
@@ -520,12 +554,18 @@ public static class MessageContextExtensions
     ///     a globally registered cross-cutting concern wraps a message-specific one. The validator stage does not use
     ///     this runner, because it collects failures instead of stopping at the first.
     /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="messageDependencies" /> or <paramref name="message" /> is <see langword="null" />.
+    /// </exception>
     private static async Task<PipelineDecision> RunStage(
         this IMessageDependencies messageDependencies,
         PreStage stage,
         object message,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(messageDependencies);
+        ArgumentNullException.ThrowIfNull(message);
+
         // Most messages carry no guard or shortcut at all, and a stage that holds nothing should not cost an
         // enumerator over the shared descriptor collection to discover that.
         if (!messageDependencies.HasPreStageHandlers(stage))

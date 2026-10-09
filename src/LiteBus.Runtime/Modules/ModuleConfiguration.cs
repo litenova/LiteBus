@@ -93,6 +93,15 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
     public void RegisterStartupTask(Type implementationType)
     {
         ArgumentNullException.ThrowIfNull(implementationType);
+
+        if (typeof(IBackgroundService).IsAssignableFrom(implementationType))
+        {
+            throw new ArgumentException(
+                $"Type '{implementationType.FullName ?? implementationType.Name}' implements {nameof(IBackgroundService)}. " +
+                $"Use {nameof(RegisterBackgroundService)} instead of {nameof(RegisterStartupTask)}.",
+                nameof(implementationType));
+        }
+
         ValidateHostImplementationType(implementationType, typeof(IStartupTask));
 
         if (_startupTaskTypes.Add(implementationType))

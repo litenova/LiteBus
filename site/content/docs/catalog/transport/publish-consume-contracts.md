@@ -46,7 +46,7 @@ These abstractions isolate dispatch and ingress from broker SDK APIs.
 | --- | --- | --- |
 | `Destination` | `string` | Queue, topic, or destination name |
 | `SubscriptionName` | `string?` | Named subscription for topic-based brokers |
-| `MaxInFlightMessages` | `int` | Provider-neutral cap on concurrent LiteBus handler calls, default 32 |
+| `MaxInFlightMessages` | `int` | Requested cap on concurrent LiteBus handler calls, default 32; enforced as 1 except on Azure Service Bus |
 | `PrefetchCount` | `int` | Native RabbitMQ or Azure Service Bus prefetch, default 0 |
 | `ReceiveBatchSize` | `int` | Messages requested per SQS receive call, default 1 and valid from 1 through 10 |
 | `MaxConcurrentCalls` | `int?` | Native Azure Service Bus callback concurrency |
@@ -54,7 +54,7 @@ These abstractions isolate dispatch and ingress from broker SDK APIs.
 | `DurableDestination` | `bool` | Durable destination declaration |
 | `DestinationArguments` | `IReadOnlyDictionary<string, object?>?` | Broker-specific destination args |
 
-`MaxInFlightMessages` has one meaning across every adapter: no more than that number of LiteBus delivery handlers execute concurrently for one subscription. Native broker controls remain separate because they regulate different resources. RabbitMQ prefetch limits unacknowledged deliveries, Azure prefetch fills a local cache while `MaxConcurrentCalls` controls processor callbacks, and SQS `ReceiveBatchSize` sets `ReceiveMessageRequest.MaxNumberOfMessages`.
+`MaxInFlightMessages` requests a cap on concurrent LiteBus delivery handlers for one subscription. The AMQP, Kafka, AWS SQS, and in-memory adapters enforce a bound of 1 and run one handler at a time; only the Azure Service Bus adapter honours a configured value. Native broker controls remain separate because they regulate different resources. RabbitMQ prefetch limits unacknowledged deliveries, Azure prefetch fills a local cache while `MaxConcurrentCalls` controls processor callbacks, and SQS `ReceiveBatchSize` sets `ReceiveMessageRequest.MaxNumberOfMessages`.
 
 The in-memory adapter separately bounds queued and in-flight deliveries with `InMemoryTransportOptions.DestinationCapacity`. This is publisher backpressure, not consumer callback concurrency. A full destination waits asynchronously with `BoundedChannelFullMode.Wait`, and publish cancellation stops that capacity wait without dropping an admitted delivery.
 

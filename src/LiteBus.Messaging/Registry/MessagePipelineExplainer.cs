@@ -46,7 +46,7 @@ public static class MessagePipelineExplainer
             return new MessagePipelinePlan
             {
                 MessageType = messageType,
-                MessageResultType = FindResultType(messageType),
+                MessageResultType = DeclaredResultTypeResolver.Find(messageType),
                 Steps = []
             };
         }
@@ -78,7 +78,7 @@ public static class MessagePipelineExplainer
         return new MessagePipelinePlan
         {
             MessageType = messageType,
-            MessageResultType = FindResultType(messageType),
+            MessageResultType = DeclaredResultTypeResolver.Find(messageType),
             Steps = steps
         };
     }
@@ -149,21 +149,4 @@ public static class MessagePipelineExplainer
         return stage.ToString().ToLower(CultureInfo.InvariantCulture);
     }
 
-    /// <summary>
-    ///     Reads the result type a message declares.
-    /// </summary>
-    /// <param name="messageType">The concrete message type.</param>
-    /// <returns>The declared result type, or <see langword="null" /> when the message declares none.</returns>
-    private static Type? FindResultType(Type messageType)
-    {
-        foreach (var contract in messageType.GetInterfaces())
-        {
-            if (contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IProducesResult<>))
-            {
-                return contract.GetGenericArguments()[0];
-            }
-        }
-
-        return null;
-    }
 }

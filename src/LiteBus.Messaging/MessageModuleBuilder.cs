@@ -901,7 +901,7 @@ public sealed class MessageModuleBuilder
     {
         ArgumentNullException.ThrowIfNull(assembly);
 
-        foreach (var type in assembly.GetTypes())
+        foreach (var type in AssemblyTypeScanner.GetLoadableTypes(assembly))
         {
             _messageRegistry.RegisterFromScan(type);
         }

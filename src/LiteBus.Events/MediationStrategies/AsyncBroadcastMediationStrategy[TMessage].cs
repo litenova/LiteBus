@@ -117,7 +117,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
             await messageDependencies.RunAsyncPostHandlers(
                 message,
-                executionTaskOfAllHandlers,
+                null,
                 executionContext.CancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException canceledException)
@@ -132,7 +132,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
             failure = e;
 
             await messageDependencies
-                .RunAsyncErrorHandlers(message, executionTaskOfAllHandlers, e, executionContext)
+                .RunAsyncErrorHandlers(message, null, e, executionContext)
                 .ConfigureAwait(false);
         }
         finally

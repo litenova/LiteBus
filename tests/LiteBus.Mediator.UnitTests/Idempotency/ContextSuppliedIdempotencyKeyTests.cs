@@ -73,7 +73,7 @@ public sealed class ContextSuppliedIdempotencyKeyTests : LiteBusTestBase
 
         // Reported rather than defaulted: a generated fallback would make every delivery look distinct, so the store
         // would accept them all and the declaration would appear to work while doing nothing.
-        await act.Should().ThrowAsync<AuditConfigurationException>()
+        await act.Should().ThrowAsync<IdempotencyConfigurationException>()
             .WithMessage("*no pipeline stage supplied one*");
     }
 

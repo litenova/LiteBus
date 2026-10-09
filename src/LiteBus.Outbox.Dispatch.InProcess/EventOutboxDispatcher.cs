@@ -93,6 +93,11 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     The final <see cref="Exception" /> handler covers any serialization, contract, mediation, or handler failure
+    ///     because the dispatch boundary must map every failure to <see cref="LiteBusDispatchException" /> for the
+    ///     processor retry policy. Caller-requested cancellation is rethrown unwrapped.
+    /// </remarks>
     public async Task DispatchAsync(OutboxEnvelope message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
@@ -138,7 +143,9 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         {
             throw;
         }
+#pragma warning disable CA1031 // Dispatch boundary maps any serialization or handler failure to LiteBusDispatchException.
         catch (Exception exception)
+#pragma warning restore CA1031
         {
             throw new LiteBusDispatchException(CreateFailureMessage(message, exception), exception);
         }
@@ -196,6 +203,12 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     /// </summary>
     /// <param name="messageType">The runtime message type resolved from the outbox contract.</param>
     /// <returns>A delegate that publishes through <see cref="IEventMediator.PublishAsync{TEvent}" />.</returns>
+    /// <exception cref="LiteBusDispatchException">The publish delegate could not be created for the message type.</exception>
+    /// <remarks>
+    ///     The final <see cref="Exception" /> handler covers any reflection failure from <c>MakeGenericMethod</c> or
+    ///     delegate creation because the dispatch boundary must report an unusable event type as
+    ///     <see cref="LiteBusDispatchException" /> with registration guidance.
+    /// </remarks>
     private static Func<IEventMediator, object, EventMediationSettings?, CancellationToken, Task> CreatePublishDelegate(Type messageType)
     {
         try
@@ -205,7 +218,9 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
             return (mediator, messageInstance, settings, cancellationToken) =>
                 (Task) closedMethod.Invoke(null, [mediator, messageInstance, settings, cancellationToken])!;
         }
+#pragma warning disable CA1031 // Reflection over any event type can fail; the dispatch boundary reports it as LiteBusDispatchException.
         catch (Exception exception)
+#pragma warning restore CA1031
         {
             throw new LiteBusDispatchException(
                 $"Outbox dispatch could not create a publish delegate for message type '{messageType.FullName}'. " +

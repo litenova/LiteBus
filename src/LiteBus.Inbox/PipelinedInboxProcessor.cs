@@ -25,8 +25,10 @@ namespace LiteBus.Inbox;
 ///     </para>
 ///     <para>
 ///         Successful dispatch runs <c>AfterDispatch</c> hooks while the lease is still held, then persists terminal
-///         state. Hook failures dead-letter the message without re-running the handler. Lease heartbeat loss persists a
-///         retryable <c>Failed</c> outcome instead of leaving the row in <c>Processing</c>. Shutdown cancellation
+///         state. Hook failures dead-letter the message without re-running the handler. When lease renewal fails, a
+///         dispatcher that observes heartbeat cancellation leaves the row untouched with no outcome persisted and no
+///         release attempted, so the pass under-reports that envelope; only a dispatcher that ignores the heartbeat
+///         cancellation and returns normally persists a retryable <c>Failed</c> outcome. Shutdown cancellation
 ///         still leaves in-flight envelopes in <c>Processing</c> until the lease expires unless the host drains first.
 ///     </para>
 /// </remarks>

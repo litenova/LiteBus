@@ -13,6 +13,11 @@ namespace LiteBus.Messaging.Registry.Descriptors;
 internal sealed class MessageDescriptor : IMessageDescriptor
 {
     /// <summary>
+    ///     The untyped shortcut contract, which answers without carrying a result.
+    /// </summary>
+    private static readonly Type UntypedShortcutContract = typeof(IMessageShortcut<>);
+
+    /// <summary>
     ///     Direct error handlers registered for <see cref="MessageType" />.
     /// </summary>
     private readonly List<IErrorHandlerDescriptor> _errorHandlers = [];
@@ -303,11 +308,6 @@ internal sealed class MessageDescriptor : IMessageDescriptor
             }
         }
     }
-
-    /// <summary>
-    ///     The untyped shortcut contract, which answers without carrying a result.
-    /// </summary>
-    private static readonly Type UntypedShortcutContract = typeof(IMessageShortcut<>);
 
     /// <summary>
     ///     Rejects a main handler that produces a result when an untyped shortcut is already registered for this exact

@@ -43,6 +43,10 @@ public record ProcessorOptions
     ///     <see langword="null" /> by default. When omitted, the processor creates a value from machine name, process id,
     ///     and a random suffix.
     /// </value>
+    /// <remarks>
+    ///     The processor appends a session suffix that fences instances sharing a configured owner, so a reclaimed row
+    ///     cannot be renewed or completed by a stale processor session.
+    /// </remarks>
     public string? LeaseOwner { get; init; }
 
     /// <summary>
@@ -76,13 +80,24 @@ public record ProcessorOptions
     /// <value>
     ///     <see langword="false" /> by default.
     /// </value>
+    /// <remarks>
+    ///     With the default <see langword="false" />, a hook that never returns delays shutdown instead of risking a
+    ///     duplicate publish or execution.
+    /// </remarks>
     public bool HonorShutdownTokenOnPersist { get; init; }
 
     /// <summary>
     ///     Gets the policy applied when an <c>AfterDispatch</c> hook throws after dispatch succeeds.
     /// </summary>
     /// <value>
-    ///     <see cref="ProcessorHookFailurePolicy.DeadLetter" /> by default.
+    ///     <see langword="null" /> by default, which means the dispatcher's recommendation when one is registered,
+    ///     otherwise <see cref="ProcessorHookFailurePolicy.DeadLetter" />. Set an explicit value to override the
+    ///     dispatcher recommendation.
     /// </value>
-    public ProcessorHookFailurePolicy HookFailurePolicy { get; init; } = ProcessorHookFailurePolicy.DeadLetter;
+    /// <remarks>
+    ///     A <see langword="null" /> value keeps the dispatcher recommendation: transport dispatchers complete despite
+    ///     hook failure so a message the broker already accepted is not dead-lettered and published a second time,
+    ///     while in-process dispatch dead-letters. An explicit value always wins over the dispatcher recommendation.
+    /// </remarks>
+    public ProcessorHookFailurePolicy? HookFailurePolicy { get; init; }
 }

@@ -71,6 +71,10 @@ internal sealed class BackgroundServiceHostWrapper : IHostedService
                 {
                     await _executeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
                 }
+                catch (OperationCanceledException) when (_stoppingCts?.IsCancellationRequested == true && _executeTask.IsCanceled)
+                {
+                    // The wrapper asked the loop to stop and the loop ended canceled: normal shutdown.
+                }
                 catch (OperationCanceledException) when (!_executeTask.IsCompleted)
                 {
                     var serviceType = _backgroundService.GetType();

@@ -76,6 +76,10 @@ public sealed class AmqpInboxIngressHandler
     /// <summary>
     ///     Converts an AMQP delivery to the transport-neutral message model.
     /// </summary>
+    /// <remarks>
+    ///     Uses the consuming queue when known so broker-scoped idempotency does not merge rows across queues bound
+    ///     to one exchange.
+    /// </remarks>
     /// <param name="message">The received AMQP delivery.</param>
     /// <returns>The transport message passed to the inner handler.</returns>
     private static TransportMessage ToTransportMessage(AmqpReceivedMessage message)
@@ -85,7 +89,7 @@ public sealed class AmqpInboxIngressHandler
             MessagingSystem = TransportMessagingSystems.RabbitMq,
             Body = message.Body,
             Headers = message.Headers,
-            Destination = message.Exchange,
+            Destination = message.QueueName ?? message.Exchange,
             Route = message.RoutingKey,
             MessageId = message.MessageId,
             CorrelationId = message.CorrelationId,

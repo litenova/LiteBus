@@ -86,7 +86,7 @@ public interface IModuleConfiguration
     /// </summary>
     /// <typeparam name="T">The type of context to retrieve.</typeparam>
     /// <returns>The context object of the specified type.</returns>
-    /// <exception cref="System.InvalidOperationException">Thrown when the context type is not found.</exception>
+    /// <exception cref="Exceptions.LiteBusConfigurationException">Thrown when the context type is not found.</exception>
     T GetContext<T>() where T : class;
 
     /// <summary>

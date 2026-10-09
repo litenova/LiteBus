@@ -4,7 +4,7 @@ using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql.Exceptions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Storage.PostgreSql;
-using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using Npgsql;
 
 namespace LiteBus.Outbox.Storage.PostgreSql;
@@ -126,8 +126,8 @@ public sealed class PostgreSqlOutboxModule : IOutboxStorageModule, IRequires<Out
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(PostgreSqlTransactionalOutboxParticipant),
             serviceProvider => new PostgreSqlTransactionalOutboxParticipant(
-                serviceProvider.GetRequiredService<PostgreSqlOutboxStoreRegistration>(),
-                serviceProvider.GetRequiredService<IOutboxStore>(),
+                (PostgreSqlOutboxStoreRegistration)(serviceProvider.GetService(typeof(PostgreSqlOutboxStoreRegistration)) ?? throw new LiteBusDependencyResolutionException(typeof(PostgreSqlOutboxStoreRegistration))),
+                (IOutboxStore)(serviceProvider.GetService(typeof(IOutboxStore)) ?? throw new LiteBusDependencyResolutionException(typeof(IOutboxStore))),
                 serviceProvider.GetService(typeof(IPostgreSqlTransactionProvider)) as IPostgreSqlTransactionProvider,
                 moduleBuilder.TransactionalWriteMode),
             InstanceLifetime.Scoped));
@@ -136,11 +136,11 @@ public sealed class PostgreSqlOutboxModule : IOutboxStorageModule, IRequires<Out
             typeof(ITransactionalOutbox),
             serviceProvider =>
             {
-                var participant = serviceProvider.GetRequiredService<PostgreSqlTransactionalOutboxParticipant>();
+                var participant = (PostgreSqlTransactionalOutboxParticipant)(serviceProvider.GetService(typeof(PostgreSqlTransactionalOutboxParticipant)) ?? throw new LiteBusDependencyResolutionException(typeof(PostgreSqlTransactionalOutboxParticipant)));
 
                 return new StoreBoundTransactionalOutbox(
                     participant.ResolveStore(),
-                    serviceProvider.GetRequiredService<IOutboxEnvelopeFactory>());
+                    (IOutboxEnvelopeFactory)(serviceProvider.GetService(typeof(IOutboxEnvelopeFactory)) ?? throw new LiteBusDependencyResolutionException(typeof(IOutboxEnvelopeFactory))));
             },
             InstanceLifetime.Scoped));
     }

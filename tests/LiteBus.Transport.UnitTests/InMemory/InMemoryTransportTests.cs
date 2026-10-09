@@ -150,7 +150,7 @@ public sealed class InMemoryTransportTests
     }
 
     /// <summary>
-    ///     Verifies a terminal consume-loop failure is propagated while teardown still permits a new session.
+    ///     Verifies a terminal consume-loop failure is treated as stopped while teardown still permits a new session.
     /// </summary>
     [Fact]
     public async Task StopAsync_AfterTerminalLoopFailure_ShouldCleanUpForRestart()
@@ -176,10 +176,10 @@ public sealed class InMemoryTransportTests
         releaseHandler.TrySetResult();
 
         var wait = () => consumer.WaitUntilStoppedAsync();
-        await wait.Should().ThrowAsync<ChannelClosedException>().ConfigureAwait(false);
+        await wait.Should().NotThrowAsync().ConfigureAwait(false);
 
         var stop = () => consumer.StopAsync();
-        await stop.Should().ThrowAsync<ChannelClosedException>().ConfigureAwait(false);
+        await stop.Should().NotThrowAsync().ConfigureAwait(false);
 
         await consumer.StartAsync(
             new TransportConsumerOptions { Destination = "restarted-consumer" },

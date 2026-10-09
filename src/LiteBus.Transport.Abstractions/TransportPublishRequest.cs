@@ -46,7 +46,7 @@ public sealed class TransportPublishRequest
     /// <summary>
     ///     Gets a value indicating whether the broker must route the message to at least one consumer.
     /// </summary>
-    public bool Mandatory { get; init; }
+    public bool Mandatory { get; init; } = true;
 
     /// <summary>
     ///     Gets the optional transport message identifier written to message properties.
@@ -57,4 +57,14 @@ public sealed class TransportPublishRequest
     ///     Gets the optional correlation identifier written to message properties.
     /// </summary>
     public string? CorrelationId { get; init; }
+
+    /// <summary>
+    ///     Gets the optional FIFO message group identifier used by brokers with ordered groups.
+    /// </summary>
+    public string? MessageGroupId { get; init; }
+
+    /// <summary>
+    ///     Gets the optional deduplication key used by brokers with content-based deduplication.
+    /// </summary>
+    public string? DeduplicationKey { get; init; }
 }

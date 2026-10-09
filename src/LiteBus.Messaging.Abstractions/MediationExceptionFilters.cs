@@ -18,7 +18,8 @@ public static class MediationExceptionFilters
     /// </returns>
     /// <remarks>
     ///     Handler resolution failures are configuration errors rather than message failures, cancellation is the caller's
-    ///     decision, and a refusal is the pipeline's own decision rather than a fault, so all of them propagate unchanged.
+    ///     decision, a refusal is the pipeline's own decision rather than a fault, and an idempotency misconfiguration
+    ///     is a declaration mistake rather than a message failure, so all of them propagate unchanged.
     ///     Routing a refusal to error handlers would let a handler written for failures recover from one.
     /// </remarks>
     public static bool IsRecoverableMediationException(Exception exception)
@@ -26,6 +27,7 @@ public static class MediationExceptionFilters
         return exception is not NoHandlerFoundException
             and not MultipleHandlerFoundException
             and not OperationCanceledException
+            and not IdempotencyConfigurationException
             && !IsRefusal(exception);
     }
 

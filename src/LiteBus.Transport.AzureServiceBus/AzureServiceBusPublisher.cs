@@ -49,8 +49,9 @@ public sealed class AzureServiceBusPublisher : ITransportPublisher, IDisposable,
     ///     Releases cached senders using the synchronous disposal path required by dependency injection scopes.
     /// </summary>
     /// <remarks>
-    ///     Dispose runs on dispatch-scope teardown, so a sender close failure or timeout must not fail the scope.
-    ///     The asynchronous close is bounded with a timeout and close errors are not propagated.
+    ///     Dispose runs once at container disposal because the publisher is registered as a singleton, so a sender
+    ///     close failure, timeout, or cancellation must not fail host shutdown. The asynchronous close is bounded
+    ///     with a timeout and close errors are not propagated.
     /// </remarks>
     public void Dispose()
     {
@@ -60,15 +61,19 @@ public sealed class AzureServiceBusPublisher : ITransportPublisher, IDisposable,
         }
         catch (TimeoutException)
         {
-            // Bounded teardown: a slow broker close must not block scope disposal.
+            // Bounded teardown: a slow broker close must not block container disposal.
         }
         catch (ServiceBusException)
         {
-            // A sender close failure must not fail the dispatch scope.
+            // A sender close failure must not fail container disposal.
         }
         catch (ObjectDisposedException)
         {
             // A prior disposal already released the cached senders.
+        }
+        catch (OperationCanceledException)
+        {
+            // A cancellation during shutdown must not fail container disposal.
         }
     }
 

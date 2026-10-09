@@ -19,5 +19,10 @@ public interface IDiagnosticCheck
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the probe.</param>
     /// <returns>The probe result describing status, summary text, and optional data.</returns>
+    /// <remarks>
+    ///     Probes must observe <paramref name="cancellationToken" /> in every awaited I/O operation. The runner bounds
+    ///     each probe with a per-probe timeout and the whole run with a run budget; a probe that ignores cancellation
+    ///     keeps running in the background after its outcome has been reported.
+    /// </remarks>
     Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default);
 }

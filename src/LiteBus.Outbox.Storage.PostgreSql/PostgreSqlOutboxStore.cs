@@ -89,6 +89,12 @@ public sealed class PostgreSqlOutboxStore :
             .Select(static column => "outbox." + column.Trim().TrimEnd(',')));
 
     /// <summary>
+    ///     Limits each batch insert statement to a bounded row count so callers can enqueue batches of any size
+    ///     without approaching the database parameter cap.
+    /// </summary>
+    private const int InsertBatchSize = 1000;
+
+    /// <summary>
     ///     Limits each cleanup statement so retention work cannot monopolize a PostgreSQL table or transaction.
     /// </summary>
     private const int DeleteBatchSize = 1000;
@@ -173,7 +179,10 @@ public sealed class PostgreSqlOutboxStore :
                                  attempt_count = 0,
                                  lease_owner = NULL,
                                  lease_expires_at = NULL,
-                                 last_error = NULL
+                                 last_error = NULL,
+                                 error_type = NULL,
+                                 first_failed_at = NULL,
+                                 dead_lettered_at = NULL
                              WHERE message_id = @message_id AND status = @dead_lettered_status;
                              """;
 
@@ -193,7 +202,10 @@ public sealed class PostgreSqlOutboxStore :
                        attempt_count = 0,
                        lease_owner = NULL,
                        lease_expires_at = NULL,
-                       last_error = NULL
+                       last_error = NULL,
+                       error_type = NULL,
+                       first_failed_at = NULL,
+                       dead_lettered_at = NULL
                    WHERE message_id = ANY(@message_ids) AND status = @dead_lettered_status;
                    """;
 
@@ -631,58 +643,68 @@ public sealed class PostgreSqlOutboxStore :
             return [await AddAsync(envelopes[0], cancellationToken).ConfigureAwait(false)];
         }
 
-        var valueClauses = new StringBuilder();
+        // Chunk the insert so one statement never approaches the database parameter cap. Each chunk runs
+        // through the same command factory, so a caller-bound transaction still contains every chunk.
+        List<OutboxEnvelope> inserted = [];
 
-        for (var index = 0; index < envelopes.Count; index++)
+        for (var offset = 0; offset < envelopes.Count; offset += InsertBatchSize)
         {
-            if (index > 0)
+            var chunkSize = Math.Min(InsertBatchSize, envelopes.Count - offset);
+            var valueClauses = new StringBuilder();
+
+            for (var index = 0; index < chunkSize; index++)
             {
-                valueClauses.Append(',');
+                if (index > 0)
+                {
+                    valueClauses.Append(',');
+                }
+
+                valueClauses.Append(
+                    CultureInfo.InvariantCulture,
+                    $"(@message_id_{index}, @contract_name_{index}, @contract_version_{index}, @payload_{index}, " +
+                    $"@topic_{index}, @created_at_{index}, @visible_after_{index}, @status_{index}, @attempt_count_{index}, " +
+                    $"@lease_owner_{index}, @lease_expires_at_{index}, @last_error_{index}, @correlation_id_{index}, " +
+                    $"@causation_id_{index}, @tenant_id_{index}, @idempotency_key_{index}, @trace_context_{index}, " +
+                    $"@lease_generation_{index})");
             }
 
-            valueClauses.Append(
-                CultureInfo.InvariantCulture,
-                $"(@message_id_{index}, @contract_name_{index}, @contract_version_{index}, @payload_{index}, " +
-                $"@topic_{index}, @created_at_{index}, @visible_after_{index}, @status_{index}, @attempt_count_{index}, " +
-                $"@lease_owner_{index}, @lease_expires_at_{index}, @last_error_{index}, @correlation_id_{index}, " +
-                $"@causation_id_{index}, @tenant_id_{index}, @idempotency_key_{index}, @trace_context_{index}, " +
-                $"@lease_generation_{index})");
+            var sql = $"""
+                       INSERT INTO {_tableName} (
+                           message_id,
+                           contract_name,
+                           contract_version,
+                           payload,
+                           topic,
+                           created_at,
+                           visible_after,
+                           status,
+                           attempt_count,
+                           lease_owner,
+                           lease_expires_at,
+                           last_error,
+                           correlation_id,
+                           causation_id,
+                           tenant_id,
+                           idempotency_key,
+                           trace_context,
+                           lease_generation)
+                       VALUES {valueClauses}
+                       ON CONFLICT DO NOTHING
+                       RETURNING
+                           {BatchSelectColumns};
+                       """;
+
+            using var command = CreateCommand(sql);
+
+            for (var index = 0; index < chunkSize; index++)
+            {
+                AddEnvelopeParameters(command, envelopes[offset + index], index);
+            }
+
+            var chunkInserted = await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
+            inserted.AddRange(chunkInserted);
         }
 
-        var sql = $"""
-                   INSERT INTO {_tableName} (
-                       message_id,
-                       contract_name,
-                       contract_version,
-                       payload,
-                       topic,
-                       created_at,
-                       visible_after,
-                       status,
-                       attempt_count,
-                       lease_owner,
-                       lease_expires_at,
-                       last_error,
-                       correlation_id,
-                       causation_id,
-                       tenant_id,
-                       idempotency_key,
-                       trace_context,
-                       lease_generation)
-                   VALUES {valueClauses}
-                   ON CONFLICT DO NOTHING
-                   RETURNING
-                       {BatchSelectColumns};
-                   """;
-
-        using var command = CreateCommand(sql);
-
-        for (var index = 0; index < envelopes.Count; index++)
-        {
-            AddEnvelopeParameters(command, envelopes[index], index);
-        }
-
-        var inserted = await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
         var insertedById = inserted.ToDictionary(envelope => envelope.Id);
         var results = new OutboxAppendResult[envelopes.Count];
         var assignedInsertedIds = new HashSet<Guid>();

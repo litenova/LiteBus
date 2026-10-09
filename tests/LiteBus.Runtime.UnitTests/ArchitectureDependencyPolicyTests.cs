@@ -8,7 +8,7 @@ namespace LiteBus.Runtime.UnitTests;
 public sealed class ArchitectureDependencyPolicyTests
 {
     /// <summary>
-    ///     Confirms project and package references follow the allowed role dependency matrix.
+    ///     Confirms project, package, and framework references follow the allowed role dependency matrix.
     /// </summary>
     [Fact]
     public void SourceProjects_ShouldFollowRoleDependencyPolicy()
@@ -27,6 +27,10 @@ public sealed class ArchitectureDependencyPolicyTests
         var projectPackages = projectFiles.ToDictionary(
             path => Path.GetFileNameWithoutExtension(path)!,
             path => ReadIncludes(XDocument.Load(path), "PackageReference").ToArray(),
+            StringComparer.Ordinal);
+        var projectFrameworks = projectFiles.ToDictionary(
+            path => Path.GetFileNameWithoutExtension(path)!,
+            path => ReadIncludes(XDocument.Load(path), "FrameworkReference").ToArray(),
             StringComparer.Ordinal);
         var violations = new List<string>();
 
@@ -82,6 +86,14 @@ public sealed class ArchitectureDependencyPolicyTests
                 }
             }
 
+            foreach (var framework in projectFrameworks[projectName])
+            {
+                if (!IsFrameworkReferenceAllowed(sourceRole, framework))
+                {
+                    violations.Add($"{projectName} ({sourceRole}) may not reference framework '{framework}'.");
+                }
+            }
+
             if (sourceRole is ProjectRole.TechnologyAdapter or ProjectRole.FeatureBridge)
             {
                 var technologyFamilies = GetTransitiveTechnologyFamilies(
@@ -99,6 +111,39 @@ public sealed class ArchitectureDependencyPolicyTests
         }
 
         violations.Should().BeEmpty(string.Join(Environment.NewLine, violations));
+    }
+
+    /// <summary>
+    ///     Confirms the host-adapter role may reference the ASP.NET Core shared framework.
+    /// </summary>
+    [Fact]
+    public void HostAdapter_ShouldAllowAspNetCoreFrameworkReference()
+    {
+        IsFrameworkReferenceAllowed(ProjectRole.HostAdapter, "Microsoft.AspNetCore.App").Should().BeTrue();
+    }
+
+    /// <summary>
+    ///     Confirms roles outside the host adapter may not reference the ASP.NET Core shared framework.
+    /// </summary>
+    [Fact]
+    public void NonHostAdapter_ShouldRejectAspNetCoreFrameworkReference()
+    {
+        ProjectRole[] roles =
+        [
+            ProjectRole.PlatformContracts,
+            ProjectRole.MediationContracts,
+            ProjectRole.DurableContracts,
+            ProjectRole.CoreImplementation,
+            ProjectRole.TechnologyAdapter,
+            ProjectRole.FeatureBridge,
+            ProjectRole.ConsumerTooling,
+            ProjectRole.Aggregate,
+        ];
+
+        foreach (var role in roles)
+        {
+            IsFrameworkReferenceAllowed(role, "Microsoft.AspNetCore.App").Should().BeFalse();
+        }
     }
 
     /// <summary>
@@ -239,6 +284,18 @@ public sealed class ArchitectureDependencyPolicyTests
                 package == "System.Collections.Immutable",
             _ => false
         };
+    }
+
+    /// <summary>
+    ///     Determines whether a direct framework reference is permitted for a project role.
+    /// </summary>
+    /// <param name="role">The project role.</param>
+    /// <param name="framework">The framework identifier.</param>
+    /// <returns><see langword="true" /> when the framework is allowed; otherwise, <see langword="false" />.</returns>
+    private static bool IsFrameworkReferenceAllowed(ProjectRole role, string framework)
+    {
+        return role == ProjectRole.HostAdapter &&
+            string.Equals(framework, "Microsoft.AspNetCore.App", StringComparison.Ordinal);
     }
 
     /// <summary>

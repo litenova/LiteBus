@@ -178,8 +178,11 @@ internal sealed class OutboxObservableMetrics : IDisposable
 
             if (store is null)
             {
+                OutboxDiagnosticsTelemetry.RecordUnavailable();
+
                 lock (_cacheLock)
                 {
+                    _cachedCounts = EmptyStatusCounts;
                     _cacheExpiresAt = DateTimeOffset.UtcNow.Add(CacheDuration);
                 }
 
@@ -205,6 +208,7 @@ internal sealed class OutboxObservableMetrics : IDisposable
 
             lock (_cacheLock)
             {
+                _cachedCounts = EmptyStatusCounts;
                 _cacheExpiresAt = DateTimeOffset.UtcNow.Add(CacheDuration);
             }
         }

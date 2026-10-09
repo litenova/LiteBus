@@ -16,8 +16,18 @@ internal static class SqsMessageMapper
     private const string Base64ContentEncoding = "base64";
 
     /// <summary>
+    ///     The SQS FIFO queue URL suffix that selects ordered, deduplicated delivery.
+    /// </summary>
+    private const string FifoQueueSuffix = ".fifo";
+
+    /// <summary>
     ///     Creates an SQS send request from a LiteBus publish request.
     /// </summary>
+    /// <remarks>
+    ///     FIFO destinations (queue URLs ending in <c>.fifo</c>) also carry <c>MessageDeduplicationId</c> and
+    ///     <c>MessageGroupId</c> from <see cref="TransportPublishRequest.DeduplicationKey" /> and
+    ///     <see cref="TransportPublishRequest.MessageGroupId" />; standard queues carry neither.
+    /// </remarks>
     /// <param name="request">The publish request describing destination, body, and headers.</param>
     /// <returns>The send request ready for the SQS client.</returns>
     internal static SendMessageRequest ToSendMessageRequest(TransportPublishRequest request)
@@ -57,14 +67,15 @@ internal static class SqsMessageMapper
 
         if (!string.IsNullOrWhiteSpace(request.Route))
         {
-            sendRequest.MessageAttributes["Route"] = CreateStringAttribute(request.Route);
+            sendRequest.MessageAttributes[TransportHeaders.Route] = CreateStringAttribute(request.Route);
         }
 
         if (!string.IsNullOrWhiteSpace(request.ContentType))
         {
-            sendRequest.MessageAttributes["ContentType"] = CreateStringAttribute(request.ContentType);
+            sendRequest.MessageAttributes[TransportHeaders.ContentType] = CreateStringAttribute(request.ContentType);
         }
 
+        ApplyFifoFields(sendRequest, request);
         ApplyHeaders(sendRequest, request.Headers);
         return sendRequest;
     }
@@ -92,7 +103,7 @@ internal static class SqsMessageMapper
             Body = body,
             Headers = headers,
             Destination = queueUrl,
-            Route = GetAttribute(headers, "Route"),
+            Route = GetAttribute(headers, TransportHeaders.Route),
             MessageId = message.MessageId ?? GetAttribute(headers, TransportHeaders.MessageId),
             CorrelationId = GetAttribute(headers, TransportHeaders.CorrelationId),
             Redelivered = message.Attributes?.TryGetValue("ApproximateReceiveCount", out var count) == true &&
@@ -167,6 +178,43 @@ internal static class SqsMessageMapper
             sendRequest.MessageAttributes[name] = CreateStringAttribute(
                 Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty);
         }
+    }
+
+    /// <summary>
+    ///     Applies FIFO ordering fields to the send request when the destination is a FIFO queue.
+    /// </summary>
+    /// <remarks>
+    ///     Standard queues carry neither field. SQS rejects FIFO parameters on non-FIFO destinations, so the
+    ///     request fields stay transport-neutral and only take effect on queue URLs ending in <c>.fifo</c>.
+    /// </remarks>
+    /// <param name="sendRequest">The send request receiving FIFO fields.</param>
+    /// <param name="request">The publish request supplying group and deduplication values.</param>
+    private static void ApplyFifoFields(SendMessageRequest sendRequest, TransportPublishRequest request)
+    {
+        if (!IsFifoQueue(request.Destination))
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.DeduplicationKey))
+        {
+            sendRequest.MessageDeduplicationId = request.DeduplicationKey;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.MessageGroupId))
+        {
+            sendRequest.MessageGroupId = request.MessageGroupId;
+        }
+    }
+
+    /// <summary>
+    ///     Returns whether a queue URL addresses an SQS FIFO queue.
+    /// </summary>
+    /// <param name="queueUrl">The destination queue URL.</param>
+    /// <returns><see langword="true" /> when the URL ends with the FIFO suffix; otherwise, <see langword="false" />.</returns>
+    private static bool IsFifoQueue(string queueUrl)
+    {
+        return queueUrl.EndsWith(FifoQueueSuffix, StringComparison.Ordinal);
     }
 
     /// <summary>

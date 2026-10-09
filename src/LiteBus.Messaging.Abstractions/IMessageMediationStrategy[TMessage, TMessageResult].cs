@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
@@ -31,6 +34,9 @@ public interface IMessageMediationStrategy<in TMessage, out TMessageResult>
     /// <remarks>
     ///     The implementation of this method defines the specific pattern for mediating messages, such as
     ///     executing a single handler, broadcasting to multiple handlers, or implementing more complex orchestration logic.
+    ///     A result that is neither a <see cref="Task" /> nor an <see cref="IAsyncEnumerable{T}" /> is treated as already
+    ///     materialized: its execution and dispatch scopes are disposed before <c>Mediate</c> returns, so do not return a
+    ///     <c>ValueTask{TResult}</c> or any other value that is still in flight.
     /// </remarks>
     TMessageResult Mediate(TMessage message, IMessageDependencies messageDependencies, IExecutionContext executionContext);
 }

@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.Metrics;
+using System.Diagnostics.Metrics;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging.Abstractions;
@@ -18,18 +18,6 @@ namespace LiteBus.Inbox.UnitTests;
 public sealed class InboxProcessorCorrectnessTests
 {
     private static readonly DateTimeOffset BaseTime = new(2026, 6, 6, 8, 0, 0, TimeSpan.Zero);
-
-    [Fact]
-    public void ResolveLeaseOwner_ShouldPreserveExplicitOwnerOrGenerateDefault()
-    {
-        InboxProcessorFactory.ResolveLeaseOwner(new InboxProcessorOptions { LeaseOwner = "worker-a" })
-            .Should().Be("worker-a");
-        InboxProcessorFactory.ResolveLeaseOwner(new InboxProcessorOptions { LeaseOwner = " " })
-            .Should().StartWith($"{Environment.MachineName}:{Environment.ProcessId}:");
-
-        var nullAct = () => InboxProcessorFactory.ResolveLeaseOwner(null!);
-        nullAct.Should().Throw<ArgumentNullException>();
-    }
 
     [Fact]
     public void Create_WithoutRequiredServices_ShouldThrowConfigurationException()

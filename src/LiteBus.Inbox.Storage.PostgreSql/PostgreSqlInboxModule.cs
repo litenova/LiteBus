@@ -4,7 +4,7 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.PostgreSql.Exceptions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Storage.PostgreSql;
-using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using Npgsql;
 
 namespace LiteBus.Inbox.Storage.PostgreSql;
@@ -125,8 +125,8 @@ public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<Inbox
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(PostgreSqlTransactionalInboxParticipant),
             serviceProvider => new PostgreSqlTransactionalInboxParticipant(
-                serviceProvider.GetRequiredService<PostgreSqlInboxStoreRegistration>(),
-                serviceProvider.GetRequiredService<IInboxStore>(),
+                (PostgreSqlInboxStoreRegistration)(serviceProvider.GetService(typeof(PostgreSqlInboxStoreRegistration)) ?? throw new LiteBusDependencyResolutionException(typeof(PostgreSqlInboxStoreRegistration))),
+                (IInboxStore)(serviceProvider.GetService(typeof(IInboxStore)) ?? throw new LiteBusDependencyResolutionException(typeof(IInboxStore))),
                 serviceProvider.GetService(typeof(IPostgreSqlTransactionProvider)) as IPostgreSqlTransactionProvider,
                 moduleBuilder.TransactionalWriteMode),
             InstanceLifetime.Scoped));
@@ -135,11 +135,11 @@ public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<Inbox
             typeof(ITransactionalInbox),
             serviceProvider =>
             {
-                var participant = serviceProvider.GetRequiredService<PostgreSqlTransactionalInboxParticipant>();
+                var participant = (PostgreSqlTransactionalInboxParticipant)(serviceProvider.GetService(typeof(PostgreSqlTransactionalInboxParticipant)) ?? throw new LiteBusDependencyResolutionException(typeof(PostgreSqlTransactionalInboxParticipant)));
 
                 return new StoreBoundTransactionalInbox(
                     participant.ResolveStore(),
-                    serviceProvider.GetRequiredService<IInboxEnvelopeFactory>());
+                    (IInboxEnvelopeFactory)(serviceProvider.GetService(typeof(IInboxEnvelopeFactory)) ?? throw new LiteBusDependencyResolutionException(typeof(IInboxEnvelopeFactory))));
             },
             InstanceLifetime.Scoped));
     }

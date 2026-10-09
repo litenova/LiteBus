@@ -47,9 +47,11 @@ public sealed class InMemoryTransportBroker : IDisposable
     /// </summary>
     /// <param name="destination">The destination name used by publishers and consumers.</param>
     /// <returns>The shared endpoint for the destination.</returns>
+    /// <exception cref="System.ObjectDisposedException">Thrown when the broker has been disposed.</exception>
     internal InMemoryDestinationEndpoint GetOrCreateEndpoint(string destination)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(destination);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 
         return _endpoints.GetOrAdd(
             destination,
@@ -58,7 +60,7 @@ public sealed class InMemoryTransportBroker : IDisposable
     }
 
     /// <summary>
-    ///     Clears all queued deliveries and resets destination endpoints.
+    ///     Clears all queued deliveries, resets destination endpoints, and revives the broker for test isolation.
     /// </summary>
     internal void Reset()
     {
@@ -68,14 +70,17 @@ public sealed class InMemoryTransportBroker : IDisposable
         }
 
         _endpoints.Clear();
+
+        // Reset revives the broker for test isolation; disposal stays terminal, so Dispose inlines its own teardown.
+        Interlocked.Exchange(ref _disposed, 0);
     }
 
     /// <summary>
     ///     Completes every destination channel and releases destination resources.
     /// </summary>
     /// <remarks>
-    ///     Disposal reuses the reset path so channel writers complete and capacity guards dispose. Repeated calls
-    ///     return without touching cleared state.
+    ///     Disposal completes channel writers and disposes capacity guards, staying terminal unlike reset.
+    ///     Repeated calls return without touching cleared state.
     /// </remarks>
     public void Dispose()
     {
@@ -84,6 +89,11 @@ public sealed class InMemoryTransportBroker : IDisposable
             return;
         }
 
-        Reset();
+        foreach (var endpoint in _endpoints.Values)
+        {
+            endpoint.Dispose();
+        }
+
+        _endpoints.Clear();
     }
 }

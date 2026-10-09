@@ -165,6 +165,9 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
             case InstanceLifetime.Scoped:
                 registration.InstancePerLifetimeScope();
                 break;
+
+            // Unreachable: DependencyDescriptor.ValidateLifetime rejects any undefined lifetime in every
+            // constructor, and Lifetime has no setter.
             default:
                 throw new ArgumentOutOfRangeException(nameof(descriptor), descriptor.Lifetime, "Unknown instance lifetime.");
         }

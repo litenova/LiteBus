@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.Abstractions.Exceptions;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Outbox.Dispatch;
@@ -78,6 +79,11 @@ public sealed class TransportOutboxDispatcher : IOutboxDispatcher
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     The published request carries FIFO addressing: <c>DeduplicationKey</c> is the envelope idempotency key when
+    ///     present, otherwise the message identifier, and <c>MessageGroupId</c> is the envelope tenant identifier when
+    ///     present, otherwise the contract name.
+    /// </remarks>
     public async Task DispatchAsync(OutboxEnvelope message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
@@ -117,6 +123,8 @@ public sealed class TransportOutboxDispatcher : IOutboxDispatcher
                 Mandatory = _options.Mandatory,
                 MessageId = message.Id.ToString("D"),
                 CorrelationId = message.CorrelationId,
+                MessageGroupId = string.IsNullOrWhiteSpace(message.TenantId) ? message.ContractName : message.TenantId,
+                DeduplicationKey = string.IsNullOrWhiteSpace(message.IdempotencyKey) ? message.Id.ToString("D") : message.IdempotencyKey,
                 Headers = OutboxTransportEnvelopeMapper.BuildHeaders(message)
             },
             cancellationToken).ConfigureAwait(false);
@@ -127,6 +135,12 @@ public sealed class TransportOutboxDispatcher : IOutboxDispatcher
     /// </summary>
     /// <param name="message">The outbox envelope being dispatched.</param>
     /// <returns>The route passed to the transport publisher.</returns>
+    /// <exception cref="LiteBusDispatchException">The configured route resolver returned null or whitespace.</exception>
+    /// <remarks>
+    ///     The tenant routing strategy wins when registered. Otherwise the configured
+    ///     <see cref="TransportOutboxDispatcherOptions.ResolveRoute" /> delegate wins over
+    ///     <see cref="OutboxEnvelope.Topic" />, which wins over <see cref="OutboxEnvelope.ContractName" />.
+    /// </remarks>
     private string ResolveRoute(OutboxEnvelope message)
     {
         if (_tenantRoutingStrategy is not null)
@@ -137,14 +151,22 @@ public sealed class TransportOutboxDispatcher : IOutboxDispatcher
                 message.Topic);
         }
 
+        if (_options.ResolveRoute is not null)
+        {
+            var resolvedRoute = _options.ResolveRoute(message);
+            if (string.IsNullOrWhiteSpace(resolvedRoute))
+            {
+                throw new LiteBusDispatchException(
+                    $"Outbox dispatch failed for message '{message.Id:D}' (contract '{message.ContractName}' version {message.ContractVersion}): " +
+                    "the configured route resolver returned null or whitespace. Configure ResolveRoute to return a non-empty route for every envelope.");
+            }
+
+            return resolvedRoute;
+        }
+
         if (!string.IsNullOrWhiteSpace(message.Topic))
         {
             return message.Topic;
-        }
-
-        if (_options.ResolveRoute is not null)
-        {
-            return _options.ResolveRoute(message);
         }
 
         return message.ContractName;

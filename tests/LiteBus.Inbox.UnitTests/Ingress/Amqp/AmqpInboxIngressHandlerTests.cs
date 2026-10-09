@@ -275,6 +275,9 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
         {
             Body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(command)),
             Headers = headers,
+            MessageId = headers.TryGetValue(TransportHeaders.MessageId, out var headerMessageId)
+                ? headerMessageId?.ToString()
+                : null,
             DeliveryTag = 1,
             CorrelationId = correlationId,
             AckDelegate = (_, _) => Task.CompletedTask,

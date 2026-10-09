@@ -1,8 +1,8 @@
 using System;
-using System.Linq;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Audit;
+using LiteBus.Messaging.Registry;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Runtime.Abstractions;
 
@@ -64,10 +64,10 @@ public sealed class QueryModule : IModule, IRequires<MessageModule>
         // the messaging registry does not reference the axis contracts.
         if (configuration.TryGetContext<LiteBusCompositionSummary>(out var summary) && summary is not null)
         {
-            summary.RecordAxis("queries", CountAxisMessages(messageRegistry));
+            summary.RecordAxis("queries", ModuleRegistration.CountAxisMessages<IQuery>(messageRegistry));
         }
 
-        RegisterNewHandlers(configuration, messageRegistry, startIndex);
+        ModuleRegistration.RegisterNewHandlers(configuration, messageRegistry, startIndex);
     }
 
     /// <summary>
@@ -79,54 +79,5 @@ public sealed class QueryModule : IModule, IRequires<MessageModule>
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IQueryMediator),
             typeof(QueryMediator)));
-    }
-
-    /// <summary>
-    ///     Counts the concrete query types registered so far, for the composition summary.
-    /// </summary>
-    /// <param name="reader">The registry holding every registered message descriptor.</param>
-    /// <returns>The number of concrete query types.</returns>
-    /// <remarks>
-    ///     Abstract types and interfaces are excluded, because they are shapes rather than messages and counting them
-    ///     would make the reported total disagree with the number of things that can be mediated.
-    /// </remarks>
-    private static int CountAxisMessages(IMessageReader reader)
-    {
-        var count = 0;
-
-        foreach (var descriptor in reader)
-        {
-            if (descriptor.MessageType is { IsAbstract: false, IsInterface: false } &&
-                typeof(IQuery).IsAssignableFrom(descriptor.MessageType))
-            {
-                count++;
-            }
-        }
-
-        return count;
-    }
-
-    /// <summary>
-    ///     Registers handler types that were discovered during this module's configuration.
-    /// </summary>
-    /// <param name="configuration">The module configuration.</param>
-    /// <param name="messageRegistry">The message registry containing handler information.</param>
-    /// <param name="startIndex">The index from which to start processing new handlers.</param>
-    private static void RegisterNewHandlers(IModuleConfiguration configuration, IMessageRegistry messageRegistry, int startIndex)
-    {
-        var newHandlers = messageRegistry.Handlers.Skip(startIndex);
-
-        foreach (var handlerDescriptor in newHandlers)
-        {
-            var handlerType = handlerDescriptor.HandlerType;
-
-            if (handlerType is { IsClass: true, IsAbstract: false })
-            {
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    handlerType,
-                    handlerType,
-                    InstanceLifetime.Scoped));
-            }
-        }
     }
 }

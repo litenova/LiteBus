@@ -33,10 +33,28 @@ public sealed class KafkaPublisher : ITransportPublisher, IDisposable
         _circuitBreakerRegistry = circuitBreakerRegistry;
     }
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="KafkaPublisher" /> class from the shared producer owner.
+    /// </summary>
+    /// <param name="owner">The singleton owner of the shared Kafka producer.</param>
+    /// <param name="circuitBreakerRegistry">The registry that scopes publish resilience by destination.</param>
+    internal KafkaPublisher(
+        KafkaProducerOwner owner,
+        ITransportCircuitBreakerRegistry circuitBreakerRegistry)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentNullException.ThrowIfNull(circuitBreakerRegistry);
+        _producer = owner.Producer;
+        _circuitBreakerRegistry = circuitBreakerRegistry;
+    }
+
     /// <inheritdoc />
+    /// <remarks>
+    ///     Producer lifetime is owned by <see cref="KafkaProducerOwner" />, which flushes once at shutdown. This method
+    ///     intentionally does nothing so dispatch-scope teardown never blocks on a flush.
+    /// </remarks>
     public void Dispose()
     {
-        _producer.Flush(TimeSpan.FromSeconds(5));
     }
 
     /// <inheritdoc />

@@ -91,6 +91,48 @@ public sealed class BackgroundServiceHostWrapperTests
     }
 
     /// <summary>
+    ///     Verifies a loop that propagates shutdown cancellation stops cleanly.
+    /// </summary>
+    [Fact]
+    public async Task StopAsync_WhenLoopPropagatesShutdownCancellation_ShouldComplete()
+    {
+        var service = new PropagatingCancellationBackgroundService();
+        var wrapper = new BackgroundServiceHostWrapper(service);
+
+        await wrapper.StartAsync(CancellationToken.None).ConfigureAwait(false);
+        await service.Started.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        var stoppingCts = GetStoppingCts(wrapper);
+
+        await wrapper.StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+        var disposeCheck = () => stoppingCts.Cancel();
+        disposeCheck.Should().Throw<ObjectDisposedException>();
+    }
+
+    /// <summary>
+    ///     Verifies cancellation from an unrelated token reaches the orchestrator as a loop fault.
+    /// </summary>
+    [Fact]
+    public async Task Orchestrator_WhenLoopThrowsUnrelatedCancellation_ShouldFailClosed()
+    {
+        using var lifetime = new RecordingHostApplicationLifetime();
+        using var orchestrator = new LiteBusHostOrchestrator([], [new UnrelatedCancellationBackgroundService()], lifetime);
+
+        await orchestrator.StartAsync(CancellationToken.None).ConfigureAwait(false);
+
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (lifetime.StopApplicationCallCount == 0 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10).ConfigureAwait(false);
+        }
+
+        await orchestrator.StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+        lifetime.StopApplicationCallCount.Should().Be(1);
+        orchestrator.ExecuteTask!.IsCompletedSuccessfully.Should().BeFalse();
+    }
+
+    /// <summary>
     ///     Verifies stop can run twice without surfacing disposal of the linked source.
     /// </summary>
     [Fact]
@@ -149,6 +191,28 @@ public sealed class BackgroundServiceHostWrapperTests
         {
             await Task.CompletedTask.ConfigureAwait(false);
             throw new InvalidOperationException("Loop fault.");
+        }
+    }
+
+    private sealed class PropagatingCancellationBackgroundService : IBackgroundService
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            Started.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken).ConfigureAwait(false);
+        }
+    }
+
+    private sealed class UnrelatedCancellationBackgroundService : IBackgroundService
+    {
+        public Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            using var unrelated = new CancellationTokenSource();
+            unrelated.Cancel();
+
+            throw new OperationCanceledException(unrelated.Token);
         }
     }
 

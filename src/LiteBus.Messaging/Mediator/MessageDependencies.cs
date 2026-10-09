@@ -2,7 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Extensions;
+using LiteBus.Runtime.Abstractions.Extensions;
+using MessagingEnumerableExtensions = LiteBus.Messaging.Extensions.EnumerableExtensions;
 
 namespace LiteBus.Messaging.Mediator;
 
@@ -150,7 +151,7 @@ internal sealed class MessageDependencies : IMessageDependencies
         IEnumerable<TDescriptor> descriptors,
         Func<Type, THandler> resolveFunc) where TDescriptor : IHandlerDescriptor
     {
-        return descriptors
+        return MessagingEnumerableExtensions.ToLazyReadOnlyCollection(descriptors
             .Where(d => _handlerPredicate(d))
             .Where(d => d.Tags.Count == 0 || d.Tags.Intersect(_tags).Any())
             .OrderBy(d => d.Priority)
@@ -159,8 +160,7 @@ internal sealed class MessageDependencies : IMessageDependencies
             {
                 Handler = new Lazy<THandler>(() => resolveFunc(GetHandlerType(d))),
                 Descriptor = d
-            })
-            .ToLazyReadOnlyCollection();
+            }));
     }
 
     /// <summary>

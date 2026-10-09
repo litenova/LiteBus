@@ -124,7 +124,7 @@ public sealed class EventModuleBuilder
     {
         ArgumentNullException.ThrowIfNull(assembly);
 
-        var candidates = assembly.GetTypes()
+        var candidates = AssemblyTypeScanner.GetLoadableTypes(assembly)
             .Where(static type => type is { IsClass: true, IsAbstract: false })
             .ToList();
 

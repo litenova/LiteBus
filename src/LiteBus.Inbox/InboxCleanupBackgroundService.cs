@@ -31,6 +31,11 @@ public sealed class InboxCleanupBackgroundService : IBackgroundService
     private readonly InboxCleanupHostOptions _hostOptions;
 
     /// <summary>
+    ///     Gets the initial delay before retrying retention cleanup after a failure.
+    /// </summary>
+    private static readonly TimeSpan InitialRetryDelay = TimeSpan.FromSeconds(5);
+
+    /// <summary>
     ///     Gets the logger used for cleanup diagnostics.
     /// </summary>
     private readonly ILogger<InboxCleanupBackgroundService> _logger;
@@ -86,7 +91,7 @@ public sealed class InboxCleanupBackgroundService : IBackgroundService
             return;
         }
 
-        var backoff = _hostOptions.Interval > TimeSpan.Zero ? _hostOptions.Interval : TimeSpan.FromSeconds(30);
+        var backoff = InitialRetryDelay;
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -96,11 +101,11 @@ public sealed class InboxCleanupBackgroundService : IBackgroundService
                 var cutoff = runAt - _hostOptions.Retention.Value;
                 var deleted = await _stateStore.DeleteCompletedOlderThanAsync(cutoff, stoppingToken).ConfigureAwait(false);
                 _retentionCoordinator.RecordSuccess(deleted, runAt);
-                backoff = _hostOptions.Interval > TimeSpan.Zero ? _hostOptions.Interval : TimeSpan.FromSeconds(30);
+                backoff = InitialRetryDelay;
 
                 if (_hostOptions.Interval > TimeSpan.Zero)
                 {
-                    await Task.Delay(_hostOptions.Interval, stoppingToken).ConfigureAwait(false);
+                    await Task.Delay(_hostOptions.Interval, _timeProvider, stoppingToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -116,13 +121,13 @@ public sealed class InboxCleanupBackgroundService : IBackgroundService
                 InboxCleanupLogMessages.CleanupFailed(_logger, exception, backoff);
                 try
                 {
-                    await Task.Delay(backoff, stoppingToken).ConfigureAwait(false);
+                    await Task.Delay(backoff, _timeProvider, stoppingToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
                     break;
                 }
-                backoff = TimeSpan.FromMilliseconds(Math.Min(backoff.TotalMilliseconds * 2, TimeSpan.FromMinutes(5).TotalMilliseconds));
+                backoff = TimeSpan.FromMilliseconds(Math.Min(backoff.TotalMilliseconds * 2, _hostOptions.Interval.TotalMilliseconds));
             }
 #pragma warning restore CA1031
         }

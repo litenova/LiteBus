@@ -65,13 +65,19 @@ public static class DockerTestGate
     /// </summary>
     /// <param name="exception">The exception thrown while starting a container.</param>
     /// <returns><see langword="true" /> when Docker appears unavailable.</returns>
+    /// <remarks>
+    ///     Matches container-runtime exception types only. Broker-side failures whose messages happen to
+    ///     mention pipes or containers must surface as test failures rather than skips.
+    /// </remarks>
     private static bool IsDockerUnavailable(Exception exception)
     {
         for (var current = exception; current is not null; current = current.InnerException)
         {
-            if (current.Message.Contains("Docker", StringComparison.OrdinalIgnoreCase) ||
-                current.Message.Contains("pipe", StringComparison.OrdinalIgnoreCase) ||
-                current.Message.Contains("container", StringComparison.OrdinalIgnoreCase))
+            var typeName = current.GetType().FullName;
+
+            if (typeName is "DotNet.Testcontainers.Builders.DockerUnavailableException"
+                or "DotNet.Testcontainers.Guard.ArgumentException"
+                or "Docker.DotNet.DockerApiException")
             {
                 return true;
             }

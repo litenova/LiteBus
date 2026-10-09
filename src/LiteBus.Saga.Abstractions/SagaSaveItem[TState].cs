@@ -14,6 +14,11 @@ public sealed record SagaSaveItem<TState>(SagaCorrelation Correlation, TState St
 {
     /// <summary>
     ///     Gets the durable inbox message identifier applied by this save, when available.
+    /// <remarks>
+    ///     A save without an identifier preserves the stored marker instead of clearing it. The marker suppresses
+    ///     redelivery of only the most recently applied message; an older message redelivered after a newer message
+    ///     advanced the row runs its handler again. Handlers with external side effects must add their own idempotency.
+    /// </remarks>
     /// </summary>
     public Guid? AppliedMessageId { get; init; }
     /// <summary>

@@ -30,6 +30,11 @@ public sealed class SqsConsumer : IMessageConsumer
     private readonly IAmazonSQS _sqsClient;
 
     /// <summary>
+    ///     Gets the time source used for visibility extension delays while handlers run.
+    /// </summary>
+    private readonly TimeProvider _timeProvider;
+
+    /// <summary>
     ///     Gets the number of consecutive receive batches where every handler failed.
     /// </summary>
     private int _consecutiveFullBatchFailures;
@@ -54,12 +59,14 @@ public sealed class SqsConsumer : IMessageConsumer
     /// </summary>
     /// <param name="sqsClient">The SQS client used to receive and acknowledge messages.</param>
     /// <param name="options">The transport options controlling poll and visibility behavior.</param>
-    public SqsConsumer(IAmazonSQS sqsClient, AwsSqsTransportOptions options)
+    /// <param name="timeProvider">The time source used for visibility extension delays while handlers run.</param>
+    public SqsConsumer(IAmazonSQS sqsClient, AwsSqsTransportOptions options, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(sqsClient);
         ArgumentNullException.ThrowIfNull(options);
         _sqsClient = sqsClient;
         _options = options;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -164,12 +171,54 @@ public sealed class SqsConsumer : IMessageConsumer
     }
 
     /// <summary>
+    ///     Invokes the consumer handler while extending SQS visibility so a long handler keeps its receipt handle alive.
+    /// </summary>
+    /// <remarks>
+    ///     One <c>ChangeMessageVisibility</c> is issued per half visibility timeout through the configured
+    ///     <see cref="TimeProvider" />. The requeue delay computed at receive time is unchanged and still applies
+    ///     when the handler requests requeue.
+    /// </remarks>
+    /// <param name="handler">The bounded handler invoked for the delivery.</param>
+    /// <param name="transportMessage">The transport delivery passed to the handler.</param>
+    /// <param name="brokerMessage">The received SQS message supplying the receipt handle.</param>
+    /// <param name="queueUrl">The queue URL owning the receipt handle.</param>
+    /// <param name="cancellationToken">The token used to cancel handler execution.</param>
+    /// <returns>The settlement outcome observed by the caller.</returns>
+    private async Task<TransportConsumerInvocationOutcome> InvokeHandlerWithVisibilityExtensionAsync(
+        Func<TransportMessage, CancellationToken, Task<TransportConsumerInvocationOutcome>> handler,
+        TransportMessage transportMessage,
+        Message brokerMessage,
+        string queueUrl,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(transportMessage);
+        ArgumentNullException.ThrowIfNull(brokerMessage);
+        ArgumentException.ThrowIfNullOrWhiteSpace(queueUrl);
+
+        return await SqsVisibilityHeartbeat.RunWithVisibilityExtensionAsync(
+                token => _sqsClient.ChangeMessageVisibilityAsync(
+                    new ChangeMessageVisibilityRequest
+                    {
+                        QueueUrl = queueUrl,
+                        ReceiptHandle = brokerMessage.ReceiptHandle,
+                        VisibilityTimeout = _options.VisibilityTimeoutSeconds
+                    },
+                    token),
+                SqsVisibilityHeartbeat.ComputeExtensionInterval(_options.VisibilityTimeoutSeconds),
+                _timeProvider,
+                handlerToken => handler(transportMessage, handlerToken),
+                cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     ///     Long-polls the configured queue until cancellation is requested.
     /// </summary>
     /// <remarks>
-    ///     When a handler throws, the message visibility is extended using exponential backoff derived from
-    ///     <c>ApproximateReceiveCount</c>. When an entire received batch fails, poll backoff is applied before the next
-    ///     <c>ReceiveMessage</c> call.
+    ///     While a handler runs, message visibility is extended once per half visibility timeout so the receipt
+    ///     handle cannot expire mid-handler. When a handler throws, the message visibility is extended using
+    ///     exponential backoff derived from <c>ApproximateReceiveCount</c>. When an entire received batch fails,
+    ///     poll backoff is applied before the next <c>ReceiveMessage</c> call.
     /// </remarks>
     /// <param name="options">The consumer options for the active subscription.</param>
     /// <param name="handler">The handler invoked for each delivery.</param>
@@ -246,8 +295,11 @@ public sealed class SqsConsumer : IMessageConsumer
                         options.Destination,
                         ackHandlers);
 
-                    var outcome = await boundedHandler(
+                    var outcome = await InvokeHandlerWithVisibilityExtensionAsync(
+                            boundedHandler,
                             transportMessage,
+                            message,
+                            options.Destination,
                             cancellationToken)
                         .ConfigureAwait(false);
 

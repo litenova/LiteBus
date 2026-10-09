@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging;
@@ -11,8 +12,9 @@ namespace LiteBus.Messaging;
 ///     This strategy is useful for handling inheritance and interface implementation in the messaging system.
 ///     It allows messages to be handled by handlers registered for their exact type or for any base type or interface
 ///     that they implement. Resolution order is exact type first, then the most-derived assignable registered type
-///     using an inheritance depth score (base-type chain length plus implemented interface count). When multiple
-///     assignable types share the same depth score, an <see cref="AmbiguousMessageResolveException" /> is thrown.
+///     using an inheritance depth score (base-type chain length plus the registered type's implemented interface
+///     count; generic type definitions contribute only the chain length). When multiple assignable types share the
+///     same depth score, an <see cref="AmbiguousMessageResolveException" /> is thrown.
 /// </remarks>
 public sealed class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMessageResolveStrategy
 {
@@ -29,6 +31,7 @@ public sealed class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMes
         IMessageDescriptor? bestMatch = null;
         var bestDepth = -1;
         var ambiguousMatches = 0;
+        List<Type>? tiedCandidates = null;
 
         foreach (var candidate in messageReader)
         {
@@ -44,18 +47,23 @@ public sealed class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMes
                 bestDepth = depth;
                 bestMatch = candidate;
                 ambiguousMatches = 1;
+                tiedCandidates = [candidate.MessageType];
                 continue;
             }
 
             if (depth == bestDepth)
             {
                 ambiguousMatches++;
+                tiedCandidates?.Add(candidate.MessageType);
             }
         }
 
         if (ambiguousMatches > 1)
         {
-            throw new AmbiguousMessageResolveException(messageType, typeof(ActualTypeOrFirstAssignableTypeMessageResolveStrategy));
+            throw new AmbiguousMessageResolveException(
+                messageType,
+                typeof(ActualTypeOrFirstAssignableTypeMessageResolveStrategy),
+                tiedCandidates ?? []);
         }
 
         return bestMatch;
@@ -65,7 +73,10 @@ public sealed class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMes
     ///     Computes an inheritance depth score used to prefer the most-derived registered message type.
     /// </summary>
     /// <param name="registeredMessageType">The registered descriptor message type.</param>
-    /// <returns>A non-negative depth score where larger values indicate more-derived types.</returns>
+    /// <returns>
+    ///     The base-type chain length plus the registered type's implemented interface count, where larger values
+    ///     indicate more-derived types. Generic type definitions contribute only the chain length.
+    /// </returns>
     private static int GetInheritanceDepth(Type registeredMessageType)
     {
         var depth = 0;
@@ -77,7 +88,11 @@ public sealed class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMes
             current = current.BaseType;
         }
 
-        depth += current.GetInterfaces().Length;
+        if (!registeredMessageType.IsGenericTypeDefinition)
+        {
+            depth += registeredMessageType.GetInterfaces().Length;
+        }
+
         return depth;
     }
 }

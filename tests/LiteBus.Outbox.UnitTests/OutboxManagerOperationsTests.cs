@@ -114,7 +114,7 @@ public sealed class OutboxManagerOperationsTests
     ///     Verifies disabled retention policies return without invoking the retention store.
     /// </summary>
     [Fact]
-    public async Task RunRetentionPurgeAsync_WhenRetentionIsMissingOrZero_DoesNotCallStore()
+    public async Task RunRetentionPurgeAsync_WhenRetentionIsMissingOrZero_ShouldThrowWithoutCallingStore()
     {
         var store = new InMemoryOutboxStore();
         var retentionStore = new RecordingRetentionStore();
@@ -130,8 +130,11 @@ public sealed class OutboxManagerOperationsTests
             retentionStore,
             new ManualTimeProvider(BaseTime));
 
-        (await missing.RunRetentionPurgeAsync().ConfigureAwait(false)).Should().Be(0);
-        (await zero.RunRetentionPurgeAsync().ConfigureAwait(false)).Should().Be(0);
+        var missingAct = () => missing.RunRetentionPurgeAsync();
+        var zeroAct = () => zero.RunRetentionPurgeAsync();
+
+        await missingAct.Should().ThrowAsync<OutboxManagementException>().WithMessage("*Retention*").ConfigureAwait(false);
+        await zeroAct.Should().ThrowAsync<OutboxManagementException>().WithMessage("*Retention*").ConfigureAwait(false);
         retentionStore.CallCount.Should().Be(0);
     }
 

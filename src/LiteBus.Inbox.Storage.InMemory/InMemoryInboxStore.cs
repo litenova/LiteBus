@@ -285,14 +285,14 @@ public sealed class InMemoryInboxStore :
         ArgumentNullException.ThrowIfNull(request);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.BatchSize, 0);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
-        ArgumentOutOfRangeException.ThrowIfLessThan(request.LeaseDuration, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.LeaseDuration, TimeSpan.Zero);
         cancellationToken.ThrowIfCancellationRequested();
 
         var now = ResolveLeaseClock(request);
 
-        var leaseDuration = request.LeaseDuration > TimeSpan.Zero
-            ? request.LeaseDuration
-            : _options.DefaultLeaseDuration;
+        var leaseDuration = request.LeaseDuration;
+        // Zero is rejected above, so the request value is always the effective lease.
+
 
         lock (_sync)
         {

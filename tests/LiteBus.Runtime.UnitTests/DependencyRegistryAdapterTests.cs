@@ -224,6 +224,66 @@ public sealed class DependencyRegistryAdapterTests
     }
 
     [Fact]
+    public void MicrosoftAdapter_RegisterAfterCollectionForSameServiceType_ShouldThrowModuleCompositionException()
+    {
+        var services = new ServiceCollection();
+        var adapter = new MicrosoftDependencyRegistryAdapter(services);
+
+        adapter.RegisterCollection(DependencyDescriptor.ForCollection(typeof(ITestService), typeof(TestServiceA)));
+
+        var act = () => adapter.Register(new DependencyDescriptor(typeof(ITestService), typeof(TestServiceB)));
+
+        act.Should().Throw<ModuleCompositionException>()
+            .WithMessage("*ITestService*");
+        services.Count(service => service.ServiceType == typeof(ITestService)).Should().Be(1);
+    }
+
+    [Fact]
+    public void MicrosoftAdapter_RegisterCollectionAfterSingleForSameServiceType_ShouldThrowModuleCompositionException()
+    {
+        var services = new ServiceCollection();
+        var adapter = new MicrosoftDependencyRegistryAdapter(services);
+
+        adapter.Register(new DependencyDescriptor(typeof(ITestService), typeof(TestServiceA)));
+
+        var act = () => adapter.RegisterCollection(DependencyDescriptor.ForCollection(typeof(ITestService), typeof(TestServiceB)));
+
+        act.Should().Throw<ModuleCompositionException>()
+            .WithMessage("*ITestService*");
+        services.Count(service => service.ServiceType == typeof(ITestService)).Should().Be(1);
+    }
+
+    [Fact]
+    public void AutofacAdapter_RegisterAfterCollectionForSameServiceType_ShouldThrowModuleCompositionException()
+    {
+        var builder = new ContainerBuilder();
+        var adapter = new AutofacDependencyRegistryAdapter(builder);
+
+        adapter.RegisterCollection(DependencyDescriptor.ForCollection(typeof(ITestService), typeof(TestServiceA)));
+
+        var act = () => adapter.Register(new DependencyDescriptor(typeof(ITestService), typeof(TestServiceB)));
+
+        act.Should().Throw<ModuleCompositionException>()
+            .WithMessage("*ITestService*");
+        adapter.Count.Should().Be(1);
+    }
+
+    [Fact]
+    public void AutofacAdapter_RegisterCollectionAfterSingleForSameServiceType_ShouldThrowModuleCompositionException()
+    {
+        var builder = new ContainerBuilder();
+        var adapter = new AutofacDependencyRegistryAdapter(builder);
+
+        adapter.Register(new DependencyDescriptor(typeof(ITestService), typeof(TestServiceA)));
+
+        var act = () => adapter.RegisterCollection(DependencyDescriptor.ForCollection(typeof(ITestService), typeof(TestServiceB)));
+
+        act.Should().Throw<ModuleCompositionException>()
+            .WithMessage("*ITestService*");
+        adapter.Count.Should().Be(1);
+    }
+
+    [Fact]
     public void AutofacAddLiteBus_RegisterBackgroundServiceTwice_ShouldResolveSingleHostedService()
     {
         var builder = new ContainerBuilder();
@@ -236,6 +296,50 @@ public sealed class DependencyRegistryAdapterTests
                 configuration.RegisterBackgroundService(typeof(TestBackgroundService));
             }));
         });
+
+        using var container = builder.Build();
+        container.Resolve<IEnumerable<IHostedService>>().Should().HaveCount(1);
+    }
+
+    [Fact]
+    public void MicrosoftAddLiteBus_CalledTwice_ShouldThrowModuleCompositionExceptionAndKeepFirstComposition()
+    {
+        var services = new ServiceCollection();
+
+        services.AddLiteBus(registry =>
+        {
+            registry.Modules.Register(new BackgroundServiceRegistrationModule(typeof(TestBackgroundService)));
+        });
+
+        var serviceCount = services.Count;
+        var hostedServiceCount = services.Count(service => service.ServiceType == typeof(IHostedService));
+
+        var act = () => services.AddLiteBus(registry =>
+        {
+            registry.Modules.Register(new BackgroundServiceRegistrationModule(typeof(OtherBackgroundService)));
+        });
+
+        act.Should().Throw<ModuleCompositionException>();
+        services.Count.Should().Be(serviceCount);
+        services.Count(service => service.ServiceType == typeof(IHostedService)).Should().Be(hostedServiceCount);
+    }
+
+    [Fact]
+    public void AutofacAddLiteBus_CalledTwice_ShouldThrowModuleCompositionExceptionAndKeepFirstComposition()
+    {
+        var builder = new ContainerBuilder();
+
+        builder.AddLiteBus(registry =>
+        {
+            registry.Modules.Register(new BackgroundServiceRegistrationModule(typeof(TestBackgroundService)));
+        });
+
+        var act = () => builder.AddLiteBus(registry =>
+        {
+            registry.Modules.Register(new BackgroundServiceRegistrationModule(typeof(OtherBackgroundService)));
+        });
+
+        act.Should().Throw<ModuleCompositionException>();
 
         using var container = builder.Build();
         container.Resolve<IEnumerable<IHostedService>>().Should().HaveCount(1);

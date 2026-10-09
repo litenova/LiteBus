@@ -25,6 +25,24 @@ namespace LiteBus.Messaging.Registry;
 internal sealed class MessageRegistry : IMessageRegistry
 {
     /// <summary>
+    ///     The messaging-level handler contracts whose second type argument is the message's result type.
+    /// </summary>
+    /// <remarks>
+    ///     Used to tell an arity-2 handler that binds a result type apart from one that declares a second parameter of
+    ///     its own, which has nothing to bind to and cannot be closed.
+    /// </remarks>
+    private static readonly HashSet<Type> TypedHandlerContracts =
+    [
+        typeof(IMessageHandler<,>),
+        typeof(IStreamMessageHandler<,>),
+        typeof(IMessagePostHandler<,>),
+        typeof(IMessageCompletionHandler<,>),
+        typeof(IMessageErrorHandler<,>),
+        typeof(IMessageShortcut<,>),
+        typeof(IMessageRefusalMapper<,>)
+    ];
+
+    /// <summary>
     ///     Message descriptors that have completed registration and handler linking.
     /// </summary>
     private readonly List<MessageDescriptor> _committedMessages = [];
@@ -118,7 +136,16 @@ internal sealed class MessageRegistry : IMessageRegistry
     private int _nextRegistrationSequence;
 
     /// <inheritdoc />
-    public IReadOnlyList<IHandlerDescriptor> Handlers => _handlerDescriptorsInOrder.AsReadOnly();
+    public IReadOnlyList<IHandlerDescriptor> Handlers
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _handlerDescriptorsInOrder.ToList();
+            }
+        }
+    }
 
     /// <inheritdoc />
     public int Count
@@ -565,24 +592,6 @@ internal sealed class MessageRegistry : IMessageRegistry
     }
 
     /// <summary>
-    ///     The messaging-level handler contracts whose second type argument is the message's result type.
-    /// </summary>
-    /// <remarks>
-    ///     Used to tell an arity-2 handler that binds a result type apart from one that declares a second parameter of
-    ///     its own, which has nothing to bind to and cannot be closed.
-    /// </remarks>
-    private static readonly HashSet<Type> TypedHandlerContracts =
-    [
-        typeof(IMessageHandler<,>),
-        typeof(IStreamMessageHandler<,>),
-        typeof(IMessagePostHandler<,>),
-        typeof(IMessageCompletionHandler<,>),
-        typeof(IMessageErrorHandler<,>),
-        typeof(IMessageShortcut<,>),
-        typeof(IMessageRefusalMapper<,>)
-    ];
-
-    /// <summary>
     ///     Stores an open generic handler type and retroactively closes it for all already-known message types.
     /// </summary>
     /// <param name="openGenericHandlerType">The open generic handler type (e.g., GenericValidator&lt;&gt;).</param>
@@ -702,7 +711,7 @@ internal sealed class MessageRegistry : IMessageRegistry
             return [messageType];
         }
 
-        var resultType = FindDeclaredResultType(messageType);
+        var resultType = DeclaredResultTypeResolver.Find(messageType);
 
         return resultType is null ? null : [messageType, resultType];
     }
@@ -722,7 +731,7 @@ internal sealed class MessageRegistry : IMessageRegistry
     /// </remarks>
     private static bool CanCloseForMessage(Type openGenericHandlerType, Type messageType)
     {
-        if (FindDeclaredResultType(messageType) is null)
+        if (DeclaredResultTypeResolver.Find(messageType) is null)
         {
             return true;
         }
@@ -849,39 +858,6 @@ internal sealed class MessageRegistry : IMessageRegistry
         }
 
         return false;
-    }
-
-    /// <summary>
-    ///     Resolves the result type a message declares through <see cref="IProducesResult{TMessageResult}" />.
-    /// </summary>
-    /// <param name="messageType">The concrete message type.</param>
-    /// <returns>The declared result type, or <see langword="null" /> when the message declares none or declares several.</returns>
-    /// <remarks>
-    ///     Read from the message's own contract rather than from a main handler descriptor, so the answer does not
-    ///     depend on whether the handler has been registered yet. A message declaring two result types is a modelling
-    ///     error the axis contracts already make hard to write, and there is no correct arity-2 closing for it, so it
-    ///     is answered as no result and the handler is skipped rather than closed over an arbitrary choice.
-    /// </remarks>
-    private static Type? FindDeclaredResultType(Type messageType)
-    {
-        Type? resultType = null;
-
-        foreach (var contract in messageType.GetInterfaces())
-        {
-            if (!contract.IsGenericType || contract.GetGenericTypeDefinition() != typeof(IProducesResult<>))
-            {
-                continue;
-            }
-
-            if (resultType is not null)
-            {
-                return null;
-            }
-
-            resultType = contract.GetGenericArguments()[0];
-        }
-
-        return resultType;
     }
 
     /// <summary>

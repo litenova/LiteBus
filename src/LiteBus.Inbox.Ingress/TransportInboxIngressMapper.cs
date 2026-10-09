@@ -102,7 +102,7 @@ internal static class TransportInboxIngressMapper
             }
         }
 
-        var brokerDeliveryId = TryGetBrokerDeliveryId(message);
+        var brokerDeliveryId = TryGetBrokerDeliveryId(message, mappingOptions);
 
         if (string.IsNullOrWhiteSpace(brokerDeliveryId))
         {
@@ -139,7 +139,7 @@ internal static class TransportInboxIngressMapper
             }
         }
 
-        var brokerDeliveryId = TryGetBrokerDeliveryId(message);
+        var brokerDeliveryId = TryGetBrokerDeliveryId(message, mappingOptions);
 
         if (string.IsNullOrWhiteSpace(brokerDeliveryId))
         {
@@ -248,10 +248,16 @@ internal static class TransportInboxIngressMapper
     ///     Gets the broker delivery identifier used for ingress identity and idempotency.
     /// </summary>
     /// <param name="message">The received transport delivery.</param>
+    /// <param name="mappingOptions">The ingress mapping policy that controls whether application headers are trusted.</param>
     /// <returns>The broker delivery id, or <see langword="null" /> when none is available.</returns>
-    private static string? TryGetBrokerDeliveryId(TransportMessage message)
+    private static string? TryGetBrokerDeliveryId(TransportMessage message, TransportInboxIngressMappingOptions mappingOptions)
     {
-        var rawValue = TransportHeaderValues.GetString(message.Headers, TransportHeaders.MessageId) ?? message.MessageId;
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(mappingOptions);
+
+        string? rawValue = mappingOptions.TrustApplicationHeaders
+            ? TransportHeaderValues.GetString(message.Headers, TransportHeaders.MessageId) ?? message.MessageId
+            : message.MessageId;
 
         return string.IsNullOrWhiteSpace(rawValue) ? null : rawValue;
     }

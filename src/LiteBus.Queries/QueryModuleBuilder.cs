@@ -134,7 +134,7 @@ public sealed class QueryModuleBuilder
     {
         ArgumentNullException.ThrowIfNull(assembly);
 
-        foreach (var registrableQueryConstruct in assembly.GetTypes()
+        foreach (var registrableQueryConstruct in AssemblyTypeScanner.GetLoadableTypes(assembly)
                      .Where(static type => type is { IsClass: true, IsAbstract: false } && IsQueryConstruct(type)))
         {
             _messageRegistry.RegisterFromScan(registrableQueryConstruct);

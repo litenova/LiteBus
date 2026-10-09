@@ -81,6 +81,24 @@ Inbox and outbox use asymmetric naming on purpose. Inbox **acceptance** (`Accept
 
 Register exactly one dispatcher per outbox module.
 
+## Tenant Routing and Contract Resolution
+
+Set an `ITenantRoutingStrategy` on the transport dispatcher options to compute the transport route from tenant metadata before topic and route delegate fallbacks. The strategy is a transport concern, so it lives on `TransportOutboxDispatcherOptions` in `LiteBus.Outbox.Dispatch` rather than on the outbox builder:
+
+```csharp
+outbox.UseAmqpDispatch(options => options.TenantRoutingStrategy = new TenantRouteStrategy());
+```
+
+The strategy receives the envelope tenant id, contract name, and topic hint, and its return value becomes the transport publish route. When no strategy is registered, the dispatcher uses the envelope topic when present, otherwise `ResolveRoute` when set, otherwise the contract name.
+
+Register an `IMessageContractResolver` to select the CLR type used for contract lookup during enqueue instead of the runtime instance type:
+
+```csharp
+outbox.UseContractResolver(new DeclaredTypeMessageContractResolver());
+```
+
+When no resolver is registered, writers use the runtime message instance type for contract lookup.
+
 ## Storage (`Use*` Extensions)
 
 | Extension | Package |
@@ -242,14 +260,14 @@ Retry = new RetryOptions
 
 `Delays` is validated when the module builds, so a misconfigured ladder fails at boot rather than on the first failure, which is the one moment nobody is watching the retry policy.
 
-After-dispatch hook failures follow `HookFailurePolicy` on `OutboxProcessorOptions`:
+After-dispatch hook failures follow `HookFailurePolicy` on `OutboxProcessorOptions`. The property defaults to `null`, which keeps the dispatcher recommendation; set an explicit value to override it. Registration order does not matter: a batch-only `UseProcessorOptions` call keeps the transport default.
 
 | Dispatcher | Default `HookFailurePolicy` | Behavior after successful publish |
 | --- | --- | --- |
 | Transport (`UseAmqpDispatch`, `UseInMemoryDispatch`, and siblings) | `CompleteDespiteHookFailure` | Logs the hook error and persists published state without re-publishing |
 | In-process (`UseInProcessDispatch`) | `DeadLetter` | Moves the row to dead letter without re-publishing |
 
-Set `HookFailurePolicy = ProcessorHookFailurePolicy.DeadLetter` on transport dispatchers when hook side effects must block terminal completion. Set `HookFailurePolicy = ProcessorHookFailurePolicy.CompleteDespiteHookFailure` on in-process dispatch when hook persistence should not undo a successful handler publication. Call `UseProcessorOptions` after dispatcher registration to override the dispatcher default.
+Set `HookFailurePolicy = ProcessorHookFailurePolicy.DeadLetter` on transport dispatchers when hook side effects must block terminal completion. Overriding the transport default dead-letters a message the broker already accepted, so the message is re-leased after replay and published a second time. Set `HookFailurePolicy = ProcessorHookFailurePolicy.CompleteDespiteHookFailure` on in-process dispatch when hook persistence should not undo a successful handler publication.
 
 Transport dispatchers (`UseAmqpDispatch`, `UseAwsSqsDispatch`, and siblings) accept `ValidatePayloadBeforeDispatch` on their options. When `false` (default), invalid JSON is not deserialized before publish; when `true`, deserialization runs before the transport call so corrupt payloads fail fast without broker side effects.
 

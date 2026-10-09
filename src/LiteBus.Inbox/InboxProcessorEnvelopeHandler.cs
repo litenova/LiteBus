@@ -100,6 +100,11 @@ internal static class InboxProcessorEnvelopeHandler
     ///     The post-transition envelope when dispatch finished with a terminal outcome for this attempt; otherwise
     ///     <see langword="null" /> when dispatch was canceled.
     /// </returns>
+    /// <remarks>
+    ///     Dispatch failures use a broad <see cref="Exception" /> handler because handler, mediator, and hook faults
+    ///     surface as unrelated exception types at the processor boundary. Failures are mapped to retry or dead-letter
+    ///     transitions through the configured retry policy instead of enumerating dispatch exception types.
+    /// </remarks>
     private static async Task<InboxEnvelope?> DispatchAsync(
         InboxEnvelope envelope,
         IInboxDispatcher dispatcher,
@@ -149,7 +154,7 @@ internal static class InboxProcessorEnvelopeHandler
             return null;
         }
 
-        // Handler, mediator, and hook failures surface as unrelated exception types; map them to retry or dead-letter transitions.
+#pragma warning disable CA1031 // Handler, mediator, and hook failures surface as unrelated exception types; map them to retry or dead-letter transitions.
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             var failure = MessageFailure.From(exception, clock.GetUtcNow());
@@ -171,6 +176,7 @@ internal static class InboxProcessorEnvelopeHandler
             var visibleAfter = clock.GetUtcNow().Add(options.Retry.CalculateDelay(envelope.AttemptCount));
             return envelope.AsFailed(failure, visibleAfter);
         }
+#pragma warning restore CA1031
         finally
         {
             if (!dispatchCompleted)

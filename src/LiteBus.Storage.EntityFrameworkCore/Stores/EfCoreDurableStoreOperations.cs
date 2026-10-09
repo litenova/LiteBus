@@ -16,13 +16,18 @@ internal static class EfCoreDurableStoreOperations
     /// <param name="query">The filtered entity query.</param>
     /// <param name="cancellationToken">A token that cancels the delete operation.</param>
     /// <returns>The number of deleted rows.</returns>
+    /// <exception cref="LiteBus.Storage.EntityFrameworkCore.Exceptions.EfCoreStorageNotSupportedException">
+    ///     Thrown when the active provider name is not recognized.
+    /// </exception>
     internal static async Task<int> DeleteMatchingAsync<TEntity>(
         DbContext dbContext,
         IQueryable<TEntity> query,
         CancellationToken cancellationToken)
         where TEntity : class
     {
-        if (dbContext.Database.ProviderName?.Contains("InMemory", StringComparison.Ordinal) == true)
+        var provider = EfCoreProviderResolver.ResolveProviderName(dbContext.Database.ProviderName);
+
+        if (provider == EfCoreStorageProvider.InMemory)
         {
             var matches = await query.ToListAsync(cancellationToken).ConfigureAwait(false);
 

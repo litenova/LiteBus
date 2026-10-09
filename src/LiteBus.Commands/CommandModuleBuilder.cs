@@ -243,7 +243,7 @@ public sealed class CommandModuleBuilder
 
         foreach (var assembly in _assemblies)
         {
-            foreach (var registrableCommandConstruct in assembly.GetTypes()
+            foreach (var registrableCommandConstruct in AssemblyTypeScanner.GetLoadableTypes(assembly)
                          .Where(static type => type is { IsClass: true, IsAbstract: false } && IsCommandConstruct(type)))
             {
                 messageRegistry.RegisterFromScan(registrableCommandConstruct);

@@ -104,6 +104,13 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
                 new OutboxPayloadProtector(outboxEncryptor)));
         }
 
+        if (_builder.CollectContractResolver() is { } contractResolver)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(IMessageContractResolver),
+                contractResolver));
+        }
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxEnvelopeFactory),
             typeof(OutboxEnvelopeFactory)));

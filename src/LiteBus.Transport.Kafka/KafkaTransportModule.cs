@@ -39,6 +39,21 @@ public sealed class KafkaTransportModule : IModule
                 options.SeekFailureBackoffMultiplier,
                 "The seek failure backoff multiplier must be finite and at least one.");
         }
+
+        if (_options.MessageTimeoutMs is not null)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_options.MessageTimeoutMs.Value, 0);
+        }
+
+        if (_options.MessageSendMaxRetries is not null)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_options.MessageSendMaxRetries.Value, 0);
+        }
+
+        if (_options.SocketTimeoutMs is not null)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(_options.SocketTimeoutMs.Value, 0);
+        }
     }
 
     /// <inheritdoc />
@@ -46,33 +61,22 @@ public sealed class KafkaTransportModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        // Runs first so a second transport module in the composition is refused with a message naming both modules.
+        TransportMetricsRegistration.RegisterIfNeeded(configuration, "kafka", GetType());
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(KafkaTransportOptions),
             _options));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IProducer<string, byte[]>),
+            typeof(KafkaProducerOwner),
             static serviceProvider =>
             {
                 var options = serviceProvider.GetService(typeof(KafkaTransportOptions))
                                   as KafkaTransportOptions ??
                               throw new InvalidOperationException($"{nameof(KafkaTransportOptions)} is not registered.");
 
-                var config = new ProducerConfig
-                {
-                    BootstrapServers = options.BootstrapServers,
-                    ClientId = options.ClientId,
-                    Acks = Acks.All
-                };
-
-                if (options.MessageTimeoutMs is not null)
-                {
-                    config.MessageTimeoutMs = options.MessageTimeoutMs.Value;
-                    config.SocketTimeoutMs = options.MessageTimeoutMs.Value;
-                    config.MessageSendMaxRetries = 0;
-                }
-
-                return new ProducerBuilder<string, byte[]>(config).Build();
+                return new KafkaProducerOwner(options);
             },
             InstanceLifetime.Singleton));
 
@@ -120,13 +124,24 @@ public sealed class KafkaTransportModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ITransportPublisher),
-            typeof(KafkaPublisher)));
+            static serviceProvider =>
+            {
+                var owner = serviceProvider.GetService(typeof(KafkaProducerOwner))
+                                as KafkaProducerOwner ??
+                            throw new InvalidOperationException($"{nameof(KafkaProducerOwner)} is not registered.");
+                var circuitBreakerRegistry = serviceProvider.GetService(typeof(ITransportCircuitBreakerRegistry))
+                                                 as ITransportCircuitBreakerRegistry ??
+                                             throw new InvalidOperationException($"{nameof(ITransportCircuitBreakerRegistry)} is not registered.");
+
+                return new KafkaPublisher(owner, circuitBreakerRegistry);
+            },
+            InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageConsumer),
-            typeof(KafkaConsumer)));
+            typeof(KafkaConsumer),
+            InstanceLifetime.Transient));
 
-        TransportMetricsRegistration.RegisterIfNeeded(configuration, "kafka");
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(KafkaConnectivityDiagnosticCheck),

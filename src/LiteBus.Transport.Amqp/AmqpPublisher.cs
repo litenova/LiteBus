@@ -101,7 +101,7 @@ public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncD
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
 
             var channel = await GetPublishChannelAsync(cancellationToken).ConfigureAwait(false);
-            var properties = CreateBasicProperties(channel, request);
+            var properties = CreateBasicProperties(request);
 
             await channel
                 .BasicPublishAsync(
@@ -226,10 +226,9 @@ public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncD
     /// <summary>
     ///     Creates AMQP message properties from the publish request.
     /// </summary>
-    /// <param name="channel">The channel used to allocate message properties.</param>
     /// <param name="request">The publish request containing body metadata and headers.</param>
     /// <returns>The AMQP basic properties for the publication.</returns>
-    private static BasicProperties CreateBasicProperties(IChannel channel, AmqpPublishRequest request)
+    private static BasicProperties CreateBasicProperties(AmqpPublishRequest request)
     {
         var properties = new BasicProperties
         {

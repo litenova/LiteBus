@@ -158,13 +158,13 @@ public sealed class PostgreSqlInboxModuleBuilder
     ///         application composition choice rather than something this method requires.
     ///     </para>
     ///     <para>
-    ///         <c>ITransactionalOutbox</c> binds its store when it is resolved, so a handler that injects it with no
+    ///         <c>ITransactionalInbox</c> binds its store when it is resolved, so a handler that injects it with no
     ///         active unit of work fails at injection under
     ///         <see cref="TransactionalWriteMode.RequireActiveTransaction" />. Prefer that failure: the alternative is
-    ///         an outbox row committed on its own connection, which is the atomicity the outbox exists to provide.
+    ///         an inbox row committed on its own connection, which is the atomicity the inbox exists to provide.
     ///     </para>
     ///     <para>
-    ///         See the Transactional Writes guide for the full pattern. Do not hand-write inserts against the outbox
+    ///         See the Transactional Writes guide for the full pattern. Do not hand-write inserts against the inbox
     ///         table: its schema is created, versioned and validated by LiteBus, and a schema change would break every
     ///         such writer silently.
     ///     </para>

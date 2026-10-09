@@ -170,7 +170,10 @@ public sealed class PostgreSqlInboxStore :
                                  attempt_count = 0,
                                  lease_owner = NULL,
                                  lease_expires_at = NULL,
-                                 last_error = NULL
+                                 last_error = NULL,
+                                 error_type = NULL,
+                                 first_failed_at = NULL,
+                                 dead_lettered_at = NULL
                              WHERE message_id = @message_id AND status = @dead_lettered_status;
                              """;
 
@@ -190,7 +193,10 @@ public sealed class PostgreSqlInboxStore :
                        attempt_count = 0,
                        lease_owner = NULL,
                        lease_expires_at = NULL,
-                       last_error = NULL
+                       last_error = NULL,
+                       error_type = NULL,
+                       first_failed_at = NULL,
+                       dead_lettered_at = NULL
                    WHERE message_id = ANY(@message_ids) AND status = @dead_lettered_status;
                    """;
 

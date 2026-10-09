@@ -204,6 +204,7 @@ internal sealed class InboxObservableMetrics : IDisposable
 
             lock (_cacheLock)
             {
+                _cachedCounts = EmptyStatusCounts;
                 _cacheExpiresAt = DateTimeOffset.UtcNow.Add(CacheDuration);
             }
         }

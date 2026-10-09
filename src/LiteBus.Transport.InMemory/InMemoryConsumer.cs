@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.InMemory;
@@ -117,6 +118,14 @@ public sealed class InMemoryConsumer : IMessageConsumer
                     {
                         // Expected when cancellation stops the consume loop.
                     }
+                    catch (ChannelClosedException)
+                    {
+                        // Expected when the destination channel completed while a delivery was unsettled.
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Expected when the broker was reset or disposed during shutdown.
+                    }
                 }
             }
             finally
@@ -138,7 +147,18 @@ public sealed class InMemoryConsumer : IMessageConsumer
     {
         if (_consumeTask is { } consumeTask)
         {
-            await consumeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await consumeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (ChannelClosedException)
+            {
+                // The destination channel completed; the session is stopped rather than failed.
+            }
+            catch (ObjectDisposedException)
+            {
+                // The broker was reset or disposed; the session is stopped rather than failed.
+            }
             return;
         }
 

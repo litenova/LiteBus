@@ -144,7 +144,7 @@ Each broker ingress options record exposes a provider-neutral `Safety` value:
 
 By default, ingress maps the broker delivery id to `MessageIdentity.Supplied` and a broker-scoped `Idempotency.Keyed` value (`ingress:{destination}:{brokerMessageId}`) so broker redelivery after a successful store accept does not create duplicate inbox rows. Set `Safety.TrustApplicationHeaders` to `true` only when upstream publishers are trusted to supply application idempotency and tenant headers.
 
-Receive tuning is explicit per adapter. AMQP and Azure expose native `PrefetchCount`; SQS exposes `ReceiveBatchSize`; Azure exposes `MaxConcurrentCalls`; Kafka and in-memory ingress expose no receive knob they cannot honor. All five adapters use `Safety.MaxInFlightMessages` for the common LiteBus work cap.
+Receive tuning is explicit per adapter. AMQP and Azure expose native `PrefetchCount`; SQS exposes `ReceiveBatchSize`; Azure exposes `MaxConcurrentCalls`; Kafka and in-memory ingress expose no receive knob they cannot honor. The enforced `Safety.MaxInFlightMessages` bound is 1 for AMQP, Kafka, SQS, and in-memory ingress; only Azure Service Bus honors a configured value.
 
 Ingress honors `litebus-visible-after` (absolute ISO-8601) and `litebus-visible-after-delay` (relative `TimeSpan` or tick count). Relative delay takes precedence when both headers are present.
 
@@ -202,7 +202,7 @@ inbox.UseProcessorOptions(new InboxProcessorOptions
 });
 ```
 
-`Retry.MaxAttempts` counts dispatch attempts recorded on the leased envelope. When `AttemptCount` reaches `MaxAttempts` on failure, the processor moves the row to `DeadLettered`. Requeue operations through `IInboxManager.RequeueAsync` return `RequeueResult { Requested, Requeued }` so operators can see how many identifiers were not in the dead-letter state.
+`Retry.MaxAttempts` counts dispatch attempts recorded on the leased envelope. When `AttemptCount` reaches `MaxAttempts` on failure, the processor moves the row to `DeadLettered`. Requeue operations through `IInboxManager.RequeueAsync` return `RequeueResult { Requested, Requeued }` so operators can see how many identifiers were not in the dead-letter state. Stores with a database clock use the database clock for lease visibility checks; `InboxLeaseRequest.Now` and `LeaseRenewalRequest.RequestedExpiresAt` are the fallback for stores without one.
 
 After-dispatch hook failures default to dead-lettering even when dispatch succeeded. Set `HookFailurePolicy = ProcessorHookFailurePolicy.CompleteDespiteHookFailure` on `InboxProcessorOptions` when hook persistence should not undo a successful handler run.
 

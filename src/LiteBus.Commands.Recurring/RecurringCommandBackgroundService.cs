@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -38,7 +39,7 @@ public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundSer
     private readonly RecurringCommandHostOptions _options;
 
     /// <summary>
-    ///     Opens one dispatch scope per pass so each send resolves its own scoped dependencies.
+    ///     Opens the scope used to resolve the mediator once when the loop starts.
     /// </summary>
     private readonly IMessageDispatchScopeFactory _scopeFactory;
 
@@ -56,7 +57,7 @@ public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundSer
     ///     Initializes a new instance of the <see cref="RecurringCommandBackgroundService{TCommand}" /> class.
     /// </summary>
     /// <param name="declaration">The registered declaration carrying the factory and the host options.</param>
-    /// <param name="scopeFactory">Opens one dispatch scope per pass.</param>
+    /// <param name="scopeFactory">Opens the scope used to resolve the mediator once when the loop starts.</param>
     /// <param name="timeProvider">Supplies the delay between passes.</param>
     /// <param name="logger">Records pass failures and lifecycle transitions, or null to discard them.</param>
     public RecurringCommandBackgroundService(
@@ -87,6 +88,14 @@ public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundSer
             return;
         }
 
+        var mediatorScope = _scopeFactory.CreateScope();
+        await using var configuredMediatorScope = mediatorScope.ConfigureAwait(false);
+        var mediator = (ICommandMediator?)mediatorScope.ServiceProvider.GetService(typeof(ICommandMediator));
+        if (mediator is null)
+        {
+            throw new LiteBusDependencyResolutionException(typeof(ICommandMediator));
+        }
+
         if (_options.StartupDelay > TimeSpan.Zero)
         {
             try
@@ -107,7 +116,7 @@ public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundSer
 
             try
             {
-                var hasMoreWork = await SendOnceAsync(stoppingToken).ConfigureAwait(false);
+                var hasMoreWork = await SendOnceAsync(mediator, stoppingToken).ConfigureAwait(false);
 
                 if (hasMoreWork)
                 {
@@ -153,18 +162,20 @@ public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundSer
     }
 
     /// <summary>
-    ///     Sends the command once inside its own dispatch scope.
+    ///     Sends the command once through the mediator resolved when the loop started.
     /// </summary>
+    /// <param name="mediator">The command mediator resolved once when the loop started.</param>
     /// <param name="cancellationToken">A token that stops the send when the host shuts down.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="mediator" /> is <see langword="null" />.</exception>
     /// <returns>
     ///     <see langword="true" /> when the result reported more work through <see cref="IRecurringWorkReport" />.
     /// </returns>
-    private async Task<bool> SendOnceAsync(CancellationToken cancellationToken)
+    private async Task<bool> SendOnceAsync(ICommandMediator mediator, CancellationToken cancellationToken)
     {
-        var scope = _scopeFactory.CreateScope();
-        await using var configuredScope = scope.ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(mediator);
+        
 
-        var mediator = (ICommandMediator) scope.ServiceProvider.GetService(typeof(ICommandMediator))!;
+        
         var command = _commandFactory();
 
         // ICommand<TResult> derives from ICommand, so the result-bearing contract has to be tested first or every

@@ -2,6 +2,7 @@ using System;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using Npgsql;
 
 namespace LiteBus.Storage.PostgreSql;
@@ -73,6 +74,9 @@ internal static class PostgreSqlSchemaVersionStore
     /// <param name="tableName">The unquoted table name of the store table.</param>
     /// <param name="cancellationToken">A token used to cancel the lookup.</param>
     /// <returns>The recorded schema version, or <c>0</c> when no version row exists.</returns>
+    /// <exception cref="DurableStorageConfigurationException">
+    ///     Thrown when the recorded value is not an <c>int</c>, <c>long</c>, <c>short</c>, or <c>decimal</c>.
+    /// </exception>
     public static Task<int> GetVersionAsync(
         NpgsqlConnection connection,
         IPostgreSqlStoreTableOptions options,
@@ -97,6 +101,9 @@ internal static class PostgreSqlSchemaVersionStore
     /// <param name="context">The schema operation context.</param>
     /// <param name="cancellationToken">A token used to cancel the lookup.</param>
     /// <returns>The recorded schema version, or <c>0</c> when no version row exists.</returns>
+    /// <exception cref="DurableStorageConfigurationException">
+    ///     Thrown when the recorded value is not an <c>int</c>, <c>long</c>, <c>short</c>, or <c>decimal</c>.
+    /// </exception>
     public static async Task<int> GetVersionAsync(
         PostgreSqlSchemaOperationContext context,
         CancellationToken cancellationToken)
@@ -121,7 +128,31 @@ internal static class PostgreSqlSchemaVersionStore
         command.Parameters.AddWithValue("tableName", context.StoreTable.TableName);
 
         var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-        return result is int version ? version : 0;
+        return ConvertVersionResult(result);
+    }
+
+    /// <summary>
+    ///     Converts a schema version scalar read from the metadata row to a version number.
+    /// </summary>
+    /// <param name="result">The scalar value read from the metadata row, or <see langword="null" /> when no row exists.</param>
+    /// <returns>The recorded schema version, or <c>0</c> when no version row exists.</returns>
+    /// <exception cref="DurableStorageConfigurationException">
+    ///     Thrown when the recorded value is not an <c>int</c>, <c>long</c>, <c>short</c>, or <c>decimal</c>.
+    /// </exception>
+    internal static int ConvertVersionResult(object? result)
+    {
+        return result switch
+        {
+            null => 0,
+            DBNull => 0,
+            int version => version,
+            short version => version,
+            long version => checked((int)version),
+            decimal version => checked((int)version),
+            _ => throw new DurableStorageConfigurationException(
+                $"Recorded schema version has unsupported type '{result!.GetType().FullName}'. " +
+                "Expected an int, long, short, or decimal value.")
+        };
     }
 
     /// <summary>

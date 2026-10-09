@@ -55,10 +55,9 @@ public sealed class MessageModule : IModule
         _builder(moduleBuilder);
 
         // Applied before anything mediates, and process-wide, because an ActivitySource and a Meter are.
-        if (moduleBuilder.Telemetry is not null)
-        {
-            MediationTelemetry.Options = moduleBuilder.Telemetry;
-        }
+        // Always assigned, so a composition that configures no telemetry resets the process-wide options to the
+        // defaults rather than silently inheriting a previous composition's settings.
+        MediationTelemetry.Options = moduleBuilder.Telemetry ?? new MediationTelemetryOptions();
 
         // Register core messaging services.
         RegisterMessagingServices(
@@ -75,7 +74,7 @@ public sealed class MessageModule : IModule
             moduleBuilder.AuditActorResolverLifetime,
             moduleBuilder.AuditRecordWriter,
             moduleBuilder.AuditRecordWriterLifetime);
-        RegisterNewHandlers(configuration, messageRegistry, startIndex);
+        ModuleRegistration.RegisterNewHandlers(configuration, messageRegistry, startIndex);
 
         // Published for the axis modules, which build after this one because they declare IRequires<MessageModule>.
         // AddAuditing decides the axes here so the consumer does not repeat the decision on each axis builder.
@@ -488,30 +487,6 @@ public sealed class MessageModule : IModule
             (IAuditOutcomeMapper) serviceProvider.GetService(typeof(IAuditOutcomeMapper))!,
             (TimeProvider) serviceProvider.GetService(typeof(TimeProvider))!,
             (IAuditActorResolver?) serviceProvider.GetService(typeof(IAuditActorResolver)));
-    }
-
-    /// <summary>
-    ///     Registers handler types that were added to the message registry during module building.
-    /// </summary>
-    /// <param name="configuration">The module configuration to register handlers with.</param>
-    /// <param name="messageRegistry">The message registry containing the handlers.</param>
-    /// <param name="startIndex">The index from which to start registering new handlers.</param>
-    private static void RegisterNewHandlers(IModuleConfiguration configuration, IMessageRegistry messageRegistry, int startIndex)
-    {
-        var newHandlers = messageRegistry.Handlers.Skip(startIndex);
-
-        foreach (var handlerDescriptor in newHandlers)
-        {
-            var handlerType = handlerDescriptor.HandlerType;
-
-            if (handlerType is { IsClass: true, IsAbstract: false })
-            {
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    handlerType,
-                    handlerType,
-                    InstanceLifetime.Scoped));
-            }
-        }
     }
 
     /// <summary>

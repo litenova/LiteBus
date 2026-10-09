@@ -1,6 +1,5 @@
 using System;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Idempotency;
 
@@ -41,7 +40,7 @@ public sealed class IdempotencyKeyResolver
     ///     flight, which is what every shipped stage relies on; pass one explicitly only in a test.
     /// </param>
     /// <returns>The declaration and its resolved key, or <see langword="null" /> when the message declares none.</returns>
-    /// <exception cref="AuditConfigurationException">
+    /// <exception cref="IdempotencyConfigurationException">
     ///     The selector produced a blank key, or the message declares a context-supplied key and no stage supplied one.
     /// </exception>
     /// <remarks>
@@ -65,7 +64,7 @@ public sealed class IdempotencyKeyResolver
 
         if (string.IsNullOrWhiteSpace(key))
         {
-            throw new AuditConfigurationException(
+            throw new IdempotencyConfigurationException(
                 $"The idempotency declaration for '{messageType.Name}' produced a blank key. Every message with a "
                 + "blank key shares one key space, so the first would answer all the others. Project the key from a "
                 + "field the message always carries.");
@@ -81,7 +80,7 @@ public sealed class IdempotencyKeyResolver
     /// <param name="messageType">The message type being mediated, used to name the failure.</param>
     /// <param name="executionContext">The execution context of the mediation in flight.</param>
     /// <returns>The supplied key.</returns>
-    /// <exception cref="AuditConfigurationException">No stage supplied a key.</exception>
+    /// <exception cref="IdempotencyConfigurationException">No stage supplied a key.</exception>
     /// <remarks>
     ///     Reported rather than defaulted. A generated fallback would make every delivery of the same intent look
     ///     distinct, so the store would accept them all and the declaration would appear to work while doing nothing.
@@ -94,7 +93,7 @@ public sealed class IdempotencyKeyResolver
             return supplied.Value;
         }
 
-        throw new AuditConfigurationException(
+        throw new IdempotencyConfigurationException(
             $"The idempotency declaration for '{messageType.Name}' expects its key from the execution context, but "
             + "no pipeline stage supplied one. Set it from a guard, which runs before the idempotency shortcut, with "
             + $"context.Data.Set(new {nameof(SuppliedIdempotencyKey)}(key)).");

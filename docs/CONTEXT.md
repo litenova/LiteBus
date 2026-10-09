@@ -3022,10 +3022,10 @@ public sealed class PaymentAuthorizedHandler : ICommandHandler<PaymentAuthorized
     public Task HandleAsync(PaymentAuthorized message, CancellationToken cancellationToken = default)
     {
         var state = _saga.GetState<CheckoutSagaState>();
+        var alreadyAuthorized = state.PaymentAuthorized;
         state.PaymentAuthorized = true;
-        _saga.SetState(state);
 
-        if (state.IsComplete)
+        if (alreadyAuthorized)
         {
             _saga.Complete();
         }

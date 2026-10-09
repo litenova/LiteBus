@@ -146,7 +146,7 @@ Instrument names are stable public constants on `LiteBusMediationTelemetry`, `Li
 | Meter | Instrument | Public constant | Description |
 | --- | --- | --- | --- |
 | `LiteBus.Mediation` | `litebus.mediation.duration` | `LiteBusMediationTelemetry.DurationInstrumentName` | Histogram in milliseconds; tags `litebus.message`, `litebus.outcome` |
-| `LiteBus.Mediation` | `litebus.mediation.count` | `LiteBusMediationTelemetry.CountInstrumentName` | One per completed mediation; tags `litebus.message`, `litebus.outcome`, `litebus.code` |
+| `LiteBus.Mediation` | `litebus.mediation.count` | `LiteBusMediationTelemetry.CountInstrumentName` | One per completed mediation; tags `litebus.message` and `litebus.outcome`, plus `litebus.code` only when a decision stopped the mediation |
 | `LiteBus.Mediation` | `litebus.mediation.stage.duration` | `LiteBusMediationTelemetry.StageDurationInstrumentName` | Histogram in milliseconds per pre stage; opt-in through `MediationTelemetryOptions.StageMetrics` |
 | `LiteBus.Mediation` | `litebus.mediation.decisions` | `LiteBusMediationTelemetry.DecisionsInstrumentName` | One per mediation a stage stopped; tags `litebus.message`, `litebus.stage`, `litebus.outcome`, `litebus.decided_by` |
 | `LiteBus.Inbox` | `litebus.inbox.queue.depth` | `LiteBusInboxTelemetry.QueueDepthInstrumentName` | Observable gauge; tag `litebus.inbox.status` |

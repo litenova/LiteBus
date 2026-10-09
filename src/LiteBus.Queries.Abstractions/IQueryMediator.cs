@@ -60,7 +60,10 @@ public interface IQueryMediator
     ///     is executed, including pre-handlers, the main handler, post-handlers, and error handlers if exceptions occur.
     ///     The sequence of results produced by the handler is returned to the caller as an <see cref="IAsyncEnumerable{T}" />,
     ///     allowing for asynchronous enumeration of the results. The returned stream owns one message dispatch scope and
-    ///     must be enumerated only once. Disposing its enumerator releases scoped handler dependencies.
+    ///     must be enumerated only once. Disposing its enumerator releases scoped handler dependencies. The stream holds
+    ///     its execution and dispatch scopes until it is enumerated to completion or disposed: a stream that is never
+    ///     enumerated, or is abandoned before the first move, keeps the ambient context and every scoped handler until
+    ///     collection.
     /// </remarks>
     IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query,
                                                              QueryMediationSettings? queryMediationSettings = null,

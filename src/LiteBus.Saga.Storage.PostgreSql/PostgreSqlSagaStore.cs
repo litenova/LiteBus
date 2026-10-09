@@ -88,10 +88,19 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         Guid? lastAppliedMessageId = reader.IsDBNull(3) ? null : reader.GetGuid(3);
         var state = await _serializer.DeserializeAsync(typeof(TState), stateJson, cancellationToken).ConfigureAwait(false);
 
+        if (state is not TState typedState)
+        {
+            throw new MessageSerializationException(
+                typeof(TState),
+                "deserialized",
+                new InvalidCastException(
+                    $"Saga state payload deserialized to '{state?.GetType().FullName ?? "null"}' but '{typeof(TState).FullName}' was requested."));
+        }
+
         return new SagaInstance<TState>
         {
             Correlation = correlation,
-            State = (TState) state,
+            State = typedState,
             Version = version,
             IsCompleted = isCompleted,
             LastAppliedMessageId = lastAppliedMessageId
@@ -156,7 +165,7 @@ public sealed class PostgreSqlSagaStore : ISagaStore
                          SET
                              state_json = @state_json,
                              optimistic_lock_version = optimistic_lock_version + 1,
-                             last_applied_message_id = @applied_message_id,
+                             last_applied_message_id = COALESCE(@applied_message_id, last_applied_message_id),
                              updated_at = @now
                          WHERE correlation_id = @correlation_id
                              AND saga_type = @saga_type
@@ -271,14 +280,49 @@ public sealed class PostgreSqlSagaStore : ISagaStore
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        var sql = $"""
-                   DELETE FROM {_tableName}
+        if (filter.Take is not null)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(filter.Take.Value, 0);
+        }
+
+        if (filter is
+            {
+                SagaDefinitionId: null,
+                CorrelationId: null,
+                TenantId: null,
+                IsCompleted: null,
+                CompletedBefore: null,
+                Take: null
+            })
+        {
+            throw new ArgumentException(
+                "Saga purge requires at least one predicate or a Take limit; refusing to delete every saga row.",
+                nameof(filter));
+        }
+
+        var sql = filter.Take is null
+            ? $"""
+               DELETE FROM {_tableName}
+               WHERE (@saga_type IS NULL OR saga_type = @saga_type)
+                   AND (@correlation_id IS NULL OR correlation_id = @correlation_id)
+                   AND (@tenant_id IS NULL OR tenant_id = @tenant_id)
+                   AND (@is_completed IS NULL OR is_completed = @is_completed)
+                   AND (@completed_before IS NULL OR (is_completed = true AND updated_at < @completed_before));
+               """
+            : $"""
+               DELETE FROM {_tableName}
+               WHERE ctid IN (
+                   SELECT ctid
+                   FROM {_tableName}
                    WHERE (@saga_type IS NULL OR saga_type = @saga_type)
                        AND (@correlation_id IS NULL OR correlation_id = @correlation_id)
                        AND (@tenant_id IS NULL OR tenant_id = @tenant_id)
                        AND (@is_completed IS NULL OR is_completed = @is_completed)
-                       AND (@completed_before IS NULL OR (is_completed = true AND updated_at < @completed_before));
-                   """;
+                       AND (@completed_before IS NULL OR (is_completed = true AND updated_at < @completed_before))
+                   ORDER BY updated_at ASC
+                   LIMIT @take
+               );
+               """;
 
         using var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         using var command = CreateCommand(connection, sql);
@@ -287,6 +331,11 @@ public sealed class PostgreSqlSagaStore : ISagaStore
         AddOptionalParameter(command, "tenant_id", NpgsqlDbType.Text, NormalizeTenantFilter(filter.TenantId));
         AddOptionalParameter(command, "is_completed", NpgsqlDbType.Boolean, filter.IsCompleted);
         AddOptionalParameter(command, "completed_before", NpgsqlDbType.TimestampTz, filter.CompletedBefore);
+
+        if (filter.Take is not null)
+        {
+            command.Parameters.AddWithValue("take", NpgsqlDbType.Integer, filter.Take.Value);
+        }
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }

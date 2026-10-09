@@ -5,7 +5,7 @@ using LiteBus.Runtime.Abstractions.Diagnostics;
 namespace LiteBus.Transport.Kafka;
 
 /// <summary>
-    ///     Verifies that the configured Kafka cluster returns its description within a bounded interval.
+///     Verifies that the configured Kafka cluster returns its description within a bounded interval.
 /// </summary>
 public sealed class KafkaConnectivityDiagnosticCheck : IDiagnosticCheck
 {

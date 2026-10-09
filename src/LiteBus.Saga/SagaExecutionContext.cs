@@ -29,9 +29,14 @@ public sealed class SagaExecutionContext : ISagaContext
     internal bool ShouldComplete => GetActiveScope()?.ShouldComplete ?? false;
 
     /// <summary>
-    ///     Gets a value indicating whether state changed during dispatch.
+    ///     Gets a value indicating whether <see cref="SetState" /> replaced state during dispatch.
     /// </summary>
     internal bool IsDirty => GetActiveScope()?.IsDirty ?? false;
+
+    /// <summary>
+    ///     Gets a value indicating whether state was observed during dispatch.
+    /// </summary>
+    internal bool StateObserved => GetActiveScope()?.StateObserved ?? false;
 
     /// <summary>
     ///     Gets the optimistic lock version observed when the saga was loaded.
@@ -55,7 +60,7 @@ public sealed class SagaExecutionContext : ISagaContext
     {
         var scope = GetRequiredActiveScope();
         EnsureStateType(scope, typeof(TState));
-        scope.IsDirty = true;
+        scope.StateObserved = true;
         return (TState)scope.State;
     }
 
@@ -84,7 +89,8 @@ public sealed class SagaExecutionContext : ISagaContext
     /// <param name="correlation">The saga correlation.</param>
     /// <param name="state">The current state object.</param>
     /// <param name="version">The optimistic lock version.</param>
-    internal void Begin(Guid dispatchId, SagaCorrelation correlation, object state, int version)
+    /// <param name="stateSnapshotJson">The state serialized when the scope was attached, used for change detection.</param>
+    internal void Begin(Guid dispatchId, SagaCorrelation correlation, object state, int version, string stateSnapshotJson)
     {
         if (dispatchId == Guid.Empty)
         {
@@ -93,9 +99,10 @@ public sealed class SagaExecutionContext : ISagaContext
 
         ArgumentNullException.ThrowIfNull(correlation);
         ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(stateSnapshotJson);
         ArgumentOutOfRangeException.ThrowIfNegative(version);
 
-        if (!_scopes.TryAdd(dispatchId, new Scope(correlation, state, state.GetType(), version)))
+        if (!_scopes.TryAdd(dispatchId, new Scope(correlation, state, state.GetType(), version, stateSnapshotJson)))
         {
             throw new InvalidOperationException($"A saga scope is already active for dispatch '{dispatchId}'.");
         }
@@ -109,12 +116,15 @@ public sealed class SagaExecutionContext : ISagaContext
     /// <param name="dispatchId">The unique durable message identifier for the dispatch.</param>
     /// <returns>
     ///     <see langword="true" /> when a scope exists for the message; otherwise, <see langword="false" />.
+    ///     An empty identifier has no scope and returns <see langword="false" /> without throwing, so abandon paths
+    ///     that cannot validate the envelope still release their other state.
     /// </returns>
     internal bool TryAttach(Guid dispatchId)
     {
         if (dispatchId == Guid.Empty)
         {
-            throw new ArgumentException("A saga dispatch identifier cannot be empty.", nameof(dispatchId));
+            _ambientDispatchId.Value = null;
+            return false;
         }
 
         if (!_scopes.TryGetValue(dispatchId, out _))
@@ -132,30 +142,53 @@ public sealed class SagaExecutionContext : ISagaContext
     /// </summary>
     /// <param name="state">The state object loaded from the store.</param>
     /// <param name="version">The optimistic lock version loaded from the store.</param>
-    internal void RefreshLoadedState(object state, int version)
+    /// <param name="stateSnapshotJson">The loaded state serialized for change detection.</param>
+    internal void RefreshLoadedState(object state, int version, string stateSnapshotJson)
     {
         ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(stateSnapshotJson);
         ArgumentOutOfRangeException.ThrowIfNegative(version);
 
         var scope = GetRequiredActiveScope();
         EnsureStateType(scope, state.GetType());
         scope.State = state;
         scope.Version = version;
+        scope.StateSnapshotJson = stateSnapshotJson;
     }
 
     /// <summary>
     ///     Clears the active saga scope for the current asynchronous execution flow.
     /// </summary>
+    /// <remarks>
+    ///     An empty ambient identifier clears the ambient value without touching the scope dictionary, because
+    ///     <see cref="Begin" /> never admits an empty identifier and no keyed scope can exist for one.
+    /// </remarks>
     internal void Reset()
     {
         var dispatchId = _ambientDispatchId.Value;
 
         _ambientDispatchId.Value = null;
 
-        if (dispatchId.HasValue)
+        if (dispatchId.HasValue && dispatchId.Value != Guid.Empty)
         {
             _scopes.TryRemove(dispatchId.Value, out _);
         }
+    }
+
+    /// <summary>
+    ///     Determines whether the active scope holds state changes relative to its load snapshot.
+    /// </summary>
+    /// <param name="currentStateJson">
+    ///     The current state serialized with the saga serializer, or <see langword="null" /> when state was never
+    ///     observed during dispatch.
+    /// </param>
+    /// <returns>
+    ///     <see langword="true" /> when <see cref="SetState" /> was called or the serialized state differs
+    ///     from the snapshot; otherwise, <see langword="false" />.
+    /// </returns>
+    internal bool HasChanges(string? currentStateJson)
+    {
+        return GetActiveScope()?.HasChanges(currentStateJson) ?? false;
     }
 
     /// <summary>
@@ -217,12 +250,14 @@ public sealed class SagaExecutionContext : ISagaContext
         /// <param name="state">The current state object.</param>
         /// <param name="stateType">The registered state type.</param>
         /// <param name="version">The optimistic lock version.</param>
-        internal Scope(SagaCorrelation correlation, object state, Type stateType, int version)
+        /// <param name="stateSnapshotJson">The state serialized when the scope was attached.</param>
+        internal Scope(SagaCorrelation correlation, object state, Type stateType, int version, string stateSnapshotJson)
         {
             Correlation = correlation;
             State = state;
             StateType = stateType;
             Version = version;
+            StateSnapshotJson = stateSnapshotJson;
         }
 
         /// <summary>
@@ -246,13 +281,42 @@ public sealed class SagaExecutionContext : ISagaContext
         internal int Version { get; set; }
 
         /// <summary>
+        ///     Gets or sets the state serialized when the scope was attached, used for change detection.
+        /// </summary>
+        internal string StateSnapshotJson { get; set; }
+
+        /// <summary>
         ///     Gets or sets a value indicating whether the saga should be marked completed after dispatch.
         /// </summary>
         internal bool ShouldComplete { get; set; }
 
         /// <summary>
-        ///     Gets or sets a value indicating whether state changed during dispatch.
+        ///     Gets or sets a value indicating whether <see cref="SagaExecutionContext.SetState" /> replaced
+        ///     state during dispatch.
         /// </summary>
         internal bool IsDirty { get; set; }
+
+        /// <summary>
+        ///     Gets or sets a value indicating whether state was observed during dispatch.
+        /// </summary>
+        internal bool StateObserved { get; set; }
+
+        /// <summary>
+        ///     Determines whether this scope holds state changes relative to its load snapshot.
+        /// </summary>
+        /// <param name="currentStateJson">
+        ///     The current state serialized with the saga serializer, or <see langword="null" /> when state was
+        ///     never observed during dispatch.
+        /// </param>
+        /// <returns>
+        ///     <see langword="true" /> when <see cref="SagaExecutionContext.SetState" /> was called or the
+        ///     serialized state differs from the snapshot; otherwise, <see langword="false" />.
+        /// </returns>
+        internal bool HasChanges(string? currentStateJson)
+        {
+            return IsDirty
+                || (currentStateJson is not null
+                    && !string.Equals(currentStateJson, StateSnapshotJson, StringComparison.Ordinal));
+        }
     }
 }
