@@ -6,6 +6,8 @@
     </Configurations>
     <Folder Name="/.github/scripts/">
         <File Path=".github/scripts/generate-release-notes.sh"/>
+        <File Path=".github/scripts/verify-no-fact-skips.sh"/>
+        <File Path=".github/scripts/verify-no-skipped-tests.sh"/>
     </Folder>
     <Folder Name="/.github/workflows/">
         <File Path=".github/workflows/build-and-test.yml"/>
@@ -15,7 +17,6 @@
     <Folder Name="/solution-items/">
         <File Path=".gitignore"/>
         <File Path="Changelog.md"/>
-        <File Path="GitVersion.yml"/>
         <File Path="global.json"/>
         <File Path="LICENSE"/>
         <File Path="README.md"/>

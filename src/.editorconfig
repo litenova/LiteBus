@@ -33,6 +33,7 @@ dotnet_diagnostic.SA1649.severity = warning
 [**/*\[*\]*.cs]
 dotnet_diagnostic.SA1649.severity = none
 
+[*.cs]
 dotnet_diagnostic.IDE0161.severity = error
 dotnet_diagnostic.IDE0300.severity = warning
 dotnet_diagnostic.IDE0290.severity = none

@@ -52,11 +52,12 @@ CHANGELOG_URL="https://github.com/${GITHUB_REPOSITORY:-litenova/LiteBus}/blob/${
 
     echo ">"
 
-    if [ -n "${PREVIOUS}" ]; then
-      echo "> The notes below cover what changed since \`${PREVIOUS}\`. For everything landing in"
-    else
-      echo "> The notes below cover what changed since the previous pre-release. For everything landing in"
+    if [ -z "${PREVIOUS}" ]; then
+      echo "::error::A delta scope needs a previous pre-release, but ${VERSION} is the first of its line." >&2
+      exit 1
     fi
+
+    echo "> The notes below cover what changed since \`${PREVIOUS}\`. For everything landing in"
 
     echo "> ${BASE_VERSION}, see the [${BASE_VERSION} changelog](${CHANGELOG_URL})."
   else

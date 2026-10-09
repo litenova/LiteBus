@@ -58,10 +58,11 @@ if ($SkipReport) {
 }
 
 $reportDir = Join-Path $ResultsDirectory "report"
-dotnet tool restore 2>$null
+# The report generator version comes from dotnet-tools.json only; a failed restore stops the script
+# rather than rewriting the tracked manifest.
+dotnet tool restore
 if ($LASTEXITCODE -ne 0) {
-    dotnet new tool-manifest --force | Out-Null
-    dotnet tool install dotnet-reportgenerator-globaltool --version 5.4.4
+    throw "dotnet tool restore failed with exit code $LASTEXITCODE. Fix the restore; dotnet-tools.json pins the report generator."
 }
 
 $reports = ($coberturaFiles | ForEach-Object { $_.FullName }) -join ";"

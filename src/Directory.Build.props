@@ -68,6 +68,40 @@
         <Description>Host-framework composition APIs for the $(MSBuildProjectName) package.</Description>
         <PackageTags>$(PackageTags);extensions;composition</PackageTags>
     </PropertyGroup>
+    <!-- Core packages match none of the suffix rules above, so each states its own description. -->
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus'">
+        <Description>Convenience package that references the LiteBus contract and core implementation packages for command, query, and event mediation.</Description>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Commands'">
+        <Description>Command mediator, command module builder, and handler pipeline for LiteBus command mediation.</Description>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Commands.Recurring'">
+        <Description>Recurring commands: a hosted loop that sends a configured command through the command mediator on a fixed interval.</Description>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Events'">
+        <Description>Event mediator with broadcast handler execution, handler filters, and the event module builder.</Description>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Queries'">
+        <Description>Query mediator, streaming queries, and the query module builder.</Description>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Messaging'">
+        <Description>Message registry, mediation pipeline, contract registry, and processor host shared by the LiteBus mediators and durable modules.</Description>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Inbox'">
+        <Description>Durable inbox: persisted command acceptance, lease-based processing with retries, cleanup, and management APIs.</Description>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Outbox'">
+        <Description>Transactional outbox: event enqueueing with domain state, lease-based publishing, cleanup, and management APIs.</Description>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Runtime'">
+        <Description>Module registry, module configuration, and dependency registration that compose LiteBus modules.</Description>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Saga'">
+        <Description>Saga state for inbox command dispatch: correlated state is loaded before and saved after each dispatched message.</Description>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Saga.InboxIntegration'">
+        <Description>Connects saga state to the inbox processor through a processor envelope hook.</Description>
+    </PropertyGroup>
     <ItemGroup>
         <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath=""/>
         <None Include="..\..\README.md" Pack="true" PackagePath=""/>

@@ -2,6 +2,7 @@
 
     <PropertyGroup>
         <TargetFramework>netstandard2.0</TargetFramework>
+        <!-- Clears the TargetFrameworks list src/Directory.Build.props sets, so this project builds netstandard2.0 only. -->
         <TargetFrameworks></TargetFrameworks>
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
@@ -16,6 +17,9 @@
         <PackageTags>litebus;analyzers;roslyn;mediator;cqrs</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <DevelopmentDependency>true</DevelopmentDependency>
+        <!-- Roslyn is pinned here, not centrally: an analyzer compiled against a compiler newer than the consumer's
+             SDK fails to load, so it targets the oldest compiler LiteBus supports (Microsoft.CodeAnalysis.CSharp 4.8.0).
+             tests/LiteBus.Analyzers.UnitTests compiles against the same version through tests/Directory.Packages.props. -->
         <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
         <NoWarn>$(NoWarn);RS2008</NoWarn>
         <SignAssembly>false</SignAssembly>

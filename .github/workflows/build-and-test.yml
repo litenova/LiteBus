@@ -31,6 +31,7 @@ on:
       - 'coverlet*.runsettings'
       - 'site/**'
       - 'global.json'
+      - 'dotnet-tools.json'
       - 'samples/**'
       - 'src/**'
       - 'tests/**'
@@ -50,6 +51,7 @@ on:
       - 'coverlet*.runsettings'
       - 'site/**'
       - 'global.json'
+      - 'dotnet-tools.json'
       - 'samples/**'
       - 'src/**'
       - 'tests/**'
@@ -63,17 +65,17 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -125,10 +127,17 @@ jobs:
       - name: Decode Strong Name Key
         env:
           STRONG_NAME_KEY: ${{ secrets.STRONG_NAME_KEY }}
+          IS_FORK_PULL_REQUEST: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork }}
         run: |
-          if [ -n "${STRONG_NAME_KEY}" ]; then
-            echo "${STRONG_NAME_KEY}" | base64 --decode > LiteBus.snk
+          if [ -z "${STRONG_NAME_KEY}" ]; then
+            if [ "${IS_FORK_PULL_REQUEST}" = "true" ]; then
+              echo "::warning::STRONG_NAME_KEY is not available to pull requests from forks; this build is unsigned."
+              exit 0
+            fi
+            echo "::error::STRONG_NAME_KEY is required. Only pull requests from forks may build unsigned."
+            exit 1
           fi
+          echo "${STRONG_NAME_KEY}" | base64 --decode > LiteBus.snk
 
       - name: Build
         run: dotnet build LiteBus.slnx --configuration Release --no-restore /p:Version=${{ env.CI_PACKAGE_VERSION }} /p:ContinuousIntegrationBuild=true
@@ -152,17 +161,22 @@ jobs:
           echo "Docker is available."
 
       - name: Unit Tests
-        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/unit --filter "FullyQualifiedName!~IntegrationTests"
+        run: |
+          mkdir -p artifacts/coverage && echo unit >> artifacts/coverage/expected.txt
+          dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/unit --filter "FullyQualifiedName!~IntegrationTests"
 
       - name: Transport Fast Integration Tests
-        run: dotnet test tests/LiteBus.Durable.IntegrationTests --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/transport-fast --filter "Category=TransportFast"
+        run: |
+          mkdir -p artifacts/coverage && echo transport-fast >> artifacts/coverage/expected.txt
+          dotnet test tests/LiteBus.Durable.IntegrationTests --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/transport-fast --filter "Category=TransportFast"
 
       - name: Transport Docker Integration Tests
         env:
           LITEBUS_CI_STRICT_TRANSPORT: 'true'
         run: |
           trx_dir="${RUNNER_TEMP}/transport-docker"
-          mkdir -p "${trx_dir}"
+          mkdir -p "${trx_dir}" artifacts/coverage
+          echo transport-docker-durable >> artifacts/coverage/expected.txt && echo transport-docker-wire >> artifacts/coverage/expected.txt
           dotnet test tests/LiteBus.Durable.IntegrationTests \
             --no-build --configuration Release --verbosity normal \
             --collect:"XPlat Code Coverage" \
@@ -185,7 +199,8 @@ jobs:
           LITEBUS_CI_STRICT_TRANSPORT: 'true'
         run: |
           trx_dir="${RUNNER_TEMP}/transport-azure"
-          mkdir -p "${trx_dir}"
+          mkdir -p "${trx_dir}" artifacts/coverage
+          echo transport-azure >> artifacts/coverage/expected.txt
           dotnet test tests/LiteBus.Durable.IntegrationTests \
             --no-build --configuration Release --verbosity normal \
             --collect:"XPlat Code Coverage" \
@@ -196,20 +211,35 @@ jobs:
           bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-azure.trx"
 
       - name: Integration Tests
-        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/integration --filter "FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure"
+        run: |
+          mkdir -p artifacts/coverage && echo integration >> artifacts/coverage/expected.txt
+          dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/integration --filter "FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure"
 
       - name: Check Coverage Reports
         id: coverage-reports
         if: always()
         run: |
+          # Each test step appends its results directory to expected.txt before it runs, so a step that
+          # never started is not expected and a step that ran without producing a report fails here.
           coverage_count="$(find artifacts/coverage -type f -name 'coverage.cobertura.xml' | wc -l)"
           echo "count=${coverage_count}" >> "$GITHUB_OUTPUT"
-          if [ "${coverage_count}" -gt 0 ]; then
-            echo "has_reports=true" >> "$GITHUB_OUTPUT"
-          else
+          if [ "${coverage_count}" -eq 0 ]; then
             echo "has_reports=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::No Cobertura coverage reports were found in artifacts/coverage. Upload steps will be skipped."
+            echo "::error::No Cobertura coverage reports were found in artifacts/coverage."
+            exit 1
           fi
+          echo "has_reports=true" >> "$GITHUB_OUTPUT"
+          missing=0
+          if [ -f artifacts/coverage/expected.txt ]; then
+            while read -r name; do
+              [ -z "${name}" ] && continue
+              if [ -z "$(find "artifacts/coverage/${name}" -type f -name 'coverage.cobertura.xml' 2>/dev/null | head -n 1)" ]; then
+                echo "::error::The ${name} test step produced no coverage.cobertura.xml in artifacts/coverage/${name}."
+                missing=1
+              fi
+            done < artifacts/coverage/expected.txt
+          fi
+          exit "${missing}"
 
       - name: Coverage Report Summary
         if: always()
@@ -227,7 +257,6 @@ jobs:
 
       - name: Enforce Merged Coverage Gate
         shell: pwsh
-        if: steps.coverage-reports.outputs.has_reports == 'true'
         run: ./scripts/Test-CoverageThreshold.ps1 -Root artifacts/coverage -LineThreshold 90
 
       - name: Pack Packages
@@ -239,7 +268,7 @@ jobs:
         run: ./scripts/Test-Packages.ps1 -PackageDirectory artifacts -ExpectedVersion ${{ env.CI_PACKAGE_VERSION }}
 
       - name: Upload Packages
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nuget-packages
           path: |
@@ -248,14 +277,14 @@ jobs:
 
       - name: Upload Coverage Reports
         if: steps.coverage-reports.outputs.has_reports == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-reports
           path: artifacts/coverage/**/coverage.*
 
       - name: Upload Coverage to Codecov
         if: steps.coverage-reports.outputs.has_reports == 'true'
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
         with:
           files: ./artifacts/coverage/**/coverage.cobertura.xml
           disable_search: true
