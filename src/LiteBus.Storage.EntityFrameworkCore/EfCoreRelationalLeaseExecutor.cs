@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data;
-using System.Data.Common;
 using LiteBus.Storage.EntityFrameworkCore.Leasing;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +10,11 @@ namespace LiteBus.Storage.EntityFrameworkCore;
 /// </summary>
 internal static class EfCoreRelationalLeaseExecutor
 {
+    /// <summary>
+    ///     The raw SQL parameter index of the first candidate identifier in the MySQL lease update.
+    /// </summary>
+    private const int UpdateInClauseStartIndex = 7;
+
     /// <summary>
     ///     Leases rows using PostgreSQL skip-locked semantics.
     /// </summary>
@@ -162,10 +166,9 @@ internal static class EfCoreRelationalLeaseExecutor
         where TRow : class
     {
         var qualifiedTableName = EfCoreRelationalTableQualifier.Qualify(provider, schemaName, tableName);
-        var selectSql = EfCoreMySqlLeaseSql.BuildSelectCandidates(component, qualifiedTableName);
+        var selectSql = EfCoreMySqlLeaseSql.BuildSelectCandidates(component, qualifiedTableName, tenantId is not null);
         var updateSqlTemplate = EfCoreMySqlLeaseSql.BuildUpdate(component, qualifiedTableName);
         var reloadSqlTemplate = EfCoreMySqlLeaseSql.BuildReload(component, qualifiedTableName);
-        var selectTenantParameter = CreateNullableStringParameter(dbContext, "p_tenant_select", tenantId);
 
         using var transaction = await dbContext.Database
             .BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
@@ -181,7 +184,8 @@ internal static class EfCoreRelationalLeaseExecutor
                     now,
                     processingStatus,
                     batchSize,
-                    selectTenantParameter,
+                    // Without a tenant the statement reads no parameter {5}; the placeholder keeps {6} in place.
+                    tenantId ?? string.Empty,
                     staleCutoff)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -193,7 +197,7 @@ internal static class EfCoreRelationalLeaseExecutor
             }
 
             var candidateIds = candidateRows.ConvertAll(row => row.Value);
-            var updateInClause = BuildInClause(candidateIds.Count, 9);
+            var updateInClause = BuildInClause(candidateIds.Count, UpdateInClauseStartIndex);
             var updateSql = updateSqlTemplate.Replace(EfCoreMySqlLeaseSql.InClauseToken, updateInClause, StringComparison.Ordinal);
 
             var updateParameters = BuildLeaseParameters(
@@ -204,8 +208,6 @@ internal static class EfCoreRelationalLeaseExecutor
                 batchSize,
                 leaseOwner,
                 leaseExpiresAt,
-                CreateNullableStringParameter(dbContext, "p_tenant_update", tenantId),
-                staleCutoff,
                 candidateIds);
 
             await dbContext.Database.ExecuteSqlRawAsync(updateSql, updateParameters, cancellationToken)
@@ -249,7 +251,8 @@ internal static class EfCoreRelationalLeaseExecutor
     }
 
     /// <summary>
-    ///     Builds the parameter array for a MySQL lease update statement.
+    ///     Builds the parameters of the MySQL lease update: the values its SQL reads at <c>{0}</c> through <c>{6}</c>,
+    ///     then the candidate identifiers from <see cref="UpdateInClauseStartIndex" />.
     /// </summary>
     /// <param name="pendingStatus">The pending status value.</param>
     /// <param name="failedStatus">The failed status value.</param>
@@ -258,8 +261,6 @@ internal static class EfCoreRelationalLeaseExecutor
     /// <param name="batchSize">The lease batch size.</param>
     /// <param name="leaseOwner">The lease owner.</param>
     /// <param name="leaseExpiresAt">The lease expiration timestamp.</param>
-    /// <param name="tenantParameter">The typed nullable tenant parameter.</param>
-    /// <param name="staleCutoff">The earliest created timestamp eligible for stale in-flight reclaim.</param>
     /// <param name="candidateIds">The candidate identifiers.</param>
     /// <returns>The parameter array.</returns>
     private static object[] BuildLeaseParameters(
@@ -270,11 +271,9 @@ internal static class EfCoreRelationalLeaseExecutor
         int batchSize,
         string leaseOwner,
         DateTimeOffset leaseExpiresAt,
-        DbParameter tenantParameter,
-        DateTimeOffset staleCutoff,
         List<Guid> candidateIds)
     {
-        var parameters = new object[9 + candidateIds.Count];
+        var parameters = new object[UpdateInClauseStartIndex + candidateIds.Count];
         parameters[0] = pendingStatus;
         parameters[1] = failedStatus;
         parameters[2] = now;
@@ -282,38 +281,13 @@ internal static class EfCoreRelationalLeaseExecutor
         parameters[4] = batchSize;
         parameters[5] = leaseOwner;
         parameters[6] = leaseExpiresAt;
-        parameters[7] = tenantParameter;
-        parameters[8] = staleCutoff;
 
         for (var index = 0; index < candidateIds.Count; index++)
         {
-            parameters[9 + index] = candidateIds[index];
+            parameters[UpdateInClauseStartIndex + index] = candidateIds[index];
         }
 
         return parameters;
-    }
-
-    /// <summary>
-    ///     Creates a provider-specific nullable string parameter for raw SQL commands.
-    /// </summary>
-    /// <param name="dbContext">The database context whose provider creates the parameter.</param>
-    /// <param name="name">The parameter name.</param>
-    /// <param name="value">The optional string value.</param>
-    /// <returns>A typed parameter whose value is SQL NULL when the string is absent.</returns>
-    /// <remarks>
-    ///     The parameter has to carry its own <see cref="DbType" />: passed as a plain <see cref="DBNull" /> value,
-    ///     Entity Framework Core has no store type mapping for it. Raw SQL execution offers no seam to create the
-    ///     parameter on the command that runs the statement, so it is created from a short-lived command; a
-    ///     <see cref="DbParameter" /> holds no reference to the command that created it.
-    /// </remarks>
-    private static DbParameter CreateNullableStringParameter(DbContext dbContext, string name, string? value)
-    {
-        using var command = dbContext.Database.GetDbConnection().CreateCommand();
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = name;
-        parameter.DbType = DbType.String;
-        parameter.Value = (object?) value ?? DBNull.Value;
-        return parameter;
     }
 
     /// <summary>

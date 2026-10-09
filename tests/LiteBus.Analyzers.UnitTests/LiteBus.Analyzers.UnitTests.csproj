@@ -27,8 +27,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\LiteBus.Analyzers\LiteBus.Analyzers.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Analyzers\LiteBus.Analyzers.csproj"
+                          SetTargetFramework="TargetFramework=netstandard2.0"/>
+        <ProjectReference Include="..\..\src\LiteBus.Analyzers\LiteBus.Analyzers.csproj"
+                          SetTargetFramework="TargetFramework=netstandard2.0"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>

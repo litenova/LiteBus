@@ -223,6 +223,35 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that a tenant-scoped lease request claims a message stored for that tenant.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task LeasePendingAsync_WhenTenantFilterMatchesStoredTenant_ShouldLeaseRow()
+    {
+        var store = CreateStore();
+        var messageId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now) with
+        {
+            TenantId = "tenant-a",
+            IdempotencyKey = "tenant-a-outbox"
+        }).ConfigureAwait(false);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 5,
+            LeaseOwner = "publisher-a",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1),
+            TenantId = "tenant-a"
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle().Which.Id.Should().Be(messageId);
+    }
+
+    /// <summary>
     ///     Verifies that a tenant-scoped message query excludes rows stored for another tenant.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>

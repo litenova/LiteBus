@@ -276,6 +276,35 @@ public abstract class InboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that a tenant-scoped lease request claims a row stored for that tenant.
+    /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
+    [Fact]
+    public async Task LeasePendingAsync_WhenTenantFilterMatchesStoredTenant_ShouldLeaseRow()
+    {
+        var roles = CreateStore();
+        var now = BaseTime;
+        var tenantACommandId = Guid.NewGuid();
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(tenantACommandId, now) with
+        {
+            TenantId = "tenant-a",
+            IdempotencyKey = "tenant-a-ship"
+        });
+
+        var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 5,
+            LeaseOwner = "worker-a",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1),
+            TenantId = "tenant-a"
+        });
+
+        leased.Should().ContainSingle().Which.Id.Should().Be(tenantACommandId);
+    }
+
+    /// <summary>
     ///     Verifies that a tenant-scoped message query excludes rows stored for another tenant.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>

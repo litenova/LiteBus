@@ -15,8 +15,16 @@ internal static class EfCoreMySqlLeaseSql
     /// </summary>
     /// <param name="component">The lease component.</param>
     /// <param name="qualifiedTableName">The backtick-quoted qualified table name.</param>
+    /// <param name="filterTenant">
+    ///     <see langword="true" /> to restrict candidates to the tenant passed as parameter <c>{5}</c>; otherwise the
+    ///     statement has no tenant predicate and reads no parameter <c>{5}</c>.
+    /// </param>
     /// <returns>The select SQL.</returns>
-    internal static string BuildSelectCandidates(EfCoreLeaseComponent component, string qualifiedTableName)
+    /// <remarks>
+    ///     The tenant predicate is emitted only when a tenant is set, so the statement never binds a SQL NULL: a plain
+    ///     <see langword="null" /> raw SQL argument has no store type mapping in Entity Framework Core.
+    /// </remarks>
+    internal static string BuildSelectCandidates(EfCoreLeaseComponent component, string qualifiedTableName, bool filterTenant)
     {
         var idColumn = EfCoreLeaseTableMetadata.GetIdColumn(component);
         var createdAtIndex = EfCoreLeaseTableMetadata.GetCreatedAtIndexName(component);
@@ -25,8 +33,7 @@ internal static class EfCoreMySqlLeaseSql
                SELECT `__ID_COLUMN__` AS `Value`
                FROM __TABLE__ FORCE INDEX (`__CREATED_AT_INDEX__`)
                WHERE
-                   ({5} IS NULL OR `tenant_id` = {5})
-                   AND ((`status` IN ({0}, {1}) AND (`visible_after` IS NULL OR `visible_after` <= {2}))
+                   __TENANT_PREDICATE__((`status` IN ({0}, {1}) AND (`visible_after` IS NULL OR `visible_after` <= {2}))
                     OR (`status` = {3} AND `lease_expires_at` IS NOT NULL AND `lease_expires_at` <= {2})
                     OR (`status` = {3} AND `lease_expires_at` IS NULL AND `created_at` < {6}))
                ORDER BY `created_at` ASC
@@ -35,6 +42,7 @@ internal static class EfCoreMySqlLeaseSql
                """
             .Replace("__TABLE__", qualifiedTableName, StringComparison.Ordinal)
             .Replace("__CREATED_AT_INDEX__", createdAtIndex, StringComparison.Ordinal)
+            .Replace("__TENANT_PREDICATE__", filterTenant ? "`tenant_id` = {5} AND " : string.Empty, StringComparison.Ordinal)
             .Replace("__ID_COLUMN__", idColumn, StringComparison.Ordinal);
     }
 

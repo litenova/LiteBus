@@ -1,11 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>netstandard2.0</TargetFramework>
-        <!-- Clears the TargetFrameworks list src/Directory.Build.props sets, so this project builds netstandard2.0 only.
-             Setting TargetFrameworks to netstandard2.0 instead makes this a cross-targeting project: the pack item for
-             the analyzer DLL then misses the output path and the analyzer test project's reference stops resolving. -->
-        <TargetFrameworks></TargetFrameworks>
+        <!-- Replaces the net10.0 list src/Directory.Build.props sets: an analyzer loads into the compiler, so it targets
+             netstandard2.0 only. -->
+        <TargetFrameworks>netstandard2.0</TargetFrameworks>
+        <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeAnalyzersInPackage</TargetsForTfmSpecificContentInPackage>
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
         <IncludeBuildOutput>false</IncludeBuildOutput>
@@ -53,9 +52,10 @@
         <InternalsVisibleTo Include="LiteBus.Analyzers.UnitTests"/>
     </ItemGroup>
 
-    <Target Name="IncludeAnalyzersInPackage" BeforeTargets="_GetPackageFiles">
+    <!-- Runs once per target framework during pack, where $(TargetPath) names the built analyzer DLL. -->
+    <Target Name="IncludeAnalyzersInPackage">
         <ItemGroup>
-            <None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"/>
+            <TfmSpecificPackageFile Include="$(TargetPath)" PackagePath="analyzers/dotnet/cs"/>
         </ItemGroup>
     </Target>
 
