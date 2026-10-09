@@ -18,6 +18,9 @@ The [Reliability Roadmap](reliability.md) tracks provider conformance, lease rec
 
 ## Dispatch and Ingress
 
+- Per-broker transport identity with keyed publishers, so one composition can host more than one transport module.
+- Concurrent delivery handlers for the AMQP, Kafka, SQS and in-memory consumers, so `MaxInFlightMessages` above 1 takes effect there as it does on Azure Service Bus.
+- An Autofac equivalent of `GetHostedServiceForBackgroundService<T>()` for manual host execution.
 - Event replay through an inbox dispatcher that targets `IEventMediator`.
 - Webhook and gRPC outbox dispatch adapters.
 - HTTP webhook ingress that validates and accepts payloads into the inbox.

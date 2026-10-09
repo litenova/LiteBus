@@ -108,7 +108,7 @@ The Direct project references and Direct package references columns repeat [Gene
 | `LiteBus.Outbox.Abstractions` | Durable contracts | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Outbox` | Core implementation | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
 | `LiteBus.Saga.Abstractions` | Durable contracts | `LiteBus.Commands.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
-| `LiteBus.Saga` | Core implementation | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Saga` | Core implementation | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga.Abstractions` | none |
 | `LiteBus.Saga.InboxIntegration` | Feature bridge | `LiteBus.Commands.Abstractions`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Saga` | none |
 | `LiteBus.Saga.Storage.PostgreSql` | Feature bridge | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga`, `LiteBus.Saga.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
 | `LiteBus.Outbox.Storage.PostgreSql` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |

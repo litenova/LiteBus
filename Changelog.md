@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## v7.0.0-preview.5
 
-What changed since `v7.0.0-preview.4`. Acts on a field report from a production .NET 10 application that ported off
+What changed since `v7.0.0-preview.4`; for everything landing in 7.0.0, see [v7.0.0](#v700). Acts on a field report from a production .NET 10 application that ported off
 its hand-written outbox and domain-event dispatcher onto LiteBus. The theme is honesty about durable messaging: a
 dispatch that reached nothing is no longer reported as a success, the operational columns the schema always created
 are now written and readable, and three places where the library made a decision the application should have made are
@@ -122,7 +122,7 @@ now composition-time choices.
 
 ## v7.0.0-preview.4
 
-What changed since `v7.0.0-preview.3`. Acts on the second round of feedback from the application migrating onto the v7
+What changed since `v7.0.0-preview.3`; for everything landing in 7.0.0, see [v7.0.0](#v700). Acts on the second round of feedback from the application migrating onto the v7
 previews. The theme is ownership: an application can now define its own audit record shape, and two checks that could
 not be satisfied as shipped no longer have to be turned off to get a build through.
 
@@ -189,7 +189,7 @@ not be satisfied as shipped no longer have to be turned off to get a build throu
 
 ## v7.0.0-preview.3
 
-What changed since `v7.0.0-preview.2`. This preview acts on the feedback from the first application to migrate onto
+What changed since `v7.0.0-preview.2`; for everything landing in 7.0.0, see [v7.0.0](#v700). This preview acts on the feedback from the first application to migrate onto
 the v7 previews. Most of it is about the distance between what the pipeline could already express and what an
 application still had to write by hand to use it: the audit trail knew what happened but not who did it, a refusal
 could only be caught rather than received, a declaration had to be repeated on every message it applied to, and
@@ -301,6 +301,26 @@ would be permitted without being performed. Persistence schemas and transport be
 
 ### Added
 
+- `TransportOutboxDispatcherOptions.TenantRoutingStrategy` and
+  `OutboxModuleBuilder.UseContractResolver(IMessageContractResolver)` make the dispatcher's tenant routing and the
+  envelope factory's contract resolver configurable. Both constructor parameters existed before, but no builder could
+  fill them.
+- `TransportPublishRequest.MessageGroupId` and `TransportPublishRequest.DeduplicationKey`. The transport outbox
+  dispatcher fills them from the envelope (the idempotency key, otherwise the message id; the tenant id, otherwise the
+  contract name), and the SQS adapter sets them on queues whose URL ends in `.fifo`, so outbox dispatch can publish to
+  SQS FIFO queues.
+- `KafkaTransportOptions.SocketTimeoutMs` and `KafkaTransportOptions.MessageSendMaxRetries`, each positive when set and
+  left at the librdkafka default otherwise.
+- `AmqpReceivedMessage.QueueName`, and `AmqpConsumerOptions.MaxInFlightMessages` so a typed `IAmqpConsumer` subscription
+  gets the same admission control as the generic consumer path.
+- `DiagnosticCheckRunOptions.RunTimeout`, an overall budget for one diagnostic run. Unset, it is the worst case of the
+  probe count packed into `MaxParallelism` lanes at `Timeout` each; probes still running when it expires are cancelled
+  and reported unhealthy.
+- `AmbiguousMessageResolveException.Candidates` names the registered types that tied, and
+  `IdempotencyConfigurationException` reports an idempotency declaration mistake.
+- `SagaPurgeFilter.Take` bounds a saga purge.
+- A [Limits and Opt-in Boundaries](site/content/docs/reference/limits.md) page, and a documentation home that states
+  what LiteBus costs and which page answers which question.
 - `ILeaseRenewable.ReleaseLeaseAsync(LeaseReleaseRequest, CancellationToken)` returns a leased message to the queue
   without charging the attempt its lease consumed. The pipelined processor calls it for every dispatch it cancelled
   during shutdown or a drain, so a host restart no longer moves `attempt_count`. Implemented by the in-memory,
@@ -629,6 +649,36 @@ would be permitted without being performed. Persistence schemas and transport be
 
 ### Changed
 
+- Transport publishers are singletons in all five adapters, so a dispatched envelope no longer opens and closes its own
+  AMQP channel, Azure Service Bus sender link or Kafka producer flush. Consumers are transient in all five, Azure
+  Service Bus included, because each instance holds one subscription. The Kafka producer is flushed once, when the
+  container is disposed.
+- Saga state is compared with the JSON snapshot taken when it was loaded. Reading state and then calling `Complete()`
+  now works, a dispatch that only reads state saves nothing, and a handler that changes state in place without
+  `SetState` is still persisted.
+- The `AfterDispatch` hook runs on the persist token on both the inbox and the outbox, so a shutdown during a saga save
+  no longer leaves an executed command or a published event to run again. With the default `HonorShutdownTokenOnPersist
+  = false`, a hook that never returns delays shutdown instead.
+- A failed persist for one lease-lost message is logged and counted as a persist failure instead of aborting the whole
+  inbox or outbox pass and discarding the other envelopes' results.
+- Every processor and cleanup loop delay goes through the injected `TimeProvider`, so tests can drive the startup delay,
+  heartbeat interval and cleanup backoff. The first cleanup retry after a transient failure waits 5 seconds instead of a
+  full `Interval`.
+- PostgreSQL `AddBatchAsync` inserts in chunks of 1,000 rows inside the caller's transaction, so a batch above the
+  65,535 parameter limit no longer fails. Inbox and outbox requeue clear `error_type`, `first_failed_at` and
+  `dead_lettered_at`, matching the EF Core and in-memory stores.
+- Event post-handlers and error handlers receive `null` as the message result instead of the task that tracked handler
+  completion.
+- Message resolution counts the interfaces of the registered type, so a message implementing several registered
+  interfaces can resolve to a different handler than before.
+- `TransportOutboxDispatcherOptions.ResolveRoute` wins over `OutboxEnvelope.Topic`, as its documentation says, and an
+  empty result fails the dispatch with `LiteBusDispatchException`.
+- A failing diagnostics store stops the queue-depth gauge from reporting until the next successful read, instead of
+  exporting the last good counts, and the outbox records `litebus.outbox.diagnostics.unavailable` when no store is
+  registered.
+- The LiteBus site follows the layout of the Fuse site: a centered landing page with code panes, a durable messaging
+  diagram, link cards and the opt-in boundary stated on the page, and documentation entry pages that open with a "This
+  page is for" box.
 - PostgreSQL modules register every store and the work signal through singleton factories that resolve a
   container-owned `PostgreSqlDataSourceOwner<TModule>`. A data source created by `UseConnectionString` is now disposed
   with the service provider under Microsoft dependency injection, which never disposed the prebuilt instance it was
@@ -740,6 +790,37 @@ would be permitted without being performed. Persistence schemas and transport be
 
 ### Fixed
 
+- `MessageRegistry.Handlers` returns a snapshot taken under the registry lock instead of a live view a concurrent
+  registration could tear.
+- Assembly scans skip types that fail to load instead of aborting the registration, in all six scans.
+- A second composition no longer inherits the first one's mediation telemetry options.
+- Streams honour the token passed to `WithCancellation` or `GetAsyncEnumerator`, not only the one passed to
+  `StreamAsync`.
+- `MessageMediator.Mediate` and the public pipeline extension methods throw `ArgumentNullException` naming the argument
+  instead of `NullReferenceException`.
+- `AddRecurring` registers the command it sends, so a composition that registers the command only through `AddRecurring`
+  no longer fails on every pass. A command implementing two result contracts fails at composition, and a missing command
+  mediator fails at startup.
+- One hook's `AbandonDispatchScope` failure no longer skips the other hooks or leaks the saga correlation gate, and an
+  empty message id no longer throws from the abandon path.
+- A saga save without an applied message id keeps the existing duplicate-dispatch marker instead of erasing it.
+- The PostgreSQL `LISTEN` channel name is quoted.
+- A diagnostic probe that observes its token is cancelled when the run budget expires, and a probe whose `Name` differs
+  from its registration reports the mismatch instead of a generic failure.
+- `GetHostedServiceForBackgroundService<T>()` works before the host has started.
+- `BackgroundServiceHostWrapper.StopAsync` completes when the loop ended through the cancellation it requested, instead
+  of reporting a failed stop, and `MicrosoftMessageDispatchScope.Dispose` no longer blocks on asynchronous disposal.
+- `LiteBusDependencyResolutionException` and `DiagnosticCheckNameMismatchException` throw `ArgumentNullException` for a
+  null argument instead of `NullReferenceException`.
+- A failed AMQP consumer start releases its channel and can be retried; previously the consumer stayed unusable and
+  `WaitUntilStoppedAsync` never completed.
+- The in-memory consumer's `StopAsync` and `WaitUntilStoppedAsync` complete after the destination channel is closed
+  instead of throwing `ChannelClosedException`, which ended the ingress loop.
+- A cancelled ingress acceptance is left unacknowledged for the broker to redeliver instead of being requeued with the
+  cancelled token.
+- The outbox and inbox retention purge routes report a missing retention policy through the management safety response
+  instead of an HTTP 500.
+- The site footer's Changelog link points at `Changelog.md`; it returned 404.
 - A dispatch cancelled by host shutdown, a drain or a lease loss was recorded as a failure: `EventOutboxDispatcher`
   wrapped the `OperationCanceledException` in `LiteBusDispatchException`, so the envelope handler charged it to the
   retry budget, logged it at Error, pushed the message's visibility out by the backoff, and eventually dead-lettered
@@ -772,6 +853,37 @@ would be permitted without being performed. Persistence schemas and transport be
 
 ### Breaking
 
+- A second `AddLiteBus` on one service collection or container builder throws `ModuleCompositionException`; each
+  container hosts one LiteBus composition.
+- A second transport module in one composition throws `ModuleCompositionException` naming both modules. Both modules
+  register the single `ITransportPublisher` binding, so two transports in one composition could not work before either.
+- Registering a service type both as a single binding and as collection items throws `ModuleCompositionException`; the
+  single-binding and collection views used to disagree silently.
+- `RegisterStartupTask` throws `ArgumentException` for a type that implements `IBackgroundService`, mirroring the
+  existing rejection in `RegisterBackgroundService`.
+- `ProcessorOptions.HookFailurePolicy` is `ProcessorHookFailurePolicy?`. `null`, the default, means the dispatcher's
+  recommendation, otherwise `DeadLetter`. A `UseProcessorOptions` call that sets only a batch size no longer replaces
+  the transport dispatchers' `CompleteDespiteHookFailure` with `DeadLetter`; set the policy explicitly to keep that.
+- `IProcessorEnvelope`, `IProcessorEnvelopeHook` and `ProcessorHookRunner` moved from
+  `LiteBus.DurableMessaging.Abstractions.Processing` to `LiteBus.Messaging.Abstractions.Processing`.
+- Idempotency misconfiguration (a blank projected key, a missing context-supplied key) throws
+  `IdempotencyConfigurationException` and propagates out of `SendAsync` instead of reaching registered error handlers as
+  `AuditConfigurationException`.
+- `IOutboxManager.RunRetentionPurgeAsync` throws `OutboxManagementException` when `OutboxCleanupHostOptions.Retention`
+  is not a positive period, instead of returning 0.
+- A saga purge with no predicate and no `Take` throws `ArgumentException`.
+- The AMQP ingress broker-scoped idempotency key is scoped to the queue (`ingress:{queue}:{id}`) instead of the
+  exchange, so two queues bound to one exchange no longer share a key. Ingress reads identity and idempotency from the
+  `litebus-message-id` header only when `TrustApplicationHeaders` is set. A redelivery that arrives while an AMQP
+  ingress host is being redeployed can be accepted twice.
+- Kafka and SQS route and content-type metadata use the shared names `litebus-route` and `content-type` instead of
+  `Route` and `ContentType`. A consumer reading the old names has to read both during a rollout.
+- `TransportPublishRequest.Mandatory` defaults to `true`, matching `AmqpPublishRequest` and the outbox dispatcher; a
+  direct `ITransportPublisher` caller relying on `false` has to set it.
+- The Kafka transport no longer registers the bare `IProducer<string, byte[]>`; resolve `ITransportPublisher`.
+  `MessageTimeoutMs` no longer also sets the socket timeout and disables send retries.
+- `LiteBus.Messaging.Extensions.ServiceProviderExtensions.GetRequiredService` is obsolete; use the one in
+  `LiteBus.Runtime.Abstractions.Extensions`.
 - `IProcessorWorkSignal` now extends `IAsyncDisposable`. A custom work signal must implement `DisposeAsync`, and
   should also implement `IDisposable` when the container may be disposed synchronously.
 
@@ -838,6 +950,19 @@ would be permitted without being performed. Persistence schemas and transport be
 
 ### Documentation
 
+- The metric catalog lists every public instrument, the package table follows the generated inventory and includes the
+  four broker adapters that were missing, and `Test-DocumentationSemantics.ps1` checks the catalog, the package table
+  and both axes' management routes against the source.
+- `MaxInFlightMessages` is documented with the bound each adapter enforces: 1 for AMQP, Kafka, SQS and in-memory, the
+  configured value for Azure Service Bus.
+- `ProcessorOptions.LeaseOwner` is documented as a prefix; the processor appends a session suffix that fences instances
+  sharing a configured owner. The inbox lease requests document that stores with a database clock use it and treat `Now`
+  as the fallback.
+- The saga pages state that duplicate-dispatch suppression covers the most recently applied message, describe the
+  redelivery case it does not cover, and fix an example that called `SetState` and `Complete()` in one dispatch.
+- Corrected namespace attributions for `ILiteBusBuilder` and the processor hook contract, a diagnostic probe sample that
+  threw at runtime, shipped idempotency listed as roadmap work, absolute links that sent pre-release readers to v6, and
+  the analyzer range, now LB1001-LB1022 with LB1002 and LB1006 reserved and never shipped.
 - [Mediation Layer Design Rules](site/content/docs/architecture/mediation-design.md) states the twenty rules the
   mediation layer follows: the stage model and the capability rule, contract and arity shapes, the vocabulary grid,
   what a decision type may express, where each class of configuration error is rejected, and checklists for adding a

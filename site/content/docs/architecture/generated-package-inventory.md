@@ -67,7 +67,7 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Runtime.Extensions.Hosting` | `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Hosting.Abstractions` |
 | `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | `LiteBus.Runtime`, `LiteBus.Runtime.Extensions.Microsoft.Hosting` | `Microsoft.Extensions.DependencyInjection.Abstractions` |
 | `LiteBus.Runtime.Extensions.Microsoft.Hosting` | `LiteBus.Runtime.Extensions.Hosting` | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Hosting.Abstractions` |
-| `LiteBus.Saga` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Saga` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga.Abstractions` | none |
 | `LiteBus.Saga.Abstractions` | `LiteBus.Commands.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Saga.InboxIntegration` | `LiteBus.Commands.Abstractions`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Saga` | none |
 | `LiteBus.Saga.Storage.PostgreSql` | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga`, `LiteBus.Saga.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |

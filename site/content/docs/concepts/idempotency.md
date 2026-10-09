@@ -65,7 +65,7 @@ public sealed class VerifyProcessorWebhookGuard : ICommandGuard<ProcessorWebhook
 
 The key is read once and reused by both the shortcut that claims it and the completion handler that settles it, so the expensive verification happens once per mediation rather than once per stage. This is why the key is supplied rather than resolved through a container-registered provider: a provider would be invoked by each stage independently, paying the cost twice and, if it were not perfectly deterministic, writing a different key at each stage.
 
-A message declared this way that reaches the shortcut with no key in context raises `AuditConfigurationException` naming the message type. It is reported rather than defaulted: a generated fallback would make every delivery of the same intent look distinct, so the store would accept them all and the declaration would appear to work while doing nothing.
+A message declared this way that reaches the shortcut with no key in context raises `IdempotencyConfigurationException` naming the message type. It is reported rather than defaulted: a generated fallback would make every delivery of the same intent look distinct, so the store would accept them all and the declaration would appear to work while doing nothing.
 
 | Member | Meaning |
 | --- | --- |
