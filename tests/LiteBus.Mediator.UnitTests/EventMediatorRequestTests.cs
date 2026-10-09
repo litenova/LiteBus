@@ -71,7 +71,7 @@ public sealed class EventMediatorRequestTests
     {
         var mediator = new EventMediator(new RecordingMessageMediator());
 
-        var interfaceAct = () => mediator.PublishAsync((IEvent)null!);
+        var interfaceAct = () => mediator.PublishAsync((IEvent) null!);
         var genericAct = () => mediator.PublishAsync<PlainEvent>(null!);
 
         await interfaceAct.Should().ThrowAsync<ArgumentNullException>().ConfigureAwait(false);
@@ -95,7 +95,7 @@ public sealed class EventMediatorRequestTests
             Message = message;
             Request = request;
             CancellationToken = cancellationToken;
-            return (TMessageResult)(object)Task.CompletedTask;
+            return (TMessageResult) (object) Task.CompletedTask;
         }
 
     }

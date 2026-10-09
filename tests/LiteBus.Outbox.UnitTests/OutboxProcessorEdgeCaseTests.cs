@@ -109,57 +109,57 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_ShouldProcessMultipleMessagesInSinglePass()
     {
-         var provider = BuildProcessorProvider(10);
-         await using (provider.ConfigureAwait(true))
-         {
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
-
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
-
-        for (var i = 0; i < 3; i++)
+        var provider = BuildProcessorProvider(10);
+        await using (provider.ConfigureAwait(true))
         {
-            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
-                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-                Guid.NewGuid())).ConfigureAwait(true);
+            var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        }
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
 
-        var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
-        pass.LeasedCount.Should().Be(3);
-        dispatcher.DispatchedMessages.Should().HaveCount(3);
-        store.GetAll().Should().OnlyContain(envelope => envelope.Status == OutboxStatus.Published);
+            for (var i = 0; i < 3; i++)
+            {
+                await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                    new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                    Guid.NewGuid())).ConfigureAwait(true);
+
+            }
+
+            var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
+            pass.LeasedCount.Should().Be(3);
+            dispatcher.DispatchedMessages.Should().HaveCount(3);
+            store.GetAll().Should().OnlyContain(envelope => envelope.Status == OutboxStatus.Published);
         }
     }
 
     [Fact]
     public async Task ProcessPendingAsync_ShouldRespectBatchSize()
     {
-         var provider = BuildProcessorProvider(2);
-         await using (provider.ConfigureAwait(true))
-         {
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
-
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
-
-        for (var i = 0; i < 5; i++)
+        var provider = BuildProcessorProvider(2);
+        await using (provider.ConfigureAwait(true))
         {
-            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
-                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-                Guid.NewGuid())).ConfigureAwait(true);
+            var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        }
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
 
-        var firstPass = await processor.ProcessPendingAsync().ConfigureAwait(true);
-        firstPass.LeasedCount.Should().Be(2);
-        dispatcher.DispatchedMessages.Should().HaveCount(2);
+            for (var i = 0; i < 5; i++)
+            {
+                await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                    new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                    Guid.NewGuid())).ConfigureAwait(true);
 
-        var secondPass = await processor.ProcessPendingAsync().ConfigureAwait(true);
-        secondPass.LeasedCount.Should().Be(2);
-        dispatcher.DispatchedMessages.Should().HaveCount(4);
+            }
+
+            var firstPass = await processor.ProcessPendingAsync().ConfigureAwait(true);
+            firstPass.LeasedCount.Should().Be(2);
+            dispatcher.DispatchedMessages.Should().HaveCount(2);
+
+            var secondPass = await processor.ProcessPendingAsync().ConfigureAwait(true);
+            secondPass.LeasedCount.Should().Be(2);
+            dispatcher.DispatchedMessages.Should().HaveCount(4);
         }
     }
 
@@ -167,29 +167,29 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenVisibleAfterInFuture_ShouldNotLeaseMessage()
     {
         var clock = new ManualTimeProvider(BaseTime);
-         var provider = BuildProcessorProvider(10, clock);
-         await using (provider.ConfigureAwait(true))
-         {
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
+        var provider = BuildProcessorProvider(10, clock);
+        await using (provider.ConfigureAwait(true))
+        {
+            var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
-        var messageId = Guid.NewGuid();
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
+            var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithMetadata(
-            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            OutboxEnqueueMetadata.Immediate with
-            {
-                Identity = new MessageIdentity.Supplied(messageId),
-                Visibility = new MessageVisibility.At(BaseTime.AddHours(1))
-            })).ConfigureAwait(true);
+            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithMetadata(
+                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                OutboxEnqueueMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId),
+                    Visibility = new MessageVisibility.At(BaseTime.AddHours(1))
+                })).ConfigureAwait(true);
 
 
-        var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
-        pass.LeasedCount.Should().Be(0);
-        dispatcher.DispatchedMessages.Should().BeEmpty();
-        store.Get(messageId).Status.Should().Be(OutboxStatus.Pending);
+            var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
+            pass.LeasedCount.Should().Be(0);
+            dispatcher.DispatchedMessages.Should().BeEmpty();
+            store.Get(messageId).Status.Should().Be(OutboxStatus.Pending);
         }
     }
 
@@ -197,30 +197,30 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenVisibleAfterReached_ShouldPublishMessage()
     {
         var clock = new ManualTimeProvider(BaseTime);
-         var provider = BuildProcessorProvider(10, clock);
-         await using (provider.ConfigureAwait(true))
-         {
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
+        var provider = BuildProcessorProvider(10, clock);
+        await using (provider.ConfigureAwait(true))
+        {
+            var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
-        var messageId = Guid.NewGuid();
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
+            var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithMetadata(
-            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            OutboxEnqueueMetadata.Immediate with
-            {
-                Identity = new MessageIdentity.Supplied(messageId),
-                Visibility = new MessageVisibility.At(BaseTime.AddMinutes(10))
-            })).ConfigureAwait(true);
+            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithMetadata(
+                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                OutboxEnqueueMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId),
+                    Visibility = new MessageVisibility.At(BaseTime.AddMinutes(10))
+                })).ConfigureAwait(true);
 
 
-        clock.Advance(TimeSpan.FromMinutes(10));
+            clock.Advance(TimeSpan.FromMinutes(10));
 
-        var pass = await processor.ProcessPendingAsync().ConfigureAwait(false);
-        pass.LeasedCount.Should().Be(1);
-        dispatcher.DispatchedMessages.Should().ContainSingle();
+            var pass = await processor.ProcessPendingAsync().ConfigureAwait(false);
+            pass.LeasedCount.Should().Be(1);
+            dispatcher.DispatchedMessages.Should().ContainSingle();
         }
     }
 
@@ -252,20 +252,20 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
             });
         await using (provider.ConfigureAwait(true))
         {
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
+            var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var messageId = Guid.NewGuid();
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
-            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            messageId)).ConfigureAwait(true);
+            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                messageId)).ConfigureAwait(true);
 
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        store.Get(messageId).VisibleAfter.Should().Be(BaseTime.AddMinutes(2));
+            store.Get(messageId).VisibleAfter.Should().Be(BaseTime.AddMinutes(2));
         }
     }
 
@@ -273,39 +273,39 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimStuckMessage()
     {
         var clock = new ManualTimeProvider(BaseTime);
-         var provider = BuildProcessorProvider(10, clock);
-         await using (provider.ConfigureAwait(true))
-         {
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
-
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
-        var messageId = Guid.NewGuid();
-
-        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
-            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            messageId)).ConfigureAwait(true);
-
-
-        await store.LeasePendingAsync(new OutboxLeaseRequest
+        var provider = BuildProcessorProvider(10, clock);
+        await using (provider.ConfigureAwait(true))
         {
-            BatchSize = 1,
-            LeaseOwner = "stale-publisher",
-            Now = BaseTime,
-            LeaseDuration = TimeSpan.FromSeconds(30)
-        }).ConfigureAwait(true);
+            var store = provider.GetRequiredService<InMemoryOutboxStore>();
+
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var dispatcher = provider.GetRequiredService<OutboxTestInfrastructure.RecordingOutboxDispatcherHolder>().Instance!;
+            var messageId = Guid.NewGuid();
+
+            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                messageId)).ConfigureAwait(true);
 
 
-        store.Get(messageId).Status.Should().Be(OutboxStatus.Publishing);
+            await store.LeasePendingAsync(new OutboxLeaseRequest
+            {
+                BatchSize = 1,
+                LeaseOwner = "stale-publisher",
+                Now = BaseTime,
+                LeaseDuration = TimeSpan.FromSeconds(30)
+            }).ConfigureAwait(true);
 
-        clock.Advance(TimeSpan.FromMinutes(1));
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            store.Get(messageId).Status.Should().Be(OutboxStatus.Publishing);
 
-        dispatcher.DispatchedMessages.Should().ContainSingle();
-        store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
-        store.Get(messageId).AttemptCount.Should().Be(2);
+            clock.Advance(TimeSpan.FromMinutes(1));
+
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+            dispatcher.DispatchedMessages.Should().ContainSingle();
+            store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
+            store.Get(messageId).AttemptCount.Should().Be(2);
         }
     }
 
@@ -317,46 +317,46 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
             useFailingDispatcher: true);
         await using (provider.ConfigureAwait(true))
         {
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
+            var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var messageId = Guid.NewGuid();
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
-            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            messageId)).ConfigureAwait(true);
+            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                messageId)).ConfigureAwait(true);
 
 
-        await processor.ProcessPendingAsync().ConfigureAwait(true);
+            await processor.ProcessPendingAsync().ConfigureAwait(true);
 
-        var lastError = store.Get(messageId).LastError;
-        lastError.Should().Be($"{typeof(InvalidOperationException).FullName}: Simulated dispatcher failure.");
-        lastError.Should().NotContain(" at ");
+            var lastError = store.Get(messageId).LastError;
+            lastError.Should().Be($"{typeof(InvalidOperationException).FullName}: Simulated dispatcher failure.");
+            lastError.Should().NotContain(" at ");
         }
     }
 
     [Fact]
     public async Task ProcessPendingAsync_ShouldReturnLeasedCount()
     {
-         var provider = BuildProcessorProvider(10);
-         await using (provider.ConfigureAwait(true))
-         {
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
+        var provider = BuildProcessorProvider(10);
+        await using (provider.ConfigureAwait(true))
+        {
+            var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        var emptyPass = await processor.ProcessPendingAsync().ConfigureAwait(true);
-        emptyPass.LeasedCount.Should().Be(0);
+            var emptyPass = await processor.ProcessPendingAsync().ConfigureAwait(true);
+            emptyPass.LeasedCount.Should().Be(0);
 
-        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
-            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            Guid.NewGuid())).ConfigureAwait(false);
+            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Guid.NewGuid())).ConfigureAwait(false);
 
 
-        var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
-        pass.LeasedCount.Should().Be(1);
+            var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
+            pass.LeasedCount.Should().Be(1);
         }
     }
 
@@ -459,28 +459,28 @@ public sealed class OutboxProcessorEdgeCaseTests : LiteBusTestBase
     [Fact]
     public async Task ProcessPendingAsync_WhenCancellationRequested_ShouldPropagateOperationCanceledException()
     {
-         var provider = BuildProcessorProvider(10);
-         await using (provider.ConfigureAwait(true))
-         {
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
-
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-
-        for (var i = 0; i < 3; i++)
+        var provider = BuildProcessorProvider(10);
+        await using (provider.ConfigureAwait(true))
         {
-            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
-                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-                Guid.NewGuid())).ConfigureAwait(true);
+            var store = provider.GetRequiredService<InMemoryOutboxStore>();
 
-        }
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        using var cts = new CancellationTokenSource();
-        cts.Cancel();
+            for (var i = 0; i < 3; i++)
+            {
+                await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                    new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                    Guid.NewGuid())).ConfigureAwait(true);
 
-        var act = async () => await processor.ProcessPendingAsync(cts.Token).ConfigureAwait(false);
+            }
 
-        await act.Should().ThrowAsync<OperationCanceledException>();
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            var act = async () => await processor.ProcessPendingAsync(cts.Token).ConfigureAwait(false);
+
+            await act.Should().ThrowAsync<OperationCanceledException>();
         }
     }
 

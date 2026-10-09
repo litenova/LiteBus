@@ -1,4 +1,4 @@
-﻿using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries;

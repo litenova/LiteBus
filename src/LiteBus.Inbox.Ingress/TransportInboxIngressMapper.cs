@@ -299,8 +299,8 @@ internal static class TransportInboxIngressMapper
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));
         Span<byte> guidBytes = stackalloc byte[16];
         hash.AsSpan(0, 16).CopyTo(guidBytes);
-        guidBytes[6] = (byte)((guidBytes[6] & 0x0F) | 0x50);
-        guidBytes[8] = (byte)((guidBytes[8] & 0x3F) | 0x80);
+        guidBytes[6] = (byte) ((guidBytes[6] & 0x0F) | 0x50);
+        guidBytes[8] = (byte) ((guidBytes[8] & 0x3F) | 0x80);
         return new Guid(guidBytes);
     }
 

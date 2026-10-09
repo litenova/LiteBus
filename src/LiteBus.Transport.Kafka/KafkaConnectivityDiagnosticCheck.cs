@@ -50,9 +50,9 @@ public sealed class KafkaConnectivityDiagnosticCheck : IDiagnosticCheck
         {
             cancellationToken.ThrowIfCancellationRequested();
             var result = await _adminClient.DescribeClusterAsync(new DescribeClusterOptions
-                {
-                    RequestTimeout = _options.ConnectivityCheckTimeout
-                })
+            {
+                RequestTimeout = _options.ConnectivityCheckTimeout
+            })
                 .WaitAsync(cancellationToken)
                 .ConfigureAwait(false);
 

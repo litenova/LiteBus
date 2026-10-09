@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;

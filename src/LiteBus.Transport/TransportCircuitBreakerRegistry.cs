@@ -42,7 +42,7 @@ public sealed class TransportCircuitBreakerRegistry : ITransportCircuitBreakerRe
     public bool IsAnyOpen => _publisherCircuits.Values.Any(circuitBreaker => circuitBreaker.IsOpen);
 
     /// <inheritdoc />
-    public long FailureCount => _publisherCircuits.Values.Sum(circuitBreaker => (long)circuitBreaker.FailureCount);
+    public long FailureCount => _publisherCircuits.Values.Sum(circuitBreaker => (long) circuitBreaker.FailureCount);
 
     /// <inheritdoc />
     public ITransportCircuitBreaker GetPublisherCircuit(string destination)

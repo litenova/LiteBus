@@ -395,7 +395,7 @@ public sealed class PayloadEncryptionTests
         {
             throw new NotSupportedException();
         }
-    
+
         /// <inheritdoc />
         public Task<MediationResult> TrySendAsync(
             ICommand command,

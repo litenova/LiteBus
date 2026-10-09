@@ -18,8 +18,8 @@ namespace LiteBus.Mediator.UnitTests;
 ///     After merging command, event, and query tests into one assembly, full-assembly scans register
 ///     duplicate global handlers from other axes (for example
 ///     <c>GlobalEventPreHandler</c> and <c>FakeGlobalEventPreHandler</c>).
-    ///     Use these helpers to register only types under each axis test namespace prefix. Each module builder validates
-    ///     the matching message and handler contracts.
+///     Use these helpers to register only types under each axis test namespace prefix. Each module builder validates
+///     the matching message and handler contracts.
 ///     See also inline types in messaging open-generic tests that avoid cross-axis contamination.
 /// </remarks>
 internal static class MediatorTestRegistrationExtensions

@@ -358,7 +358,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
             .MakeGenericMethod(stateType);
 
         return (serializer, state, cancellationToken) =>
-            (Task<string>)method.Invoke(serializer, [state, cancellationToken])!;
+            (Task<string>) method.Invoke(serializer, [state, cancellationToken])!;
     }
 
     /// <summary>

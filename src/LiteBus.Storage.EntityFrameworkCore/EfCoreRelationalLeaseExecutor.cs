@@ -61,7 +61,7 @@ internal static class EfCoreRelationalLeaseExecutor
                 batchSize,
                 leaseOwner,
                 leaseExpiresAt,
-                (object?)tenantId ?? DBNull.Value,
+                (object?) tenantId ?? DBNull.Value,
                 staleCutoff)
             .ToListAsync(cancellationToken);
     }
@@ -117,7 +117,7 @@ internal static class EfCoreRelationalLeaseExecutor
                 batchSize,
                 leaseOwner,
                 leaseExpiresAt,
-                (object?)tenantId ?? DBNull.Value,
+                (object?) tenantId ?? DBNull.Value,
                 staleCutoff)
             .ToListAsync(cancellationToken);
     }
@@ -164,7 +164,7 @@ internal static class EfCoreRelationalLeaseExecutor
         var selectSql = EfCoreMySqlLeaseSql.BuildSelectCandidates(component, qualifiedTableName);
         var updateSqlTemplate = EfCoreMySqlLeaseSql.BuildUpdate(component, qualifiedTableName);
         var reloadSqlTemplate = EfCoreMySqlLeaseSql.BuildReload(component, qualifiedTableName);
-        var selectTenantParameter = (object?)tenantId ?? DBNull.Value;
+        var selectTenantParameter = (object?) tenantId ?? DBNull.Value;
 
         using var transaction = await dbContext.Database
             .BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
@@ -203,7 +203,7 @@ internal static class EfCoreRelationalLeaseExecutor
                 batchSize,
                 leaseOwner,
                 leaseExpiresAt,
-                (object?)tenantId ?? DBNull.Value,
+                (object?) tenantId ?? DBNull.Value,
                 staleCutoff,
                 candidateIds);
 

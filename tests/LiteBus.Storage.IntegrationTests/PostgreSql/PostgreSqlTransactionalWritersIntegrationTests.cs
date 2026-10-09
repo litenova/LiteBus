@@ -41,27 +41,27 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
         var orderId = Guid.NewGuid();
         var factory = CreateOutboxEnvelopeFactory();
 
-         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(true);
-         await using (connection.ConfigureAwait(true))
-         {
-         var transaction = await connection.BeginTransactionAsync().ConfigureAwait(true);
-         await using (transaction.ConfigureAwait(false))
-         {
-        var store = registration.CreateTransactionalStore(connection, transaction);
-        var writer = new StoreBoundTransactionalOutbox(store, factory);
+        var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(true);
+        await using (connection.ConfigureAwait(true))
+        {
+            var transaction = await connection.BeginTransactionAsync().ConfigureAwait(true);
+            await using (transaction.ConfigureAwait(false))
+            {
+                var store = registration.CreateTransactionalStore(connection, transaction);
+                var writer = new StoreBoundTransactionalOutbox(store, factory);
 
-        await InsertOrderAsync(connection, transaction, outboxOptions.SchemaName, ordersTableName, orderId, 15m).ConfigureAwait(true);
+                await InsertOrderAsync(connection, transaction, outboxOptions.SchemaName, ordersTableName, orderId, 15m).ConfigureAwait(true);
 
 
-        var receipt = await writer.EnqueueAsync(OutboxEnqueueItem<TestIntegrationEvent>.From(new TestIntegrationEvent { OrderId = orderId })).ConfigureAwait(true);
-        await transaction.CommitAsync().ConfigureAwait(true);
+                var receipt = await writer.EnqueueAsync(OutboxEnqueueItem<TestIntegrationEvent>.From(new TestIntegrationEvent { OrderId = orderId })).ConfigureAwait(true);
+                await transaction.CommitAsync().ConfigureAwait(true);
 
-        (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId))
-            .Should().Be(1);
+                (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId))
+                    .Should().Be(1);
 
-        (await CountOutboxMessagesAsync(outboxOptions, receipt.Id))
-            .Should().Be(1);
-        }
+                (await CountOutboxMessagesAsync(outboxOptions, receipt.Id))
+                    .Should().Be(1);
+            }
         }
     }
 
@@ -76,39 +76,39 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
         var inboxFactory = CreateInboxEnvelopeFactory();
         var outboxFactory = CreateOutboxEnvelopeFactory();
 
-         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(true);
-         await using (connection.ConfigureAwait(true))
-         {
-         var transaction = await connection.BeginTransactionAsync().ConfigureAwait(true);
-         await using (transaction.ConfigureAwait(false))
-         {
-        var inboxStore = tables.InboxRegistration.CreateTransactionalStore(connection, transaction);
-        var outboxStore = tables.OutboxRegistration.CreateTransactionalStore(connection, transaction);
-        var inbox = new StoreBoundTransactionalInbox(inboxStore, inboxFactory);
-        var outbox = new StoreBoundTransactionalOutbox(outboxStore, outboxFactory);
+        var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(true);
+        await using (connection.ConfigureAwait(true))
+        {
+            var transaction = await connection.BeginTransactionAsync().ConfigureAwait(true);
+            await using (transaction.ConfigureAwait(false))
+            {
+                var inboxStore = tables.InboxRegistration.CreateTransactionalStore(connection, transaction);
+                var outboxStore = tables.OutboxRegistration.CreateTransactionalStore(connection, transaction);
+                var inbox = new StoreBoundTransactionalInbox(inboxStore, inboxFactory);
+                var outbox = new StoreBoundTransactionalOutbox(outboxStore, outboxFactory);
 
-        await InsertOrderAsync(
-                connection,
-                transaction,
-                tables.InboxStoreOptions.SchemaName,
-                tables.OrdersTableName,
-                orderId,
-                5m).ConfigureAwait(true);
+                await InsertOrderAsync(
+                        connection,
+                        transaction,
+                        tables.InboxStoreOptions.SchemaName,
+                        tables.OrdersTableName,
+                        orderId,
+                        5m).ConfigureAwait(true);
 
 
-        var inboxReceipt = await inbox.AcceptAsync(InboxAcceptItem<TestCommand>.From(new TestCommand { OrderId = orderId })).ConfigureAwait(true);
-        var outboxReceipt = await outbox.EnqueueAsync(OutboxEnqueueItem<TestIntegrationEvent>.From(new TestIntegrationEvent { OrderId = orderId })).ConfigureAwait(true);
-        await transaction.RollbackAsync().ConfigureAwait(true);
+                var inboxReceipt = await inbox.AcceptAsync(InboxAcceptItem<TestCommand>.From(new TestCommand { OrderId = orderId })).ConfigureAwait(true);
+                var outboxReceipt = await outbox.EnqueueAsync(OutboxEnqueueItem<TestIntegrationEvent>.From(new TestIntegrationEvent { OrderId = orderId })).ConfigureAwait(true);
+                await transaction.RollbackAsync().ConfigureAwait(true);
 
-        (await CountOrdersAsync(tables.InboxStoreOptions.SchemaName, tables.OrdersTableName, orderId))
-            .Should().Be(0);
+                (await CountOrdersAsync(tables.InboxStoreOptions.SchemaName, tables.OrdersTableName, orderId))
+                    .Should().Be(0);
 
-        (await CountInboxMessagesAsync(tables.InboxStoreOptions, inboxReceipt.Id))
-            .Should().Be(0);
+                (await CountInboxMessagesAsync(tables.InboxStoreOptions, inboxReceipt.Id))
+                    .Should().Be(0);
 
-        (await CountOutboxMessagesAsync(tables.OutboxStoreOptions, outboxReceipt.Id))
-            .Should().Be(0);
-        }
+                (await CountOutboxMessagesAsync(tables.OutboxStoreOptions, outboxReceipt.Id))
+                    .Should().Be(0);
+            }
         }
     }
 
@@ -145,34 +145,34 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
             });
         });
 
-         var provider = services.BuildServiceProvider();
-         await using (provider.ConfigureAwait(true))
-         {
-         var scope = provider.CreateAsyncScope();
-         await using (scope.ConfigureAwait(false))
-         {
-        var ambient = scope.ServiceProvider.GetRequiredService<IPostgreSqlTransactionProvider>() as ScopedTransactionProvider;
-        ambient!.Activate(await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(true));
+        var provider = services.BuildServiceProvider();
+        await using (provider.ConfigureAwait(true))
+        {
+            var scope = provider.CreateAsyncScope();
+            await using (scope.ConfigureAwait(false))
+            {
+                var ambient = scope.ServiceProvider.GetRequiredService<IPostgreSqlTransactionProvider>() as ScopedTransactionProvider;
+                ambient!.Activate(await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(true));
 
-        await InsertOrderAsync(
-                ambient.Connection!,
-                ambient.Transaction!,
-                outboxOptions.SchemaName,
-                ordersTableName,
-                orderId,
-                99m).ConfigureAwait(true);
+                await InsertOrderAsync(
+                        ambient.Connection!,
+                        ambient.Transaction!,
+                        outboxOptions.SchemaName,
+                        ordersTableName,
+                        orderId,
+                        99m).ConfigureAwait(true);
 
 
-        var writer = scope.ServiceProvider.GetRequiredService<ITransactionalOutbox>();
-        var receipt = await writer.EnqueueAsync(OutboxEnqueueItem<TestIntegrationEvent>.From(new TestIntegrationEvent { OrderId = orderId })).ConfigureAwait(true);
-        await ambient.Transaction!.CommitAsync().ConfigureAwait(true);
+                var writer = scope.ServiceProvider.GetRequiredService<ITransactionalOutbox>();
+                var receipt = await writer.EnqueueAsync(OutboxEnqueueItem<TestIntegrationEvent>.From(new TestIntegrationEvent { OrderId = orderId })).ConfigureAwait(true);
+                await ambient.Transaction!.CommitAsync().ConfigureAwait(true);
 
-        (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId))
-            .Should().Be(1);
+                (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId))
+                    .Should().Be(1);
 
-        (await CountOutboxMessagesAsync(outboxOptions, receipt.Id))
-            .Should().Be(1);
-        }
+                (await CountOutboxMessagesAsync(outboxOptions, receipt.Id))
+                    .Should().Be(1);
+            }
         }
     }
 
@@ -188,25 +188,25 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions).ConfigureAwait(false);
 
 
-         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
+        var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var command = connection.CreateCommand();
+            await using (command.ConfigureAwait(false))
+            {
 
-        command.CommandText =
-            $"""
+                command.CommandText =
+                    $"""
              CREATE TABLE IF NOT EXISTS "{outboxOptions.SchemaName}"."{ordersTableName}" (
                  order_id uuid NOT NULL PRIMARY KEY,
                  amount numeric NOT NULL);
              """;
 
-        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+                await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 
-        var registration = new PostgreSqlOutboxStoreRegistration(_fixture.DataSource, outboxOptions);
-        return (outboxOptions, ordersTableName, registration);
-        }
+                var registration = new PostgreSqlOutboxStoreRegistration(_fixture.DataSource, outboxOptions);
+                return (outboxOptions, ordersTableName, registration);
+            }
         }
     }
 
@@ -226,29 +226,29 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions).ConfigureAwait(false);
 
 
-         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
+        var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var command = connection.CreateCommand();
+            await using (command.ConfigureAwait(false))
+            {
 
-        command.CommandText =
-            $"""
+                command.CommandText =
+                    $"""
              CREATE TABLE IF NOT EXISTS "{inboxOptions.SchemaName}"."{ordersTableName}" (
                  order_id uuid NOT NULL PRIMARY KEY,
                  amount numeric NOT NULL);
              """;
 
-        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+                await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 
-        return new CombinedTables(
-            inboxOptions,
-            outboxOptions,
-            ordersTableName,
-            new PostgreSqlInboxStoreRegistration(_fixture.DataSource, inboxOptions),
-            new PostgreSqlOutboxStoreRegistration(_fixture.DataSource, outboxOptions));
-        }
+                return new CombinedTables(
+                    inboxOptions,
+                    outboxOptions,
+                    ordersTableName,
+                    new PostgreSqlInboxStoreRegistration(_fixture.DataSource, inboxOptions),
+                    new PostgreSqlOutboxStoreRegistration(_fixture.DataSource, outboxOptions));
+            }
         }
     }
 
@@ -283,20 +283,20 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
         Guid orderId,
         decimal amount)
     {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
-        command.Transaction = transaction;
+        var command = connection.CreateCommand();
+        await using (command.ConfigureAwait(false))
+        {
+            command.Transaction = transaction;
 
-        command.CommandText =
-            $"""
+            command.CommandText =
+                $"""
              INSERT INTO "{schemaName}"."{ordersTableName}" (order_id, amount)
              VALUES (@order_id, @amount);
              """;
 
-        command.Parameters.AddWithValue("order_id", orderId);
-        command.Parameters.AddWithValue("amount", amount);
-        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+            command.Parameters.AddWithValue("order_id", orderId);
+            command.Parameters.AddWithValue("amount", amount);
+            await command.ExecuteNonQueryAsync().ConfigureAwait(false);
         }
     }
 
@@ -305,22 +305,22 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     /// </summary>
     private async Task<int> CountOrdersAsync(string schemaName, string ordersTableName, Guid orderId)
     {
-         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
+        var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var command = connection.CreateCommand();
+            await using (command.ConfigureAwait(false))
+            {
 
-        command.CommandText =
-            $"""
+                command.CommandText =
+                    $"""
              SELECT COUNT(*) FROM "{schemaName}"."{ordersTableName}"
              WHERE order_id = @order_id;
              """;
 
-        command.Parameters.AddWithValue("order_id", orderId);
-        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
-        }
+                command.Parameters.AddWithValue("order_id", orderId);
+                return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
+            }
         }
     }
 
@@ -329,22 +329,22 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     /// </summary>
     private async Task<int> CountInboxMessagesAsync(PostgreSqlInboxStoreOptions options, Guid messageId)
     {
-         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
+        var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var command = connection.CreateCommand();
+            await using (command.ConfigureAwait(false))
+            {
 
-        command.CommandText =
-            $"""
+                command.CommandText =
+                    $"""
              SELECT COUNT(*) FROM "{options.SchemaName}"."{options.TableName}"
              WHERE message_id = @message_id;
              """;
 
-        command.Parameters.AddWithValue("message_id", messageId);
-        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
-        }
+                command.Parameters.AddWithValue("message_id", messageId);
+                return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
+            }
         }
     }
 
@@ -353,22 +353,22 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     /// </summary>
     private async Task<int> CountOutboxMessagesAsync(PostgreSqlOutboxStoreOptions options, Guid messageId)
     {
-         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
+        var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var command = connection.CreateCommand();
+            await using (command.ConfigureAwait(false))
+            {
 
-        command.CommandText =
-            $"""
+                command.CommandText =
+                    $"""
              SELECT COUNT(*) FROM "{options.SchemaName}"."{options.TableName}"
              WHERE message_id = @message_id;
              """;
 
-        command.Parameters.AddWithValue("message_id", messageId);
-        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
-        }
+                command.Parameters.AddWithValue("message_id", messageId);
+                return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
+            }
         }
     }
 

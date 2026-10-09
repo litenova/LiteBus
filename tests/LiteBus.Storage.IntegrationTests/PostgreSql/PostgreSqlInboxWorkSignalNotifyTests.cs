@@ -29,29 +29,29 @@ public sealed class PostgreSqlInboxWorkSignalNotifyTests : IClassFixture<Postgre
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
         var store = new PostgreSqlInboxStore(_fixture.DataSource, options);
 
-         var signal = new PostgreSqlInboxWorkSignal(_fixture.DataSource);
-         await using (signal.ConfigureAwait(false))
-         {
-
-        var waitTask = signal.WaitForWorkOrDelayAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
-
-        await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
-
-        await store.AddAsync(new InboxEnvelope
+        var signal = new PostgreSqlInboxWorkSignal(_fixture.DataSource);
+        await using (signal.ConfigureAwait(false))
         {
-            Id = Guid.NewGuid(),
-            ContractName = "tests.commands.notify",
-            ContractVersion = 1,
-            Payload = "{}",
-            CreatedAt = DateTimeOffset.UtcNow,
-            AttemptCount = 0,
-            Status = InboxStatus.Pending
-        }).ConfigureAwait(false);
 
-        var completed = await Task.WhenAny(waitTask, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(true) == waitTask;
-        completed.Should().BeTrue("the insert notify trigger should wake the listener before the poll timeout");
+            var waitTask = signal.WaitForWorkOrDelayAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
 
-        await waitTask.ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+
+            await store.AddAsync(new InboxEnvelope
+            {
+                Id = Guid.NewGuid(),
+                ContractName = "tests.commands.notify",
+                ContractVersion = 1,
+                Payload = "{}",
+                CreatedAt = DateTimeOffset.UtcNow,
+                AttemptCount = 0,
+                Status = InboxStatus.Pending
+            }).ConfigureAwait(false);
+
+            var completed = await Task.WhenAny(waitTask, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(true) == waitTask;
+            completed.Should().BeTrue("the insert notify trigger should wake the listener before the poll timeout");
+
+            await waitTask.ConfigureAwait(false);
         }
     }
 }

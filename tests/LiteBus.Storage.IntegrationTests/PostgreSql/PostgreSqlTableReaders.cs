@@ -22,14 +22,14 @@ internal static class PostgreSqlTableReaders
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-         var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
+        var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var command = connection.CreateCommand();
+            await using (command.ConfigureAwait(false))
+            {
 
-        command.CommandText = $"""
+                command.CommandText = $"""
                                SELECT
                                    message_id,
                                    contract_name,
@@ -52,40 +52,40 @@ internal static class PostgreSqlTableReaders
                                WHERE message_id = @message_id;
                                """;
 
-        command.Parameters.AddWithValue("message_id", messageId);
+                command.Parameters.AddWithValue("message_id", messageId);
 
-         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-         await using (reader.ConfigureAwait(false))
-         {
+                var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                await using (reader.ConfigureAwait(false))
+                {
 
-        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            return null;
+                    if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                    {
+                        return null;
 
-        }
+                    }
 
-        return new InboxEnvelope
-        {
-            Id = reader.GetGuid(0),
-            ContractName = reader.GetString(1),
-            ContractVersion = reader.GetInt32(2),
-            Payload = reader.GetString(3),
-            CreatedAt = reader.GetFieldValue<DateTimeOffset>(4),
-            VisibleAfter = ReadNullableDateTimeOffset(reader, 5),
-            AttemptCount = reader.GetInt32(6),
-            Status = (InboxStatus) reader.GetInt32(7),
-            IdempotencyKey = ReadNullableString(reader, 8),
-            LeaseOwner = ReadNullableString(reader, 9),
-            LeaseExpiresAt = ReadNullableDateTimeOffset(reader, 10),
-            LastError = ReadNullableString(reader, 11),
-            CorrelationId = ReadNullableString(reader, 12),
-            CausationId = ReadNullableString(reader, 13),
-            TenantId = ReadNullableString(reader, 14),
-            TraceContext = ReadNullableString(reader, 15),
-            CompletedAt = ReadNullableDateTimeOffset(reader, 16)
-        };
-        }
-        }
+                    return new InboxEnvelope
+                    {
+                        Id = reader.GetGuid(0),
+                        ContractName = reader.GetString(1),
+                        ContractVersion = reader.GetInt32(2),
+                        Payload = reader.GetString(3),
+                        CreatedAt = reader.GetFieldValue<DateTimeOffset>(4),
+                        VisibleAfter = ReadNullableDateTimeOffset(reader, 5),
+                        AttemptCount = reader.GetInt32(6),
+                        Status = (InboxStatus) reader.GetInt32(7),
+                        IdempotencyKey = ReadNullableString(reader, 8),
+                        LeaseOwner = ReadNullableString(reader, 9),
+                        LeaseExpiresAt = ReadNullableDateTimeOffset(reader, 10),
+                        LastError = ReadNullableString(reader, 11),
+                        CorrelationId = ReadNullableString(reader, 12),
+                        CausationId = ReadNullableString(reader, 13),
+                        TenantId = ReadNullableString(reader, 14),
+                        TraceContext = ReadNullableString(reader, 15),
+                        CompletedAt = ReadNullableDateTimeOffset(reader, 16)
+                    };
+                }
+            }
         }
     }
 
@@ -97,14 +97,14 @@ internal static class PostgreSqlTableReaders
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-         var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
+        var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var command = connection.CreateCommand();
+            await using (command.ConfigureAwait(false))
+            {
 
-        command.CommandText = $"""
+                command.CommandText = $"""
                                SELECT
                                    message_id,
                                    contract_name,
@@ -125,38 +125,38 @@ internal static class PostgreSqlTableReaders
                                WHERE message_id = @message_id;
                                """;
 
-        command.Parameters.AddWithValue("message_id", messageId);
+                command.Parameters.AddWithValue("message_id", messageId);
 
-         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-         await using (reader.ConfigureAwait(false))
-         {
+                var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                await using (reader.ConfigureAwait(false))
+                {
 
-        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            return null;
+                    if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                    {
+                        return null;
 
-        }
+                    }
 
-        return new OutboxEnvelope
-        {
-            Id = reader.GetGuid(0),
-            ContractName = reader.GetString(1),
-            ContractVersion = reader.GetInt32(2),
-            Payload = reader.GetString(3),
-            Topic = ReadNullableString(reader, 4),
-            CreatedAt = reader.GetFieldValue<DateTimeOffset>(5),
-            VisibleAfter = ReadNullableDateTimeOffset(reader, 6),
-            Status = (OutboxStatus) reader.GetInt32(7),
-            AttemptCount = reader.GetInt32(8),
-            LeaseOwner = ReadNullableString(reader, 9),
-            LeaseExpiresAt = ReadNullableDateTimeOffset(reader, 10),
-            LastError = ReadNullableString(reader, 11),
-            CorrelationId = ReadNullableString(reader, 12),
-            CausationId = ReadNullableString(reader, 13),
-            TenantId = ReadNullableString(reader, 14)
-        };
-        }
-        }
+                    return new OutboxEnvelope
+                    {
+                        Id = reader.GetGuid(0),
+                        ContractName = reader.GetString(1),
+                        ContractVersion = reader.GetInt32(2),
+                        Payload = reader.GetString(3),
+                        Topic = ReadNullableString(reader, 4),
+                        CreatedAt = reader.GetFieldValue<DateTimeOffset>(5),
+                        VisibleAfter = ReadNullableDateTimeOffset(reader, 6),
+                        Status = (OutboxStatus) reader.GetInt32(7),
+                        AttemptCount = reader.GetInt32(8),
+                        LeaseOwner = ReadNullableString(reader, 9),
+                        LeaseExpiresAt = ReadNullableDateTimeOffset(reader, 10),
+                        LastError = ReadNullableString(reader, 11),
+                        CorrelationId = ReadNullableString(reader, 12),
+                        CausationId = ReadNullableString(reader, 13),
+                        TenantId = ReadNullableString(reader, 14)
+                    };
+                }
+            }
         }
     }
 
@@ -167,15 +167,15 @@ internal static class PostgreSqlTableReaders
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-         var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
-        command.CommandText = $"SELECT COUNT(*) FROM {tableName};";
-        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
-        }
+        var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var command = connection.CreateCommand();
+            await using (command.ConfigureAwait(false))
+            {
+                command.CommandText = $"SELECT COUNT(*) FROM {tableName};";
+                return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
+            }
         }
     }
 
@@ -188,14 +188,14 @@ internal static class PostgreSqlTableReaders
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-         var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
+        var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var command = connection.CreateCommand();
+            await using (command.ConfigureAwait(false))
+            {
 
-        command.CommandText = $"""
+                command.CommandText = $"""
                                SELECT
                                    correlation_id,
                                    saga_type,
@@ -207,29 +207,29 @@ internal static class PostgreSqlTableReaders
                                    AND saga_type = @saga_type;
                                """;
 
-        command.Parameters.AddWithValue("correlation_id", correlationId);
-        command.Parameters.AddWithValue("saga_type", sagaType);
+                command.Parameters.AddWithValue("correlation_id", correlationId);
+                command.Parameters.AddWithValue("saga_type", sagaType);
 
-         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-         await using (reader.ConfigureAwait(false))
-         {
+                var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                await using (reader.ConfigureAwait(false))
+                {
 
-        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            return null;
+                    if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                    {
+                        return null;
 
-        }
+                    }
 
-        return new SagaTableRow
-        {
-            CorrelationId = reader.GetString(0),
-            SagaType = reader.GetString(1),
-            StateJson = reader.GetString(2),
-            OptimisticLockVersion = reader.GetInt32(3),
-            IsCompleted = reader.GetBoolean(4)
-        };
-        }
-        }
+                    return new SagaTableRow
+                    {
+                        CorrelationId = reader.GetString(0),
+                        SagaType = reader.GetString(1),
+                        StateJson = reader.GetString(2),
+                        OptimisticLockVersion = reader.GetInt32(3),
+                        IsCompleted = reader.GetBoolean(4)
+                    };
+                }
+            }
         }
     }
 
@@ -240,15 +240,15 @@ internal static class PostgreSqlTableReaders
     {
         var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-         var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
-        command.CommandText = $"SELECT COUNT(*) FROM {tableName};";
-        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
-        }
+        var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var command = connection.CreateCommand();
+            await using (command.ConfigureAwait(false))
+            {
+                command.CommandText = $"SELECT COUNT(*) FROM {tableName};";
+                return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
+            }
         }
     }
 

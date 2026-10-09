@@ -104,72 +104,72 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions).ConfigureAwait(false);
         await PostgreSqlSagaSchema.EnsureAsync(_fixture.DataSource, sagaOptions).ConfigureAwait(false);
 
-         var provider = BuildSagaProvider(_fixture, inboxOptions, sagaOptions);
-         await using (provider.ConfigureAwait(false))
-         {
-        var inbox = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-        var sagaStore = provider.GetRequiredService<ISagaStore>();
-        var failureGate = provider.GetRequiredService<SagaStepFailureGate>();
+        var provider = BuildSagaProvider(_fixture, inboxOptions, sagaOptions);
+        await using (provider.ConfigureAwait(false))
+        {
+            var inbox = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
+            var sagaStore = provider.GetRequiredService<ISagaStore>();
+            var failureGate = provider.GetRequiredService<SagaStepFailureGate>();
 
-        var reserveReceipt = await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
-            new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.ReserveInventory },
-            InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated(correlationId) })).ConfigureAwait(false);
+            var reserveReceipt = await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
+                new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.ReserveInventory },
+                InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated(correlationId) })).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        failureGate.FailOn(OrderWorkflowStep.CapturePayment);
+            failureGate.FailOn(OrderWorkflowStep.CapturePayment);
 
-        var captureReceipt = await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
-            new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.CapturePayment },
-            InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated(correlationId) })).ConfigureAwait(false);
+            var captureReceipt = await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
+                new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.CapturePayment },
+                InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated(correlationId) })).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        var correlation = CreateCorrelation(correlationId);
-        var afterFailure = await sagaStore.LoadAsync<OrderWorkflowSagaState>(correlation).ConfigureAwait(false);
+            var correlation = CreateCorrelation(correlationId);
+            var afterFailure = await sagaStore.LoadAsync<OrderWorkflowSagaState>(correlation).ConfigureAwait(false);
 
-        afterFailure.Should().NotBeNull();
-        afterFailure!.State.Step.Should().Be(1);
-        afterFailure.State.InventoryReserved.Should().BeTrue();
-        afterFailure.State.PaymentCaptured.Should().BeFalse();
-        afterFailure.State.Compensated.Should().BeFalse();
-        afterFailure.IsCompleted.Should().BeFalse();
-        afterFailure.Version.Should().Be(1);
+            afterFailure.Should().NotBeNull();
+            afterFailure!.State.Step.Should().Be(1);
+            afterFailure.State.InventoryReserved.Should().BeTrue();
+            afterFailure.State.PaymentCaptured.Should().BeFalse();
+            afterFailure.State.Compensated.Should().BeFalse();
+            afterFailure.IsCompleted.Should().BeFalse();
+            afterFailure.Version.Should().Be(1);
 
-        var captureRow = await PostgreSqlTableReaders.ReadInboxAsync(
-            _fixture.DataSource,
-            inboxOptions,
-            captureReceipt.Id).ConfigureAwait(false);
+            var captureRow = await PostgreSqlTableReaders.ReadInboxAsync(
+                _fixture.DataSource,
+                inboxOptions,
+                captureReceipt.Id).ConfigureAwait(false);
 
-        captureRow.Should().NotBeNull();
-        captureRow!.Status.Should().Be(InboxStatus.Failed);
-        captureRow.LastError.Should().Contain("Simulated failure");
+            captureRow.Should().NotBeNull();
+            captureRow!.Status.Should().Be(InboxStatus.Failed);
+            captureRow.LastError.Should().Contain("Simulated failure");
 
-        failureGate.Clear();
+            failureGate.Clear();
 
-        await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
-            new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.Compensate },
-            InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated(correlationId) })).ConfigureAwait(false);
+            await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
+                new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.Compensate },
+                InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated(correlationId) })).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        var afterCompensation = await sagaStore.LoadAsync<OrderWorkflowSagaState>(correlation).ConfigureAwait(false);
+            var afterCompensation = await sagaStore.LoadAsync<OrderWorkflowSagaState>(correlation).ConfigureAwait(false);
 
-        afterCompensation.Should().NotBeNull();
-        afterCompensation!.State.Step.Should().Be(1);
-        afterCompensation.State.InventoryReserved.Should().BeFalse();
-        afterCompensation.State.PaymentCaptured.Should().BeFalse();
-        afterCompensation.State.Compensated.Should().BeTrue();
-        afterCompensation.Version.Should().Be(2);
+            afterCompensation.Should().NotBeNull();
+            afterCompensation!.State.Step.Should().Be(1);
+            afterCompensation.State.InventoryReserved.Should().BeFalse();
+            afterCompensation.State.PaymentCaptured.Should().BeFalse();
+            afterCompensation.State.Compensated.Should().BeTrue();
+            afterCompensation.Version.Should().Be(2);
 
-        var reserveRow = await PostgreSqlTableReaders.ReadInboxAsync(
-            _fixture.DataSource,
-            inboxOptions,
-            reserveReceipt.Id).ConfigureAwait(false);
+            var reserveRow = await PostgreSqlTableReaders.ReadInboxAsync(
+                _fixture.DataSource,
+                inboxOptions,
+                reserveReceipt.Id).ConfigureAwait(false);
 
-        reserveRow.Should().NotBeNull();
-        reserveRow!.Status.Should().Be(InboxStatus.Completed);
+            reserveRow.Should().NotBeNull();
+            reserveRow!.Status.Should().Be(InboxStatus.Completed);
         }
     }
 
@@ -186,99 +186,99 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, inboxOptions).ConfigureAwait(false);
         await PostgreSqlSagaSchema.EnsureAsync(_fixture.DataSource, sagaOptions).ConfigureAwait(false);
 
-         var provider = BuildSagaProvider(             _fixture,             inboxOptions,             sagaOptions,             processor => processor with             {                 BatchSize = 8,                 LeaseDuration = TimeSpan.FromMilliseconds(200),                 DispatcherConcurrency = 2,                 LeaseHeartbeatInterval = TimeSpan.FromMilliseconds(50)             });
-         await using (provider.ConfigureAwait(true))
-         {
+        var provider = BuildSagaProvider(_fixture, inboxOptions, sagaOptions, processor => processor with { BatchSize = 8, LeaseDuration = TimeSpan.FromMilliseconds(200), DispatcherConcurrency = 2, LeaseHeartbeatInterval = TimeSpan.FromMilliseconds(50) });
+        await using (provider.ConfigureAwait(true))
+        {
 
-        var inbox = provider.GetRequiredService<IInbox>();
-        var processingStore = provider.GetRequiredService<IInboxProcessingStore>();
-        var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
-        var processorOptions = provider.GetRequiredService<InboxProcessorOptions>();
-        var clock = provider.GetRequiredService<TimeProvider>();
-        var hooks = provider.GetServices<IProcessorEnvelopeHook>().ToArray();
-        var sagaStore = provider.GetRequiredService<ISagaStore>();
-        var delayGate = provider.GetRequiredService<SagaConcurrencyDelayGate>();
-        delayGate.IncrementDelay = TimeSpan.FromMilliseconds(150);
+            var inbox = provider.GetRequiredService<IInbox>();
+            var processingStore = provider.GetRequiredService<IInboxProcessingStore>();
+            var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
+            var processorOptions = provider.GetRequiredService<InboxProcessorOptions>();
+            var clock = provider.GetRequiredService<TimeProvider>();
+            var hooks = provider.GetServices<IProcessorEnvelopeHook>().ToArray();
+            var sagaStore = provider.GetRequiredService<ISagaStore>();
+            var delayGate = provider.GetRequiredService<SagaConcurrencyDelayGate>();
+            delayGate.IncrementDelay = TimeSpan.FromMilliseconds(150);
 
-        var firstMessageId = Guid.NewGuid();
-        var secondMessageId = Guid.NewGuid();
+            var firstMessageId = Guid.NewGuid();
+            var secondMessageId = Guid.NewGuid();
 
-        await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
-            new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.Increment },
-            InboxAcceptMetadata.Immediate with
-            {
-                Identity = new MessageIdentity.Supplied(firstMessageId),
-                Trace = new MessageTrace.Correlated(correlationId)
-            })).ConfigureAwait(false);
-
-        await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
-            new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.Increment },
-            InboxAcceptMetadata.Immediate with
-            {
-                Identity = new MessageIdentity.Supplied(secondMessageId),
-                Trace = new MessageTrace.Correlated(correlationId)
-            })).ConfigureAwait(false);
-
-        var processors = Enumerable.Range(0, ConcurrentWorkerCount)
-            .Select(workerIndex => new PipelinedInboxProcessor(
-                processingStore,
-                processingStore,
-                dispatcher,
-                processorOptions with
+            await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
+                new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.Increment },
+                InboxAcceptMetadata.Immediate with
                 {
-                    LeaseOwner = $"saga-depth-worker-{workerIndex}",
-                    DispatcherConcurrency = 2,
-                    LeaseHeartbeatInterval = TimeSpan.FromMilliseconds(25)
-                },
-                clock,
-                hooks))
-            .ToArray();
+                    Identity = new MessageIdentity.Supplied(firstMessageId),
+                    Trace = new MessageTrace.Correlated(correlationId)
+                })).ConfigureAwait(false);
 
-        var workerTasks = processors.Select(processor => RunUntilIdleAsync(processor)).ToArray();
-        await Task.WhenAll(workerTasks).ConfigureAwait(false);
+            await inbox.AcceptAsync(InboxAcceptItem<OrderWorkflowSagaCommand>.From(
+                new OrderWorkflowSagaCommand { Step = OrderWorkflowStep.Increment },
+                InboxAcceptMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(secondMessageId),
+                    Trace = new MessageTrace.Correlated(correlationId)
+                })).ConfigureAwait(false);
 
-        var correlation = CreateCorrelation(correlationId);
-        var instance = await sagaStore.LoadAsync<OrderWorkflowSagaState>(correlation).ConfigureAwait(false);
+            var processors = Enumerable.Range(0, ConcurrentWorkerCount)
+                .Select(workerIndex => new PipelinedInboxProcessor(
+                    processingStore,
+                    processingStore,
+                    dispatcher,
+                    processorOptions with
+                    {
+                        LeaseOwner = $"saga-depth-worker-{workerIndex}",
+                        DispatcherConcurrency = 2,
+                        LeaseHeartbeatInterval = TimeSpan.FromMilliseconds(25)
+                    },
+                    clock,
+                    hooks))
+                .ToArray();
 
-        instance.Should().NotBeNull();
-        instance!.State.Step.Should().BeInRange(1, 2);
-        instance.Version.Should().BeGreaterThanOrEqualTo(1);
-        instance.Version.Should().BeLessThanOrEqualTo(2);
-        instance.IsCompleted.Should().BeFalse();
+            var workerTasks = processors.Select(processor => RunUntilIdleAsync(processor)).ToArray();
+            await Task.WhenAll(workerTasks).ConfigureAwait(false);
 
-        var sagaRow = await PostgreSqlTableReaders.ReadSagaAsync(
-            _fixture.DataSource,
-            sagaOptions,
-            correlationId,
-            WorkflowContractName).ConfigureAwait(false);
+            var correlation = CreateCorrelation(correlationId);
+            var instance = await sagaStore.LoadAsync<OrderWorkflowSagaState>(correlation).ConfigureAwait(false);
 
-        sagaRow.Should().NotBeNull();
-        sagaRow!.OptimisticLockVersion.Should().Be(instance.Version);
-        sagaRow.OptimisticLockVersion.Should().BeLessThanOrEqualTo(2);
-        sagaRow.StateJson.Should().Contain($"\"step\": {instance.State.Step}");
+            instance.Should().NotBeNull();
+            instance!.State.Step.Should().BeInRange(1, 2);
+            instance.Version.Should().BeGreaterThanOrEqualTo(1);
+            instance.Version.Should().BeLessThanOrEqualTo(2);
+            instance.IsCompleted.Should().BeFalse();
 
-        var sagaRowCount = await PostgreSqlTableReaders.CountSagaRowsAsync(_fixture.DataSource, sagaOptions).ConfigureAwait(false);
-        sagaRowCount.Should().Be(1);
+            var sagaRow = await PostgreSqlTableReaders.ReadSagaAsync(
+                _fixture.DataSource,
+                sagaOptions,
+                correlationId,
+                WorkflowContractName).ConfigureAwait(false);
 
-        var firstRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, inboxOptions, firstMessageId).ConfigureAwait(false);
-        var secondRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, inboxOptions, secondMessageId).ConfigureAwait(false);
+            sagaRow.Should().NotBeNull();
+            sagaRow!.OptimisticLockVersion.Should().Be(instance.Version);
+            sagaRow.OptimisticLockVersion.Should().BeLessThanOrEqualTo(2);
+            sagaRow.StateJson.Should().Contain($"\"step\": {instance.State.Step}");
 
-        firstRow.Should().NotBeNull();
-        secondRow.Should().NotBeNull();
-        firstRow!.Status.Should().NotBe(InboxStatus.Pending);
-        secondRow!.Status.Should().NotBe(InboxStatus.Pending);
+            var sagaRowCount = await PostgreSqlTableReaders.CountSagaRowsAsync(_fixture.DataSource, sagaOptions).ConfigureAwait(false);
+            sagaRowCount.Should().Be(1);
 
-        var statuses = new[] { firstRow.Status, secondRow.Status };
+            var firstRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, inboxOptions, firstMessageId).ConfigureAwait(false);
+            var secondRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, inboxOptions, secondMessageId).ConfigureAwait(false);
 
-        if (instance.State.Step == 1)
-        {
-            statuses.Count(status => status == InboxStatus.Completed).Should().Be(1);
-            statuses.Should().Contain(status => status == InboxStatus.Failed || status == InboxStatus.DeadLettered);
-        }
-        else
-        {
-            statuses.Should().AllSatisfy(status => status.Should().Be(InboxStatus.Completed));
-        }
+            firstRow.Should().NotBeNull();
+            secondRow.Should().NotBeNull();
+            firstRow!.Status.Should().NotBe(InboxStatus.Pending);
+            secondRow!.Status.Should().NotBe(InboxStatus.Pending);
+
+            var statuses = new[] { firstRow.Status, secondRow.Status };
+
+            if (instance.State.Step == 1)
+            {
+                statuses.Count(status => status == InboxStatus.Completed).Should().Be(1);
+                statuses.Should().Contain(status => status == InboxStatus.Failed || status == InboxStatus.DeadLettered);
+            }
+            else
+            {
+                statuses.Should().AllSatisfy(status => status.Should().Be(InboxStatus.Completed));
+            }
         }
     }
 

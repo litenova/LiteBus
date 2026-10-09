@@ -269,7 +269,7 @@ public static class DiagnosticCheckRunner
         }
 
         _ = Task.WhenAll(tasks).ContinueWith(
-            static (_, state) => ((SemaphoreSlim)state!).Dispose(),
+            static (_, state) => ((SemaphoreSlim) state!).Dispose(),
             gate,
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,

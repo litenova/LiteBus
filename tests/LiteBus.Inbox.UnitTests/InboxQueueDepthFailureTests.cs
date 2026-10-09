@@ -51,7 +51,7 @@ public sealed class InboxQueueDepthFailureTests
     private static IReadOnlyDictionary<InboxStatus, int> GetCachedCounts(InboxObservableMetrics metrics)
     {
         var field = typeof(InboxObservableMetrics).GetField("_cachedCounts", BindingFlags.NonPublic | BindingFlags.Instance);
-        return (IReadOnlyDictionary<InboxStatus, int>)field!.GetValue(metrics)!;
+        return (IReadOnlyDictionary<InboxStatus, int>) field!.GetValue(metrics)!;
     }
 
     private static MeterListener CreateListener(ICollection<MetricMeasurement> measurements)

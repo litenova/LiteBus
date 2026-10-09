@@ -28,31 +28,31 @@ public sealed class EfCoreInboxSaveChangesInterceptorRollbackTests : IClassFixtu
         var storeOptions = await CreateInboxTableAsync().ConfigureAwait(false);
         var interceptor = new LiteBusInboxSaveChangesInterceptor();
 
-         var context = CreateContext(storeOptions, interceptor);
-         await using (context.ConfigureAwait(false))
-         {
-        var envelope = CreateEnvelope();
+        var context = CreateContext(storeOptions, interceptor);
+        await using (context.ConfigureAwait(false))
+        {
+            var envelope = CreateEnvelope();
 
-         var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
-         await using (transaction.ConfigureAwait(false))
-         {
-        interceptor.Enqueue(context, envelope);
+            var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
+            await using (transaction.ConfigureAwait(false))
+            {
+                interceptor.Enqueue(context, envelope);
 
-        var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
-        savedCount.Should().Be(1);
+                var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
+                savedCount.Should().Be(1);
 
-        await transaction.RollbackAsync().ConfigureAwait(false);
+                await transaction.RollbackAsync().ConfigureAwait(false);
 
-         var verificationContext = CreateContext(storeOptions);
-         await using (verificationContext.ConfigureAwait(false))
-         {
+                var verificationContext = CreateContext(storeOptions);
+                await using (verificationContext.ConfigureAwait(false))
+                {
 
-        var storedCount = await verificationContext.InboxMessages
-            .CountAsync(message => message.Id == envelope.Id).ConfigureAwait(false);
+                    var storedCount = await verificationContext.InboxMessages
+                        .CountAsync(message => message.Id == envelope.Id).ConfigureAwait(false);
 
-        storedCount.Should().Be(0);
-        }
-        }
+                    storedCount.Should().Be(0);
+                }
+            }
         }
     }
 
@@ -64,20 +64,20 @@ public sealed class EfCoreInboxSaveChangesInterceptorRollbackTests : IClassFixtu
             TableName = $"inbox_ef_rollback_{Guid.NewGuid():N}"
         };
 
-         var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
-         await using (dataSource.ConfigureAwait(false))
-         {
+        var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+        await using (dataSource.ConfigureAwait(false))
+        {
 
-        await PostgreSqlInboxSchema.EnsureAsync(
-            dataSource,
-            new PostgreSqlInboxStoreOptions
-            {
-                SchemaName = options.SchemaName,
-                TableName = options.TableName,
-                ValidateSchemaCreationOnStartup = false
-            }).ConfigureAwait(false);
+            await PostgreSqlInboxSchema.EnsureAsync(
+                dataSource,
+                new PostgreSqlInboxStoreOptions
+                {
+                    SchemaName = options.SchemaName,
+                    TableName = options.TableName,
+                    ValidateSchemaCreationOnStartup = false
+                }).ConfigureAwait(false);
 
-        return options;
+            return options;
         }
     }
 

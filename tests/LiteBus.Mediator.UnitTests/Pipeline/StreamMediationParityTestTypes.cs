@@ -1,4 +1,4 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
 

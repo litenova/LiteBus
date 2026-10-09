@@ -147,8 +147,8 @@ internal static class PostgreSqlSchemaVersionStore
             DBNull => 0,
             int version => version,
             short version => version,
-            long version => checked((int)version),
-            decimal version => checked((int)version),
+            long version => checked((int) version),
+            decimal version => checked((int) version),
             _ => throw new DurableStorageConfigurationException(
                 $"Recorded schema version has unsupported type '{result!.GetType().FullName}'. " +
                 "Expected an int, long, short, or decimal value.")

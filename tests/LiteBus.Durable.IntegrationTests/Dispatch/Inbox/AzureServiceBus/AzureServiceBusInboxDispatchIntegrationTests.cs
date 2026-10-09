@@ -46,48 +46,48 @@ public sealed class AzureServiceBusInboxDispatchIntegrationTests : LiteBusTestBa
     public async Task ProcessPendingAsync_ShouldPublishLeasedEnvelopeToServiceBusQueue()
     {
         var queueName = ServiceBusEmulatorFixture.ResolveQueue("inbox-dispatch");
-         var provider = BuildProvider(queueName);
-         await using (provider.ConfigureAwait(false))
-         {
-
-        var inbox = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-
-        var workItemId = Guid.NewGuid();
-
-        var receipt = await inbox.AcceptAsync(new InboxAcceptItem<RemoteWorkCommand>
+        var provider = BuildProvider(queueName);
+        await using (provider.ConfigureAwait(false))
         {
-            Message = new RemoteWorkCommand
+
+            var inbox = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
+
+            var workItemId = Guid.NewGuid();
+
+            var receipt = await inbox.AcceptAsync(new InboxAcceptItem<RemoteWorkCommand>
             {
-                WorkItemId = workItemId,
-                IdempotencyKey = $"work:{workItemId}"
-            },
-            Metadata = InboxAcceptMetadata.Immediate with
-            {
-                Trace = new MessageTrace.Workflow("corr-azure-dispatch", "cause-azure-dispatch"),
-                Tenant = new TenantScope.Isolated("tenant-azure")
-            }
-        }).ConfigureAwait(false);
+                Message = new RemoteWorkCommand
+                {
+                    WorkItemId = workItemId,
+                    IdempotencyKey = $"work:{workItemId}"
+                },
+                Metadata = InboxAcceptMetadata.Immediate with
+                {
+                    Trace = new MessageTrace.Workflow("corr-azure-dispatch", "cause-azure-dispatch"),
+                    Tenant = new TenantScope.Isolated("tenant-azure")
+                }
+            }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        var (body, headers) = await AzureServiceBusTransportTestInfrastructure.ReceiveOneAsync(
-            _fixture.TransportOptions.ConnectionString,
-            queueName,
-            TimeSpan.FromSeconds(45)).ConfigureAwait(false);
+            var (body, headers) = await AzureServiceBusTransportTestInfrastructure.ReceiveOneAsync(
+                _fixture.TransportOptions.ConnectionString,
+                queueName,
+                TimeSpan.FromSeconds(45)).ConfigureAwait(false);
 
-        body.Should().Contain(workItemId.ToString());
-        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.MessageId)
-            .Should().Be(receipt.Id.ToString("D"));
-        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractName)
-            .Should().Be(ContractName);
-        headers[TransportHeaders.ContractVersion].Should().Be(ContractVersion);
-        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CorrelationId)
-            .Should().Be("corr-azure-dispatch");
-        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CausationId)
-            .Should().Be("cause-azure-dispatch");
-        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.TenantId)
-            .Should().Be("tenant-azure");
+            body.Should().Contain(workItemId.ToString());
+            AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.MessageId)
+                .Should().Be(receipt.Id.ToString("D"));
+            AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractName)
+                .Should().Be(ContractName);
+            headers[TransportHeaders.ContractVersion].Should().Be(ContractVersion);
+            AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CorrelationId)
+                .Should().Be("corr-azure-dispatch");
+            AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CausationId)
+                .Should().Be("cause-azure-dispatch");
+            AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.TenantId)
+                .Should().Be("tenant-azure");
         }
     }
 

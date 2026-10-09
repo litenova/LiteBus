@@ -28,18 +28,18 @@ internal static class EfCoreInboxE2eSupport
 
     internal static async Task EnsureInboxTableAsync(string connectionString, EntityFrameworkCoreInboxStoreOptions storeOptions)
     {
-         var dataSource = NpgsqlDataSource.Create(connectionString);
-         await using (dataSource.ConfigureAwait(false))
-         {
+        var dataSource = NpgsqlDataSource.Create(connectionString);
+        await using (dataSource.ConfigureAwait(false))
+        {
 
-        await PostgreSqlInboxSchema.EnsureAsync(
-            dataSource,
-            new PostgreSqlInboxStoreOptions
-            {
-                SchemaName = storeOptions.SchemaName,
-                TableName = storeOptions.TableName,
-                ValidateSchemaCreationOnStartup = false
-            }).ConfigureAwait(false);
+            await PostgreSqlInboxSchema.EnsureAsync(
+                dataSource,
+                new PostgreSqlInboxStoreOptions
+                {
+                    SchemaName = storeOptions.SchemaName,
+                    TableName = storeOptions.TableName,
+                    ValidateSchemaCreationOnStartup = false
+                }).ConfigureAwait(false);
         }
     }
 

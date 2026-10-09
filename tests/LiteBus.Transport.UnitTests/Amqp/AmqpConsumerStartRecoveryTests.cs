@@ -59,7 +59,7 @@ public sealed class AmqpConsumerStartRecoveryTests
         {
             CreatedChannels++;
             var channel = DispatchProxy.Create<IChannel, FakeChannelProxy>();
-            var fake = (FakeChannelProxy)(object)channel;
+            var fake = (FakeChannelProxy) (object) channel;
             fake.FailConsume = FailConsume;
             fake.OnDisposed = () => DisposedChannels++;
             return Task.FromResult(channel);

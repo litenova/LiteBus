@@ -30,25 +30,25 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
     public async Task RequeueDisabled_WithPoisonMessage_ShouldDiscardWithoutStoreWrite()
     {
         var ingressDestination = $"litebus-inmemory-requeue-{Guid.NewGuid():N}";
-         var provider = BuildProvider(ingressDestination, false);
-         await using (provider.ConfigureAwait(false))
-         {
-        await StartIngressAsync(provider).ConfigureAwait(false);
-
-        var publisher = provider.GetRequiredService<ITransportPublisher>();
-        var messageId = Guid.NewGuid();
-
-        await publisher.PublishAsync(new TransportPublishRequest
+        var provider = BuildProvider(ingressDestination, false);
+        await using (provider.ConfigureAwait(false))
         {
-            Destination = ingressDestination,
-            Body = "{not-json"u8.ToArray(),
-            MessageId = messageId.ToString("D"),
-            Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-        }).ConfigureAwait(false);
+            await StartIngressAsync(provider).ConfigureAwait(false);
 
-        await PollingWait.UntilAsync(
-            () => GetInboxStoreCount(provider) == 0,
-            TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
+            var messageId = Guid.NewGuid();
+
+            await publisher.PublishAsync(new TransportPublishRequest
+            {
+                Destination = ingressDestination,
+                Body = "{not-json"u8.ToArray(),
+                MessageId = messageId.ToString("D"),
+                Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
+            }).ConfigureAwait(false);
+
+            await PollingWait.UntilAsync(
+                () => GetInboxStoreCount(provider) == 0,
+                TimeSpan.FromSeconds(10)).ConfigureAwait(false);
         }
     }
 
@@ -60,26 +60,26 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
     public async Task RequeueEnabled_WithTransientStoreFailure_ShouldEventuallyAccept()
     {
         var ingressDestination = $"litebus-inmemory-requeue-{Guid.NewGuid():N}";
-         var provider = BuildProvider(ingressDestination, true, true);
-         await using (provider.ConfigureAwait(false))
-         {
-        await StartIngressAsync(provider).ConfigureAwait(false);
-
-        var publisher = provider.GetRequiredService<ITransportPublisher>();
-        var messageId = Guid.NewGuid();
-        var orderId = Guid.NewGuid();
-
-        await publisher.PublishAsync(new TransportPublishRequest
+        var provider = BuildProvider(ingressDestination, true, true);
+        await using (provider.ConfigureAwait(false))
         {
-            Destination = ingressDestination,
-            Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = orderId }),
-            MessageId = messageId.ToString("D"),
-            Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-        }).ConfigureAwait(false);
+            await StartIngressAsync(provider).ConfigureAwait(false);
 
-        await PollingWait.UntilAsync(
-            () => GetInboxStoreCount(provider) == 1,
-            TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
+            var messageId = Guid.NewGuid();
+            var orderId = Guid.NewGuid();
+
+            await publisher.PublishAsync(new TransportPublishRequest
+            {
+                Destination = ingressDestination,
+                Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = orderId }),
+                MessageId = messageId.ToString("D"),
+                Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
+            }).ConfigureAwait(false);
+
+            await PollingWait.UntilAsync(
+                () => GetInboxStoreCount(provider) == 1,
+                TimeSpan.FromSeconds(15)).ConfigureAwait(false);
         }
     }
 
@@ -99,7 +99,7 @@ public sealed class InMemoryIngressRequeueBehaviorIntegrationTests : LiteBusTest
 
         services.AddLiteBus(registry =>
         {
-                registry.Modules.Register(new InMemoryTransportModule());
+            registry.Modules.Register(new InMemoryTransportModule());
             registry.AddMessaging(_ =>
             {
             });

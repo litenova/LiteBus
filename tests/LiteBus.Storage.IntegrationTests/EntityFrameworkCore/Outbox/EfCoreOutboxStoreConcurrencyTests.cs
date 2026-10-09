@@ -69,13 +69,13 @@ public sealed class EfCoreOutboxStoreConcurrencyTests : IClassFixture<PostgreSql
 
         (firstResult.AppliedCount + secondResult.AppliedCount).Should().Be(1);
 
-         var verificationContext = EfCoreProviderTestInfrastructure.CreateOutboxContext(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString);
-         await using (verificationContext.ConfigureAwait(false))
-         {
-        var stored = await verificationContext.OutboxMessages.FindAsync(messageId).ConfigureAwait(false);
-        stored.Should().NotBeNull();
-        stored!.Status.Should().Be(OutboxStatus.Published);
-        stored.LeaseOwner.Should().BeNull();
+        var verificationContext = EfCoreProviderTestInfrastructure.CreateOutboxContext(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString);
+        await using (verificationContext.ConfigureAwait(false))
+        {
+            var stored = await verificationContext.OutboxMessages.FindAsync(messageId).ConfigureAwait(false);
+            stored.Should().NotBeNull();
+            stored!.Status.Should().Be(OutboxStatus.Published);
+            stored.LeaseOwner.Should().BeNull();
         }
     }
 }

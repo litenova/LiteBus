@@ -47,18 +47,18 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         await using (provider.ConfigureAwait(true))
         {
 
-        var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
+            var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
 
-        var envelope = CreateEnvelope(
-            contractRegistry,
-            "orders.commands.process",
-            1,
-            payload,
-            DateTimeOffset.UtcNow);
+            var envelope = CreateEnvelope(
+                contractRegistry,
+                "orders.commands.process",
+                1,
+                payload,
+                DateTimeOffset.UtcNow);
 
-        await dispatcher.DispatchAsync(envelope).ConfigureAwait(true);
+            await dispatcher.DispatchAsync(envelope).ConfigureAwait(true);
 
-        recorder.Commands.Should().ContainSingle();
+            recorder.Commands.Should().ContainSingle();
         }
     }
 
@@ -135,13 +135,13 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         await using (provider.ConfigureAwait(true))
         {
 
-        var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
-        await dispatcher.DispatchAsync(envelope).ConfigureAwait(true);
+            var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
+            await dispatcher.DispatchAsync(envelope).ConfigureAwait(true);
 
-        inboxCapture.IsInboxExecution.Should().BeTrue();
-        traceCapture.CorrelationId.Should().Be("correlation-42");
-        traceCapture.CausationId.Should().Be("causation-7");
-        traceCapture.TenantId.Should().Be("tenant-west");
+            inboxCapture.IsInboxExecution.Should().BeTrue();
+            traceCapture.CorrelationId.Should().Be("correlation-42");
+            traceCapture.CausationId.Should().Be("causation-7");
+            traceCapture.TenantId.Should().Be("tenant-west");
         }
     }
 
@@ -394,7 +394,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         {
             return Task.FromResult<TResult>(default!);
         }
-    
+
         /// <inheritdoc />
         public Task<MediationResult> TrySendAsync(
             ICommand command,
@@ -467,7 +467,7 @@ public sealed class CommandInboxDispatcherTests : LiteBusTestBase
         {
             throw new NotSupportedException();
         }
-    
+
         /// <inheritdoc />
         public Task<MediationResult> TrySendAsync(
             ICommand command,

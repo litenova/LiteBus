@@ -51,50 +51,50 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-         var provider = BuildProvider(queueName);
-         await using (provider.ConfigureAwait(false))
-         {
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-
-        await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+        var provider = BuildProvider(queueName);
+        await using (provider.ConfigureAwait(false))
         {
-            Message = new OrderSubmittedIntegrationEvent { OrderId = orderId },
-            Metadata = OutboxEnqueueMetadata.Immediate with
+            var store = provider.GetRequiredService<InMemoryOutboxStore>();
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+
+            await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
             {
-                Identity = new MessageIdentity.Supplied(messageId),
-                Trace = new MessageTrace.Workflow("corr-azure-outbox", "cause-azure-outbox"),
-                Tenant = new TenantScope.Isolated("tenant-azure-east"),
-                Target = new PublicationTarget.Topic(queueName)
-            }
-        }).ConfigureAwait(false);
+                Message = new OrderSubmittedIntegrationEvent { OrderId = orderId },
+                Metadata = OutboxEnqueueMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId),
+                    Trace = new MessageTrace.Workflow("corr-azure-outbox", "cause-azure-outbox"),
+                    Tenant = new TenantScope.Isolated("tenant-azure-east"),
+                    Target = new PublicationTarget.Topic(queueName)
+                }
+            }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
+            store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
 
-        var (body, headers) = await AzureServiceBusTransportTestInfrastructure.ReceiveOneAsync(
-            _fixture.TransportOptions.ConnectionString,
-            queueName,
-            TimeSpan.FromSeconds(45)).ConfigureAwait(false);
+            var (body, headers) = await AzureServiceBusTransportTestInfrastructure.ReceiveOneAsync(
+                _fixture.TransportOptions.ConnectionString,
+                queueName,
+                TimeSpan.FromSeconds(45)).ConfigureAwait(false);
 
-        var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
-            body,
-            JsonOptions);
+            var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
+                body,
+                JsonOptions);
 
-        payload!.OrderId.Should().Be(orderId);
-        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.MessageId)
-            .Should().Be(messageId.ToString("D"));
-        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractName)
-            .Should().Be("orders.order-submitted");
-        headers[TransportHeaders.ContractVersion].Should().Be(ContractVersion);
-        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CorrelationId)
-            .Should().Be("corr-azure-outbox");
-        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CausationId)
-            .Should().Be("cause-azure-outbox");
-        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.TenantId)
-            .Should().Be("tenant-azure-east");
+            payload!.OrderId.Should().Be(orderId);
+            AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.MessageId)
+                .Should().Be(messageId.ToString("D"));
+            AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractName)
+                .Should().Be("orders.order-submitted");
+            headers[TransportHeaders.ContractVersion].Should().Be(ContractVersion);
+            AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CorrelationId)
+                .Should().Be("corr-azure-outbox");
+            AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.CausationId)
+                .Should().Be("cause-azure-outbox");
+            AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.TenantId)
+                .Should().Be("tenant-azure-east");
         }
     }
 
@@ -109,33 +109,33 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
         var queueName = ServiceBusEmulatorFixture.ResolveQueue("outbox-route");
         var messageId = Guid.NewGuid();
 
-         var provider = BuildProvider(queueName);
-         await using (provider.ConfigureAwait(false))
-         {
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-
-        await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+        var provider = BuildProvider(queueName);
+        await using (provider.ConfigureAwait(false))
         {
-            Message = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            Metadata = OutboxEnqueueMetadata.Immediate with
+            var store = provider.GetRequiredService<InMemoryOutboxStore>();
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+
+            await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
             {
-                Identity = new MessageIdentity.Supplied(messageId)
-            }
-        }).ConfigureAwait(false);
+                Message = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Metadata = OutboxEnqueueMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId)
+                }
+            }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
+            store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
 
-        var (_, headers) = await AzureServiceBusTransportTestInfrastructure.ReceiveOneAsync(
-            _fixture.TransportOptions.ConnectionString,
-            queueName,
-            TimeSpan.FromSeconds(45)).ConfigureAwait(false);
+            var (_, headers) = await AzureServiceBusTransportTestInfrastructure.ReceiveOneAsync(
+                _fixture.TransportOptions.ConnectionString,
+                queueName,
+                TimeSpan.FromSeconds(45)).ConfigureAwait(false);
 
-        AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractName)
-            .Should().Be(contractRoute);
+            AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.ContractName)
+                .Should().Be(contractRoute);
         }
     }
 

@@ -16,12 +16,12 @@ public sealed class DiagnosticInventoryTests
     {
         var ids = typeof(DiagnosticIds).GetFields(BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
             .Where(field => field.IsLiteral && field.FieldType == typeof(string))
-            .Select(field => (string)field.GetRawConstantValue()!)
+            .Select(field => (string) field.GetRawConstantValue()!)
             .ToArray();
 
         var descriptorIds = typeof(DiagnosticDescriptors).GetFields(BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
             .Where(field => field.FieldType == typeof(DiagnosticDescriptor))
-            .Select(field => ((DiagnosticDescriptor)field.GetValue(null)!).Id)
+            .Select(field => ((DiagnosticDescriptor) field.GetValue(null)!).Id)
             .ToHashSet(StringComparer.Ordinal);
 
         Assert.NotEmpty(ids);

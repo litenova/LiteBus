@@ -166,8 +166,8 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
         {
             InstanceLifetime.Transient => ServiceLifetime.Transient,
             InstanceLifetime.Singleton => ServiceLifetime.Singleton,
-            InstanceLifetime.Scoped    => ServiceLifetime.Scoped,
-            _                          => throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, "Unknown instance lifetime.")
+            InstanceLifetime.Scoped => ServiceLifetime.Scoped,
+            _ => throw new ArgumentOutOfRangeException(nameof(lifetime), lifetime, "Unknown instance lifetime.")
         };
     }
 }

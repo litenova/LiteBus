@@ -88,20 +88,20 @@ internal static class AzureServiceBusMessageMapper
     {
         return value switch
         {
-            null                        => string.Empty,
-            string text                 => text,
-            int number                  => number,
-            long number                 => number,
-            bool flag                   => flag,
-            double number               => number,
-            float number                => number,
-            decimal number              => number,
-            DateTimeOffset timestamp    => timestamp.ToString("O", CultureInfo.InvariantCulture),
-            DateTime timestamp          => timestamp.ToString("O", CultureInfo.InvariantCulture),
-            byte[] bytes                => bytes,
+            null => string.Empty,
+            string text => text,
+            int number => number,
+            long number => number,
+            bool flag => flag,
+            double number => number,
+            float number => number,
+            decimal number => number,
+            DateTimeOffset timestamp => timestamp.ToString("O", CultureInfo.InvariantCulture),
+            DateTime timestamp => timestamp.ToString("O", CultureInfo.InvariantCulture),
+            byte[] bytes => bytes,
             ReadOnlyMemory<byte> memory => memory.ToArray(),
-            Memory<byte> memory         => memory.ToArray(),
-            _                           => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
+            Memory<byte> memory => memory.ToArray(),
+            _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
         };
     }
 

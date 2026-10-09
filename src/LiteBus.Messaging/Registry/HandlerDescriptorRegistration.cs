@@ -1,4 +1,4 @@
-﻿using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Registry.Descriptors;
 
 namespace LiteBus.Messaging.Registry;

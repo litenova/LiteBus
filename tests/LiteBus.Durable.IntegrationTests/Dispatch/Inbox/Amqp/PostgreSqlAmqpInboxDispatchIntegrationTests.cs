@@ -86,7 +86,7 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
             var (body, headers) = await AmqpTestInfrastructure.ReceiveOneAsync(
                 connectionUri,
                 queueName,
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
             body.Should().Contain(workItemId.ToString());
             headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));

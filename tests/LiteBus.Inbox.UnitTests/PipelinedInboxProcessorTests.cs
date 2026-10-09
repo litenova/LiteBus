@@ -21,18 +21,18 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
     {
         var recorder = new InboxTestFixtures.CommandRecorder();
 
-         var provider = BuildProcessorProvider(recorder, 1);
-         await using (provider.ConfigureAwait(false))
-         {
+        var provider = BuildProcessorProvider(recorder, 1);
+        await using (provider.ConfigureAwait(false))
+        {
 
-        var store = provider.GetRequiredService<InMemoryInboxStore>();
-        await SeedCommandsAsync(provider.GetRequiredService<IInbox>()).ConfigureAwait(false);
+            var store = provider.GetRequiredService<InMemoryInboxStore>();
+            await SeedCommandsAsync(provider.GetRequiredService<IInbox>()).ConfigureAwait(false);
 
-        var result = await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync().ConfigureAwait(false);
+            var result = await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync().ConfigureAwait(false);
 
-        result.SucceededCount.Should().Be(3);
-        recorder.Commands.Should().HaveCount(3);
-        store.GetAll(InboxStatus.Completed).Should().HaveCount(3);
+            result.SucceededCount.Should().Be(3);
+            recorder.Commands.Should().HaveCount(3);
+            store.GetAll(InboxStatus.Completed).Should().HaveCount(3);
         }
     }
 
@@ -145,7 +145,8 @@ public sealed class PipelinedInboxProcessorTests : LiteBusTestBase
         {
             var orderId = Guid.NewGuid();
 
-            await inbox.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
+            await inbox.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+            {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
             }).ConfigureAwait(false);

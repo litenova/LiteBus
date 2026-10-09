@@ -1760,7 +1760,7 @@ public sealed class EfCoreOutboxStore :
         /// </summary>
         [Column("trace_context")]
         public string? TraceContext { get; set; }
-    
+
         /// <summary>
         ///     Gets or sets the last attempt timestamp column.
         /// </summary>
@@ -1790,7 +1790,7 @@ public sealed class EfCoreOutboxStore :
         /// </summary>
         [Column("error_type")]
         public string? ErrorType { get; set; }
-}
+    }
 
     /// <summary>
     ///     Throws when a duplicate idempotency key or message identifier is rejected under strict conflict mode.

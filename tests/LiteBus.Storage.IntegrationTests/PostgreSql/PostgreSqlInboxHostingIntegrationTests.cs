@@ -44,46 +44,46 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(true);
         var recorder = new CommandRecorder();
 
-         var provider = BuildProcessorProvider(options, recorder);
-         await using (provider.ConfigureAwait(true))
-         {
-
-        LiteBusHostedServiceExtensions.AssertBackgroundServices(
-            provider,
-            typeof(InboxProcessorBackgroundService));
-
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var orderId = Guid.NewGuid();
-
-        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand
+        var provider = BuildProcessorProvider(options, recorder);
+        await using (provider.ConfigureAwait(true))
         {
-            OrderId = orderId,
-            IdempotencyKey = $"ship:{orderId}"
-        });
 
-        using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(true);
+            LiteBusHostedServiceExtensions.AssertBackgroundServices(
+                provider,
+                typeof(InboxProcessorBackgroundService));
 
-        try
-        {
-            await PostgreSqlTestInfrastructure.WaitUntilAsync(
-                async () =>
-                {
-                    var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, receipt.Id).ConfigureAwait(true);
-                    return row?.Status == InboxStatus.Completed && recorder.Commands.Any(command => command.OrderId == orderId);
-                },
-                TimeSpan.FromSeconds(10));
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var orderId = Guid.NewGuid();
 
-            recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
+            var receipt = await scheduler.AcceptAsync(new ShipOrderCommand
+            {
+                OrderId = orderId,
+                IdempotencyKey = $"ship:{orderId}"
+            });
 
-            var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, receipt.Id).ConfigureAwait(true);
-            row!.Status.Should().Be(InboxStatus.Completed);
-            row.AttemptCount.Should().Be(1);
-        }
-        finally
-        {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
-        }
+            using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(true);
+
+            try
+            {
+                await PostgreSqlTestInfrastructure.WaitUntilAsync(
+                    async () =>
+                    {
+                        var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, receipt.Id).ConfigureAwait(true);
+                        return row?.Status == InboxStatus.Completed && recorder.Commands.Any(command => command.OrderId == orderId);
+                    },
+                    TimeSpan.FromSeconds(10));
+
+                recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
+
+                var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, receipt.Id).ConfigureAwait(true);
+                row!.Status.Should().Be(InboxStatus.Completed);
+                row.AttemptCount.Should().Be(1);
+            }
+            finally
+            {
+                await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
+            }
         }
     }
 
@@ -110,48 +110,48 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
             });
         await using (provider.ConfigureAwait(true))
         {
-        using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(true);
+            using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(true);
 
-        try
-        {
-            await Task.Delay(TimeSpan.FromMilliseconds(250), runCts.Token).ConfigureAwait(true);
-
-            var store = provider.GetRequiredService<IInboxStore>();
-
-            var payload = JsonSerializer.Serialize(
-                new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" },
-                JsonOptions);
-
-            await store.EnqueueAsync(new InboxEnvelope
+            try
             {
-                Id = messageId,
-                ContractName = "orders.commands.ship",
-                ContractVersion = 1,
-                Payload = payload,
-                CreatedAt = DateTimeOffset.UtcNow,
-                AttemptCount = 0,
-                Status = InboxStatus.Pending
-            }).ConfigureAwait(true);
+                await Task.Delay(TimeSpan.FromMilliseconds(250), runCts.Token).ConfigureAwait(true);
 
+                var store = provider.GetRequiredService<IInboxStore>();
 
-            var completedBeforePoll = await PostgreSqlTestInfrastructure.WaitUntilAsync(
-                async () =>
+                var payload = JsonSerializer.Serialize(
+                    new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" },
+                    JsonOptions);
+
+                await store.EnqueueAsync(new InboxEnvelope
                 {
-                    var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(true);
-                    return row?.Status == InboxStatus.Completed && recorder.Commands.Any(command => command.OrderId == orderId);
-                },
-                TimeSpan.FromSeconds(8));
+                    Id = messageId,
+                    ContractName = "orders.commands.ship",
+                    ContractVersion = 1,
+                    Payload = payload,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    AttemptCount = 0,
+                    Status = InboxStatus.Pending
+                }).ConfigureAwait(true);
 
-            completedBeforePoll.Should().BeTrue(
-                "the insert notify trigger should wake the processor before the 30 second poll interval");
 
-            recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
-        }
-        finally
-        {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
-        }
+                var completedBeforePoll = await PostgreSqlTestInfrastructure.WaitUntilAsync(
+                    async () =>
+                    {
+                        var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(true);
+                        return row?.Status == InboxStatus.Completed && recorder.Commands.Any(command => command.OrderId == orderId);
+                    },
+                    TimeSpan.FromSeconds(8));
+
+                completedBeforePoll.Should().BeTrue(
+                    "the insert notify trigger should wake the processor before the 30 second poll interval");
+
+                recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
+            }
+            finally
+            {
+                await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
+            }
         }
     }
 
@@ -166,53 +166,53 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(true);
 
-         var provider = BuildCleanupProvider(options, clock);
-         await using (provider.ConfigureAwait(true))
-         {
-
-        LiteBusHostedServiceExtensions.AssertBackgroundServices(
-            provider,
-            typeof(InboxCleanupBackgroundService));
-
-        var writer = provider.GetRequiredService<IInboxStore>();
-        var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
-        var stateWriter = provider.GetRequiredService<IInboxStateWriter>();
-
-        var oldCompletedId = Guid.NewGuid();
-        var recentCompletedId = Guid.NewGuid();
-        var now = PostgreSqlTestInfrastructure.BaseTime;
-
-        var oldCompletedAt = now.AddHours(-3);
-        var recentCompletedAt = now.AddMinutes(-10);
-        await SeedCompletedRowAsync(writer, leaseStore, stateWriter, oldCompletedId, oldCompletedAt, oldCompletedAt).ConfigureAwait(true);
-        await SeedCompletedRowAsync(writer, leaseStore, stateWriter, recentCompletedId, recentCompletedAt, recentCompletedAt).ConfigureAwait(true);
-
-        using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(true);
-
-        try
+        var provider = BuildCleanupProvider(options, clock);
+        await using (provider.ConfigureAwait(true))
         {
-            var purged = await PostgreSqlTestInfrastructure.WaitUntilAsync(
-                async () =>
-                {
-                    var oldRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, oldCompletedId).ConfigureAwait(true);
-                    return oldRow is null;
-                },
-                TimeSpan.FromSeconds(5));
 
-            purged.Should().BeTrue("the cleanup loop should delete completed rows older than the retention window");
+            LiteBusHostedServiceExtensions.AssertBackgroundServices(
+                provider,
+                typeof(InboxCleanupBackgroundService));
 
-            var recentRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, recentCompletedId).ConfigureAwait(true);
-            recentRow.Should().NotBeNull();
-            recentRow!.Status.Should().Be(InboxStatus.Completed);
+            var writer = provider.GetRequiredService<IInboxStore>();
+            var leaseStore = provider.GetRequiredService<IInboxLeaseStore>();
+            var stateWriter = provider.GetRequiredService<IInboxStateWriter>();
 
-            var coordinator = provider.GetRequiredService<InboxRetentionCoordinator>();
-            coordinator.GetStatus().LastError.Should().BeNull();
-        }
-        finally
-        {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
-        }
+            var oldCompletedId = Guid.NewGuid();
+            var recentCompletedId = Guid.NewGuid();
+            var now = PostgreSqlTestInfrastructure.BaseTime;
+
+            var oldCompletedAt = now.AddHours(-3);
+            var recentCompletedAt = now.AddMinutes(-10);
+            await SeedCompletedRowAsync(writer, leaseStore, stateWriter, oldCompletedId, oldCompletedAt, oldCompletedAt).ConfigureAwait(true);
+            await SeedCompletedRowAsync(writer, leaseStore, stateWriter, recentCompletedId, recentCompletedAt, recentCompletedAt).ConfigureAwait(true);
+
+            using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(true);
+
+            try
+            {
+                var purged = await PostgreSqlTestInfrastructure.WaitUntilAsync(
+                    async () =>
+                    {
+                        var oldRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, oldCompletedId).ConfigureAwait(true);
+                        return oldRow is null;
+                    },
+                    TimeSpan.FromSeconds(5));
+
+                purged.Should().BeTrue("the cleanup loop should delete completed rows older than the retention window");
+
+                var recentRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, recentCompletedId).ConfigureAwait(true);
+                recentRow.Should().NotBeNull();
+                recentRow!.Status.Should().Be(InboxStatus.Completed);
+
+                var coordinator = provider.GetRequiredService<InboxRetentionCoordinator>();
+                coordinator.GetStatus().LastError.Should().BeNull();
+            }
+            finally
+            {
+                await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
+            }
         }
     }
 

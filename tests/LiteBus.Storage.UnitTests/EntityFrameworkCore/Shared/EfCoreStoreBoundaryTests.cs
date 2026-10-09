@@ -55,7 +55,7 @@ public sealed class EfCoreStoreBoundaryTests
             await persist.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
         }
 
-        var invalidOutcome = () => store.PersistAsync([CreateOutboxEnvelope((OutboxStatus)999)]);
+        var invalidOutcome = () => store.PersistAsync([CreateOutboxEnvelope((OutboxStatus) 999)]);
         await invalidOutcome.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
         await store.DisposeAsync().ConfigureAwait(false);
     }
@@ -103,7 +103,7 @@ public sealed class EfCoreStoreBoundaryTests
             await persist.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
         }
 
-        var invalidOutcome = () => store.PersistAsync([CreateInboxEnvelope((InboxStatus)999)]);
+        var invalidOutcome = () => store.PersistAsync([CreateInboxEnvelope((InboxStatus) 999)]);
         await invalidOutcome.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
         await store.DisposeAsync().ConfigureAwait(false);
     }

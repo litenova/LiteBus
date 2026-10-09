@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;

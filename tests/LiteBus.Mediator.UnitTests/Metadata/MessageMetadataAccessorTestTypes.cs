@@ -78,7 +78,7 @@ public sealed class FakeActor : ICurrentActor
     /// <param name="held">The permission names the actor holds.</param>
     public FakeActor(params string[] held)
     {
-        _held = [..held];
+        _held = [.. held];
     }
 
     /// <inheritdoc />

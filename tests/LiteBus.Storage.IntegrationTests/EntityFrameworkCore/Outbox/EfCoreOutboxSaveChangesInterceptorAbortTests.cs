@@ -42,33 +42,33 @@ public sealed class EfCoreOutboxSaveChangesInterceptorAbortTests : IClassFixture
         var interceptor = new LiteBusOutboxSaveChangesInterceptor();
         const string idempotencyKey = "duplicate-outbox-idem-key";
 
-         var seedContext = CreateContext(storeOptions, interceptor);
-         await using (seedContext.ConfigureAwait(false))
-         {
-        interceptor.Enqueue(seedContext, CreateEnvelope(idempotencyKey));
-        await seedContext.SaveChangesAsync().ConfigureAwait(true);
+        var seedContext = CreateContext(storeOptions, interceptor);
+        await using (seedContext.ConfigureAwait(false))
+        {
+            interceptor.Enqueue(seedContext, CreateEnvelope(idempotencyKey));
+            await seedContext.SaveChangesAsync().ConfigureAwait(true);
 
-         var context = CreateContext(storeOptions, interceptor);
-         await using (context.ConfigureAwait(false))
-         {
-         var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(true);
-         await using (transaction.ConfigureAwait(false))
-         {
+            var context = CreateContext(storeOptions, interceptor);
+            await using (context.ConfigureAwait(false))
+            {
+                var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(true);
+                await using (transaction.ConfigureAwait(false))
+                {
 
-        interceptor.Enqueue(context, CreateEnvelope(idempotencyKey) with { Id = Guid.NewGuid() });
+                    interceptor.Enqueue(context, CreateEnvelope(idempotencyKey) with { Id = Guid.NewGuid() });
 
-        var act = () => context.SaveChangesAsync();
-        await act.Should().ThrowAsync<DbUpdateException>();
+                    var act = () => context.SaveChangesAsync();
+                    await act.Should().ThrowAsync<DbUpdateException>();
 
-        await transaction.RollbackAsync().ConfigureAwait(true);
+                    await transaction.RollbackAsync().ConfigureAwait(true);
 
-         var verificationContext = CreateContext(storeOptions);
-         await using (verificationContext.ConfigureAwait(false))
-         {
-        (await verificationContext.OutboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(1);
-        }
-        }
-        }
+                    var verificationContext = CreateContext(storeOptions);
+                    await using (verificationContext.ConfigureAwait(false))
+                    {
+                        (await verificationContext.OutboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(1);
+                    }
+                }
+            }
         }
     }
 
@@ -84,21 +84,21 @@ public sealed class EfCoreOutboxSaveChangesInterceptorAbortTests : IClassFixture
             TableName = $"outbox_ef_abort_{Guid.NewGuid():N}"
         };
 
-         var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
-         await using (dataSource.ConfigureAwait(false))
-         {
+        var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+        await using (dataSource.ConfigureAwait(false))
+        {
 
-        await PostgreSqlOutboxSchema.EnsureAsync(
-            dataSource,
-            new PostgreSqlOutboxStoreOptions
-            {
-                SchemaName = options.SchemaName,
-                TableName = options.TableName,
-                ValidateSchemaCreationOnStartup = false
-            }).ConfigureAwait(false);
+            await PostgreSqlOutboxSchema.EnsureAsync(
+                dataSource,
+                new PostgreSqlOutboxStoreOptions
+                {
+                    SchemaName = options.SchemaName,
+                    TableName = options.TableName,
+                    ValidateSchemaCreationOnStartup = false
+                }).ConfigureAwait(false);
 
 
-        return options;
+            return options;
         }
     }
 

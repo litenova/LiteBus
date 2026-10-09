@@ -1,4 +1,4 @@
-﻿using LiteBus.Commands.Abstractions;
+using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Pipeline;

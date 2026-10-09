@@ -75,7 +75,7 @@ public sealed class InMemoryTransportLifetimeTests
     /// <returns>A task that completes when the condition becomes true.</returns>
     private static async Task WaitForAsync(Func<bool> condition, TimeSpan timeout)
     {
-        var deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
+        var deadline = Environment.TickCount64 + (long) timeout.TotalMilliseconds;
 
         while (!condition() && Environment.TickCount64 < deadline)
         {

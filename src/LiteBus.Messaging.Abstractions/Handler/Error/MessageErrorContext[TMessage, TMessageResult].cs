@@ -29,7 +29,7 @@ public sealed class MessageErrorContext<TMessage, TMessageResult>
     /// <summary>
     ///     Gets the message that was being processed when the error occurred.
     /// </summary>
-    public TMessage Message => (TMessage)_context.Message;
+    public TMessage Message => (TMessage) _context.Message;
 
     /// <summary>
     ///     Gets the exception that triggered the error handler.
@@ -41,7 +41,7 @@ public sealed class MessageErrorContext<TMessage, TMessageResult>
     /// </summary>
     public TMessageResult? MessageResult => _context.MessageResult is null
         ? default
-        : (TMessageResult)_context.MessageResult;
+        : (TMessageResult) _context.MessageResult;
 
     /// <summary>
     ///     Gets or sets whether the mediation pipeline suppresses the original exception.
@@ -58,7 +58,7 @@ public sealed class MessageErrorContext<TMessage, TMessageResult>
     /// </summary>
     public TMessageResult? HandledResult
     {
-        get => _context.HandledResult is null ? default : (TMessageResult)_context.HandledResult;
+        get => _context.HandledResult is null ? default : (TMessageResult) _context.HandledResult;
         set => _context.HandledResult = value;
     }
 }

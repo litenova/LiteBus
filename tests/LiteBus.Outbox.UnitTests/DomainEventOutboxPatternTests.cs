@@ -34,7 +34,7 @@ public sealed class DomainEventOutboxPatternTests
         envelope.Topic.Should().Be("orders.events");
         envelope.IdempotencyKey.Should().Be($"order-placed:{order.Id:N}");
 
-        var integrationEvent = (OrderPlacedIntegrationEvent)await serializer.DeserializeAsync(
+        var integrationEvent = (OrderPlacedIntegrationEvent) await serializer.DeserializeAsync(
             typeof(OrderPlacedIntegrationEvent),
             envelope.Payload).ConfigureAwait(false);
         integrationEvent.OrderId.Should().Be(order.Id);

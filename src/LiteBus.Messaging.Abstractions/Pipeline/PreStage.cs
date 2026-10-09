@@ -1,4 +1,4 @@
-﻿namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
 ///     Names the four roles of the pre stage, in the order the framework runs them.

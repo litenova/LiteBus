@@ -10,7 +10,7 @@ public sealed class MessageContextGuardTests : LiteBusTestBase
     [Fact]
     public async Task RunAsyncPreStages_NullDependencies_ThrowsArgumentNullException()
     {
-        var act = async () => await ((IMessageDependencies)null!).RunAsyncPreStages(new object(), CancellationToken.None).ConfigureAwait(false);
+        var act = async () => await ((IMessageDependencies) null!).RunAsyncPreStages(new object(), CancellationToken.None).ConfigureAwait(false);
 
         var thrown = await act.Should().ThrowAsync<ArgumentNullException>().ConfigureAwait(false);
         thrown.Which.ParamName.Should().Be("messageDependencies");
@@ -30,7 +30,7 @@ public sealed class MessageContextGuardTests : LiteBusTestBase
     [Fact]
     public async Task RunAsyncDecisionStages_NullDependencies_ThrowsArgumentNullException()
     {
-        var act = async () => await ((IMessageDependencies)null!).RunAsyncDecisionStages(new object(), CancellationToken.None).ConfigureAwait(false);
+        var act = async () => await ((IMessageDependencies) null!).RunAsyncDecisionStages(new object(), CancellationToken.None).ConfigureAwait(false);
 
         var thrown = await act.Should().ThrowAsync<ArgumentNullException>().ConfigureAwait(false);
         thrown.Which.ParamName.Should().Be("messageDependencies");
@@ -39,7 +39,7 @@ public sealed class MessageContextGuardTests : LiteBusTestBase
     [Fact]
     public async Task RunAsyncPostHandlers_NullDependencies_ThrowsArgumentNullException()
     {
-        var act = async () => await ((IMessageDependencies)null!).RunAsyncPostHandlers(new object(), null, CancellationToken.None).ConfigureAwait(false);
+        var act = async () => await ((IMessageDependencies) null!).RunAsyncPostHandlers(new object(), null, CancellationToken.None).ConfigureAwait(false);
 
         var thrown = await act.Should().ThrowAsync<ArgumentNullException>().ConfigureAwait(false);
         thrown.Which.ParamName.Should().Be("messageDependencies");
@@ -59,7 +59,7 @@ public sealed class MessageContextGuardTests : LiteBusTestBase
     [Fact]
     public void ResolveRefusalResult_NullDependencies_ThrowsArgumentNullException()
     {
-        var act = () => ((IMessageDependencies)null!).ResolveRefusalResult<object>(new object(), PipelineDecision.Continue);
+        var act = () => ((IMessageDependencies) null!).ResolveRefusalResult<object>(new object(), PipelineDecision.Continue);
 
         act.Should().Throw<ArgumentNullException>().Which.ParamName.Should().Be("messageDependencies");
     }
@@ -79,7 +79,7 @@ public sealed class MessageContextGuardTests : LiteBusTestBase
     {
         var context = NewExecutionContext();
 
-        var act = async () => await ((IMessageDependencies)null!).RunAsyncErrorHandlers(new object(), null, new InvalidOperationException(), context).ConfigureAwait(false);
+        var act = async () => await ((IMessageDependencies) null!).RunAsyncErrorHandlers(new object(), null, new InvalidOperationException(), context).ConfigureAwait(false);
 
         var thrown = await act.Should().ThrowAsync<ArgumentNullException>().ConfigureAwait(false);
         thrown.Which.ParamName.Should().Be("messageDependencies");
@@ -130,7 +130,7 @@ public sealed class MessageContextGuardTests : LiteBusTestBase
             Duration = TimeSpan.Zero
         };
 
-        var act = async () => await ((IMessageDependencies)null!).RunAsyncCompletionHandlers(context).ConfigureAwait(false);
+        var act = async () => await ((IMessageDependencies) null!).RunAsyncCompletionHandlers(context).ConfigureAwait(false);
 
         var thrown = await act.Should().ThrowAsync<ArgumentNullException>().ConfigureAwait(false);
         thrown.Which.ParamName.Should().Be("messageDependencies");
@@ -152,7 +152,7 @@ public sealed class MessageContextGuardTests : LiteBusTestBase
     {
         var context = NewExecutionContext();
 
-        var act = async () => await ((IMessageDependencies)null!).RunAsyncCompletionHandlers(new object(), context, MediationOutcome.Succeeded, null, null, null, null, TimeSpan.Zero).ConfigureAwait(false);
+        var act = async () => await ((IMessageDependencies) null!).RunAsyncCompletionHandlers(new object(), context, MediationOutcome.Succeeded, null, null, null, null, TimeSpan.Zero).ConfigureAwait(false);
 
         var thrown = await act.Should().ThrowAsync<ArgumentNullException>().ConfigureAwait(false);
         thrown.Which.ParamName.Should().Be("messageDependencies");

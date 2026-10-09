@@ -27,15 +27,15 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
             EnsureSchemaCreationOnStartup = true
         };
 
-         var provider = BuildInboxProvider(options);
-         await using (provider.ConfigureAwait(false))
-         {
-        var backgroundService = provider.GetRequiredService<PostgreSqlInboxSchemaInitializer>();
+        var provider = BuildInboxProvider(options);
+        await using (provider.ConfigureAwait(false))
+        {
+            var backgroundService = provider.GetRequiredService<PostgreSqlInboxSchemaInitializer>();
 
-        await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
+            await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
 
-        var action = async () => await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(true);
-        await action.Should().NotThrowAsync();
+            var action = async () => await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(true);
+            await action.Should().NotThrowAsync();
         }
     }
 
@@ -50,13 +50,13 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
 
         await PostgreSqlInboxSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(true);
 
-         var provider = BuildInboxProvider(options);
-         await using (provider.ConfigureAwait(false))
-         {
-        var backgroundService = provider.GetRequiredService<PostgreSqlInboxSchemaInitializer>();
+        var provider = BuildInboxProvider(options);
+        await using (provider.ConfigureAwait(false))
+        {
+            var backgroundService = provider.GetRequiredService<PostgreSqlInboxSchemaInitializer>();
 
-        var action = async () => await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
-        await action.Should().NotThrowAsync();
+            var action = async () => await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
+            await action.Should().NotThrowAsync();
         }
     }
 
@@ -69,15 +69,15 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
             ValidateSchemaCreationOnStartup = false
         };
 
-         var provider = BuildInboxProvider(options);
-         await using (provider.ConfigureAwait(false))
-         {
-        var backgroundService = provider.GetRequiredService<PostgreSqlInboxSchemaInitializer>();
+        var provider = BuildInboxProvider(options);
+        await using (provider.ConfigureAwait(false))
+        {
+            var backgroundService = provider.GetRequiredService<PostgreSqlInboxSchemaInitializer>();
 
-        await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
+            await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
 
-        var action = async () => await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(true);
-        await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>();
+            var action = async () => await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(true);
+            await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>();
         }
     }
 
@@ -90,13 +90,13 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
             ValidateSchemaCreationOnStartup = true
         };
 
-         var provider = BuildInboxProvider(options);
-         await using (provider.ConfigureAwait(false))
-         {
-        var backgroundService = provider.GetRequiredService<PostgreSqlInboxSchemaInitializer>();
+        var provider = BuildInboxProvider(options);
+        await using (provider.ConfigureAwait(false))
+        {
+            var backgroundService = provider.GetRequiredService<PostgreSqlInboxSchemaInitializer>();
 
-        var action = async () => await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
-        await action.Should().NotThrowAsync();
+            var action = async () => await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
+            await action.Should().NotThrowAsync();
         }
     }
 
@@ -108,15 +108,15 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
             EnsureSchemaCreationOnStartup = true
         };
 
-         var provider = BuildOutboxProvider(options);
-         await using (provider.ConfigureAwait(false))
-         {
-        var backgroundService = provider.GetRequiredService<PostgreSqlOutboxSchemaInitializer>();
+        var provider = BuildOutboxProvider(options);
+        await using (provider.ConfigureAwait(false))
+        {
+            var backgroundService = provider.GetRequiredService<PostgreSqlOutboxSchemaInitializer>();
 
-        await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
+            await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
 
-        var action = async () => await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(true);
-        await action.Should().NotThrowAsync();
+            var action = async () => await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(true);
+            await action.Should().NotThrowAsync();
         }
     }
 
@@ -131,13 +131,13 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
 
         await PostgreSqlOutboxSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(true);
 
-         var provider = BuildOutboxProvider(options);
-         await using (provider.ConfigureAwait(false))
-         {
-        var backgroundService = provider.GetRequiredService<PostgreSqlOutboxSchemaInitializer>();
+        var provider = BuildOutboxProvider(options);
+        await using (provider.ConfigureAwait(false))
+        {
+            var backgroundService = provider.GetRequiredService<PostgreSqlOutboxSchemaInitializer>();
 
-        var action = async () => await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
-        await action.Should().NotThrowAsync();
+            var action = async () => await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
+            await action.Should().NotThrowAsync();
         }
     }
 
@@ -150,15 +150,15 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
             ValidateSchemaCreationOnStartup = false
         };
 
-         var provider = BuildOutboxProvider(options);
-         await using (provider.ConfigureAwait(false))
-         {
-        var backgroundService = provider.GetRequiredService<PostgreSqlOutboxSchemaInitializer>();
+        var provider = BuildOutboxProvider(options);
+        await using (provider.ConfigureAwait(false))
+        {
+            var backgroundService = provider.GetRequiredService<PostgreSqlOutboxSchemaInitializer>();
 
-        await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
+            await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
 
-        var action = async () => await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(true);
-        await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>();
+            var action = async () => await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(true);
+            await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>();
         }
     }
 
@@ -170,15 +170,15 @@ public sealed class PostgreSqlSchemaHostingTests : LiteBusTestBase, IClassFixtur
             EnsureSchemaCreationOnStartup = true
         };
 
-         var provider = BuildInboxProvider(options);
-         await using (provider.ConfigureAwait(false))
-         {
-        var backgroundService = provider.GetRequiredService<PostgreSqlInboxSchemaInitializer>();
+        var provider = BuildInboxProvider(options);
+        await using (provider.ConfigureAwait(false))
+        {
+            var backgroundService = provider.GetRequiredService<PostgreSqlInboxSchemaInitializer>();
 
-        await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
-        await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
+            await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
+            await backgroundService.RunAsync(CancellationToken.None).ConfigureAwait(true);
 
-        await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(true);
+            await PostgreSqlInboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(true);
         }
     }
 

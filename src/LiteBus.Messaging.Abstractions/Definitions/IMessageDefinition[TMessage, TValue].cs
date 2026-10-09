@@ -1,4 +1,4 @@
-﻿namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
 ///     Declares one piece of metadata for messages of type <typeparamref name="TMessage" />.

@@ -40,7 +40,7 @@ public sealed class InboxObservableMetricsTests
             nameof(InboxStatus.DeadLettered)));
         measurements.Should().Contain(new MetricMeasurement(
             LiteBusInboxTelemetry.ProcessorStateInstrumentName,
-            (int)ProcessorState.Paused,
+            (int) ProcessorState.Paused,
             null));
         diagnosticsStore.QueryCount.Should().Be(1);
 

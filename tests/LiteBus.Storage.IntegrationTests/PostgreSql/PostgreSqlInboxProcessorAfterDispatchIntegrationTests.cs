@@ -33,36 +33,36 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
 
-         var provider = BuildProvider(_fixture, options);
-         await using (provider.ConfigureAwait(false))
-         {
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processingStore = provider.GetRequiredService<IInboxProcessingStore>();
-        var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
-        var processorOptions = provider.GetRequiredService<InboxProcessorOptions>();
-        var clock = provider.GetRequiredService<TimeProvider>();
+        var provider = BuildProvider(_fixture, options);
+        await using (provider.ConfigureAwait(false))
+        {
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processingStore = provider.GetRequiredService<IInboxProcessingStore>();
+            var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
+            var processorOptions = provider.GetRequiredService<InboxProcessorOptions>();
+            var clock = provider.GetRequiredService<TimeProvider>();
 
-        var processor = new PipelinedInboxProcessor(
-            processingStore,
-            processingStore,
-            dispatcher,
-            processorOptions,
-            clock,
-            [new ThrowingAfterDispatchHook()]);
+            var processor = new PipelinedInboxProcessor(
+                processingStore,
+                processingStore,
+                dispatcher,
+                processorOptions,
+                clock,
+                [new ThrowingAfterDispatchHook()]);
 
-        var messageId = Guid.NewGuid();
+            var messageId = Guid.NewGuid();
 
-        await scheduler.AcceptAsync(InboxAcceptItem<ShipOrderCommand>.WithIdentity(
-            new ShipOrderCommand { OrderId = messageId },
-            messageId)).ConfigureAwait(false);
+            await scheduler.AcceptAsync(InboxAcceptItem<ShipOrderCommand>.WithIdentity(
+                new ShipOrderCommand { OrderId = messageId },
+                messageId)).ConfigureAwait(false);
 
-        var result = await processor.ProcessPendingAsync().ConfigureAwait(false);
+            var result = await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        result.DeadLetteredCount.Should().Be(1);
+            result.DeadLetteredCount.Should().Be(1);
 
-        var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
-        row!.Status.Should().Be(InboxStatus.DeadLettered);
-        row.LastError.Should().Contain("AfterDispatch failed");
+            var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
+            row!.Status.Should().Be(InboxStatus.DeadLettered);
+            row.LastError.Should().Contain("AfterDispatch failed");
         }
     }
 

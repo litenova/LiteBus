@@ -141,7 +141,7 @@ internal sealed class OutboxObservableMetrics : IDisposable
             yield break;
         }
 
-        yield return new Measurement<int>((int)control.State);
+        yield return new Measurement<int>((int) control.State);
     }
 
     /// <summary>

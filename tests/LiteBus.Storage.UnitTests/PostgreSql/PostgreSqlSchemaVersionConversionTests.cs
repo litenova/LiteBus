@@ -7,7 +7,7 @@ public sealed class PostgreSqlSchemaVersionConversionTests
     [Theory]
     [InlineData(3, 3)]
     [InlineData(7L, 7)]
-    [InlineData((short)2, 2)]
+    [InlineData((short) 2, 2)]
     public void ConvertVersionResult_WithSupportedTypes_ShouldConvert(object result, int expected)
     {
         PostgreSqlSchemaVersionStore.ConvertVersionResult(result).Should().Be(expected);
@@ -38,7 +38,7 @@ public sealed class PostgreSqlSchemaVersionConversionTests
     [InlineData(1.5f)]
     [InlineData("3")]
     [InlineData(true)]
-    [InlineData((byte)3)]
+    [InlineData((byte) 3)]
     public void ConvertVersionResult_WithUnsupportedTypes_ShouldThrow(object result)
     {
         var act = () => PostgreSqlSchemaVersionStore.ConvertVersionResult(result);

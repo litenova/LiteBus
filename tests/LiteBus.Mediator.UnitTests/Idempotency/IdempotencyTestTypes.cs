@@ -147,7 +147,8 @@ internal sealed class RepeatablePaymentCommandDefinition : IIdempotencyDefinitio
     /// <inheritdoc />
     public IdempotencyDeclaration Idempotency =>
         IdempotencyDeclaration.KeyedBy<RepeatablePaymentCommand>(command => command.PaymentId)
-            with { ReplayResult = true };
+            with
+        { ReplayResult = true };
 }
 
 /// <summary>

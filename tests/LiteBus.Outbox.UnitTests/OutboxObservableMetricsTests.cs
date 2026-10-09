@@ -40,7 +40,7 @@ public sealed class OutboxObservableMetricsTests
             nameof(OutboxStatus.DeadLettered)));
         measurements.Should().Contain(new MetricMeasurement(
             LiteBusOutboxTelemetry.ProcessorStateInstrumentName,
-            (int)ProcessorState.Draining,
+            (int) ProcessorState.Draining,
             null));
         diagnosticsStore.QueryCount.Should().Be(1);
 

@@ -1,4 +1,4 @@
-﻿using LiteBus.Commands.Abstractions;
+using LiteBus.Commands.Abstractions;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;

@@ -23,7 +23,7 @@ public sealed class AzureServiceBusPublisherDisposeTests
         await using (client.ConfigureAwait(false))
         {
             var publisher = new AzureServiceBusPublisher(client, new TransportCircuitBreakerRegistry());
-            var senders = (ConcurrentDictionary<string, ServiceBusSender>)typeof(AzureServiceBusPublisher)
+            var senders = (ConcurrentDictionary<string, ServiceBusSender>) typeof(AzureServiceBusPublisher)
                 .GetField("_senders", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .GetValue(publisher)!;
             senders["orders"] = new CancelledSender();

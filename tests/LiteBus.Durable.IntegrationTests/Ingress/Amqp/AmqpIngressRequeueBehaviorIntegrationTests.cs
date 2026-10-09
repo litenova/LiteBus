@@ -50,37 +50,37 @@ public sealed class AmqpIngressRequeueBehaviorIntegrationTests : LiteBusTestBase
         var ingressQueue = $"litebus.ingress.requeue.{Guid.NewGuid():N}";
         await DeclareQueueAsync(ingressQueue).ConfigureAwait(false);
 
-         var provider = BuildProvider(ingressQueue, true);
-         await using (provider.ConfigureAwait(false))
-         {
-        using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
-
-        try
+        var provider = BuildProvider(ingressQueue, true);
+        await using (provider.ConfigureAwait(false))
         {
-            var publisher = provider.GetRequiredService<ITransportPublisher>();
-            var messageId = Guid.NewGuid();
+            using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
 
-            await publisher.PublishAsync(new TransportPublishRequest
+            try
             {
-                Destination = string.Empty,
-                Route = ingressQueue,
-                Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
-                MessageId = messageId.ToString("D"),
-                Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-            }).ConfigureAwait(false);
+                var publisher = provider.GetRequiredService<ITransportPublisher>();
+                var messageId = Guid.NewGuid();
+
+                await publisher.PublishAsync(new TransportPublishRequest
+                {
+                    Destination = string.Empty,
+                    Route = ingressQueue,
+                    Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
+                    MessageId = messageId.ToString("D"),
+                    Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
+                }).ConfigureAwait(false);
 
 
-            await PollingWait.UntilAsync(
-                () => provider.GetRequiredService<InMemoryInboxStore>().Count == 1,
-                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                await PollingWait.UntilAsync(
+                    () => provider.GetRequiredService<InMemoryInboxStore>().Count == 1,
+                    TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
-        }
-        finally
-        {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
-        }
+            }
+            finally
+            {
+                await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 
@@ -97,14 +97,14 @@ public sealed class AmqpIngressRequeueBehaviorIntegrationTests : LiteBusTestBase
                   throw new InvalidOperationException("The AMQP test broker did not provide a connection URI.")
         };
 
-         var connection = await factory.CreateConnectionAsync().ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var channel = await connection.CreateChannelAsync().ConfigureAwait(false);
-         await using (channel.ConfigureAwait(false))
-         {
-        await channel.QueueDeclareAsync(queueName, true, false, false).ConfigureAwait(false);
-        }
+        var connection = await factory.CreateConnectionAsync().ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var channel = await connection.CreateChannelAsync().ConfigureAwait(false);
+            await using (channel.ConfigureAwait(false))
+            {
+                await channel.QueueDeclareAsync(queueName, true, false, false).ConfigureAwait(false);
+            }
         }
     }
 
@@ -120,7 +120,7 @@ public sealed class AmqpIngressRequeueBehaviorIntegrationTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
-                registry.Modules.Register(new AmqpTransportModule(_broker.ConnectionOptions));
+            registry.Modules.Register(new AmqpTransportModule(_broker.ConnectionOptions));
             registry.AddMessaging(_ =>
             {
             });

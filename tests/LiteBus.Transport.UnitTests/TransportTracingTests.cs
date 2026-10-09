@@ -166,7 +166,7 @@ public sealed class TransportTracingTests
         return new TransportMessage
         {
             MessagingSystem = messagingSystem,
-            Body = (byte[])[1, 2, 3],
+            Body = (byte[]) [1, 2, 3],
             Headers = headers,
             Destination = "orders",
             Route = "customer-42",

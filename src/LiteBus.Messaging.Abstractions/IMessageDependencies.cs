@@ -1,4 +1,4 @@
-﻿namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
 ///     Defines a contract for an object that holds the dependencies needed to handle messages within a given context,

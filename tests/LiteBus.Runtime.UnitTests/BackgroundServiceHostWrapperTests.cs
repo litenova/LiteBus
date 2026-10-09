@@ -156,7 +156,7 @@ public sealed class BackgroundServiceHostWrapperTests
                         BindingFlags.NonPublic | BindingFlags.Instance) ??
                     throw new InvalidOperationException("_stoppingCts not found.");
 
-        return (CancellationTokenSource)field.GetValue(wrapper)!;
+        return (CancellationTokenSource) field.GetValue(wrapper)!;
     }
 
     private sealed class CancellationIgnoringBackgroundService : IBackgroundService

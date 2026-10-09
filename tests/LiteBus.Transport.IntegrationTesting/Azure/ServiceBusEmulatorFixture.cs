@@ -104,11 +104,11 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
     {
         return prefix switch
         {
-            "ingress"                              => IngressQueueName,
+            "ingress" => IngressQueueName,
             "ingress-fail" or "ingress-store-full" => FailureQueueName,
-            "dispatch" or "inbox-dispatch"         => DispatchQueueName,
-            "outbox-dispatch" or "outbox-route"    => OutboxQueueName,
-            _                                      => FailureQueueName
+            "dispatch" or "inbox-dispatch" => DispatchQueueName,
+            "outbox-dispatch" or "outbox-route" => OutboxQueueName,
+            _ => FailureQueueName
         };
     }
 }

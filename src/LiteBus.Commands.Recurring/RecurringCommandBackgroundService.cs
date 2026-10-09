@@ -90,7 +90,7 @@ public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundSer
 
         var mediatorScope = _scopeFactory.CreateScope();
         await using var configuredMediatorScope = mediatorScope.ConfigureAwait(false);
-        var mediator = (ICommandMediator?)mediatorScope.ServiceProvider.GetService(typeof(ICommandMediator));
+        var mediator = (ICommandMediator?) mediatorScope.ServiceProvider.GetService(typeof(ICommandMediator));
         if (mediator is null)
         {
             throw new LiteBusDependencyResolutionException(typeof(ICommandMediator));
@@ -173,9 +173,9 @@ public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundSer
     private async Task<bool> SendOnceAsync(ICommandMediator mediator, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(mediator);
-        
 
-        
+
+
         var command = _commandFactory();
 
         // ICommand<TResult> derives from ICommand, so the result-bearing contract has to be tested first or every

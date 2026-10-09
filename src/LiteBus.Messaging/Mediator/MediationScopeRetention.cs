@@ -28,7 +28,7 @@ internal static class MediationScopeRetention
     {
         if (result is Task task)
         {
-            return (TResult)RetainTask(task, resourceScope);
+            return (TResult) RetainTask(task, resourceScope);
         }
 
         var asyncEnumerableType = GetAsyncEnumerableElementType(result);
@@ -112,7 +112,7 @@ internal static class MediationScopeRetention
     {
         try
         {
-            return await ((Task<T>)task).ConfigureAwait(false);
+            return await ((Task<T>) task).ConfigureAwait(false);
         }
         finally
         {

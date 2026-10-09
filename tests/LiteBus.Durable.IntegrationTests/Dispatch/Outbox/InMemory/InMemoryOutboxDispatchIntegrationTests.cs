@@ -30,58 +30,58 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
         var orderId = Guid.NewGuid();
         var received = new TaskCompletionSource<TransportMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-         var provider = BuildProvider(destination);
-         await using (provider.ConfigureAwait(false))
-         {
-        var broker = provider.GetRequiredService<InMemoryTransportBroker>();
-         var consumer = await StartReceiveOneAsync(broker, destination, received).ConfigureAwait(false);
-         await using (consumer.ConfigureAwait(false))
-         {
-
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-
-        await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+        var provider = BuildProvider(destination);
+        await using (provider.ConfigureAwait(false))
         {
-            Message = new OrderSubmittedIntegrationEvent { OrderId = orderId },
-            Metadata = OutboxEnqueueMetadata.Immediate with
+            var broker = provider.GetRequiredService<InMemoryTransportBroker>();
+            var consumer = await StartReceiveOneAsync(broker, destination, received).ConfigureAwait(false);
+            await using (consumer.ConfigureAwait(false))
             {
-                Identity = new MessageIdentity.Supplied(messageId),
-                Trace = new MessageTrace.Workflow("corr-outbox-inmemory", "cause-outbox-inmemory"),
-                Tenant = new TenantScope.Isolated("tenant-east"),
-                Target = new PublicationTarget.Topic(destination)
+
+                var store = provider.GetRequiredService<InMemoryOutboxStore>();
+                var outbox = provider.GetRequiredService<IOutbox>();
+                var processor = provider.GetRequiredService<IOutboxProcessor>();
+
+                await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+                {
+                    Message = new OrderSubmittedIntegrationEvent { OrderId = orderId },
+                    Metadata = OutboxEnqueueMetadata.Immediate with
+                    {
+                        Identity = new MessageIdentity.Supplied(messageId),
+                        Trace = new MessageTrace.Workflow("corr-outbox-inmemory", "cause-outbox-inmemory"),
+                        Tenant = new TenantScope.Isolated("tenant-east"),
+                        Target = new PublicationTarget.Topic(destination)
+                    }
+                }).ConfigureAwait(false);
+
+                await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+                store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
+
+                using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var transportMessage = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
+
+                var json = TransportMessageAssertions.ReadBody(transportMessage);
+                json.Should().Be(store.Get(messageId).Payload);
+
+                TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.MessageId)
+                    .Should().Be(messageId.ToString("D"));
+
+                TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.CorrelationId)
+                    .Should().Be("corr-outbox-inmemory");
+
+                TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.ContractName)
+                    .Should().Be("orders.order-submitted");
+
+                TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.ContractVersion)
+                    .Should().Be("1");
+
+                TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.CausationId)
+                    .Should().Be("cause-outbox-inmemory");
+
+                TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.TenantId)
+                    .Should().Be("tenant-east");
             }
-        }).ConfigureAwait(false);
-
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
-
-        store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
-
-        using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var transportMessage = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
-
-        var json = TransportMessageAssertions.ReadBody(transportMessage);
-        json.Should().Be(store.Get(messageId).Payload);
-
-        TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.MessageId)
-            .Should().Be(messageId.ToString("D"));
-
-        TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.CorrelationId)
-            .Should().Be("corr-outbox-inmemory");
-
-        TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.ContractName)
-            .Should().Be("orders.order-submitted");
-
-        TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.ContractVersion)
-            .Should().Be("1");
-
-        TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.CausationId)
-            .Should().Be("cause-outbox-inmemory");
-
-        TransportMessageAssertions.GetHeader(transportMessage, TransportHeaders.TenantId)
-            .Should().Be("tenant-east");
-        }
         }
     }
 
@@ -97,35 +97,35 @@ public sealed class InMemoryOutboxDispatchIntegrationTests : LiteBusTestBase
         var messageId = Guid.NewGuid();
         var received = new TaskCompletionSource<TransportMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-         var provider = BuildProvider(destination);
-         await using (provider.ConfigureAwait(false))
-         {
-        var broker = provider.GetRequiredService<InMemoryTransportBroker>();
-         var consumer = await StartReceiveOneAsync(broker, destination, received).ConfigureAwait(false);
-         await using (consumer.ConfigureAwait(false))
-         {
-
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-
-        await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+        var provider = BuildProvider(destination);
+        await using (provider.ConfigureAwait(false))
         {
-            Message = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            Metadata = OutboxEnqueueMetadata.Immediate with
+            var broker = provider.GetRequiredService<InMemoryTransportBroker>();
+            var consumer = await StartReceiveOneAsync(broker, destination, received).ConfigureAwait(false);
+            await using (consumer.ConfigureAwait(false))
             {
-                Identity = new MessageIdentity.Supplied(messageId)
+
+                var store = provider.GetRequiredService<InMemoryOutboxStore>();
+                var outbox = provider.GetRequiredService<IOutbox>();
+                var processor = provider.GetRequiredService<IOutboxProcessor>();
+
+                await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+                {
+                    Message = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                    Metadata = OutboxEnqueueMetadata.Immediate with
+                    {
+                        Identity = new MessageIdentity.Supplied(messageId)
+                    }
+                }).ConfigureAwait(false);
+
+                await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+                store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
+
+                using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var transportMessage = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
+                transportMessage.Route.Should().Be(contractRoute);
             }
-        }).ConfigureAwait(false);
-
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
-
-        store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
-
-        using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var transportMessage = await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
-        transportMessage.Route.Should().Be(contractRoute);
-        }
         }
     }
 

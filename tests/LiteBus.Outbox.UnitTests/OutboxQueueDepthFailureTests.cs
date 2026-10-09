@@ -74,7 +74,7 @@ public sealed class OutboxQueueDepthFailureTests
     private static IReadOnlyDictionary<OutboxStatus, int> GetCachedCounts(OutboxObservableMetrics metrics)
     {
         var field = typeof(OutboxObservableMetrics).GetField("_cachedCounts", BindingFlags.NonPublic | BindingFlags.Instance);
-        return (IReadOnlyDictionary<OutboxStatus, int>)field!.GetValue(metrics)!;
+        return (IReadOnlyDictionary<OutboxStatus, int>) field!.GetValue(metrics)!;
     }
 
     private static MeterListener CreateListener(ICollection<MetricMeasurement> measurements)

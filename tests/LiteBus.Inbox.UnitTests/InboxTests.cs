@@ -105,7 +105,8 @@ public sealed class InboxTests : LiteBusTestBase
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
         var orderId = Guid.NewGuid();
 
-        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+        {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
         });
@@ -164,7 +165,8 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ArchiveCommand<string> {
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ArchiveCommand<string>
+        {
             Value = "closed-generic"
         });
 

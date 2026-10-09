@@ -24,22 +24,22 @@ public sealed class EfCoreOutboxProcessorDeadLetterEndToEndTests : LiteBusTestBa
         var storeOptions = EfCoreOutboxE2eSupport.CreateStoreOptions(TableName);
         await EfCoreOutboxE2eSupport.EnsureOutboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
-         var provider = EfCoreOutboxE2eSupport.BuildProvider<DeadLetterOutboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new OutboxE2eComposition             {                 UseFailingDispatcher = true,                 MaxAttempts = 1,                 LeaseOwner = "efcore-outbox-dead-letter"             });
-         await using (provider.ConfigureAwait(true))
-         {
+        var provider = EfCoreOutboxE2eSupport.BuildProvider<DeadLetterOutboxDbContext>(_fixture.ConnectionString, storeOptions, new OutboxE2eComposition { UseFailingDispatcher = true, MaxAttempts = 1, LeaseOwner = "efcore-outbox-dead-letter" });
+        await using (provider.ConfigureAwait(true))
+        {
 
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var messageId = Guid.NewGuid();
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
-            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            messageId)).ConfigureAwait(false);
+            await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
+                new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                messageId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        var row = await EfCoreOutboxTableReaders.ReadOutboxAsync(_fixture.ConnectionString, storeOptions, messageId).ConfigureAwait(false);
-        row!.Status.Should().Be(OutboxStatus.DeadLettered);
+            var row = await EfCoreOutboxTableReaders.ReadOutboxAsync(_fixture.ConnectionString, storeOptions, messageId).ConfigureAwait(false);
+            row!.Status.Should().Be(OutboxStatus.DeadLettered);
         }
     }
 

@@ -1,4 +1,4 @@
-﻿namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
 ///     Handles an exception raised while mediating a message of type <typeparamref name="TMessage" />.

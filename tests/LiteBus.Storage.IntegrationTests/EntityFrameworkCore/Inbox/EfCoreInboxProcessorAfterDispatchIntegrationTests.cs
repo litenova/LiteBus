@@ -28,32 +28,32 @@ public sealed class EfCoreInboxProcessorAfterDispatchIntegrationTests : LiteBusT
         var storeOptions = EfCoreInboxE2eSupport.CreateStoreOptions(TableName);
         await EfCoreInboxE2eSupport.EnsureInboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
-         var provider = EfCoreInboxE2eSupport.BuildProvider<AfterDispatchInboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new InboxE2eComposition             {                 Recorder = new CommandRecorder(),                 LeaseOwner = "efcore-inbox-after-dispatch"             });
-         await using (provider.ConfigureAwait(true))
-         {
+        var provider = EfCoreInboxE2eSupport.BuildProvider<AfterDispatchInboxDbContext>(_fixture.ConnectionString, storeOptions, new InboxE2eComposition { Recorder = new CommandRecorder(), LeaseOwner = "efcore-inbox-after-dispatch" });
+        await using (provider.ConfigureAwait(true))
+        {
 
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processingStore = provider.GetRequiredService<IInboxProcessingStore>();
-        var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
-        var processorOptions = provider.GetRequiredService<InboxProcessorOptions>();
-        var clock = provider.GetRequiredService<TimeProvider>();
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processingStore = provider.GetRequiredService<IInboxProcessingStore>();
+            var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
+            var processorOptions = provider.GetRequiredService<InboxProcessorOptions>();
+            var clock = provider.GetRequiredService<TimeProvider>();
 
-        var processor = new PipelinedInboxProcessor(
-            processingStore,
-            processingStore,
-            dispatcher,
-            processorOptions,
-            clock,
-            [new ThrowingAfterDispatchHook()]);
+            var processor = new PipelinedInboxProcessor(
+                processingStore,
+                processingStore,
+                dispatcher,
+                processorOptions,
+                clock,
+                [new ThrowingAfterDispatchHook()]);
 
-        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() }).ConfigureAwait(false);
-        var result = await processor.ProcessPendingAsync().ConfigureAwait(false);
+            var receipt = await scheduler.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() }).ConfigureAwait(false);
+            var result = await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        result.DeadLetteredCount.Should().Be(1);
+            result.DeadLetteredCount.Should().Be(1);
 
-        var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, receipt.Id).ConfigureAwait(false);
-        row!.Status.Should().Be(InboxStatus.DeadLettered);
-        row.LastError.Should().Contain("AfterDispatch failed");
+            var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, receipt.Id).ConfigureAwait(false);
+            row!.Status.Should().Be(InboxStatus.DeadLettered);
+            row.LastError.Should().Contain("AfterDispatch failed");
         }
     }
 
@@ -63,39 +63,39 @@ public sealed class EfCoreInboxProcessorAfterDispatchIntegrationTests : LiteBusT
         var storeOptions = EfCoreInboxE2eSupport.CreateStoreOptions(TableName + "_fsm");
         await EfCoreInboxE2eSupport.EnsureInboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
-         var provider = EfCoreInboxE2eSupport.BuildProvider<FsmInboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new InboxE2eComposition());
-         await using (provider.ConfigureAwait(true))
-         {
-
-        var processingStore = provider.GetRequiredService<IInboxProcessingStore>();
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var receipt = await scheduler.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() }).ConfigureAwait(false);
-
-        var leased = await processingStore.LeasePendingAsync(new InboxLeaseRequest
+        var provider = EfCoreInboxE2eSupport.BuildProvider<FsmInboxDbContext>(_fixture.ConnectionString, storeOptions, new InboxE2eComposition());
+        await using (provider.ConfigureAwait(true))
         {
-            BatchSize = 1,
-            LeaseOwner = "fsm-worker",
-            Now = EfCoreInboxE2eSupport.BaseTime,
-            LeaseDuration = TimeSpan.FromMinutes(1)
-        }).ConfigureAwait(false);
 
-        var completed = leased[0].AsCompleted();
-        var completedResult = await processingStore.PersistAsync([completed]).ConfigureAwait(false);
-        completedResult.AppliedCount.Should().Be(1);
+            var processingStore = provider.GetRequiredService<IInboxProcessingStore>();
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var receipt = await scheduler.AcceptAsync(new ShipOrderCommand { OrderId = Guid.NewGuid() }).ConfigureAwait(false);
 
-        var deadLettered = completed with
-        {
-            Status = InboxStatus.DeadLettered,
-            LastError = "hook failure"
-        };
+            var leased = await processingStore.LeasePendingAsync(new InboxLeaseRequest
+            {
+                BatchSize = 1,
+                LeaseOwner = "fsm-worker",
+                Now = EfCoreInboxE2eSupport.BaseTime,
+                LeaseDuration = TimeSpan.FromMinutes(1)
+            }).ConfigureAwait(false);
 
-        var deadLetterResult = await processingStore.PersistAsync([deadLettered]).ConfigureAwait(false);
+            var completed = leased[0].AsCompleted();
+            var completedResult = await processingStore.PersistAsync([completed]).ConfigureAwait(false);
+            completedResult.AppliedCount.Should().Be(1);
 
-        deadLetterResult.AppliedCount.Should().Be(0);
-        deadLetterResult.SkippedCount.Should().Be(1);
+            var deadLettered = completed with
+            {
+                Status = InboxStatus.DeadLettered,
+                LastError = "hook failure"
+            };
 
-        var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, receipt.Id).ConfigureAwait(false);
-        row!.Status.Should().Be(InboxStatus.Completed);
+            var deadLetterResult = await processingStore.PersistAsync([deadLettered]).ConfigureAwait(false);
+
+            deadLetterResult.AppliedCount.Should().Be(0);
+            deadLetterResult.SkippedCount.Should().Be(1);
+
+            var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, receipt.Id).ConfigureAwait(false);
+            row!.Status.Should().Be(InboxStatus.Completed);
         }
     }
 

@@ -1,4 +1,4 @@
-﻿using LiteBus.Commands;
+using LiteBus.Commands;
 using LiteBus.Events;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox;

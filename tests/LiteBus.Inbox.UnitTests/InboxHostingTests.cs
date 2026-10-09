@@ -66,7 +66,8 @@ public sealed class InboxHostingTests : LiteBusTestBase
             var scheduler = provider.GetRequiredService<IInbox>();
             var orderId = Guid.NewGuid();
 
-            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
+            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+            {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
             }).ConfigureAwait(true);
@@ -145,7 +146,8 @@ public sealed class InboxHostingTests : LiteBusTestBase
 
             var orderId = Guid.NewGuid();
 
-            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
+            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+            {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
             }).ConfigureAwait(false);
@@ -193,7 +195,8 @@ public sealed class InboxHostingTests : LiteBusTestBase
             {
                 var orderId = Guid.NewGuid();
 
-                await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
+                await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+                {
                     OrderId = orderId,
                     IdempotencyKey = $"ship:{orderId}"
                 }).ConfigureAwait(true);
@@ -224,7 +227,8 @@ public sealed class InboxHostingTests : LiteBusTestBase
 
             var orderId = Guid.NewGuid();
 
-            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
+            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+            {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
             }).ConfigureAwait(true);

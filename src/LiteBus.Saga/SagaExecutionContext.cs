@@ -61,7 +61,7 @@ public sealed class SagaExecutionContext : ISagaContext
         var scope = GetRequiredActiveScope();
         EnsureStateType(scope, typeof(TState));
         scope.StateObserved = true;
-        return (TState)scope.State;
+        return (TState) scope.State;
     }
 
     /// <inheritdoc />

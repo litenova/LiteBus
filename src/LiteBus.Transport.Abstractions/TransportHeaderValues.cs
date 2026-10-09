@@ -47,14 +47,14 @@ public static class TransportHeaderValues
 
         return value switch
         {
-            int number                                                                                              => number,
-            byte singleByte                                                                                         => singleByte,
-            sbyte signedByte                                                                                        => signedByte,
-            short number                                                                                            => number,
-            long number when number is >= int.MinValue and <= int.MaxValue                                       => (int) number,
+            int number => number,
+            byte singleByte => singleByte,
+            sbyte signedByte => signedByte,
+            short number => number,
+            long number when number is >= int.MinValue and <= int.MaxValue => (int) number,
             string text when int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) => parsed,
-            byte[] { Length: <= 4 } bytes when TryParseBytesAsInt32(bytes, out var parsed)                      => parsed,
-            _                                                                                                       => null
+            byte[] { Length: <= 4 } bytes when TryParseBytesAsInt32(bytes, out var parsed) => parsed,
+            _ => null
         };
     }
 
@@ -67,12 +67,12 @@ public static class TransportHeaderValues
     {
         return value switch
         {
-            null                        => null,
-            string text                 => text,
-            byte[] bytes                => Encoding.UTF8.GetString(bytes),
+            null => null,
+            string text => text,
+            byte[] bytes => Encoding.UTF8.GetString(bytes),
             ReadOnlyMemory<byte> memory => Encoding.UTF8.GetString(memory.Span),
-            Memory<byte> memory         => Encoding.UTF8.GetString(memory.Span),
-            _                           => Convert.ToString(value, CultureInfo.InvariantCulture)
+            Memory<byte> memory => Encoding.UTF8.GetString(memory.Span),
+            _ => Convert.ToString(value, CultureInfo.InvariantCulture)
         };
     }
 

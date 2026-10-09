@@ -174,7 +174,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
             new ServiceCollection()
                 .AddLiteBus(registry =>
                 {
-                registry.Modules.Register(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
+                    registry.Modules.Register(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
                     registry.AddMessaging(_ =>
                     {
                     });
@@ -231,7 +231,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
 
         services.AddLiteBus(registry =>
         {
-                registry.Modules.Register(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
+            registry.Modules.Register(new AmqpTransportModule(new AmqpConnectionOptions { HostName = "localhost" }));
             registry.AddMessaging(_ =>
             {
             });
