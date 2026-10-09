@@ -1,6 +1,10 @@
 # Glossary
 
-This page defines terms used across the LiteBus documentation. Each entry links to the page that explains it in depth.
+This page defines the terms used across the LiteBus documentation. Each entry links to the page that explains it in depth.
+
+> **This page is for** anyone who meets an unfamiliar LiteBus term and wants the meaning the rest of the pages use.
+>
+> **After reading it** you can name each concept the way the documentation names it. To see the pipeline words in context, go on to [The Handler Pipeline](../concepts/handler-pipeline.md).
 
 ## Core Concepts
 
@@ -31,7 +35,7 @@ This page defines terms used across the LiteBus documentation. Each entry links 
 
 ## Pipeline Vocabulary
 
-These words each name exactly one thing, and nothing else in LiteBus is called by them. Where the documentation, an XML comment, and a type name could disagree, this table is the one that wins. The rules that decide why each word was chosen, and how to name the next one, are in [Mediation Layer Design Rules](../architecture/mediation-design.md).
+These words each name exactly one thing, and nothing else in LiteBus is called by them. Where the documentation, an XML comment, and a type name could disagree, this table is the one that wins. The rules behind each word, and how to name the next one, are in [Mediation Layer Design Rules](../architecture/mediation-design.md).
 
 | Word | Means | Do not write |
 | --- | --- | --- |
@@ -39,7 +43,7 @@ These words each name exactly one thing, and nothing else in LiteBus is called b
 | **Invalid** | A validator found the message malformed. `Validity.Invalid`, `MediationOutcome.Invalid`, `AuditOutcome.Invalid`, `LiteBusMessageInvalidException`. | denied, rejected, failed |
 | **Answered** | A shortcut supplied the result, so the main handler never ran. `Shortcut.Answer`, `MediationOutcome.Answered`, recorded as `AuditOutcome.Succeeded`. | short-circuited, skipped, cancelled |
 | **Failed** | An exception escaped the pipeline. `MediationOutcome.Failed`. | denied, invalid |
-| **Canceled** | The caller's cancellation token fired. `MediationOutcome.Canceled`, spelled with one `l` to match `OperationCanceledException`. | aborted, stopped |
+| **Canceled** | The caller cancellation token fired. `MediationOutcome.Canceled`, spelled with one `l` to match `OperationCanceledException`. | aborted, stopped |
 | **Refusal** | The **category** holding Denied and Invalid, and the only two things it can hold. `Refusal.Denied`, `Refusal.Invalid`, `PipelineDecision.IsRefusal`, `IMessageRefusalMapper`. | (never as a synonym for Denied) |
 | **Decision** | What a pre-stage handler returns, normalized to `PipelineDecision`. `PipelineDecision.Continue` lets the pipeline run on. | stop, directive, abort |
 | **Reason** | Why a decision stopped the message, written for a person. `Verdict.Deny(reason)`, `Shortcut.Answer(reason)`, `MessageCompletionContext.Reason`, `AuditRecord.Reason`. | code, message, error |
@@ -60,7 +64,7 @@ Two consequences worth stating outright, because they are the questions the spli
 | Audit exemption | A recorded decision that a message is deliberately not audited, carrying the rationale. Not the same as a message nobody considered, which analyzer LB1018 reports. |
 | Audit scope | The variable half of a record, pushed by the handler while it runs through `IAuditScope`. |
 | Audit actor | Who performed the action, resolved by an `IAuditActorResolver` at the completion stage so a denied message is attributed too. A null actor means nothing established one, which is a distinct answer from `AuditActor.System`. |
-| Audit trail | The application's sink for finished records (`IAuditTrail`). LiteBus decides when a record is produced and what it holds; where it is written is the application's decision. |
+| Audit trail | The sink for finished records (`IAuditTrail`). LiteBus decides when a record is produced and what it holds; where it is written is your decision. |
 
 ## Reliable Messaging Entry Points
 
@@ -76,7 +80,7 @@ LiteBus keeps domain-specific names instead of one generic "store" verb:
 | --- | --- |
 | Inbox | Storage that accepts messages through `IInbox.AcceptAsync` for later execution. See [Inbox](../reliable-messaging/inbox.md). |
 | Outbox | Storage that records messages through `IOutbox.EnqueueAsync` for later publication. See [Outbox](../reliable-messaging/outbox.md). |
-| Stable contract | Persisted message identity: name + integer version. See [Architecture Decisions](../architecture/decisions.md). |
+| Stable contract | Persisted message identity: name plus integer version. See [Architecture Decisions](../architecture/decisions.md). |
 | Lease | Temporary row ownership so concurrent workers do not process the same envelope twice. |
 | Dispatcher | `IInboxDispatcher` or `IOutboxDispatcher`; executes or publishes a leased envelope. |
 | Processor | `PipelinedInboxProcessor` or `PipelinedOutboxProcessor`; leases rows and invokes dispatchers. |
@@ -106,9 +110,10 @@ LiteBus keeps domain-specific names instead of one generic "store" verb:
 | Term | Definition |
 | --- | --- |
 | At-least-once | Processors and brokers may deliver the same message more than once. Handlers must be idempotent. See [Reliable messaging](../reliable-messaging/README.md). |
-| Exactly-once effect | Application responsibility: idempotency keys, deduplication, and handler design; not a broker guarantee. |
+| Exactly-once effect | Your responsibility: idempotency keys, deduplication, and handler design; not a broker guarantee. |
 | Idempotency key | `InboxAcceptMetadata.Idempotency` / `OutboxEnqueueMetadata.Idempotency` for store-level deduplication on accept/enqueue. |
 
 ## Next
 
-See [Migration Guides](../migration/README.md) for historical version transitions.
+- See [Migration Guides](../migration/README.md) for historical version transitions.
+- See [The Handler Pipeline](../concepts/handler-pipeline.md) for the stages behind the pipeline words.

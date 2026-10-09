@@ -1,37 +1,24 @@
 # Query Module
 
-A query is a request to read state without changing it: fetch a product, list orders, stream a report. This page covers the query side of LiteBus: the two query contracts, the matching handlers, how to send a query, and the pipeline stages a query shares with commands. It is for a developer writing query handlers and assumes you have read the [Command Module](commands.md).
+A query asks LiteBus to read state without changing it. This page shows you how to define a query, handle it, send it, and short-circuit it with cached answers.
 
-A query follows two rules. It is handled by exactly one handler, and it has no side effects. The single-handler rule is enforced; mediation throws if zero or more than one handler is registered. The no-side-effects rule is a discipline you keep, and `IQuery<T>` documents that intent in the type. Name queries for the data they return: `GetProductByIdQuery`, `ListOpenOrdersQuery`, `SearchProductsQuery`.
+> **This page is for** developers who read state through LiteBus.
+>
+> **After reading it** you can define, handle, and send single-result and stream queries. Continue with [Events](events.md).
 
-## Query Contracts
-
-Every query returns a result. The contract you choose depends on whether the result is a single value or a stream.
-
-### `IQuery<TResult>`
-
-The standard query returns one awaitable result.
+## Define a Query
 
 ```csharp
 public sealed record GetProductByIdQuery(Guid ProductId) : IQuery<ProductDto>;
-```
 
-### `IStreamQuery<TResult>`
-
-A stream query returns `IAsyncEnumerable<TResult>`, yielding items as they are produced. Use it when the result set is large enough that materializing it all in memory is wasteful, for real-time feeds, or for server-driven paging.
-
-```csharp
 public sealed record SearchProductsQuery(string SearchTerm) : IStreamQuery<ProductDto>;
 ```
 
-## Query Handlers
+Every query returns a result. Use `IQuery<TResult>` for one awaitable value and `IStreamQuery<TResult>` for an async stream of values. Pick the stream shape when the result set is large enough that holding it all in memory is wasteful, for real-time feeds, or for server-driven paging.
 
-There is one handler interface per query shape.
+Two rules define a query. It is handled by exactly one handler, and it has no side effects. Mediation throws when zero handlers or more than one handler is registered. The no-side-effects rule is a discipline you keep: when the handler writes, model the operation as a command instead. Name queries for the data they return, such as `GetProductByIdQuery` or `ListOpenOrdersQuery`.
 
-| Query | Handler interface | Method |
-| --- | --- | --- |
-| `IQuery<TResult>` | `IQueryHandler<TQuery, TResult>` | `Task<TResult> HandleAsync(TQuery, CancellationToken)` |
-| `IStreamQuery<TResult>` | `IStreamQueryHandler<TQuery, TResult>` | `IAsyncEnumerable<TResult> StreamAsync(TQuery, CancellationToken)` |
+## Handle a Query
 
 ```csharp
 public sealed class GetProductByIdQueryHandler : IQueryHandler<GetProductByIdQuery, ProductDto>
@@ -48,7 +35,12 @@ public sealed class GetProductByIdQueryHandler : IQueryHandler<GetProductByIdQue
 }
 ```
 
-A stream handler is an iterator. Mark the cancellation token with `[EnumeratorCancellation]` so the token the caller passes flows into the `await foreach`.
+| Query | Handler interface | Method |
+| --- | --- | --- |
+| `IQuery<TResult>` | `IQueryHandler<TQuery, TResult>` | `Task<TResult> HandleAsync(TQuery, CancellationToken)` |
+| `IStreamQuery<TResult>` | `IStreamQueryHandler<TQuery, TResult>` | `IAsyncEnumerable<TResult> StreamAsync(TQuery, CancellationToken)` |
+
+There is one handler interface per query shape. Return DTOs shaped for the consumer and keep domain types out of the read model.
 
 ```csharp
 public sealed class SearchProductsQueryHandler : IStreamQueryHandler<SearchProductsQuery, ProductDto>
@@ -69,47 +61,31 @@ public sealed class SearchProductsQueryHandler : IStreamQueryHandler<SearchProdu
 }
 ```
 
-## Sending a Query
+Write a stream handler as an iterator and mark the token with `[EnumeratorCancellation]` so the token the caller passes flows into the `await foreach`.
 
-Inject `IQueryMediator`. Call `QueryAsync` for a single result and `StreamAsync` to consume a stream.
+## Send a Query
 
 ```csharp
-public interface IQueryMediator
+public async Task<ActionResult<ProductDto>> GetById(
+    Guid id,
+    [FromServices] IQueryMediator queryMediator,
+    CancellationToken cancellationToken)
 {
-    Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query, QueryMediationSettings? settings = null, CancellationToken cancellationToken = default);
-    IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query, QueryMediationSettings? settings = null, CancellationToken cancellationToken = default);
+    var product = await queryMediator.QueryAsync(new GetProductByIdQuery(id), cancellationToken: cancellationToken);
+    return Ok(product);
 }
 ```
 
+Inject `IQueryMediator` and call `QueryAsync` for a single result or `StreamAsync` to consume a stream. The signatures are:
+
 ```csharp
-[ApiController]
-[Route("products")]
-public class ProductsController : ControllerBase
-{
-    private readonly IQueryMediator _queryMediator;
-
-    public ProductsController(IQueryMediator queryMediator) => _queryMediator = queryMediator;
-
-    [HttpGet("{id}")]
-    public async Task<ActionResult<ProductDto>> GetById(Guid id)
-    {
-        var product = await _queryMediator.QueryAsync(new GetProductByIdQuery(id));
-        return Ok(product);
-    }
-
-    [HttpGet("search")]
-    public IAsyncEnumerable<ProductDto> Search([FromQuery] string term)
-    {
-        return _queryMediator.StreamAsync(new SearchProductsQuery(term));
-    }
-}
+Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query, QueryMediationSettings? queryMediationSettings = null, CancellationToken cancellationToken = default);
+IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query, QueryMediationSettings? queryMediationSettings = null, CancellationToken cancellationToken = default);
 ```
 
-Returning the `IAsyncEnumerable<T>` straight from the action lets ASP.NET Core serialize each item as it arrives, so the controller never holds the whole result set.
+Enumerate a returned stream once and dispose its enumerator when you stop early. The stream holds its dispatch scope until it is enumerated to completion or disposed, so a stream you abandon keeps its scoped handler dependencies alive. Returning the stream straight from an ASP.NET Core action lets the framework serialize each item as it arrives, so the controller never holds the whole result set.
 
-## Routing and Filtering
-
-Queries support the same tag and predicate routing as commands and events. Pass `QueryMediationSettings` with a `QueryRoutingSettings` instance:
+## Filter Which Handlers Run
 
 ```csharp
 var settings = new QueryMediationSettings
@@ -121,16 +97,12 @@ var settings = new QueryMediationSettings
     }
 };
 
-var result = await _queryMediator.QueryAsync(new GetUserQuery(userId), settings);
+var result = await queryMediator.QueryAsync(new GetUserQuery(userId), settings, cancellationToken);
 ```
 
-Single-tag sugar: `await _queryMediator.QueryAsync(query, "Admin");`. See [Handler filtering](handler-filtering.md).
+Pass `QueryMediationSettings` when the same query must run a different set of handlers per call. `Routing.Tags` keeps only handlers with a matching tag and `Routing.HandlerPredicate` filters on the handler descriptor after tags. For one tag use the sugar overload: `await queryMediator.QueryAsync(query, "Admin", cancellationToken)`. See [Handler Filtering](handler-filtering.md).
 
-## The Query Pipeline
-
-A query runs through the same stages as a command: guards, shortcuts, pre-handlers, the single main handler, post-handlers, error-handlers on failure, and completion handlers on every path. The interfaces are `IQueryPreHandler<TQuery>`, `IQueryPostHandler<TQuery, TResult>`, `IQueryErrorHandler<TQuery>`, and `IQueryCompletionHandler<TQuery>`, with the same method shapes as their command equivalents.
-
-The most useful query-side pattern is read-through caching. A shortcut checks the cache and, on a hit, returns the cached value so the main handler never runs:
+## Answer From a Shortcut
 
 ```csharp
 public sealed class ProductCacheLookup : IQueryShortcut<GetProductByIdQuery, ProductDto>
@@ -152,25 +124,17 @@ public sealed class ProductCacheLookup : IQueryShortcut<GetProductByIdQuery, Pro
 }
 ```
 
-The answer is typed over the query result, so the compiler requires the cached value to be the right shape. A cache hit reports `MediationOutcome.Answered`, which an audit trail records as a success, because nothing was refused.
+Use a shortcut for answers you already hold, such as a cache hit. The answer is typed over the query result, so the compiler requires the right shape. An answered query reports `MediationOutcome.Answered`, which an audit trail records as a success because nothing was refused.
 
-Refusing a read is a different job and belongs to `IQueryGuard<GetProductByIdQuery>`, which returns `Verdict.Deny(reason)` and reports `MediationOutcome.Denied`. The separation is what lets LiteBus guarantee that every guard runs before any shortcut, so this cache can never answer a caller an authorization guard would have refused. How the stages behave is on [The Handler Pipeline](handler-pipeline.md) and [Execution Context](execution-context.md).
+Refusing a read is a different job. Implement `IQueryGuard<TQuery>` and return `Verdict.Deny(reason)`, which reports `MediationOutcome.Denied`. LiteBus runs every guard before any shortcut, so a cached answer can never reach a caller a guard would have refused.
 
-## Shared Features
+## Details
 
-These mechanics apply to commands, queries, and events. Each has a dedicated page:
-
-- [Handler Priority](handler-priority.md): order pre- and post-handlers.
-- [Handler Filtering](handler-filtering.md): select handlers per call.
-- [Execution Context](execution-context.md): share state and override the result.
-- [Polymorphic Dispatch](polymorphic-dispatch.md): handle a base query type for derived queries.
-- [Generic Messages & Handlers](generic-messages-and-handlers.md) and [Open Generic Handlers](open-generic-handlers.md): reusable query handlers and cross-cutting steps such as caching or timing.
-
-## Best Practices
-
-- **No side effects.** A query handler reads. If it writes, it should be a command.
-- **Return DTOs, not entities.** Shape the result for the consumer and keep domain types out of the read model.
-- **Cache in pre/post-handlers.** Read the cache in a pre-handler and abort on a hit; populate it in a post-handler. The handler stays focused on the data source.
-- **Stream large results.** Use `IStreamQuery<T>` so memory stays flat regardless of result size.
+- The full stage order, including guards, validators, shortcuts, post-handlers, error-handlers, and completion handlers, lives on [The Handler Pipeline](handler-pipeline.md). That page is authoritative when this page and that page seem to differ.
+- When a refusal is a routine branch rather than a fault, call `TryQueryAsync` and read the outcome value instead of catching. When you need to ask whether a read would be permitted without running it, call `EvaluateAsync`.
 
 ## Next
+
+- [Events](events.md) for publish-subscribe with zero to many handlers
+- [The Handler Pipeline](handler-pipeline.md) for guards, shortcuts, and caching order
+- [Execution Context](execution-context.md) for state shared across one call

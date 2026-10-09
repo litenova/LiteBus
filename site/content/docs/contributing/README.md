@@ -1,36 +1,40 @@
 # Contributing
 
-This page explains how to build, test, and document LiteBus when contributing.
+You build, test, and document LiteBus from one solution file. This page gives you the commands and the rules your change must pass before review.
+
+> **This page is for** developers who change LiteBus code, tests, samples, or docs.
+>
+> **After reading it** you can build the solution, run the tests, and document your change. See the [Roadmap](../roadmap/README.md) for planned work.
 
 ## Build
 
-The solution uses the `.slnx` format. Build the whole solution from the repository root:
+Build the whole solution from the repository root. The solution uses the `.slnx` format.
 
 ```bash
 dotnet build LiteBus.slnx
 ```
 
-`StyleCop.Analyzers` is referenced from `src/Directory.Build.props`. Only documentation rule categories (SA1600 through SA1629) are warnings; layout and naming rules are disabled so existing code does not churn. Fix documentation analyzer warnings before finishing a change under `src/`. File header rules (SA1633 and related) are disabled, so do not add copyright or license banners.
+`StyleCop.Analyzers` runs documentation rules (SA1600 through SA1629) as warnings from `src/Directory.Build.props`. Layout and naming rules stay off so existing code does not churn. Fix documentation warnings before you finish a change under `src/`. File header rules (SA1633 and related) stay off, so do not add copyright or license banners.
 
 ## Test
 
-Run all tests:
+Run the full suite with this command.
 
 ```bash
 dotnet test LiteBus.slnx
 ```
 
-`LiteBus.Storage.PostgreSql.IntegrationTests` uses Testcontainers and needs a running Docker daemon. Without Docker those tests are skipped with a message saying so. To run the unit tests only:
+`LiteBus.Storage.PostgreSql.IntegrationTests` uses Testcontainers and needs a running Docker daemon. Without Docker those tests skip with a message that says so. Run the unit tests only with this filter.
 
 ```bash
 dotnet test LiteBus.slnx --filter "FullyQualifiedName!~PostgreSql"
 ```
 
-See [Testing LiteBus](../testing/application-testing.md) for the in-memory test patterns and the registry-clearing helper used in host-based tests.
+See [Testing LiteBus](../testing/application-testing.md) for the in-memory test patterns and the registry helper used in host-based tests.
 
 ## XML Documentation
 
-All C# under `src/` must carry XML documentation (`///`) on every construct, including `private` and `internal` members. This covers types, members, constructors, properties, and private and internal fields. The required tags per construct:
+All C# under `src/` must carry XML documentation (`///`) on every construct, including `private` and `internal` members. The table lists the required tags per construct.
 
 | Construct | Required tags |
 | --- | --- |
@@ -40,21 +44,19 @@ All C# under `src/` must carry XML documentation (`///`) on every construct, inc
 | Explicit interface implementation | `<inheritdoc />` or an explicit `<summary>` |
 | Property | `<summary>`; `<value>` when the value's meaning is not obvious from the name |
 
-Match the existing style: indent summary text with four spaces after the opening tag, use `<see cref="TypeName" />` for solution references, and use `<see langword="null" />`, `<see langword="true" />`, and `<see langword="false" />` where appropriate. Do not add documentation that only restates the identifier.
+Match the existing style: indent summary text with four spaces after the opening tag, use `<see cref="TypeName" />` for solution references, and use `<see langword="null" />`, `<see langword="true" />`, and `<see langword="false" />` where appropriate. Do not write documentation that only restates the identifier.
 
-Public types and members in test helpers, shared fixtures, and sample entry points require XML documentation. Private test members and `benchmarks/` are exempt unless the change requires documentation there.
+Public types and members in test helpers, shared fixtures, and sample entry points require XML documentation. Private test members and `benchmarks/` are exempt unless your change requires documentation there.
 
 ## Changelog
 
-Update `Changelog.md` in the version's cumulative `## v7.0.0` section as work lands when public API or documented behavior changes. Docs-only changes that do not alter behavior do not need a changelog entry. Cutting a preview after the first adds a `## v7.0.0-preview.N` delta section holding only what changed since the previous preview, in the same commit as the version bump.
+Update `Changelog.md` in the version's cumulative `## v7.0.0` section as work lands when your change alters public API or documented behavior. Docs-only changes that alter no behavior need no changelog entry. Cutting a preview after the first adds a `## v7.0.0-preview.N` delta section holding only what changed since the previous preview, in the same commit as the version bump.
 
 ## Pull Request Expectations
 
-- Follow existing naming, project layout, and module patterns.
-- Keep changes scoped to the task.
-- Build the solution and fix documentation analyzer warnings before submitting.
-- Run the test suite; if you cannot run Docker, say so in the pull request and rely on CI for the PostgreSQL integration tests.
+Follow existing naming, project layout, and module patterns. Keep your change scoped to the task. Build the solution and fix documentation analyzer warnings before you submit. Run the test suite; when you cannot run Docker, say so in the pull request and rely on CI for the PostgreSQL integration tests.
 
 ## Next
 
-To see where the project is headed and which packages are planned, read the [Roadmap](../roadmap/README.md).
+- [Roadmap](../roadmap/README.md): planned work that is not part of the current contract
+- [Testing LiteBus](../testing/application-testing.md): in-memory test patterns for applications

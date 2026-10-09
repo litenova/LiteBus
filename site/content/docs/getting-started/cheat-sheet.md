@@ -1,6 +1,10 @@
 # LiteBus Cheat Sheet
 
-One-page reference for LiteBus. Install only the packages you use; register storage, dispatch, and processors inside nested inbox and outbox builders.
+This page keeps every LiteBus registration and mediation call you use daily on one page. You install only the packages you use, and register storage, dispatch, and processors inside nested inbox and outbox builders.
+
+> **This page is for** developers who finished [Getting Started](README.md) and want each API without the walkthrough.
+>
+> **After reading it** you can compose transports, stores, dispatchers, and mediators from memory. [Getting Started](README.md) holds the full walkthrough behind each row.
 
 ## Mediators
 
@@ -11,6 +15,8 @@ await commandMediator.SendAsync(new CreateOrderCommand(orderId));
 var order = await queryMediator.QueryAsync(new GetOrderQuery(orderId));
 await eventMediator.PublishAsync(new OrderPlaced(orderId));
 ```
+
+Mediation alone persists nothing. When the work must survive a restart, accept through `IInbox.AcceptAsync` or enqueue through `IOutbox.EnqueueAsync` instead; see [Inbox](../reliable-messaging/inbox.md) and [Outbox](../reliable-messaging/outbox.md).
 
 ## Module Registration
 
@@ -52,14 +58,14 @@ services.AddLiteBus(builder =>
 | Accept command for later execution | `IInbox.AcceptAsync` | `LiteBus.Inbox` |
 | Enqueue event for later publication | `IOutbox.EnqueueAsync` | `LiteBus.Outbox` |
 | Schedule with future visibility | `InboxAcceptMetadata.Visibility` / `OutboxEnqueueMetadata.Visibility` | `MessageVisibility.At` or `MessageVisibility.After` on the writer item |
-| Execute command now | `ICommandMediator.SendAsync` | `LiteBus.Commands` |
+| Run command now | `ICommandMediator.SendAsync` | `LiteBus.Commands` |
 | Publish event now | `IEventMediator.PublishAsync` | `LiteBus.Events` |
 
 Only `ICommand` (no result) may be stored in the inbox. Analyzer LB1004 flags `ICommand<TResult>` at compile time.
 
 ## Root Transport Composition
 
-Register horizontal transport infrastructure once on `ILiteBusBuilder`. Dispatch and ingress extensions require and share it.
+Register horizontal transport infrastructure once on `ILiteBusBuilder`. Dispatch and ingress extensions require and share it. Register only one broker transport per composition.
 
 | Extension | NuGet package |
 | --- | --- |
@@ -122,7 +128,9 @@ var outboxReceipt = await outbox.EnqueueAsync(
     cancellationToken);
 ```
 
-## PostgreSQL Storage (Nested)
+The receipt confirms storage, not a business result. The processor runs or publishes the envelope later under a lease.
+
+## PostgreSQL Storage
 
 ```csharp
 builder.AddInbox(inbox =>
@@ -189,7 +197,6 @@ Instrument names on `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, and `Lite
 
 ## Next
 
-- [Getting Started](README.md) for a full walkthrough
+- [Getting Started](README.md) for the full walkthrough
 - [Inbox](../reliable-messaging/inbox.md) and [Outbox](../reliable-messaging/outbox.md) for durable messaging depth
-- [Hosted services](../architecture/hosted-services.md) for manifest, probes, and management endpoints
 - [Dependency Graph](../architecture/dependency-graph.md) for package boundaries

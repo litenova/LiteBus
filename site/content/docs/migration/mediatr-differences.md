@@ -1,12 +1,24 @@
 # LiteBus vs. MediatR
 
-LiteBus and MediatR are both in-process mediators for .NET, but they make different trade-offs. This page is for a developer deciding between them, or one who knows MediatR and wants to map concepts onto LiteBus quickly. It states where the two agree, where they differ, and how to translate the common patterns.
+LiteBus is MIT licensed, open source, free for commercial use, and will remain free. MediatR 13.0.0 and later ships under a commercial license with a free Community License below USD 5 million annual gross revenue; earlier versions remain Apache 2.0 or MIT (see [MediatR licensing](https://mediatr.io/), retrieved 2026-10-09). The two libraries agree on mediation and differ on how much structure the type system carries.
 
-Both libraries route a message to its handler so callers depend on an interface rather than a concrete service. The difference is in how much structure the library imposes and how much control it gives over the handler pipeline. LiteBus is MIT licensed, open source, free for commercial use, and will remain free. Check the current MediatR license terms for your use.
+> **This page is for** a developer deciding between LiteBus and MediatR, or one who knows MediatR and wants to map concepts onto LiteBus quickly.
+>
+> **After reading it** you can translate requests, notifications, and behaviors to commands, queries, events, and pipeline stages. [Getting Started](../getting-started/README.md) runs each LiteBus shape in code.
+
+Both libraries route a message to its handler so callers depend on an interface rather than a concrete service. The difference is in how much structure the library imposes and how much control it gives over the handler pipeline.
 
 ## The Core Split
 
 MediatR has two message shapes: a request (`IRequest<T>`), handled by one handler, and a notification (`INotification`), handled by many. Whether a request reads or writes is a convention you keep in your head.
+
+```csharp
+public sealed record CreateProductCommand(string Name, decimal Price) : ICommand<ProductDto>;
+
+public sealed record GetProductByIdQuery(Guid Id) : IQuery<ProductDto>;
+
+public sealed record ProductCreatedEvent(Guid ProductId);
+```
 
 LiteBus splits the write-side request into a command and the read-side request into a query, and gives each its own mediator and handler interfaces. The type a message implements states its intent: `ICommand<T>` changes state, `IQuery<T>` reads it, `IEvent` announces a fact. A reviewer sees the category from the declaration without opening the handler.
 
@@ -98,3 +110,7 @@ Choose MediatR when you prefer one request abstraction over the command/query sp
 The two are not mutually exclusive at the concept level: the CQS discipline LiteBus enforces is a discipline you can also keep by hand in MediatR. LiteBus moves it from convention into the compiler.
 
 ## Next
+
+- [Getting Started](../getting-started/README.md) to run each LiteBus shape in code
+- [The Handler Pipeline](../concepts/handler-pipeline.md) for stage order and decisions
+- [Migration Guides](README.md) for version upgrade procedures

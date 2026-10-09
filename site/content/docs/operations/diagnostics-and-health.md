@@ -1,25 +1,16 @@
 # Diagnostics and Health
 
-LiteBus registers framework-neutral diagnostic probes through the module manifest. ASP.NET Core and OpenTelemetry packages bridge those probes to host health checks and metrics.
+LiteBus exposes framework-neutral diagnostic probes through the module manifest, and ASP.NET Core and OpenTelemetry packages bridge those probes to health checks and metrics.
 
-## Packages to Install
-
-| Package | Role |
-| --- | --- |
-| `LiteBus.Runtime` | `IDiagnosticCheck`, manifest collection |
-| `LiteBus.Extensions.Diagnostics.HealthChecks` | `AddLiteBus()` health check (uses `DiagnosticCheckRunner`) |
-| `LiteBus.Inbox.Extensions.OpenTelemetry` | Inbox activity source and meter registration |
-| `LiteBus.Outbox.Extensions.OpenTelemetry` | Outbox activity source and meter registration |
-| `LiteBus.Transport.Extensions.OpenTelemetry` | Shared transport activity source and meter registration |
-| `LiteBus.Extensions.AspNetCore` | Management routes and `/litebus/health` (uses `DiagnosticCheckRunner`) |
-
-## Registration
+> **This page is for** developers who wire LiteBus readiness probes and metrics into their host.
+>
+> **After reading it** you can register probes, expose them through health endpoints, and set probe limits. Continue with [Operations and Management](README.md).
 
 ```csharp
-builder.Services.AddLiteBus(builder =>
+builder.Services.AddLiteBus(liteBus =>
 {
-    builder.AddMessaging(_ => { });
-    builder.AddInbox(inbox =>
+    liteBus.AddMessaging(_ => { });
+    liteBus.AddInbox(inbox =>
     {
         inbox.UsePostgreSqlStorage(pg => pg.UseConnectionString(connectionString));
         inbox.AddDiagnosticCheck<PostgreSqlInboxSchemaProbe>("inbox-schema");
@@ -29,12 +20,47 @@ builder.Services.AddLiteBus(builder =>
 builder.Services.AddHealthChecks().AddLiteBus();
 ```
 
-Probes implement `IDiagnosticCheck` with `Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken)`.
+Probes implement `IDiagnosticCheck` with `Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken)`. `AddDiagnosticCheck<TCheck>(string name)` is available on `InboxModuleBuilder` and `OutboxModuleBuilder`. `DiagnosticCheckRunner` in `LiteBus.Runtime.Abstractions` executes manifest probes with bounded parallelism, a timeout per probe, exception isolation, and caller cancellation. Both `AddHealthChecks().AddLiteBus()` and `GET /litebus/health` use the same runner.
 
-`AddDiagnosticCheck<TCheck>(string name)` is available on `InboxModuleBuilder` and `OutboxModuleBuilder`. Root transport modules register these broker probes automatically:
+## Install The Right Packages
+
+| Package | Role |
+| :--- | :--- |
+| `LiteBus.Runtime` | `IDiagnosticCheck` and manifest collection |
+| `LiteBus.Extensions.Diagnostics.HealthChecks` | `AddLiteBus()` health check through `DiagnosticCheckRunner` |
+| `LiteBus.Inbox.Extensions.OpenTelemetry` | Inbox activity source and meter registration |
+| `LiteBus.Outbox.Extensions.OpenTelemetry` | Outbox activity source and meter registration |
+| `LiteBus.Transport.Extensions.OpenTelemetry` | Shared transport activity source and meter registration |
+| `LiteBus.Extensions.AspNetCore` | Management routes and `GET /litebus/health` through `DiagnosticCheckRunner` |
+
+## Register A Probe
+
+Write a probe in application code for schema validation, broker connectivity, or deployment-specific readiness rules. The name you pass to `AddDiagnosticCheck<TCheck>` must equal the probe `Name` property; the health bridge validates the names at runtime.
+
+```csharp
+public sealed class OutboxBacklogCheck : IDiagnosticCheck
+{
+    public string Name => "payments.outbox.backlog";
+
+    public Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(new DiagnosticResult(DiagnosticStatus.Healthy, "Backlog within bound."));
+    }
+}
+```
+
+```csharp
+inbox.AddDiagnosticCheck<OutboxBacklogCheck>("payments.outbox.backlog");
+```
+
+The PostgreSQL inbox and outbox storage adapters already register their schema probes (`inbox.postgresql.schema` and `outbox.postgresql.schema`) when you call `UsePostgreSqlStorage`. Do not register those library probes again under another name.
+
+## Read Broker Probes
+
+Root transport modules register these broker probes automatically:
 
 | Transport | Probe | Target and permission |
-| --- | --- | --- |
+| :--- | :--- | :--- |
 | AMQP | `transport.amqp.connectivity` | Opens the configured shared connection |
 | Kafka | `transport.kafka.connectivity` | Describes the cluster within `ConnectivityCheckTimeout` |
 | AWS SQS | `transport.sqs.connectivity` | Reads `QueueArn` from `ConnectivityCheckQueueUrl` with `sqs:GetQueueAttributes` |
@@ -42,7 +68,7 @@ Probes implement `IDiagnosticCheck` with `Task<DiagnosticResult> CheckAsync(Canc
 
 SQS and Azure Service Bus require an explicit entity target so the probe can use narrow data-plane permissions. When no target is configured, the registered probe reports degraded instead of treating an unopened client as healthy. In-memory transport has no external dependency and does not register a connectivity probe.
 
-`DiagnosticCheckRunner` in `LiteBus.Runtime.Abstractions` executes manifest probes with bounded parallelism, a timeout per probe, exception isolation, and caller cancellation. Both `AddHealthChecks().AddLiteBus()` and `GET /litebus/health` use the same runner. The ASP.NET Core health registration has `litebus` and `ready` tags so hosts can filter a readiness endpoint using the standard health-check predicate.
+## Set Probe Limits
 
 ```csharp
 builder.Services.AddHealthChecks().AddLiteBus(options =>
@@ -55,47 +81,44 @@ builder.Services.AddHealthChecks().AddLiteBus(options =>
 });
 ```
 
-The provider calls follow their current SDK contracts: [SQS queue attributes](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/SQS/TSQSClient.html), [Azure Service Bus non-settling peek](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusreceiver.peekmessagesasync?view=azure-dotnet), and [Confluent Kafka cluster description request timeout](https://docs.confluent.io/platform/current/clients/confluent-kafka-dotnet/_site/api/Confluent.Kafka.Admin.DescribeClusterOptions.html). ASP.NET Core documents tag-based readiness filtering in its [.NET 10 health-check guidance](https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/health-checks?view=aspnetcore-10.0).
-
-## Options Reference
-
 | Option | Location | Default |
-| --- | --- | --- |
+| :--- | :--- | :--- |
 | `FailHealthWhenNoProbes` | `LiteBusManagementOptions` | `true` |
+| `FailHealthWhenNoProbes` | `LiteBusHealthCheckOptions` | `true` |
 | `DiagnosticChecks.Timeout` | Management and health-check options | 5 seconds per probe |
 | `DiagnosticChecks.MaxParallelism` | Management and health-check options | 4 probes |
 | Meter names | Public constants on axis telemetry types | Stable consumer contract |
 
-See [Architecture](../architecture/README.md) for telemetry instrument names, including `litebus.inbox.processor.persist_failed`, `litebus.outbox.processor.persist_failed`, and `litebus.*.diagnostics.unavailable` when terminal persist or queue depth probes fail. Renames are breaking changes.
+When the manifest has zero probes and `FailHealthWhenNoProbes` is true, the endpoint returns degraded or unhealthy. Set it to false in local samples so demos work without probes, and keep the default true in production with at least one probe registered. The Generic Host health registration carries `litebus` and `ready` tags so you can filter a readiness endpoint with the standard health-check predicate. See [Architecture](../architecture/README.md) for telemetry instrument names. Renames are breaking changes.
 
-## Guarantees and Non-Guarantees
+## Know What Health Covers
 
 | Guaranteed | Not guaranteed |
-| --- | --- |
+| :--- | :--- |
 | Manifest lists all registered probes at build time | Automatic schema migration |
-| Health aggregates probe results when checks registered | Liveness without probes unless you disable `FailHealthWhenNoProbes` |
+| Health aggregates probe results when checks are registered | Liveness without probes unless you disable `FailHealthWhenNoProbes` |
 | One hanging or failing probe cannot prevent sibling outcomes | A connectivity claim when SQS or Azure has no configured entity target |
 
-The Generic Host bridge supervises LiteBus background loops separately from readiness probes. Unexpected loop faults request application shutdown and are rethrown to the host. The ingress background service treats a normal consumer exit as recoverable and restarts it after the configured retry interval. This prevents a dead ingress loop from leaving a healthy process behind without coupling runtime packages to ASP.NET Core health types.
+The Generic Host bridge supervises LiteBus background loops separately from readiness probes. Unexpected loop faults request application shutdown and are rethrown to the host. The ingress background service treats a normal consumer exit as recoverable and restarts it after the configured retry interval.
 
-## Operations
+## Fix Common Symptoms
 
 | Symptom | Action |
-| --- | --- |
-| Health always unhealthy | Register at least one probe or set `FailHealthWhenNoProbes = false` |
-| Schema probe fails | Run `EnsureAsync` / fix drift; see [PostgreSQL schema management](../integrations/postgresql-schema-management.md) |
-| Missing metrics | Add axis OpenTelemetry package; verify exporter pipeline |
+| :--- | :--- |
+| Health always unhealthy | Register at least one probe or set `FailHealthWhenNoProbes` to false |
+| Schema probe fails | Run `EnsureAsync` or fix drift; see [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md) |
+| Missing metrics | Add the axis OpenTelemetry package and verify your exporter pipeline |
 
-## Tests
+## Details
 
 | Scenario | Location |
-| --- | --- |
-| Probe manifest contents | `LiteBus.Runtime.UnitTests`, composition tests |
+| :--- | :--- |
+| Probe manifest contents | `LiteBus.Runtime.UnitTests` composition tests |
 | Health check integration | `LiteBus.Extensions.IntegrationTests` |
-| `FailHealthWhenNoProbes` | `LiteBus.Extensions.IntegrationTests` (AspNetCore management) |
+| `FailHealthWhenNoProbes` | `LiteBus.Extensions.IntegrationTests` management tests |
 | Broker readiness | `LiteBus.Transport.UnitTests` and durable broker end-to-end suites |
 
-## Related Docs
+## Next
 
-* [Hosted services](../architecture/hosted-services.md)
-* [Operations and management](README.md)
+- [Hosted Services](../architecture/hosted-services.md)
+- [Operations and Management](README.md)

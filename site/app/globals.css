@@ -1,9 +1,9 @@
 /* LiteBus site stylesheet.
    Structure, spacing, and type scale follow the Fuse site; the palette is LiteBus.
-   Light tokens on :root, dark overrides under prefers-color-scheme. No imports. */
+   Light only, like the Fuse site: tokens on :root. No imports. */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #fbfbfc;
   --surface: #f2f3f5;
   --text: #111318;
@@ -23,26 +23,6 @@
   --code-text: #ebe8ef;
   --code-muted: #8d8796;
   --code-line: #2e2a35;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #131217;
-    --surface: #1c1a21;
-    --text: #ecebf0;
-    --muted: #a3a0ab;
-    --line: #2b2832;
-    --accent: #fdbf00;
-    --tag-text: #fdd56a;
-    --tag-bg: #2a2412;
-    --tag-line: #4a3d14;
-    --chip-bg: #221f28;
-    --chip-line: #322e3a;
-    --warn-bg: #2a2114;
-    --warn-line: #4d3a1c;
-    --code-bg: #0f0e12;
-    --code-line: #26232c;
-  }
 }
 
 /* Base: one fluid root size scales every page. */
@@ -98,7 +78,7 @@ main:focus { outline: none; }
 .tags li { font-size: 0.72rem; line-height: 1.6; color: var(--tag-text); background: var(--tag-bg); border: 1px solid var(--tag-line); border-radius: 999px; padding: 0.1rem 0.6rem; }
 
 /* Install command rows */
-.install { max-width: 38rem; margin: 2.4rem auto 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.6rem; }
+.install { max-width: 44rem; margin: 2.4rem auto 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.6rem; }
 .install .label { font-size: 0.85rem; color: var(--muted); margin: 0.6rem 0 -0.2rem; text-align: left; }
 .install .label:first-child { margin-top: 0; }
 .cmd { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; background: var(--code-bg); color: var(--code-text); border-radius: 0.7rem; padding: 0.55rem 0.55rem 0.55rem 1.1rem; font: 0.9rem ui-monospace, SFMono-Regular, Consolas, monospace; }
@@ -328,3 +308,20 @@ pre[data-label]::before { content: attr(data-label); position: absolute; top: 0.
 .site-footer .maker img { width: 1.7rem; height: 1.7rem; background: #000; }
 .site-footer .license { flex-basis: 100%; margin: 0; }
 @media (max-width: 520px) { .site-footer { justify-content: center; text-align: center; } }
+
+/* Landing: numbered setup steps, each a title, one line, and its code. */
+.steps { list-style: none; counter-reset: step; max-width: 44rem; margin: 0 auto; padding: 0; display: grid; gap: 2rem; }
+.steps > li { counter-increment: step; display: grid; grid-template-columns: 2rem minmax(0, 1fr); column-gap: 1rem; }
+.steps > li::before { content: counter(step); grid-row: 1 / span 3; width: 2rem; height: 2rem; line-height: 2rem; text-align: center; border-radius: 999px; background: var(--brand); color: var(--brand-text); font-weight: 700; font-size: 0.9rem; }
+.steps b { font-size: 1.05rem; line-height: 2rem; }
+.steps span { color: var(--muted); margin: 0 0 0.7rem; }
+.steps span code { background: var(--chip-bg); border: 1px solid var(--chip-line); padding: 0.05em 0.35em; border-radius: 0.35em; font-size: 0.86em; }
+.steps pre { margin: 0; }
+
+/* Curated docs navigation: the full page tree folds under one group label below the curated groups. */
+.sidebar .sidebar-more { margin: 1.6rem 0 0; }
+.sidebar-more > summary { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 0.4rem; }
+.sidebar-more > summary:hover { color: var(--text); }
+.sidebar-more h2 { font-size: 0.68rem; margin: 1rem 0 0.3rem 0.7rem; }
+.sidebar-more > ul, .sidebar-more > h2 + ul { margin-left: 0.2rem; }
+.sidebar-more + .version { margin-top: 1.6rem; }

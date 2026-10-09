@@ -1,8 +1,12 @@
 # Outbox
 
-The outbox stores messages for publication after a state change commits, so a message is never published for a change that rolled back and never lost for a change that committed. This page is the contract and registration reference for the neutral outbox core. Read [Reliable Messaging](README.md) first.
+The outbox stores events for publication after a state change commits, so a message is never published for a change that rolled back and never lost for a change that committed. This page is the contract and registration reference for the neutral outbox core.
 
-If your command handler must enqueue events in the **same database transaction** as domain persistence, read [Transactional messaging writes](transactional-writes.md) before choosing between `IOutbox` and `ITransactionalOutbox`.
+> **This page is for** developers who publish events that must survive a process crash.
+>
+> **After reading it** you can register contracts, storage, dispatch, and the processor for reliable publication. For the durable overview, start with [Reliable Messaging](README.md).
+
+If your command handler must enqueue events in the same database transaction as domain persistence, read [Transactional messaging writes](transactional-writes.md) before choosing between `IOutbox` and `ITransactionalOutbox`.
 
 ## Core Module
 
@@ -66,7 +70,7 @@ services.AddLiteBus(builder =>
 
 ## Processing Versus Publishing
 
-Inbox and outbox use asymmetric naming on purpose. Inbox **acceptance** (`AcceptAsync`) only stores a command. **Processing** happens later in `PipelinedInboxProcessor`. Outbox **enqueue** (`EnqueueAsync`) only stores an event. **Publication** happens later in `PipelinedOutboxProcessor` when a dispatcher calls `IEventMediator` or an external broker. Do not call `PublishAsync` directly for cross-process notifications that must commit with application state.
+Inbox and outbox use asymmetric naming on purpose. Inbox acceptance (`AcceptAsync`) only stores a command, and processing happens later in `PipelinedInboxProcessor`. Outbox enqueue (`EnqueueAsync`) only stores an event, and publication happens later in `PipelinedOutboxProcessor` when a dispatcher calls `IEventMediator` or an external broker. Do not call `PublishAsync` directly for cross-process notifications that must commit with application state.
 
 ## Dispatch (`Use*` Extensions)
 
@@ -143,19 +147,19 @@ Pass the same `NpgsqlDataSource` instance to inbox and outbox when both use one 
 
 ### Transactional Writes (Domain + Outbox)
 
-Default `IOutbox.EnqueueAsync` commits immediately through the singleton store. It does **not** join an open domain transaction.
+Default `IOutbox.EnqueueAsync` commits immediately through the singleton store. It does not join an open domain transaction.
 
 | Situation | API |
 | --- | --- |
 | Ingress, tools, fire-and-forget enqueue | `IOutbox` |
-| Command handler + EF `DbContext` | `ITransactionalOutbox<TContext>`: [Outbox EF Core storage](../integrations/outbox-ef-core-storage.md) |
-| Command handler + PostgreSQL (Marten, Dapper, ADO.NET) | `ITransactionalOutbox`: [Transactional messaging writes](transactional-writes.md) |
+| Command handler plus EF `DbContext` | `ITransactionalOutbox<TContext>`: [Outbox EF Core storage](../integrations/outbox-ef-core-storage.md) |
+| Command handler plus PostgreSQL (Marten, Dapper, ADO.NET) | `ITransactionalOutbox`: [Transactional messaging writes](transactional-writes.md) |
 
-EF registration, interceptor setup, and duplicate-idempotency behavior on the transactional path are documented in [Outbox Entity Framework Core Storage](../integrations/outbox-ef-core-storage.md).
+EF registration, interceptor setup, and duplicate-idempotency behavior on the transactional path live in [Outbox Entity Framework Core Storage](../integrations/outbox-ef-core-storage.md).
 
 ## Delivery Semantics
 
-Outbox publication is **at-least-once**. `PipelinedOutboxProcessor` dispatches through `IOutboxDispatcher` before it persists terminal published state. A crash or `PersistAsync` failure after a successful broker publish leaves the row leased or pending and the processor retries, which can duplicate publication downstream. Consumers must deduplicate or handle retries idempotently (for example with `MessageId`, `IdempotencyKey`, or broker deduplication headers).
+Outbox publication is at-least-once. `PipelinedOutboxProcessor` dispatches through `IOutboxDispatcher` before it persists terminal published state. A crash or `PersistAsync` failure after a successful broker publish leaves the row leased or pending and the processor retries, which can duplicate publication downstream. Consumers must deduplicate or handle retries idempotently (for example with `MessageId`, `IdempotencyKey`, or broker deduplication headers).
 
 LiteBus does not implement a two-phase publish acknowledgment in which a broker acknowledgement token is persisted before terminal state. Treat external side effects as idempotent, or wrap dispatch in a custom `IOutboxDispatcher` that records an outbox-side acknowledgement before returning success.
 
@@ -275,6 +279,6 @@ Batch enqueue serializes items in parallel inside `OutboxEnvelopeFactory.CreateB
 
 ## Next
 
-- Atomic domain + outbox: [Transactional messaging writes](transactional-writes.md)
+- Atomic domain plus outbox: [Transactional messaging writes](transactional-writes.md)
 - Domain events: [Domain events and unit of work](../concepts/domain-events-and-unit-of-work.md)
 - Custom storage: [Custom stores and dispatchers](../extending/custom-stores-and-dispatchers.md)

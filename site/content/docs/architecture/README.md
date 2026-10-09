@@ -1,6 +1,6 @@
 # Architecture
 
-LiteBus provides semantic command, query, and event mediation. Durable messaging uses orthogonal **Storage**, **Dispatch**, and **Ingress** adapters; broker SDKs remain outside the mediator packages.
+LiteBus mediates commands, queries, and events. Durable messaging uses orthogonal **Storage**, **Dispatch**, and **Ingress** adapters, and broker SDKs stay outside the mediator packages.
 
 > **This page is for** developers who compose LiteBus modules and select storage, dispatch, and transport adapters.
 >
@@ -21,11 +21,11 @@ LiteBus provides semantic command, query, and event mediation. Durable messaging
 
 ## Startup Model
 
-Applications call the single `AddLiteBus(Action<ILiteBusBuilder>)` entry point and configure package extensions on `ILiteBusBuilder` from `LiteBus.Runtime.Abstractions`. The builder exposes only `Modules`; normal application code uses package-owned extensions such as `AddMessaging`, `AddCommands`, `AddInbox`, and `AddOutbox`. Advanced composition uses `builder.Modules` rather than a second host-adapter overload. Each module contributes dependency descriptors, and the selected container adapter translates them into registrations.
+Call the single `AddLiteBus(Action<ILiteBusBuilder>)` entry point and configure package extensions on `ILiteBusBuilder`. The builder exposes only `Modules`; normal application code uses package-owned extensions such as `AddMessaging`, `AddCommands`, `AddInbox`, and `AddOutbox`. Advanced composition uses `builder.Modules`. Each module contributes dependency descriptors, and the selected container adapter translates them into registrations.
 
 `IModuleRegistry.BuildOrder()` resolves modules in topological order and freezes further registration. `AddLiteBus` calls `BuildOrder()` after the configuration callback returns.
 
-Manifest startup tasks and background services are executed by a single generic-host orchestrator (`LiteBusHostOrchestrator`). Startup tasks run sequentially during `StartAsync`; background service loops start only after every startup task succeeds. A startup task failure aborts host startup and leaves background services unstarted.
+A single generic-host orchestrator (`LiteBusHostOrchestrator`) runs manifest startup tasks and background services. Startup tasks run sequentially during `StartAsync`; background loops start only after every startup task succeeds. A startup task failure aborts host startup and leaves background services unstarted.
 
 Core inbox and outbox modules register writers and processors only. Storage, dispatch, and ingress are separate registrations. Processor background services fail fast when no dispatcher is registered.
 
@@ -43,7 +43,7 @@ Commands, queries, and events use the messaging layer with type-specific rules.
 | Stream query | `IQueryMediator.StreamAsync` | exactly one stream handler |
 | Event | `IEventMediator.PublishAsync` | zero or more handlers |
 
-Pre-handlers, post-handlers, and error handlers wrap the main handler path. Event handlers can be ordered by priority and executed sequentially or concurrently.
+Pre-handlers, post-handlers, and error handlers wrap the main handler path. You order event handlers by priority and run them sequentially or concurrently.
 
 ## API Model Conventions
 
@@ -51,7 +51,7 @@ LiteBus names public value objects and operation inputs with a fixed suffix taxo
 
 The [API Design Reference](api-design.md) defines the suffix taxonomy, CLR shapes, package placement, writer signatures, parameter budget, and mapping boundaries used by public APIs.
 
-The [Mediation Layer Design Rules](mediation-design.md) define the stage model, contract shapes, vocabulary, and the point at which each class of configuration error is rejected. Read it before adding a pipeline stage, a role, or an axis.
+The [Mediation Layer Design Rules](mediation-design.md) define the stage model, contract shapes, vocabulary, and the point at which each class of configuration error is rejected. Read that page before you add a pipeline stage, a role, or an axis.
 
 ## Storage Axis
 
@@ -121,6 +121,8 @@ flowchart LR
 | Queue diagnostics | `IInboxDiagnosticsStore` | `IOutboxDiagnosticsStore` |
 | Query and purge rows | `IInboxMessageQuery`, `IInboxPurgeStore` | `IOutboxMessageQuery`, `IOutboxPurgeStore` |
 
+### Composite Store Roles
+
 Fine-grained interfaces remain for callers that depend on one concern. Composite roles group the slices processors and operator tooling need:
 
 | Composite role | Extends | Used by |
@@ -141,7 +143,7 @@ Cleanup services call `IInboxRetentionStore.DeleteCompletedOlderThanAsync` and `
 | Inbox | Completion time when recorded, otherwise acceptance time | `COALESCE(completed_at, created_at)` |
 | Outbox | Publication time when recorded, otherwise enqueue time | `COALESCE(published_at, created_at)` |
 
-Current inbox and outbox schemas include `completed_at`, `published_at`, and operational history columns such as `last_attempted_at` and `dead_lettered_at`. Retention deletes rows based on when work finished, not when it was first accepted. A message accepted long ago but completed recently stays until the cutoff passes its completion time.
+Inbox and outbox schemas include `completed_at`, `published_at`, and operational history columns such as `last_attempted_at` and `dead_lettered_at`. Retention deletes rows by finish time, not accept time: a message accepted long ago but completed recently stays until the cutoff passes its completion time.
 
 ### OpenTelemetry Metric Catalog
 
@@ -204,7 +206,7 @@ Framework-neutral diagnostic probes use `IDiagnosticCheck` and `LiteBusHostManif
 
 ## Transport Platform
 
-Broker clients implement `ITransportPublisher` and `IMessageConsumer` from `LiteBus.Transport.Abstractions`. Shared dispatch logic lives in `LiteBus.Inbox.Dispatch` and `LiteBus.Outbox.Dispatch`. Broker transports are root modules shared by dispatch and ingress adapters. Shared circuit breaker metrics live in `LiteBus.Transport`; transport header value parsing lives in `LiteBus.Transport.Abstractions`; envelope header mapping lives in the dispatch and ingress adapter packages.
+Broker clients implement `ITransportPublisher` and `IMessageConsumer` from `LiteBus.Transport.Abstractions`. Shared dispatch logic lives in `LiteBus.Inbox.Dispatch` and `LiteBus.Outbox.Dispatch`, and broker transports are root modules shared by dispatch and ingress adapters. Shared circuit breaker metrics live in `LiteBus.Transport`; header value parsing lives in `LiteBus.Transport.Abstractions`; envelope header mapping lives in the dispatch and ingress adapter packages.
 
 | Package | Role | Broker | Destination mapping |
 | --- | --- | --- | --- |
@@ -243,7 +245,7 @@ services.AddLiteBus(bus =>
 
 ### Transport Resilience Capability Matrix
 
-Minimum acknowledgement and recovery behavior implemented by each adapter. Raw `IMessageConsumer` hosts use `TransportConsumerHandlerInvoker`, which returns failed deliveries to the broker and continues the consume loop. Inbox ingress applies its own poison, retry, and dead-letter policy on top of transport deliveries.
+The table lists the minimum acknowledgement and recovery behavior per adapter. Raw `IMessageConsumer` hosts use `TransportConsumerHandlerInvoker`, which returns failed deliveries to the broker and continues the consume loop. Inbox ingress applies its own poison, retry, and dead-letter policy on top of transport deliveries.
 
 | Provider | Ack (`AcceptAsync`) | Requeue (`ReturnToQueueAsync`) | Handler throw (raw consumer) | Consumer reconnect |
 | --- | --- | --- | --- | --- |
@@ -316,7 +318,7 @@ Each acquisition increments `lease_generation`. Renewal and terminal persistence
 
 ### Pass Abort vs Per-Message Persistence
 
-Dispatch failures and lease-loss outcomes are isolated per envelope: one worker records its outcome and continues with the next leased message. Terminal persistence follows the same per-message containment rule. When `PersistTerminalOutcomeAsync` throws for one envelope, `PipelinedMessageProcessor` logs the failure and continues the pass so sibling workers can finish dispatch and persistence for the remaining batch. The failed envelope keeps its active lease until expiration and becomes eligible for a later pass.
+Outcomes are isolated per envelope: one worker records its outcome and continues with the next leased message, and terminal persistence follows the same per-message rule. When `PersistTerminalOutcomeAsync` throws for one envelope, `PipelinedMessageProcessor` logs the failure and continues the pass so sibling workers finish the remaining batch. The failed envelope keeps its active lease until expiration and becomes eligible for a later pass.
 
 Pass-level abort still applies to leasing, channel fan-out, and cooperative shutdown. `OperationCanceledException` from the pass cancellation token stops the worker without swallowing the cancellation. Uncaught exceptions from `DispatchEnvelopeAsync` still propagate from the worker and can fault the pass when they are not the lease-loss cancellation pattern handled explicitly in `RunWorkerAsync`.
 
@@ -330,11 +332,11 @@ Pass-level abort still applies to leasing, channel fan-out, and cooperative shut
 
 `IProcessorEnvelopeHook` implementations from `LiteBus.DurableMessaging.Abstractions` run around each leased envelope. Inbox and outbox map envelopes through adapters. `EnableSaga()` registers saga hooks without coupling `LiteBus.Saga` to inbox abstractions.
 
-Set `DispatcherConcurrency` above `1` only when handlers are safe to run in parallel. Background services create a per-message DI scope so scoped handlers (for example `DbContext`) resolve correctly.
+Set `DispatcherConcurrency` above `1` only when your handlers are safe to run in parallel. Background services create a per-message DI scope so scoped handlers (for example `DbContext`) resolve correctly.
 
 ### Delivery Semantics (At-Least-Once)
 
-Durable paths guarantee **at-least-once** execution and publication, not exactly-once side effects. Handlers, dispatchers, and downstream consumers must be idempotent or deduplicate with `IdempotencyKey` and application logic. A crash between external side effect and terminal persist can produce duplicates. Outbox processors publish through `IOutboxDispatcher` before terminal persist; a crash or skipped persist after broker ack can republish the same envelope on lease reclaim.
+Durable paths guarantee at-least-once execution and publication, not exactly-once side effects. Make your handlers, dispatchers, and downstream consumers idempotent or deduplicate with `IdempotencyKey` and application logic. A crash between external side effect and terminal persist can produce duplicates: outbox processors publish through `IOutboxDispatcher` before terminal persist, so a crash or skipped persist after broker ack can republish the same envelope on lease reclaim.
 
 ### Transactional EF Behavior
 
@@ -392,7 +394,7 @@ External producer
   -> OutboxProcessor -> Amqp dispatcher -> integration exchange
 ```
 
-Handlers and dispatch targets must be idempotent. Inbox and outbox provide at-least-once behavior, not exactly-once side effects.
+Make handlers and dispatch targets idempotent: inbox and outbox provide at-least-once behavior, not exactly-once side effects.
 
 ## Durable Messaging Glossary
 
@@ -419,7 +421,7 @@ Closed generic messages are supported when each closed type has a registered con
 
 ## Saga Orchestration
 
-Saga integrates through `inbox.EnableSaga(...)` from `LiteBus.Saga.InboxIntegration`. `SagaModuleBuilder` owns exactly one explicit storage module. Use `UseInMemoryStorage()` for tests or select a persistence adapter; missing or duplicate storage fails composition.
+Integrate saga through `inbox.EnableSaga(...)` from `LiteBus.Saga.InboxIntegration`. `SagaModuleBuilder` owns exactly one explicit storage module: call `UseInMemoryStorage()` for tests or select a persistence adapter. Missing or duplicate storage fails composition.
 
 | Package | Role | Responsibility |
 | --- | --- | --- |
@@ -443,7 +445,7 @@ builder.AddInbox(inbox =>
 });
 ```
 
-Saga state is command-centric (`LiteBus.Saga.Abstractions` references command contracts). Applications own state POCOs and completion rules.
+Saga state is command-centric (`LiteBus.Saga.Abstractions` references command contracts). You own state POCOs and completion rules.
 
 ### Concurrency and Scope
 
@@ -451,7 +453,7 @@ Saga state is command-centric (`LiteBus.Saga.Abstractions` references command co
 
 ## Message Registry Lifecycle
 
-LiteBus uses one `IMessageRegistry` per `IModuleConfiguration` instance created during `AddLiteBus`. Modules register message and handler types at compose time through `MessageModule` and semantic module builders. The registry is not process-wide: tests and hosts each get an isolated instance. Do not call `IMessageWriter.Register` at runtime in application code; register types during module `Build()` or through `RegisterFromAssembly` on module builders.
+LiteBus creates one `IMessageRegistry` per `IModuleConfiguration` instance during `AddLiteBus`. Modules register message and handler types at compose time through `MessageModule` and semantic module builders. The registry is not process-wide: tests and hosts each get an isolated instance. Do not call `IMessageWriter.Register` at runtime in application code; register types during module `Build()` or through `RegisterFromAssembly` on module builders.
 
 ## Payload Encryption and Tenant Isolation
 
@@ -472,7 +474,7 @@ inbox.UseAmqpDispatch(options =>
 
 ## Module Composition
 
-Parent modules use `ICompositeModule` to declare storage, dispatch, ingress, and saga children. Child membership is collected before build. `BuildOrder()` validates every `IRequires<TModule>` edge, inserts composite children, and topologically sorts the complete graph before any `Build()` call. Configuration context stores shared configuration objects only; registration markers and dependency-registry scans are not part of ordering. Duplicate registration of the same module type throws `LiteBusConfigurationException` at compose time.
+Parent modules use `ICompositeModule` to declare storage, dispatch, ingress, and saga children, and child membership is collected before build. `BuildOrder()` validates every `IRequires<TModule>` edge, inserts composite children, and topologically sorts the complete graph before any `Build()` call. Configuration context stores shared configuration objects only. Duplicate registration of the same module type throws `LiteBusConfigurationException` at compose time.
 
 Register adapters inside the parent builder:
 
@@ -511,4 +513,5 @@ The [Roadmap](../roadmap/README.md) tracks per-contract retry classification, SQ
 
 ## Next
 
-Follow package boundaries in the [Dependency Graph](dependency-graph.md). Historical upgrade steps remain in the [v6 Migration Guide](../migration/v6.md).
+- [Dependency Graph](dependency-graph.md): package inventory and dependency roles
+- [v6 Migration Guide](../migration/v6.md): historical upgrade steps

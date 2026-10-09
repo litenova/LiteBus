@@ -1,9 +1,10 @@
 import type { Item, Node, Root } from 'fumadocs-core/page-tree';
-import { DocsSidebar, type SidebarNode, type SidebarPage } from '@/components/docs-sidebar';
+import { DocsSidebar, type CuratedGroup, type SidebarNode, type SidebarPage } from '@/components/docs-sidebar';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import { getSource } from '@/lib/source';
-import type { DocsVersion } from '@/lib/versions';
+import { curatedNavigation } from '@/lib/docs-nav';
+import { versionHref, type DocsVersion } from '@/lib/versions';
 
 /**
  * The display text of a page tree node.
@@ -72,6 +73,13 @@ export async function DocsShell({
   children,
 }: Readonly<{ version: DocsVersion; children: React.ReactNode }>) {
   const tree = toSidebarTree((await getSource(version.id)).getPageTree());
+  const curated: CuratedGroup[] | undefined = curatedNavigation[version.id]?.map((group) => ({
+    heading: group.heading,
+    links: group.links.map((link) => ({
+      label: link.label,
+      url: versionHref(version, link.slug.length === 0 ? [] : link.slug.split('/')),
+    })),
+  }));
 
   return (
     <>
@@ -82,7 +90,7 @@ export async function DocsShell({
         <SiteHeader current="docs" />
         <div className="docs">
           {children}
-          <DocsSidebar tree={tree} versionId={version.id} />
+          <DocsSidebar tree={tree} curated={curated} versionId={version.id} />
         </div>
         <SiteFooter />
       </div>

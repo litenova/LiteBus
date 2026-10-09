@@ -1,14 +1,16 @@
 # Dependency Graph
 
-LiteBus packages are split by concern: runtime, messaging, semantic modules, durable orchestration, storage adapters, dispatch adapters, ingress adapters, and shared transport helpers. Applications reference only the packages they compose.
+LiteBus ships one package per concern, so your application references only the packages it runs. This page maps each package to its dependency role and shows which references each role allows.
 
-Historical package and API names are documented in the [v6 Migration Guide](../migration/v6.md).
+> **This page is for** developers who select LiteBus packages and check that a new reference points in an allowed direction.
+>
+> **After reading it** you can place a package in its role and read what it may reference. For the processing model behind the roles, continue with the [Architecture](README.md).
 
-The role table below is the normative dependency summary. [Generated Package Inventory](generated-package-inventory.md) records every evaluated shipping project reference and direct package reference; documentation CI rejects stale inventory.
+Historical package and API names live in the [v6 Migration Guide](../migration/v6.md).
 
 ## Dependency Roles
 
-Roles describe dependency direction and package purpose. They are not numeric layers. Feature axes remain independent from the role assigned to a package.
+Each role describes dependency direction and package purpose. Roles are not numeric layers, and feature axes stay independent of the role assigned to a package. The role table below is the normative dependency summary: [Generated Package Inventory](generated-package-inventory.md) records every evaluated shipping project reference and direct package reference, and documentation CI rejects a stale inventory.
 
 | Role | Package examples | Allowed project dependencies | Allowed direct package dependencies |
 | --- | --- | --- | --- |
@@ -22,7 +24,7 @@ Roles describe dependency direction and package purpose. They are not numeric la
 | Consumer tooling | `LiteBus.Analyzers`, `LiteBus.Testing.*` | Any role needed by that narrowly scoped tool | Analyzer or test-support packages |
 | Aggregate | `LiteBus` | Contract and core implementation roles | BCL only |
 
-`ArchitectureDependencyPolicyTests` parses every project under `src/`. It fails when a project has no role, a project reference points in a forbidden direction, a storage, dispatch, or ingress adapter crosses concerns, or a direct or transitive package reference is not approved for that role. Technology-family checks walk the complete project-reference closure, so a broker SDK cannot enter an adapter through a shared project. Update the matrix and the test together when introducing a new architectural role or SDK family.
+`ArchitectureDependencyPolicyTests` parses every project under `src/` and fails on a missing role, a forbidden reference direction, a storage, dispatch, or ingress adapter that crosses concerns, or an unapproved package reference. Technology-family checks walk the complete project-reference closure, so a broker SDK cannot enter an adapter through a shared project. Update the matrix and the test together when you introduce a new architectural role or SDK family.
 
 Only the `LiteBus` aggregate meta-package bundles core mediators and durable messaging. Storage, dispatch, ingress, broker transports, and OpenTelemetry remain opt-in.
 
@@ -50,11 +52,11 @@ Host adapters
   *.Extensions.OpenTelemetry / Extensions.AspNetCore / Extensions.Diagnostics.HealthChecks
 ```
 
-`LiteBus.Runtime` depends only on `Runtime.Abstractions`. `ILiteBusBuilder` lives in `Runtime.Abstractions` and exposes only `Modules`; feature packages add the normal `AddMessaging`, `AddCommands`, `AddQueries`, `AddEvents`, `AddInbox`, and `AddOutbox` extensions. The underlying `IModuleRegistry` remains available for advanced composition.
+`LiteBus.Runtime` depends only on `Runtime.Abstractions`. `ILiteBusBuilder` exposes only `Modules`; feature packages add the normal `AddMessaging`, `AddCommands`, `AddQueries`, `AddEvents`, `AddInbox`, and `AddOutbox` extensions, and `IModuleRegistry` remains available for advanced composition.
 
 Shared transports are root modules. Dispatch and ingress modules declare `IRequires<TTransportModule>` and never create an implicit broker module. Storage, dispatch, and ingress modules also declare their parent inbox or outbox requirement where the type system permits it. The module registry validates the complete graph before any module builds.
 
-Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactory`. Core packages depend only on that contract and fail composition when no factory is present. A manual host can opt into `RootMessageDispatchScopeFactory` explicitly. EF Core storage uses `IDbContextFactory<TContext>` through adapter-owned operation factories and does not create container scopes inside stores.
+Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactory`. Core packages depend only on that contract and fail composition when no factory is present. A manual host can opt in to `RootMessageDispatchScopeFactory` explicitly. EF Core storage uses `IDbContextFactory<TContext>` through adapter-owned operation factories and does not create container scopes inside stores.
 
 ## Package Table
 
@@ -145,8 +147,8 @@ The Direct project references and Direct package references columns repeat [Gene
 | `LiteBus.Testing.Transport` | Consumer tooling | `LiteBus.Transport.Abstractions` | none |
 | `LiteBus.Testing.DurableMessaging` | Consumer tooling | `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Storage.InMemory`, `LiteBus.Messaging`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Storage.InMemory`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.DependencyInjection` |
 | `LiteBus.Testing.Hosting` | Consumer tooling | `LiteBus.Inbox`, `LiteBus.Runtime.Abstractions`, `LiteBus.Runtime.Extensions.Microsoft.Hosting` | `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Hosting.Abstractions` |
-| `LiteBus.Storage.Testing` | Consumer tooling | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | `AwesomeAssertions`, `xunit` |
-| `LiteBus.Transport.Testing` | Consumer tooling | `LiteBus.Transport.Abstractions` | `xunit` |
+| `LiteBus.Storage.Testing` | Consumer tooling | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | `AwesomeAssertions`, `StyleCop.Analyzers (private)`, `xunit` |
+| `LiteBus.Transport.Testing` | Consumer tooling | `LiteBus.Transport.Abstractions` | `StyleCop.Analyzers (private)`, `xunit` |
 
 Per-module `*.Extensions.Microsoft.DependencyInjection` and `*.Extensions.Autofac` shells are registration patterns, not shipping packages, so they have no inventory row. Each one depends on its module package and the matching runtime adapter.
 
@@ -320,4 +322,5 @@ PostgreSQL and AMQP integration tests require Docker. CI skips them gracefully w
 
 ## Next
 
-See [Architecture](README.md) for Storage / Dispatch / Ingress flow diagrams, or the [v6 Migration Guide](../migration/v6.md) for historical package mappings.
+- [Architecture](README.md): Storage, Dispatch, and Ingress flow diagrams
+- [v6 Migration Guide](../migration/v6.md): historical package mappings

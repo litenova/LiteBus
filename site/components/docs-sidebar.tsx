@@ -40,6 +40,14 @@ export type SidebarFolder = {
 export type SidebarNode = SidebarPage | SidebarSeparator | SidebarFolder;
 
 /**
+ * One labelled group of the curated navigation, with each link already resolved to a URL for the version.
+ */
+export type CuratedGroup = {
+  readonly heading: string;
+  readonly links: readonly { readonly label: string; readonly url: string }[];
+};
+
+/**
  * The documentation sidebar for one version: search, the version switcher, and that version's page tree.
  *
  * The tree arrives as serialisable data from the docs shell because the page tree's names are React nodes, which the
@@ -48,15 +56,46 @@ export type SidebarNode = SidebarPage | SidebarSeparator | SidebarFolder;
  */
 export function DocsSidebar({
   tree,
+  curated,
   versionId,
-}: Readonly<{ tree: readonly SidebarNode[]; versionId: string }>) {
+}: Readonly<{ tree: readonly SidebarNode[]; curated: readonly CuratedGroup[] | undefined; versionId: string }>) {
   const pathname = usePathname();
+
+  if (curated === undefined) {
+    return (
+      <nav className="sidebar" id="docs-nav" aria-label="Documentation">
+        <SearchBox versionId={versionId} />
+        <VersionSwitcher current={versionId} />
+        <SidebarGroups nodes={tree} pathname={pathname} />
+      </nav>
+    );
+  }
+
+  const curatedUrls = new Set(curated.flatMap((group) => group.links.map((link) => link.url)));
+  const inMore = !curatedUrls.has(pathname) && tree.some((node) => nodeContains(node, pathname));
 
   return (
     <nav className="sidebar" id="docs-nav" aria-label="Documentation">
       <SearchBox versionId={versionId} />
+      {curated.map((group) => (
+        <Fragment key={group.heading}>
+          <h2>{group.heading}</h2>
+          <ul>
+            {group.links.map((link) => (
+              <li key={link.url}>
+                <Link href={link.url} aria-current={link.url === pathname ? 'page' : undefined}>
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Fragment>
+      ))}
+      <details className="sidebar-more" open={inMore}>
+        <summary>All Pages</summary>
+        <SidebarGroups nodes={tree} pathname={pathname} />
+      </details>
       <VersionSwitcher current={versionId} />
-      <SidebarGroups nodes={tree} pathname={pathname} />
     </nav>
   );
 }

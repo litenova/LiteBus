@@ -1,16 +1,16 @@
 # Reliable Messaging
 
-Read the [Event Module](../concepts/events.md) for publish-subscribe, then [The Handler Pipeline](../concepts/handler-pipeline.md) to understand the stages all three message types share.
-
-In-process mediation runs handlers in the current call. If the process crashes mid-handler, that work is lost. The inbox and outbox add durability: they persist a message to a store first, then a background processor executes or publishes it with at-least-once delivery, leases, retries, and idempotency.
-
-See [Reliable messaging semantics](semantics.md) for delivery guarantees and broker comparison.
+LiteBus runs command, query, and event handlers in your process by default. When accepted work must survive a crash, you store it first and let a background processor finish it. This page maps that choice to the inbox, the outbox, or a saga.
 
 > **This page is for** developers who need accepted work to survive a process crash.
+>
+> **After reading it** you can pick the inbox, the outbox, or a saga for your task. Start with [Inbox](inbox.md).
 
-> **Note**: Inbox and outbox behavior is opt-in. Plain `SendAsync`, `QueryAsync`, and `PublishAsync` calls remain in process and do not access a durable store.
+## What Mediation Alone Does
 
-## In-Process Versus Durable
+Read the [Event Module](../concepts/events.md) for publish-subscribe, then [The Handler Pipeline](../concepts/handler-pipeline.md) for the stages all three message types share.
+
+In-process mediation runs handlers in the current call. If the process crashes mid-handler, that work is lost. Durable messaging adds a store and a background processor with at-least-once delivery, leases, retries, and idempotency.
 
 | Path | API | Execution | Survives a crash |
 | --- | --- | --- | --- |
@@ -19,79 +19,68 @@ See [Reliable messaging semantics](semantics.md) for delivery guarantees and bro
 | In-process event | `IEventMediator.PublishAsync` | Now, in the caller | No |
 | Durable message (outbox) | `IOutbox.EnqueueAsync` | Later, by `PipelinedOutboxProcessor` | Yes |
 
-Durable APIs return a receipt that confirms storage, not a business result.
+Inbox and outbox behavior is opt-in. Plain `SendAsync`, `QueryAsync`, and `PublishAsync` calls stay in process and never touch a durable store.
+
+Durable APIs return a receipt that confirms storage, not a business result. When you need the outcome later, read it with a query or a read model.
 
 Commands with results (`ICommand<TResult>`) cannot be stored in the inbox; analyzer LB1004 reports that at compile time.
 
-## The Inbox: Deferred Execution
+## Which Axis Fits Your Task
 
-The inbox stores registered message types and replays them through `PipelinedInboxProcessor` and `IInboxDispatcher`. See [Inbox](inbox.md).
+| Axis | You store | A processor later | Use when |
+| --- | --- | --- | --- |
+| Inbox | A command through `IInbox.AcceptAsync` | `PipelinedInboxProcessor` executes it through `IInboxDispatcher` | Accepted work must run even if the process restarts |
+| Outbox | An event through `IOutbox.EnqueueAsync` | `PipelinedOutboxProcessor` publishes it through `IOutboxDispatcher` | A state change must publish its event only when it commits |
+| Saga | Correlated state through `EnableSaga` on the inbox | The inbox processor loads and saves state around dispatch | A multi-step workflow must track progress across commands |
 
-| Concern | Package examples | Role |
-| --- | --- | --- |
-| Core | `LiteBus.Inbox` | `IInbox`, `IInboxProcessor`, contracts |
-| Storage | `LiteBus.Inbox.Storage.PostgreSql`, `*.InMemory`, `*.EntityFrameworkCore` | Store roles |
-| Dispatch | `LiteBus.Inbox.Dispatch.InProcess`, `LiteBus.Inbox.Dispatch.Amqp`, `LiteBus.Inbox.Dispatch.InMemory` | `UseInProcessDispatch`, `UseAmqpDispatch`, `UseInMemoryDispatch` |
-| Ingress | `LiteBus.Inbox.Ingress.Amqp` | Broker to `IInbox.AcceptAsync` |
+The saga is not a workflow engine. It keeps durable state keyed by correlation while the inbox delivers commands at-least-once. It has no scheduler, timeout framework, or compensation language. See [Saga](saga.md).
 
-## The Outbox: Reliable Publication
+## What You Register
 
-The outbox stores a message after a state change commits, then `PipelinedOutboxProcessor` publishes through `IOutboxDispatcher`. See [Outbox](outbox.md).
+A working durable path needs four registrations inside one module builder:
 
-| Concern | Package examples | Role |
-| --- | --- | --- |
-| Core | `LiteBus.Outbox` | `IOutbox`, `IOutboxProcessor` |
-| Storage | `LiteBus.Outbox.Storage.PostgreSql`, `*.InMemory`, `*.EntityFrameworkCore` | Store roles |
-| Dispatch | `LiteBus.Outbox.Dispatch.InProcess`, `LiteBus.Outbox.Dispatch.Amqp`, `LiteBus.Outbox.Dispatch.InMemory` | `UseInProcessDispatch`, `UseAmqpDispatch`, `UseInMemoryDispatch` |
+1. `AddInbox` or `AddOutbox` with contracts for every stored message type.
+2. `Use*Storage` for the store the processor leases from.
+3. `UseInProcessDispatch`, `UseAmqpDispatch`, or `UseInMemoryDispatch` for how leased rows reach handlers.
+4. `EnableInboxProcessor` or `EnableOutboxProcessor` when the generic host should run the loops.
 
-## Transactional Writes (Domain + Store)
+```csharp
+builder.AddInbox(inbox =>
+{
+    inbox.Contracts.Register<ProcessPaymentCommand>(
+        name: "payments.commands.process-payment",
+        version: 1);
 
-`IInbox.AcceptAsync` and `IOutbox.EnqueueAsync` commit immediately. That suits ingress and standalone storage.
+    inbox.UseInMemoryStorage();
+    inbox.UseInProcessDispatch();
+    inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(1));
+});
+```
 
-When a command handler must persist domain state and inbox/outbox rows in **one database transaction**, use `ITransactionalInbox` / `ITransactionalOutbox` (PostgreSQL) or `ITransactionalInbox<TContext>` / `ITransactionalOutbox<TContext>` (EF Core). Registration, Marten enlistment, and API choice: [Transactional messaging writes](transactional-writes.md).
+Storage, dispatch, and ingress register inside `AddInbox` and `AddOutbox` through `Use*` extensions. See [Dependency Graph](../architecture/dependency-graph.md) for package boundaries.
 
-## Delivery Semantics
+## How Delivery Behaves
 
-LiteBus durable messaging provides **at-least-once** execution and publication, not exactly-once side effects.
+LiteBus durable messaging provides at-least-once execution and publication, not exactly-once side effects. Processor pipelines are not atomic with external side effects by design. Combine inbox and outbox with idempotent handlers and broker deduplication headers where needed.
 
 | Scenario | Risk | Mitigation |
 | --- | --- | --- |
 | Worker crash after handler runs, before terminal persist | Duplicate execution on lease reclaim | Idempotent handlers; `IdempotencyKey` on accept |
 | Worker crash after broker publish, before outbox persist | Duplicate publication | Consumer deduplication; outbox idempotency key |
-| Lease expiry during slow handler | Second worker dispatches same row | Heartbeat renewal; handler idempotency |
-| Shutdown with `HonorShutdownTokenOnPersist = true` | Canceled terminal persist | Default `false`; document operator drain policy |
-| In-memory stores | Process-wide only | Not cross-process; tests and single-node dev |
-| In-memory transport consumer | Requeue on handler throw | Documented in [Architecture](../architecture/README.md); not broker DLQ |
+| Lease expiry during a slow handler | A second worker dispatches the same row | Heartbeat renewal; handler idempotency |
+| In-memory stores | Process-wide only | Tests and single-node development, not production |
+| In-memory transport consumer | Requeue on handler throw, not broker dead letter | See [Architecture](../architecture/README.md) |
 
-Processor pipelines are not atomic with external side effects by design. Combine inbox/outbox with application idempotency and broker deduplication headers where needed. Built-in idempotency middleware is deferred to [Roadmap](../roadmap/README.md).
+`HonorShutdownTokenOnPersist` defaults to `false`, so terminal persist completes on shutdown. Set it to `true` only with a documented operator drain policy. See [Reliable messaging semantics](semantics.md) for guarantees and [Ordering and concurrency guarantees](ordering.md) for what holds under leases.
 
-## Durable Contracts
+## Keep State And Messages Together
 
-Every durable message needs a stable contract name and version. Register it on the matching message or durable module builder, or use `[MessageContract]` with analyzer enforcement for production code.
+`IInbox.AcceptAsync` and `IOutbox.EnqueueAsync` commit immediately. When a handler must persist domain state and inbox or outbox rows in one database transaction, use `ITransactionalInbox` and `ITransactionalOutbox` (PostgreSQL) or the generic variants over your `DbContext` (EF Core). Registration, Marten enlistment, and API choice live in [Transactional messaging writes](transactional-writes.md).
 
-## Composition Checklist
-
-A working durable path needs:
-
-1. `AddInbox` / `AddOutbox` with contracts
-2. `Use*Storage` inside the same builder
-3. `UseInProcessDispatch`, `UseAmqpDispatch`, or `UseInMemoryDispatch` on the matching module builder
-4. `EnableInboxProcessor` / `EnableOutboxProcessor` when the generic host should run loops
-
-```mermaid
-flowchart LR
-    A[Application] -->|AcceptAsync or EnqueueAsync| B[(Store)]
-    B --> C[Pipelined processor leases rows]
-    C -->|inbox| D[IInboxDispatcher]
-    C -->|outbox| E[IOutboxDispatcher]
-    D -->|records result| B
-    E -->|marks published| B
-```
-
-See [Dependency Graph](../architecture/dependency-graph.md) for package boundaries.
+Every durable message needs a stable contract name and version on the matching module builder, or `[MessageContract]` with analyzer enforcement for production code. Built-in idempotency middleware stays deferred to the [Roadmap](../roadmap/README.md).
 
 ## Next
 
-- Contracts and registration: [Inbox](inbox.md), [Outbox](outbox.md)
-- Ordering and concurrency: [Ordering and concurrency guarantees](ordering.md)
-- Atomic domain + messaging: [Transactional messaging writes](transactional-writes.md)
+- [Inbox](inbox.md)
+- [Outbox](outbox.md)
+- [Saga](saga.md)

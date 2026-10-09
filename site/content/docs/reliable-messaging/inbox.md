@@ -1,12 +1,16 @@
 # Inbox
 
-The inbox stores messages for deferred execution by a background processor, so work accepted at the edge survives a process crash and runs at-least-once with idempotency. This page is the contract and registration reference for the core inbox module. Read [Reliable Messaging](README.md) first.
+The inbox stores commands for deferred execution by a background processor, so work accepted at the edge survives a process crash and runs at least once. This page is the contract and registration reference for the core inbox module.
 
-If acceptance must happen in the **same database transaction** as domain persistence (uncommon outside command handlers), see [Transactional messaging writes](transactional-writes.md).
+> **This page is for** developers who accept commands that must survive a process crash.
+>
+> **After reading it** you can register contracts, storage, dispatch, and the processor for deferred execution. For the durable overview, start with [Reliable Messaging](README.md).
+
+If acceptance must happen in the same database transaction as domain persistence, see [Transactional messaging writes](transactional-writes.md).
 
 ## Contract
 
-Use `IInbox.AcceptAsync` when the caller should receive an acceptance receipt instead of waiting for handler execution. The inbox is a durable command queue: acceptance stores work; `PipelinedInboxProcessor` executes it with at-least-once semantics.
+Use `IInbox.AcceptAsync` when the caller should receive an acceptance receipt instead of waiting for handler execution. The inbox is a durable command queue: acceptance stores work, and `PipelinedInboxProcessor` executes it with at-least-once semantics.
 
 ```csharp
 public sealed record ProcessPaymentCommand(Guid PaymentId, decimal Amount) : ICommand;
@@ -22,7 +26,7 @@ var receipt = await inbox.AcceptAsync(
     cancellationToken);
 ```
 
-The receipt confirms acceptance into the inbox. It does not contain the business result from the message handler.
+The receipt confirms acceptance into the inbox. It does not carry the business result from the message handler.
 
 ```csharp
 public sealed record InboxReceipt
@@ -37,13 +41,11 @@ public sealed record InboxReceipt
 }
 ```
 
-When `Outcome` is `AlreadyAccepted`, the store returned an existing row for the supplied message id or tenant-scoped idempotency key. Completed rows remain deduplicated. A repeat accept with the same `(tenant_id, idempotency_key)` pair returns the completed envelope without re-executing the handler.
+When `Outcome` is `AlreadyAccepted`, the store returned an existing row for the supplied message id or tenant-scoped idempotency key. Completed rows stay deduplicated. A repeat accept with the same `(tenant_id, idempotency_key)` pair returns the completed envelope without re-executing the handler.
 
-Use `InboxAcceptMetadata.Immediate with { ... }` (or helpers such as `InboxAcceptItem<T>.WithTrace`, `WithTenant`, `WithCorrelation`) rather than constructing metadata with uninitialized required fields. Heterogeneous batch APIs accept `InboxAcceptItem.From(message, messageType)` when contract lookup must not rely on `message.GetType()` alone.
+Start from `InboxAcceptMetadata.Immediate with { ... }` (or helpers such as `InboxAcceptItem<T>.WithTrace`, `WithTenant`, and `WithCorrelation`) rather than building metadata with uninitialized required fields. Heterogeneous batch APIs accept `InboxAcceptItem.From(message, messageType)` when contract lookup must not rely on `message.GetType()` alone.
 
-Use a query or read model when a caller needs the final state later.
-
-Deferred execution is expressed through `InboxAcceptMetadata.Visibility` (`MessageVisibility.At` or `MessageVisibility.After`). There is no separate scheduler interface on the writer surface.
+Use a query or read model when a caller needs the final state later. Deferred execution runs through `InboxAcceptMetadata.Visibility` (`MessageVisibility.At` or `MessageVisibility.After`). The writer surface has no separate scheduler interface.
 
 ## Core Module
 
@@ -82,9 +84,9 @@ services.AddLiteBus(builder =>
 });
 ```
 
-Register every stored message type in `IMessageContractRegistry` with a stable name and version. Register explicitly on the inbox or messaging builder, or use `RegisterFromAssembly`. Analyzers split contract coverage: **LB1007** warns on handled durable types without `[MessageContract]` or registration; **LB1017** warns on `[MessageContract]` types without explicit `Contracts.Register` or assembly scan. See [Analyzers](../reference/analyzers.md).
+Register every stored message type in `IMessageContractRegistry` with a stable name and version. Register explicitly on the inbox or messaging builder, or use `RegisterFromAssembly`. Analyzers split contract coverage: **LB1007** warns on handled durable types without `[MessageContract]` or registration, and **LB1017** warns on `[MessageContract]` types without explicit `Contracts.Register` or assembly scan. See [Analyzers](../reference/analyzers.md).
 
-Closed generic types are supported when each closed shape is registered. Open generic contracts are rejected.
+Closed generic types work when each closed shape is registered. Open generic contracts are rejected.
 
 ## Storage (`Use*` Extensions)
 
@@ -94,11 +96,11 @@ Closed generic types are supported when each closed shape is registered. Open ge
 | `UsePostgreSqlStorage(...)` | `LiteBus.Inbox.Storage.PostgreSql` |
 | `UseEntityFrameworkCoreStorage(...)` | `LiteBus.Inbox.Storage.EntityFrameworkCore` |
 
-The writer persists through `IInboxStore`. `AddAsync` returns `InboxAppendResult`, which carries the stored envelope and the authoritative `InboxAcceptOutcome`. The processor leases through `IInboxLeaseStore` and records results through `IInboxStateWriter`. A single store implementation registers all roles on one singleton instance.
+The writer persists through `IInboxStore`. `AddAsync` returns `InboxAppendResult`, which carries the stored envelope and the authoritative `InboxAcceptOutcome`. The processor leases through `IInboxLeaseStore` and records results through `IInboxStateWriter`. One store implementation registers all roles on a single singleton instance.
 
 ### Schema Version 1
 
-PostgreSQL inbox schema version **1** stores opaque payload text and includes `lease_generation`. The schema manager requires the complete current shape. Historical table replacement and data-mapping procedures are documented in the [Migration Guide](../migration/v6.md).
+PostgreSQL inbox schema version **1** stores opaque payload text and includes `lease_generation`. The schema manager requires the complete current shape. Historical table replacement and data-mapping procedures live in the [Migration Guide](../migration/v6.md).
 
 ### Transactional Writes (Domain + Inbox)
 
@@ -107,10 +109,10 @@ Default `IInbox.AcceptAsync` commits immediately through the singleton store. Br
 | Situation | API |
 | --- | --- |
 | Ingress, edge accept, standalone storage | `IInbox` |
-| Command handler + EF `DbContext` | `ITransactionalInbox<TContext>`: [Inbox EF Core storage](../integrations/inbox-ef-core-storage.md) |
-| Command handler + PostgreSQL (Marten, Dapper, ADO.NET) | `ITransactionalInbox`: [Transactional messaging writes](transactional-writes.md) |
+| Command handler plus EF `DbContext` | `ITransactionalInbox<TContext>`: [Inbox EF Core storage](../integrations/inbox-ef-core-storage.md) |
+| Command handler plus PostgreSQL (Marten, Dapper, ADO.NET) | `ITransactionalInbox`: [Transactional messaging writes](transactional-writes.md) |
 
-On the transactional EF path, duplicate `message_id` or `(tenant_id, idempotency_key)` fails `SaveChanges` and rolls back the entire unit of work. There is no silent idempotent accept when sharing a `DbContext` transaction.
+On the transactional EF path, a duplicate `message_id` or `(tenant_id, idempotency_key)` fails `SaveChanges` and rolls back the whole unit of work. Sharing a `DbContext` transaction gives no silent idempotent accept.
 
 ## Dispatch (`Use*` Extensions)
 
@@ -161,7 +163,7 @@ When broker acknowledgement fails after a successful inbox accept, ingress logs 
 
 ## Delivery Semantics
 
-Inbox processing is **at-least-once**, not exactly-once. A handler may run more than once after worker crash, lease expiry, heartbeat loss, or broker redelivery. Use `InboxAcceptMetadata.Idempotency` (`Idempotency.Keyed`) for insert-time deduplication; implement idempotent handlers for side effects.
+Inbox processing is at-least-once, not exactly-once. A handler may run more than once after worker crash, lease expiry, heartbeat loss, or broker redelivery. Use `InboxAcceptMetadata.Idempotency` (`Idempotency.Keyed`) for insert-time deduplication, and write idempotent handlers for side effects.
 
 `HonorShutdownTokenOnPersist` on `InboxProcessorOptions` controls terminal persist cancellation:
 
@@ -208,7 +210,7 @@ After-dispatch hook failures default to dead-lettering even when dispatch succee
 
 ## In-Memory Store Note
 
-`UseInMemoryStorage()` uses one process-wide lock for store mutations. It is suitable for unit tests and single-process demos, not multi-worker production simulation. Prefer PostgreSQL or EF Core storage when validating lease contention across workers.
+`UseInMemoryStorage()` uses one process-wide lock for store mutations. It fits unit tests and single-process demos, not multi-worker production simulation. Prefer PostgreSQL or EF Core storage when validating lease contention across workers.
 
 ## Dual-Hop Topology
 
@@ -220,7 +222,6 @@ Ingress accepts into the inbox store; dispatch adapters publish leased envelopes
 
 ## Next
 
-- Atomic domain + inbox: [Transactional messaging writes](transactional-writes.md)
+- Atomic domain plus inbox: [Transactional messaging writes](transactional-writes.md)
 - Custom storage: [Custom stores and dispatchers](../extending/custom-stores-and-dispatchers.md)
 - Hosted workers: [Hosted services](../architecture/hosted-services.md)
-- Schema: [PostgreSQL schema management](../integrations/postgresql-schema-management.md)

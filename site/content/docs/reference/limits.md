@@ -1,14 +1,14 @@
 # Limits and Opt-in Boundaries
 
-LiteBus mediation runs in the calling process and persists nothing by itself. Durability, transport, and concurrency promises hold only when the matching store, dispatcher, or host is registered. This page names each boundary, what it does not do, and what to register when the default is not enough.
+LiteBus mediation runs in the calling process and persists nothing by itself. Durability, transport, and concurrency promises hold only when you register the matching store, dispatcher, or host. This page names each boundary, what it does not do, and what you register when the default is not enough.
 
 > **This page is for** anyone relying on LiteBus durability in production: a developer choosing stores and transports, or an operator reading dashboards and runbooks.
 >
-> **After reading it** you know which guarantees need explicit registration, where concurrency is capped at one, and which upgrade needs a deploy-window note.
+> **After reading it** you know which guarantees need explicit registration, where concurrency is capped at one, and which upgrade needs a deploy-window note. For the inbox contract in full, go on to the [Inbox](../reliable-messaging/inbox.md).
 
 ## Mediation Alone Persists Nothing
 
-Handlers execute in the caller's process. When the process crashes mid-handler, that work is lost: `SendAsync`, `QueryAsync`, and `PublishAsync` never touch a durable store. See [Reliable Messaging](../reliable-messaging/README.md) for the in-process contract.
+Handlers execute in the caller process. When the process crashes mid-handler, that work is lost: `SendAsync`, `QueryAsync`, and `PublishAsync` never touch a durable store. See [Reliable Messaging](../reliable-messaging/README.md) for the in-process contract.
 
 When a message has to survive a restart, accept commands through `IInbox.AcceptAsync` and enqueue events through `IOutbox.EnqueueAsync`, with one store adapter and one enabled processor per axis. The receipt confirms storage, not a business result. See [Inbox](../reliable-messaging/inbox.md) and [Outbox](../reliable-messaging/outbox.md).
 
@@ -48,8 +48,7 @@ Broker ingress deduplicates redeliveries with a broker-scoped key of the form `i
 
 During the upgrade window, a delivery accepted under the exchange-scoped key and redelivered after the new mapping creates a second row, and both rows execute. Roll out when redelivery is unlikely, and keep handlers idempotent across the window.
 
-## See Also
+## Next
 
-- [LiteBus Documentation](../index.md) for the page that answers each question
-- [Feature Index](feature-index-v7.md) for the release classification of each transport, dispatch, and ingress surface
-- [Inbox](../reliable-messaging/inbox.md), [Outbox](../reliable-messaging/outbox.md), and [Saga](../reliable-messaging/saga.md) for the full axis contracts
+- Read the [Inbox](../reliable-messaging/inbox.md) and [Outbox](../reliable-messaging/outbox.md) contracts for the full accept and enqueue paths.
+- Read the [Saga](../reliable-messaging/saga.md) contract for correlation and duplicate suppression.

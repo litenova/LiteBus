@@ -1,8 +1,10 @@
 # Roadmap
 
-This page lists planned work that is not part of the current LiteBus contract. Current behavior belongs in the feature guides, architecture reference, and capability catalog.
+LiteBus stays a semantic mediator for commands, queries, and events, with durable messaging as opt-in packages. This page lists planned work that is not part of the current contract; current behavior lives in the feature guides and the architecture reference.
 
-LiteBus remains a semantic mediator for commands, queries, and events. Durable concerns remain opt-in packages with separate inbox, outbox, storage, dispatch, ingress, transport, and host boundaries.
+> **This page is for** developers who plan an integration and need to know what LiteBus does not do yet.
+>
+> **After reading it** you know which capabilities are planned and which boundaries stay fixed. Propose work through [Contributing](../contributing/README.md).
 
 ## Reliability and Recovery
 
@@ -14,7 +16,6 @@ The [Reliability Roadmap](reliability.md) tracks provider conformance, lease rec
 - [Marten Transactional Outbox Writer](marten-outbox-writer.md) for a Marten-backed transactional outbox writer that enlists in the caller document session transaction.
 - SQL Server inbox and outbox storage adapters using application-owned migrations and the same storage role boundaries as existing relational adapters.
 - Contract payload upgrader hooks for in-flight envelopes.
-
 
 ## Dispatch and Ingress
 
@@ -48,4 +49,7 @@ The [Reliability Roadmap](reliability.md) tracks provider conformance, lease rec
 - Shared contracts remain free of technology and host framework dependencies.
 - Package merges, persisted-format changes, and public mediator return-type changes require explicit decisions and migration documentation.
 
-See [Contributing](../contributing/README.md) for proposal and implementation requirements.
+## Next
+
+- [Reliability Roadmap](reliability.md): provider conformance and recovery work
+- [Contributing](../contributing/README.md): proposal and implementation requirements
