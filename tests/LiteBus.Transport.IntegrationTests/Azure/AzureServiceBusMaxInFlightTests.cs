@@ -33,14 +33,10 @@ public sealed class AzureServiceBusMaxInFlightTests
     {
         _fixture = fixture;
         DockerTestGate.EnsureBrokerAvailable(_fixture.IsAvailable, "Azure Service Bus emulator");
-
-        if (!_fixture.IsAvailable)
-        {
-            throw new InvalidOperationException(DockerTestGate.DockerRequiredMessage);
-        }
+        Skip.IfNot(_fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task StartAsync_WithMaxInFlightEight_ShouldRunEightHandlersConcurrently()
     {
         var queueName = ServiceBusEmulatorFixture.ResolveQueue("max-in-flight");

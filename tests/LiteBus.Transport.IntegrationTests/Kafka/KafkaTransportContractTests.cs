@@ -26,11 +26,7 @@ public sealed class KafkaTransportContractTests : TransportContractTests
     {
         _fixture = fixture;
         DockerTestGate.EnsureBrokerAvailable(_fixture.IsAvailable, "Kafka");
-
-        if (!_fixture.IsAvailable)
-        {
-            throw new InvalidOperationException(DockerTestGate.DockerRequiredMessage);
-        }
+        Skip.IfNot(_fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
     }
 
     /// <inheritdoc />

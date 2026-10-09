@@ -197,6 +197,11 @@
         "resolved": "8.0.0",
         "contentHash": "7mu9v0QDv66ar3DpGSZHg9NuNcxDaaAcnMULuZlaTpP9+hwXhrxNGsF5GmLkSHxFdb5bBc1TzeujsRgTrPWi+Q=="
       },
+      "Validation": {
+        "type": "Transitive",
+        "resolved": "2.6.68",
+        "contentHash": "5mZ+aXsYQnr3Wxz5O2tmbgPaa5kn9R+ZlfnPyGBogXI2sh4uTiHtvU++N4bURtn9vmDYIu2Zu323K9hFz9poXQ=="
+      },
       "xunit.abstractions": {
         "type": "Transitive",
         "resolved": "2.0.3",
@@ -240,7 +245,7 @@
       "litebus.runtime": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.runtime.abstractions": {
@@ -249,8 +254,8 @@
       "litebus.transport": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )",
-          "LiteBus.Transport.Abstractions": "[6.1.0, )"
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.Transport.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.transport.abstractions": {
@@ -259,9 +264,9 @@
       "litebus.transport.amqp": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )",
-          "LiteBus.Transport": "[6.1.0, )",
-          "LiteBus.Transport.Abstractions": "[6.1.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.Transport": "[7.0.0, )",
+          "LiteBus.Transport.Abstractions": "[7.0.0, )",
           "RabbitMQ.Client": "[7.2.2, )"
         }
       },
@@ -269,42 +274,43 @@
         "type": "Project",
         "dependencies": {
           "AWSSDK.SQS": "[4.0.100.11, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )",
-          "LiteBus.Transport": "[6.1.0, )",
-          "LiteBus.Transport.Abstractions": "[6.1.0, )"
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.Transport": "[7.0.0, )",
+          "LiteBus.Transport.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.transport.azureservicebus": {
         "type": "Project",
         "dependencies": {
           "Azure.Messaging.ServiceBus": "[7.20.2, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )",
-          "LiteBus.Transport": "[6.1.0, )",
-          "LiteBus.Transport.Abstractions": "[6.1.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.Transport": "[7.0.0, )",
+          "LiteBus.Transport.Abstractions": "[7.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.11, )"
         }
       },
       "litebus.transport.inmemory": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )",
-          "LiteBus.Transport": "[6.1.0, )",
-          "LiteBus.Transport.Abstractions": "[6.1.0, )"
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.Transport": "[7.0.0, )",
+          "LiteBus.Transport.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.transport.kafka": {
         "type": "Project",
         "dependencies": {
           "Confluent.Kafka": "[2.15.0, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )",
-          "LiteBus.Transport": "[6.1.0, )",
-          "LiteBus.Transport.Abstractions": "[6.1.0, )"
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.Transport": "[7.0.0, )",
+          "LiteBus.Transport.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.transport.testing": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Transport.Abstractions": "[6.1.0, )",
+          "LiteBus.Transport.Abstractions": "[7.0.0, )",
+          "Xunit.SkippableFact": "[1.5.85, )",
           "xunit": "[2.9.3, )"
         }
       },
@@ -363,6 +369,16 @@
         "contentHash": "k4b6RnTXpLbsF96V93ooNYxgPMnoA2tEm24B6AXNJr1mG8wwNYdA1XJtgU66L5xqeGyveS7SJriRzlX3cbqQNA==",
         "dependencies": {
           "System.Threading.RateLimiting": "8.0.0"
+        }
+      },
+      "Xunit.SkippableFact": {
+        "type": "CentralTransitive",
+        "requested": "[1.5.85, )",
+        "resolved": "1.5.85",
+        "contentHash": "zI3QsePulfENNjZC+POQYtqt/9HkUfe6qq+waSJ1xGVMU9v8LyWbr695IRAgg+UYDkPUgGnBjyULIVQ9Qdpgsg==",
+        "dependencies": {
+          "Validation": "2.6.68",
+          "xunit.extensibility.execution": "2.4.0"
         }
       }
     }

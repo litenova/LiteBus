@@ -24,7 +24,7 @@ public abstract class AmqpTransportIntegrationTests
     ///     Verifies that a published message can be consumed and acknowledged.
     /// </summary>
     /// <returns>A task that completes when the publish and consume flow succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PublishAsync_ThenConsume_AcknowledgesMessage()
     {
         var queueName = CreateUniqueQueueName("ack");
@@ -70,7 +70,7 @@ public abstract class AmqpTransportIntegrationTests
     ///     Verifies that negative acknowledgement with requeue delivers the message again.
     /// </summary>
     /// <returns>A task that completes when the requeue flow succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ConsumeAsync_NackWithRequeue_RedeliversMessage()
     {
         var queueName = CreateUniqueQueueName("nack");
@@ -130,7 +130,7 @@ public abstract class AmqpTransportIntegrationTests
     ///     Verifies that LiteBus header constants round-trip through publish and consume.
     /// </summary>
     /// <returns>A task that completes when header values are preserved.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PublishAsync_WithLiteBusHeaders_PreservesHeaderValues()
     {
         var queueName = CreateUniqueQueueName("headers");
@@ -192,7 +192,7 @@ public abstract class AmqpTransportIntegrationTests
     ///     Verifies that stopping the consumer prevents further handler invocations while leaving messages in the queue.
     /// </summary>
     /// <returns>A task that completes when stop cancels the subscription.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task StopAsync_AfterStart_PreventsFurtherDeliveries()
     {
         var queueName = CreateUniqueQueueName("stop");
@@ -260,7 +260,7 @@ public abstract class AmqpTransportIntegrationTests
     ///     Verifies that publish honours cancellation before the broker accepts the message.
     /// </summary>
     /// <returns>A task that completes when cancellation is observed.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PublishAsync_WhenCancelled_ThrowsOperationCanceledException()
     {
         var manager = new AmqpConnectionManager(ConnectionOptions);
@@ -279,7 +279,7 @@ public abstract class AmqpTransportIntegrationTests
                 },
                 cancellationSource.Token);
 
-            await act.Should().ThrowAsync<OperationCanceledException>();
+            await act.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
         }
     }
 
@@ -287,7 +287,7 @@ public abstract class AmqpTransportIntegrationTests
     ///     Verifies that starting a consumer twice fails fast.
     /// </summary>
     /// <returns>A task that completes when the duplicate start is rejected.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task StartAsync_WhenAlreadyStarted_ThrowsLiteBusConfigurationException()
     {
         var queueName = CreateUniqueQueueName("double-start");
@@ -308,7 +308,7 @@ public abstract class AmqpTransportIntegrationTests
                     (_, _) => Task.CompletedTask);
 
                 await act.Should().ThrowAsync<AmqpTransportConfigurationException>()
-                    .WithMessage("*already started*");
+                    .WithMessage("*already started*").ConfigureAwait(false);
 
                 await consumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
             }
@@ -319,7 +319,7 @@ public abstract class AmqpTransportIntegrationTests
     ///     Verifies that connection creation fails when the broker endpoint is unreachable.
     /// </summary>
     /// <returns>A task that completes when the connection attempt fails.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task GetConnectionAsync_WithUnreachableBroker_Throws()
     {
         var unreachable = CreateUnreachableConnectionOptions();
@@ -330,7 +330,7 @@ public abstract class AmqpTransportIntegrationTests
 
             var act = () => manager.GetConnectionAsync(timeout.Token);
 
-            await act.Should().ThrowAsync<Exception>();
+            await act.Should().ThrowAsync<Exception>().ConfigureAwait(false);
         }
     }
 
@@ -368,7 +368,7 @@ public abstract class AmqpTransportIntegrationTests
     ///     Verifies that publish recreates a working channel after the shared connection closes.
     /// </summary>
     /// <returns>A task that completes when publish succeeds on a new channel.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PublishAsync_AfterConnectionClosed_RecreatesPublishChannel()
     {
         var queueName = CreateUniqueQueueName("publish-recovery");
@@ -419,7 +419,7 @@ public abstract class AmqpTransportIntegrationTests
     ///     Verifies that the connection manager recreates a working connection after the previous one closes.
     /// </summary>
     /// <returns>A task that completes when publish succeeds on the recreated connection.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task GetConnectionAsync_AfterConnectionClosed_RecreatesWorkingConnection()
     {
         var queueName = CreateUniqueQueueName("recovery");
