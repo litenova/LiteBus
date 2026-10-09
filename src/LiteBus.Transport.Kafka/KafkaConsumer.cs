@@ -97,7 +97,11 @@ public sealed class KafkaConsumer : IMessageConsumer
 
             _stoppedTcs = CreateStoppedTaskSource();
             _consumeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _consumeTask = RunConsumeLoopAsync(options, handler, _consumeCts.Token);
+            var consumeToken = _consumeCts.Token;
+
+            // Consume blocks the calling thread, so the loop runs on the thread pool; started inline, StartAsync would
+            // not return until the first record arrived.
+            _consumeTask = Task.Run(() => RunConsumeLoopAsync(options, handler, consumeToken), CancellationToken.None);
         }
         finally
         {

@@ -31,7 +31,8 @@ public sealed class SqsTransportContractTests : TransportContractTests
     {
         var queueUrl = await _fixture.CreateQueueAsync($"contract-{scenario}").ConfigureAwait(false);
         var publisher = new SqsPublisher(_fixture.SqsClient, new TransportCircuitBreakerRegistry());
-        var consumer = new SqsConsumer(_fixture.SqsClient, _fixture.TransportOptions);
+        // The default 30-second requeue visibility equals the suite's delivery timeout; the redelivery case needs it short.
+        var consumer = new SqsConsumer(_fixture.SqsClient, _fixture.TransportOptions with { RequeueVisibilityTimeoutSeconds = 1 });
 
         return new TransportContractContext(
             publisher,
