@@ -1,0 +1,6 @@
+# Normalize text to LF in the repository; binaries are never converted.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.snk binary
+*.dmp binary
