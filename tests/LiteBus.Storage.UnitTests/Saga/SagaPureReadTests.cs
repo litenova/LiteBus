@@ -1,4 +1,4 @@
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Saga.Abstractions;
 
 namespace LiteBus.Storage.UnitTests.Saga;

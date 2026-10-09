@@ -1,9 +1,10 @@
+using System;
 using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace LiteBus.DurableMessaging.Abstractions.Processing;
+namespace LiteBus.Messaging.Abstractions.Processing;
 
 /// <summary>
 ///     Invokes orchestration processor envelope hooks around a durable dispatch.

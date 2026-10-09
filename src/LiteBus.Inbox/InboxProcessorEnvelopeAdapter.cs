@@ -1,6 +1,6 @@
 using System;
 using LiteBus.Inbox.Abstractions;
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 
 namespace LiteBus.Inbox;
 

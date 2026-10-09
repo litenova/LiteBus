@@ -1,3 +1,4 @@
+using System;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Runtime.Abstractions;

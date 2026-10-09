@@ -1,3 +1,5 @@
+using System;
+using System.Threading;
 using Confluent.Kafka;
 
 namespace LiteBus.Transport.Kafka;

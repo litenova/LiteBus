@@ -1,3 +1,4 @@
+using System;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 
 namespace LiteBus.Extensions.AspNetCore;

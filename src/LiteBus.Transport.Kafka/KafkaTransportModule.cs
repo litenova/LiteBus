@@ -1,3 +1,4 @@
+using System;
 using Confluent.Kafka;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Transport.Abstractions;

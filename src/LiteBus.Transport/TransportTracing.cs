@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Transport.Abstractions;

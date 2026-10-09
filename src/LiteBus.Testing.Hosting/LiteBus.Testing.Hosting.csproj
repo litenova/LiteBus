@@ -3,7 +3,6 @@
     <PropertyGroup>
         <Description>Generic Host lifecycle helpers for LiteBus integration tests.</Description>
         <PackageTags>$(PackageTags);testing;hosting</PackageTags>
-        <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
     <ItemGroup>

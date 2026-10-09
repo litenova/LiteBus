@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Processing;
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.Logging;

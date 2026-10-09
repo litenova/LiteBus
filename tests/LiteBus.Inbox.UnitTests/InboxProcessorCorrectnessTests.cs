@@ -4,7 +4,6 @@ using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Messaging.Processing;
-using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;

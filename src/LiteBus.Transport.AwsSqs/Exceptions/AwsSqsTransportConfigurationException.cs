@@ -1,3 +1,5 @@
+using System;
+
 namespace LiteBus.Transport.AwsSqs.Exceptions;
 
 /// <summary>

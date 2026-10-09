@@ -105,7 +105,6 @@
     <ItemGroup>
         <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath=""/>
         <None Include="..\..\README.md" Pack="true" PackagePath=""/>
-        <InternalsVisibleTo Include="LiteBus.MessageModule.UnitTests, PublicKey=$(LiteBusPublicKey)"/>
         <InternalsVisibleTo Include="LiteBus.Mediator.UnitTests, PublicKey=$(LiteBusPublicKey)"/>
         <InternalsVisibleTo Include="LiteBus.Transport.UnitTests, PublicKey=$(LiteBusPublicKey)"/>
     </ItemGroup>

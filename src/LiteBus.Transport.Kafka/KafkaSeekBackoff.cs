@@ -1,3 +1,4 @@
+using System;
 using Confluent.Kafka;
 
 namespace LiteBus.Transport.Kafka;

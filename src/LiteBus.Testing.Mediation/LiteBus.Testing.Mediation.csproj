@@ -3,7 +3,6 @@
     <PropertyGroup>
         <Description>Command, query, and event mediator doubles for LiteBus tests.</Description>
         <PackageTags>$(PackageTags);testing;mediator</PackageTags>
-        <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
     <ItemGroup>

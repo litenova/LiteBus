@@ -1,7 +1,7 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Testing;

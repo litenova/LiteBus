@@ -1,3 +1,4 @@
+using System;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;

@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Saga.Abstractions;
 
 namespace LiteBus.Saga;
