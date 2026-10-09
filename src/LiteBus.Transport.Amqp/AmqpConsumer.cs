@@ -77,6 +77,23 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
         ArgumentNullException.ThrowIfNull(handler);
         ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxInFlightMessages, 1);
 
+        var boundedHandler = CreateBoundedHandler(handler, options.MaxInFlightMessages);
+
+        await StartCoreAsync(options, boundedHandler, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Starts the consume loop with an already admission-bounded handler.
+    /// </summary>
+    /// <param name="options">The queue, prefetch, and declaration settings for the subscription.</param>
+    /// <param name="boundedHandler">The admission-bounded delivery handler.</param>
+    /// <param name="cancellationToken">A token that cancels channel creation.</param>
+    /// <returns>A task that completes when the subscription is active.</returns>
+    private async Task StartCoreAsync(
+        AmqpConsumerOptions options,
+        Func<AmqpReceivedMessage, CancellationToken, Task> boundedHandler,
+        CancellationToken cancellationToken)
+    {
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
@@ -111,7 +128,6 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
                     .BasicQosAsync(0, options.PrefetchCount, false, cancellationToken)
                     .ConfigureAwait(false);
 
-                var boundedHandler = CreateBoundedAmqpHandler(handler, options.MaxInFlightMessages);
                 var consumer = new AsyncEventingBasicConsumer(_consumerChannel);
 
                 consumer.ReceivedAsync += async (_, delivery) =>
@@ -258,11 +274,11 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
         ArgumentOutOfRangeException.ThrowIfNegative(options.PrefetchCount);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(options.PrefetchCount, ushort.MaxValue);
 
-        var boundedHandler = TransportConsumerHandlerInvoker.CreateBoundedHandler(
-            handler,
+        var boundedHandler = CreateBoundedHandler<TransportMessage>(
+            (message, token) => TransportConsumerHandlerInvoker.InvokeAsync(message, handler, token),
             options.MaxInFlightMessages);
 
-        return StartAsync(
+        return StartCoreAsync(
             new AmqpConsumerOptions
             {
                 QueueName = options.Destination,
@@ -283,13 +299,14 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     }
 
     /// <summary>
-    ///     Creates a handler that limits concurrent AMQP delivery processing for one subscription.
+    ///     Creates a handler that limits concurrent delivery processing for one subscription.
     /// </summary>
+    /// <typeparam name="TMessage">The delivery type passed to the handler.</typeparam>
     /// <param name="handler">The consumer handler to invoke.</param>
     /// <param name="maxInFlightMessages">The maximum number of handler invocations admitted concurrently.</param>
     /// <returns>A handler with subscription-scoped admission control.</returns>
-    internal static Func<AmqpReceivedMessage, CancellationToken, Task> CreateBoundedAmqpHandler(
-        Func<AmqpReceivedMessage, CancellationToken, Task> handler,
+    internal static Func<TMessage, CancellationToken, Task> CreateBoundedHandler<TMessage>(
+        Func<TMessage, CancellationToken, Task> handler,
         int maxInFlightMessages)
     {
         ArgumentNullException.ThrowIfNull(handler);

@@ -6,6 +6,9 @@ namespace LiteBus.Storage.UnitTests.InMemory.Outbox;
 public sealed class OutboxStoreContractTests : LiteBus.Storage.Testing.OutboxStoreContractTests
 {
     /// <inheritdoc />
+    protected override bool UsesDatabaseClock => false;
+
+    /// <inheritdoc />
     protected override OutboxStoreContracts CreateStore()
     {
         var store = new InMemoryOutboxStore();

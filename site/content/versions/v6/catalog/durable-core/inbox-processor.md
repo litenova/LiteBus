@@ -45,7 +45,7 @@ Typical deployment: enable processor on generic host; application code accepts c
 ### Extension Points
 
 - **`IInboxDispatcher`**: Exactly one dispatcher per inbox module (in-process command mediator or transport adapter).
-- **`IInboxProcessorEnvelopeHook`**: Pre/post dispatch hooks with configurable failure policy (see processor-hooks capability).
+- **`IProcessorEnvelopeHook`**: Pre/post dispatch hooks with configurable failure policy (see processor-hooks capability).
 - Custom storage implements lease and state writer roles required by the pipeline.
 
 ## Packages

@@ -1,10 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <!-- Single-targeted on purpose: clearing the inherited TargetFrameworks keeps the analyzer ProjectReference below from
-             receiving TargetFramework=net10.0 as a global property, which netstandard2.0 LiteBus.Analyzers cannot restore for. -->
-        <TargetFramework>net10.0</TargetFramework>
-        <TargetFrameworks></TargetFrameworks>
+        <!-- Single-targeted on purpose: the plural property overrides the inherited TargetFrameworks, and
+             SetTargetFramework on the analyzer ProjectReference below keeps netstandard2.0 restorable. -->
+        <TargetFrameworks>net10.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>

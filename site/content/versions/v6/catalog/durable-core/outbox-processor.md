@@ -46,7 +46,7 @@ Typical deployment: application enqueues domain events via `IOutbox`; processor 
 ### Extension Points
 
 - **`IOutboxDispatcher`**: Exactly one dispatcher (in-process event mediator, AMQP, Kafka, and similar).
-- **`IOutboxProcessorEnvelopeHook`**: Pre/post publication hooks (see processor-hooks capability).
+- **`IProcessorEnvelopeHook`**: Pre/post publication hooks (see processor-hooks capability).
 - Custom storage implements lease and state writer roles.
 
 ## Packages

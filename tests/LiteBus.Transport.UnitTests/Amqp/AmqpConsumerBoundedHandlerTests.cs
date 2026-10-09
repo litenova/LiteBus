@@ -31,7 +31,7 @@ public sealed class AmqpConsumerBoundedHandlerTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task CreateBoundedAmqpHandler_WithMaxOne_ShouldSerializeHandlers()
+    public async Task CreateBoundedHandler_WithMaxOne_ShouldSerializeHandlers()
     {
         var current = 0;
         var peak = 0;
@@ -46,7 +46,7 @@ public sealed class AmqpConsumerBoundedHandlerTests
             Interlocked.Decrement(ref current);
         }
 
-        var bounded = AmqpConsumer.CreateBoundedAmqpHandler(Handler, 1);
+        var bounded = AmqpConsumer.CreateBoundedHandler<AmqpReceivedMessage>(Handler, 1);
         var message = new AmqpReceivedMessage
         {
             Body = ReadOnlyMemory<byte>.Empty,

@@ -78,6 +78,9 @@ public sealed class EfCoreInboxStoreContractTests : InboxStoreContractTests
     }
 
     /// <inheritdoc />
+    protected override bool UsesDatabaseClock => false;
+
+    /// <inheritdoc />
     protected override InboxStoreContractRoles CreateStore()
     {
         var store = new EfCoreInboxStore(_ => Task.FromResult<IInboxDbContext>(CreateContext()), new EntityFrameworkCoreInboxStoreOptions());

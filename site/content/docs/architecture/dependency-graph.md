@@ -147,8 +147,8 @@ The Direct project references and Direct package references columns repeat [Gene
 | `LiteBus.Testing.Transport` | Consumer tooling | `LiteBus.Transport.Abstractions` | none |
 | `LiteBus.Testing.DurableMessaging` | Consumer tooling | `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Storage.InMemory`, `LiteBus.Messaging`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Storage.InMemory`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.DependencyInjection` |
 | `LiteBus.Testing.Hosting` | Consumer tooling | `LiteBus.Inbox`, `LiteBus.Runtime.Abstractions`, `LiteBus.Runtime.Extensions.Microsoft.Hosting` | `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Hosting.Abstractions` |
-| `LiteBus.Storage.Testing` | Consumer tooling | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | `AwesomeAssertions`, `StyleCop.Analyzers (private)`, `xunit` |
-| `LiteBus.Transport.Testing` | Consumer tooling | `LiteBus.Transport.Abstractions` | `StyleCop.Analyzers (private)`, `xunit` |
+| `LiteBus.Storage.Testing` | Consumer tooling | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | `AwesomeAssertions`, `StyleCop.Analyzers (private)`, `xunit`, `Xunit.SkippableFact` |
+| `LiteBus.Transport.Testing` | Consumer tooling | `LiteBus.Transport.Abstractions` | `StyleCop.Analyzers (private)`, `xunit`, `Xunit.SkippableFact` |
 
 Per-module `*.Extensions.Microsoft.DependencyInjection` and `*.Extensions.Autofac` shells are registration patterns, not shipping packages, so they have no inventory row. Each one depends on its module package and the matching runtime adapter.
 

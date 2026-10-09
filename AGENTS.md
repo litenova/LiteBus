@@ -433,6 +433,7 @@ Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs du
 ### Adapter rules
 
 - One adapter package per integration surface (one store technology, one broker, one host framework).
+- One transport module per composition; registering a second transport module fails at composition time.
 - Adapters register through `IModuleConfiguration`; they do not register `IHostedService`, `IHealthCheck`, or equivalent framework types directly.
 - Observability and diagnostics use framework-neutral contracts or dedicated host-adapter `*.Extensions.*` packages.
 
