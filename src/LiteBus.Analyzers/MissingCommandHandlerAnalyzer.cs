@@ -30,17 +30,18 @@ public sealed class MissingCommandHandlerAnalyzer : DiagnosticAnalyzer
     /// <param name="context">The compilation analysis context.</param>
     private static void AnalyzeCompilation(CompilationAnalysisContext context)
     {
-        var handlers = HandlerAnalysis.CollectHandlerRegistrations(context.Compilation, context.CancellationToken)
+        var typeCache = new LiteBusTypeCache(context.Compilation);
+        var handlers = HandlerAnalysis.CollectHandlerRegistrations(typeCache, context.CancellationToken)
             .Where(handler => handler.Pipeline == "command")
             .ToImmutableArray();
 
         var openGenericHandlers = MessageAnalysis.CollectOpenGenericMainHandlers(
-            context.Compilation,
+            typeCache,
             MessageKind.Command,
             context.CancellationToken);
 
         var commands = MessageAnalysis.CollectMessageTypes(
-            context.Compilation,
+            typeCache,
             MessageKind.Command,
             context.CancellationToken);
 

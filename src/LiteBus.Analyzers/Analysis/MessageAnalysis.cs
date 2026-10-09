@@ -75,21 +75,38 @@ internal static class MessageAnalysis
         MessageKind kind,
         CancellationToken cancellationToken = default)
     {
+        return CollectMessageTypes(new LiteBusTypeCache(compilation), kind, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Collects concrete command, query, or stream query message types, sharing one type cache for the pass.
+    /// </summary>
+    /// <param name="typeCache">The per-compilation type cache.</param>
+    /// <param name="kind">The message kind to collect.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The discovered message type symbols.</returns>
+    internal static ImmutableArray<MessageTypeRegistration> CollectMessageTypes(
+        LiteBusTypeCache typeCache,
+        MessageKind kind,
+        CancellationToken cancellationToken = default)
+    {
+        var compilation = typeCache.Compilation;
         var markerMetadataNames = GetMarkerMetadataNames(kind);
         var builder = ImmutableArray.CreateBuilder<MessageTypeRegistration>();
         var processed = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
 
         foreach (var syntaxTree in compilation.SyntaxTrees)
         {
+            var model = compilation.GetSemanticModel(syntaxTree);
+
             foreach (var typeDeclaration in syntaxTree.GetRoot(cancellationToken).DescendantNodes()
                          .OfType<TypeDeclarationSyntax>())
             {
-                var model = compilation.GetSemanticModel(syntaxTree);
                 var symbol = model.GetDeclaredSymbol(typeDeclaration, cancellationToken) as INamedTypeSymbol;
 
                 if (symbol is not null)
                 {
-                    TryAddMessageTypeRegistration(compilation, symbol, kind, markerMetadataNames, builder, processed);
+                    TryAddMessageTypeRegistration(typeCache, symbol, kind, markerMetadataNames, builder, processed);
                 }
             }
         }
@@ -105,7 +122,7 @@ internal static class MessageAnalysis
             foreach (var module in assemblySymbol.Modules)
             {
                 CollectMessageTypesFromNamespace(
-                    compilation,
+                    typeCache,
                     module.GlobalNamespace,
                     kind,
                     markerMetadataNames,
@@ -162,21 +179,38 @@ internal static class MessageAnalysis
         MessageKind kind,
         CancellationToken cancellationToken = default)
     {
+        return CollectOpenGenericMainHandlers(new LiteBusTypeCache(compilation), kind, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Collects open generic main handler type definitions, sharing one type cache for the pass.
+    /// </summary>
+    /// <param name="typeCache">The per-compilation type cache.</param>
+    /// <param name="kind">The message kind to inspect.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The open generic main handler type definitions.</returns>
+    internal static ImmutableArray<INamedTypeSymbol> CollectOpenGenericMainHandlers(
+        LiteBusTypeCache typeCache,
+        MessageKind kind,
+        CancellationToken cancellationToken = default)
+    {
+        var compilation = typeCache.Compilation;
         var handlerMetadataNames = GetOpenGenericHandlerMetadataNames(kind);
         var builder = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
         var processed = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
 
         foreach (var syntaxTree in compilation.SyntaxTrees)
         {
+            var model = compilation.GetSemanticModel(syntaxTree);
+
             foreach (var typeDeclaration in syntaxTree.GetRoot(cancellationToken).DescendantNodes()
                          .OfType<TypeDeclarationSyntax>())
             {
-                var model = compilation.GetSemanticModel(syntaxTree);
                 var symbol = model.GetDeclaredSymbol(typeDeclaration, cancellationToken) as INamedTypeSymbol;
 
                 if (symbol is not null)
                 {
-                    TryAddOpenGenericMainHandler(compilation, symbol, handlerMetadataNames, builder, processed);
+                    TryAddOpenGenericMainHandler(typeCache, symbol, handlerMetadataNames, builder, processed);
                 }
             }
         }
@@ -192,7 +226,7 @@ internal static class MessageAnalysis
             foreach (var module in assemblySymbol.Modules)
             {
                 CollectOpenGenericMainHandlersFromNamespace(
-                    compilation,
+                    typeCache,
                     module.GlobalNamespace,
                     handlerMetadataNames,
                     builder,
@@ -211,7 +245,18 @@ internal static class MessageAnalysis
     /// <returns><see langword="true" /> when the type is a stream query; otherwise, <see langword="false" />.</returns>
     internal static bool IsStreamQueryType(INamedTypeSymbol type, Compilation compilation)
     {
-        var streamQueryMarker = compilation.GetTypeByMetadataName("LiteBus.Queries.Abstractions.IStreamQuery`1");
+        return IsStreamQueryType(type, new LiteBusTypeCache(compilation));
+    }
+
+    /// <summary>
+    ///     Determines whether the type implements <c>IStreamQuery&lt;TResult&gt;</c>, sharing one type cache for the pass.
+    /// </summary>
+    /// <param name="type">The candidate message type symbol.</param>
+    /// <param name="typeCache">The per-compilation type cache.</param>
+    /// <returns><see langword="true" /> when the type is a stream query; otherwise, <see langword="false" />.</returns>
+    internal static bool IsStreamQueryType(INamedTypeSymbol type, LiteBusTypeCache typeCache)
+    {
+        var streamQueryMarker = typeCache.GetType("LiteBus.Queries.Abstractions.IStreamQuery`1");
 
         if (streamQueryMarker is null)
         {
@@ -264,14 +309,14 @@ internal static class MessageAnalysis
     /// <summary>
     ///     Adds a message type registration when the symbol matches the requested kind and has not already been processed.
     /// </summary>
-    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="typeCache">The per-compilation type cache.</param>
     /// <param name="symbol">The candidate type symbol.</param>
     /// <param name="kind">The message kind being collected.</param>
     /// <param name="markerMetadataNames">The marker interface metadata names.</param>
     /// <param name="builder">The registration builder.</param>
     /// <param name="processed">The set of message types already processed.</param>
     private static void TryAddMessageTypeRegistration(
-        Compilation compilation,
+        LiteBusTypeCache typeCache,
         INamedTypeSymbol symbol,
         MessageKind kind,
         string[] markerMetadataNames,
@@ -284,12 +329,12 @@ internal static class MessageAnalysis
         }
 
         if (!IsAnalyzableMessageType(symbol) ||
-            !ImplementsAnyMarkerInterface(symbol, compilation, markerMetadataNames))
+            !ImplementsAnyMarkerInterface(symbol, typeCache, markerMetadataNames))
         {
             foreach (var nestedType in symbol.GetTypeMembers())
             {
                 TryAddMessageTypeRegistration(
-                    compilation,
+                    typeCache,
                     nestedType,
                     kind,
                     markerMetadataNames,
@@ -300,14 +345,15 @@ internal static class MessageAnalysis
             return;
         }
 
+        var compilation = typeCache.Compilation;
         symbol = LiteBusSymbols.RetargetToCompilation(compilation, symbol);
 
-        if (kind == MessageKind.Query && IsStreamQueryType(symbol, compilation))
+        if (kind == MessageKind.Query && IsStreamQueryType(symbol, typeCache))
         {
             foreach (var nestedType in symbol.GetTypeMembers())
             {
                 TryAddMessageTypeRegistration(
-                    compilation,
+                    typeCache,
                     nestedType,
                     kind,
                     markerMetadataNames,
@@ -328,7 +374,7 @@ internal static class MessageAnalysis
         foreach (var nestedType in symbol.GetTypeMembers())
         {
             TryAddMessageTypeRegistration(
-                compilation,
+                typeCache,
                 nestedType,
                 kind,
                 markerMetadataNames,
@@ -340,14 +386,14 @@ internal static class MessageAnalysis
     /// <summary>
     ///     Walks a namespace and registers message types declared beneath it.
     /// </summary>
-    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="typeCache">The per-compilation type cache.</param>
     /// <param name="namespaceSymbol">The namespace to walk.</param>
     /// <param name="kind">The message kind being collected.</param>
     /// <param name="markerMetadataNames">The marker interface metadata names.</param>
     /// <param name="builder">The registration builder.</param>
     /// <param name="processed">The set of message types already processed.</param>
     private static void CollectMessageTypesFromNamespace(
-        Compilation compilation,
+        LiteBusTypeCache typeCache,
         INamespaceSymbol namespaceSymbol,
         MessageKind kind,
         string[] markerMetadataNames,
@@ -359,7 +405,7 @@ internal static class MessageAnalysis
             if (member is INamespaceSymbol nestedNamespace)
             {
                 CollectMessageTypesFromNamespace(
-                    compilation,
+                    typeCache,
                     nestedNamespace,
                     kind,
                     markerMetadataNames,
@@ -369,7 +415,7 @@ internal static class MessageAnalysis
             else if (member is INamedTypeSymbol namedType)
             {
                 TryAddMessageTypeRegistration(
-                    compilation,
+                    typeCache,
                     namedType,
                     kind,
                     markerMetadataNames,
@@ -382,13 +428,13 @@ internal static class MessageAnalysis
     /// <summary>
     ///     Adds an open generic main handler when the symbol matches and has not already been processed.
     /// </summary>
-    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="typeCache">The per-compilation type cache.</param>
     /// <param name="symbol">The candidate handler type symbol.</param>
     /// <param name="handlerMetadataNames">The main handler interface metadata names.</param>
     /// <param name="builder">The handler builder.</param>
     /// <param name="processed">The set of handler types already processed.</param>
     private static void TryAddOpenGenericMainHandler(
-        Compilation compilation,
+        LiteBusTypeCache typeCache,
         INamedTypeSymbol symbol,
         string[] handlerMetadataNames,
         ImmutableArray<INamedTypeSymbol>.Builder builder,
@@ -401,27 +447,27 @@ internal static class MessageAnalysis
 
         if (HandlerAnalysis.IsGenericTypeDefinition(symbol) &&
             HandlerAnalysis.UsesBareMessageTypeParameter(symbol) &&
-            ImplementsAnyMainHandlerInterface(symbol, compilation, handlerMetadataNames))
+            ImplementsAnyMainHandlerInterface(symbol, typeCache, handlerMetadataNames))
         {
-            builder.Add(LiteBusSymbols.RetargetToCompilation(compilation, symbol));
+            builder.Add(LiteBusSymbols.RetargetToCompilation(typeCache.Compilation, symbol));
         }
 
         foreach (var nestedType in symbol.GetTypeMembers())
         {
-            TryAddOpenGenericMainHandler(compilation, nestedType, handlerMetadataNames, builder, processed);
+            TryAddOpenGenericMainHandler(typeCache, nestedType, handlerMetadataNames, builder, processed);
         }
     }
 
     /// <summary>
     ///     Walks a namespace and collects open generic main handlers declared beneath it.
     /// </summary>
-    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="typeCache">The per-compilation type cache.</param>
     /// <param name="namespaceSymbol">The namespace to walk.</param>
     /// <param name="handlerMetadataNames">The main handler interface metadata names.</param>
     /// <param name="builder">The handler builder.</param>
     /// <param name="processed">The set of handler types already processed.</param>
     private static void CollectOpenGenericMainHandlersFromNamespace(
-        Compilation compilation,
+        LiteBusTypeCache typeCache,
         INamespaceSymbol namespaceSymbol,
         string[] handlerMetadataNames,
         ImmutableArray<INamedTypeSymbol>.Builder builder,
@@ -432,7 +478,7 @@ internal static class MessageAnalysis
             if (member is INamespaceSymbol nestedNamespace)
             {
                 CollectOpenGenericMainHandlersFromNamespace(
-                    compilation,
+                    typeCache,
                     nestedNamespace,
                     handlerMetadataNames,
                     builder,
@@ -440,7 +486,7 @@ internal static class MessageAnalysis
             }
             else if (member is INamedTypeSymbol namedType)
             {
-                TryAddOpenGenericMainHandler(compilation, namedType, handlerMetadataNames, builder, processed);
+                TryAddOpenGenericMainHandler(typeCache, namedType, handlerMetadataNames, builder, processed);
             }
         }
     }
@@ -461,17 +507,17 @@ internal static class MessageAnalysis
     ///     Determines whether the type implements one of the supplied marker interfaces.
     /// </summary>
     /// <param name="type">The candidate type symbol.</param>
-    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="typeCache">The per-compilation type cache.</param>
     /// <param name="markerMetadataNames">The marker interface metadata names.</param>
     /// <returns><see langword="true" /> when a marker interface is implemented; otherwise, <see langword="false" />.</returns>
     private static bool ImplementsAnyMarkerInterface(
         INamedTypeSymbol type,
-        Compilation compilation,
+        LiteBusTypeCache typeCache,
         string[] markerMetadataNames)
     {
         foreach (var metadataName in markerMetadataNames)
         {
-            var markerType = compilation.GetTypeByMetadataName(metadataName);
+            var markerType = typeCache.GetType(metadataName);
 
             if (markerType is not null && LiteBusSymbols.Implements(type, markerType))
             {
@@ -486,17 +532,19 @@ internal static class MessageAnalysis
     ///     Determines whether the type implements one of the supplied main handler interfaces.
     /// </summary>
     /// <param name="type">The candidate handler type symbol.</param>
-    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="typeCache">The per-compilation type cache.</param>
     /// <param name="handlerMetadataNames">The main handler interface metadata names.</param>
     /// <returns><see langword="true" /> when a main handler interface is implemented; otherwise, <see langword="false" />.</returns>
     private static bool ImplementsAnyMainHandlerInterface(
         INamedTypeSymbol type,
-        Compilation compilation,
+        LiteBusTypeCache typeCache,
         string[] handlerMetadataNames)
     {
         foreach (var metadataName in handlerMetadataNames)
         {
-            if (LiteBusSymbols.ImplementsGenericInterface(type, compilation, metadataName))
+            var handlerType = typeCache.GetType(metadataName);
+
+            if (handlerType is not null && LiteBusSymbols.Implements(type, handlerType))
             {
                 return true;
             }

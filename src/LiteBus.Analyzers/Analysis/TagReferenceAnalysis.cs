@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -27,34 +29,29 @@ internal static class TagReferenceAnalysis
     ///     Collects tag strings referenced by command, query, and event mediation settings in the compilation.
     /// </summary>
     /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The referenced tag strings.</returns>
-    internal static HashSet<string> CollectReferencedTags(Compilation compilation)
+    internal static HashSet<string> CollectReferencedTags(
+        Compilation compilation,
+        CancellationToken cancellationToken = default)
     {
         var tags = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var tree in compilation.SyntaxTrees)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var model = compilation.GetSemanticModel(tree);
-            var root = tree.GetRoot();
+            var root = tree.GetRoot(cancellationToken);
 
             foreach (var assignment in root.DescendantNodes().OfType<AssignmentExpressionSyntax>())
             {
-                if (!IsMediationTagsAssignment(assignment, model))
+                if (!IsMediationTagsAssignment(assignment, model, cancellationToken))
                 {
                     continue;
                 }
 
-                CollectStringLiterals(assignment.Right, tags);
-            }
-
-            foreach (var initializer in root.DescendantNodes().OfType<InitializerExpressionSyntax>())
-            {
-                if (!IsMediationTagsInitializer(initializer, model))
-                {
-                    continue;
-                }
-
-                CollectStringLiterals(initializer, tags);
+                CollectStringLiterals(assignment.Right, model, tags, cancellationToken);
             }
 
             foreach (var objectCreation in root.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
@@ -73,20 +70,20 @@ internal static class TagReferenceAnalysis
                         continue;
                     }
 
-                    var typeInfo = model.GetTypeInfo(objectCreation);
+                    var typeInfo = model.GetTypeInfo(objectCreation, cancellationToken);
                     if (typeInfo.Type is not INamedTypeSymbol namedType ||
                         !IsMediationTagsContainerType(namedType))
                     {
                         continue;
                     }
 
-                    CollectStringLiterals(memberAssignment.Right, tags);
+                    CollectStringLiterals(memberAssignment.Right, model, tags, cancellationToken);
                 }
             }
 
             foreach (var invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
-                CollectTagFromMediatorExtensionInvocation(invocation, model, tags);
+                CollectTagFromMediatorExtensionInvocation(invocation, model, tags, cancellationToken);
             }
         }
 
@@ -99,10 +96,12 @@ internal static class TagReferenceAnalysis
     /// <param name="invocation">The invocation expression syntax.</param>
     /// <param name="semanticModel">The semantic model.</param>
     /// <param name="tags">The tag collection to populate.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     private static void CollectTagFromMediatorExtensionInvocation(
         InvocationExpressionSyntax invocation,
         SemanticModel semanticModel,
-        HashSet<string> tags)
+        HashSet<string> tags,
+        CancellationToken cancellationToken)
     {
         if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess ||
             !TagExtensionMethodNames.Contains(memberAccess.Name.Identifier.Text))
@@ -110,66 +109,119 @@ internal static class TagReferenceAnalysis
             return;
         }
 
-        if (semanticModel.GetSymbolInfo(memberAccess.Name).Symbol is IMethodSymbol { IsExtensionMethod: true } methodSymbol &&
-            IsTagExtensionContainingType(methodSymbol.ContainingType))
+        if (TryCollectTagFromOperation(invocation, semanticModel, tags, cancellationToken))
         {
-            var tagParameterIndex = GetTagParameterIndex(methodSymbol);
-
-            if (tagParameterIndex >= 0 && tagParameterIndex < invocation.ArgumentList.Arguments.Count)
-            {
-                var countBefore = tags.Count;
-                CollectStringLiterals(invocation.ArgumentList.Arguments[tagParameterIndex].Expression, tags);
-
-                if (tags.Count > countBefore)
-                {
-                    return;
-                }
-            }
+            return;
         }
 
-        foreach (var argument in invocation.ArgumentList.Arguments)
-        {
-            CollectStringLiterals(argument.Expression, tags);
-        }
+        CollectTagFromSymbolFallback(invocation, semanticModel, tags, cancellationToken);
     }
 
     /// <summary>
-    ///     Gets the parameter index that carries the tag value for a mediator extension overload.
+    ///     Collects the tag argument through operation-based argument-to-parameter mapping.
     /// </summary>
-    /// <param name="methodSymbol">The extension method symbol.</param>
-    /// <returns>The zero-based tag parameter index, or <c>-1</c> when the overload has no tag parameter.</returns>
-    private static int GetTagParameterIndex(IMethodSymbol methodSymbol)
+    /// <param name="invocation">The invocation expression syntax.</param>
+    /// <param name="semanticModel">The semantic model.</param>
+    /// <param name="tags">The tag collection to populate.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns><see langword="true" /> when an operation resolved the invocation; otherwise, <see langword="false" />.</returns>
+    private static bool TryCollectTagFromOperation(
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel,
+        HashSet<string> tags,
+        CancellationToken cancellationToken)
     {
-        for (var index = 0; index < methodSymbol.Parameters.Length; index++)
+        if (semanticModel.GetOperation(invocation, cancellationToken) is not IInvocationOperation operation)
         {
-            var parameter = methodSymbol.Parameters[index];
+            return false;
+        }
+
+        var unreduced = operation.TargetMethod.ReducedFrom ?? operation.TargetMethod;
+
+        if (!unreduced.IsExtensionMethod || !IsTagExtensionMethod(unreduced))
+        {
+            return true;
+        }
+
+        foreach (var argument in operation.Arguments)
+        {
+            if (argument.Parameter is not null &&
+                argument.Parameter.Type.SpecialType == SpecialType.System_String &&
+                argument.Parameter.Name.Equals("tag", StringComparison.Ordinal) &&
+                argument.Value.Syntax is ExpressionSyntax tagExpression)
+            {
+                CollectStringLiterals(tagExpression, semanticModel, tags, cancellationToken);
+                break;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Collects the tag argument by matching the invocation argument list against the resolved parameter list.
+    /// </summary>
+    /// <param name="invocation">The invocation expression syntax.</param>
+    /// <param name="semanticModel">The semantic model.</param>
+    /// <param name="tags">The tag collection to populate.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    private static void CollectTagFromSymbolFallback(
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel,
+        HashSet<string> tags,
+        CancellationToken cancellationToken)
+    {
+        if (semanticModel.GetSymbolInfo(invocation, cancellationToken).Symbol is not IMethodSymbol methodSymbol)
+        {
+            return;
+        }
+
+        var unreduced = methodSymbol.ReducedFrom ?? methodSymbol;
+
+        if (!unreduced.IsExtensionMethod || !IsTagExtensionMethod(unreduced))
+        {
+            return;
+        }
+
+        var parameters = methodSymbol.Parameters;
+
+        for (var index = 0; index < parameters.Length && index < invocation.ArgumentList.Arguments.Count; index++)
+        {
+            var parameter = parameters[index];
 
             if (parameter.Type.SpecialType == SpecialType.System_String &&
                 parameter.Name.Equals("tag", StringComparison.Ordinal))
             {
-                return index - 1;
+                CollectStringLiterals(
+                    invocation.ArgumentList.Arguments[index].Expression,
+                    semanticModel,
+                    tags,
+                    cancellationToken);
+                return;
             }
         }
-
-        return -1;
     }
 
     /// <summary>
-    ///     Determines whether the extension method belongs to a mediator extension type.
+    ///     Determines whether the extension method carries a mediator tag argument.
     /// </summary>
-    /// <param name="containingType">The extension class symbol.</param>
-    /// <returns><see langword="true" /> when the type declares mediator tag extension methods.</returns>
-    private static bool IsTagExtensionContainingType(INamedTypeSymbol containingType)
+    /// <param name="methodSymbol">The unreduced extension method symbol.</param>
+    /// <returns><see langword="true" /> when the method is a recognized mediator tag extension.</returns>
+    private static bool IsTagExtensionMethod(IMethodSymbol methodSymbol)
     {
-        var displayName = containingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (methodSymbol.ContainingType.Name is
+            "CommandMediatorExtensions" or
+            "QueryMediatorExtensions" or
+            "EventMediatorExtensions")
+        {
+            return true;
+        }
 
-        return displayName is
-            "global::LiteBus.Commands.Abstractions.CommandMediatorExtensions" or
-            "LiteBus.Commands.Abstractions.CommandMediatorExtensions" or
-            "global::LiteBus.Queries.Abstractions.QueryMediatorExtensions" or
-            "LiteBus.Queries.Abstractions.QueryMediatorExtensions" or
-            "global::LiteBus.Events.Abstractions.EventMediatorExtensions" or
-            "LiteBus.Events.Abstractions.EventMediatorExtensions";
+        return methodSymbol.Parameters.Length > 0 &&
+            methodSymbol.Parameters[0].Type.OriginalDefinition.ToDisplayString() is
+                "LiteBus.Commands.Abstractions.ICommandMediator" or
+                "LiteBus.Queries.Abstractions.IQueryMediator" or
+                "LiteBus.Events.Abstractions.IEventMediator";
     }
 
     /// <summary>
@@ -177,8 +229,12 @@ internal static class TagReferenceAnalysis
     /// </summary>
     /// <param name="assignment">The assignment expression syntax.</param>
     /// <param name="semanticModel">The semantic model.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns><see langword="true" /> when the assignment configures mediation tags.</returns>
-    private static bool IsMediationTagsAssignment(AssignmentExpressionSyntax assignment, SemanticModel semanticModel)
+    private static bool IsMediationTagsAssignment(
+        AssignmentExpressionSyntax assignment,
+        SemanticModel semanticModel,
+        CancellationToken cancellationToken)
     {
         if (assignment.Left is not MemberAccessExpressionSyntax memberAccess ||
             memberAccess.Name.Identifier.Text != "Tags")
@@ -186,34 +242,9 @@ internal static class TagReferenceAnalysis
             return false;
         }
 
-        var symbol = semanticModel.GetSymbolInfo(memberAccess.Name).Symbol as IPropertySymbol;
+        var symbol = semanticModel.GetSymbolInfo(memberAccess.Name, cancellationToken).Symbol as IPropertySymbol;
 
         return symbol is not null && IsMediationTagsProperty(symbol);
-    }
-
-    /// <summary>
-    ///     Determines whether an initializer configures a mediation tag collection.
-    /// </summary>
-    /// <param name="initializer">The initializer expression syntax.</param>
-    /// <param name="semanticModel">The semantic model.</param>
-    /// <returns><see langword="true" /> when the initializer configures mediation tags.</returns>
-    private static bool IsMediationTagsInitializer(InitializerExpressionSyntax initializer, SemanticModel semanticModel)
-    {
-        if (initializer.Parent is not AnonymousObjectMemberDeclaratorSyntax &&
-            initializer.Parent is not InitializerExpressionSyntax &&
-            initializer.Parent is not AssignmentExpressionSyntax)
-        {
-            return false;
-        }
-
-        if (initializer.Parent is AssignmentExpressionSyntax { Left: MemberAccessExpressionSyntax { Name.Identifier.Text: "Tags" } memberAccess })
-        {
-            var symbol = semanticModel.GetSymbolInfo(memberAccess.Name).Symbol as IPropertySymbol;
-
-            return symbol is not null && IsMediationTagsProperty(symbol);
-        }
-
-        return false;
     }
 
     /// <summary>
@@ -250,18 +281,55 @@ internal static class TagReferenceAnalysis
     }
 
     /// <summary>
-    ///     Collects string literals from an expression subtree.
+    ///     Collects string literals and constant string references from an expression subtree.
     /// </summary>
     /// <param name="expression">The expression syntax.</param>
+    /// <param name="semanticModel">The semantic model.</param>
     /// <param name="tags">The tag collection to populate.</param>
-    private static void CollectStringLiterals(ExpressionSyntax expression, HashSet<string> tags)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    private static void CollectStringLiterals(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel,
+        HashSet<string> tags,
+        CancellationToken cancellationToken)
     {
-        foreach (var literal in expression.DescendantNodesAndSelf().OfType<LiteralExpressionSyntax>())
+        foreach (var node in expression.DescendantNodesAndSelf())
         {
-            if (literal.Token.Value is string value)
+            cancellationToken.ThrowIfCancellationRequested();
+
+            switch (node)
             {
-                tags.Add(value);
+                case LiteralExpressionSyntax literal when literal.Token.Value is string value:
+                    tags.Add(value);
+                    break;
+                case IdentifierNameSyntax identifier:
+                    AddConstantString(identifier, semanticModel, tags, cancellationToken);
+                    break;
+                case MemberAccessExpressionSyntax memberAccess:
+                    AddConstantString(memberAccess, semanticModel, tags, cancellationToken);
+                    break;
             }
+        }
+    }
+
+    /// <summary>
+    ///     Adds the constant string value of an expression to the tag collection when it has one.
+    /// </summary>
+    /// <param name="expression">The expression syntax.</param>
+    /// <param name="semanticModel">The semantic model.</param>
+    /// <param name="tags">The tag collection to populate.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    private static void AddConstantString(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel,
+        HashSet<string> tags,
+        CancellationToken cancellationToken)
+    {
+        var constant = semanticModel.GetConstantValue(expression, cancellationToken);
+
+        if (constant.HasValue && constant.Value is string value)
+        {
+            tags.Add(value);
         }
     }
 }

@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Linq;
-using System.Reflection;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -19,11 +18,21 @@ internal static class ContractRegistrationAnalysis
     /// <param name="compilation">The compilation being analyzed.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The registered message type symbols.</returns>
+    /// <remarks>
+    ///     <c>Register</c> on a contract writer surface counts, as does <c>Register</c> on any other scan-capable
+    ///     surface. <c>Register</c> on the message and command module builders only records handler and message
+    ///     types and never satisfies durable contract registration.
+    /// </remarks>
     internal static ImmutableHashSet<ITypeSymbol> CollectRegisteredContractTypes(
         Compilation compilation,
         CancellationToken cancellationToken)
     {
         var builder = ImmutableHashSet.CreateBuilder<ITypeSymbol>(SymbolEqualityComparer.Default);
+        var contractWriter = compilation.GetTypeByMetadataName("LiteBus.Messaging.Abstractions.IContractWriter");
+        var contractRegistry = compilation.GetTypeByMetadataName("LiteBus.Messaging.Abstractions.IMessageContractRegistry");
+        var contractBuilder = compilation.GetTypeByMetadataName("LiteBus.Messaging.Abstractions.MessageContractBuilder");
+        var messageModuleBuilder = compilation.GetTypeByMetadataName("LiteBus.Messaging.MessageModuleBuilder");
+        var commandModuleBuilder = compilation.GetTypeByMetadataName("LiteBus.Commands.CommandModuleBuilder");
 
         foreach (var syntaxTree in compilation.SyntaxTrees)
         {
@@ -34,7 +43,14 @@ internal static class ContractRegistrationAnalysis
             {
                 var method = model.GetSymbolInfo(invocation, cancellationToken).Symbol as IMethodSymbol;
 
-                if (method is null || !IsContractRegisterMethod(method))
+                if (method is null ||
+                    !IsContractRegisterMethod(
+                        method,
+                        contractWriter,
+                        contractRegistry,
+                        contractBuilder,
+                        messageModuleBuilder,
+                        commandModuleBuilder))
                 {
                     continue;
                 }
@@ -71,11 +87,19 @@ internal static class ContractRegistrationAnalysis
     /// <param name="compilation">The compilation being analyzed.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The assemblies registered through assembly scanning.</returns>
+    /// <remarks>
+    ///     Every assembly scan counts except <c>CommandModuleBuilder.RegisterFromAssembly</c>, which only records
+    ///     message types. <c>MessageModuleBuilder.RegisterFromAssembly</c> applies scanned contracts and counts.
+    /// </remarks>
     internal static ImmutableHashSet<IAssemblySymbol> CollectRegisterFromAssemblyTargets(
         Compilation compilation,
         CancellationToken cancellationToken)
     {
         var builder = ImmutableHashSet.CreateBuilder<IAssemblySymbol>(SymbolEqualityComparer.Default);
+        var contractWriter = compilation.GetTypeByMetadataName("LiteBus.Messaging.Abstractions.IContractWriter");
+        var contractRegistry = compilation.GetTypeByMetadataName("LiteBus.Messaging.Abstractions.IMessageContractRegistry");
+        var contractBuilder = compilation.GetTypeByMetadataName("LiteBus.Messaging.Abstractions.MessageContractBuilder");
+        var commandModuleBuilder = compilation.GetTypeByMetadataName("LiteBus.Commands.CommandModuleBuilder");
 
         foreach (var syntaxTree in compilation.SyntaxTrees)
         {
@@ -86,7 +110,13 @@ internal static class ContractRegistrationAnalysis
             {
                 var method = model.GetSymbolInfo(invocation, cancellationToken).Symbol as IMethodSymbol;
 
-                if (method is null || !IsContractRegisterFromAssemblyMethod(method))
+                if (method is null ||
+                    !IsContractRegisterFromAssemblyMethod(
+                        method,
+                        contractWriter,
+                        contractRegistry,
+                        contractBuilder,
+                        commandModuleBuilder))
                 {
                     continue;
                 }
@@ -232,6 +262,10 @@ internal static class ContractRegistrationAnalysis
     /// <param name="semanticModel">The semantic model.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The resolved assembly symbol, if any.</returns>
+    /// <remarks>
+    ///     Only <c>typeof(T)</c> and <c>typeof(T).Assembly</c> forms resolve. Assembly instances observed at analysis
+    ///     time are never read from disk.
+    /// </remarks>
     private static IAssemblySymbol? ResolveAssemblyArgument(
         ExpressionSyntax expression,
         SemanticModel semanticModel,
@@ -254,18 +288,6 @@ internal static class ContractRegistrationAnalysis
             return type?.ContainingAssembly;
         }
 
-        if (semanticModel.GetTypeInfo(expression, cancellationToken).Type is { Name: "Assembly" } typeInfo &&
-            typeInfo.ContainingNamespace?.ToDisplayString() == "System.Reflection")
-        {
-            var constant = semanticModel.GetConstantValue(expression, cancellationToken);
-
-            if (constant is { HasValue: true, Value: Assembly assembly })
-            {
-                return semanticModel.Compilation.GetAssemblyOrModuleSymbol(
-                    MetadataReference.CreateFromFile(assembly.Location)) as IAssemblySymbol;
-            }
-        }
-
         return null;
     }
 
@@ -273,19 +295,57 @@ internal static class ContractRegistrationAnalysis
     ///     Determines whether the method registers a durable contract type.
     /// </summary>
     /// <param name="method">The invoked method symbol.</param>
+    /// <param name="contractWriter">The <c>IContractWriter</c> symbol.</param>
+    /// <param name="contractRegistry">The <c>IMessageContractRegistry</c> symbol.</param>
+    /// <param name="contractBuilder">The <c>MessageContractBuilder</c> symbol.</param>
+    /// <param name="messageModuleBuilder">The <c>MessageModuleBuilder</c> symbol.</param>
+    /// <param name="commandModuleBuilder">The <c>CommandModuleBuilder</c> symbol.</param>
     /// <returns><see langword="true" /> when the method registers a contract.</returns>
-    private static bool IsContractRegisterMethod(IMethodSymbol method)
+    /// <remarks>
+    ///     <c>Register</c> on a contract writer surface always counts. <c>Register</c> on any other type counts
+    ///     when that type also offers an assembly scan, which distinguishes contract registries from unrelated
+    ///     <c>Register</c> methods. The message and command module builders are excluded: their <c>Register</c>
+    ///     only records handler and message types.
+    /// </remarks>
+    private static bool IsContractRegisterMethod(
+        IMethodSymbol method,
+        INamedTypeSymbol? contractWriter,
+        INamedTypeSymbol? contractRegistry,
+        INamedTypeSymbol? contractBuilder,
+        INamedTypeSymbol? messageModuleBuilder,
+        INamedTypeSymbol? commandModuleBuilder)
     {
-        if (method.Name != "Register")
+        if (method.Name != "Register" || method.ContainingType is null)
         {
             return false;
         }
 
-        if (!IsContractWriterInvocation(method))
+        if (!HasContractRegisterSignature(method))
         {
             return false;
         }
 
+        if (IsContractWriterType(method.ContainingType, contractWriter, contractRegistry, contractBuilder))
+        {
+            return true;
+        }
+
+        if (MatchesTypeDefinition(method.ContainingType, messageModuleBuilder) ||
+            MatchesTypeDefinition(method.ContainingType, commandModuleBuilder))
+        {
+            return false;
+        }
+
+        return HasAssemblyScanMember(method.ContainingType);
+    }
+
+    /// <summary>
+    ///     Determines whether the method has a contract registration signature.
+    /// </summary>
+    /// <param name="method">The invoked method symbol.</param>
+    /// <returns><see langword="true" /> when the method is generic or takes a <c>System.Type</c> first.</returns>
+    private static bool HasContractRegisterSignature(IMethodSymbol method)
+    {
         if (method.TypeArguments.Length > 0)
         {
             return true;
@@ -299,47 +359,101 @@ internal static class ContractRegistrationAnalysis
     }
 
     /// <summary>
-    ///     Determines whether the invoked method belongs to a durable contract writer surface.
+    ///     Determines whether the type offers an assembly scan member.
     /// </summary>
-    /// <param name="method">The invoked method symbol.</param>
-    /// <returns><see langword="true" /> when the receiver is a contract writer type.</returns>
-    private static bool IsContractWriterInvocation(IMethodSymbol method)
+    /// <param name="containingType">The invoked method containing type.</param>
+    /// <returns><see langword="true" /> when the type declares or inherits a scan member.</returns>
+    private static bool HasAssemblyScanMember(INamedTypeSymbol containingType)
     {
-        var containingType = method.ContainingType;
+        return !containingType.GetMembers("RegisterFromAssembly").IsEmpty ||
+               !containingType.GetMembers("AddFromAssembly").IsEmpty;
+    }
 
-        if (containingType is null)
+    /// <summary>
+    ///     Determines whether the type is a durable contract writer surface.
+    /// </summary>
+    /// <param name="containingType">The invoked method containing type.</param>
+    /// <param name="contractWriter">The <c>IContractWriter</c> symbol.</param>
+    /// <param name="contractRegistry">The <c>IMessageContractRegistry</c> symbol.</param>
+    /// <param name="contractBuilder">The <c>MessageContractBuilder</c> symbol.</param>
+    /// <returns><see langword="true" /> when the type is, or implements, a contract writer surface.</returns>
+    private static bool IsContractWriterType(
+        INamedTypeSymbol containingType,
+        INamedTypeSymbol? contractWriter,
+        INamedTypeSymbol? contractRegistry,
+        INamedTypeSymbol? contractBuilder)
+    {
+        if (MatchesTypeDefinition(containingType, contractWriter) ||
+            MatchesTypeDefinition(containingType, contractRegistry) ||
+            MatchesTypeDefinition(containingType, contractBuilder))
         {
-            return false;
+            return true;
         }
 
         foreach (var interfaceType in containingType.AllInterfaces)
         {
-            if (interfaceType.Name is "IContractWriter" or "IMessageContractRegistry" &&
-                interfaceType.ContainingNamespace?.ToDisplayString() is
-                    "LiteBus.Messaging.Abstractions" or "LiteBus.Runtime.Abstractions")
+            if (MatchesTypeDefinition(interfaceType, contractWriter) ||
+                MatchesTypeDefinition(interfaceType, contractRegistry))
             {
                 return true;
             }
         }
 
-        if (containingType.Name is "MessageContractBuilder" &&
-            containingType.ContainingNamespace?.ToDisplayString() is "LiteBus.Messaging" or "LiteBus.Runtime")
+        return false;
+    }
+
+    /// <summary>
+    ///     Determines whether the candidate type matches the expected type definition.
+    /// </summary>
+    /// <param name="candidate">The candidate type symbol.</param>
+    /// <param name="expected">The expected type symbol, if resolved.</param>
+    /// <returns><see langword="true" /> when the original definitions match; otherwise, <see langword="false" />.</returns>
+    private static bool MatchesTypeDefinition(INamedTypeSymbol candidate, INamedTypeSymbol? expected)
+    {
+        if (expected is null)
         {
-            return true;
+            return false;
         }
 
-        return containingType.GetMembers()
-            .OfType<IMethodSymbol>()
-            .Any(member => member.Name is "RegisterFromAssembly" or "AddFromAssembly");
+        return SymbolEqualityComparer.Default.Equals(candidate.OriginalDefinition, expected);
     }
 
     /// <summary>
     ///     Determines whether the method registers contracts from an assembly scan.
     /// </summary>
     /// <param name="method">The invoked method symbol.</param>
+    /// <param name="contractWriter">The <c>IContractWriter</c> symbol.</param>
+    /// <param name="contractRegistry">The <c>IMessageContractRegistry</c> symbol.</param>
+    /// <param name="contractBuilder">The <c>MessageContractBuilder</c> symbol.</param>
+    /// <param name="commandModuleBuilder">The <c>CommandModuleBuilder</c> symbol.</param>
     /// <returns><see langword="true" /> when the method scans an assembly.</returns>
-    private static bool IsContractRegisterFromAssemblyMethod(IMethodSymbol method)
+    /// <remarks>
+    ///     <c>AddFromAssembly</c> counts on contract writer surfaces. <c>RegisterFromAssembly</c> counts on every
+    ///     surface, including <c>MessageModuleBuilder</c> and the <c>IContractWriter</c> scan extension, except
+    ///     <c>CommandModuleBuilder</c>, whose scan only records message types.
+    /// </remarks>
+    private static bool IsContractRegisterFromAssemblyMethod(
+        IMethodSymbol method,
+        INamedTypeSymbol? contractWriter,
+        INamedTypeSymbol? contractRegistry,
+        INamedTypeSymbol? contractBuilder,
+        INamedTypeSymbol? commandModuleBuilder)
     {
-        return method.Name is "RegisterFromAssembly" or "AddFromAssembly";
+        if (method.ContainingType is null)
+        {
+            return false;
+        }
+
+        if (method.Name == "AddFromAssembly")
+        {
+            return IsContractWriterType(method.ContainingType, contractWriter, contractRegistry, contractBuilder);
+        }
+
+        if (method.Name != "RegisterFromAssembly")
+        {
+            return false;
+        }
+
+        return !MatchesTypeDefinition(method.ContainingType, commandModuleBuilder);
     }
 }

@@ -29,16 +29,16 @@
 | [analyzers.untyped-shortcut-on-result-message](shortcut-contracts.md) | Untyped shortcut on a message that produces a result | GA |
 | [analyzers.missing-declaration](required-declarations.md) | Command or query states no position on a required declaration | GA |
 
-## Diagnostic Inventory (LB1001-LB1021)
+## Diagnostic Inventory (LB1001-LB1022)
 
 | ID | Severity | Category | Rule | Capability page |
 | --- | --- | --- | --- | --- |
 | `LB1001` | Error | `LiteBus.Handlers` | Duplicate `ICommandHandler<TCommand>` registrations for one command type | [handler-duplicates.md](handler-duplicates.md) |
-| `LB1002` | Reserved | N/A | Reserved for future duplicate event-handler symmetry | N/A |
+| `LB1002` | Reserved | N/A | Reserved, never shipped | N/A |
 | `LB1003` | Warning | `LiteBus.Handlers` | Query or stream query handler depends on side-effecting APIs | [query-handler-purity.md](query-handler-purity.md) |
 | `LB1004` | Error | `LiteBus.Inbox` | `ICommand<TResult>` accepted into inbox APIs | [inbox-accept-rules.md](inbox-accept-rules.md) |
 | `LB1005` | Error | `LiteBus.Handlers` | Open generic handler exposes unsupported type-parameter count | [open-generic-handlers.md](open-generic-handlers.md) |
-| `LB1006` | Reserved | N/A | Reserved, currently not implemented | N/A |
+| `LB1006` | Reserved | N/A | Reserved, never shipped | N/A |
 | `LB1007` | Warning | `LiteBus.Contracts` | Handled durable command or event has no contract attribute or registration | [contract-registration.md](contract-registration.md) |
 | `LB1008` | Error | `LiteBus.Handlers` | Command type has no main command handler | [handler-coverage.md](handler-coverage.md) |
 | `LB1009` | Error | `LiteBus.Handlers` | Query or stream query type has no main handler | [handler-coverage.md](handler-coverage.md) |
@@ -54,6 +54,7 @@
 | `LB1019` | Warning | `LiteBus.Handlers` | Shortcut uses the untyped contract for a message that produces a result | [shortcut-contracts.md](shortcut-contracts.md) |
 | `LB1020` | Warning (off by default) | `LiteBus.Declarations` | Command or query type states no position on a configured declaration | [required-declarations.md](required-declarations.md) |
 | `LB1021` | Warning | `LiteBus.Declarations` | `litebus_required_declarations` names a type that does not resolve | [required-declarations.md](required-declarations.md) |
+| `LB1022` | Warning | `LiteBus.Handlers` | `[HandlerPriority]` value falls inside the range LiteBus reserves for its own handlers | [../../reference/analyzers.md](../../reference/analyzers.md) |
 
 ## Suppression Policy
 

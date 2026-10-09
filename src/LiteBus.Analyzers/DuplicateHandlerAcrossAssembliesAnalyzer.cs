@@ -31,7 +31,8 @@ public sealed class DuplicateHandlerAcrossAssembliesAnalyzer : DiagnosticAnalyze
     /// <param name="context">The compilation analysis context.</param>
     private static void AnalyzeCompilation(CompilationAnalysisContext context)
     {
-        var handlers = HandlerAnalysis.CollectHandlerRegistrations(context.Compilation, context.CancellationToken);
+        var typeCache = new LiteBusTypeCache(context.Compilation);
+        var handlers = HandlerAnalysis.CollectHandlerRegistrations(typeCache, context.CancellationToken);
 
         foreach (var group in handlers
                      .GroupBy(handler => handler.HandlerType.Name)

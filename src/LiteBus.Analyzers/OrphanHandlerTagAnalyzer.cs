@@ -25,7 +25,10 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
         context.EnableConcurrentExecution();
         context.RegisterCompilationStartAction(startContext =>
         {
-            var referencedTags = TagReferenceAnalysis.CollectReferencedTags(startContext.Compilation);
+            var typeCache = new LiteBusTypeCache(startContext.Compilation);
+            var referencedTags = TagReferenceAnalysis.CollectReferencedTags(
+                startContext.Compilation,
+                startContext.CancellationToken);
 
             startContext.RegisterSyntaxNodeAction(
                 nodeContext =>
@@ -37,10 +40,16 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
                         return;
                     }
 
-                    if (!HandlerAnalysis.IsHandlerType(symbol, startContext.Compilation))
+                    if (!HandlerAnalysis.IsHandlerType(symbol, typeCache))
                     {
                         return;
                     }
+
+                    var location = LiteBusSymbols.GetDiagnosticLocation(
+                        nodeContext.Compilation,
+                        symbol.Locations.FirstOrDefault(candidate => candidate.IsInSource) ??
+                        symbol.Locations.FirstOrDefault() ??
+                        Location.None);
 
                     foreach (var attribute in symbol.GetAttributes())
                     {
@@ -55,7 +64,7 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
                             {
                                 nodeContext.ReportDiagnostic(Diagnostic.Create(
                                     DiagnosticDescriptors.OrphanHandlerTag,
-                                    symbol.Locations.FirstOrDefault() ?? Location.None,
+                                    location,
                                     symbol.Name,
                                     tag));
                             }
@@ -70,7 +79,7 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
                                 {
                                     nodeContext.ReportDiagnostic(Diagnostic.Create(
                                         DiagnosticDescriptors.OrphanHandlerTag,
-                                        symbol.Locations.FirstOrDefault() ?? Location.None,
+                                        location,
                                         symbol.Name,
                                         tag));
                                 }

@@ -30,8 +30,9 @@ public sealed class DuplicateQueryHandlerAnalyzer : DiagnosticAnalyzer
     /// <param name="context">The compilation analysis context.</param>
     private static void AnalyzeCompilation(CompilationAnalysisContext context)
     {
-        ReportDuplicateHandlers(context, "query");
-        ReportDuplicateHandlers(context, "stream query");
+        var typeCache = new LiteBusTypeCache(context.Compilation);
+        ReportDuplicateHandlers(context, "query", typeCache);
+        ReportDuplicateHandlers(context, "stream query", typeCache);
     }
 
     /// <summary>
@@ -39,9 +40,10 @@ public sealed class DuplicateQueryHandlerAnalyzer : DiagnosticAnalyzer
     /// </summary>
     /// <param name="context">The compilation analysis context.</param>
     /// <param name="pipeline">The handler pipeline stage name.</param>
-    private static void ReportDuplicateHandlers(CompilationAnalysisContext context, string pipeline)
+    /// <param name="typeCache">The per-compilation type cache.</param>
+    private static void ReportDuplicateHandlers(CompilationAnalysisContext context, string pipeline, LiteBusTypeCache typeCache)
     {
-        var groups = HandlerAnalysis.CollectHandlerRegistrations(context.Compilation, context.CancellationToken)
+        var groups = HandlerAnalysis.CollectHandlerRegistrations(typeCache, context.CancellationToken)
             .Where(handler => handler.Pipeline == pipeline)
             .GroupBy(handler => handler.MessageType, SymbolEqualityComparer.Default);
 

@@ -30,15 +30,19 @@ public sealed class MissingQueryHandlerAnalyzer : DiagnosticAnalyzer
     /// <param name="context">The compilation analysis context.</param>
     private static void AnalyzeCompilation(CompilationAnalysisContext context)
     {
+        var typeCache = new LiteBusTypeCache(context.Compilation);
+
         ReportMissingHandlers(
             context,
             MessageKind.Query,
-            "query");
+            "query",
+            typeCache);
 
         ReportMissingHandlers(
             context,
             MessageKind.StreamQuery,
-            "stream query");
+            "stream query",
+            typeCache);
     }
 
     /// <summary>
@@ -47,22 +51,24 @@ public sealed class MissingQueryHandlerAnalyzer : DiagnosticAnalyzer
     /// <param name="context">The compilation analysis context.</param>
     /// <param name="kind">The message kind to inspect.</param>
     /// <param name="pipeline">The handler pipeline stage name.</param>
+    /// <param name="typeCache">The per-compilation type cache.</param>
     private static void ReportMissingHandlers(
         CompilationAnalysisContext context,
         MessageKind kind,
-        string pipeline)
+        string pipeline,
+        LiteBusTypeCache typeCache)
     {
-        var handlers = HandlerAnalysis.CollectHandlerRegistrations(context.Compilation, context.CancellationToken)
+        var handlers = HandlerAnalysis.CollectHandlerRegistrations(typeCache, context.CancellationToken)
             .Where(handler => handler.Pipeline == pipeline)
             .ToImmutableArray();
 
         var openGenericHandlers = MessageAnalysis.CollectOpenGenericMainHandlers(
-            context.Compilation,
+            typeCache,
             kind,
             context.CancellationToken);
 
         var queries = MessageAnalysis.CollectMessageTypes(
-            context.Compilation,
+            typeCache,
             kind,
             context.CancellationToken);
 

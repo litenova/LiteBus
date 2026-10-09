@@ -37,7 +37,7 @@
 | **Lease / fencing token** | `LeaseOwner` + monotonic `LeaseGeneration` + `LeaseExpiresAt` on envelopes; `ILeaseRenewable.RenewLeaseAsync` heartbeats. |
 | **Discriminated union via sealed record hierarchies** | `MessageIdentity`, `Idempotency`, `MessageVisibility`, `MessageTrace`, `TenantScope`, `PublicationTarget`, `AuditDeclaration`, `AzureServiceBusDiagnosticTarget`. |
 | **Result objects instead of exceptions** | `Verdict`, `Validity`, `Shortcut`, `Shortcut<T>`, `Refusal`, `PipelineDecision`, `MediationOutcome`, `PersistResult`, `ProcessorPassResult`. |
-| **Roslyn analyzers** | 20 diagnostic rules (`LB1001`-`LB1021`) that enforce composition invariants at compile time. |
+| **Roslyn analyzers** | 20 diagnostic rules (`LB1001`-`LB1022`) that enforce composition invariants at compile time. |
 
 ### 1.2 Key interfaces and their primary implementations
 
@@ -203,7 +203,7 @@ Rules baked into the code:
 | `LiteBus.Extensions.Diagnostics.HealthChecks` | `IHealthChecksBuilder.AddLiteBus(...)`. |
 | `LiteBus.Messaging.Extensions.OpenTelemetry`, `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, `LiteBus.Transport.Extensions.OpenTelemetry`, `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | OTel registration helpers. |
 | `LiteBus.Testing`, `LiteBus.Testing.Mediation`, `LiteBus.Testing.Hosting`, `LiteBus.Testing.Transport`, `LiteBus.Testing.DurableMessaging` | Test doubles and fixtures. |
-| `LiteBus.Analyzers` | Roslyn analyzers `LB1001`-`LB1021`. |
+| `LiteBus.Analyzers` | Roslyn analyzers `LB1001`-`LB1022`. |
 
 ---
 
@@ -3791,7 +3791,7 @@ Same constant names with `LiteBus.Outbox` for the source and meter names and `li
 
 #### Analyzer diagnostic ids (`LiteBus.Analyzers.DiagnosticIds`, internal)
 
-`LB1001` DuplicateCommandHandler, `LB1003` QueryHandlerImpurity, `LB1004` CommandWithResultScheduledToInbox, `LB1005` UnsupportedOpenGenericHandler, `LB1007` MissingMessageContractRegistration, `LB1008` MissingCommandHandler, `LB1009` MissingQueryHandler, `LB1010` DuplicateQueryHandler, `LB1011` OrphanHandlerTag, `LB1012` DuplicateHandlerAcrossAssemblies, `LB1013` TransactionalOutboxWithoutDbContext, `LB1014` ProcessorEnabledWithoutDispatcher, `LB1015` TransactionalStorageWithoutInterceptor, `LB1016` TransactionalInboxWithoutDbContext, `LB1017` ExplicitMessageContractRegistration, `LB1018` MissingAuditDeclaration, `LB1019` UntypedShortcutOnResultMessage, `LB1020` MissingDeclaration, `LB1021` UnresolvedRequiredDeclaration. (There is no `LB1002` or `LB1006`.)
+`LB1001` DuplicateCommandHandler, `LB1003` QueryHandlerImpurity, `LB1004` CommandWithResultScheduledToInbox, `LB1005` UnsupportedOpenGenericHandler, `LB1007` MissingMessageContractRegistration, `LB1008` MissingCommandHandler, `LB1009` MissingQueryHandler, `LB1010` DuplicateQueryHandler, `LB1011` OrphanHandlerTag, `LB1012` DuplicateHandlerAcrossAssemblies, `LB1013` TransactionalOutboxWithoutDbContext, `LB1014` ProcessorEnabledWithoutDispatcher, `LB1015` TransactionalStorageWithoutInterceptor, `LB1016` TransactionalInboxWithoutDbContext, `LB1017` ExplicitMessageContractRegistration, `LB1018` MissingAuditDeclaration, `LB1019` UntypedShortcutOnResultMessage, `LB1020` MissingDeclaration, `LB1021` UnresolvedRequiredDeclaration, `LB1022` ReservedHandlerPriority. (`LB1002` and `LB1006` are reserved, never shipped.)
 
 #### Log event ids
 

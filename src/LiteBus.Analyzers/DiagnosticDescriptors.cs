@@ -25,7 +25,7 @@ public static class DiagnosticDescriptors
     internal static readonly DiagnosticDescriptor QueryHandlerImpurity = new(
         DiagnosticIds.QueryHandlerImpurity,
         "Query handler impurity",
-        "Query handler '{0}' depends on '{1}'. Query handlers should be side-effect free and must not use command, event, inbox, or outbox APIs.",
+        "Query handler '{0}' depends on '{1}'. Query handlers should be side-effect free and must not use command, event, query, inbox, outbox, or transport publisher APIs.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Warning,
         true);

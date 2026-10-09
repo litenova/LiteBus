@@ -30,7 +30,8 @@ public sealed class DuplicateCommandHandlerAnalyzer : DiagnosticAnalyzer
     /// <param name="context">The compilation analysis context.</param>
     private static void AnalyzeCompilation(CompilationAnalysisContext context)
     {
-        var groups = HandlerAnalysis.CollectHandlerRegistrations(context.Compilation, context.CancellationToken)
+        var typeCache = new LiteBusTypeCache(context.Compilation);
+        var groups = HandlerAnalysis.CollectHandlerRegistrations(typeCache, context.CancellationToken)
             .Where(handler => handler.Pipeline == "command")
             .GroupBy(handler => handler.MessageType, SymbolEqualityComparer.Default);
 

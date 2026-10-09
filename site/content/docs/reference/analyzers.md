@@ -13,10 +13,11 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | ID | Severity | Category | Summary |
 | --- | --- | --- | --- |
 | LB1001 | Error | Handlers | Duplicate `ICommandHandler<TCommand>` for the same command type |
-| LB1002 | Reserved | Handlers | Not implemented. Event multicast is supported, so duplicate event handlers are not reported by this rule. |
-| LB1003 | Warning | Handlers | Query or stream query handler depends on command, event, inbox, or outbox APIs |
+| LB1002 | Reserved | Handlers | Reserved, never shipped. Event multicast is supported, so duplicate event handlers are not reported. |
+| LB1003 | Warning | Handlers | Query or stream query handler depends on command, event, query, inbox, outbox, or transport publisher APIs |
 | LB1004 | Error | Inbox | `ICommand<TResult>` passed to `IInbox.AcceptAsync`, `AcceptBatchAsync`, or `ITransactionalInbox.AcceptAsync` |
 | LB1005 | Error | Handlers | Open generic handler exposes unsupported generic arity: anything but one type parameter, or two bound by a handler contract taking both in order |
+| LB1006 | Reserved | N/A | Reserved, never shipped. |
 | LB1007 | Warning | Contracts | Handled durable command/event lacks `[MessageContract]` and explicit `Contracts.Register` / `RegisterFromAssembly` |
 | LB1008 | Error | Handlers | Command type has no main command handler in the compilation |
 | LB1009 | Error | Handlers | Query or stream query type has no main handler in the compilation |
