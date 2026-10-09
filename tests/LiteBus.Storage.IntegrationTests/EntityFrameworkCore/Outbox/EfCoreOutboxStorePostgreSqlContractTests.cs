@@ -22,13 +22,14 @@ public sealed class EfCoreOutboxStorePostgreSqlContractTests : OutboxStoreContra
     public EfCoreOutboxStorePostgreSqlContractTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that Entity Framework PostgreSQL leasing ignores a skewed caller clock.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public Task LeasePendingAsync_WhenCallerClockIsSkewed_ShouldUseDatabaseClock()
     {
         return AssertDatabaseClockIgnoresCallerSkewAsync();

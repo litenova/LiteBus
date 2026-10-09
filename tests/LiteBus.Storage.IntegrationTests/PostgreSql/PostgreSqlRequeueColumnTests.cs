@@ -20,12 +20,13 @@ public sealed class PostgreSqlRequeueColumnTests : IClassFixture<PostgreSqlFixtu
     public PostgreSqlRequeueColumnTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms an inbox requeue clears failure columns while keeping the last attempt timestamp.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task RequeueAsync_WhenInboxMessageIsRequeued_ShouldClearFailureColumnsAndKeepLastAttemptedAt()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -79,7 +80,7 @@ public sealed class PostgreSqlRequeueColumnTests : IClassFixture<PostgreSqlFixtu
     /// <summary>
     ///     Confirms an outbox requeue clears failure columns while keeping the last attempt timestamp.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task RequeueAsync_WhenOutboxMessageIsRequeued_ShouldClearFailureColumnsAndKeepLastAttemptedAt()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();

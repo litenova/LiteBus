@@ -15,12 +15,13 @@ public sealed class EfCoreOutboxStoreConcurrencyTests : IClassFixture<PostgreSql
     public EfCoreOutboxStoreConcurrencyTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms only one concurrent terminal persist succeeds when two workers claim the same lease generation.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task PersistAsync_WhenTwoWorkersPersistSameEnvelopeConcurrently_ShouldApplyExactlyOnce()
     {
         await EfCoreProviderTestInfrastructure.ResetOutboxTableAsync(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString).ConfigureAwait(false);

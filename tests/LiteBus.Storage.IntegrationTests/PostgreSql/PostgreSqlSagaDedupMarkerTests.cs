@@ -17,12 +17,13 @@ public sealed class PostgreSqlSagaDedupMarkerTests : IClassFixture<PostgreSqlFix
     public PostgreSqlSagaDedupMarkerTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies a save without an applied message identifier keeps the stored marker.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task SaveAsync_WithoutAppliedMessageId_PreservesStoredMarker()
     {
         var store = await CreateStoreAsync().ConfigureAwait(false);

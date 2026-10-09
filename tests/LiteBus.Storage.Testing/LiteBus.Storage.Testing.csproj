@@ -26,6 +26,7 @@
         <None Include="..\..\README.md" Pack="true" PackagePath="README.md" />
         <None Include="..\..\assets\logo\icon.png" Pack="true" PackagePath="icon.png" />
         <PackageReference Include="AwesomeAssertions" />
+        <PackageReference Include="Xunit.SkippableFact" />
         <PackageReference Include="xunit" />
     </ItemGroup>
 

@@ -20,12 +20,13 @@ public sealed class PostgreSqlStoreLeaseReleaseTests : IClassFixture<PostgreSqlF
     public PostgreSqlStoreLeaseReleaseTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms an outbox release with matching owner and generation returns the row to the queue.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task OutboxReleaseLeaseAsync_WhenOwnerAndGenerationMatch_ShouldReturnRowToQueue()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -73,7 +74,7 @@ public sealed class PostgreSqlStoreLeaseReleaseTests : IClassFixture<PostgreSqlF
     /// <summary>
     ///     Confirms an outbox release with a wrong owner or stale generation fails and leaves the row leased.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task OutboxReleaseLeaseAsync_WhenOwnerOrGenerationMismatch_ShouldReturnFalseAndChangeNothing()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -115,7 +116,7 @@ public sealed class PostgreSqlStoreLeaseReleaseTests : IClassFixture<PostgreSqlF
     /// <summary>
     ///     Confirms an outbox release of a row that carries an error yields failed instead of pending.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task OutboxReleaseLeaseAsync_WhenRowCarriesError_ShouldYieldFailed()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -155,7 +156,7 @@ public sealed class PostgreSqlStoreLeaseReleaseTests : IClassFixture<PostgreSqlF
     /// <summary>
     ///     Confirms an inbox release with matching owner and generation returns the row to the queue.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task InboxReleaseLeaseAsync_WhenOwnerAndGenerationMatch_ShouldReturnRowToQueue()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -203,7 +204,7 @@ public sealed class PostgreSqlStoreLeaseReleaseTests : IClassFixture<PostgreSqlF
     /// <summary>
     ///     Confirms an inbox release with a wrong owner or stale generation fails and leaves the row leased.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task InboxReleaseLeaseAsync_WhenOwnerOrGenerationMismatch_ShouldReturnFalseAndChangeNothing()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -245,7 +246,7 @@ public sealed class PostgreSqlStoreLeaseReleaseTests : IClassFixture<PostgreSqlF
     /// <summary>
     ///     Confirms an inbox release of a row that carries an error yields failed instead of pending.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task InboxReleaseLeaseAsync_WhenRowCarriesError_ShouldYieldFailed()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();

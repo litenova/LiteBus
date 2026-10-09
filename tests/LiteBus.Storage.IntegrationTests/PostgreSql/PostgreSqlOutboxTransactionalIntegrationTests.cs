@@ -26,12 +26,13 @@ public sealed class PostgreSqlOutboxTransactionalIntegrationTests : IClassFixtur
     public PostgreSqlOutboxTransactionalIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms a rolled-back transaction removes both domain and outbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task UseExistingConnection_ShouldRollbackDomainAndOutboxTogether()
     {
         var (outboxOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(true);
@@ -53,10 +54,10 @@ public sealed class PostgreSqlOutboxTransactionalIntegrationTests : IClassFixtur
                 await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
                 await transaction.RollbackAsync().ConfigureAwait(true);
 
-                (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId))
+                (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId).ConfigureAwait(false))
                     .Should().Be(0);
 
-                (await CountOutboxMessagesAsync(outboxOptions, envelope.Id))
+                (await CountOutboxMessagesAsync(outboxOptions, envelope.Id).ConfigureAwait(false))
                     .Should().Be(0);
             }
         }
@@ -65,7 +66,7 @@ public sealed class PostgreSqlOutboxTransactionalIntegrationTests : IClassFixtur
     /// <summary>
     ///     Confirms a committed transaction persists both domain and outbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task UseExistingConnection_ShouldCommitDomainAndOutboxTogether()
     {
         var (outboxOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(true);
@@ -87,10 +88,10 @@ public sealed class PostgreSqlOutboxTransactionalIntegrationTests : IClassFixtur
                 await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
                 await transaction.CommitAsync().ConfigureAwait(true);
 
-                (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId))
+                (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId).ConfigureAwait(false))
                     .Should().Be(1);
 
-                (await CountOutboxMessagesAsync(outboxOptions, envelope.Id))
+                (await CountOutboxMessagesAsync(outboxOptions, envelope.Id).ConfigureAwait(false))
                     .Should().Be(1);
             }
         }

@@ -24,6 +24,7 @@ public sealed class PostgreSqlInboxRetentionStoreTests : ContractTests, IClassFi
 
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <inheritdoc />

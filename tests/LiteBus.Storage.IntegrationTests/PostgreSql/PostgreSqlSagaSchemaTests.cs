@@ -10,9 +10,10 @@ public sealed class PostgreSqlSagaSchemaTests : IClassFixture<PostgreSqlFixture>
     public PostgreSqlSagaSchemaTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task EnsureAsync_ShouldCreateSagaTableReadableThroughTableReaders()
     {
         var options = CreateSagaStoreOptions();
@@ -33,7 +34,7 @@ public sealed class PostgreSqlSagaSchemaTests : IClassFixture<PostgreSqlFixture>
         missing.Should().BeNull();
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ValidateAsync_ShouldThrowWhenTableIsMissing()
     {
         var options = CreateSagaStoreOptions();

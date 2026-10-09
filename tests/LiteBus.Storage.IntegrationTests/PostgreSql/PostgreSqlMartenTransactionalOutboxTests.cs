@@ -43,16 +43,19 @@ public sealed class PostgreSqlMartenTransactionalOutboxTests : IClassFixture<Pos
     public PostgreSqlMartenTransactionalOutboxTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task A_Marten_document_and_an_outbox_row_commit_together()
     {
         var outboxOptions = await CreateOutboxSchemaAsync().ConfigureAwait(true);
         var orderId = Guid.NewGuid();
 
-        await using var documentStore = CreateDocumentStore();
-        await using var serviceProvider = BuildProvider(outboxOptions);
+        var documentStore = CreateDocumentStore();
+        await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
+        var serviceProvider = BuildProvider(outboxOptions);
+        await using var configuredServiceProvider = serviceProvider.ConfigureAwait(false);
 
         Guid messageId;
 
@@ -85,21 +88,24 @@ public sealed class PostgreSqlMartenTransactionalOutboxTests : IClassFixture<Pos
             await unitOfWork.CommitAsync().ConfigureAwait(true);
         }
 
-        await using var querySession = documentStore.QuerySession();
+        var querySession = documentStore.QuerySession();
+        await using var configuredQuerySession = querySession.ConfigureAwait(false);
         var stored = await querySession.LoadAsync<OrderDocument>(orderId).ConfigureAwait(true);
 
         stored.Should().NotBeNull();
         (await CountOutboxRowsAsync(outboxOptions, messageId).ConfigureAwait(true)).Should().Be(1);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task Neither_the_document_nor_the_outbox_row_survives_a_rollback()
     {
         var outboxOptions = await CreateOutboxSchemaAsync().ConfigureAwait(true);
         var orderId = Guid.NewGuid();
 
-        await using var documentStore = CreateDocumentStore();
-        await using var serviceProvider = BuildProvider(outboxOptions);
+        var documentStore = CreateDocumentStore();
+        await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
+        var serviceProvider = BuildProvider(outboxOptions);
+        await using var configuredServiceProvider = serviceProvider.ConfigureAwait(false);
 
         Guid messageId;
 
@@ -134,19 +140,21 @@ public sealed class PostgreSqlMartenTransactionalOutboxTests : IClassFixture<Pos
             await unitOfWork.RollbackAsync().ConfigureAwait(true);
         }
 
-        await using var querySession = documentStore.QuerySession();
+        var querySession = documentStore.QuerySession();
+        await using var configuredQuerySession = querySession.ConfigureAwait(false);
         var stored = await querySession.LoadAsync<OrderDocument>(orderId).ConfigureAwait(true);
 
         stored.Should().BeNull();
         (await CountOutboxRowsAsync(outboxOptions, messageId).ConfigureAwait(true)).Should().Be(0);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task The_writer_refuses_to_enqueue_with_no_active_transaction()
     {
         var outboxOptions = await CreateOutboxSchemaAsync().ConfigureAwait(true);
 
-        await using var serviceProvider = BuildProvider(outboxOptions);
+        var serviceProvider = BuildProvider(outboxOptions);
+        await using var configuredServiceProvider = serviceProvider.ConfigureAwait(false);
 
         var scope = serviceProvider.CreateAsyncScope();
         await using (scope.ConfigureAwait(false))

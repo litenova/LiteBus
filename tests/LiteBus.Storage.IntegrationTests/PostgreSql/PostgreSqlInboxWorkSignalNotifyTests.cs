@@ -17,12 +17,13 @@ public sealed class PostgreSqlInboxWorkSignalNotifyTests : IClassFixture<Postgre
     public PostgreSqlInboxWorkSignalNotifyTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms an insert notification wakes a waiting work signal before the poll timeout elapses.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task WaitForWorkOrDelayAsync_when_row_inserted_should_wake_before_poll_timeout()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();

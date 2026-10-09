@@ -18,12 +18,13 @@ public sealed class PostgreSqlSagaStoreConnectionTests : IClassFixture<PostgreSq
     public PostgreSqlSagaStoreConnectionTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms repeated save/load cycles do not exhaust the PostgreSQL connection pool.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task SaveAndLoad_under_load_should_not_exhaust_connection_pool()
     {
         var options = new PostgreSqlSagaStoreOptions

@@ -30,12 +30,13 @@ public sealed class EfCoreOutboxSaveChangesInterceptorAbortTests : IClassFixture
     public EfCoreOutboxSaveChangesInterceptorAbortTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms duplicate idempotency keys abort the caller transaction instead of resolving idempotently.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task SaveChangesAsync_WhenDuplicateIdempotencyKeyConflicts_ShouldAbortTransaction()
     {
         var storeOptions = await CreateOutboxTableAsync().ConfigureAwait(true);
@@ -58,7 +59,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorAbortTests : IClassFixture
                     interceptor.Enqueue(context, CreateEnvelope(idempotencyKey) with { Id = Guid.NewGuid() });
 
                     var act = () => context.SaveChangesAsync();
-                    await act.Should().ThrowAsync<DbUpdateException>();
+                    await act.Should().ThrowAsync<DbUpdateException>().ConfigureAwait(false);
 
                     await transaction.RollbackAsync().ConfigureAwait(true);
 

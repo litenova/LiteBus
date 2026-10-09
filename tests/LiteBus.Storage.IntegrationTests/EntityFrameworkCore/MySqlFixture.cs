@@ -28,6 +28,11 @@ public sealed class MySqlFixture : IAsyncLifetime
     /// </summary>
     public string ConnectionString { get; private set; } = string.Empty;
 
+    /// <summary>
+    ///     Gets a value indicating whether the fixture connected to MySQL successfully.
+    /// </summary>
+    public bool IsAvailable { get; private set; }
+
     /// <inheritdoc />
     public async Task InitializeAsync()
     {
@@ -35,6 +40,7 @@ public sealed class MySqlFixture : IAsyncLifetime
         if (!string.IsNullOrWhiteSpace(externalConnectionString))
         {
             ConnectionString = externalConnectionString;
+            IsAvailable = true;
             return;
         }
 
@@ -46,6 +52,7 @@ public sealed class MySqlFixture : IAsyncLifetime
 
             await _container.StartAsync().ConfigureAwait(false);
             ConnectionString = _container.GetConnectionString();
+            IsAvailable = true;
         }
         catch (Exception exception) when (DockerAvailability.IsDockerUnavailable(exception))
         {
@@ -55,7 +62,7 @@ public sealed class MySqlFixture : IAsyncLifetime
                 _container = null;
             }
 
-            throw new InvalidOperationException(DockerRequiredMessage, exception);
+            IsAvailable = false;
         }
     }
 

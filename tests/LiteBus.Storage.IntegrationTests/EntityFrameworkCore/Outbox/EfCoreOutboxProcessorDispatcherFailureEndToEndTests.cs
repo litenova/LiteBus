@@ -16,9 +16,10 @@ public sealed class EfCoreOutboxProcessorDispatcherFailureEndToEndTests : LiteBu
     public EfCoreOutboxProcessorDispatcherFailureEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenDispatcherFails_ShouldMarkFailedWithVisibleAfter()
     {
         var clock = new ManualTimeProvider(EfCoreOutboxE2eSupport.BaseTime);

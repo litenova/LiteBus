@@ -23,13 +23,14 @@ public sealed class EfCoreOutboxProcessorEndToEndTests : LiteBusTestBase, IClass
     public EfCoreOutboxProcessorEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that <see cref="IOutboxProcessor.ProcessPendingAsync" /> publishes a stored event through EF Core storage.
     /// </summary>
     /// <returns>A task that completes when the event is published.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_ShouldPublishEventThroughEfCoreStore()
     {
         var storeOptions = EfCoreOutboxE2eSupport.CreateStoreOptions(TableName);

@@ -22,7 +22,7 @@ public abstract class InboxRetentionStoreContractTests
     ///     Verifies that completed rows older than the retention cutoff are deleted.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task DeleteCompletedOlderThanAsync_ShouldRemoveEligibleRows()
     {
         var roles = CreateStore();
@@ -65,7 +65,7 @@ public abstract class InboxRetentionStoreContractTests
     ///     Verifies that retention uses <c>completed_at</c> when set instead of falling back to <c>created_at</c>.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task DeleteCompletedOlderThanAsync_WhenCompletedAtIsRecentButCreatedAtIsOld_ShouldRetainRow()
     {
         var roles = CreateStore();
@@ -98,7 +98,7 @@ public abstract class InboxRetentionStoreContractTests
     ///     Verifies that no rows are deleted when the cutoff is earlier than every completed row.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task DeleteCompletedOlderThanAsync_WhenCutoffIsBeforeAllRows_ShouldDeleteNothing()
     {
         var roles = CreateStore();

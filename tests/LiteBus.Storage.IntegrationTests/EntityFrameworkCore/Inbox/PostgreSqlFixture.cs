@@ -30,6 +30,11 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
     /// </summary>
     public string ConnectionString { get; private set; } = string.Empty;
 
+    /// <summary>
+    ///     Gets a value indicating whether the fixture connected to PostgreSQL successfully.
+    /// </summary>
+    public bool IsAvailable { get; private set; }
+
     /// <inheritdoc />
     public async Task InitializeAsync()
     {
@@ -40,12 +45,20 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         if (!string.IsNullOrWhiteSpace(connectionString))
         {
             ConnectionString = connectionString;
+            IsAvailable = true;
             return;
         }
 
-        await WaitForDockerDaemonAsync().ConfigureAwait(false);
-
-        Exception? lastException = null;
+        try
+        {
+            await WaitForDockerDaemonAsync().ConfigureAwait(false);
+        }
+        catch (InvalidOperationException)
+        {
+            // The daemon probe only throws after it gives up, which means Docker itself is unavailable.
+            IsAvailable = false;
+            return;
+        }
 
         for (var attempt = 1; attempt <= MaxAttempts; attempt++)
         {
@@ -56,12 +69,11 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
 
                 await _container.StartAsync().ConfigureAwait(false);
                 ConnectionString = _container.GetConnectionString();
+                IsAvailable = true;
                 return;
             }
-            catch (Exception exception) when (IsDockerUnavailable(exception))
+            catch (Exception exception) when (DockerAvailability.IsDockerUnavailable(exception))
             {
-                lastException = exception;
-
                 if (_container is not null)
                 {
                     await _container.DisposeAsync().ConfigureAwait(false);
@@ -75,7 +87,8 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
             }
         }
 
-        throw new InvalidOperationException(DockerRequiredMessage, lastException);
+        // The retry loop only catches container-runtime failures, so reaching this point means Docker stayed unavailable.
+        IsAvailable = false;
     }
 
     /// <inheritdoc />
@@ -162,22 +175,5 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         }
 
         return process.ExitCode == 0;
-    }
-
-    private static bool IsDockerUnavailable(Exception exception)
-    {
-        for (var current = exception; current is not null; current = current.InnerException)
-        {
-            var typeName = current.GetType().FullName;
-
-            if (typeName is "DotNet.Testcontainers.Builders.DockerUnavailableException"
-                or "DotNet.Testcontainers.Guard.ArgumentException"
-                or "Docker.DotNet.DockerApiException")
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

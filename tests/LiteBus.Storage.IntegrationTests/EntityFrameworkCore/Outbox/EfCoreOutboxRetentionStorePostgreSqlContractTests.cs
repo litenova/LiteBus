@@ -22,6 +22,7 @@ public sealed class EfCoreOutboxRetentionStorePostgreSqlContractTests : OutboxRe
     public EfCoreOutboxRetentionStorePostgreSqlContractTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <inheritdoc />

@@ -22,6 +22,7 @@ public sealed class EfCoreInboxStoreSqlServerContractTests : InboxStoreContractT
     public EfCoreInboxStoreSqlServerContractTests(SqlServerFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, SqlServerFixture.DockerRequiredMessage);
     }
 
     /// <inheritdoc />

@@ -21,9 +21,10 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
     public PostgreSqlOutboxEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_ShouldPublishEventThroughPostgreSqlStore()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -53,7 +54,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenDispatcherFails_ShouldMarkFailedWithVisibleAfter()
     {
         var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
@@ -80,7 +81,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenMaxAttemptsExceeded_ShouldMoveToDeadLetter()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -105,7 +106,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimAndPublishMessage()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -148,7 +149,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_WithVisibleAfter_ShouldDeferPublishingUntilDue()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();

@@ -30,6 +30,7 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
     public PostgreSqlInboxHostingIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
@@ -37,7 +38,7 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
     ///     <see cref="IInboxProcessor.ProcessPendingAsync" /> directly.
     /// </summary>
     /// <returns>A task that completes when the hosted processor finishes the command.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessorBackgroundService_ShouldProcessAcceptedCommandThroughPostgreSqlStore()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -59,7 +60,7 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
             {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
-            });
+            }).ConfigureAwait(false);
 
             using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(true);
@@ -72,7 +73,7 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
                         var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, receipt.Id).ConfigureAwait(true);
                         return row?.Status == InboxStatus.Completed && recorder.Commands.Any(command => command.OrderId == orderId);
                     },
-                    TimeSpan.FromSeconds(10));
+                    TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
                 recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
 
@@ -91,7 +92,7 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
     ///     Verifies PostgreSQL <c>NOTIFY</c> wakes the manifest-hosted processor before a long poll interval elapses.
     /// </summary>
     /// <returns>A task that completes when the row is processed via notification wake-up.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessorBackgroundService_WhenPendingRowInserted_ShouldWakeViaNotifyBeforePollTimeout()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -141,7 +142,7 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
                         var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(true);
                         return row?.Status == InboxStatus.Completed && recorder.Commands.Any(command => command.OrderId == orderId);
                     },
-                    TimeSpan.FromSeconds(8));
+                    TimeSpan.FromSeconds(8)).ConfigureAwait(false);
 
                 completedBeforePoll.Should().BeTrue(
                     "the insert notify trigger should wake the processor before the 30 second poll interval");
@@ -159,7 +160,7 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
     ///     Verifies the cleanup background service purges completed rows past retention in PostgreSQL storage.
     /// </summary>
     /// <returns>A task that completes when expired rows are deleted by the hosted cleanup loop.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task CleanupBackgroundService_ShouldPurgeCompletedRowsPastRetention()
     {
         var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
@@ -198,7 +199,7 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
                         var oldRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, oldCompletedId).ConfigureAwait(true);
                         return oldRow is null;
                     },
-                    TimeSpan.FromSeconds(5));
+                    TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
                 purged.Should().BeTrue("the cleanup loop should delete completed rows older than the retention window");
 

@@ -16,9 +16,10 @@ public sealed class EfCoreOutboxProcessorDeadLetterEndToEndTests : LiteBusTestBa
     public EfCoreOutboxProcessorDeadLetterEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenMaxAttemptsExceeded_ShouldMoveToDeadLetter()
     {
         var storeOptions = EfCoreOutboxE2eSupport.CreateStoreOptions(TableName);

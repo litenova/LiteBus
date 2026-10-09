@@ -21,6 +21,7 @@ public sealed class EfCoreInboxRetentionStorePostgreSqlContractTests : InboxRete
     public EfCoreInboxRetentionStorePostgreSqlContractTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <inheritdoc />

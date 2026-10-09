@@ -22,6 +22,7 @@ public sealed class EfCoreOutboxRetentionStoreSqlServerContractTests : OutboxRet
     public EfCoreOutboxRetentionStoreSqlServerContractTests(SqlServerFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, SqlServerFixture.DockerRequiredMessage);
     }
 
     /// <inheritdoc />

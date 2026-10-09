@@ -36,13 +36,14 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
     public PostgreSqlInboxProcessorLeaseStressTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies parallel workers complete every message once without duplicate terminal outcomes.
     /// </summary>
     /// <returns>A task that completes when the stress test finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_parallel_workers_should_produce_single_terminal_state_per_message()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();

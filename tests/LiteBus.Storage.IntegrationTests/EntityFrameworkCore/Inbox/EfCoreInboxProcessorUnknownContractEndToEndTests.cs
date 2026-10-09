@@ -17,9 +17,10 @@ public sealed class EfCoreInboxProcessorUnknownContractEndToEndTests : LiteBusTe
     public EfCoreInboxProcessorUnknownContractEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenContractIsUnknown_ShouldMarkFailedInDatabase()
     {
         var storeOptions = EfCoreInboxE2eSupport.CreateStoreOptions(TableName);

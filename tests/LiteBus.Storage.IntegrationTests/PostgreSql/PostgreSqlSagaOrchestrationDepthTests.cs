@@ -30,12 +30,13 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
     public PostgreSqlSagaOrchestrationDepthTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms two correlated inbox messages advance one saga instance through reserve and capture steps.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_two_workflow_steps_should_advance_single_saga_instance()
     {
         var correlationId = $"order-{Guid.NewGuid():N}";
@@ -94,7 +95,7 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
     /// <summary>
     ///     Confirms a failed capture step does not persist partial state and compensation rolls back prior work.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_when_capture_fails_compensation_should_restore_prior_saga_state()
     {
         var correlationId = $"order-{Guid.NewGuid():N}";
@@ -176,7 +177,7 @@ public sealed class PostgreSqlSagaOrchestrationDepthTests : LiteBusTestBase, ICl
     /// <summary>
     ///     Confirms parallel workers cannot lose saga updates when two increments race on one instance.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_parallel_workers_should_preserve_single_saga_version_increment()
     {
         var correlationId = $"order-{Guid.NewGuid():N}";

@@ -18,12 +18,13 @@ public sealed class PostgreSqlInboxStoreBatchMarkFailedTests : IClassFixture<Pos
     public PostgreSqlInboxStoreBatchMarkFailedTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms batch <see cref="IInboxStateWriter.PersistAsync" /> accepts all-null visible-after timestamps.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task PersistAsync_batch_with_null_visible_after_should_persist_failed_status()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();

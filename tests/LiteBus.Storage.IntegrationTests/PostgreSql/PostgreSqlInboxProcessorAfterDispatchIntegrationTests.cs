@@ -25,9 +25,10 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
     public PostgreSqlInboxProcessorAfterDispatchIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_when_after_dispatch_hook_fails_should_dead_letter_from_processing()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -66,7 +67,7 @@ public sealed class PostgreSqlInboxProcessorAfterDispatchIntegrationTests : Lite
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task PersistAsync_when_completed_already_persisted_should_skip_dead_letter_transition()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();

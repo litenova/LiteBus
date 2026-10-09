@@ -35,13 +35,14 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
     public PostgreSqlInboxIngressEndToEndTests(PostgreSqlFixture fixture)
     {
         _postgresFixture = fixture;
+        Skip.IfNot(_postgresFixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that publishing through RabbitMQ stores the command in PostgreSQL and dispatches it through transport.
     /// </summary>
     /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PublishThroughRabbitMq_ShouldStoreInPostgreSqlAndDispatchCommand()
     {
         var rabbitMqFixture = new RabbitMqBrokerFixture();

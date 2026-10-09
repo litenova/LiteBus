@@ -17,12 +17,13 @@ public sealed class PostgreSqlOutboxBatchInsertTests : IClassFixture<PostgreSqlF
     public PostgreSqlOutboxBatchInsertTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms a 5,000-envelope batch is stored in input order despite the protocol parameter cap.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task AddBatchAsync_WithFiveThousandEnvelopes_ShouldStoreEveryEnvelopeInInputOrder()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();

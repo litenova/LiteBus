@@ -25,6 +25,11 @@ public sealed class RabbitMqBrokerFixture : IAsyncLifetime
     /// </summary>
     public AmqpConnectionOptions ConnectionOptions { get; private set; } = null!;
 
+    /// <summary>
+    ///     Gets a value indicating whether the RabbitMQ container started successfully.
+    /// </summary>
+    public bool IsAvailable { get; private set; }
+
     /// <inheritdoc />
     public async Task InitializeAsync()
     {
@@ -42,10 +47,18 @@ public sealed class RabbitMqBrokerFixture : IAsyncLifetime
                 Uri = new Uri(_container.GetConnectionString()),
                 ClientProvidedName = "LiteBus.Storage.IntegrationTests.PostgreSql.RabbitMQ"
             };
+
+            IsAvailable = true;
         }
         catch (Exception exception) when (DockerAvailability.IsDockerUnavailable(exception))
         {
-            throw new InvalidOperationException(DockerRequiredMessage, exception);
+            if (_container is not null)
+            {
+                await _container.DisposeAsync().ConfigureAwait(false);
+                _container = null;
+            }
+
+            IsAvailable = false;
         }
     }
 

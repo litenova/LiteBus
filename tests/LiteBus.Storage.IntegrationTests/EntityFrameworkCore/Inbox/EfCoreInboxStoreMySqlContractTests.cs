@@ -22,13 +22,14 @@ public sealed class EfCoreInboxStoreMySqlContractTests : InboxStoreContractTests
     public EfCoreInboxStoreMySqlContractTests(MySqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, MySqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that MySQL leasing uses the database clock.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public Task LeasePendingAsync_WhenCallerClockIsSkewed_ShouldUseDatabaseClock()
     {
         return AssertDatabaseClockIgnoresCallerSkewAsync();

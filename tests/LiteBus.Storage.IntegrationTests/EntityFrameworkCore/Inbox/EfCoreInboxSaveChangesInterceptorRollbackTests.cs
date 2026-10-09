@@ -17,12 +17,13 @@ public sealed class EfCoreInboxSaveChangesInterceptorRollbackTests : IClassFixtu
     public EfCoreInboxSaveChangesInterceptorRollbackTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms rolled-back <c>SaveChanges</c> does not persist queued inbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task SaveChangesAsync_ShouldNotPersistInboxMessage_WhenTransactionRollsBack()
     {
         var storeOptions = await CreateInboxTableAsync().ConfigureAwait(false);

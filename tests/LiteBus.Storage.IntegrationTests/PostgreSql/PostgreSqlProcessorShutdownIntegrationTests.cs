@@ -23,12 +23,13 @@ public sealed class PostgreSqlProcessorShutdownIntegrationTests : IClassFixture<
     public PostgreSqlProcessorShutdownIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms an outbox pass cancelled mid-dispatch refunds the lease attempt and the next pass publishes the row.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenOutboxDispatchCancelledMidPass_ShouldRefundAttemptAndPublishOnNextPass()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -92,7 +93,7 @@ public sealed class PostgreSqlProcessorShutdownIntegrationTests : IClassFixture<
     /// <summary>
     ///     Confirms an inbox pass cancelled mid-dispatch refunds the lease attempt and the next pass completes the row.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenInboxDispatchCancelledMidPass_ShouldRefundAttemptAndCompleteOnNextPass()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();

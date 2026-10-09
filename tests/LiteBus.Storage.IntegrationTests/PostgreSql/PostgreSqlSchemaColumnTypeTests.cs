@@ -20,13 +20,14 @@ public sealed class PostgreSqlSchemaColumnTypeTests : IClassFixture<PostgreSqlFi
     public PostgreSqlSchemaColumnTypeTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that an inbox payload column reverted to jsonb fails current-schema validation.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task InboxValidateAsync_WhenPayloadTypeIsJsonb_ShouldReportTypeDrift()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();

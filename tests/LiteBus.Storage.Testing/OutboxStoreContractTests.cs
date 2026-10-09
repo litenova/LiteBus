@@ -60,7 +60,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies logical schema reads honor cancellation even when no database query is required.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task GetSchemaInfoAsync_WhenCancellationIsRequested_ShouldThrow()
     {
         var store = CreateStore();
@@ -76,7 +76,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies invalid lease inputs are rejected before a store can create an unusable lease.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenRequestIsInvalid_ShouldRejectRequest()
     {
         var store = CreateStore();
@@ -102,7 +102,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that cancellation requested before an append prevents any store mutation.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_WhenCancellationIsRequested_ShouldNotStoreMessage()
     {
         var store = CreateStore();
@@ -121,7 +121,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that retry visibility delays subsequent lease attempts.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_ShouldRespectRetryVisibility()
     {
         var store = CreateStore();
@@ -166,7 +166,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that duplicate idempotency keys return the original stored row.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_ShouldReturnExistingMessageForDuplicateIdempotencyKey()
     {
         var store = CreateStore();
@@ -197,7 +197,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that a tenant-scoped lease request does not claim rows owned by another tenant.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenTenantFilterDoesNotMatchStoredTenant_ShouldNotLeaseRow()
     {
         var store = CreateStore();
@@ -226,7 +226,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that a tenant-scoped lease request claims a message stored for that tenant.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenTenantFilterMatchesStoredTenant_ShouldLeaseRow()
     {
         var store = CreateStore();
@@ -255,7 +255,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that a tenant-scoped message query excludes rows stored for another tenant.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task QueryAsync_WhenTenantFilterDoesNotMatchStoredTenant_ShouldExcludeOtherTenantRows()
     {
         var store = CreateStore();
@@ -285,7 +285,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that duplicate message identifiers return the original stored row.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_ShouldReturnExistingMessageWhenMessageIdAlreadyExists()
     {
         var store = CreateStore();
@@ -306,7 +306,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that optional metadata fields are persisted on append.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_ShouldPersistTopicMetadataAndVisibleAfter()
     {
         var store = CreateStore();
@@ -341,7 +341,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that batch append preserves input order and reports new rows.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddBatchAsync_ShouldReturnResultsInInputOrder()
     {
         var store = CreateStore();
@@ -364,7 +364,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that a repeated message identifier within one batch reports the later slot as an existing row.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddBatchAsync_RepeatedMessageIdWithinBatch_ShouldReportExistingOutcome()
     {
         var store = CreateStore();
@@ -386,7 +386,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that future visibility timestamps prevent leasing.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenVisibleAfterInFuture_ShouldNotLeaseMessage()
     {
         var store = CreateStore();
@@ -413,7 +413,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that leasing orders by creation time and respects batch size.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_ShouldOrderByCreatedAtAndRespectBatchSize()
     {
         var store = CreateStore();
@@ -443,7 +443,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that failed messages record retry visibility and error text.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task MarkFailedAsync_ShouldSetFailedStateAndVisibleAfter()
     {
         var store = CreateStore();
@@ -484,7 +484,7 @@ public abstract class OutboxStoreContractTests
     ///     These columns existed in the schema and were validated at boot before anything wrote them, so a dead-letter
     ///     listing that queried them read nulls forever. This test is what stops that from being true again.
     /// </remarks>
-    [Fact]
+    [SkippableFact]
     public async Task PersistAsync_ShouldRecordOperationalFieldsOnDeadLetter()
     {
         var store = CreateStore();
@@ -550,7 +550,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that dead-lettered messages are not leased again.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task MoveToDeadLetterAsync_ShouldSetDeadLetteredStatus()
     {
         var store = CreateStore();
@@ -584,7 +584,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that expired publishing leases can be reclaimed.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenLeaseExpires_ShouldReclaimPublishingMessage()
     {
         var store = CreateStore();
@@ -639,21 +639,21 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that only the active outbox lease owner can renew a lease.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task RenewLeaseAsync_ShouldRequireActiveLeaseOwner()
     {
         var store = CreateStore();
         var now = BaseTime;
         var messageId = Guid.NewGuid();
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
             BatchSize = 1,
             LeaseOwner = "publisher-a",
             Now = now,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().ContainSingle();
         var renewed = await store.Lease.RenewLeaseAsync(
@@ -662,21 +662,21 @@ public abstract class OutboxStoreContractTests
                 "publisher-a",
                 leased[0].LeaseGeneration,
                 TimeSpan.FromMinutes(1),
-                now.AddMinutes(2)));
+                now.AddMinutes(2))).ConfigureAwait(false);
         var rejected = await store.Lease.RenewLeaseAsync(
             new LeaseRenewalRequest(
                 messageId,
                 "publisher-b",
                 leased[0].LeaseGeneration,
                 TimeSpan.FromMinutes(2),
-                now.AddMinutes(3)));
+                now.AddMinutes(3))).ConfigureAwait(false);
         var staleGeneration = await store.Lease.RenewLeaseAsync(
             new LeaseRenewalRequest(
                 messageId,
                 "publisher-a",
                 leased[0].LeaseGeneration - 1,
                 TimeSpan.FromMinutes(3),
-                now.AddMinutes(4)));
+                now.AddMinutes(4))).ConfigureAwait(false);
 
         renewed.Should().BeTrue();
         rejected.Should().BeFalse();
@@ -687,7 +687,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that concurrent lease attempts claim disjoint message sets.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_ConcurrentPublishers_ShouldLeaseDisjointMessages()
     {
         await AssertConcurrentLeasesAreDisjointAsync().ConfigureAwait(false);
@@ -733,7 +733,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that status counts reflect stored messages grouped by status.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task GetStatusCountsAsync_ShouldGroupByStatus()
     {
         var store = CreateStore();
@@ -764,7 +764,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that only one terminal persist succeeds when competing writers use different lease owners.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PersistAsync_WhenCompetingLeaseOwnersPersistConcurrently_ShouldApplyExactlyOnce()
     {
         var store = CreateStore();
@@ -802,7 +802,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that dead-letter replay returns messages to the pending queue.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task RequeueDeadLetterAsync_ShouldReturnMessageToPending()
     {
         var store = CreateStore();
@@ -840,7 +840,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that an empty batch is a successful no-op for every batch-oriented store role.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task EmptyBatchOperations_ShouldReturnEmptyResults()
     {
         var store = CreateStore();
@@ -860,7 +860,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies one persist batch can apply multiple rows for every terminal outbox status.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PersistAsync_WithMixedTerminalBatch_ShouldApplyEveryTransition()
     {
         var store = CreateStore();
@@ -907,7 +907,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that batch dead-letter replay reports both requested and updated rows.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task RequeueDeadLetterAsync_WithMultipleIds_ShouldRequeueEveryMatchingRow()
     {
         var store = CreateStore();
@@ -940,7 +940,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies every outbox message predicate composes consistently for query and purge operations.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task CompleteFilter_ShouldMatchOnlyTheIntendedMessage()
     {
         var store = CreateStore();
@@ -990,7 +990,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies batch append resolves a duplicate idempotency key to the original row.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddBatchAsync_ShouldReturnExistingRowForDuplicateIdempotencyKey()
     {
         var store = CreateStore();
@@ -1022,7 +1022,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies strict batch replay rejects changed content for an existing message identifier.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddBatchAsync_WithStrictChangedReplay_ShouldThrow()
     {
         var store = CreateStore();
@@ -1110,7 +1110,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that message queries filter by status and support keyset pagination.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task QueryAsync_ShouldFilterAndPageByCreatedAt()
     {
         var store = CreateStore();
@@ -1153,7 +1153,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that purge deletes only rows that match the supplied filter.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PurgeAsync_ShouldDeleteMatchingRows()
     {
         var store = CreateStore();

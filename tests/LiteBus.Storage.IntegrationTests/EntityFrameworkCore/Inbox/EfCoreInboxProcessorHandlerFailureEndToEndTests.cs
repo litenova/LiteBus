@@ -16,9 +16,10 @@ public sealed class EfCoreInboxProcessorHandlerFailureEndToEndTests : LiteBusTes
     public EfCoreInboxProcessorHandlerFailureEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenHandlerFails_ShouldMarkFailedWithVisibleAfter()
     {
         var clock = new ManualTimeProvider(EfCoreInboxE2eSupport.BaseTime);

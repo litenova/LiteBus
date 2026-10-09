@@ -28,13 +28,14 @@ public sealed class EfCoreInboxDispatchScopeIsolationIntegrationTests : LiteBusT
     public EfCoreInboxDispatchScopeIsolationIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms concurrent messages receive distinct scoped contexts and both contexts are disposed after dispatch.
     /// </summary>
     /// <returns>A task that completes after both message scopes have been disposed.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WithConcurrentMessages_ShouldIsolateAndDisposeScopedDbContexts()
     {
         var tableName = $"inbox_scope_{Guid.NewGuid():N}";

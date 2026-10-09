@@ -31,13 +31,14 @@ public sealed class PostgreSqlProcessCrashIntegrationTests : LiteBusTestBase, IC
     public PostgreSqlProcessCrashIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms a command accepted before a worker crash is reclaimed after the abandoned lease expires.
     /// </summary>
     /// <returns>A task that completes when the replacement worker completes the command.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AcceptedCommand_WhenWorkerProcessIsKilled_ShouldRecoverAfterLeaseExpiry()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -116,7 +117,7 @@ public sealed class PostgreSqlProcessCrashIntegrationTests : LiteBusTestBase, IC
     ///     Runs the child worker used by <see cref="AcceptedCommand_WhenWorkerProcessIsKilled_ShouldRecoverAfterLeaseExpiry" />.
     /// </summary>
     /// <returns>A task that normally remains active until the parent test terminates this process.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessCrashWorker_ShouldHoldLeaseUntilTerminated()
     {
         var markerPath = Environment.GetEnvironmentVariable(MarkerEnvironmentVariable);

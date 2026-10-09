@@ -30,9 +30,10 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
     public PostgreSqlModuleRegistrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public void AddPostgreSqlInboxStorage_ShouldRegisterWriterLeaseAndStateRoles()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -63,7 +64,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         provider.GetRequiredService<PostgreSqlInboxStoreRegistration>().Options.TableName.Should().Be(options.TableName);
     }
 
-    [Fact]
+    [SkippableFact]
     public void AddPostgreSqlOutboxStorage_ShouldRegisterWriterLeaseAndStateRoles()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -94,7 +95,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         provider.GetRequiredService<PostgreSqlOutboxStoreRegistration>().Options.TableName.Should().Be(options.TableName);
     }
 
-    [Fact]
+    [SkippableFact]
     public void DisableSchemaInitialization_OnInboxStorage_ShouldNotRegisterSchemaInitializer()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -130,7 +131,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         provider.GetServices<IHostedService>().Should().HaveCount(1);
     }
 
-    [Fact]
+    [SkippableFact]
     public void DisableSchemaInitialization_OnOutboxStorage_ShouldNotRegisterSchemaInitializer()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -166,7 +167,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         provider.GetServices<IHostedService>().Should().HaveCount(1);
     }
 
-    [Fact]
+    [SkippableFact]
     public void AddInboxInProcessDispatcher_ThenUseAmqpDispatch_ShouldThrow()
     {
         var act = () =>
@@ -198,7 +199,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
             .WithMessage("*Inbox dispatcher is already configured*");
     }
 
-    [Fact]
+    [SkippableFact]
     public void UseInMemoryStorage_WhenCalledTwiceOnBuilder_ShouldThrow()
     {
         var act = () =>
@@ -224,7 +225,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
             .WithMessage("*Inbox storage is already configured*");
     }
 
-    [Fact]
+    [SkippableFact]
     public void DisableIngressConsumer_ShouldNotRegisterIngressHostedService()
     {
         var services = new ServiceCollection();
@@ -265,7 +266,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         provider.GetServices<TransportInboxIngressConsumer>().Should().BeEmpty();
     }
 
-    [Fact]
+    [SkippableFact]
     public void EnableInboxProcessor_WithStorageAndDispatcher_ShouldRegisterProcessorBackgroundService()
     {
         var services = new ServiceCollection();
@@ -303,7 +304,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
     /// <summary>
     ///     Confirms inbox and outbox modules can share one registered <see cref="NpgsqlDataSource" /> instance.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public void SharedDataSource_inbox_and_outbox_modules_should_resolve_same_instance()
     {
         var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();

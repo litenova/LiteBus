@@ -20,12 +20,13 @@ public sealed class PostgreSqlOutboxWorkSignalTests : IClassFixture<PostgreSqlFi
     public PostgreSqlOutboxWorkSignalTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms a server-terminated listener connection is replaced after the reconnect delay.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task WaitForWorkOrDelayAsync_after_listener_breaks_should_open_new_connection()
     {
         var signal = new PostgreSqlWorkSignal(_fixture.DataSource, PostgreSqlOutboxNotifyChannel.ChannelName);
@@ -48,7 +49,7 @@ public sealed class PostgreSqlOutboxWorkSignalTests : IClassFixture<PostgreSqlFi
                     secondConnection = GetListenerConnection(signal);
                     return Task.FromResult(secondConnection is not null && !ReferenceEquals(firstConnection, secondConnection) && secondConnection.State == ConnectionState.Open);
                 },
-                TimeSpan.FromSeconds(5));
+                TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
             reconnected.Should().BeTrue("the work signal should replace a terminated listener connection");
             secondConnection.Should().NotBeNull();

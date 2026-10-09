@@ -61,7 +61,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies logical schema reads honor cancellation even when no database query is required.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task GetSchemaInfoAsync_WhenCancellationIsRequested_ShouldThrow()
     {
         var roles = CreateStore();
@@ -77,7 +77,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies invalid lease inputs are rejected before a store can create an unusable lease.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenRequestIsInvalid_ShouldRejectRequest()
     {
         var roles = CreateStore();
@@ -103,7 +103,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that cancellation requested before an append prevents any store mutation.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_WhenCancellationIsRequested_ShouldNotStoreCommand()
     {
         var roles = CreateStore();
@@ -131,7 +131,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that duplicate idempotency keys return the original stored command.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_ShouldReturnExistingCommandForDuplicateIdempotencyKey()
     {
         var roles = CreateStore();
@@ -149,14 +149,14 @@ public abstract class InboxStoreContractTests
             AttemptCount = 0,
             Status = InboxStatus.Pending,
             IdempotencyKey = "ship-1"
-        });
+        }).ConfigureAwait(false);
 
         var first = firstResult.Envelope;
         var duplicate = await roles.Writer.EnqueueAsync(first with
         {
             Id = secondCommandId,
             Payload = "{\"orderId\":\"2\"}"
-        });
+        }).ConfigureAwait(false);
 
         firstResult.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
         duplicate.Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
@@ -168,7 +168,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that the same idempotency key persists independently for different tenants.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_SameIdempotencyKeyDifferentTenants_ShouldPersistBoth()
     {
         var roles = CreateStore();
@@ -186,7 +186,7 @@ public abstract class InboxStoreContractTests
             Status = InboxStatus.Pending,
             TenantId = "tenant-a",
             IdempotencyKey = idempotencyKey
-        });
+        }).ConfigureAwait(false);
 
         var tenantB = await roles.Writer.EnqueueAsync(new InboxEnvelope
         {
@@ -199,7 +199,7 @@ public abstract class InboxStoreContractTests
             Status = InboxStatus.Pending,
             TenantId = "tenant-b",
             IdempotencyKey = idempotencyKey
-        });
+        }).ConfigureAwait(false);
 
         tenantA.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
         tenantB.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
@@ -212,7 +212,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that duplicate idempotency keys within one tenant return the original stored command.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_SameTenantSameIdempotencyKey_ShouldDedup()
     {
         var roles = CreateStore();
@@ -231,14 +231,14 @@ public abstract class InboxStoreContractTests
             Status = InboxStatus.Pending,
             TenantId = tenantId,
             IdempotencyKey = idempotencyKey
-        });
+        }).ConfigureAwait(false);
 
         var first = firstResult.Envelope;
         var duplicate = await roles.Writer.EnqueueAsync(first with
         {
             Id = Guid.NewGuid(),
             Payload = """{"n":2}"""
-        });
+        }).ConfigureAwait(false);
 
         firstResult.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
         duplicate.Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
@@ -250,7 +250,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that a tenant-scoped lease request does not claim rows owned by another tenant.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenTenantFilterDoesNotMatchStoredTenant_ShouldNotLeaseRow()
     {
         var roles = CreateStore();
@@ -261,7 +261,7 @@ public abstract class InboxStoreContractTests
         {
             TenantId = "tenant-b",
             IdempotencyKey = "tenant-b-ship"
-        });
+        }).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -270,7 +270,7 @@ public abstract class InboxStoreContractTests
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1),
             TenantId = "tenant-a"
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().BeEmpty();
     }
@@ -279,7 +279,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that a tenant-scoped lease request claims a row stored for that tenant.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenTenantFilterMatchesStoredTenant_ShouldLeaseRow()
     {
         var roles = CreateStore();
@@ -290,7 +290,7 @@ public abstract class InboxStoreContractTests
         {
             TenantId = "tenant-a",
             IdempotencyKey = "tenant-a-ship"
-        });
+        }).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -299,7 +299,7 @@ public abstract class InboxStoreContractTests
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1),
             TenantId = "tenant-a"
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().ContainSingle().Which.Id.Should().Be(tenantACommandId);
     }
@@ -308,7 +308,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that a tenant-scoped message query excludes rows stored for another tenant.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task QueryAsync_WhenTenantFilterDoesNotMatchStoredTenant_ShouldExcludeOtherTenantRows()
     {
         var roles = CreateStore();
@@ -318,17 +318,17 @@ public abstract class InboxStoreContractTests
         {
             TenantId = "tenant-a",
             IdempotencyKey = "tenant-a-query"
-        });
+        }).ConfigureAwait(false);
 
         await roles.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(1)) with
         {
             TenantId = "tenant-b",
             IdempotencyKey = "tenant-b-query"
-        });
+        }).ConfigureAwait(false);
 
         var tenantAPage = await roles.MessageQuery.QueryAsync(
             new InboxMessageFilter { TenantId = "tenant-a" },
-            new InboxMessagePageRequest { PageSize = 10 });
+            new InboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
 
         tenantAPage.Items.Should().ContainSingle();
         tenantAPage.Items[0].TenantId.Should().Be("tenant-a");
@@ -338,7 +338,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that duplicate command identifiers return the original stored row.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_WhenCommandIdAlreadyExists_ShouldReturnExistingRow()
     {
         var roles = CreateStore();
@@ -346,9 +346,9 @@ public abstract class InboxStoreContractTests
         var now = BaseTime;
 
         var firstResult = await roles.Writer.EnqueueAsync(
-            CreatePendingEnvelope(commandId, now) with { IdempotencyKey = null });
+            CreatePendingEnvelope(commandId, now) with { IdempotencyKey = null }).ConfigureAwait(false);
         var duplicate = await roles.Writer.EnqueueAsync(
-            firstResult.Envelope with { Payload = "{\"changed\":true}" });
+            firstResult.Envelope with { Payload = "{\"changed\":true}" }).ConfigureAwait(false);
 
         firstResult.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
         duplicate.Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
@@ -360,7 +360,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that trace metadata and delayed visibility are preserved on append.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_ShouldPersistMetadataAndVisibleAfter()
     {
         var roles = CreateStore();
@@ -381,7 +381,7 @@ public abstract class InboxStoreContractTests
             CausationId = "causation-1",
             TenantId = "tenant-1",
             TraceContext = "{\"traceparent\":\"00-abc\"}"
-        });
+        }).ConfigureAwait(false);
 
         stored.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
         stored.Envelope.VisibleAfter.Should().Be(visibleAfter);
@@ -396,14 +396,14 @@ public abstract class InboxStoreContractTests
     ///     Verifies that leasing, completion, and re-leasing behave as expected.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_ShouldLeaseAndCompleteCommand()
     {
         var roles = CreateStore();
         var commandId = Guid.NewGuid();
         var now = BaseTime;
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now)).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -411,7 +411,7 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-1",
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().ContainSingle();
         leased[0].Id.Should().Be(commandId);
@@ -419,7 +419,7 @@ public abstract class InboxStoreContractTests
         leased[0].AttemptCount.Should().Be(1);
         leased[0].LeaseOwner.Should().Be("worker-1");
 
-        await roles.StateWriter.PersistAsync([leased[0].AsCompleted()]);
+        await roles.StateWriter.PersistAsync([leased[0].AsCompleted()]).ConfigureAwait(false);
 
         var afterCompletion = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -427,7 +427,7 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-2",
             Now = now.AddMinutes(2),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         afterCompletion.Should().BeEmpty();
     }
@@ -436,7 +436,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that commands with a future visible-after timestamp are not leased early.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenVisibleAfterInFuture_ShouldNotLeaseCommand()
     {
         var roles = CreateStore();
@@ -446,7 +446,7 @@ public abstract class InboxStoreContractTests
         await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now) with
         {
             VisibleAfter = now.AddHours(1)
-        });
+        }).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -454,7 +454,7 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-1",
             Now = now.AddMinutes(30),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().BeEmpty();
     }
@@ -463,7 +463,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that leasing orders by created time and respects the batch size.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_ShouldOrderByCreatedAtAndRespectBatchSize()
     {
         var roles = CreateStore();
@@ -472,9 +472,9 @@ public abstract class InboxStoreContractTests
         var secondId = Guid.NewGuid();
         var thirdId = Guid.NewGuid();
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(firstId, now));
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1)));
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(thirdId, now.AddSeconds(2)));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(firstId, now)).ConfigureAwait(false);
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1))).ConfigureAwait(false);
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(thirdId, now.AddSeconds(2))).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -482,7 +482,7 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-1",
             Now = now.AddMinutes(1),
             LeaseDuration = TimeSpan.FromMinutes(5)
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().HaveCount(2);
         leased[0].Id.Should().Be(firstId);
@@ -493,7 +493,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that mark-failed records retry visibility and diagnostic text.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task MarkFailedAsync_ShouldSetFailedStateAndVisibleAfter()
     {
         var roles = CreateStore();
@@ -501,7 +501,7 @@ public abstract class InboxStoreContractTests
         var now = BaseTime;
         var visibleAfter = now.AddMinutes(10);
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now)).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -509,13 +509,13 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-1",
             Now = now,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await roles.StateWriter.PersistAsync([leased[0].AsFailed(Failure("transient failure"), visibleAfter)]);
+        await roles.StateWriter.PersistAsync([leased[0].AsFailed(Failure("transient failure"), visibleAfter)]).ConfigureAwait(false);
 
         var stored = await roles.MessageQuery.QueryAsync(
             new InboxMessageFilter { MessageId = commandId },
-            new InboxMessagePageRequest { PageSize = 1 });
+            new InboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
 
         stored.Items.Should().ContainSingle();
         stored.Items[0].Status.Should().Be(InboxStatus.Failed);
@@ -527,7 +527,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that failed commands become leasable again once visible-after is reached.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenFailedAndVisibleAfterReached_ShouldLeaseAgain()
     {
         var roles = CreateStore();
@@ -535,7 +535,7 @@ public abstract class InboxStoreContractTests
         var now = BaseTime;
         var visibleAfter = DateTimeOffset.UtcNow.AddMilliseconds(500);
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now)).ConfigureAwait(false);
 
         var firstLease = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -543,9 +543,9 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-1",
             Now = now,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await roles.StateWriter.PersistAsync([firstLease[0].AsFailed(Failure("retry me"), visibleAfter)]);
+        await roles.StateWriter.PersistAsync([firstLease[0].AsFailed(Failure("retry me"), visibleAfter)]).ConfigureAwait(false);
 
         await WaitUntilVisibleAsync(visibleAfter).ConfigureAwait(false);
 
@@ -555,7 +555,7 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-2",
             Now = DateTimeOffset.UtcNow,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         visible.Should().ContainSingle();
         visible[0].AttemptCount.Should().Be(2);
@@ -566,14 +566,14 @@ public abstract class InboxStoreContractTests
     ///     Verifies that dead-lettered commands are not leased again.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task MoveToDeadLetterAsync_ShouldSetDeadLetteredStatus()
     {
         var roles = CreateStore();
         var commandId = Guid.NewGuid();
         var now = BaseTime;
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now)).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -581,9 +581,9 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-1",
             Now = now,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await roles.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("exhausted retries"))]);
+        await roles.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("exhausted retries"))]).ConfigureAwait(false);
 
         var afterDeadLetter = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -591,7 +591,7 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-2",
             Now = now.AddHours(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         afterDeadLetter.Should().BeEmpty();
     }
@@ -600,7 +600,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that attempt count increments when a message is leased.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_ShouldIncrementAttemptCountAtLeaseTime()
     {
         var roles = CreateStore();
@@ -608,7 +608,7 @@ public abstract class InboxStoreContractTests
         var now = BaseTime;
         var visibleAfter = DateTimeOffset.UtcNow.AddMilliseconds(500);
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now)).ConfigureAwait(false);
 
         var firstLease = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -616,13 +616,13 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-1",
             Now = now,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         firstLease.Should().ContainSingle();
         firstLease[0].AttemptCount.Should().Be(1);
         firstLease[0].LeaseExpiresAt.Should().NotBeNull();
 
-        await roles.StateWriter.PersistAsync([firstLease[0].AsFailed(Failure("retry"), visibleAfter)]);
+        await roles.StateWriter.PersistAsync([firstLease[0].AsFailed(Failure("retry"), visibleAfter)]).ConfigureAwait(false);
 
         await WaitUntilVisibleAsync(visibleAfter).ConfigureAwait(false);
 
@@ -632,7 +632,7 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-2",
             Now = DateTimeOffset.UtcNow,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         secondLease.Should().ContainSingle();
         secondLease[0].AttemptCount.Should().Be(2);
@@ -642,7 +642,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that leased processing rows always carry a non-null lease expiry timestamp.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_ShouldSetLeaseExpiresAtWhenProcessing()
     {
         var roles = CreateStore();
@@ -650,7 +650,7 @@ public abstract class InboxStoreContractTests
         var now = BaseTime;
         var leaseDuration = TimeSpan.FromMinutes(2);
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now)).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -658,7 +658,7 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-1",
             Now = now,
             LeaseDuration = leaseDuration
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().ContainSingle();
         leased[0].LeaseExpiresAt.Should().NotBeNull();
@@ -669,7 +669,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that trace context written on accept is returned on leased envelopes.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_ShouldRoundTripTraceContext()
     {
         var roles = CreateStore();
@@ -680,7 +680,7 @@ public abstract class InboxStoreContractTests
         await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now) with
         {
             TraceContext = traceContext
-        });
+        }).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -688,7 +688,7 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-1",
             Now = now.AddSeconds(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().ContainSingle();
         leased[0].TraceContext.Should().Be(traceContext);
@@ -698,7 +698,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that expired processing leases can be reclaimed by another worker.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenLeaseExpires_ShouldReclaimProcessingCommand()
     {
         var roles = CreateStore();
@@ -706,7 +706,7 @@ public abstract class InboxStoreContractTests
         var now = BaseTime;
         var leaseDuration = TimeSpan.FromMilliseconds(200);
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now)).ConfigureAwait(false);
 
         var staleLease = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -714,7 +714,7 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker",
             Now = now,
             LeaseDuration = leaseDuration
-        });
+        }).ConfigureAwait(false);
 
         staleLease.Should().ContainSingle();
 
@@ -735,7 +735,7 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker",
             Now = reclaimNow,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         reclaimed.Should().ContainSingle();
         reclaimed[0].Id.Should().Be(commandId);
@@ -743,10 +743,10 @@ public abstract class InboxStoreContractTests
         reclaimed[0].AttemptCount.Should().Be(2);
         reclaimed[0].LeaseGeneration.Should().Be(staleLease[0].LeaseGeneration + 1);
 
-        var stalePersist = await roles.StateWriter.PersistAsync([staleLease[0].AsCompleted()]);
+        var stalePersist = await roles.StateWriter.PersistAsync([staleLease[0].AsCompleted()]).ConfigureAwait(false);
         stalePersist.AppliedCount.Should().Be(0);
 
-        var currentPersist = await roles.StateWriter.PersistAsync([reclaimed[0].AsCompleted()]);
+        var currentPersist = await roles.StateWriter.PersistAsync([reclaimed[0].AsCompleted()]).ConfigureAwait(false);
         currentPersist.AppliedCount.Should().Be(1);
     }
 
@@ -754,21 +754,21 @@ public abstract class InboxStoreContractTests
     ///     Verifies that only the active inbox lease owner can renew a lease.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task RenewLeaseAsync_ShouldRequireActiveLeaseOwner()
     {
         var roles = CreateStore();
         var now = BaseTime;
         var commandId = Guid.NewGuid();
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now)).ConfigureAwait(false);
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 1,
             LeaseOwner = "worker-a",
             Now = now,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().ContainSingle();
         var renewed = await roles.LeaseStore.RenewLeaseAsync(
@@ -777,21 +777,21 @@ public abstract class InboxStoreContractTests
                 "worker-a",
                 leased[0].LeaseGeneration,
                 TimeSpan.FromMinutes(1),
-                now.AddMinutes(2)));
+                now.AddMinutes(2))).ConfigureAwait(false);
         var rejected = await roles.LeaseStore.RenewLeaseAsync(
             new LeaseRenewalRequest(
                 commandId,
                 "worker-b",
                 leased[0].LeaseGeneration,
                 TimeSpan.FromMinutes(2),
-                now.AddMinutes(3)));
+                now.AddMinutes(3))).ConfigureAwait(false);
         var staleGeneration = await roles.LeaseStore.RenewLeaseAsync(
             new LeaseRenewalRequest(
                 commandId,
                 "worker-a",
                 leased[0].LeaseGeneration - 1,
                 TimeSpan.FromMinutes(3),
-                now.AddMinutes(4)));
+                now.AddMinutes(4))).ConfigureAwait(false);
 
         renewed.Should().BeTrue();
         rejected.Should().BeFalse();
@@ -802,7 +802,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that concurrent lease calls claim disjoint commands when the store supports it.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_ConcurrentWorkers_ShouldLeaseDisjointCommands()
     {
         var roles = CreateStore();
@@ -810,7 +810,7 @@ public abstract class InboxStoreContractTests
 
         for (var index = 0; index < 8; index++)
         {
-            await roles.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(index)));
+            await roles.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(index))).ConfigureAwait(false);
         }
 
         var request = new InboxLeaseRequest
@@ -841,7 +841,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that status counts reflect stored envelopes grouped by status.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task GetStatusCountsAsync_ShouldGroupByStatus()
     {
         var roles = CreateStore();
@@ -849,8 +849,8 @@ public abstract class InboxStoreContractTests
         var completedId = Guid.NewGuid();
         var now = BaseTime;
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now));
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(completedId, now.AddSeconds(1)));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now)).ConfigureAwait(false);
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(completedId, now.AddSeconds(1))).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -858,11 +858,11 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-1",
             Now = now.AddSeconds(2),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await roles.StateWriter.PersistAsync([leased[0].AsCompleted()]);
+        await roles.StateWriter.PersistAsync([leased[0].AsCompleted()]).ConfigureAwait(false);
 
-        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync();
+        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync().ConfigureAwait(false);
 
         counts[InboxStatus.Pending].Should().Be(1);
         counts[InboxStatus.Completed].Should().Be(1);
@@ -872,14 +872,14 @@ public abstract class InboxStoreContractTests
     ///     Verifies that dead-letter replay returns envelopes to the pending queue.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task RequeueDeadLetterAsync_ShouldReturnEnvelopeToPending()
     {
         var roles = CreateStore();
         var commandId = Guid.NewGuid();
         var now = BaseTime;
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now)).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -887,11 +887,11 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-1",
             Now = now,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await roles.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("manual replay"))]);
+        await roles.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("manual replay"))]).ConfigureAwait(false);
 
-        await roles.DeadLetterStore.RequeueAsync(commandId);
+        await roles.DeadLetterStore.RequeueAsync(commandId).ConfigureAwait(false);
 
         var requeued = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -899,7 +899,7 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-2",
             Now = now.AddMinutes(1),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         requeued.Should().ContainSingle();
         requeued[0].Id.Should().Be(commandId);
@@ -910,7 +910,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that the string message id overload parses GUID identifiers for bulk replay.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task RequeueDeadLetterAsync_WithStringIds_ShouldRequeueMatchingRows()
     {
         var roles = CreateStore();
@@ -920,7 +920,7 @@ public abstract class InboxStoreContractTests
 
         foreach (var commandId in new[] { firstId, secondId })
         {
-            await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now));
+            await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now)).ConfigureAwait(false);
 
             var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
             {
@@ -928,15 +928,15 @@ public abstract class InboxStoreContractTests
                 LeaseOwner = "worker-1",
                 Now = now,
                 LeaseDuration = TimeSpan.FromMinutes(1)
-            });
+            }).ConfigureAwait(false);
 
-            await roles.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("bulk replay"))]);
+            await roles.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("bulk replay"))]).ConfigureAwait(false);
         }
 
         await roles.DeadLetterStore.RequeueAsync(
-            [firstId.ToString("D"), secondId.ToString("D")]);
+            [firstId.ToString("D"), secondId.ToString("D")]).ConfigureAwait(false);
 
-        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync();
+        var counts = await roles.DiagnosticsStore.GetStatusCountsAsync().ConfigureAwait(false);
         counts.Should().NotContainKey(InboxStatus.DeadLettered);
         counts[InboxStatus.Pending].Should().Be(2);
     }
@@ -945,7 +945,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that message queries filter by status and support keyset pagination.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task QueryAsync_ShouldFilterAndPageByCreatedAt()
     {
         var roles = CreateStore();
@@ -954,8 +954,8 @@ public abstract class InboxStoreContractTests
         var thirdId = Guid.NewGuid();
         var now = BaseTime;
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(firstId, now) with { ContractName = "tests.commands.a" });
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1)) with { ContractName = "tests.commands.b" });
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(firstId, now) with { ContractName = "tests.commands.a" }).ConfigureAwait(false);
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1)) with { ContractName = "tests.commands.b" }).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -963,14 +963,14 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-1",
             Now = now.AddSeconds(2),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await roles.StateWriter.PersistAsync([leased[0].AsCompleted()]);
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(thirdId, now.AddSeconds(3)) with { ContractName = "tests.commands.a" });
+        await roles.StateWriter.PersistAsync([leased[0].AsCompleted()]).ConfigureAwait(false);
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(thirdId, now.AddSeconds(3)) with { ContractName = "tests.commands.a" }).ConfigureAwait(false);
 
         var pendingPage = await roles.MessageQuery.QueryAsync(
             new InboxMessageFilter { Statuses = [InboxStatus.Pending] },
-            new InboxMessagePageRequest { PageSize = 1 });
+            new InboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
 
         pendingPage.Items.Should().ContainSingle();
         pendingPage.Items[0].Id.Should().Be(secondId);
@@ -979,7 +979,7 @@ public abstract class InboxStoreContractTests
 
         var nextPendingPage = await roles.MessageQuery.QueryAsync(
             new InboxMessageFilter { Statuses = [InboxStatus.Pending] },
-            new InboxMessagePageRequest { PageSize = 1, Cursor = pendingPage.NextCursor });
+            new InboxMessagePageRequest { PageSize = 1, Cursor = pendingPage.NextCursor }).ConfigureAwait(false);
 
         nextPendingPage.Items.Should().ContainSingle();
         nextPendingPage.Items[0].Id.Should().Be(thirdId);
@@ -987,7 +987,7 @@ public abstract class InboxStoreContractTests
 
         var contractPage = await roles.MessageQuery.QueryAsync(
             new InboxMessageFilter { ContractName = "tests.commands.a" },
-            new InboxMessagePageRequest { PageSize = 10 });
+            new InboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
 
         contractPage.Items.Should().HaveCount(2);
         contractPage.Items.Select(envelope => envelope.Id).Should().BeEquivalentTo([firstId, thirdId]);
@@ -997,7 +997,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that purge deletes only rows that match the supplied filter.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PurgeAsync_ShouldDeleteMatchingRows()
     {
         var roles = CreateStore();
@@ -1005,8 +1005,8 @@ public abstract class InboxStoreContractTests
         var completedId = Guid.NewGuid();
         var now = BaseTime;
 
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now));
-        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(completedId, now.AddSeconds(1)));
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now)).ConfigureAwait(false);
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(completedId, now.AddSeconds(1))).ConfigureAwait(false);
 
         var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
         {
@@ -1014,20 +1014,20 @@ public abstract class InboxStoreContractTests
             LeaseOwner = "worker-1",
             Now = now.AddSeconds(2),
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
-        await roles.StateWriter.PersistAsync([leased[0].AsCompleted()]);
+        await roles.StateWriter.PersistAsync([leased[0].AsCompleted()]).ConfigureAwait(false);
 
         var deleted = await roles.PurgeStore.PurgeAsync(new InboxMessageFilter
         {
             Statuses = [InboxStatus.Completed]
-        });
+        }).ConfigureAwait(false);
 
         deleted.Should().Be(1);
 
         var remaining = await roles.MessageQuery.QueryAsync(
             new InboxMessageFilter(),
-            new InboxMessagePageRequest { PageSize = 10 });
+            new InboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
 
         remaining.Items.Should().ContainSingle();
         remaining.Items[0].Id.Should().Be(completedId);
@@ -1037,7 +1037,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that batch accept returns stored rows in input order.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddBatchAsync_ShouldReturnStoredEnvelopesInInputOrder()
     {
         var roles = CreateStore();
@@ -1048,7 +1048,7 @@ public abstract class InboxStoreContractTests
         var stored = await roles.Writer.AddBatchAsync([
             CreatePendingEnvelope(firstId, now),
             CreatePendingEnvelope(secondId, now) with { ContractName = "tests.commands.archive" }
-        ]);
+        ]).ConfigureAwait(false);
 
         stored.Should().HaveCount(2);
         stored[0].Envelope.Id.Should().Be(firstId);
@@ -1060,7 +1060,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that a repeated message identifier within one batch reports the later slot as an existing row.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddBatchAsync_RepeatedMessageIdWithinBatch_ShouldReportExistingOutcome()
     {
         var roles = CreateStore();
@@ -1070,7 +1070,7 @@ public abstract class InboxStoreContractTests
         var results = await roles.Writer.AddBatchAsync([
             first,
             first with { Payload = "{\"changed\":true}" }
-        ]);
+        ]).ConfigureAwait(false);
 
         results.Should().HaveCount(2);
         results[0].Outcome.Should().Be(InboxAcceptOutcome.Accepted);
@@ -1082,7 +1082,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that batch accept returns the original row when an idempotency key conflicts.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddBatchAsync_ShouldReturnExistingRowForDuplicateIdempotencyKey()
     {
         var roles = CreateStore();
@@ -1100,13 +1100,13 @@ public abstract class InboxStoreContractTests
             AttemptCount = 0,
             Status = InboxStatus.Pending,
             IdempotencyKey = "batch-ship-1"
-        });
+        }).ConfigureAwait(false);
 
         var first = firstResult.Envelope;
         var batch = await roles.Writer.AddBatchAsync([
             first with { Id = duplicateId, Payload = "{\"orderId\":\"changed\"}" },
             CreatePendingEnvelope(Guid.NewGuid(), now) with { IdempotencyKey = "batch-ship-2" }
-        ]);
+        ]).ConfigureAwait(false);
 
         batch.Should().HaveCount(2);
         batch[0].Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
@@ -1120,18 +1120,18 @@ public abstract class InboxStoreContractTests
     ///     Verifies that batch accept returns the original row when a message identifier already exists.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddBatchAsync_WhenMessageIdAlreadyExists_ShouldReturnExistingRow()
     {
         var roles = CreateStore();
         var commandId = Guid.NewGuid();
         var now = BaseTime;
 
-        var first = await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now) with { IdempotencyKey = null });
+        var first = await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, now) with { IdempotencyKey = null }).ConfigureAwait(false);
 
         var batch = await roles.Writer.AddBatchAsync([
             first.Envelope with { Payload = "{\"changed\":true}" }
-        ]);
+        ]).ConfigureAwait(false);
 
         batch.Should().ContainSingle();
         batch[0].Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
@@ -1143,7 +1143,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies that an empty batch is a successful no-op for every batch-oriented store role.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task EmptyBatchOperations_ShouldReturnEmptyResults()
     {
         var roles = CreateStore();
@@ -1163,7 +1163,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies one persist batch can apply multiple rows for every terminal inbox status.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PersistAsync_WithMixedTerminalBatch_ShouldApplyEveryTransition()
     {
         var roles = CreateStore();
@@ -1209,7 +1209,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies every inbox message predicate composes consistently for query and purge operations.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task CompleteFilter_ShouldMatchOnlyTheIntendedMessage()
     {
         var roles = CreateStore();
@@ -1258,7 +1258,7 @@ public abstract class InboxStoreContractTests
     ///     Verifies strict batch replay rejects changed content for an existing message identifier.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddBatchAsync_WithStrictChangedReplay_ShouldThrow()
     {
         var roles = CreateStore();

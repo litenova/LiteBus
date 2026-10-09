@@ -24,6 +24,7 @@ public sealed class PostgreSqlOutboxRetentionStoreTests : ContractTests, IClassF
 
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <inheritdoc />

@@ -22,9 +22,10 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
     public PostgreSqlInboxEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_ShouldExecuteScheduledCommandThroughPostgreSqlStore()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -55,7 +56,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenHandlerFails_ShouldMarkFailedWithVisibleAfter()
     {
         var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
@@ -79,7 +80,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenMaxAttemptsExceeded_ShouldMoveToDeadLetter()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -101,7 +102,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimAndCompleteCommand()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -145,7 +146,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ScheduleAsync_WithVisibleAfter_ShouldDeferProcessingUntilDue()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -183,7 +184,7 @@ public sealed class PostgreSqlInboxEndToEndTests : LiteBusTestBase, IClassFixtur
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenContractIsUnknown_ShouldMarkFailedInDatabase()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();

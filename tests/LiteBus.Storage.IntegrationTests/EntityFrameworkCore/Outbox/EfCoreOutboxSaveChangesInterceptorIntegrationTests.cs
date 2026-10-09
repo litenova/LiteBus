@@ -25,12 +25,13 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
     public EfCoreOutboxSaveChangesInterceptorIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms rolled-back <c>SaveChanges</c> does not persist queued outbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task SaveChangesAsync_ShouldNotPersistOutboxMessage_WhenTransactionRollsBack()
     {
         var storeOptions = await CreateOutboxTableAsync().ConfigureAwait(false);
@@ -67,7 +68,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
     /// <summary>
     ///     Confirms committed <c>SaveChanges</c> persists queued outbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task SaveChangesAsync_ShouldPersistOutboxMessage_WhenTransactionCommits()
     {
         var storeOptions = await CreateOutboxTableAsync().ConfigureAwait(false);
@@ -107,7 +108,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
     /// <summary>
     ///     Confirms every <see cref="OutboxEnvelope" /> field round-trips through the interceptor into persistence.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task SaveChangesAsync_ShouldPersistEveryEnvelopeField_IncludingIdempotencyKeyAndTraceContext()
     {
         var storeOptions = await CreateOutboxTableAsync().ConfigureAwait(false);

@@ -20,9 +20,10 @@ public sealed class EfCoreInboxProcessorAfterDispatchIntegrationTests : LiteBusT
     public EfCoreInboxProcessorAfterDispatchIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_when_after_dispatch_hook_fails_should_dead_letter_from_processing()
     {
         var storeOptions = EfCoreInboxE2eSupport.CreateStoreOptions(TableName);
@@ -57,7 +58,7 @@ public sealed class EfCoreInboxProcessorAfterDispatchIntegrationTests : LiteBusT
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task PersistAsync_when_completed_already_persisted_should_skip_dead_letter_transition()
     {
         var storeOptions = EfCoreInboxE2eSupport.CreateStoreOptions(TableName + "_fsm");

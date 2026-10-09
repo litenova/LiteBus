@@ -23,6 +23,7 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
     public EfCoreInboxProcessorEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
@@ -30,7 +31,7 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
     ///     storage.
     /// </summary>
     /// <returns>A task that completes when the command is handled.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_ShouldExecuteScheduledCommandThroughEfCoreStore()
     {
         var storeOptions = EfCoreInboxE2eSupport.CreateStoreOptions(TableName);

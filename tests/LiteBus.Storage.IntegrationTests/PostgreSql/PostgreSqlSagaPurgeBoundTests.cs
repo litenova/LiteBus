@@ -18,12 +18,13 @@ public sealed class PostgreSqlSagaPurgeBoundTests : IClassFixture<PostgreSqlFixt
     public PostgreSqlSagaPurgeBoundTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies a purge with no predicates and no Take limit is rejected.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task PurgeAsync_WithEmptyFilter_ThrowsArgumentException()
     {
         var store = await CreateStoreAsync().ConfigureAwait(false);
@@ -37,7 +38,7 @@ public sealed class PostgreSqlSagaPurgeBoundTests : IClassFixture<PostgreSqlFixt
     ///     Verifies a non-positive Take limit is rejected.
     /// </summary>
     /// <param name="take">The invalid Take limit.</param>
-    [Theory]
+    [SkippableTheory]
     [InlineData(0)]
     [InlineData(-1)]
     public async Task PurgeAsync_WithNonPositiveTake_ThrowsArgumentOutOfRange(int take)
@@ -52,7 +53,7 @@ public sealed class PostgreSqlSagaPurgeBoundTests : IClassFixture<PostgreSqlFixt
     /// <summary>
     ///     Verifies a Take-only purge deletes at most Take rows, oldest first.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task PurgeAsync_WithTake_DeletesOldestMatchesFirst()
     {
         var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);

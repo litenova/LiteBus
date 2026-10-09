@@ -26,19 +26,21 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
     public EfCoreOutboxTransactionalIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms a rolled-back transaction removes both domain and outbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task UseExistingDbContext_ShouldRollbackDomainAndOutboxTogether()
     {
         var (storeOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(true);
         var orderId = Guid.NewGuid();
         var envelope = CreateEnvelope();
 
-        await using (var context = CreateTransactionalContext(storeOptions, ordersTableName))
+        var context = CreateTransactionalContext(storeOptions, ordersTableName);
+        await using (context.ConfigureAwait(false))
         {
             var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), storeOptions);
             var transactionalStore = store.UseExistingDbContext(context);
@@ -66,14 +68,15 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
     /// <summary>
     ///     Confirms a committed transaction persists both domain and outbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task UseExistingDbContext_ShouldCommitDomainAndOutboxTogether()
     {
         var (storeOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(true);
         var orderId = Guid.NewGuid();
         var envelope = CreateEnvelope();
 
-        await using (var context = CreateTransactionalContext(storeOptions, ordersTableName))
+        var context = CreateTransactionalContext(storeOptions, ordersTableName);
+        await using (context.ConfigureAwait(false))
         {
             var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), storeOptions);
             var transactionalStore = store.UseExistingDbContext(context);

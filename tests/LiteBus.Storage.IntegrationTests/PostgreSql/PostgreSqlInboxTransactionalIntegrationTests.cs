@@ -26,12 +26,13 @@ public sealed class PostgreSqlInboxTransactionalIntegrationTests : IClassFixture
     public PostgreSqlInboxTransactionalIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms a rolled-back transaction removes both domain and inbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task CreateTransactionalStore_ShouldRollbackDomainAndInboxTogether()
     {
         var (inboxOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(true);
@@ -53,10 +54,10 @@ public sealed class PostgreSqlInboxTransactionalIntegrationTests : IClassFixture
                 await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
                 await transaction.RollbackAsync().ConfigureAwait(true);
 
-                (await CountOrdersAsync(inboxOptions.SchemaName, ordersTableName, orderId))
+                (await CountOrdersAsync(inboxOptions.SchemaName, ordersTableName, orderId).ConfigureAwait(false))
                     .Should().Be(0);
 
-                (await CountInboxMessagesAsync(inboxOptions, envelope.Id))
+                (await CountInboxMessagesAsync(inboxOptions, envelope.Id).ConfigureAwait(false))
                     .Should().Be(0);
             }
         }
@@ -65,7 +66,7 @@ public sealed class PostgreSqlInboxTransactionalIntegrationTests : IClassFixture
     /// <summary>
     ///     Confirms a committed transaction persists both domain and inbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task CreateTransactionalStore_ShouldCommitDomainAndInboxTogether()
     {
         var (inboxOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(true);
@@ -87,10 +88,10 @@ public sealed class PostgreSqlInboxTransactionalIntegrationTests : IClassFixture
                 await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
                 await transaction.CommitAsync().ConfigureAwait(true);
 
-                (await CountOrdersAsync(inboxOptions.SchemaName, ordersTableName, orderId))
+                (await CountOrdersAsync(inboxOptions.SchemaName, ordersTableName, orderId).ConfigureAwait(false))
                     .Should().Be(1);
 
-                (await CountInboxMessagesAsync(inboxOptions, envelope.Id))
+                (await CountInboxMessagesAsync(inboxOptions, envelope.Id).ConfigureAwait(false))
                     .Should().Be(1);
             }
         }

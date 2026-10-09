@@ -29,12 +29,13 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     public PostgreSqlTransactionalWritersIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms <see cref="ITransactionalOutbox" /> enqueues through a manually bound store in the caller transaction.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task TransactionalOutbox_manual_bind_should_commit_with_domain()
     {
         var (outboxOptions, ordersTableName, registration) = await CreateOutboxTablesAsync().ConfigureAwait(true);
@@ -56,10 +57,10 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
                 var receipt = await writer.EnqueueAsync(OutboxEnqueueItem<TestIntegrationEvent>.From(new TestIntegrationEvent { OrderId = orderId })).ConfigureAwait(true);
                 await transaction.CommitAsync().ConfigureAwait(true);
 
-                (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId))
+                (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId).ConfigureAwait(false))
                     .Should().Be(1);
 
-                (await CountOutboxMessagesAsync(outboxOptions, receipt.Id))
+                (await CountOutboxMessagesAsync(outboxOptions, receipt.Id).ConfigureAwait(false))
                     .Should().Be(1);
             }
         }
@@ -68,7 +69,7 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     /// <summary>
     ///     Confirms inbox and outbox rows in one transaction commit or roll back together.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task ManualBind_inbox_and_outbox_should_roll_back_together()
     {
         var tables = await CreateCombinedTablesAsync().ConfigureAwait(true);
@@ -100,13 +101,13 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
                 var outboxReceipt = await outbox.EnqueueAsync(OutboxEnqueueItem<TestIntegrationEvent>.From(new TestIntegrationEvent { OrderId = orderId })).ConfigureAwait(true);
                 await transaction.RollbackAsync().ConfigureAwait(true);
 
-                (await CountOrdersAsync(tables.InboxStoreOptions.SchemaName, tables.OrdersTableName, orderId))
+                (await CountOrdersAsync(tables.InboxStoreOptions.SchemaName, tables.OrdersTableName, orderId).ConfigureAwait(false))
                     .Should().Be(0);
 
-                (await CountInboxMessagesAsync(tables.InboxStoreOptions, inboxReceipt.Id))
+                (await CountInboxMessagesAsync(tables.InboxStoreOptions, inboxReceipt.Id).ConfigureAwait(false))
                     .Should().Be(0);
 
-                (await CountOutboxMessagesAsync(tables.OutboxStoreOptions, outboxReceipt.Id))
+                (await CountOutboxMessagesAsync(tables.OutboxStoreOptions, outboxReceipt.Id).ConfigureAwait(false))
                     .Should().Be(0);
             }
         }
@@ -115,7 +116,7 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
     /// <summary>
     ///     Confirms ambient provider registration resolves scoped transactional outbox inside an active transaction.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task AmbientProvider_should_enqueue_outbox_in_active_transaction()
     {
         var (outboxOptions, ordersTableName, _) = await CreateOutboxTablesAsync().ConfigureAwait(true);
@@ -167,10 +168,10 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
                 var receipt = await writer.EnqueueAsync(OutboxEnqueueItem<TestIntegrationEvent>.From(new TestIntegrationEvent { OrderId = orderId })).ConfigureAwait(true);
                 await ambient.Transaction!.CommitAsync().ConfigureAwait(true);
 
-                (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId))
+                (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId).ConfigureAwait(false))
                     .Should().Be(1);
 
-                (await CountOutboxMessagesAsync(outboxOptions, receipt.Id))
+                (await CountOutboxMessagesAsync(outboxOptions, receipt.Id).ConfigureAwait(false))
                     .Should().Be(1);
             }
         }
