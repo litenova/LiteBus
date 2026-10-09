@@ -114,6 +114,10 @@ jobs:
       - name: Restore Dependencies
         run: dotnet restore LiteBus.slnx --locked-mode
 
+      - name: Verify Formatting
+        # The analyzers already fail the build; this gate covers the whitespace rules in .editorconfig.
+        run: dotnet format whitespace LiteBus.slnx --verify-no-changes --verbosity minimal
+
       - name: Audit NuGet Dependencies
         shell: bash
         run: |
