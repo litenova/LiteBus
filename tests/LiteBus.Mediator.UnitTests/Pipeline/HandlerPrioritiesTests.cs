@@ -59,14 +59,14 @@ public sealed class HandlerPrioritiesTests : LiteBusTestBase
 
                 registry.AddCommands(builder =>
                 {
-                    builder.Register(typeof(CompletionCommand));
-                    builder.Register(typeof(CompletionCommandGuard));
-                    builder.Register(typeof(CompletionCommandShortcut));
-                    builder.Register(typeof(CompletionCommandHandler));
+                    builder.Register<CompletionCommand>();
+                    builder.Register<CompletionCommandGuard>();
+                    builder.Register<CompletionCommandShortcut>();
+                    builder.Register<CompletionCommandHandler>();
 
                     // Registered commit-first on purpose: priority has to decide the order, not registration sequence.
-                    builder.Register(typeof(UnitOfWorkCompletionHandler));
-                    builder.Register(typeof(InfrastructureCompletionHandler));
+                    builder.Register<UnitOfWorkCompletionHandler>();
+                    builder.Register<InfrastructureCompletionHandler>();
                 });
             })
             .BuildServiceProvider();

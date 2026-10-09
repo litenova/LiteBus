@@ -1,0 +1,6 @@
+root = false
+
+# This package ships to consumers, so its public surface carries XML documentation like src/ does.
+[*.cs]
+dotnet_diagnostic.CS1591.severity = warning
+dotnet_diagnostic.SA1600.severity = warning

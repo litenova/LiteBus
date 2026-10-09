@@ -29,8 +29,8 @@ public sealed class MessageMediatorTests : LiteBusTestBase
         var act = () => mediator.Mediate("system message", request);
 
         var exception = act.Should().Throw<MessageDescriptorNotFoundException>();
-        exception.Which.MessageType.Should().Be(typeof(string));
-        exception.Which.ResolveStrategyType.Should().Be(typeof(ActualTypeOrFirstAssignableTypeMessageResolveStrategy));
+        exception.Which.MessageType.Should().Be<string>();
+        exception.Which.ResolveStrategyType.Should().Be<ActualTypeOrFirstAssignableTypeMessageResolveStrategy>();
         exception.Which.RegisterPlainMessagesOnSpot.Should().BeTrue();
         exception.Which.RegisteredMessageCount.Should().Be(0);
     }

@@ -73,9 +73,7 @@ public sealed class HandlerFaultModeTests
         var assertion = await act.Should().ThrowAsync<AggregateException>();
 
         assertion.Which.InnerExceptions.OfType<InvalidOperationException>()
-            .Should().ContainSingle().Which.Message.Should().Be("first failure");
-        assertion.Which.InnerExceptions.OfType<ApplicationException>()
-            .Should().ContainSingle().Which.Message.Should().Be("second failure");
+            .Select(exception => exception.Message).Should().BeEquivalentTo("first failure", "second failure");
     }
 
     private static EventMediationSettings CreateParallelSettings(HandlerFaultMode faultMode)
@@ -189,7 +187,7 @@ public sealed class HandlerFaultModeTests
         {
             message.RecordHandlerStarted();
             await message.WaitForReleaseAsync(cancellationToken).ConfigureAwait(false);
-            throw new ApplicationException("second failure");
+            throw new InvalidOperationException("second failure");
         }
     }
 }

@@ -292,7 +292,7 @@ public sealed class PostgreSqlModuleRegistrationTests : LiteBusTestBase, IClassF
         var manifest = provider.GetRequiredService<LiteBusHostManifest>();
 
         manifest.BackgroundServices.Should().ContainSingle()
-            .Which.Should().Be(typeof(InboxProcessorBackgroundService));
+            .Which.Should().Be<InboxProcessorBackgroundService>();
 
         manifest.StartupTasks.Should().NotContain(typeof(PostgreSqlInboxSchemaInitializer));
 

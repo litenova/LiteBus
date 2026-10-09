@@ -36,7 +36,9 @@ public sealed class AzureServiceBusPublisherDisposeTests
 
     private sealed class CancelledSender : ServiceBusSender
     {
+#pragma warning disable CA2215 // The double simulates a close failure; its mocking base has no connection to close.
         public override async ValueTask DisposeAsync()
+#pragma warning restore CA2215
         {
             await Task.CompletedTask.ConfigureAwait(false);
             throw new OperationCanceledException("Simulated cancellation during shutdown.");

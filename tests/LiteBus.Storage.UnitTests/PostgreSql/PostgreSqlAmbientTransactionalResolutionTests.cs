@@ -47,7 +47,7 @@ public sealed class PostgreSqlAmbientTransactionalResolutionTests
         var act = () => scope.ServiceProvider.GetService(typeof(ITransactionalInbox));
 
         act.Should().Throw<LiteBusDependencyResolutionException>()
-            .Which.ServiceType.Should().Be(typeof(IInboxEnvelopeFactory));
+            .Which.ServiceType.Should().Be<IInboxEnvelopeFactory>();
     }
 
     /// <summary>
@@ -83,6 +83,6 @@ public sealed class PostgreSqlAmbientTransactionalResolutionTests
         var act = () => scope.ServiceProvider.GetService(typeof(ITransactionalOutbox));
 
         act.Should().Throw<LiteBusDependencyResolutionException>()
-            .Which.ServiceType.Should().Be(typeof(IOutboxEnvelopeFactory));
+            .Which.ServiceType.Should().Be<IOutboxEnvelopeFactory>();
     }
 }

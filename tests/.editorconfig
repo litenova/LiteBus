@@ -22,3 +22,14 @@ dotnet_diagnostic.IDE0300.severity = warning
 # CA2007 requires ConfigureAwait on test awaits; xUnit1030 discourages ConfigureAwait(false) in [Fact] methods.
 # Infrastructure and integration tests use ConfigureAwait(false) per AGENTS.md; suppress xUnit1030 to avoid style war.
 dotnet_diagnostic.xUnit1030.severity = none
+# Test method names use underscores (Method_WhenCondition_ShouldOutcome); CA1707 would reject every one.
+dotnet_diagnostic.CA1707.severity = none
+# Documentation is required only on the shared support projects, which re-enable these in their own .editorconfig.
+dotnet_diagnostic.CS1591.severity = none
+dotnet_diagnostic.SA1600.severity = none
+# xUnit collection definitions are named *Collection by convention, and test doubles are named *EventHandler and the like.
+dotnet_diagnostic.CA1711.severity = none
+# Test namespaces mirror the scenario they cover (for example CommandGlobalPostHandlers) and are never consumed from other languages.
+dotnet_diagnostic.CA1716.severity = none
+# Tests type variables and returns by the interface under test on purpose, so the concrete-type suggestion does not apply.
+dotnet_diagnostic.CA1859.severity = none

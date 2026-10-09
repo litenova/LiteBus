@@ -24,7 +24,7 @@ public sealed class MessagePipelineExplainerResultTypeTests : LiteBusTestBase
         var registry = new MessageRegistry();
         registry.Register(typeof(SingleResultMessage));
 
-        registry.Explain(typeof(SingleResultMessage)).MessageResultType.Should().Be(typeof(string));
+        registry.Explain(typeof(SingleResultMessage)).MessageResultType.Should().Be<string>();
     }
 
     private sealed class TwoResultMessage : IProducesResult<string>, IProducesResult<int>;

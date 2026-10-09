@@ -202,12 +202,20 @@ public sealed class RecurringCommandHostTests
     /// <summary>
     ///     Counts sends and lets a test wait for a number of them without racing a fixed delay.
     /// </summary>
-    public sealed class SendLog
+    public sealed class SendLog : IDisposable
     {
         /// <summary>
         ///     Signals each time a send completes so a waiter can re-check the count.
         /// </summary>
         private readonly SemaphoreSlim _signal = new(0);
+
+        /// <summary>
+        ///     Releases the signal used to wait for sends.
+        /// </summary>
+        public void Dispose()
+        {
+            _signal.Dispose();
+        }
 
         /// <summary>
         ///     The number of sends recorded so far.

@@ -64,7 +64,7 @@ public sealed class RecurringCommandSelfRegistrationTests
     /// <summary>
     ///     Counts sends and lets a test wait for a number of them without racing a fixed delay.
     /// </summary>
-    public sealed class SelfSufficientLog
+    public sealed class SelfSufficientLog : IDisposable
     {
         /// <summary>
         ///     Signals each time a send completes so a waiter can re-check the count.
@@ -105,6 +105,14 @@ public sealed class RecurringCommandSelfRegistrationTests
             {
                 await _signal.WaitAsync(timeout.Token).ConfigureAwait(false);
             }
+        }
+
+        /// <summary>
+        ///     Releases the signal used to wait for sends.
+        /// </summary>
+        public void Dispose()
+        {
+            _signal.Dispose();
         }
     }
 

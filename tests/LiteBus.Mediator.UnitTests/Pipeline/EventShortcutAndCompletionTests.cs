@@ -58,10 +58,10 @@ public sealed class EventShortcutAndCompletionTests : LiteBusTestBase
 
                 registry.AddEvents(builder =>
                 {
-                    builder.Register(typeof(ProbeEvent));
-                    builder.Register(typeof(ProbeEventHandler));
-                    builder.Register(typeof(ProbeEventShortcut));
-                    builder.Register(typeof(ProbeEventCompletionHandler));
+                    builder.Register<ProbeEvent>();
+                    builder.Register<ProbeEventHandler>();
+                    builder.Register<ProbeEventShortcut>();
+                    builder.Register<ProbeEventCompletionHandler>();
                 });
             })
             .BuildServiceProvider();

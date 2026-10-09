@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using LiteBus.Analyzers.Analysis;
 using LiteBus.Queries.Abstractions;
@@ -26,10 +27,10 @@ public sealed class LiteBusTypeCacheTests
 
         for (var index = 0; index < 50; index++)
         {
-            source.AppendLine($"public sealed record Query{index} : IQuery<string>;");
-            source.AppendLine($"public sealed class Handler{index} : IQueryHandler<Query{index}, string>, IDisposable");
+            source.AppendLine(CultureInfo.InvariantCulture, $"public sealed record Query{index} : IQuery<string>;");
+            source.AppendLine(CultureInfo.InvariantCulture, $"public sealed class Handler{index} : IQueryHandler<Query{index}, string>, IDisposable");
             source.AppendLine("{");
-            source.AppendLine($"    public Task<string> HandleAsync(Query{index} query, CancellationToken cancellationToken = default) => Task.FromResult(\"ok\");");
+            source.AppendLine(CultureInfo.InvariantCulture, $"    public Task<string> HandleAsync(Query{index} query, CancellationToken cancellationToken = default) => Task.FromResult(\"ok\");");
             source.AppendLine("    public void Dispose() { }");
             source.AppendLine("}");
         }

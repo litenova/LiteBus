@@ -10,7 +10,7 @@ public sealed class ProblematicQueryHandler : IQueryHandler<ProblematicQuery, Pr
 
         if (message.ThrowExceptionInType == GetType())
         {
-            throw new Exception();
+            throw new InvalidOperationException("Simulated handler failure.");
         }
 
         return Task.FromResult(new ProblematicQueryResult

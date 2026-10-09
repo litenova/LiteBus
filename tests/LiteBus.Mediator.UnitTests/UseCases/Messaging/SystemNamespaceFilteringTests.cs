@@ -16,7 +16,7 @@ namespace LiteBus.Mediator.UnitTests.UseCases.Messaging
             registry.Register(typeof(SystematicEvent));
 
             registry.Should().HaveCount(1);
-            registry.First().MessageType.Should().Be(typeof(SystematicEvent));
+            registry.First().MessageType.Should().Be<SystematicEvent>();
         }
 
         [Fact]

@@ -234,7 +234,7 @@ public sealed class ValidationStageTests
         var services = new ServiceCollection();
 
         var act = () => services.AddLiteBus(registry =>
-            registry.AddMessaging(builder => builder.Register(typeof(MarkerOnlyPreStageHandler))));
+            registry.AddMessaging(builder => builder.Register<MarkerOnlyPreStageHandler>()));
 
         // Every pipeline marker is memberless, so this type produces no descriptor. It would otherwise register
         // successfully as a message type and never run.
@@ -250,7 +250,7 @@ public sealed class ValidationStageTests
         var act = () => services.AddLiteBus(registry =>
         {
             registry.AddMessaging(_ => { });
-            registry.AddCommands(builder => builder.Register(typeof(MarkerOnlyPreStageHandler)));
+            registry.AddCommands(builder => builder.Register<MarkerOnlyPreStageHandler>());
         });
 
         // The command module recognizes only command contracts, so it names the axis rather than the marker.
@@ -286,9 +286,9 @@ public sealed class ValidationStageTests
 
                 registry.AddCommands(builder =>
                 {
-                    builder.Register(typeof(TransferCommand));
-                    builder.Register(typeof(TransferCommandHandler));
-                    builder.Register(typeof(TransferCompletionHandler));
+                    builder.Register<TransferCommand>();
+                    builder.Register<TransferCommandHandler>();
+                    builder.Register<TransferCompletionHandler>();
 
                     foreach (var stageType in stageTypes)
                     {
@@ -327,9 +327,9 @@ public sealed class ValidationStageTests
 
                 registry.AddCommands(builder =>
                 {
-                    builder.Register(typeof(QuoteCommand));
-                    builder.Register(typeof(QuoteCommandHandler));
-                    builder.Register(typeof(QuoteCompletionHandler));
+                    builder.Register<QuoteCommand>();
+                    builder.Register<QuoteCommandHandler>();
+                    builder.Register<QuoteCompletionHandler>();
 
                     foreach (var stageType in stageTypes)
                     {

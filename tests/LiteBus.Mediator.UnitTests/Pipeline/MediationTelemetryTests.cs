@@ -144,7 +144,7 @@ public sealed class MediationTelemetryTests : LiteBusTestBase
 
         meter.Instruments.Should().Contain(LiteBusMediationTelemetry.StageDurationInstrumentName);
         meter.TagValuesFor(LiteBusMediationTelemetry.StageDurationInstrumentName, LiteBusMediationTelemetry.StageAttributeName)
-            .Should().Contain("guard", "validator", "shortcut", "prehandler");
+            .Should().BeEquivalentTo("guard", "validator", "shortcut", "prehandler");
     }
 
     [Fact]

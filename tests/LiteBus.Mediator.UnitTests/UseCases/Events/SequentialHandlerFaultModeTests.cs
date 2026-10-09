@@ -67,9 +67,7 @@ public sealed class SequentialHandlerFaultModeTests
         var assertion = await act.Should().ThrowAsync<AggregateException>();
 
         assertion.Which.InnerExceptions.OfType<InvalidOperationException>()
-            .Should().ContainSingle().Which.Message.Should().Be("first failure");
-        assertion.Which.InnerExceptions.OfType<ApplicationException>()
-            .Should().ContainSingle().Which.Message.Should().Be("second failure");
+            .Select(exception => exception.Message).Should().BeEquivalentTo("first failure", "second failure");
         log.Executed.Should().Equal("first", "second");
     }
 
@@ -236,7 +234,7 @@ public sealed class SequentialHandlerFaultModeTests
         public Task HandleAsync(TwoFailureEvent message, CancellationToken cancellationToken = default)
         {
             _log.Record("second");
-            throw new ApplicationException("second failure");
+            throw new InvalidOperationException("second failure");
         }
     }
 

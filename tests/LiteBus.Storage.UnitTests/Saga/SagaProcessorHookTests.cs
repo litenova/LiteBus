@@ -39,7 +39,7 @@ public sealed class SagaProcessorHookTests
         registry.RegisterStateType<OrderSagaState>("process-order");
 
         registry.ResolveDefinitionId("process-order").Should().Be("process-order");
-        registry.ResolveStateType("process-order").Should().Be(typeof(OrderSagaState));
+        registry.ResolveStateType("process-order").Should().Be<OrderSagaState>();
     }
 
     /// <summary>

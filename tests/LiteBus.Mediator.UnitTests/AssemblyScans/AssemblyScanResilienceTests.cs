@@ -30,7 +30,7 @@ public sealed class AssemblyScanResilienceTests : LiteBusTestBase
 
         var types = AssemblyTypeScanner.GetLoadableTypes(assembly);
 
-        types.Should().ContainSingle().Which.Should().Be(typeof(ScanResilientCommand));
+        types.Should().ContainSingle().Which.Should().Be<ScanResilientCommand>();
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class AssemblyScanResilienceTests : LiteBusTestBase
 
         var contracts = serviceProvider.GetRequiredService<IMessageContractRegistry>();
 
-        contracts.TryGetMessageType("scan-resilience-contract", 1).Should().Be(typeof(ScanResilientContractMessage));
+        contracts.TryGetMessageType("scan-resilience-contract", 1).Should().Be<ScanResilientContractMessage>();
     }
 
     [Fact]

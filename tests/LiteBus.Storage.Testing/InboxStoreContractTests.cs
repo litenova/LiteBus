@@ -33,7 +33,7 @@ public abstract class InboxStoreContractTests
     protected abstract InboxStoreContractRoles CreateStore();
 
     /// <summary>
-    ///     Gets whether the store under test orders leases by its own database clock.
+    ///     Gets a value indicating whether the store under test orders leases by its own database clock.
     /// </summary>
     /// <remarks>
     ///     Stores with a database clock ignore the request timestamps and evaluate lease expiry against that clock, so
@@ -60,6 +60,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies logical schema reads honor cancellation even when no database query is required.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task GetSchemaInfoAsync_WhenCancellationIsRequested_ShouldThrow()
     {
@@ -75,6 +76,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies invalid lease inputs are rejected before a store can create an unusable lease.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task LeasePendingAsync_WhenRequestIsInvalid_ShouldRejectRequest()
     {
@@ -100,6 +102,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that cancellation requested before an append prevents any store mutation.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task AddAsync_WhenCancellationIsRequested_ShouldNotStoreCommand()
     {
@@ -127,6 +130,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that duplicate idempotency keys return the original stored command.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task AddAsync_ShouldReturnExistingCommandForDuplicateIdempotencyKey()
     {
@@ -163,6 +167,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that the same idempotency key persists independently for different tenants.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task AddAsync_SameIdempotencyKeyDifferentTenants_ShouldPersistBoth()
     {
@@ -206,6 +211,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that duplicate idempotency keys within one tenant return the original stored command.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task AddAsync_SameTenantSameIdempotencyKey_ShouldDedup()
     {
@@ -243,6 +249,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that a tenant-scoped lease request does not claim rows owned by another tenant.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task LeasePendingAsync_WhenTenantFilterDoesNotMatchStoredTenant_ShouldNotLeaseRow()
     {
@@ -271,6 +278,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that a tenant-scoped message query excludes rows stored for another tenant.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task QueryAsync_WhenTenantFilterDoesNotMatchStoredTenant_ShouldExcludeOtherTenantRows()
     {
@@ -300,6 +308,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that duplicate command identifiers return the original stored row.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task AddAsync_WhenCommandIdAlreadyExists_ShouldReturnExistingRow()
     {
@@ -321,6 +330,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that trace metadata and delayed visibility are preserved on append.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task AddAsync_ShouldPersistMetadataAndVisibleAfter()
     {
@@ -356,6 +366,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that leasing, completion, and re-leasing behave as expected.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task LeasePendingAsync_ShouldLeaseAndCompleteCommand()
     {
@@ -395,6 +406,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that commands with a future visible-after timestamp are not leased early.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task LeasePendingAsync_WhenVisibleAfterInFuture_ShouldNotLeaseCommand()
     {
@@ -421,6 +433,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that leasing orders by created time and respects the batch size.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task LeasePendingAsync_ShouldOrderByCreatedAtAndRespectBatchSize()
     {
@@ -450,6 +463,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that mark-failed records retry visibility and diagnostic text.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task MarkFailedAsync_ShouldSetFailedStateAndVisibleAfter()
     {
@@ -483,6 +497,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that failed commands become leasable again once visible-after is reached.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task LeasePendingAsync_WhenFailedAndVisibleAfterReached_ShouldLeaseAgain()
     {
@@ -521,6 +536,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that dead-lettered commands are not leased again.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task MoveToDeadLetterAsync_ShouldSetDeadLetteredStatus()
     {
@@ -554,6 +570,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that attempt count increments when a message is leased.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task LeasePendingAsync_ShouldIncrementAttemptCountAtLeaseTime()
     {
@@ -595,6 +612,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that leased processing rows always carry a non-null lease expiry timestamp.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task LeasePendingAsync_ShouldSetLeaseExpiresAtWhenProcessing()
     {
@@ -621,6 +639,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that trace context written on accept is returned on leased envelopes.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task LeasePendingAsync_ShouldRoundTripTraceContext()
     {
@@ -649,6 +668,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that expired processing leases can be reclaimed by another worker.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task LeasePendingAsync_WhenLeaseExpires_ShouldReclaimProcessingCommand()
     {
@@ -704,6 +724,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that only the active inbox lease owner can renew a lease.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task RenewLeaseAsync_ShouldRequireActiveLeaseOwner()
     {
@@ -751,6 +772,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that concurrent lease calls claim disjoint commands when the store supports it.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task LeasePendingAsync_ConcurrentWorkers_ShouldLeaseDisjointCommands()
     {
@@ -789,6 +811,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that status counts reflect stored envelopes grouped by status.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task GetStatusCountsAsync_ShouldGroupByStatus()
     {
@@ -819,6 +842,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that dead-letter replay returns envelopes to the pending queue.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task RequeueDeadLetterAsync_ShouldReturnEnvelopeToPending()
     {
@@ -856,6 +880,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that the string message id overload parses GUID identifiers for bulk replay.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task RequeueDeadLetterAsync_WithStringIds_ShouldRequeueMatchingRows()
     {
@@ -890,6 +915,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that message queries filter by status and support keyset pagination.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task QueryAsync_ShouldFilterAndPageByCreatedAt()
     {
@@ -941,6 +967,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that purge deletes only rows that match the supplied filter.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task PurgeAsync_ShouldDeleteMatchingRows()
     {
@@ -980,6 +1007,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that batch accept returns stored rows in input order.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task AddBatchAsync_ShouldReturnStoredEnvelopesInInputOrder()
     {
@@ -1002,6 +1030,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that a repeated message identifier within one batch reports the later slot as an existing row.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task AddBatchAsync_RepeatedMessageIdWithinBatch_ShouldReportExistingOutcome()
     {
@@ -1023,6 +1052,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that batch accept returns the original row when an idempotency key conflicts.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task AddBatchAsync_ShouldReturnExistingRowForDuplicateIdempotencyKey()
     {
@@ -1060,6 +1090,7 @@ public abstract class InboxStoreContractTests
     /// <summary>
     ///     Verifies that batch accept returns the original row when a message identifier already exists.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task AddBatchAsync_WhenMessageIdAlreadyExists_ShouldReturnExistingRow()
     {

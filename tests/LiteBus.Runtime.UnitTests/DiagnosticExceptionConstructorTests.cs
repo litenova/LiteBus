@@ -18,7 +18,7 @@ public sealed class DiagnosticExceptionConstructorTests
     {
         var exception = new LiteBusDependencyResolutionException(typeof(string));
 
-        exception.ServiceType.Should().Be(typeof(string));
+        exception.ServiceType.Should().Be<string>();
         exception.Message.Should().Contain(typeof(string).FullName!);
     }
 
@@ -51,7 +51,7 @@ public sealed class DiagnosticExceptionConstructorTests
     {
         var exception = new DiagnosticCheckNameMismatchException(typeof(string), "manifest.name", "check.name");
 
-        exception.ImplementationType.Should().Be(typeof(string));
+        exception.ImplementationType.Should().Be<string>();
         exception.DescriptorName.Should().Be("manifest.name");
         exception.CheckName.Should().Be("check.name");
         exception.Message.Should().Contain("manifest.name").And.Contain("check.name");

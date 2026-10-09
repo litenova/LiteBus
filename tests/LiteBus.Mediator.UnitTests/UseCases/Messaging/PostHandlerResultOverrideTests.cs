@@ -332,7 +332,7 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
 
     public sealed record ImmutableResult(bool IsSuccess, string? Error = null)
     {
-        public ImmutableResult WithError(string error)
+        public static ImmutableResult WithError(string error)
         {
             return new ImmutableResult(false, error);
         }
@@ -354,7 +354,7 @@ public sealed class PostHandlerResultOverrideTests : LiteBusTestBase
         {
             if (messageResult is { IsSuccess: true })
             {
-                AmbientExecutionContext.Current.MessageResult = messageResult.WithError("injected");
+                AmbientExecutionContext.Current.MessageResult = ImmutableResult.WithError("injected");
             }
 
             return Task.CompletedTask;

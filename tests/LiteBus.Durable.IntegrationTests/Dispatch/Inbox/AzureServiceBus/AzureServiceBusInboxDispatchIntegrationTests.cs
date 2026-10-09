@@ -45,7 +45,7 @@ public sealed class AzureServiceBusInboxDispatchIntegrationTests : LiteBusTestBa
     [SkippableFact]
     public async Task ProcessPendingAsync_ShouldPublishLeasedEnvelopeToServiceBusQueue()
     {
-        var queueName = _fixture.ResolveQueue("inbox-dispatch");
+        var queueName = ServiceBusEmulatorFixture.ResolveQueue("inbox-dispatch");
          var provider = BuildProvider(queueName);
          await using (provider.ConfigureAwait(false))
          {

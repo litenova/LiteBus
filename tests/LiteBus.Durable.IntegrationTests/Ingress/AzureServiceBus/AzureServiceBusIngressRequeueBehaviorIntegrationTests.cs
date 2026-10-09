@@ -46,7 +46,7 @@ public sealed class AzureServiceBusIngressRequeueBehaviorIntegrationTests : Lite
     [SkippableFact]
     public async Task RequeueEnabled_WithTransientStoreFailure_ShouldEventuallyAccept()
     {
-        var ingressQueue = _fixture.ResolveQueue("ingress-requeue-on");
+        var ingressQueue = ServiceBusEmulatorFixture.ResolveQueue("ingress-requeue-on");
          var provider = BuildProvider(ingressQueue);
          await using (provider.ConfigureAwait(false))
          {

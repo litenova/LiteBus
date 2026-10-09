@@ -33,14 +33,14 @@ public sealed class CompletionStageTests : LiteBusTestBase
 
                 registry.AddCommands(builder =>
                 {
-                    builder.Register(typeof(CompletionCommand));
-                    builder.Register(typeof(CompletionCommandWithResult));
-                    builder.Register(typeof(CompletionCommandGuard));
-                    builder.Register(typeof(CompletionCommandShortcut));
-                    builder.Register(typeof(CompletionCommandHandler));
-                    builder.Register(typeof(CompletionCommandWithResultHandler));
-                    builder.Register(typeof(CompletionCommandErrorHandler));
-                    builder.Register(typeof(CompletionCommandWithResultErrorHandler));
+                    builder.Register<CompletionCommand>();
+                    builder.Register<CompletionCommandWithResult>();
+                    builder.Register<CompletionCommandGuard>();
+                    builder.Register<CompletionCommandShortcut>();
+                    builder.Register<CompletionCommandHandler>();
+                    builder.Register<CompletionCommandWithResultHandler>();
+                    builder.Register<CompletionCommandErrorHandler>();
+                    builder.Register<CompletionCommandWithResultErrorHandler>();
 
                     foreach (var completionHandler in completionHandlers)
                     {
@@ -289,10 +289,10 @@ public sealed class CompletionStageTests : LiteBusTestBase
 
                 registry.AddCommands(builder =>
                 {
-                    builder.Register(typeof(CompletionCommand));
-                    builder.Register(typeof(CompletionCommandGuard));
-                    builder.Register(typeof(CompletionCommandHandler));
-                    builder.Register(typeof(ThrowingCompletionHandler));
+                    builder.Register<CompletionCommand>();
+                    builder.Register<CompletionCommandGuard>();
+                    builder.Register<CompletionCommandHandler>();
+                    builder.Register<ThrowingCompletionHandler>();
                 });
             })
             .BuildServiceProvider();

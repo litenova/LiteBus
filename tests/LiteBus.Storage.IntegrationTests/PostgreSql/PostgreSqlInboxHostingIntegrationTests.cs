@@ -21,6 +21,8 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
 {
     private readonly PostgreSqlFixture _fixture;
 
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web);
+
     /// <summary>
     ///     Initializes a new instance of the <see cref="PostgreSqlInboxHostingIntegrationTests" /> class.
     /// </summary>
@@ -119,7 +121,7 @@ public sealed class PostgreSqlInboxHostingIntegrationTests : LiteBusTestBase, IC
 
             var payload = JsonSerializer.Serialize(
                 new ShipOrderCommand { OrderId = orderId, IdempotencyKey = $"ship:{orderId}" },
-                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                JsonOptions);
 
             await store.EnqueueAsync(new InboxEnvelope
             {

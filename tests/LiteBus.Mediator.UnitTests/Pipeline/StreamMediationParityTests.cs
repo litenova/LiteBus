@@ -188,14 +188,14 @@ public sealed class StreamMediationParityTests
 
                 registry.AddQueries(builder =>
                 {
-                    builder.Register(typeof(SteeredStreamQuery));
-                    builder.Register(typeof(SteeredStreamQueryHandler));
-                    builder.Register(typeof(SteeredStreamOverridePostHandler));
-                    builder.Register(typeof(SteeredStreamCompletionHandler));
+                    builder.Register<SteeredStreamQuery>();
+                    builder.Register<SteeredStreamQueryHandler>();
+                    builder.Register<SteeredStreamOverridePostHandler>();
+                    builder.Register<SteeredStreamCompletionHandler>();
 
                     if (registerErrorHandler)
                     {
-                        builder.Register(typeof(SteeredStreamErrorHandler));
+                        builder.Register<SteeredStreamErrorHandler>();
                     }
                 });
             })

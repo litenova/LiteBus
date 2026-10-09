@@ -96,10 +96,7 @@ public sealed class OutboxAfterDispatchPersistTokenTests
         /// <inheritdoc />
         public Task AfterDispatchAsync(IProcessorEnvelope envelope, CancellationToken cancellationToken = default)
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                throw new OperationCanceledException(cancellationToken);
-            }
+            cancellationToken.ThrowIfCancellationRequested();
 
             return Task.CompletedTask;
         }

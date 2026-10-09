@@ -319,7 +319,7 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
              """;
 
         command.Parameters.AddWithValue("order_id", orderId);
-        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false));
+        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
         }
         }
     }
@@ -343,7 +343,7 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
              """;
 
         command.Parameters.AddWithValue("message_id", messageId);
-        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false));
+        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
         }
         }
     }
@@ -367,7 +367,7 @@ public sealed class PostgreSqlTransactionalWritersIntegrationTests : IClassFixtu
              """;
 
         command.Parameters.AddWithValue("message_id", messageId);
-        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false));
+        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
         }
         }
     }

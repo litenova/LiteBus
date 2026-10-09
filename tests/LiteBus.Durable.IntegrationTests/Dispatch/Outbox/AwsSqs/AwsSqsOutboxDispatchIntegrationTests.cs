@@ -20,6 +20,8 @@ namespace LiteBus.Durable.IntegrationTests.Dispatch.Outbox.AwsSqs;
 [Trait("Category", TransportTestTraits.Docker)]
 public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     /// <summary>
     ///     The shared LocalStack SQS fixture.
     /// </summary>
@@ -75,7 +77,7 @@ public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
 
         var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
             body,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            JsonOptions);
 
         payload!.OrderId.Should().Be(orderId);
         headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));

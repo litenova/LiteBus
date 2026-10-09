@@ -33,4 +33,11 @@
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Abstractions\LiteBus.Inbox.Abstractions.csproj" />
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj" />
     </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="StyleCop.Analyzers">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <AdditionalFiles Include="$(MSBuildThisFileDirectory)..\..\stylecop.json" Link="stylecop.json"/>
+    </ItemGroup>
 </Project>

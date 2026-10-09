@@ -219,7 +219,7 @@ public sealed class CompositionSummaryTests : LiteBusTestBase
         // still closes them over everything they fit.
         registry.OpenGenericClosures[typeof(SharedCommandGuard<>)]
             .Should().ContainSingle()
-            .Which.Should().Be(typeof(ApproveLeaveCommand));
+            .Which.Should().Be<ApproveLeaveCommand>();
     }
 
     /// <summary>

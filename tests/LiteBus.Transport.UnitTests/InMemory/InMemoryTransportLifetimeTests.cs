@@ -45,10 +45,10 @@ public sealed class InMemoryTransportLifetimeTests
 
         await consumer.StartAsync(
             new TransportConsumerOptions { Destination = "fifty-envelopes" },
-            (message, _) =>
+            (message, cancellationToken) =>
             {
                 Interlocked.Increment(ref received);
-                return message.AcceptAsync();
+                return message.AcceptAsync(cancellationToken);
             }).ConfigureAwait(false);
 
         for (var i = 0; i < 50; i++)

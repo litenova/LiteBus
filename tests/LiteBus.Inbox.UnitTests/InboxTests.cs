@@ -46,7 +46,7 @@ public sealed class InboxTests : LiteBusTestBase
             }));
 
         receipt.Id.Should().Be(commandId);
-        receipt.MessageType.Should().Be(typeof(InboxTestFixtures.ShipOrderCommand));
+        receipt.MessageType.Should().Be<InboxTestFixtures.ShipOrderCommand>();
         receipt.Contract.Name.Should().Be("orders.commands.ship");
         receipt.Contract.Version.Should().Be(2);
         receipt.AcceptedAt.Should().Be(now);

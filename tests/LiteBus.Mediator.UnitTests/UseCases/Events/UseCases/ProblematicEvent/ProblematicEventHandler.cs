@@ -10,7 +10,7 @@ public sealed class ProblematicEventHandler : IEventHandler<ProblematicEvent>
 
         if (message.ThrowExceptionInType == GetType())
         {
-            throw new Exception();
+            throw new InvalidOperationException("Simulated handler failure.");
         }
 
         return Task.CompletedTask;

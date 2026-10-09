@@ -22,8 +22,8 @@ public sealed class SingleStreamHandlerMediationCancellationTests
 
                 registry.AddQueries(builder =>
                 {
-                    builder.Register(typeof(BlockingStreamQuery));
-                    builder.Register(typeof(BlockingStreamQueryHandler));
+                    builder.Register<BlockingStreamQuery>();
+                    builder.Register<BlockingStreamQueryHandler>();
                 });
             })
             .BuildServiceProvider();

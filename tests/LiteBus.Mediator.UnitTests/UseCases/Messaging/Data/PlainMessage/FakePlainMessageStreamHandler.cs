@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using LiteBus.Messaging.Abstractions;
 
@@ -14,7 +15,7 @@ public class FakePlainMessageStreamHandler : IStreamMessageHandler<FakePlainMess
 
         for (var i = 0; i < 10; i++)
         {
-            yield return await Task.FromResult(i.ToString()).ConfigureAwait(false);
+            yield return await Task.FromResult(i.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
         }
     }
 }

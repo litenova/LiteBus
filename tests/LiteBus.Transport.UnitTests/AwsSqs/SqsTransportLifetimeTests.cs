@@ -25,12 +25,12 @@ public sealed class SqsTransportLifetimeTests
 
         var publisher = configuration.DependencyRegistry.Single(
             descriptor => descriptor.DependencyType == typeof(ITransportPublisher));
-        publisher.ImplementationType.Should().Be(typeof(SqsPublisher));
+        publisher.ImplementationType.Should().Be<SqsPublisher>();
         publisher.Lifetime.Should().Be(InstanceLifetime.Singleton);
 
         var consumer = configuration.DependencyRegistry.Single(
             descriptor => descriptor.DependencyType == typeof(IMessageConsumer));
-        consumer.ImplementationType.Should().Be(typeof(SqsConsumer));
+        consumer.ImplementationType.Should().Be<SqsConsumer>();
         consumer.Lifetime.Should().Be(InstanceLifetime.Transient);
     }
 

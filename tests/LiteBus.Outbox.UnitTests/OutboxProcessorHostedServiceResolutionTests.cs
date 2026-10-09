@@ -98,11 +98,17 @@ public sealed class OutboxProcessorHostedServiceResolutionTests : LiteBusTestBas
 
     public sealed class RecordingStartupTask : IStartupTask
     {
-        public static int RunCount;
+        private static int _runCount;
+
+        public static int RunCount
+        {
+            get => _runCount;
+            set => _runCount = value;
+        }
 
         public Task RunAsync(CancellationToken cancellationToken)
         {
-            Interlocked.Increment(ref RunCount);
+            Interlocked.Increment(ref _runCount);
             return Task.CompletedTask;
         }
     }

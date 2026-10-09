@@ -100,7 +100,7 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
     /// </summary>
     /// <param name="prefix">The prefix identifying the scenario under test.</param>
     /// <returns>The queue name declared in the emulator configuration.</returns>
-    public string ResolveQueue(string prefix)
+    public static string ResolveQueue(string prefix)
     {
         return prefix switch
         {

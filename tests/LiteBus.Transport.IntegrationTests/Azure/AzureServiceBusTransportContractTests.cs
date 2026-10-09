@@ -36,7 +36,7 @@ public sealed class AzureServiceBusTransportContractTests : TransportContractTes
     /// <inheritdoc />
     protected override ValueTask<TransportContractContext> CreateContextAsync(string scenario)
     {
-        var queueName = _fixture.ResolveQueue($"contract-{scenario}");
+        var queueName = ServiceBusEmulatorFixture.ResolveQueue($"contract-{scenario}");
         var client = new ServiceBusClient(_fixture.TransportOptions.ConnectionString);
         var publisher = new AzureServiceBusPublisher(client, new TransportCircuitBreakerRegistry());
         var consumer = new AzureServiceBusConsumer(client, _fixture.TransportOptions);

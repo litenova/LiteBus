@@ -37,7 +37,7 @@ public sealed class SagaStateCastTests
         }
 
         thrown.Should().NotBeNull();
-        thrown!.MessageType.Should().Be(typeof(CastSagaState));
+        thrown!.MessageType.Should().Be<CastSagaState>();
         thrown.Operation.Should().Be("deserialized");
         thrown.InnerException.Should().BeOfType<InvalidCastException>();
     }

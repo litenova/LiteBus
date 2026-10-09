@@ -52,7 +52,7 @@ public sealed class GuardAndShortcutTests : LiteBusTestBase
 
         var thrown = await act.Should().ThrowAsync<LiteBusMessageDeniedException>().ConfigureAwait(false);
         thrown.Which.Reason.Should().Be("the caller may not do this");
-        thrown.Which.MessageType.Should().Be(typeof(GatedCommand));
+        thrown.Which.MessageType.Should().Be<GatedCommand>();
 
         command.HandlerRan.Should().BeFalse();
 
@@ -273,12 +273,12 @@ public sealed class GuardAndShortcutTests : LiteBusTestBase
 
                 registry.AddCommands(builder =>
                 {
-                    builder.Register(typeof(GatedCommand));
-                    builder.Register(typeof(GatedCommandHandler));
-                    builder.Register(typeof(GatedCommandPostHandler));
-                    builder.Register(typeof(GatedCommandGuard));
-                    builder.Register(typeof(GatedCommandShortcut));
-                    builder.Register(typeof(DirectCompletionHandlerForGated));
+                    builder.Register<GatedCommand>();
+                    builder.Register<GatedCommandHandler>();
+                    builder.Register<GatedCommandPostHandler>();
+                    builder.Register<GatedCommandGuard>();
+                    builder.Register<GatedCommandShortcut>();
+                    builder.Register<DirectCompletionHandlerForGated>();
 
                     foreach (var extra in extraTypes)
                     {
@@ -314,7 +314,7 @@ public sealed class GuardAndShortcutTests : LiteBusTestBase
 
                 registry.AddCommands(builder =>
                 {
-                    builder.Register(typeof(CachedValueCommand));
+                    builder.Register<CachedValueCommand>();
 
                     foreach (var type in types)
                     {
@@ -336,8 +336,8 @@ public sealed class GuardAndShortcutTests : LiteBusTestBase
 
                 registry.AddCommands(builder =>
                 {
-                    builder.Register(typeof(CachedValueCommand));
-                    builder.Register(typeof(CachedValueCommandHandler));
+                    builder.Register<CachedValueCommand>();
+                    builder.Register<CachedValueCommandHandler>();
 
                     foreach (var decisionType in decisionTypes)
                     {
@@ -366,8 +366,8 @@ public sealed class GuardAndShortcutTests : LiteBusTestBase
 
                 registry.AddCommands(builder =>
                 {
-                    builder.Register(typeof(OrderedCommand));
-                    builder.Register(typeof(OrderedCommandHandler));
+                    builder.Register<OrderedCommand>();
+                    builder.Register<OrderedCommandHandler>();
 
                     foreach (var stageType in stageTypes)
                     {

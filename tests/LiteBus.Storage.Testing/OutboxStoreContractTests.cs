@@ -32,7 +32,7 @@ public abstract class OutboxStoreContractTests
     protected abstract OutboxStoreContracts CreateStore();
 
     /// <summary>
-    ///     Gets whether the store under test orders leases by its own database clock.
+    ///     Gets a value indicating whether the store under test orders leases by its own database clock.
     /// </summary>
     /// <remarks>
     ///     Stores with a database clock ignore the request timestamps and evaluate lease expiry against that clock, so
@@ -609,6 +609,7 @@ public abstract class OutboxStoreContractTests
     /// <summary>
     ///     Verifies that only the active outbox lease owner can renew a lease.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task RenewLeaseAsync_ShouldRequireActiveLeaseOwner()
     {
@@ -1079,6 +1080,7 @@ public abstract class OutboxStoreContractTests
     /// <summary>
     ///     Verifies that message queries filter by status and support keyset pagination.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task QueryAsync_ShouldFilterAndPageByCreatedAt()
     {
@@ -1121,6 +1123,7 @@ public abstract class OutboxStoreContractTests
     /// <summary>
     ///     Verifies that purge deletes only rows that match the supplied filter.
     /// </summary>
+    /// <returns>A task that completes when the check finishes.</returns>
     [Fact]
     public async Task PurgeAsync_ShouldDeleteMatchingRows()
     {

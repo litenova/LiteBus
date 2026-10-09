@@ -2,6 +2,10 @@ namespace LiteBus.Storage.UnitTests.PostgreSql;
 
 public sealed class PostgreSqlSchemaInspectorTests
 {
+    private static readonly string[] TraceContextColumns = ["trace_context"];
+    private static readonly string[] IdPayloadColumns = ["id", "payload"];
+    private static readonly string[] TenantIdColumns = ["tenant_id"];
+
     [Fact]
     public void InferVersionFromColumns_returns_zero_when_no_version_columns_exist()
     {
@@ -9,7 +13,7 @@ public sealed class PostgreSqlSchemaInspectorTests
 
         var versionColumns = new List<IReadOnlyList<string>>
         {
-            new[] { "trace_context" }
+            TraceContextColumns
         };
 
         PostgreSqlSchemaInspector.InferVersionFromColumns(columns, versionColumns).Should().Be(0);
@@ -28,9 +32,9 @@ public sealed class PostgreSqlSchemaInspectorTests
 
         var versionColumns = new List<IReadOnlyList<string>>
         {
-            new[] { "id", "payload" },
-            new[] { "trace_context" },
-            new[] { "tenant_id" }
+            IdPayloadColumns,
+            TraceContextColumns,
+            TenantIdColumns
         };
 
         PostgreSqlSchemaInspector.InferVersionFromColumns(columns, versionColumns).Should().Be(3);
@@ -48,9 +52,9 @@ public sealed class PostgreSqlSchemaInspectorTests
 
         var versionColumns = new List<IReadOnlyList<string>>
         {
-            new[] { "id", "payload" },
-            new[] { "trace_context" },
-            new[] { "tenant_id" }
+            IdPayloadColumns,
+            TraceContextColumns,
+            TenantIdColumns
         };
 
         PostgreSqlSchemaInspector.InferVersionFromColumns(columns, versionColumns).Should().Be(2);

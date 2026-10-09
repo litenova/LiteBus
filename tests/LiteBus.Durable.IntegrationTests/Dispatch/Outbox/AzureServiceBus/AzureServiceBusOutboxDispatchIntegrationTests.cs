@@ -22,6 +22,8 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
 {
     private const int ContractVersion = 1;
 
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web);
+
     /// <summary>
     ///     The shared Service Bus emulator fixture.
     /// </summary>
@@ -45,7 +47,7 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
     [SkippableFact]
     public async Task ProcessPendingAsync_ShouldPublishEnvelopeToServiceBusQueue()
     {
-        var queueName = _fixture.ResolveQueue("outbox-dispatch");
+        var queueName = ServiceBusEmulatorFixture.ResolveQueue("outbox-dispatch");
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
@@ -79,7 +81,7 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
 
         var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
             body,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            JsonOptions);
 
         payload!.OrderId.Should().Be(orderId);
         AzureServiceBusTransportTestInfrastructure.GetHeader(headers, TransportHeaders.MessageId)
@@ -104,7 +106,7 @@ public sealed class AzureServiceBusOutboxDispatchIntegrationTests : LiteBusTestB
     public async Task ProcessPendingAsync_WhenTopicMissing_ShouldUseContractNameAsRoute()
     {
         const string contractRoute = "orders.order-submitted";
-        var queueName = _fixture.ResolveQueue("outbox-route");
+        var queueName = ServiceBusEmulatorFixture.ResolveQueue("outbox-route");
         var messageId = Guid.NewGuid();
 
          var provider = BuildProvider(queueName);

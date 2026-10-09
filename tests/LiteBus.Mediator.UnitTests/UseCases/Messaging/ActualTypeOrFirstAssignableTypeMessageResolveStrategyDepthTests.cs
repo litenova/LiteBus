@@ -36,7 +36,7 @@ public sealed class ActualTypeOrFirstAssignableTypeMessageResolveStrategyDepthTe
         var descriptor = strategy.Find(typeof(MultiInterfaceMessage), registry);
 
         descriptor.Should().NotBeNull();
-        descriptor!.MessageType.Should().Be(typeof(IThreeInterfaces));
+        descriptor!.MessageType.Should().Be<IThreeInterfaces>();
     }
 
     private interface IAlphaMarker;

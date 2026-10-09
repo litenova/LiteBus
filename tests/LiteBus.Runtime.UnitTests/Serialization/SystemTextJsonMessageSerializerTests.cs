@@ -71,7 +71,7 @@ public sealed class SystemTextJsonMessageSerializerTests
         var action = () => serializer.DeserializeAsync(typeof(TestMessage), "{invalid");
 
         var exception = await action.Should().ThrowAsync<MessageSerializationException>().ConfigureAwait(false);
-        exception.Which.MessageType.Should().Be(typeof(TestMessage));
+        exception.Which.MessageType.Should().Be<TestMessage>();
         exception.Which.Operation.Should().Be("deserialized");
         exception.Which.InnerException.Should().BeOfType<JsonException>();
     }

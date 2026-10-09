@@ -26,6 +26,8 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
     /// </summary>
     private readonly KafkaBrokerFixture _fixture;
 
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web);
+
     /// <summary>
     ///     Initializes a new instance of the <see cref="KafkaOutboxDispatchIntegrationTests" /> class.
     /// </summary>
@@ -80,7 +82,7 @@ public sealed class KafkaOutboxDispatchIntegrationTests : LiteBusTestBase
 
             var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
                 body,
-                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                JsonOptions);
 
             payload!.OrderId.Should().Be(orderId);
             headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));

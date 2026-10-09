@@ -188,7 +188,7 @@ public sealed class PostgreSqlOutboxTransactionalIntegrationTests : IClassFixtur
 
         command.Parameters.AddWithValue("order_id", orderId);
         var result = await command.ExecuteScalarAsync().ConfigureAwait(false);
-        return Convert.ToInt32(result);
+        return Convert.ToInt32(result, System.Globalization.CultureInfo.InvariantCulture);
         }
         }
     }
@@ -216,7 +216,7 @@ public sealed class PostgreSqlOutboxTransactionalIntegrationTests : IClassFixtur
 
         command.Parameters.AddWithValue("message_id", messageId);
         var result = await command.ExecuteScalarAsync().ConfigureAwait(false);
-        return Convert.ToInt32(result);
+        return Convert.ToInt32(result, System.Globalization.CultureInfo.InvariantCulture);
         }
         }
     }

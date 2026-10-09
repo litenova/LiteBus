@@ -27,11 +27,11 @@ public sealed class MultiContractDispatchTests : LiteBusTestBase
 
                 registry.AddCommands(builder =>
                 {
-                    builder.Register(typeof(ProbeCommandA));
-                    builder.Register(typeof(ProbeCommandB));
-                    builder.Register(typeof(ProbeCommandAHandler));
-                    builder.Register(typeof(ProbeCommandBHandler));
-                    builder.Register(typeof(MultiContractHandler));
+                    builder.Register<ProbeCommandA>();
+                    builder.Register<ProbeCommandB>();
+                    builder.Register<ProbeCommandAHandler>();
+                    builder.Register<ProbeCommandBHandler>();
+                    builder.Register<MultiContractHandler>();
                 });
             })
             .BuildServiceProvider();

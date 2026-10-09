@@ -31,7 +31,7 @@ public sealed class OutboxTransportEnvelopeMapperTests
             TenantId = "tenant-east",
             TraceContext = """{"traceparent":"00-outbox-trace-01"}""",
             IdempotencyKey = "outbox-idem",
-            VisibleAfter = DateTimeOffset.Parse("2026-06-12T11:00:00Z")
+            VisibleAfter = DateTimeOffset.Parse("2026-06-12T11:00:00Z", System.Globalization.CultureInfo.InvariantCulture)
         };
 
         var headers = OutboxTransportEnvelopeMapper.BuildHeaders(envelope);

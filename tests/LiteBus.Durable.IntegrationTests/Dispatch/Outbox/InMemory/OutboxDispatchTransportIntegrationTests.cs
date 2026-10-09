@@ -18,6 +18,8 @@ namespace LiteBus.Durable.IntegrationTests.Dispatch.Outbox.InMemory;
 /// </summary>
 public sealed class OutboxDispatchTransportIntegrationTests : LiteBusTestBase
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     /// <summary>
     ///     Verifies that the outbox processor publishes a stored envelope to the configured in-memory destination.
     /// </summary>
@@ -69,7 +71,7 @@ public sealed class OutboxDispatchTransportIntegrationTests : LiteBusTestBase
 
                 var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
                     json,
-                    new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                    JsonOptions);
 
                 payload!.OrderId.Should().Be(orderId);
 

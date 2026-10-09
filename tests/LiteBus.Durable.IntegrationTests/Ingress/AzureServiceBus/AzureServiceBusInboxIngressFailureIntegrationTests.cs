@@ -46,7 +46,7 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
     [SkippableFact]
     public async Task UnknownContract_ShouldNotWriteToStore()
     {
-        var ingressQueue = _fixture.ResolveQueue("ingress-fail");
+        var ingressQueue = ServiceBusEmulatorFixture.ResolveQueue("ingress-fail");
         await RunFailureScenarioAsync(ingressQueue, "{}", "unknown.contract", 1).ConfigureAwait(false);
 
         await AzureServiceBusTransportTestInfrastructure.WaitForQueueDepthAsync(
@@ -63,7 +63,7 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
     [SkippableFact]
     public async Task InvalidJson_ShouldNotWriteToStore()
     {
-        var ingressQueue = _fixture.ResolveQueue("ingress-fail");
+        var ingressQueue = ServiceBusEmulatorFixture.ResolveQueue("ingress-fail");
         await RunFailureScenarioAsync(ingressQueue, "{not-json", ContractName, 1).ConfigureAwait(false);
 
         await AzureServiceBusTransportTestInfrastructure.WaitForQueueDepthAsync(
@@ -80,7 +80,7 @@ public sealed class AzureServiceBusInboxIngressFailureIntegrationTests : LiteBus
     [SkippableFact]
     public async Task StoreFull_ShouldDrainQueueAndKeepPrefilledRow()
     {
-        var ingressQueue = _fixture.ResolveQueue("ingress-store-full");
+        var ingressQueue = ServiceBusEmulatorFixture.ResolveQueue("ingress-store-full");
          var provider = BuildProvider(ingressQueue, 1);
          await using (provider.ConfigureAwait(false))
          {

@@ -32,6 +32,8 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
     /// </summary>
     protected abstract string BrokerName { get; }
 
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web);
+
     /// <summary>
     ///     Verifies that the outbox processor publishes a stored envelope to the configured AMQP queue.
     /// </summary>
@@ -79,7 +81,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
 
             var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
                 json,
-                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                JsonOptions);
 
             payload!.OrderId.Should().Be(orderId);
             amqpMessage.MessageId.Should().Be(messageId.ToString("D"));
