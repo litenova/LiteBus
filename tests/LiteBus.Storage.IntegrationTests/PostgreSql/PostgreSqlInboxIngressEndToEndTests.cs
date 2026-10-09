@@ -147,6 +147,7 @@ public sealed class PostgreSqlInboxIngressEndToEndTests : LiteBusTestBase, IClas
                     Exchange = string.Empty,
                     RoutingKey = ingressQueue,
                     Body = payload,
+                    MessageId = messageId.ToString("D"),
                     Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
                     {
                         [TransportHeaders.MessageId] = messageId.ToString("D"),

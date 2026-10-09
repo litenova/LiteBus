@@ -143,6 +143,7 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
                     Exchange = string.Empty,
                     RoutingKey = ingressQueue,
                     Body = payload,
+                    MessageId = messageId.ToString("D"),
                     Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
                     {
                         [TransportHeaders.MessageId] = messageId.ToString("D"),

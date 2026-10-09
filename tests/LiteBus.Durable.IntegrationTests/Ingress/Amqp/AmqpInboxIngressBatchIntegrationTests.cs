@@ -170,15 +170,17 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
         await using (manager.ConfigureAwait(false))
         {
             var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
+            var messageId = Guid.NewGuid().ToString();
 
             await publisher.PublishAsync(new AmqpPublishRequest
             {
                 Exchange = string.Empty,
                 RoutingKey = queueName,
                 Body = Encoding.UTF8.GetBytes(body),
+                MessageId = messageId,
                 Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
-                    [TransportHeaders.MessageId] = Guid.NewGuid().ToString(),
+                    [TransportHeaders.MessageId] = messageId,
                     [TransportHeaders.ContractName] = "orders.commands.ship",
                     [TransportHeaders.ContractVersion] = "1"
                 }

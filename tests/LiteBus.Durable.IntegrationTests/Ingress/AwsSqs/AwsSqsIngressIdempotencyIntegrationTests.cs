@@ -1,3 +1,4 @@
+using LiteBus.Inbox.Ingress;
 using LiteBus.Transport.AwsSqs;
 using System.Text.Json;
 using LiteBus.Transport.IntegrationTesting;
@@ -116,6 +117,7 @@ public sealed class AwsSqsIngressIdempotencyIntegrationTests : LiteBusTestBase
                     {
                         ingress.UseOptions(new AwsSqsInboxIngressOptions
                         {
+                            Safety = new TransportInboxIngressSafetyOptions { TrustApplicationHeaders = true },
                             Destination = ingressQueueUrl,
                             ReceiveBatchSize = 1,
                         });

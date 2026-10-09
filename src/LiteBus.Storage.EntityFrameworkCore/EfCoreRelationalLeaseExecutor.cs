@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data;
+using System.Data.Common;
 using LiteBus.Storage.EntityFrameworkCore.Leasing;
 using Microsoft.EntityFrameworkCore;
 
@@ -164,7 +165,7 @@ internal static class EfCoreRelationalLeaseExecutor
         var selectSql = EfCoreMySqlLeaseSql.BuildSelectCandidates(component, qualifiedTableName);
         var updateSqlTemplate = EfCoreMySqlLeaseSql.BuildUpdate(component, qualifiedTableName);
         var reloadSqlTemplate = EfCoreMySqlLeaseSql.BuildReload(component, qualifiedTableName);
-        var selectTenantParameter = (object?) tenantId ?? DBNull.Value;
+        var selectTenantParameter = CreateNullableStringParameter(dbContext, "p_tenant_select", tenantId);
 
         using var transaction = await dbContext.Database
             .BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
@@ -203,7 +204,7 @@ internal static class EfCoreRelationalLeaseExecutor
                 batchSize,
                 leaseOwner,
                 leaseExpiresAt,
-                (object?) tenantId ?? DBNull.Value,
+                CreateNullableStringParameter(dbContext, "p_tenant_update", tenantId),
                 staleCutoff,
                 candidateIds);
 
@@ -250,10 +251,6 @@ internal static class EfCoreRelationalLeaseExecutor
     /// <summary>
     ///     Builds the parameter array for a MySQL lease update statement.
     /// </summary>
-    /// <remarks>
-    ///     The tenant travels as a plain value so Entity Framework Core creates the parameter on the command that
-    ///     executes the statement.
-    /// </remarks>
     /// <param name="pendingStatus">The pending status value.</param>
     /// <param name="failedStatus">The failed status value.</param>
     /// <param name="now">The current timestamp.</param>
@@ -261,7 +258,7 @@ internal static class EfCoreRelationalLeaseExecutor
     /// <param name="batchSize">The lease batch size.</param>
     /// <param name="leaseOwner">The lease owner.</param>
     /// <param name="leaseExpiresAt">The lease expiration timestamp.</param>
-    /// <param name="tenantParameter">The tenant filter value for the lease statement; SQL NULL when no tenant is present.</param>
+    /// <param name="tenantParameter">The typed nullable tenant parameter.</param>
     /// <param name="staleCutoff">The earliest created timestamp eligible for stale in-flight reclaim.</param>
     /// <param name="candidateIds">The candidate identifiers.</param>
     /// <returns>The parameter array.</returns>
@@ -273,7 +270,7 @@ internal static class EfCoreRelationalLeaseExecutor
         int batchSize,
         string leaseOwner,
         DateTimeOffset leaseExpiresAt,
-        object tenantParameter,
+        DbParameter tenantParameter,
         DateTimeOffset staleCutoff,
         List<Guid> candidateIds)
     {
@@ -294,6 +291,29 @@ internal static class EfCoreRelationalLeaseExecutor
         }
 
         return parameters;
+    }
+
+    /// <summary>
+    ///     Creates a provider-specific nullable string parameter for raw SQL commands.
+    /// </summary>
+    /// <param name="dbContext">The database context whose provider creates the parameter.</param>
+    /// <param name="name">The parameter name.</param>
+    /// <param name="value">The optional string value.</param>
+    /// <returns>A typed parameter whose value is SQL NULL when the string is absent.</returns>
+    /// <remarks>
+    ///     The parameter has to carry its own <see cref="DbType" />: passed as a plain <see cref="DBNull" /> value,
+    ///     Entity Framework Core has no store type mapping for it. Raw SQL execution offers no seam to create the
+    ///     parameter on the command that runs the statement, so it is created from a short-lived command; a
+    ///     <see cref="DbParameter" /> holds no reference to the command that created it.
+    /// </remarks>
+    private static DbParameter CreateNullableStringParameter(DbContext dbContext, string name, string? value)
+    {
+        using var command = dbContext.Database.GetDbConnection().CreateCommand();
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.DbType = DbType.String;
+        parameter.Value = (object?) value ?? DBNull.Value;
+        return parameter;
     }
 
     /// <summary>
