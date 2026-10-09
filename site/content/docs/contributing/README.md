@@ -46,7 +46,7 @@ Public types and members in test helpers, shared fixtures, and sample entry poin
 
 ## Changelog
 
-Update `Changelog.md` under `## Unreleased` (or the current release section after a tag) when public API or documented behavior changes. Docs-only changes that do not alter behavior do not need a changelog entry.
+Update `Changelog.md` in the version's cumulative `## v7.0.0` section as work lands when public API or documented behavior changes. Docs-only changes that do not alter behavior do not need a changelog entry. Cutting a preview after the first adds a `## v7.0.0-preview.N` delta section holding only what changed since the previous preview, in the same commit as the version bump.
 
 ## Pull Request Expectations
 

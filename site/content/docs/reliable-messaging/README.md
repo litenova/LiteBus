@@ -6,7 +6,9 @@ In-process mediation runs handlers in the current call. If the process crashes m
 
 See [Reliable messaging semantics](semantics.md) for delivery guarantees and broker comparison.
 
-> Note: Inbox and outbox behavior is opt-in. Plain `SendAsync`, `QueryAsync`, and `PublishAsync` calls remain in process and do not access a durable store.
+> **This page is for** developers who need accepted work to survive a process crash.
+
+> **Note**: Inbox and outbox behavior is opt-in. Plain `SendAsync`, `QueryAsync`, and `PublishAsync` calls remain in process and do not access a durable store.
 
 ## In-Process Versus Durable
 

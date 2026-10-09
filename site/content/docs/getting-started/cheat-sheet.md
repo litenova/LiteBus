@@ -138,7 +138,7 @@ builder.AddInbox(inbox =>
 });
 ```
 
-Inbox, outbox, and saga use PostgreSQL schema version **1**. The version 1 scripts contain the complete current shape. See the [Migration Guide](../migration/v6.md) for historical table transitions.
+Inbox, outbox, and saga use PostgreSQL schema version **1**. The version 1 scripts contain the complete current shape. See the [v6 Migration Guide](../migration/v6.md) for historical table transitions.
 
 ## Health and Operations
 

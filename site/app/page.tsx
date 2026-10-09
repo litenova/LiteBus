@@ -2,6 +2,7 @@ import { CopyButton } from '@/components/copy-button';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import {
+  changelogUrl,
   companyName,
   companyUrl,
   repositoryUrl,
@@ -40,6 +41,7 @@ const structuredData = {
       runtimePlatform: '.NET',
       url: siteUrl,
       license: 'https://github.com/litenova/LiteBus/blob/main/LICENSE',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
       author: { '@id': `${siteUrl}/#organization` },
     },
   ],
@@ -52,11 +54,12 @@ const QUICKSTART_CODE = `builder.Services.AddLiteBus(bus =>
         commands.RegisterFromAssembly(typeof(Program).Assembly));
 });
 
+var mediator = app.Services.GetRequiredService<ICommandMediator>();
 var id = await mediator.SendAsync(
-    new CreateProduct("Widget", 9.99m),
+    new CreateProductCommand("Widget", 9.99m),
     cancellationToken);`;
 
-const HANDLER_CODE = `public sealed class CreateProductCommandHandler : ICommandHandler<CreateProductCommand, ProductDto>
+const HANDLER_CODE = `public sealed class CreateProductCommandHandler : ICommandHandler<CreateProductCommand, Guid>
 {
     private readonly IProductRepository _repository;
 
@@ -65,11 +68,9 @@ const HANDLER_CODE = `public sealed class CreateProductCommandHandler : ICommand
         _repository = repository;
     }
 
-    public async Task<ProductDto> HandleAsync(CreateProductCommand command, CancellationToken cancellationToken = default)
+    public async Task<Guid> HandleAsync(CreateProductCommand command, CancellationToken cancellationToken = default)
     {
-        var product = new Product(command.Name, command.Price);
-        await _repository.SaveAsync(product, cancellationToken);
-        return new ProductDto(product.Id, product.Name, product.Price);
+        return await _repository.AddAsync(command.Name, command.Price, cancellationToken);
     }
 }`;
 
@@ -78,11 +79,13 @@ const INSTALL_COMMAND = 'dotnet add package LiteBus.Extensions.Microsoft.Depende
 /**
  * Landing page for the LiteBus site.
  *
- * Presents the release pill, the mediation sample, the module cards, the
- * package table, and the MediatR comparison in the shared Fuse-style frame.
+ * Presents the hero with the current pre-release and the stable line, the
+ * two-pane mediation sample, the durable messaging spotlight, the feature
+ * cards, the package table, the MediatR comparison, and the boundary line.
  */
 export default function HomePage() {
   const prerelease = docsVersions.find((version) => version.status === 'prerelease') ?? defaultVersion;
+  const stable = docsVersions.find((version) => version.status === 'stable') ?? defaultVersion;
 
   return (
     <>
@@ -97,21 +100,24 @@ export default function HomePage() {
         <SiteHeader current="home" />
         <main id="main" tabIndex={-1}>
           <section className="hero">
-            <Link className="release" href={versionBasePath(prerelease)}>
-              <b>{prerelease.label} preview</b>Read the pre-release documentation
-            </Link>
+            <a className="release" href={changelogUrl}>
+              <b>v{prerelease.release}</b>Read what changed
+            </a>
             <h1>Command, Query, and Event Mediation for .NET</h1>
-            <ul className="tags" aria-label="License and platform">
-              <li>MIT licensed</li>
+            <ul className="tags" aria-label="Platform and license">
               <li>.NET 10</li>
-              <li>Opt-in packages</li>
+              <li>C#</li>
+              <li>MIT Licensed</li>
+              <li>Open Source</li>
+              <li>Opt-in Packages</li>
             </ul>
             <p>
-              LiteBus mediates commands, queries, and events with handler pipelines, and adds
-              optional durable inbox, outbox, saga, storage, and transport modules.
+              LiteBus sends commands, runs queries, and publishes events through handler pipelines
+              in your process. Add the inbox, outbox, and saga modules when a message has to
+              survive a restart.
             </p>
             <div className="install">
-              <p className="label">Install the mediation package:</p>
+              <p className="label">Install the package:</p>
               <div className="cmd">
                 <span>
                   <span className="dim">$ </span>
@@ -120,43 +126,88 @@ export default function HomePage() {
                 <CopyButton text={INSTALL_COMMAND} />
               </div>
               <p className="label">
-                New to LiteBus? <Link href="/docs/getting-started">Get Started</Link> walks through your
-                first command, query, and event.
+                New to LiteBus? <Link href="/docs/getting-started">Get Started</Link> sends your first
+                command, query, and event.
+              </p>
+              <p className="label">
+                Stable release {stable.release}: read the{' '}
+                <Link href={versionBasePath(stable)}>{stable.label} documentation</Link>.
               </p>
             </div>
           </section>
 
-          <section className="section" aria-labelledby="register-and-send-heading">
-            <p className="kicker">Basics</p>
-            <h2 id="register-and-send-heading">Register and Send</h2>
-            <p className="lede">Register handlers from an assembly and send a command through the mediator.</p>
-            <pre data-label="Program.cs">
-              <code>{QUICKSTART_CODE}</code>
-            </pre>
-            <pre data-label="CreateProductHandler.cs">
-              <code>{HANDLER_CODE}</code>
-            </pre>
+          <section className="section" aria-labelledby="one-message-one-handler-heading">
+            <div className="section-head">
+              <p className="kicker">In Your Code</p>
+              <h2 id="one-message-one-handler-heading">One Message, One Handler</h2>
+              <p>Register handlers from an assembly, then send a command.</p>
+            </div>
+            <div className="pair">
+              <pre data-label="Program.cs">
+                <code>{QUICKSTART_CODE}</code>
+              </pre>
+              <pre data-label="CreateProductCommandHandler.cs">
+                <code>{HANDLER_CODE}</code>
+              </pre>
+            </div>
+            <p className="proof">
+              Handlers run in the caller&apos;s process. Nothing is persisted until you add a store.
+            </p>
           </section>
 
-          <section className="section" aria-labelledby="what-litebus-includes-heading">
-            <p className="kicker">Modules</p>
-            <h2 id="what-litebus-includes-heading">What LiteBus Includes</h2>
-            <p className="lede">Mediation, durable messaging, and adapters in opt-in packages.</p>
+          <section className="section" aria-labelledby="durable-inbox-and-transactional-outbox-heading">
+            <div className="section-head">
+              <p className="kicker">When a Message Must Not Be Lost</p>
+              <h2 id="durable-inbox-and-transactional-outbox-heading">
+                Durable Inbox and Transactional Outbox
+              </h2>
+              <p>Persist the message first, then execute or publish it under a lease with retries.</p>
+            </div>
+            <div className="spot">
+              <div className="spot-text">
+                <p>
+                  The outbox writes the event in the same transaction as your data, and a processor
+                  publishes it after commit. The inbox accepts a command durably and executes it
+                  under a lease with retries.
+                </p>
+                <ul className="spot-stats">
+                  <li>
+                    <b>5</b>transports: RabbitMQ over AMQP, Kafka, AWS SQS, Azure Service Bus, and
+                    in-memory.
+                  </li>
+                  <li>
+                    <b>3</b>store families: PostgreSQL, EF Core, and in-memory. EF Core storage is
+                    tested on PostgreSQL, SQL Server, MySQL, and SQLite.
+                  </li>
+                </ul>
+                <p className="spot-links">
+                  <Link href="/docs/reliable-messaging/outbox">How the outbox works {'->'}</Link>
+                  <Link href="/docs/reliable-messaging/semantics">Delivery guarantees {'->'}</Link>
+                </p>
+              </div>
+              <div className="spot-diagram" aria-hidden="true">
+                <div className="box">
+                  <b>Your transaction</b>
+                  <span>domain data and event commit together</span>
+                </div>
+                <div className="join single"></div>
+                <div className="box">
+                  <b>Outbox store</b>
+                  <span>PostgreSQL, EF Core, or in-memory</span>
+                </div>
+                <div className="join single"></div>
+                <div className="box engine">
+                  <b>Processor</b>
+                  <span>leases each envelope with retries</span>
+                </div>
+                <div className="join single"></div>
+                <div className="box">
+                  <b>Broker</b>
+                  <span>AMQP, Kafka, SQS, or Azure Service Bus</span>
+                </div>
+              </div>
+            </div>
             <ul className="features">
-              <li>
-                <Link href="/docs/concepts/commands">
-                  <b>Commands and Queries</b>
-                  <span>Separate command and query mediators encode write and read intent for CQS applications.</span>
-                  <i>Read the commands guide {'->'}</i>
-                </Link>
-              </li>
-              <li>
-                <Link href="/docs/concepts/events">
-                  <b>Domain Events</b>
-                  <span>Publish plain .NET event types to zero or more handlers without requiring a shared event base class.</span>
-                  <i>Read the events guide {'->'}</i>
-                </Link>
-              </li>
               <li>
                 <Link href="/docs/concepts/handler-pipeline">
                   <b>Handler Pipelines</b>
@@ -165,17 +216,10 @@ export default function HomePage() {
                 </Link>
               </li>
               <li>
-                <Link href="/docs/reliable-messaging/inbox">
-                  <b>Durable Inbox</b>
-                  <span>Persist commands before deferred execution with leases, retries, receipts, and at-least-once delivery.</span>
-                  <i>Read the inbox guide {'->'}</i>
-                </Link>
-              </li>
-              <li>
-                <Link href="/docs/reliable-messaging/outbox">
-                  <b>Transactional Outbox</b>
-                  <span>Store events with domain state through transactional writers, then publish them with an outbox processor.</span>
-                  <i>Read the outbox guide {'->'}</i>
+                <Link href="/docs/concepts/handler-filtering">
+                  <b>Tags and Filters</b>
+                  <span>Run a different set of handlers per call with compile-time tags or a publish-time predicate.</span>
+                  <i>Read the filtering guide {'->'}</i>
                 </Link>
               </li>
               <li>
@@ -186,26 +230,35 @@ export default function HomePage() {
                 </Link>
               </li>
               <li>
-                <Link href="/docs/architecture/dependency-graph">
-                  <b>Storage and Transport</b>
-                  <span>Select PostgreSQL, EF Core, in-memory, RabbitMQ, Kafka, AWS SQS, or Azure Service Bus through opt-in adapters.</span>
-                  <i>Read the package guide {'->'}</i>
+                <Link href="/docs/reference/analyzers">
+                  <b>20 Analyzer Rules</b>
+                  <span>Catch handler registration mistakes, durable contract gaps, and inbox misuse at compile time.</span>
+                  <i>Read the analyzer reference {'->'}</i>
                 </Link>
               </li>
               <li>
-                <Link href="/docs/architecture/hosted-services">
-                  <b>Hosting and Operations</b>
-                  <span>Run processors through host adapters and add OpenTelemetry, health checks, management endpoints, and analyzers.</span>
-                  <i>Read the hosting guide {'->'}</i>
+                <Link href="/docs/operations/diagnostics-and-health">
+                  <b>OpenTelemetry and Health</b>
+                  <span>Bridge framework-neutral diagnostic probes to host health checks, metrics, and traces.</span>
+                  <i>Read the operations guide {'->'}</i>
+                </Link>
+              </li>
+              <li>
+                <Link href="/docs/catalog/hosting/aspnet-management-endpoints">
+                  <b>Management Endpoints</b>
+                  <span>Map authenticated HTTP routes for inbox, outbox, processor control, retention, and diagnostics.</span>
+                  <i>Read the endpoint reference {'->'}</i>
                 </Link>
               </li>
             </ul>
           </section>
 
           <section className="section" aria-labelledby="install-only-what-you-run-heading">
-            <p className="kicker">Packages</p>
-            <h2 id="install-only-what-you-run-heading">Install Only What You Run</h2>
-            <p className="lede">Reference only the adapters your host runs.</p>
+            <div className="section-head">
+              <p className="kicker">Packages</p>
+              <h2 id="install-only-what-you-run-heading">Install Only What You Run</h2>
+              <p>Reference only the adapters your host runs.</p>
+            </div>
             <div className="table-scroll">
               <table>
                 <thead>
@@ -249,19 +302,31 @@ export default function HomePage() {
               </table>
             </div>
             <p className="proof">
-              See <Link href="/docs/architecture/dependency-graph">Dependency Graph</Link> for every package and its role.
+              Every package and its role: <Link href="/docs/architecture/dependency-graph">Dependency Graph</Link>.
             </p>
           </section>
 
           <section className="section" aria-labelledby="moving-from-mediatr-heading">
-            <p className="kicker">Migration</p>
-            <h2 id="moving-from-mediatr-heading">Moving From MediatR</h2>
-            <p>MediatR 13 moved to dual commercial and open-source licensing and requires a license key.</p>
+            <div className="section-head">
+              <p className="kicker">Migration</p>
+              <h2 id="moving-from-mediatr-heading">Moving From MediatR</h2>
+            </div>
+            <p>
+              MediatR 13.0.0 and later ships under a commercial license, with a free Community License
+              for organizations below USD 5 million in annual gross revenue; earlier versions remain
+              under Apache 2.0 or MIT. (<a href="https://mediatr.io/">mediatr.io</a>, retrieved 2026-10-09)
+            </p>
             <p>LiteBus is MIT licensed, open source, free for commercial use, and will remain free.</p>
             <p>
               <Link href="/docs/migration/mediatr-differences">Compare LiteBus and MediatR {'->'}</Link>
             </p>
           </section>
+
+          <p className="proof">
+            <b>The boundary:</b> mediation alone persists nothing. Durable delivery needs a store
+            adapter and a processor host.{' '}
+            <Link href="/docs/reference/limits">Limits and opt-in boundaries {'->'}</Link>
+          </p>
         </main>
         <SiteFooter />
       </div>

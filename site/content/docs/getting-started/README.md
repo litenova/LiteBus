@@ -2,7 +2,9 @@
 
 This guide takes you from an empty project to a working command, query, and event in about ten minutes. It assumes you know C# and have the .NET 10 SDK installed. By the end you will have registered LiteBus, written one handler of each message type, and sent messages through the mediators.
 
-If you are coming from MediatR, read [LiteBus vs. MediatR](../migration/mediatr-differences.md) first; the concepts map closely but the registration and handler interfaces differ.
+> **This page is for** developers who know C# and want a working command, query, and event in about ten minutes.
+
+If you are coming from MediatR, read [LiteBus vs. MediatR](../migration/mediatr-differences.md) first. The concepts map closely but the registration and handler interfaces differ.
 
 ## Install
 
@@ -34,13 +36,13 @@ dotnet add package LiteBus.Queries.Extensions.Autofac
 dotnet add package LiteBus.Events.Extensions.Autofac
 ```
 
-You do not need all three LiteBus. Install only the message types your application uses; a read-only service might take only the query module.
+You do not need all three modules. Install only the message types your application uses. A read-only service might take only the query module.
 
 ## Register the Modules
 
 Call `AddLiteBus` once, add messaging, then add the command, query, and event features you installed. During composition, the module registry validates each `IRequires<TModule>` dependency across the completed graph and builds dependencies before their dependents. Callback order does not change dependency resolution, and semantic modules do not register the messaging core automatically.
 
-Use `RegisterFromAssembly` on command, query, and event module builders to discover handlers in each assembly. Call it once per assembly on the semantic module that owns those handlers. Optional `RegisterFromAssembly` on `AddMessaging` is for contract registration and cross-cutting handlers only; when both messaging and semantic modules scan the same assembly, handler dependency injection is owned by the semantic module with scoped lifetime.
+Use `RegisterFromAssembly` on command, query, and event module builders to discover handlers in each assembly. Call it once per assembly on the semantic module that owns those handlers. Optional `RegisterFromAssembly` on `AddMessaging` is for contract registration and cross-cutting handlers only. When both messaging and semantic modules scan the same assembly, handler dependency injection is owned by the semantic module with scoped lifetime.
 
 `RegisterFromAssembly` scans an assembly once at startup and records every handler, pre-handler, post-handler, and error-handler it finds. This is the only reflection-heavy step; after it, mediation reads cached metadata. Point it at each assembly that contains handlers.
 
@@ -80,7 +82,7 @@ builder.AddLiteBus(builder =>
 var container = builder.Build();
 ```
 
-> Note: `RegisterFromAssembly` registers handler types with `InstanceLifetime.Scoped`. A handler can therefore receive scoped dependencies such as a `DbContext` from the current dispatch scope.
+> **Note**: `RegisterFromAssembly` registers handler types with `InstanceLifetime.Scoped`. A handler can therefore receive scoped dependencies such as a `DbContext` from the current dispatch scope.
 
 ## Your First Command
 
@@ -263,7 +265,7 @@ builder.Services.AddLiteBus(builder =>
 });
 ```
 
-Accept commands with `IInbox.AcceptAsync` and enqueue events with `IOutbox.EnqueueAsync`. See [Inbox](../reliable-messaging/inbox.md) and [Outbox](../reliable-messaging/outbox.md). Historical upgrade steps are documented in the [Migration Guide](../migration/v6.md).
+Accept commands with `IInbox.AcceptAsync` and enqueue events with `IOutbox.EnqueueAsync`. See [Inbox](../reliable-messaging/inbox.md) and [Outbox](../reliable-messaging/outbox.md). If you are upgrading from LiteBus v6, follow [Migration Guide v7](../migration/v7.md). Steps for the earlier v5 to v6 transition remain in the [v6 Migration Guide](../migration/v6.md).
 
 ## Durable Outbox with Entity Framework Core
 

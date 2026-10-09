@@ -9,12 +9,12 @@ LiteBus separates dependency registration from host execution through a **manife
 | `IBackgroundService` | Long-running loop (`ExecuteAsync`) | `LiteBus.Runtime.Abstractions` |
 | `IModuleConfiguration.RegisterBackgroundService` | Manifest entry for background services | `LiteBus.Runtime` |
 | `IDiagnosticCheck` | Framework-neutral readiness probe | `LiteBus.Runtime.Abstractions` |
-| `InboxModuleBuilder.AddDiagnosticCheck` / `OutboxModuleBuilder.AddDiagnosticCheck` | Application-facing probe registration sugar | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` |
+| `InboxModuleBuilder.AddDiagnosticCheck` / `OutboxModuleBuilder.AddDiagnosticCheck` | Application-facing probe registration sugar | `LiteBus.Inbox`, `LiteBus.Outbox` |
 | `IModuleConfiguration.RegisterDiagnosticCheck` | Internal manifest entry used by module `Build()` implementations | `LiteBus.Runtime` |
 | `LiteBusHostManifest` | Resolved manifest after module build | `LiteBus.Runtime.Abstractions` |
 | Generic host bridge | Maps manifest entries to a single `IHostedService` orchestrator | `LiteBus.Runtime.Extensions.Hosting` (shared), `LiteBus.Runtime.Extensions.Microsoft.Hosting`, `LiteBus.Runtime.Extensions.Autofac.Hosting` |
 
-Call `services.AddLiteBus(builder => ...)` using `ILiteBusBuilder` from `LiteBus.Runtime.Composition`. Register storage, dispatch, ingress, and processors inside nested `AddInbox` / `AddOutbox` builders.
+Call `services.AddLiteBus(builder => ...)` using `ILiteBusBuilder` from `LiteBus.Runtime.Abstractions`. Register storage, dispatch, ingress, and processors inside nested `AddInbox` / `AddOutbox` builders.
 
 ## Service Lifetime Constraint
 
@@ -133,10 +133,20 @@ LiteBus emits OpenTelemetry metrics from inbox, outbox, and transport paths. Reg
 ### Consumer-Owned Diagnostic Probes
 
 ```csharp
-inbox.AddDiagnosticCheck<PostgreSqlInboxSchemaDiagnosticCheck>("litebus.inbox.schema");
+public sealed class OutboxBacklogCheck : IDiagnosticCheck
+{
+    public string Name => "payments.outbox.backlog";
+
+    public Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(new DiagnosticResult(DiagnosticStatus.Healthy, "Backlog within bound."));
+    }
+}
+
+inbox.AddDiagnosticCheck<OutboxBacklogCheck>("payments.outbox.backlog");
 ```
 
-Implement `IDiagnosticCheck` in application code for schema validation, broker connectivity, or deployment-specific readiness rules.
+Implement `IDiagnosticCheck` in application code for schema validation, broker connectivity, or deployment-specific readiness rules. The name passed to `AddDiagnosticCheck<TCheck>` must equal the probe's own `Name`. The PostgreSQL inbox and outbox storage adapters already register their schema probes (`inbox.postgresql.schema` and `outbox.postgresql.schema`) when `UsePostgreSqlStorage` is called; do not register those library probes again under another name.
 
 ### Health Endpoint Behavior
 

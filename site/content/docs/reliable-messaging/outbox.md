@@ -66,7 +66,7 @@ services.AddLiteBus(builder =>
 
 ## Processing Versus Publishing
 
-Inbox and outbox use asymmetric naming on purpose. Inbox **acceptance** (`AcceptAsync`) only stores a command; **processing** happens later in `PipelinedInboxProcessor`. Outbox **enqueue** (`EnqueueAsync`) only stores an event; **publication** happens later in `PipelinedOutboxProcessor` when a dispatcher calls `IEventMediator` or an external broker. Do not call `PublishAsync` directly for cross-process notifications that must commit with application state.
+Inbox and outbox use asymmetric naming on purpose. Inbox **acceptance** (`AcceptAsync`) only stores a command. **Processing** happens later in `PipelinedInboxProcessor`. Outbox **enqueue** (`EnqueueAsync`) only stores an event. **Publication** happens later in `PipelinedOutboxProcessor` when a dispatcher calls `IEventMediator` or an external broker. Do not call `PublishAsync` directly for cross-process notifications that must commit with application state.
 
 ## Dispatch (`Use*` Extensions)
 
@@ -227,7 +227,7 @@ outbox.UseProcessorOptions(new OutboxProcessorOptions
 
 ### Explicit Retry Schedules
 
-`RetryBackoff.Fixed` and `RetryBackoff.Exponential` derive every delay from `InitialDelay` under the `MaxDelay` cap. That cannot express a window that starts inside a minute and still reaches days, which is what a customer-visible delivery guarantee usually needs: exponential from one minute reaches roughly four hours by the ninth attempt, and stretching the tail to a week also pushes the first few retries hours apart, which is the opposite of what a receiver that blipped needs.
+`RetryBackoff.Fixed` and `RetryBackoff.Exponential` derive every delay from `InitialDelay` under the `MaxDelay` cap. That cannot express a window that starts inside a minute and still reaches days. Exponential from one minute reaches roughly four hours by the ninth attempt. Stretching the tail to a week also pushes the first few retries hours apart.
 
 `RetryBackoff.Schedule` takes the ladder directly:
 
@@ -258,7 +258,7 @@ Retry = new RetryOptions
 | Empty `Delays` with `Backoff = Schedule` | Refused at composition, not at the first failure |
 | `Delays` with any other backoff | Ignored |
 
-`Delays` is validated when the module builds, so a misconfigured ladder fails at boot rather than on the first failure, which is the one moment nobody is watching the retry policy.
+`Delays` is validated when the module builds. A misconfigured ladder fails at boot rather than on the first failure.
 
 After-dispatch hook failures follow `HookFailurePolicy` on `OutboxProcessorOptions`. The property defaults to `null`, which keeps the dispatcher recommendation; set an explicit value to override it. Registration order does not matter: a batch-only `UseProcessorOptions` call keeps the transport default.
 
@@ -267,7 +267,7 @@ After-dispatch hook failures follow `HookFailurePolicy` on `OutboxProcessorOptio
 | Transport (`UseAmqpDispatch`, `UseInMemoryDispatch`, and siblings) | `CompleteDespiteHookFailure` | Logs the hook error and persists published state without re-publishing |
 | In-process (`UseInProcessDispatch`) | `DeadLetter` | Moves the row to dead letter without re-publishing |
 
-Set `HookFailurePolicy = ProcessorHookFailurePolicy.DeadLetter` on transport dispatchers when hook side effects must block terminal completion. Overriding the transport default dead-letters a message the broker already accepted, so the message is re-leased after replay and published a second time. Set `HookFailurePolicy = ProcessorHookFailurePolicy.CompleteDespiteHookFailure` on in-process dispatch when hook persistence should not undo a successful handler publication.
+Set `HookFailurePolicy = ProcessorHookFailurePolicy.DeadLetter` on transport dispatchers when hook side effects must block terminal completion. Overriding the transport default dead-letters a message the broker already accepted. The message is re-leased after replay and published a second time. Set `HookFailurePolicy = ProcessorHookFailurePolicy.CompleteDespiteHookFailure` on in-process dispatch when hook persistence should not undo a successful handler publication.
 
 Transport dispatchers (`UseAmqpDispatch`, `UseAwsSqsDispatch`, and siblings) accept `ValidatePayloadBeforeDispatch` on their options. When `false` (default), invalid JSON is not deserialized before publish; when `true`, deserialization runs before the transport call so corrupt payloads fail fast without broker side effects.
 

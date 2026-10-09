@@ -13,6 +13,10 @@ export const siteOgImage = '/og.png';
 
 export const repositoryUrl = 'https://github.com/litenova/LiteBus';
 
+export const changelogUrl = `${repositoryUrl}/blob/main/Changelog.md`;
+
+export const nugetUrl = 'https://www.nuget.org/packages?q=LiteBus';
+
 export const companyName = 'LiteNova Solutions';
 
 export const companyUrl = 'https://www.litenova.solutions';

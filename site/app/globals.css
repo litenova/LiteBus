@@ -61,7 +61,7 @@ p { margin: 0 0 1rem; }
 h1, h2, h3, h4 { scroll-margin-top: 1rem; }
 code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: 0.9em; white-space: nowrap; }
 /* Inline code in prose reads like rendered Markdown: a small chip. */
-.hero code, .section h2 code, .proof code,
+.hero code, .section h2 code, .section-head code, .proof code,
 .prose p code, .prose li code, .prose blockquote code, .prose td code, .prose th code {
   background: var(--chip-bg); color: var(--text); border: 1px solid var(--chip-line);
   padding: 0.08em 0.4em; border-radius: 0.35em; font-size: 0.86em;
@@ -113,20 +113,56 @@ main:focus { outline: none; }
 .section h2 { font-size: clamp(1.7rem, 3.2vw, 2.4rem); letter-spacing: -0.02em; line-height: 1.15; margin: 0 auto 0.6rem; max-width: 44rem; text-align: center; text-wrap: balance; }
 .section h2 code { font-size: 0.8em; padding: 0.02em 0.35em; font-weight: 600; letter-spacing: 0; vertical-align: 0.04em; }
 .lede { color: var(--muted); margin: 0 auto; max-width: 44rem; text-align: center; text-wrap: balance; }
+/* Section headers: a centered kicker, a Title Case heading, and one line. */
+.section-head { text-align: center; margin: 0 auto 2.6rem; max-width: 44rem; }
+.section-head .kicker { margin: 0 0 0.5rem; }
+.section-head h2 { font-size: clamp(1.7rem, 3.2vw, 2.4rem); letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 0.6rem; text-wrap: balance; }
+.section-head h2 code { font-size: 0.8em; padding: 0.02em 0.35em; font-weight: 600; letter-spacing: 0; vertical-align: 0.04em; }
+.section-head p { color: var(--muted); margin: 0; text-wrap: balance; }
 .proof { text-align: center; font-size: 0.9rem; color: var(--muted); margin: 2.6rem auto 0; }
 .proof b { color: var(--text); }
 
-/* Feature link cards: a 2-column grid of bordered cards, each auto-numbered. */
-.features { list-style: none; padding: 0; margin: 2.6rem auto 0; max-width: 52rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; counter-reset: feature; }
-.features > li { counter-increment: feature; }
+/* Spotlight: one wide block for the strongest feature, above the card list. */
+.spot { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 2.5rem; align-items: center; max-width: 52rem; margin: 0 auto 2.6rem; border: 1px solid var(--line); border-radius: 0.9rem; padding: 2rem 2.2rem; background: var(--surface); }
+.spot h3 { font-size: 1.3rem; letter-spacing: -0.01em; margin: 0 0 0.6rem; }
+.spot-text > p { color: var(--muted); font-size: 0.95rem; }
+.spot-stats { list-style: none; padding: 0; margin: 0 0 1.1rem; display: grid; gap: 0.4rem; font-size: 0.9rem; color: var(--muted); }
+.spot-stats b { color: var(--text); font-size: 1.05rem; margin-right: 0.25rem; }
+.spot-links { margin: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem; font-size: 0.9rem; }
+.spot-diagram { display: flex; flex-direction: column; align-items: center; font-size: 0.82rem; }
+.spot-diagram .nodes { display: flex; gap: 0.5rem; }
+.spot-diagram .nodes span { background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 0.25rem 0.75rem; }
+.spot-diagram .join { width: 66%; height: 1.4rem; border: 2px solid var(--muted); border-top: 0; border-radius: 0 0 0.5rem 0.5rem; position: relative; margin-bottom: 1.2rem; }
+.spot-diagram .join::after { content: ""; position: absolute; left: 50%; top: 100%; width: 2px; height: 1.2rem; background: var(--muted); transform: translateX(-1px); }
+.spot-diagram .join.single { width: 0; height: 0; border: 0; margin-bottom: 1.2rem; }
+.spot-diagram .box { width: 100%; max-width: 17rem; text-align: center; background: var(--bg); border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.55rem 0.8rem; }
+.spot-diagram .box.engine { border: 2px solid var(--accent); }
+.spot-diagram .box b { display: block; }
+.spot-diagram .box span { color: var(--muted); font-size: 0.78rem; }
+
+/* Feature link cards: a 2-column grid of bordered cards, each ending in an arrow line. */
+.features { list-style: none; padding: 0; margin: 0 auto; max-width: 52rem; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.9rem; }
+
 .features a { display: flex; flex-direction: column; height: 100%; border: 1px solid var(--line); border-radius: 0.7rem; padding: 0.9rem 1rem; color: var(--text); background: var(--bg); }
 .features a:hover { border-color: var(--accent); text-decoration: none; }
-.features b { margin-bottom: 0.25rem; }
-.features b::before { content: counter(feature, decimal-leading-zero); display: inline-block; background: var(--brand); color: var(--brand-text); font-size: 0.72rem; font-weight: 700; border-radius: 999px; padding: 0.05rem 0.45rem; margin-right: 0.5rem; vertical-align: 0.1em; }
+.features b { display: block; margin-bottom: 0.25rem; }
+
 .features span { color: var(--muted); font-size: 0.88rem; line-height: 1.5; flex: 1; }
 .features span code { font-size: 0.9em; }
 .features i { font-style: normal; color: var(--accent); font-size: 0.85rem; margin-top: 0.6rem; }
-@media (max-width: 720px) { .features { grid-template-columns: 1fr; } }
+@media (max-width: 720px) {
+  .spot { grid-template-columns: minmax(0, 1fr); padding: 1.4rem 1.2rem; gap: 1.8rem; }
+  .features { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Two panes side by side, such as registration and the handler it registers. */
+.pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; margin: 0 0 1.2rem; }
+.pair > div { border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.8rem 1rem; font-size: 0.92rem; }
+.pair > div p:last-child { margin: 0; }
+.pair h4 { margin: 0 0 0.3rem; font-size: 0.95rem; }
+/* On the landing the panes are code blocks, which carry their own frame. */
+.pair > pre { margin: 0; min-width: 0; }
+@media (max-width: 36rem) { .pair { grid-template-columns: minmax(0, 1fr); } }
 
 /* Tables */
 .table-scroll { overflow-x: auto; margin: 0 0 1rem; }
@@ -250,12 +286,33 @@ pre[data-label]::before { content: attr(data-label); position: absolute; top: 0.
 .page .toc ol { list-style: none; margin: 0; padding-left: 0; columns: 2 14rem; column-gap: 2rem; }
 .page .toc li { margin: 0 0 0.2rem; break-inside: avoid; }
 
-/* Cards that link to pages (kept for future use). */
+/* Cards that link to pages. */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.9rem; margin: 1rem 0 1.5rem; }
 .card { display: block; border: 1px solid var(--line); border-radius: 0.7rem; padding: 0.9rem 1rem; color: var(--text); background: var(--bg); }
 .card:hover { border-color: var(--accent); text-decoration: none; }
 .card b { display: block; margin-bottom: 0.25rem; }
 .card span { display: block; color: var(--muted); font-size: 0.88rem; line-height: 1.5; }
+
+/* Who a page is for and what the reader does after it. */
+.audience { border-left: 3px solid var(--accent); background: var(--tag-bg); padding: 0.7rem 1rem; border-radius: 0 0.5rem 0.5rem 0; font-size: 0.93rem; margin: 1.2rem 0 1.5rem; }
+.audience p { margin: 0; }
+.audience p + p { margin-top: 0.4rem; }
+
+/* Source notes under a table or a fact list. */
+.page .sources { font-size: 0.85rem; color: var(--muted); margin: -0.4rem 0 0; }
+.page .sources code { white-space: normal; overflow-wrap: anywhere; }
+
+/* A flow of steps, drawn left to right on wide screens and top to bottom on narrow ones. */
+.page ol.flow { list-style: none; counter-reset: flow; display: flex; gap: 1.6rem; padding: 0; margin: 1.5rem 0; }
+.page ol.flow > li { counter-increment: flow; position: relative; flex: 1 1 0; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.7rem 0.8rem; margin: 0; font-size: 0.85rem; line-height: 1.45; }
+.page ol.flow > li::before { content: counter(flow); display: inline-block; width: 1.3rem; height: 1.3rem; line-height: 1.3rem; text-align: center; border-radius: 999px; background: var(--brand); color: var(--brand-text); font-size: 0.72rem; font-weight: 700; margin-bottom: 0.35rem; }
+.page ol.flow > li + li::after { content: ""; position: absolute; left: -1.25rem; top: 50%; border: 0.4rem solid transparent; border-left: 0.55rem solid var(--muted); transform: translateY(-50%); }
+.page ol.flow > li b { display: block; font-size: 0.9rem; margin-bottom: 0.2rem; }
+.page ol.flow > li span { color: var(--muted); }
+@media (max-width: 44rem) {
+  .page ol.flow { flex-direction: column; gap: 1.2rem; }
+  .page ol.flow > li + li::after { left: 1.1rem; top: -0.95rem; border: 0.4rem solid transparent; border-top: 0.55rem solid var(--muted); transform: none; }
+}
 
 /* Previous and next page */
 .pager { display: flex; justify-content: space-between; gap: 1rem; margin-top: 3.5rem; padding-top: 1.2rem; border-top: 1px solid var(--line); font-size: 0.9rem; }
@@ -268,4 +325,6 @@ pre[data-label]::before { content: attr(data-label); position: absolute; top: 0.
 .site-footer nav { display: flex; gap: 1.2rem; }
 .site-footer a { color: var(--muted); }
 .site-footer .maker { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--text); font-weight: 600; }
+.site-footer .maker img { width: 1.7rem; height: 1.7rem; background: #000; }
+.site-footer .license { flex-basis: 100%; margin: 0; }
 @media (max-width: 520px) { .site-footer { justify-content: center; text-align: center; } }

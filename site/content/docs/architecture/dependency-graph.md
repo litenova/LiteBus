@@ -2,7 +2,7 @@
 
 LiteBus packages are split by concern: runtime, messaging, semantic modules, durable orchestration, storage adapters, dispatch adapters, ingress adapters, and shared transport helpers. Applications reference only the packages they compose.
 
-Historical package and API names are documented in the [Migration Guide](../migration/v6.md).
+Historical package and API names are documented in the [v6 Migration Guide](../migration/v6.md).
 
 The role table below is the normative dependency summary. [Generated Package Inventory](generated-package-inventory.md) records every evaluated shipping project reference and direct package reference; documentation CI rejects stale inventory.
 
@@ -58,91 +58,97 @@ Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactor
 
 ## Package Table
 
-| Package | Role | Depends on | External |
+The Direct project references and Direct package references columns repeat [Generated Package Inventory](generated-package-inventory.md), which `scripts/Get-PackageInventory.ps1` writes from evaluated MSBuild metadata. The Role column follows the Dependency Roles matrix above. Documentation CI set-compares every row with the inventory, so update the reference cells only by regenerating the inventory.
+
+| Package | Role | Direct project references | Direct package references |
 | --- | --- | --- | --- |
-| `LiteBus.Runtime.Abstractions` | DI-neutral modules, `ILiteBusBuilder`, dispatch-scope contracts, and shared W3C trace context parsing | none | none |
-| `LiteBus.Runtime` | Module registry, dependency descriptors, and advanced module composition | `Runtime.Abstractions` | none |
-| `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | Microsoft DI adapter; defines `AddLiteBus` in namespace `LiteBus.Extensions.Microsoft.DependencyInjection` | `Runtime`, `Runtime.Extensions.Microsoft.Hosting` | `Microsoft.Extensions.DependencyInjection.Abstractions` |
-| `LiteBus.Runtime.Extensions.Autofac` | Autofac adapter | `Runtime`, `Runtime.Extensions.Autofac.Hosting` | `Autofac`, `Autofac.Extensions.DependencyInjection` |
-| `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection` | Microsoft DI mediator registration | `Messaging`, runtime DI adapter | Microsoft DI |
-| `LiteBus.Messaging.Extensions.Autofac` | Autofac mediator registration | `Messaging`, runtime Autofac adapter | Autofac |
-| `LiteBus.Commands.Extensions.Microsoft.DependencyInjection` | Microsoft DI command registration | `Commands`, runtime DI adapter | Microsoft DI |
-| `LiteBus.Commands.Extensions.Autofac` | Autofac command registration | `Commands`, runtime Autofac adapter | Autofac |
-| `LiteBus.Queries.Extensions.Microsoft.DependencyInjection` | Microsoft DI query registration | `Queries`, runtime DI adapter | Microsoft DI |
-| `LiteBus.Queries.Extensions.Autofac` | Autofac query registration | `Queries`, runtime Autofac adapter | Autofac |
-| `LiteBus.Events.Extensions.Microsoft.DependencyInjection` | Microsoft DI event registration | `Events`, runtime DI adapter | Microsoft DI |
-| `LiteBus.Events.Extensions.Autofac` | Autofac event registration | `Events`, runtime Autofac adapter | Autofac |
-| `LiteBus.Extensions.Microsoft.DependencyInjection` | Convenience meta-package for every semantic mediator Microsoft DI extension (no source files; does not define `AddLiteBus`) | `Commands`, `Events`, `Queries`, `Messaging` mediator `*.Extensions.Microsoft.DependencyInjection` packages | none |
-| `LiteBus.Extensions.Diagnostics.HealthChecks` | ASP.NET Core `IHealthCheck` adapter for manifest diagnostics | `Runtime.Abstractions` | `Microsoft.Extensions.Diagnostics.HealthChecks` |
-| `LiteBus.Extensions.AspNetCore` | Management HTTP endpoints (`/litebus/*`) | `Inbox.Abstractions`, `Outbox.Abstractions`, `Runtime.Abstractions` | ASP.NET Core |
-| `LiteBus.Messaging.Abstractions` | Handler contracts, mediation, execution context | `Runtime.Abstractions` | none |
-| `LiteBus.Messaging` | Registry, mediators, serializer, contract registry | `DurableMessaging.Abstractions`, `Messaging.Abstractions`, `Runtime.Abstractions` | logging abstractions |
-| `LiteBus.Commands.Abstractions` | Command contracts and handlers | `Messaging.Abstractions` | none |
-| `LiteBus.Commands` | Command mediator and module | `Commands.Abstractions`, `Messaging`, `Runtime.Abstractions` | none |
-| `LiteBus.Commands.Recurring` | `AddRecurring` and the background loop that sends one command on an interval | `Commands`, `Commands.Abstractions`, `Messaging.Abstractions`, `Runtime.Abstractions` | logging abstractions |
-| `LiteBus.Queries.Abstractions` | Query and stream query contracts | `Messaging.Abstractions` | none |
-| `LiteBus.Queries` | Query mediator and module | `Queries.Abstractions`, `Messaging`, `Runtime.Abstractions` | none |
-| `LiteBus.Events.Abstractions` | Event contracts and handlers | `Messaging.Abstractions` | none |
-| `LiteBus.Events` | Event mediator and module | `Events.Abstractions`, `Messaging`, `Messaging.Abstractions`, `Runtime.Abstractions` | none |
-| `LiteBus.Inbox.Abstractions` | Inbox records, contracts, envelopes, store roles, and dispatcher contract | `DurableMessaging.Abstractions`, `Messaging.Abstractions`, `Runtime.Abstractions` | none |
-| `LiteBus.DurableMessaging.Abstractions` | Durable metadata, retry, leases, processor settings, and processor envelope hooks | `Messaging.Abstractions`, `Runtime.Abstractions` | none |
-| `LiteBus.Inbox` | Inbox writer services, processor, module, and `InboxModuleBuilder` | `Inbox.Abstractions`, `Messaging`, `DurableMessaging.Abstractions`, `Runtime.Abstractions` | logging abstractions |
-| `LiteBus.Inbox.Storage.PostgreSql` | Npgsql inbox store (all three store roles), optional `PostgreSqlInboxSchemaInitializer` | `Inbox.Abstractions`, `Storage.PostgreSql` | `Npgsql` |
-| `LiteBus.Inbox.Storage.EntityFrameworkCore` | EF Core inbox store using `IDbContextFactory<TContext>` operation contexts | `Inbox`, `Inbox.Abstractions`, `Storage.EntityFrameworkCore` | EF Core |
-| `LiteBus.Inbox.Storage.InMemory` | Thread-safe in-memory inbox store | `Inbox.Abstractions` | none |
-| `LiteBus.Inbox.Dispatch.InProcess` | `UseInProcessDispatch` via `ICommandMediator` | `Inbox.Abstractions`, `Commands.Abstractions`, `Messaging` | none |
-| `LiteBus.Inbox.Dispatch` | Shared `TransportInboxDispatcher` and envelope mapping | `Inbox.Abstractions`, `Messaging`, `Transport.Abstractions`, `Transport` | none |
-| `LiteBus.Inbox.Dispatch.Amqp` | `UseAmqpDispatch`: AMQP transport inbox dispatch | `Inbox.Dispatch`, `Transport.Amqp` | none |
-| `LiteBus.Inbox.Dispatch.AzureServiceBus` | `UseAzureServiceBusDispatch` | `Inbox.Dispatch`, `Transport.AzureServiceBus` | none |
-| `LiteBus.Inbox.Dispatch.AwsSqs` | `UseAwsSqsDispatch` | `Inbox.Dispatch`, `Transport.AwsSqs` | none |
-| `LiteBus.Inbox.Dispatch.Kafka` | `UseKafkaDispatch` | `Inbox.Dispatch`, `Transport.Kafka` | none |
-| `LiteBus.Inbox.Dispatch.InMemory` | `UseInMemoryDispatch`: in-memory transport inbox dispatch | `Inbox.Dispatch`, `Transport.InMemory` | none |
-| `LiteBus.Inbox.Ingress` | Map transport deliveries to `IInbox.AcceptAsync` | `Inbox.Abstractions`, `Messaging.Abstractions`, `Runtime.Abstractions`, `Transport.Abstractions`, `Transport` | `Microsoft.Extensions.Logging.Abstractions` |
-| `LiteBus.Inbox.Ingress.Amqp` | `UseAmqpIngress`: AMQP inbox ingress | `Inbox.Abstractions`, `Inbox.Ingress`, `Messaging.Abstractions`, `Runtime.Abstractions`, `Transport.Amqp` | `Microsoft.Extensions.Logging.Abstractions` |
-| `LiteBus.Inbox.Ingress.AzureServiceBus` | `UseAzureServiceBusIngress` | `Inbox.Abstractions`, `Inbox.Ingress`, `Messaging.Abstractions`, `Runtime.Abstractions`, `Transport.AzureServiceBus` | none |
-| `LiteBus.Inbox.Ingress.AwsSqs` | `UseAwsSqsIngress` | `Inbox.Abstractions`, `Inbox.Ingress`, `Messaging.Abstractions`, `Runtime.Abstractions`, `Transport.AwsSqs` | none |
-| `LiteBus.Inbox.Ingress.Kafka` | `UseKafkaIngress` | `Inbox.Abstractions`, `Inbox.Ingress`, `Messaging.Abstractions`, `Runtime.Abstractions`, `Transport.Kafka` | none |
-| `LiteBus.Inbox.Ingress.InMemory` | `UseInMemoryIngress` | `Inbox.Abstractions`, `Inbox.Ingress`, `Messaging.Abstractions`, `Runtime.Abstractions`, `Transport.InMemory` | none |
-| `LiteBus.Outbox.Abstractions` | Outbox records, contracts, envelopes, store roles, and dispatcher contract | `DurableMessaging.Abstractions`, `Messaging.Abstractions`, `Runtime.Abstractions` | none |
-| `LiteBus.Outbox` | Outbox writer services, processor, module, and `OutboxModuleBuilder` | `Outbox.Abstractions`, `Messaging`, `DurableMessaging.Abstractions`, `Runtime.Abstractions` | logging abstractions |
-| `LiteBus.Saga.Abstractions` | Saga instance contracts and store interfaces | `Commands.Abstractions`, `Messaging.Abstractions` | none |
-| `LiteBus.Saga` | `SagaProcessorHook`, explicit in-memory store, `SagaModule`, and `SagaModuleBuilder` | `Saga.Abstractions`, `DurableMessaging.Abstractions`, `Messaging.Abstractions`, `Runtime.Abstractions` | logging abstractions |
-| `LiteBus.Saga.InboxIntegration` | Nested `EnableSaga(...)` bridge on `InboxModuleBuilder` | `Saga`, `Inbox` | none |
-| `LiteBus.Saga.Storage.PostgreSql` | Explicit PostgreSQL saga store and schema | `Saga`, `Saga.Abstractions`, `Storage.PostgreSql`, `Messaging.Abstractions`, `Runtime.Abstractions` | `Npgsql` |
-| `LiteBus.Outbox.Storage.PostgreSql` | Npgsql outbox store, optional `PostgreSqlOutboxSchemaInitializer` | `Outbox.Abstractions`, `Storage.PostgreSql` | `Npgsql` |
-| `LiteBus.Outbox.Storage.EntityFrameworkCore` | EF Core outbox store using `IDbContextFactory<TContext>` operation contexts | `Outbox`, `Outbox.Abstractions`, `Storage.EntityFrameworkCore` | EF Core |
-| `LiteBus.Outbox.Storage.InMemory` | Thread-safe in-memory outbox store | `Outbox.Abstractions` | none |
-| `LiteBus.Outbox.Dispatch.InProcess` | `UseInProcessDispatch` via `IEventMediator` | `Outbox.Abstractions`, `Events.Abstractions`, `Messaging` | none |
-| `LiteBus.Outbox.Dispatch` | Shared `TransportOutboxDispatcher` and envelope mapping | `Outbox.Abstractions`, `Messaging`, `Transport.Abstractions`, `Transport` | none |
-| `LiteBus.Outbox.Dispatch.Amqp` | `UseAmqpDispatch`: AMQP transport outbox dispatch | `Outbox.Dispatch`, `Transport.Amqp` | none |
-| `LiteBus.Outbox.Dispatch.AzureServiceBus` | `UseAzureServiceBusDispatch` | `Outbox.Dispatch`, `Transport.AzureServiceBus` | none |
-| `LiteBus.Outbox.Dispatch.AwsSqs` | `UseAwsSqsDispatch` | `Outbox.Dispatch`, `Transport.AwsSqs` | none |
-| `LiteBus.Outbox.Dispatch.Kafka` | `UseKafkaDispatch` | `Outbox.Dispatch`, `Transport.Kafka` | none |
-| `LiteBus.Outbox.Dispatch.InMemory` | `UseInMemoryDispatch`: in-memory transport outbox dispatch | `Outbox.Dispatch`, `Transport.InMemory` | none |
-| `LiteBus.Transport.Abstractions` | `ITransportPublisher`, `IMessageConsumer`, transport headers | none | none |
-| `LiteBus.Transport` | Circuit breaker metrics, transport tracing, and header value parsing | `Transport.Abstractions`, `Runtime.Abstractions` | none |
-| `LiteBus.Transport.Amqp` | RabbitMQ adapter | `Transport.Abstractions`, `Transport`, `Runtime.Abstractions` | `RabbitMQ.Client` |
-| `LiteBus.Messaging.Extensions.OpenTelemetry` | Register mediation traces and metrics | `Messaging` | `OpenTelemetry` |
-| `LiteBus.Inbox.Extensions.OpenTelemetry` | Register inbox traces and metrics | `Inbox` | `OpenTelemetry` |
-| `LiteBus.Outbox.Extensions.OpenTelemetry` | Register outbox traces and metrics | `Outbox` | `OpenTelemetry` |
-| `LiteBus.Transport.Extensions.OpenTelemetry` | Register transport tracing and circuit breaker metrics | `Transport` | `OpenTelemetry` |
-| `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | Register AMQP circuit breaker metrics | `Transport.Amqp` | `OpenTelemetry` |
-| `LiteBus.Storage.PostgreSql` | Shared PG quoting, schema version, advisory locks | none | `Npgsql` |
-| `LiteBus.Storage.EntityFrameworkCore` | Shared EF Core options, transactions, and provider helpers | `DurableMessaging.Abstractions`, `Messaging.Abstractions` | EF Core |
-| `LiteBus.Analyzers` | Roslyn analyzers for handler and contract rules | Roslyn only | `Microsoft.CodeAnalysis.CSharp` |
-| `LiteBus.*.Extensions.Microsoft.DependencyInjection` | Module registration for Microsoft DI | Module package, Microsoft DI runtime adapter | Microsoft DI |
-| `LiteBus.Runtime.Extensions.Hosting` | Shared host orchestrator and manual background-service wrapper | `Runtime.Abstractions`, Microsoft hosting abstractions | none |
-| `LiteBus.Runtime.Extensions.Microsoft.Hosting` | Microsoft DI registration for manifest host adapters | `Runtime.Extensions.Hosting`, Microsoft DI abstractions | none |
-| `LiteBus.Runtime.Extensions.Autofac.Hosting` | Autofac registration for manifest host adapters | `Runtime.Extensions.Hosting`, Autofac | none |
-| `LiteBus.*.Extensions.Autofac` | Module registration for Autofac | Module package, Autofac runtime adapter | Autofac |
-| `LiteBus` | Aggregate meta-package (core modules; storage/dispatch remain opt-in) | Commands, Queries, Events, Messaging, Inbox, Outbox, abstractions | none |
-| `LiteBus.Testing` | Framework-neutral `ManualTimeProvider` and `LiteBusTestBase` | none | none |
-| `LiteBus.Testing.Mediation` | `TestCommandMediator`, `TestQueryMediator`, and `TestEventMediator` | command, query, and event abstractions | none |
-| `LiteBus.Testing.Transport` | `TestMessageTransport` publisher double | `Transport.Abstractions` | none |
-| `LiteBus.Testing.DurableMessaging` | Inbox/outbox stores, processor helpers, and `InboxOutboxTestHost` | inbox/outbox core and in-memory storage, Microsoft DI composition | Microsoft DI |
-| `LiteBus.Testing.Hosting` | Generic Host lifecycle and manifest helpers | inbox core and runtime hosting adapter | Microsoft DI and hosting abstractions |
-| `LiteBus.Storage.Testing` | Published xUnit store conformance bases for custom adapter authors | `Inbox.Abstractions`, `Outbox.Abstractions` | `AwesomeAssertions`, `xunit` |
-| `LiteBus.Transport.Testing` | Published xUnit publisher and consumer conformance base for custom adapter authors | `Transport.Abstractions` | `xunit` |
+| `LiteBus.Runtime.Abstractions` | Platform contracts | none | none |
+| `LiteBus.Runtime` | Core implementation | `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | Host adapter | `LiteBus.Runtime`, `LiteBus.Runtime.Extensions.Microsoft.Hosting` | `Microsoft.Extensions.DependencyInjection.Abstractions` |
+| `LiteBus.Runtime.Extensions.Autofac` | Host adapter | `LiteBus.Runtime`, `LiteBus.Runtime.Extensions.Autofac.Hosting` | `Autofac`, `Autofac.Extensions.DependencyInjection` |
+| `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection` | Host adapter | `LiteBus.Messaging`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | none |
+| `LiteBus.Messaging.Extensions.Autofac` | Host adapter | `LiteBus.Messaging`, `LiteBus.Runtime.Extensions.Autofac` | none |
+| `LiteBus.Commands.Extensions.Microsoft.DependencyInjection` | Host adapter | `LiteBus.Commands`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | none |
+| `LiteBus.Commands.Extensions.Autofac` | Host adapter | `LiteBus.Commands`, `LiteBus.Runtime.Extensions.Autofac` | none |
+| `LiteBus.Queries.Extensions.Microsoft.DependencyInjection` | Host adapter | `LiteBus.Queries`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | none |
+| `LiteBus.Queries.Extensions.Autofac` | Host adapter | `LiteBus.Queries`, `LiteBus.Runtime.Extensions.Autofac` | none |
+| `LiteBus.Events.Extensions.Microsoft.DependencyInjection` | Host adapter | `LiteBus.Events`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | none |
+| `LiteBus.Events.Extensions.Autofac` | Host adapter | `LiteBus.Events`, `LiteBus.Runtime.Extensions.Autofac` | none |
+| `LiteBus.Extensions.Microsoft.DependencyInjection` | Host adapter | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection`, `LiteBus.Events.Extensions.Microsoft.DependencyInjection`, `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection`, `LiteBus.Queries.Extensions.Microsoft.DependencyInjection` | none |
+| `LiteBus.Extensions.Diagnostics.HealthChecks` | Host adapter | `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Diagnostics.HealthChecks` |
+| `LiteBus.Extensions.AspNetCore` | Host adapter | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Messaging.Abstractions` | Mediation contracts | `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Messaging` | Core implementation | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Commands.Abstractions` | Mediation contracts | `LiteBus.Messaging.Abstractions` | none |
+| `LiteBus.Commands` | Core implementation | `LiteBus.Commands.Abstractions`, `LiteBus.Messaging`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Commands.Recurring` | Feature bridge | `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Queries.Abstractions` | Mediation contracts | `LiteBus.Messaging.Abstractions` | none |
+| `LiteBus.Queries` | Core implementation | `LiteBus.Messaging`, `LiteBus.Queries.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Events.Abstractions` | Mediation contracts | `LiteBus.Messaging.Abstractions` | none |
+| `LiteBus.Events` | Core implementation | `LiteBus.Events.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Inbox.Abstractions` | Durable contracts | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.DurableMessaging.Abstractions` | Durable contracts | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Inbox` | Core implementation | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Inbox.Storage.PostgreSql` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
+| `LiteBus.Inbox.Storage.EntityFrameworkCore` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.EntityFrameworkCore` | `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Relational` |
+| `LiteBus.Inbox.Storage.InMemory` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Inbox.Dispatch.InProcess` | Feature bridge | `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Inbox.Dispatch` | Feature bridge | `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Runtime.Abstractions`, `LiteBus.Transport`, `LiteBus.Transport.Abstractions` | none |
+| `LiteBus.Inbox.Dispatch.Amqp` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Dispatch`, `LiteBus.Transport.Amqp` | none |
+| `LiteBus.Inbox.Dispatch.AzureServiceBus` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Dispatch`, `LiteBus.Transport.AzureServiceBus` | none |
+| `LiteBus.Inbox.Dispatch.AwsSqs` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Dispatch`, `LiteBus.Transport.AwsSqs` | none |
+| `LiteBus.Inbox.Dispatch.Kafka` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Dispatch`, `LiteBus.Transport.Kafka` | none |
+| `LiteBus.Inbox.Dispatch.InMemory` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Dispatch`, `LiteBus.Transport.InMemory` | none |
+| `LiteBus.Inbox.Ingress` | Feature bridge | `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Transport`, `LiteBus.Transport.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Inbox.Ingress.Amqp` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Ingress`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Transport.Amqp` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Inbox.Ingress.AzureServiceBus` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Ingress`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Transport.AzureServiceBus` | none |
+| `LiteBus.Inbox.Ingress.AwsSqs` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Ingress`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Transport.AwsSqs` | none |
+| `LiteBus.Inbox.Ingress.Kafka` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Ingress`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Transport.Kafka` | none |
+| `LiteBus.Inbox.Ingress.InMemory` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Ingress`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Transport.InMemory` | none |
+| `LiteBus.Outbox.Abstractions` | Durable contracts | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Outbox` | Core implementation | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Saga.Abstractions` | Durable contracts | `LiteBus.Commands.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Saga` | Core implementation | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Saga.InboxIntegration` | Feature bridge | `LiteBus.Commands.Abstractions`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Saga` | none |
+| `LiteBus.Saga.Storage.PostgreSql` | Feature bridge | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga`, `LiteBus.Saga.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
+| `LiteBus.Outbox.Storage.PostgreSql` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
+| `LiteBus.Outbox.Storage.EntityFrameworkCore` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.EntityFrameworkCore` | `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Relational` |
+| `LiteBus.Outbox.Storage.InMemory` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Outbox.Dispatch.InProcess` | Feature bridge | `LiteBus.Events`, `LiteBus.Events.Abstractions`, `LiteBus.Messaging`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Outbox.Dispatch` | Feature bridge | `LiteBus.Messaging`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Transport`, `LiteBus.Transport.Abstractions` | none |
+| `LiteBus.Outbox.Dispatch.Amqp` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Dispatch`, `LiteBus.Transport.Amqp` | none |
+| `LiteBus.Outbox.Dispatch.AzureServiceBus` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Dispatch`, `LiteBus.Transport.AzureServiceBus` | none |
+| `LiteBus.Outbox.Dispatch.AwsSqs` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Dispatch`, `LiteBus.Transport.AwsSqs` | none |
+| `LiteBus.Outbox.Dispatch.Kafka` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Dispatch`, `LiteBus.Transport.Kafka` | none |
+| `LiteBus.Outbox.Dispatch.InMemory` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Dispatch`, `LiteBus.Transport.InMemory` | none |
+| `LiteBus.Transport.Abstractions` | Platform contracts | none | none |
+| `LiteBus.Transport` | Core implementation | `LiteBus.Runtime.Abstractions`, `LiteBus.Transport.Abstractions` | none |
+| `LiteBus.Transport.Amqp` | Technology adapter | `LiteBus.Runtime.Abstractions`, `LiteBus.Transport`, `LiteBus.Transport.Abstractions` | `RabbitMQ.Client` |
+| `LiteBus.Transport.Kafka` | Technology adapter | `LiteBus.Runtime.Abstractions`, `LiteBus.Transport`, `LiteBus.Transport.Abstractions` | `Confluent.Kafka` |
+| `LiteBus.Transport.AwsSqs` | Technology adapter | `LiteBus.Runtime.Abstractions`, `LiteBus.Transport`, `LiteBus.Transport.Abstractions` | `AWSSDK.SQS` |
+| `LiteBus.Transport.AzureServiceBus` | Technology adapter | `LiteBus.Runtime.Abstractions`, `LiteBus.Transport`, `LiteBus.Transport.Abstractions` | `Azure.Messaging.ServiceBus`, `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Transport.InMemory` | Technology adapter | `LiteBus.Runtime.Abstractions`, `LiteBus.Transport`, `LiteBus.Transport.Abstractions` | none |
+| `LiteBus.Messaging.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Messaging` | `OpenTelemetry` |
+| `LiteBus.Inbox.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Inbox` | `OpenTelemetry` |
+| `LiteBus.Outbox.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Outbox` | `OpenTelemetry` |
+| `LiteBus.Transport.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Transport` | `OpenTelemetry` |
+| `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Transport.Amqp` | `OpenTelemetry` |
+| `LiteBus.Storage.PostgreSql` | Technology adapter | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions` | `Npgsql` |
+| `LiteBus.Storage.EntityFrameworkCore` | Technology adapter | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions` | `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Relational` |
+| `LiteBus.Analyzers` | Consumer tooling | none | `Microsoft.CodeAnalysis.Analyzers (private)`, `Microsoft.CodeAnalysis.CSharp (private)`, `System.Collections.Immutable (private)` |
+| `LiteBus.Runtime.Extensions.Hosting` | Host adapter | `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Hosting.Abstractions` |
+| `LiteBus.Runtime.Extensions.Microsoft.Hosting` | Host adapter | `LiteBus.Runtime.Extensions.Hosting` | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Hosting.Abstractions` |
+| `LiteBus.Runtime.Extensions.Autofac.Hosting` | Host adapter | `LiteBus.Runtime.Extensions.Hosting` | `Autofac`, `Microsoft.Extensions.Hosting.Abstractions` |
+| `LiteBus` | Aggregate | `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Events`, `LiteBus.Events.Abstractions`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Queries`, `LiteBus.Queries.Abstractions` | none |
+| `LiteBus.Testing` | Consumer tooling | none | none |
+| `LiteBus.Testing.Mediation` | Consumer tooling | `LiteBus.Commands.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Runtime` | none |
+| `LiteBus.Testing.Transport` | Consumer tooling | `LiteBus.Transport.Abstractions` | none |
+| `LiteBus.Testing.DurableMessaging` | Consumer tooling | `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Storage.InMemory`, `LiteBus.Messaging`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Storage.InMemory`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.DependencyInjection` |
+| `LiteBus.Testing.Hosting` | Consumer tooling | `LiteBus.Inbox`, `LiteBus.Runtime.Abstractions`, `LiteBus.Runtime.Extensions.Microsoft.Hosting` | `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Hosting.Abstractions` |
+| `LiteBus.Storage.Testing` | Consumer tooling | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | `AwesomeAssertions`, `xunit` |
+| `LiteBus.Transport.Testing` | Consumer tooling | `LiteBus.Transport.Abstractions` | `xunit` |
+
+Per-module `*.Extensions.Microsoft.DependencyInjection` and `*.Extensions.Autofac` shells are registration patterns, not shipping packages, so they have no inventory row. Each one depends on its module package and the matching runtime adapter.
 
 ## Dependency Rules
 
@@ -314,4 +320,4 @@ PostgreSQL and AMQP integration tests require Docker. CI skips them gracefully w
 
 ## Next
 
-See [Architecture](README.md) for Storage / Dispatch / Ingress flow diagrams, or the [Migration Guide](../migration/v6.md) for historical package mappings.
+See [Architecture](README.md) for Storage / Dispatch / Ingress flow diagrams, or the [v6 Migration Guide](../migration/v6.md) for historical package mappings.

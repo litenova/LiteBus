@@ -97,7 +97,7 @@ LiteBus keeps domain-specific names instead of one generic "store" verb:
 
 | Term | Definition |
 | --- | --- |
-| Schema version | Physical table contract recorded per component. Inbox, outbox, and saga use version **1**. Incompatible historical shapes require the procedures in the [Migration Guide](../migration/v6.md). |
+| Schema version | Physical table contract recorded per component. Inbox, outbox, and saga use version **1**. Incompatible historical shapes require the procedures in the [v6 Migration Guide](../migration/v6.md). |
 | Create script | `GetCreateScript()` renders current-version DDL for a new table. See [PostgreSQL schema management](../integrations/postgresql-schema-management.md). |
 | `EnsureAsync` / `ValidateAsync` | Opt-in host bootstrap or validate-only startup for PostgreSQL stores. |
 

@@ -2,7 +2,7 @@
 
 LiteBus and MediatR are both in-process mediators for .NET, but they make different trade-offs. This page is for a developer deciding between them, or one who knows MediatR and wants to map concepts onto LiteBus quickly. It states where the two agree, where they differ, and how to translate the common patterns.
 
-Both libraries route a message to its handler so callers depend on an interface rather than a concrete service. The difference is in how much structure the library imposes and how much control it gives over the handler pipeline.
+Both libraries route a message to its handler so callers depend on an interface rather than a concrete service. The difference is in how much structure the library imposes and how much control it gives over the handler pipeline. LiteBus is MIT licensed, open source, free for commercial use, and will remain free. Check the current MediatR license terms for your use.
 
 ## The Core Split
 
@@ -24,7 +24,7 @@ LiteBus splits the write-side request into a command and the read-side request i
 
 MediatR wraps a request in `IPipelineBehavior<TRequest, TResponse>` delegates. A behavior calls `next()` to continue, and code before and after that call runs before and after the handler. Cross-cutting steps are written as behaviors and apply to every request unless you constrain the generic.
 
-LiteBus does not use a wrapping delegate. Each message type has named stages: pre-handlers, the main handler, post-handlers, and error-handlers. You attach a step to the stage where it belongs rather than reconstructing the stage from where you call `next()`. A pre-handler always runs before the main handler; a post-handler always runs after a successful one; an error-handler runs only on exception.
+LiteBus does not use a wrapping delegate. Each message type has named stages: pre-handlers, the main handler, post-handlers, and error-handlers. You attach a step to the stage where it belongs rather than reconstructing the stage from where you call `next()`. A pre-handler always runs before the main handler. A post-handler always runs after a successful one. An error-handler runs only on exception.
 
 | Concern | MediatR | LiteBus |
 | --- | --- | --- |
@@ -75,7 +75,7 @@ public sealed class CommandLoggingPost<TCommand> : ICommandPostHandler<TCommand>
 }
 ```
 
-The cost is two types instead of one. The benefit is that "before" and "after" are not coupled through a shared local variable, and the post-handler does not run when the main handler throws, which is usually what you want for logging success.
+The cost is two types instead of one. The benefit is that "before" and "after" are not coupled through a shared local variable. The post-handler does not run when the main handler throws.
 
 ## Capability Differences
 
@@ -87,7 +87,7 @@ The cost is two types instead of one. The benefit is that "before" and "after" a
 | Handler selection | Built-in `[HandlerTag]` and runtime `HandlerPredicate` filtering | Write a behavior to filter |
 | Polymorphic dispatch | A handler for a base type or interface runs for derived messages (pre/post/error and events) | A handler for `Base` does not run for `Derived` |
 | Durable messaging | Built-in command inbox and event outbox with PostgreSQL stores | Not built in; use an external library |
-| License | MIT, free | Check the current MediatR license terms for your use |
+| License | MIT licensed, open source, free for commercial use, and will remain free | Check the current MediatR license terms for your use |
 
 ## Choosing
 

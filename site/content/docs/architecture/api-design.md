@@ -193,7 +193,7 @@ await outbox.EnqueueAsync(
     cancellationToken);
 ```
 
-Feature guides ([Inbox](../reliable-messaging/inbox.md), [Outbox](../reliable-messaging/outbox.md), [Transactional messaging writes](../reliable-messaging/transactional-writes.md)) show end-to-end usage. Historical names and package mappings remain in the [Migration Guide](../migration/v6.md).
+Feature guides ([Inbox](../reliable-messaging/inbox.md), [Outbox](../reliable-messaging/outbox.md), [Transactional messaging writes](../reliable-messaging/transactional-writes.md)) show end-to-end usage. Historical names and package mappings remain in the [v6 Migration Guide](../migration/v6.md).
 
 ## Ergonomics
 
@@ -221,4 +221,4 @@ Track broader roadmap items in [Roadmap](../roadmap/README.md).
 
 - [Architecture](README.md): storage accept/process paths and dependency roles
 - [Inbox](../reliable-messaging/inbox.md) / [Outbox](../reliable-messaging/outbox.md): feature guides for durable messaging
-- [Migration Guide](../migration/v6.md): historical API and database transitions
+- [v6 Migration Guide](../migration/v6.md): historical API and database transitions

@@ -2,6 +2,8 @@
 
 This page indexes version-to-version upgrade guides for LiteBus. Each guide lists breaking changes and the steps to move your code forward. Start with the guide for the version you are leaving.
 
+> **This page is for** developers who upgrade LiteBus across a major version.
+
 ## Guides
 
 | From to To | What changed | Guide |

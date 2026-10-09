@@ -2,6 +2,10 @@
 
 LiteBus provides semantic command, query, and event mediation. Durable messaging uses orthogonal **Storage**, **Dispatch**, and **Ingress** adapters; broker SDKs remain outside the mediator packages.
 
+> **This page is for** developers who compose LiteBus modules and select storage, dispatch, and transport adapters.
+>
+> **After reading it** you can map each package to its dependency role and processing axis. Continue with the [Dependency Graph](dependency-graph.md).
+
 ## Architecture Roles
 
 | Role | Responsibility | Main packages |
@@ -154,12 +158,22 @@ Instrument names are stable public constants on `LiteBusMediationTelemetry`, `Li
 | `LiteBus.Inbox` | `litebus.inbox.processor.persist_skipped` | `LiteBusInboxTelemetry.ProcessorPersistSkippedInstrumentName` | Skipped terminal persist when lease owner no longer matches |
 | `LiteBus.Inbox` | `litebus.inbox.processor.persist_failed` | `LiteBusInboxTelemetry.ProcessorPersistFailedInstrumentName` | Terminal persist threw after successful handler dispatch |
 | `LiteBus.Inbox` | `litebus.inbox.diagnostics.unavailable` | `LiteBusInboxTelemetry.DiagnosticsUnavailableInstrumentName` | Queue depth probe failed against the backing store |
+| `LiteBus.Inbox` | `litebus.inbox.processor.lease_lost` | `LiteBusInboxTelemetry.ProcessorLeaseLostInstrumentName` | Incremented when inbox lease renewal fails during dispatch |
+| `LiteBus.Inbox` | `litebus.inbox.cleanup.errors` | `LiteBusInboxTelemetry.CleanupErrorInstrumentName` | Incremented when inbox retention cleanup fails |
+| `LiteBus.Inbox` | `litebus.inbox.processor.dispatch_duration` | `LiteBusInboxTelemetry.ProcessorDispatchDurationInstrumentName` | Histogram in milliseconds per envelope dispatch |
+| `LiteBus.Inbox` | `litebus.inbox.processor.leases_acquired` | `LiteBusInboxTelemetry.ProcessorLeasesAcquiredInstrumentName` | Sum of inbox envelopes leased at the start of a pass |
+| `LiteBus.Inbox` | `litebus.inbox.processor.persist_rejected` | `LiteBusInboxTelemetry.ProcessorPersistRejectedInstrumentName` | Terminal persist rejected an update because the lease was lost |
 | `LiteBus.Inbox` | `ingress.ack_failed_after_accept` | `LiteBusInboxIngressTelemetry.AckFailedAfterAcceptInstrumentName` | Broker acknowledgement failed after a successful inbox accept |
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_skipped` | `LiteBusOutboxTelemetry.ProcessorPersistSkippedInstrumentName` | Skipped terminal persist when lease owner no longer matches |
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_failed` | `LiteBusOutboxTelemetry.ProcessorPersistFailedInstrumentName` | Terminal persist threw after successful broker publish |
 | `LiteBus.Outbox` | `litebus.outbox.diagnostics.unavailable` | `LiteBusOutboxTelemetry.DiagnosticsUnavailableInstrumentName` | Queue depth probe failed against the backing store |
 | `LiteBus.Outbox` | `litebus.outbox.queue.depth` | `LiteBusOutboxTelemetry.QueueDepthInstrumentName` | Observable gauge; tag `litebus.outbox.status` |
 | `LiteBus.Outbox` | `litebus.outbox.processor.state` | `LiteBusOutboxTelemetry.ProcessorStateInstrumentName` | Same encoding as inbox processor state |
+| `LiteBus.Outbox` | `litebus.outbox.processor.lease_lost` | `LiteBusOutboxTelemetry.ProcessorLeaseLostInstrumentName` | Incremented when outbox lease renewal fails during publication |
+| `LiteBus.Outbox` | `litebus.outbox.cleanup.errors` | `LiteBusOutboxTelemetry.CleanupErrorInstrumentName` | Incremented when outbox retention cleanup fails |
+| `LiteBus.Outbox` | `litebus.outbox.processor.dispatch_duration` | `LiteBusOutboxTelemetry.ProcessorDispatchDurationInstrumentName` | Histogram in milliseconds per publication attempt |
+| `LiteBus.Outbox` | `litebus.outbox.processor.leases_acquired` | `LiteBusOutboxTelemetry.ProcessorLeasesAcquiredInstrumentName` | Sum of outbox messages leased at the start of a pass |
+| `LiteBus.Outbox` | `litebus.outbox.processor.persist_rejected` | `LiteBusOutboxTelemetry.ProcessorPersistRejectedInstrumentName` | Terminal persist rejected an update because the lease was lost |
 | `LiteBus.Transport` | `litebus.transport.circuit_breaker.open` | `LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName` | `1` when any publisher circuit is open or half-open; tag `litebus.transport.broker` |
 | `LiteBus.Transport` | `litebus.transport.circuit_breaker.failure_count` | `LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName` | Current failure sum across publisher destinations; tag `litebus.transport.broker` |
 | `LiteBus.Transport.AzureServiceBus` | (reserved) | | Adapter meter identity for custom instrumentation |
@@ -184,7 +198,7 @@ Processor pass counters below are recorded by internal processor instrumentation
 | `LiteBus.Outbox` | `litebus.outbox.processor.dead_lettered` | Messages moved to dead letter during a pass |
 | `LiteBus.Outbox` | `litebus.outbox.processor.loop_errors` | Unhandled exceptions caught by the processor background loop |
 
-Circuit breaker instruments use the `litebus.transport.circuit_breaker.*` names on the `LiteBus.Transport` meter with `litebus.transport.broker="amqp"`.
+Circuit breaker instruments use the `litebus.transport.circuit_breaker.*` names on the `LiteBus.Transport` meter with the `litebus.transport.broker` tag identifying the active adapter.
 
 Framework-neutral diagnostic probes use `IDiagnosticCheck` and `LiteBusHostManifest`. Applications map probe results to health endpoints or custom sinks.
 
@@ -456,17 +470,6 @@ inbox.UseAmqpDispatch(options =>
 });
 ```
 
-## Composite Store Roles
-
-Fine-grained store interfaces remain public. Processors and managers depend on composite roles that storage adapters register on the same singleton instance:
-
-| Composite | Combines | Used by |
-| --- | --- | --- |
-| `IInboxProcessingStore` | lease, state writer | `IInboxProcessor` |
-| `IInboxOperationsStore` | dead-letter, retention, diagnostics, query, purge | `IInboxManager` |
-| `IOutboxProcessingStore` | lease, state writer | `IOutboxProcessor` |
-| `IOutboxOperationsStore` | dead-letter, retention, diagnostics, query, purge | `IOutboxManager` |
-
 ## Module Composition
 
 Parent modules use `ICompositeModule` to declare storage, dispatch, ingress, and saga children. Child membership is collected before build. `BuildOrder()` validates every `IRequires<TModule>` edge, inserts composite children, and topologically sorts the complete graph before any `Build()` call. Configuration context stores shared configuration objects only; registration markers and dependency-registry scans are not part of ordering. Duplicate registration of the same module type throws `LiteBusConfigurationException` at compose time.
@@ -497,7 +500,7 @@ Do not add top-level `IModuleRegistry` shortcuts that bypass the parent builder.
 
 ### Planned Capabilities
 
-The [Roadmap](../roadmap/README.md) tracks built-in idempotency consumer middleware, per-contract retry classification, SQS FIFO and broker dead-letter integration, named bus instances, schema tooling, payload compression, and validation, authorization, and caching modules. Store-side `visible_after` covers delayed processing; broker-native delayed delivery is not part of the current API.
+The [Roadmap](../roadmap/README.md) tracks per-contract retry classification, SQS FIFO and broker dead-letter integration, named bus instances, schema tooling, payload compression, and validation, authorization, and caching modules. Handler-level idempotency already ships; see [Idempotency](../concepts/idempotency.md). Store-side `visible_after` covers delayed processing; broker-native delayed delivery is not part of the current API.
 
 ## Boundaries
 
@@ -508,4 +511,4 @@ The [Roadmap](../roadmap/README.md) tracks built-in idempotency consumer middlew
 
 ## Next
 
-Follow package boundaries in the [Dependency Graph](dependency-graph.md). Historical upgrade steps remain in the [Migration Guide](../migration/v6.md).
+Follow package boundaries in the [Dependency Graph](dependency-graph.md). Historical upgrade steps remain in the [v6 Migration Guide](../migration/v6.md).

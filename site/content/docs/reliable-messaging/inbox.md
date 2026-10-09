@@ -37,7 +37,7 @@ public sealed record InboxReceipt
 }
 ```
 
-When `Outcome` is `AlreadyAccepted`, the store returned an existing row for the supplied message id or tenant-scoped idempotency key. Completed rows remain deduplicated: a repeat accept with the same `(tenant_id, idempotency_key)` pair returns the completed envelope without re-executing the handler.
+When `Outcome` is `AlreadyAccepted`, the store returned an existing row for the supplied message id or tenant-scoped idempotency key. Completed rows remain deduplicated. A repeat accept with the same `(tenant_id, idempotency_key)` pair returns the completed envelope without re-executing the handler.
 
 Use `InboxAcceptMetadata.Immediate with { ... }` (or helpers such as `InboxAcceptItem<T>.WithTrace`, `WithTenant`, `WithCorrelation`) rather than constructing metadata with uninitialized required fields. Heterogeneous batch APIs accept `InboxAcceptItem.From(message, messageType)` when contract lookup must not rely on `message.GetType()` alone.
 
@@ -144,7 +144,7 @@ Each broker ingress options record exposes a provider-neutral `Safety` value:
 
 By default, ingress maps the broker delivery id to `MessageIdentity.Supplied` and a broker-scoped `Idempotency.Keyed` value (`ingress:{destination}:{brokerMessageId}`) so broker redelivery after a successful store accept does not create duplicate inbox rows. Set `Safety.TrustApplicationHeaders` to `true` only when upstream publishers are trusted to supply application idempotency and tenant headers.
 
-Receive tuning is explicit per adapter. AMQP and Azure expose native `PrefetchCount`; SQS exposes `ReceiveBatchSize`; Azure exposes `MaxConcurrentCalls`; Kafka and in-memory ingress expose no receive knob they cannot honor. The enforced `Safety.MaxInFlightMessages` bound is 1 for AMQP, Kafka, SQS, and in-memory ingress; only Azure Service Bus honors a configured value.
+Receive tuning is explicit per adapter. AMQP and Azure expose native `PrefetchCount`. SQS exposes `ReceiveBatchSize`. Azure exposes `MaxConcurrentCalls`. Kafka and in-memory ingress expose no receive knob they cannot honor. The enforced `Safety.MaxInFlightMessages` bound is 1 for AMQP, Kafka, SQS, and in-memory ingress. Only Azure Service Bus honors a configured value.
 
 Ingress honors `litebus-visible-after` (absolute ISO-8601) and `litebus-visible-after-delay` (relative `TimeSpan` or tick count). Relative delay takes precedence when both headers are present.
 
@@ -170,7 +170,7 @@ Inbox processing is **at-least-once**, not exactly-once. A handler may run more 
 | `false` (default) | Terminal `PersistAsync` receives `CancellationToken.None`. Shutdown may block until persist completes; lower risk of duplicate dispatch if persist is interrupted. |
 | `true` | Terminal persist receives the shutdown token. Faster drain on host stop; higher risk of duplicate dispatch if persist is canceled mid-write. |
 
-On graceful shutdown or drain, a dispatch the processor cancels is released through `ILeaseRenewable.ReleaseLeaseAsync`: the row returns to `Pending` (or `Failed` when it already carries an error) with its lease cleared, its attempt count decremented, and its visibility unchanged, so the cancellation does not spend an attempt. The release runs under a 5 second budget and logs EventId 3011 at Debug; when it fails, EventId 3012 is logged at Warning and the lease simply expires. When lease heartbeat renewal fails during dispatch, the processor persists a retryable `Failed` outcome instead of leaving the row in `Processing`. Document operator expectations for your deployment.
+On graceful shutdown or drain, a dispatch the processor cancels is released through `ILeaseRenewable.ReleaseLeaseAsync`. The row returns to `Pending` (or `Failed` when it already carries an error) with its lease cleared, its attempt count decremented, and its visibility unchanged. The cancellation does not spend an attempt. The release runs under a 5 second budget and logs EventId 3011 at Debug. When it fails, EventId 3012 is logged at Warning and the lease simply expires. When lease heartbeat renewal fails during dispatch, the processor persists a retryable `Failed` outcome instead of leaving the row in `Processing`.
 
 ## Saga Orchestration
 
@@ -202,7 +202,7 @@ inbox.UseProcessorOptions(new InboxProcessorOptions
 });
 ```
 
-`Retry.MaxAttempts` counts dispatch attempts recorded on the leased envelope. When `AttemptCount` reaches `MaxAttempts` on failure, the processor moves the row to `DeadLettered`. Requeue operations through `IInboxManager.RequeueAsync` return `RequeueResult { Requested, Requeued }` so operators can see how many identifiers were not in the dead-letter state. Stores with a database clock use the database clock for lease visibility checks; `InboxLeaseRequest.Now` and `LeaseRenewalRequest.RequestedExpiresAt` are the fallback for stores without one.
+`Retry.MaxAttempts` counts dispatch attempts recorded on the leased envelope. When `AttemptCount` reaches `MaxAttempts` on failure, the processor moves the row to `DeadLettered`. Requeue operations through `IInboxManager.RequeueAsync` return `RequeueResult { Requested, Requeued }` so operators can see how many identifiers were not in the dead-letter state. Stores with a database clock use the database clock for lease visibility checks. `InboxLeaseRequest.Now` and `LeaseRenewalRequest.RequestedExpiresAt` are the fallback for stores without one.
 
 After-dispatch hook failures default to dead-lettering even when dispatch succeeded. Set `HookFailurePolicy = ProcessorHookFailurePolicy.CompleteDespiteHookFailure` on `InboxProcessorOptions` when hook persistence should not undo a successful handler run.
 

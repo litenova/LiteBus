@@ -1,6 +1,8 @@
 # Command Module
 
-A command is a request to change state: create an order, update stock, cancel a subscription. This page covers the command side of LiteBus in full: the command contracts, the handler interfaces, the four pipeline stages a command passes through, and how to send one. It is for a developer writing command handlers. You should have read [Getting Started](../getting-started/README.md) first.
+A command is a request to change state. It is handled by exactly one handler. This page shows the command contracts, the handler interfaces, and how to send one.
+
+> **This page is for** developers writing command handlers. Read [Getting Started](../getting-started/README.md) first.
 
 A command in LiteBus has two defining rules. It is handled by exactly one handler, and it expresses an intent to change something. If zero handlers or more than one handler are registered for a command, mediation throws rather than guessing. Name commands as imperatives: `CreateProductCommand`, `UpdateStockLevelCommand`, `CancelSubscriptionCommand`.
 
@@ -24,7 +26,7 @@ Use `ICommand<TResult>` when the caller needs a value back, most often the ident
 public sealed record CreateProductCommand(string Name, decimal Price) : ICommand<ProductDto>;
 ```
 
-Returning a result from a state-changing command is a deliberate exception to strict CQS. LiteBus allows it because returning a generated id or a created DTO from the same call is more practical than forcing a follow-up query. Keep the returned value small; a command is not a query.
+Returning a result from a state-changing command is a deliberate exception to strict CQS. LiteBus allows it because returning a generated id or a created DTO from the same call is more practical than forcing a follow-up query. Keep the returned value small. A command is not a query.
 
 ## Command Handlers
 
@@ -71,7 +73,7 @@ Inject dependencies through the constructor. Handlers resolve from the container
 
 ## The Command Pipeline
 
-Around that single main handler, a command passes through three optional stages. Each stage is a separate interface you implement and register; LiteBus discovers them during `RegisterFromAssembly`. The order for one command is: pre-handlers, main handler, post-handlers, with error-handlers invoked instead of post-handlers when any stage throws.
+Around that single main handler, a command passes through three optional stages. Each stage is a separate interface you implement and register. LiteBus discovers them during `RegisterFromAssembly`. The order for one command is pre-handlers, main handler, then post-handlers. Error-handlers run instead of post-handlers when any stage throws.
 
 ### Pre-Handlers and Validators
 
@@ -129,7 +131,7 @@ public sealed class PublishProductCreated : ICommandPostHandler<CreateProductCom
 
 ### Error-Handlers
 
-An error-handler runs when any stage throws. Implement `ICommandErrorHandler<TCommand>`; its typed context contains the command, the partial result if any, the exception, and the shared recovery outcome. The caller's cancellation token is passed explicitly. The original exception is rethrown with its stack trace intact unless a handler sets `Outcome` to `MessageErrorOutcome.Handled`.
+An error-handler runs when any stage throws. Implement `ICommandErrorHandler<TCommand>`. Its typed context contains the command, the partial result if any, the exception, and the shared recovery outcome. The caller's cancellation token is passed explicitly. The original exception is rethrown with its stack trace intact unless a handler sets `Outcome` to `MessageErrorOutcome.Handled`.
 
 ```csharp
 public sealed class LogPaymentFailure : ICommandErrorHandler<ProcessPaymentCommand>

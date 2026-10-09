@@ -14,7 +14,7 @@ The [Reliability Roadmap](reliability.md) tracks provider conformance, lease rec
 - [Marten Transactional Outbox Writer](marten-outbox-writer.md) for a Marten-backed transactional outbox writer that enlists in the caller document session transaction.
 - SQL Server inbox and outbox storage adapters using application-owned migrations and the same storage role boundaries as existing relational adapters.
 - Contract payload upgrader hooks for in-flight envelopes.
-- An optional handler-level idempotency record store beyond inbox acceptance metadata.
+
 
 ## Dispatch and Ingress
 

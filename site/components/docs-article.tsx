@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import type { ComponentProps } from 'react';
-import { Fragment } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
+import { Children, Fragment, isValidElement } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Node } from 'fumadocs-core/page-tree';
@@ -107,11 +107,140 @@ function crumbsFor(page: FlatPage): readonly string[] {
 }
 
 /**
+ * The plain text inside a rendered node, used to read a blockquote's leading marker.
+ */
+function textContent(node: ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') {
+    return String(node);
+  }
+
+  if (Array.isArray(node)) {
+    return node.map(textContent).join('');
+  }
+
+  if (isValidElement(node)) {
+    const props = node.props as { children?: ReactNode };
+
+    return textContent(props.children);
+  }
+
+  return '';
+}
+
+/**
+ * The text of the leading strong segment in a paragraph, or null when text comes first.
+ *
+ * Whitespace-only strings are skipped so Markdown spacing does not disqualify a marker.
+ */
+function leadingStrongText(paragraphChildren: ReactNode): string | null {
+  const items = Children.toArray(paragraphChildren);
+
+  for (const item of items) {
+    if (typeof item === 'string') {
+      if (item.trim().length === 0) {
+        continue;
+      }
+
+      return null;
+    }
+
+    if (!isValidElement(item)) {
+      return null;
+    }
+
+    if (item.type === 'strong') {
+      const props = item.props as { children?: ReactNode };
+
+      return textContent(props.children);
+    }
+
+    return null;
+  }
+
+  return null;
+}
+
+/**
+ * The Fuse box a blockquote maps to, decided by its first paragraph's leading marker.
+ *
+ * A first paragraph starting with `This page is for` renders as the audience box. A first paragraph starting with
+ * `Note` or `Warning` renders as the matching callout. Anything else stays a plain blockquote so the `.md`
+ * endpoints and `llms-full.txt` keep reading as a quote.
+ */
+function classifyBlockquote(children: ReactNode): 'audience' | 'note' | 'warning' | null {
+  const top = Children.toArray(children);
+
+  for (const child of top) {
+    if (typeof child === 'string') {
+      if (child.trim().length === 0) {
+        continue;
+      }
+
+      return null;
+    }
+
+    if (!isValidElement(child)) {
+      continue;
+    }
+
+    if (child.type !== 'p') {
+      continue;
+    }
+
+    const props = child.props as { children?: ReactNode };
+    const leading = leadingStrongText(props.children);
+
+    if (leading === null) {
+      return null;
+    }
+
+    const marker = leading.trim().replace(/:\s*$/, '');
+
+    if (marker.startsWith('This page is for')) {
+      return 'audience';
+    }
+
+    if (marker === 'Note') {
+      return 'note';
+    }
+
+    if (marker === 'Warning') {
+      return 'warning';
+    }
+
+    return null;
+  }
+
+  return null;
+}
+
+/**
+ * A blockquote with Fuse styling when it carries a leading marker, otherwise a plain quote.
+ */
+function DocsBlockquote({ children, ...rest }: Readonly<ComponentProps<'blockquote'>>) {
+  const kind = classifyBlockquote(children);
+
+  if (kind === 'audience') {
+    return <aside className="audience">{children}</aside>;
+  }
+
+  if (kind === 'note') {
+    return <aside className="callout">{children}</aside>;
+  }
+
+  if (kind === 'warning') {
+    return <aside className="callout warn">{children}</aside>;
+  }
+
+  return <blockquote {...rest}>{children}</blockquote>;
+}
+
+/**
  * One documentation page: crumbs, the Markdown body, an on-page table of contents, and the pager.
  *
- * The body renders with only two Markdown overrides: links resolve through `resolveDocHref` so the sources can keep
- * linking by relative path, and code blocks gain a copy button. Internal links use the router; anything else renders
- * as a plain anchor.
+ * The body renders with three Markdown overrides: links resolve through `resolveDocHref` so the sources can keep
+ * linking by relative path, code blocks gain a copy button, and marked blockquotes render as Fuse audience and
+ * callout boxes. Internal links use the router; anything else renders as a plain anchor.
  */
 export async function DocsArticle({
   version,
@@ -145,6 +274,7 @@ export async function DocsArticle({
         <CodeCopyButton />
       </div>
     ),
+    blockquote: (props: ComponentProps<'blockquote'>) => <DocsBlockquote {...props} />,
   });
 
   // Tree order first, then any page the tree does not reach, so every served page has a pager position.

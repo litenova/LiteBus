@@ -2,6 +2,8 @@
 
 The PostgreSQL inbox and outbox stores need a small, stable set of tables and indexes. This page explains how those objects are created and validated, and how to choose between explicit bootstrap, opt-in host bootstrap, and migration-owned SQL files without tying LiteBus to a migration framework. It assumes you have set up a store from [Reliable Messaging](../reliable-messaging/README.md).
 
+> **This page is for** developers who own PostgreSQL schema for inbox or outbox stores.
+
 ## Two Different Version Concepts
 
 LiteBus uses two independent version numbers. Mixing them up is a common source of confusion.
