@@ -18,6 +18,8 @@ public sealed class LavinMqInboxDispatchIntegrationTests : AmqpInboxDispatcherIn
     public LavinMqInboxDispatchIntegrationTests(LavinMqFixture fixture)
     {
         _fixture = fixture;
+        DockerTestGate.EnsureBrokerAvailable(_fixture.IsAvailable, "LavinMQ");
+        Skip.IfNot(_fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
     }
 
     /// <inheritdoc />

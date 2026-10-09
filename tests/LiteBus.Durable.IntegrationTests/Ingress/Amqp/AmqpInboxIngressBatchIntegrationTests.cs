@@ -25,7 +25,7 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
     ///     Verifies batch ingress flushes when the configured batch size is reached.
     /// </summary>
     /// <returns>A task that completes when all messages are stored.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task EnableBatchAccept_AtBatchSize_ShouldFlushAllMessages()
     {
         var fixture = new RabbitMqBrokerFixture();
@@ -33,6 +33,9 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
 
         try
         {
+            DockerTestGate.EnsureBrokerAvailable(fixture.IsAvailable, "RabbitMQ");
+            Skip.IfNot(fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
+
             const int prefetch = 3;
             var queueName = CreateQueueName();
             var provider = BuildProvider(fixture.ConnectionOptions, queueName, prefetch, TimeSpan.FromSeconds(5));
@@ -61,7 +64,7 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
     ///     Verifies partial batches flush after <see cref="TransportInboxIngressSafetyOptions.BatchMaxWait" /> elapses.
     /// </summary>
     /// <returns>A task that completes when the partial batch is stored.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task EnableBatchAccept_BeforeBatchSize_ShouldFlushAfterBatchMaxWait()
     {
         var fixture = new RabbitMqBrokerFixture();
@@ -69,6 +72,9 @@ public sealed class AmqpInboxIngressBatchIntegrationTests : LiteBusTestBase
 
         try
         {
+            DockerTestGate.EnsureBrokerAvailable(fixture.IsAvailable, "RabbitMQ");
+            Skip.IfNot(fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
+
             var queueName = CreateQueueName();
             var batchWait = TimeSpan.FromMilliseconds(400);
             var provider = BuildProvider(fixture.ConnectionOptions, queueName, 10, batchWait);

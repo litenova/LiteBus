@@ -38,13 +38,16 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
     {
         _postgresFixture = postgresFixture;
         _rabbitMqFixture = rabbitMqFixture;
+        DockerTestGate.EnsureBrokerAvailable(_rabbitMqFixture.IsAvailable, "RabbitMQ");
+        Skip.IfNot(_rabbitMqFixture.IsAvailable, RabbitMqFixture.DockerRequiredMessage);
+        Skip.IfNot(_postgresFixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that the outbox processor publishes a PostgreSQL-stored envelope and marks it published.
     /// </summary>
     /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_ShouldPublishToAmqpAndMarkPostgreSqlEnvelopePublished()
     {
         var storeOptions = CreateOutboxStoreOptions();
