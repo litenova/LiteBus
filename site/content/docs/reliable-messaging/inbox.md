@@ -146,7 +146,7 @@ Each broker ingress options record exposes a provider-neutral `Safety` value:
 
 By default, ingress maps the broker delivery id to `MessageIdentity.Supplied` and a broker-scoped `Idempotency.Keyed` value (`ingress:{destination}:{brokerMessageId}`) so broker redelivery after a successful store accept does not create duplicate inbox rows. Set `Safety.TrustApplicationHeaders` to `true` only when upstream publishers are trusted to supply application idempotency and tenant headers.
 
-Receive tuning is explicit per adapter. AMQP and Azure expose native `PrefetchCount`. SQS exposes `ReceiveBatchSize`. Azure exposes `MaxConcurrentCalls`. Kafka and in-memory ingress expose no receive knob they cannot honor. The enforced `Safety.MaxInFlightMessages` bound is 1 for AMQP, Kafka, SQS, and in-memory ingress. Only Azure Service Bus honors a configured value.
+Receive tuning is explicit per adapter. AMQP and Azure expose native `PrefetchCount`. SQS exposes `ReceiveBatchSize`. Azure exposes `MaxConcurrentCalls`. Kafka and in-memory ingress expose no receive knob they cannot honor. The enforced `Safety.MaxInFlightMessages` bound is 1 for AMQP, Kafka, SQS, and in-memory ingress. On Azure Service Bus the bound is the lower of `Safety.MaxInFlightMessages` and `MaxConcurrentCalls`, and `MaxConcurrentCalls` defaults to the SDK value of 1, so set both to run more than one handler at a time.
 
 Ingress honors `litebus-visible-after` (absolute ISO-8601) and `litebus-visible-after-delay` (relative `TimeSpan` or tick count). Relative delay takes precedence when both headers are present.
 

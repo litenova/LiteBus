@@ -39,7 +39,7 @@ public sealed class RabbitMqFixture : IAsyncLifetime
                 ClientProvidedName = "LiteBus.Durable.IntegrationTests.Dispatch.Outbox.Amqp.RabbitMQ"
             };
         }
-        catch (Exception exception)
+        catch (Exception exception) when (DockerTestGate.IsDockerUnavailable(exception))
         {
             throw new InvalidOperationException(DockerRequiredMessage, exception);
         }

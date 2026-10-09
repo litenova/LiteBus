@@ -70,7 +70,10 @@ public sealed class SqlServerFixture : IAsyncLifetime
             }
         }
 
-        throw new InvalidOperationException(DockerRequiredMessage, lastException);
+        // Retry on any start failure, but only call it a missing Docker when the runtime itself is unavailable.
+        throw DockerAvailability.IsDockerUnavailable(lastException)
+            ? new InvalidOperationException(DockerRequiredMessage, lastException)
+            : new InvalidOperationException($"SQL Server container failed to start after {MaxAttempts} attempts.", lastException);
     }
 
     /// <inheritdoc />

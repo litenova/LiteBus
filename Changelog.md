@@ -790,6 +790,8 @@ would be permitted without being performed. Persistence schemas and transport be
 
 ### Fixed
 
+- The Azure Service Bus publisher no longer throws `ArgumentNullException` for a `TransportPublishRequest` without a
+  `MessageId`; the identifier is optional on the request and is now copied only when supplied.
 - `MessageRegistry.Handlers` returns a snapshot taken under the registry lock instead of a live view a concurrent
   registration could tear.
 - Assembly scans skip types that fail to load instead of aborting the registration, in all six scans.

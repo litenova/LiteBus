@@ -44,7 +44,7 @@ public sealed class LavinMqFixture : IAsyncLifetime
                 ClientProvidedName = "LiteBus.Durable.IntegrationTests.Dispatch.Outbox.Amqp.LavinMQ"
             };
         }
-        catch (Exception exception)
+        catch (Exception exception) when (DockerTestGate.IsDockerUnavailable(exception))
         {
             throw new InvalidOperationException(DockerRequiredMessage, exception);
         }

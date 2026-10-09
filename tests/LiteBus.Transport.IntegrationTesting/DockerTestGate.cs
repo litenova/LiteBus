@@ -69,7 +69,7 @@ public static class DockerTestGate
     ///     Matches container-runtime exception types only. Broker-side failures whose messages happen to
     ///     mention pipes or containers must surface as test failures rather than skips.
     /// </remarks>
-    private static bool IsDockerUnavailable(Exception exception)
+    public static bool IsDockerUnavailable(Exception exception)
     {
         for (var current = exception; current is not null; current = current.InnerException)
         {

@@ -23,10 +23,15 @@ internal static class AzureServiceBusMessageMapper
         var message = new ServiceBusMessage(request.Body)
         {
             ContentType = request.ContentType,
-            MessageId = request.MessageId,
             CorrelationId = request.CorrelationId,
             Subject = request.Route
         };
+
+        // MessageId is optional on the request, but the SDK setter rejects null, so it is only copied when supplied.
+        if (request.MessageId is not null)
+        {
+            message.MessageId = request.MessageId;
+        }
 
         ApplyHeaders(message, request.Headers);
         return message;

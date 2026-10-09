@@ -43,7 +43,7 @@ public sealed class RabbitMqBrokerFixture : IAsyncLifetime
                 ClientProvidedName = "LiteBus.Storage.IntegrationTests.PostgreSql.RabbitMQ"
             };
         }
-        catch (Exception exception)
+        catch (Exception exception) when (DockerAvailability.IsDockerUnavailable(exception))
         {
             throw new InvalidOperationException(DockerRequiredMessage, exception);
         }

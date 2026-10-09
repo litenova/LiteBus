@@ -20,7 +20,7 @@ When a host must reach two brokers, run one host process per broker and bridge t
 
 ## Concurrency Bounds Differ per Adapter
 
-`Safety.MaxInFlightMessages` caps concurrent LiteBus delivery handlers per subscription, independently from broker receive settings. The enforced bound is 1 for AMQP, Kafka, SQS, and in-memory ingress; only Azure Service Bus honors a configured value. Raising the value on the other four changes nothing and reports no error. See [Inbox](../reliable-messaging/inbox.md) for the per-adapter receive knobs.
+`Safety.MaxInFlightMessages` caps concurrent LiteBus delivery handlers per subscription, independently from broker receive settings. The enforced bound is 1 for AMQP, Kafka, SQS, and in-memory ingress. On Azure Service Bus the bound is the lower of `Safety.MaxInFlightMessages` and `MaxConcurrentCalls`, which defaults to the SDK value of 1. Raising the value on the other four changes nothing and reports no error. See [Inbox](../reliable-messaging/inbox.md) for the per-adapter receive knobs.
 
 Tune broker receive settings (`PrefetchCount`, `ReceiveBatchSize`, `MaxConcurrentCalls`) per adapter instead. Higher handler concurrency on the capped adapters is roadmap work; see the [Roadmap](../roadmap/README.md).
 

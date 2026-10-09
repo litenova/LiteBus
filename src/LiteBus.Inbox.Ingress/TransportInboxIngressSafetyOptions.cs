@@ -56,8 +56,8 @@ public sealed record TransportInboxIngressSafetyOptions
     /// </summary>
     /// <value>
     ///     Default is <see cref="DefaultMaxInFlightMessages" />. The enforced bound is one for the AMQP, Kafka, AWS
-    ///     SQS, and in-memory adapters, which run one handler at a time; only the Azure Service Bus adapter honours a
-    ///     configured value above one.
+    ///     SQS, and in-memory adapters, which run one handler at a time; on Azure Service Bus the bound is
+    ///     the lower of this value and <c>MaxConcurrentCalls</c>, which defaults to the SDK value of one.
     /// </value>
     public int MaxInFlightMessages { get; init; } = DefaultMaxInFlightMessages;
 

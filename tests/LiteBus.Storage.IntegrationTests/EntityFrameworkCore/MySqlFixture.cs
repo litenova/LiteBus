@@ -47,7 +47,7 @@ public sealed class MySqlFixture : IAsyncLifetime
             await _container.StartAsync().ConfigureAwait(false);
             ConnectionString = _container.GetConnectionString();
         }
-        catch (Exception exception)
+        catch (Exception exception) when (DockerAvailability.IsDockerUnavailable(exception))
         {
             if (_container is not null)
             {
