@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using LiteBus.Analyzers.Analysis;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace LiteBus.Analyzers;
@@ -28,11 +29,6 @@ namespace LiteBus.Analyzers;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class MissingAuditDeclarationAnalyzer : DiagnosticAnalyzer
 {
-    /// <summary>
-    ///     The metadata name of the audit declaration value type.
-    /// </summary>
-    private const string AuditDeclarationMetadataName = "LiteBus.Messaging.Abstractions.AuditDeclaration";
-
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
         [DiagnosticDescriptors.MissingAuditDeclaration];
@@ -40,18 +36,19 @@ public sealed class MissingAuditDeclarationAnalyzer : DiagnosticAnalyzer
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
     {
-        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
+        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze);
         context.EnableConcurrentExecution();
-        context.RegisterCompilationAction(AnalyzeCompilation);
+        context.RegisterCompilationStartAction(AnalyzeCompilationStart);
     }
 
     /// <summary>
-    ///     Reports command and query types that declare no audit position.
+    ///     Registers declaration fact collection when the audit and message contracts are referenced.
     /// </summary>
-    /// <param name="context">The compilation analysis context.</param>
-    private static void AnalyzeCompilation(CompilationAnalysisContext context)
+    /// <param name="context">The compilation start analysis context.</param>
+    private static void AnalyzeCompilationStart(CompilationStartAnalysisContext context)
     {
-        var auditDeclaration = context.Compilation.GetTypeByMetadataName(AuditDeclarationMetadataName);
+        var symbols = new DeclarationSymbols(context.Compilation);
+        var auditDeclaration = symbols.AuditDeclaration;
 
         if (auditDeclaration is null)
         {
@@ -59,7 +56,48 @@ public sealed class MissingAuditDeclarationAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        foreach (var message in DeclarationAnalysis.CollectUndeclared(context, auditDeclaration))
+        if (!symbols.HasMessageMarkers)
+        {
+            // No message contracts are referenced, so there is nothing this rule could report.
+            return;
+        }
+
+        var collector = new DeclarationCollector();
+
+        context.RegisterSymbolAction(
+            symbolContext => DeclarationAnalysis.AnalyzeNamedType(symbolContext, collector, symbols),
+            SymbolKind.NamedType);
+
+        if (symbols.Declarations is not null)
+        {
+            context.RegisterSyntaxNodeAction(
+                nodeContext => DeclarationAnalysis.AnalyzeDescribeMethod(nodeContext, collector, symbols),
+                SyntaxKind.MethodDeclaration);
+        }
+
+        context.RegisterCompilationEndAction(
+            endContext => ReportUndeclared(endContext, collector, symbols, auditDeclaration));
+    }
+
+    /// <summary>
+    ///     Reports command and query types that declare no audit position.
+    /// </summary>
+    /// <param name="context">The compilation analysis context.</param>
+    /// <param name="collector">The collector holding the compilation's facts.</param>
+    /// <param name="symbols">The resolved declaration symbols.</param>
+    /// <param name="auditDeclaration">The audit declaration value type.</param>
+    private static void ReportUndeclared(
+        CompilationAnalysisContext context,
+        DeclarationCollector collector,
+        DeclarationSymbols symbols,
+        INamedTypeSymbol auditDeclaration)
+    {
+        foreach (var message in DeclarationAnalysis.CollectUndeclared(
+                     context.Compilation,
+                     collector,
+                     symbols,
+                     auditDeclaration,
+                     context.CancellationToken))
         {
             context.ReportDiagnostic(Diagnostic.Create(
                 DiagnosticDescriptors.MissingAuditDeclaration,

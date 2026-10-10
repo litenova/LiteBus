@@ -4,6 +4,7 @@ using LiteBus.Analyzers.Analysis;
 using LiteBus.Queries.Abstractions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace LiteBus.Analyzers.UnitTests;
 
@@ -46,7 +47,22 @@ public sealed class LiteBusTypeCacheTests
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var typeCache = new LiteBusTypeCache(compilation);
-        var registrations = HandlerAnalysis.CollectHandlerRegistrations(typeCache);
+        var collector = new HandlerRegistrationCollector(typeCache);
+
+        foreach (var syntaxTree in compilation.SyntaxTrees)
+        {
+            var model = compilation.GetSemanticModel(syntaxTree);
+
+            foreach (var typeDeclaration in syntaxTree.GetRoot().DescendantNodes().OfType<TypeDeclarationSyntax>())
+            {
+                if (model.GetDeclaredSymbol(typeDeclaration) is INamedTypeSymbol symbol)
+                {
+                    collector.Add(symbol);
+                }
+            }
+        }
+
+        var registrations = collector.ToRegistrations();
 
         Assert.Equal(50, registrations.Length);
 

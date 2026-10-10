@@ -1,10 +1,6 @@
 using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
-using System.Threading;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace LiteBus.Analyzers.Analysis;
 
@@ -62,132 +58,45 @@ internal static class HandlerAnalysis
         HandlerInterfaceMap.Select(entry => entry.MetadataName).Distinct(StringComparer.Ordinal).Count();
 
     /// <summary>
-    ///     Collects handler registrations declared in the compilation.
-    /// </summary>
-    /// <param name="compilation">The compilation being analyzed.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>All discovered handler registrations.</returns>
-    internal static ImmutableArray<HandlerRegistration> CollectHandlerRegistrations(
-        Compilation compilation,
-        CancellationToken cancellationToken = default)
-    {
-        return CollectHandlerRegistrations(new LiteBusTypeCache(compilation), cancellationToken);
-    }
-
-    /// <summary>
-    ///     Collects handler registrations declared in the compilation, sharing one type cache for the pass.
+    ///     Determines whether any handler interface in the handler interface map resolves in the compilation.
     /// </summary>
     /// <param name="typeCache">The per-compilation type cache.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>All discovered handler registrations.</returns>
-    internal static ImmutableArray<HandlerRegistration> CollectHandlerRegistrations(
-        LiteBusTypeCache typeCache,
-        CancellationToken cancellationToken = default)
+    /// <returns><see langword="true" /> when at least one handler interface resolves; otherwise, <see langword="false" />.</returns>
+    internal static bool AnyHandlerInterfaceResolves(LiteBusTypeCache typeCache)
     {
-        var compilation = typeCache.Compilation;
-        var builder = ImmutableArray.CreateBuilder<HandlerRegistration>();
-        var processed = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
-
-        foreach (var syntaxTree in compilation.SyntaxTrees)
+        foreach (var entry in HandlerInterfaceMap)
         {
-            var model = compilation.GetSemanticModel(syntaxTree);
-
-            foreach (var typeDeclaration in syntaxTree.GetRoot(cancellationToken).DescendantNodes()
-                         .OfType<TypeDeclarationSyntax>())
+            if (typeCache.GetType(entry.MetadataName) is not null)
             {
-                if (model.GetDeclaredSymbol(typeDeclaration, cancellationToken) is INamedTypeSymbol symbol)
-                {
-                    TryAddHandlerRegistration(typeCache, symbol, builder, processed);
-                }
+                return true;
             }
         }
 
-        foreach (var reference in compilation.References)
+        return false;
+    }
+
+    /// <summary>
+    ///     Determines whether any handler interface for the pipeline stage resolves in the compilation.
+    /// </summary>
+    /// <param name="typeCache">The per-compilation type cache.</param>
+    /// <param name="pipeline">The pipeline stage name.</param>
+    /// <returns><see langword="true" /> when at least one stage interface resolves; otherwise, <see langword="false" />.</returns>
+    internal static bool AnyPipelineInterfaceResolves(LiteBusTypeCache typeCache, string pipeline)
+    {
+        foreach (var entry in HandlerInterfaceMap)
         {
-            if (compilation.GetAssemblyOrModuleSymbol(reference) is not IAssemblySymbol assemblySymbol ||
-                !ShouldScanReferencedAssembly(assemblySymbol, compilation.Assembly))
+            if (!string.Equals(entry.Pipeline, pipeline, StringComparison.Ordinal))
             {
                 continue;
             }
 
-            foreach (var module in assemblySymbol.Modules)
+            if (typeCache.GetType(entry.MetadataName) is not null)
             {
-                CollectHandlerRegistrationsFromNamespace(
-                    typeCache,
-                    module.GlobalNamespace,
-                    builder,
-                    processed);
+                return true;
             }
         }
 
-        return builder.ToImmutable();
-    }
-
-    /// <summary>
-    ///     Adds handler registrations declared on one named type symbol when it has not already been processed.
-    /// </summary>
-    /// <param name="typeCache">The per-compilation type cache.</param>
-    /// <param name="symbol">The candidate handler type symbol.</param>
-    /// <param name="builder">The registration builder.</param>
-    /// <param name="processed">The set of handler types already processed.</param>
-    private static void TryAddHandlerRegistration(
-        LiteBusTypeCache typeCache,
-        INamedTypeSymbol symbol,
-        ImmutableArray<HandlerRegistration>.Builder builder,
-        HashSet<INamedTypeSymbol> processed)
-    {
-        if (symbol.TypeKind == TypeKind.Interface || !processed.Add(symbol))
-        {
-            return;
-        }
-
-        var location = LiteBusSymbols.GetDiagnosticLocation(
-            typeCache.Compilation,
-            symbol.Locations.FirstOrDefault(locationCandidate => locationCandidate.IsInSource) ?? symbol.Locations.FirstOrDefault() ?? Location.None);
-
-        foreach (var handlerInterface in symbol.AllInterfaces)
-        {
-            var pipeline = GetPipeline(typeCache, handlerInterface);
-
-            if (pipeline is null)
-            {
-                continue;
-            }
-
-            var messageType = handlerInterface.TypeArguments[0];
-            builder.Add(new HandlerRegistration(symbol, messageType, pipeline, location));
-        }
-
-        foreach (var nestedType in symbol.GetTypeMembers())
-        {
-            TryAddHandlerRegistration(typeCache, nestedType, builder, processed);
-        }
-    }
-
-    /// <summary>
-    ///     Walks a namespace and registers handler types declared beneath it.
-    /// </summary>
-    /// <param name="typeCache">The per-compilation type cache.</param>
-    /// <param name="namespaceSymbol">The namespace to walk.</param>
-    /// <param name="builder">The registration builder.</param>
-    /// <param name="processed">The set of handler types already processed.</param>
-    private static void CollectHandlerRegistrationsFromNamespace(
-        LiteBusTypeCache typeCache,
-        INamespaceSymbol namespaceSymbol,
-        ImmutableArray<HandlerRegistration>.Builder builder,
-        HashSet<INamedTypeSymbol> processed)
-    {
-        foreach (var member in namespaceSymbol.GetMembers())
-        {
-            if (member is INamespaceSymbol nestedNamespace)
-            {
-                CollectHandlerRegistrationsFromNamespace(typeCache, nestedNamespace, builder, processed);
-            }
-            else if (member is INamedTypeSymbol namedType)
-            {
-                TryAddHandlerRegistration(typeCache, namedType, builder, processed);
-            }
-        }
+        return false;
     }
 
     /// <summary>
@@ -217,7 +126,7 @@ internal static class HandlerAnalysis
     /// <param name="typeCache">The per-compilation type cache.</param>
     /// <param name="handlerInterface">The implemented handler interface symbol.</param>
     /// <returns>The pipeline stage name, if matched.</returns>
-    private static string? GetPipeline(LiteBusTypeCache typeCache, INamedTypeSymbol handlerInterface)
+    internal static string? GetPipeline(LiteBusTypeCache typeCache, INamedTypeSymbol handlerInterface)
     {
         var original = handlerInterface.OriginalDefinition;
 

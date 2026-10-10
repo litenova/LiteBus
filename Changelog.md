@@ -790,6 +790,13 @@ would be permitted without being performed. Persistence schemas and transport be
 
 ### Fixed
 
+- `LiteBus.Analyzers` no longer scans the whole project each time an editor analyzes one file. Visual Studio and
+  language servers analyze an open file on a fresh copy of the compilation and rerun compilation-start and compilation
+  actions each time, so the handler, contract, tag and declaration rules walked every syntax tree per keystroke: 20 to
+  40 seconds per analyzer on a 3,400-file project. These rules now gather facts from symbol and syntax-node actions and
+  report at compilation end. LB1001, LB1007 through LB1012, LB1017, LB1018, LB1020 and LB1021 report the same
+  diagnostics on build, and no longer appear as live squiggles; see
+  [Build-Only Rules](https://litebus.io/docs/reference/analyzers#build-only-rules).
 - The Azure Service Bus publisher no longer throws `ArgumentNullException` for a `TransportPublishRequest` without a
   `MessageId`; the identifier is optional on the request and is now copied only when supplied.
 - `MessageRegistry.Handlers` returns a snapshot taken under the registry lock instead of a live view a concurrent

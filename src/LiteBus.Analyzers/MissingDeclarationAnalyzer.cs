@@ -1,8 +1,7 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using LiteBus.Analyzers.Analysis;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace LiteBus.Analyzers;
@@ -39,16 +38,6 @@ namespace LiteBus.Analyzers;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class MissingDeclarationAnalyzer : DiagnosticAnalyzer
 {
-    /// <summary>
-    ///     The <c>.editorconfig</c> key naming the metadata value types every message must declare.
-    /// </summary>
-    private const string RequiredDeclarationsOption = "litebus_required_declarations";
-
-    /// <summary>
-    ///     The separators accepted between value type names in the configured list.
-    /// </summary>
-    private static readonly char[] NameSeparators = [',', ';'];
-
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
     [
@@ -59,18 +48,65 @@ public sealed class MissingDeclarationAnalyzer : DiagnosticAnalyzer
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
     {
-        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
+        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze);
         context.EnableConcurrentExecution();
-        context.RegisterCompilationAction(AnalyzeCompilation);
+        context.RegisterCompilationStartAction(AnalyzeCompilationStart);
+    }
+
+    /// <summary>
+    ///     Registers declaration fact and option collection for the compilation.
+    /// </summary>
+    /// <param name="context">The compilation start analysis context.</param>
+    /// <remarks>
+    ///     The syntax tree and compilation-end actions are always registered: an unresolvable configured name is
+    ///     reported even when the compilation references no LiteBus contracts at all.
+    /// </remarks>
+    private static void AnalyzeCompilationStart(CompilationStartAnalysisContext context)
+    {
+        var symbols = new DeclarationSymbols(context.Compilation);
+        var collector = new DeclarationCollector();
+        string[] globalNames = [];
+
+        if (context.Options.AnalyzerConfigOptionsProvider.GlobalOptions
+            .TryGetValue(DeclarationAnalysis.RequiredDeclarationsOption, out var globalValue))
+        {
+            globalNames = DeclarationAnalysis.SplitConfiguredNames(globalValue);
+        }
+
+        if (symbols.HasMessageMarkers)
+        {
+            context.RegisterSymbolAction(
+                symbolContext => DeclarationAnalysis.AnalyzeNamedType(symbolContext, collector, symbols),
+                SymbolKind.NamedType);
+
+            if (symbols.Declarations is not null)
+            {
+                context.RegisterSyntaxNodeAction(
+                    nodeContext => DeclarationAnalysis.AnalyzeDescribeMethod(nodeContext, collector, symbols),
+                    SyntaxKind.MethodDeclaration);
+            }
+        }
+
+        context.RegisterSyntaxTreeAction(treeContext => DeclarationAnalysis.CollectTreeOptions(treeContext, collector));
+
+        context.RegisterCompilationEndAction(
+            endContext => ReportUndeclared(endContext, collector, symbols, globalNames));
     }
 
     /// <summary>
     ///     Reports messages that state no position on each configured value type.
     /// </summary>
     /// <param name="context">The compilation analysis context.</param>
-    private static void AnalyzeCompilation(CompilationAnalysisContext context)
+    /// <param name="collector">The collector holding the compilation's facts.</param>
+    /// <param name="symbols">The resolved declaration symbols.</param>
+    /// <param name="globalNames">The required declaration names from the global options.</param>
+    private static void ReportUndeclared(
+        CompilationAnalysisContext context,
+        DeclarationCollector collector,
+        DeclarationSymbols symbols,
+        string[] globalNames)
     {
-        var configured = ReadRequiredDeclarations(context);
+        var configured = DeclarationAnalysis.MergeConfiguredNames(globalNames, collector, context.Compilation);
 
         if (configured.Count == 0)
         {
@@ -94,68 +130,18 @@ public sealed class MissingDeclarationAnalyzer : DiagnosticAnalyzer
                 continue;
             }
 
-            foreach (var message in DeclarationAnalysis.CollectUndeclared(context, valueType))
+            foreach (var message in DeclarationAnalysis.CollectUndeclared(
+                         context.Compilation,
+                         collector,
+                         symbols,
+                         valueType,
+                         context.CancellationToken))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     DiagnosticDescriptors.MissingDeclaration,
                     LiteBusSymbols.GetDiagnosticLocation(context.Compilation, message.Location),
                     message.MessageType.Name,
                     valueType.Name));
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Reads the configured value type names from analyzer configuration.
-    /// </summary>
-    /// <param name="context">The compilation analysis context.</param>
-    /// <returns>The configured metadata names, deduplicated and in configuration order.</returns>
-    /// <remarks>
-    ///     Global options come from a <c>.globalconfig</c> or a compiler-visible MSBuild property, while an
-    ///     <c>.editorconfig</c> entry under <c>[*.cs]</c> is attached to each syntax tree. Both are read, because a
-    ///     project-wide rule is natural to write in either place and a rule that silently ignores one of them looks
-    ///     broken.
-    /// </remarks>
-    private static List<string> ReadRequiredDeclarations(CompilationAnalysisContext context)
-    {
-        var names = new List<string>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-
-        if (context.Options.AnalyzerConfigOptionsProvider.GlobalOptions
-            .TryGetValue(RequiredDeclarationsOption, out var globalValue))
-        {
-            AddNames(globalValue, names, seen);
-        }
-
-        foreach (var syntaxTree in context.Compilation.SyntaxTrees)
-        {
-            context.CancellationToken.ThrowIfCancellationRequested();
-
-            if (context.Options.AnalyzerConfigOptionsProvider.GetOptions(syntaxTree)
-                .TryGetValue(RequiredDeclarationsOption, out var treeValue))
-            {
-                AddNames(treeValue, names, seen);
-            }
-        }
-
-        return names;
-    }
-
-    /// <summary>
-    ///     Splits one configured value into metadata names and adds the ones not already collected.
-    /// </summary>
-    /// <param name="value">The raw configuration value.</param>
-    /// <param name="names">The collected names.</param>
-    /// <param name="seen">The names already collected.</param>
-    private static void AddNames(string value, List<string> names, HashSet<string> seen)
-    {
-        foreach (var part in value.Split(NameSeparators, StringSplitOptions.RemoveEmptyEntries))
-        {
-            var name = part.Trim();
-
-            if (name.Length > 0 && seen.Add(name))
-            {
-                names.Add(name);
             }
         }
     }

@@ -39,6 +39,12 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | LB1021 | Warning | Declarations | `litebus_required_declarations` names a type that does not resolve in the compilation |
 | LB1022 | Warning | Handlers | `[HandlerPriority]` value falls inside the range LiteBus reserves for its own handlers |
 
+## Build-Only Rules
+
+LB1001, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1017, LB1018, LB1020, and LB1021 need facts from the whole compilation: a handler in one file satisfies a command declared in another, and a `Register` call in a module satisfies a contract declared elsewhere. These rules gather facts as each file is analyzed and report once at compilation end, and their descriptors carry the `CompilationEnd` tag.
+
+`dotnet build` and CI report them as usual. Visual Studio and other hosts that analyze one open file at a time do not show them as live squiggles; they appear in the error list after a build, or with full solution analysis enabled. The remaining rules inspect one type or one invocation and report live while you type.
+
 ## Reserved Handler Priority (LB1022)
 
 `HandlerPriorities` reserves the window from `ReservedFloor` (1,000,000) up to but not including `ReservedCeiling` (2,000,000) for the handlers LiteBus ships, such as the persistence writer and the audit writer. Your application owns everything below the floor and everything at or above the ceiling.

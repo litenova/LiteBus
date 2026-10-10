@@ -20,19 +20,55 @@ public sealed class DuplicateHandlerAcrossAssembliesAnalyzer : DiagnosticAnalyze
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
     {
-        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
+        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze);
         context.EnableConcurrentExecution();
-        context.RegisterCompilationAction(AnalyzeCompilation);
+        context.RegisterCompilationStartAction(AnalyzeCompilationStart);
+    }
+
+    /// <summary>
+    ///     Gathers handler registrations for one compilation.
+    /// </summary>
+    /// <param name="context">The compilation start analysis context.</param>
+    private static void AnalyzeCompilationStart(CompilationStartAnalysisContext context)
+    {
+        var typeCache = new LiteBusTypeCache(context.Compilation);
+
+        if (!HandlerAnalysis.AnyHandlerInterfaceResolves(typeCache))
+        {
+            return;
+        }
+
+        var collector = new HandlerRegistrationCollector(typeCache);
+
+        context.RegisterSymbolAction(
+            symbolContext => AnalyzeSymbol(symbolContext, collector),
+            SymbolKind.NamedType);
+
+        context.RegisterCompilationEndAction(
+            endContext => AnalyzeCompilationEnd(endContext, collector));
+    }
+
+    /// <summary>
+    ///     Adds the handler registrations declared on one type symbol.
+    /// </summary>
+    /// <param name="context">The symbol analysis context.</param>
+    /// <param name="collector">The handler registration collector.</param>
+    private static void AnalyzeSymbol(SymbolAnalysisContext context, HandlerRegistrationCollector collector)
+    {
+        if (context.Symbol is INamedTypeSymbol symbol)
+        {
+            collector.Add(symbol);
+        }
     }
 
     /// <summary>
     ///     Reports handler names duplicated across assemblies.
     /// </summary>
     /// <param name="context">The compilation analysis context.</param>
-    private static void AnalyzeCompilation(CompilationAnalysisContext context)
+    /// <param name="collector">The handler registration collector.</param>
+    private static void AnalyzeCompilationEnd(CompilationAnalysisContext context, HandlerRegistrationCollector collector)
     {
-        var typeCache = new LiteBusTypeCache(context.Compilation);
-        var handlers = HandlerAnalysis.CollectHandlerRegistrations(typeCache, context.CancellationToken);
+        var handlers = collector.ToRegistrations(context.CancellationToken);
 
         foreach (var group in handlers
                      .GroupBy(handler => handler.HandlerType.Name)
