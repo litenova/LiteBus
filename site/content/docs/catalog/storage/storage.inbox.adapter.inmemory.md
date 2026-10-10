@@ -90,7 +90,7 @@ In-memory stores report synthetic schema info suitable for tests. Register throu
 ## Deep Docs
 
 - [Reliable messaging](../../reliable-messaging/README.md)
-- [Feature Index: Storage](../../reference/feature-index-v6.md)
+- [Feature Index: Storage](../../reference/feature-index-v7.md)
 
 ## Test Coverage
 
@@ -159,9 +159,9 @@ In-memory stores report synthetic schema info suitable for tests. Register throu
 - **Expected outcome**: Existing envelope returned without throw
 - **Remarks**: `LiteBus.Inbox.Storage.InMemory.UnitTests`
 
-#### `InMemoryInboxStoreOptionsTests.LeasePendingAsync_WhenLeaseDurationIsZero_ShouldUseDefaultLeaseDuration`
+#### `InMemoryInboxStoreOptionsTests.LeasePendingAsync_WhenLeaseDurationIsZero_ShouldThrowLikeTheOtherStores`
 
-- **Use case**: Default lease duration when zero configured
+- **Use case**: A zero lease duration is rejected with ArgumentOutOfRangeException, as the PostgreSQL and EF Core stores reject it
 - **Test kind**: Unit
 - **Description**: Lease with zero duration parameter
 - **Behavior**: `LeasePendingAsync`

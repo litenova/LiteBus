@@ -4,7 +4,7 @@ using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql.Exceptions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Storage.PostgreSql;
-using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using Npgsql;
 
 namespace LiteBus.Outbox.Storage.PostgreSql;
@@ -45,11 +45,16 @@ public sealed class PostgreSqlOutboxModule : IOutboxStorageModule, IRequires<Out
                 "Call UseDataSource(NpgsqlDataSource) or UseConnectionString(string).");
         }
 
+        var dataSourceOwner = new PostgreSqlDataSourceOwner<PostgreSqlOutboxModule>(moduleBuilder.DataSource, moduleBuilder.OwnsDataSource);
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(PostgreSqlDataSourceOwner<PostgreSqlOutboxModule>),
+            _ => dataSourceOwner,
+            InstanceLifetime.Singleton));
+
         if (moduleBuilder.OwnsDataSource)
         {
-            configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(NpgsqlDataSource),
-                moduleBuilder.DataSource));
+            configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(NpgsqlDataSource), moduleBuilder.DataSource));
         }
 
         var store = new PostgreSqlOutboxStore(moduleBuilder.DataSource, moduleBuilder.Options);
@@ -59,51 +64,31 @@ public sealed class PostgreSqlOutboxModule : IOutboxStorageModule, IRequires<Out
             typeof(PostgreSqlOutboxStoreRegistration),
             registration));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxStore), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxLeaseStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxLeaseStore), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxStateWriter),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxStateWriter), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxDeadLetterStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxDeadLetterStore), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxRetentionStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxRetentionStore), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxDiagnosticsStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxDiagnosticsStore), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxMessageQuery),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxMessageQuery), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxPurgeStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxPurgeStore), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxProcessingStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxProcessingStore), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IOutboxOperationsStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxOperationsStore), store));
 
         var workSignal = moduleBuilder.Options.UseListenNotify
             ? (IOutboxWorkSignal) new PostgreSqlOutboxWorkSignal(moduleBuilder.DataSource)
             : new OutboxPollingWorkSignal();
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IOutboxWorkSignal), workSignal));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxWorkSignal), workSignal));
 
         if (moduleBuilder.EnableSchemaInitialization)
         {
@@ -141,8 +126,8 @@ public sealed class PostgreSqlOutboxModule : IOutboxStorageModule, IRequires<Out
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(PostgreSqlTransactionalOutboxParticipant),
             serviceProvider => new PostgreSqlTransactionalOutboxParticipant(
-                serviceProvider.GetRequiredService<PostgreSqlOutboxStoreRegistration>(),
-                serviceProvider.GetRequiredService<IOutboxStore>(),
+                (PostgreSqlOutboxStoreRegistration) (serviceProvider.GetService(typeof(PostgreSqlOutboxStoreRegistration)) ?? throw new LiteBusDependencyResolutionException(typeof(PostgreSqlOutboxStoreRegistration))),
+                (IOutboxStore) (serviceProvider.GetService(typeof(IOutboxStore)) ?? throw new LiteBusDependencyResolutionException(typeof(IOutboxStore))),
                 serviceProvider.GetService(typeof(IPostgreSqlTransactionProvider)) as IPostgreSqlTransactionProvider,
                 moduleBuilder.TransactionalWriteMode),
             InstanceLifetime.Scoped));
@@ -151,12 +136,36 @@ public sealed class PostgreSqlOutboxModule : IOutboxStorageModule, IRequires<Out
             typeof(ITransactionalOutbox),
             serviceProvider =>
             {
-                var participant = serviceProvider.GetRequiredService<PostgreSqlTransactionalOutboxParticipant>();
+                var participant = (PostgreSqlTransactionalOutboxParticipant) (serviceProvider.GetService(typeof(PostgreSqlTransactionalOutboxParticipant)) ?? throw new LiteBusDependencyResolutionException(typeof(PostgreSqlTransactionalOutboxParticipant)));
 
                 return new StoreBoundTransactionalOutbox(
                     participant.ResolveStore(),
-                    serviceProvider.GetRequiredService<IOutboxEnvelopeFactory>());
+                    (IOutboxEnvelopeFactory) (serviceProvider.GetService(typeof(IOutboxEnvelopeFactory)) ?? throw new LiteBusDependencyResolutionException(typeof(IOutboxEnvelopeFactory))));
             },
             InstanceLifetime.Scoped));
+    }
+
+    /// <summary>
+    ///     Creates a singleton registration that resolves the module's data source owner before returning
+    ///     <paramref name="instance" />.
+    /// </summary>
+    /// <param name="dependencyType">The service type to register.</param>
+    /// <param name="instance">The prebuilt service the registration returns.</param>
+    /// <returns>A singleton factory registration.</returns>
+    /// <remarks>
+    ///     Resolving the owner from every store registration makes the container create and capture it the first time
+    ///     any of the module's services is used, so disposing the container disposes a data source the module created.
+    ///     A prebuilt instance registration would not: Microsoft dependency injection never disposes one.
+    /// </remarks>
+    private static DependencyDescriptor CreateOwnedRegistration(Type dependencyType, object instance)
+    {
+        return new DependencyDescriptor(
+            dependencyType,
+            services =>
+            {
+                _ = services.GetService(typeof(PostgreSqlDataSourceOwner<PostgreSqlOutboxModule>));
+                return instance;
+            },
+            InstanceLifetime.Singleton);
     }
 }

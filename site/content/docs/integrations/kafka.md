@@ -1,6 +1,6 @@
 # Kafka Transport
 
-**Production tier: GA** (transport platform and dispatch). **Kafka ingress is Beta**; see the [Feature Index](../reference/feature-index-v6.md).
+**Production tier: GA** (transport platform and dispatch). **Kafka ingress is Beta**; see the [Feature Index](../reference/feature-index-v7.md).
 
 `LiteBus.Transport.Kafka` wraps Confluent.Kafka for publish and consume. Inbox and outbox adapters compose it independently; installing Kafka transport does not pull AMQP or AWS SDKs.
 

@@ -16,9 +16,10 @@ public sealed class EfCoreOutboxProcessorLeaseExpiryEndToEndTests : LiteBusTestB
     public EfCoreOutboxProcessorLeaseExpiryEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimAndPublishMessage()
     {
         var storeOptions = EfCoreOutboxE2eSupport.CreateStoreOptions(TableName);

@@ -20,6 +20,10 @@ public sealed record InboxLeaseRequest
     /// <summary>
     ///     Gets the UTC timestamp used by the store for visibility checks.
     /// </summary>
+    /// <remarks>
+    ///     Stores with a database clock use the database clock for visibility checks; this value is the fallback for
+    ///     stores without one.
+    /// </remarks>
     public required DateTimeOffset Now { get; init; }
 
     /// <summary>

@@ -146,6 +146,32 @@ public sealed class PostgreSqlOutboxModuleBuilder
     ///     <see cref="TransactionalWriteMode.RequireActiveTransaction" />.
     /// </param>
     /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         The application owns the transaction and every writer joins it, which is what makes an ORM or document
+    ///         library other than Entity Framework Core work here. A scoped unit of work opens the connection and
+    ///         transaction, implements <see cref="IPostgreSqlTransactionProvider" />, and hands the same pair to the
+    ///         other library: Marten takes it through <c>SessionOptions.ForTransaction</c>, Dapper takes it per
+    ///         command, and raw ADO.NET already has it.
+    ///     </para>
+    ///     <para>
+    ///         The read path is unaffected. A session or connection used for queries is resolved separately and never
+    ///         opens a write transaction; only the write path goes through the unit of work. Registering one session
+    ///         for both reads and writes is what would make every query hold a write transaction, and that is an
+    ///         application composition choice rather than something this method requires.
+    ///     </para>
+    ///     <para>
+    ///         <c>ITransactionalOutbox</c> binds its store when it is resolved, so a handler that injects it with no
+    ///         active unit of work fails at injection under
+    ///         <see cref="TransactionalWriteMode.RequireActiveTransaction" />. Prefer that failure: the alternative is
+    ///         an outbox row committed on its own connection, which is the atomicity the outbox exists to provide.
+    ///     </para>
+    ///     <para>
+    ///         See the Transactional Writes guide for the full pattern. Do not hand-write inserts against the outbox
+    ///         table: its schema is created, versioned and validated by LiteBus, and a schema change would break every
+    ///         such writer silently.
+    ///     </para>
+    /// </remarks>
     public PostgreSqlOutboxModuleBuilder EnableAmbientTransactionProvider(
         TransactionalWriteMode mode = TransactionalWriteMode.RequireActiveTransaction)
     {

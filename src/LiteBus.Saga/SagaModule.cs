@@ -1,4 +1,4 @@
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Saga.Abstractions;
 

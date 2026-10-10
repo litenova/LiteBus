@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import { RootProvider } from 'fumadocs-ui/provider/next';
 import './globals.css';
 import {
   authorName,
@@ -70,18 +69,18 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  colorScheme: 'light dark',
+  colorScheme: 'light',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fdbf00' },
-    { media: '(prefers-color-scheme: dark)', color: '#241f2b' },
+    { media: '(prefers-color-scheme: light)', color: '#fbfbfc' },
+    { media: '(prefers-color-scheme: dark)', color: '#fbfbfc' },
   ],
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="flex min-h-screen flex-col">
-        <RootProvider>{children}</RootProvider>
+      <body>
+        {children}
       </body>
     </html>
   );

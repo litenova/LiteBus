@@ -36,6 +36,15 @@ internal static class InboxProcessorLogMessages
             "Inbox lease-loss persistence was skipped for message {MessageId} because the active lease was lost.");
 
     /// <summary>
+    ///     The delegate that writes a failed lease-loss persistence event.
+    /// </summary>
+    private static readonly Action<ILogger, Guid, Exception?> LeaseLossPersistFailedMessage =
+        LoggerMessage.Define<Guid>(
+            LogLevel.Error,
+            new EventId(1008, nameof(LeaseLossPersistFailed)),
+            "Inbox lease-loss persistence failed for message {MessageId}. Continuing the pass with remaining messages.");
+
+    /// <summary>
     ///     The delegate that writes a tolerated post-dispatch hook failure event.
     /// </summary>
     private static readonly Action<ILogger, Guid, Exception> AfterDispatchCompletedMessage =
@@ -101,6 +110,17 @@ internal static class InboxProcessorLogMessages
     public static void LeaseLossPersistSkipped(ILogger logger, Guid messageId)
     {
         LeaseLossPersistSkippedMessage(logger, messageId, null);
+    }
+
+    /// <summary>
+    ///     Logs a lease-loss persistence failure that does not abort the processor pass.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="messageId">The message whose retry outcome could not be persisted.</param>
+    /// <param name="exception">The persistence exception.</param>
+    public static void LeaseLossPersistFailed(ILogger logger, Guid messageId, Exception exception)
+    {
+        LeaseLossPersistFailedMessage(logger, messageId, exception);
     }
 
     /// <summary>

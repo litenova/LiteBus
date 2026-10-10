@@ -59,8 +59,26 @@ public sealed class PostgreSqlInboxStore :
                                               tenant_id,
                                               trace_context::text,
                                               completed_at,
-                                              lease_generation
+                                              lease_generation,
+                                              last_attempted_at,
+                                              first_failed_at,
+                                              dead_lettered_at,
+                                              last_lease_owner,
+                                              error_type
                                               """;
+
+    /// <summary>
+    ///     The <see cref="BatchSelectColumns" /> list qualified with the update alias used by the lease statement.
+    /// </summary>
+    /// <remarks>
+    ///     Derived from the shared list rather than written out again, because the reader materializes rows by
+    ///     ordinal: a column added to one list and not the other shifts every field after it.
+    /// </remarks>
+    private static readonly string LeasedReturningColumns = string.Join(
+        ",\n                       ",
+        BatchSelectColumns
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(static column => "inbox." + column.Trim().TrimEnd(',')));
 
     /// <summary>
     ///     Limits each cleanup statement so retention work cannot monopolize a PostgreSQL table or transaction.
@@ -152,7 +170,10 @@ public sealed class PostgreSqlInboxStore :
                                  attempt_count = 0,
                                  lease_owner = NULL,
                                  lease_expires_at = NULL,
-                                 last_error = NULL
+                                 last_error = NULL,
+                                 error_type = NULL,
+                                 first_failed_at = NULL,
+                                 dead_lettered_at = NULL
                              WHERE message_id = @message_id AND status = @dead_lettered_status;
                              """;
 
@@ -172,7 +193,10 @@ public sealed class PostgreSqlInboxStore :
                        attempt_count = 0,
                        lease_owner = NULL,
                        lease_expires_at = NULL,
-                       last_error = NULL
+                       last_error = NULL,
+                       error_type = NULL,
+                       first_failed_at = NULL,
+                       dead_lettered_at = NULL
                    WHERE message_id = ANY(@message_ids) AND status = @dead_lettered_status;
                    """;
 
@@ -276,24 +300,7 @@ public sealed class PostgreSqlInboxStore :
 
         var sql = $"""
                    SELECT
-                       message_id,
-                       contract_name,
-                       contract_version,
-                       payload::text,
-                       created_at,
-                       visible_after,
-                       attempt_count,
-                       status,
-                       idempotency_key,
-                       lease_owner,
-                       lease_expires_at,
-                       last_error,
-                       correlation_id,
-                       causation_id,
-                       tenant_id,
-                       trace_context::text,
-                       completed_at,
-                       lease_generation
+                       {BatchSelectColumns}
                    FROM {_tableName}
                    WHERE (@status_filter OR status = ANY(@statuses))
                        AND (@message_id IS NULL OR message_id = @message_id)
@@ -372,28 +379,12 @@ public sealed class PostgreSqlInboxStore :
                        lease_expires_at = CURRENT_TIMESTAMP + @lease_duration,
                        lease_generation = inbox.lease_generation + 1,
                        attempt_count = inbox.attempt_count + 1,
-                       last_attempted_at = CURRENT_TIMESTAMP
+                       last_attempted_at = CURRENT_TIMESTAMP,
+                       last_lease_owner = @lease_owner
                    FROM candidates
                    WHERE inbox.message_id = candidates.message_id
                    RETURNING
-                       inbox.message_id,
-                       inbox.contract_name,
-                       inbox.contract_version,
-                       inbox.payload::text,
-                       inbox.created_at,
-                       inbox.visible_after,
-                       inbox.attempt_count,
-                       inbox.status,
-                       inbox.idempotency_key,
-                       inbox.lease_owner,
-                       inbox.lease_expires_at,
-                       inbox.last_error,
-                       inbox.correlation_id,
-                       inbox.causation_id,
-                       inbox.tenant_id,
-                       inbox.trace_context::text,
-                       inbox.completed_at,
-                       inbox.lease_generation;
+                       {LeasedReturningColumns};
                    """;
 
         using var command = CreateCommand(sql);
@@ -430,6 +421,39 @@ public sealed class PostgreSqlInboxStore :
         command.Parameters.AddWithValue("lease_duration", request.LeaseDuration);
         command.Parameters.AddWithValue("message_id", request.MessageId);
         command.Parameters.AddWithValue("processing_status", (int) InboxStatus.Processing);
+        command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
+        command.Parameters.AddWithValue("lease_generation", request.LeaseGeneration);
+
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affected > 0;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+
+        var sql = $"""
+                   UPDATE {_tableName}
+                   SET
+                       status = CASE WHEN last_error IS NULL THEN @pending_status ELSE @failed_status END,
+                       lease_owner = NULL,
+                       lease_expires_at = NULL,
+                       attempt_count = GREATEST(attempt_count - 1, 0)
+                   WHERE message_id = @message_id
+                       AND status = @processing_status
+                       AND lease_owner = @lease_owner
+                       AND lease_generation = @lease_generation;
+                   """;
+
+        using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("pending_status", (int) InboxStatus.Pending);
+        command.Parameters.AddWithValue("failed_status", (int) InboxStatus.Failed);
+        command.Parameters.AddWithValue("processing_status", (int) InboxStatus.Processing);
+        command.Parameters.AddWithValue("message_id", request.MessageId);
         command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
         command.Parameters.AddWithValue("lease_generation", request.LeaseGeneration);
 
@@ -526,24 +550,7 @@ public sealed class PostgreSqlInboxStore :
                    -- unique partial index on idempotency_key. Both represent the same idempotent intent.
                    ON CONFLICT DO NOTHING
                    RETURNING
-                       message_id,
-                       contract_name,
-                       contract_version,
-                       payload::text,
-                       created_at,
-                       visible_after,
-                       attempt_count,
-                       status,
-                       idempotency_key,
-                       lease_owner,
-                       lease_expires_at,
-                       last_error,
-                       correlation_id,
-                       causation_id,
-                       tenant_id,
-                       trace_context::text,
-                       completed_at,
-                       lease_generation;
+                       {BatchSelectColumns};
                    """;
 
         using var command = CreateCommand(sql);
@@ -664,24 +671,7 @@ public sealed class PostgreSqlInboxStore :
                    VALUES {valueClauses}
                    ON CONFLICT DO NOTHING
                    RETURNING
-                       message_id,
-                       contract_name,
-                       contract_version,
-                       payload::text,
-                       created_at,
-                       visible_after,
-                       attempt_count,
-                       status,
-                       idempotency_key,
-                       lease_owner,
-                       lease_expires_at,
-                       last_error,
-                       correlation_id,
-                       causation_id,
-                       tenant_id,
-                       trace_context::text,
-                       completed_at,
-                       lease_generation;
+                       {BatchSelectColumns};
                    """;
 
         using var command = CreateCommand(sql);
@@ -854,8 +844,10 @@ public sealed class PostgreSqlInboxStore :
                        SET
                            status = @completed_status,
                            lease_owner = NULL,
+                           last_lease_owner = @owner,
                            lease_expires_at = NULL,
                            last_error = NULL,
+                           error_type = NULL,
                            completed_at = @completed_at
                        WHERE message_id = @message_id
                            AND status = @in_flight_status
@@ -892,8 +884,10 @@ public sealed class PostgreSqlInboxStore :
                         SET
                             status = @completed_status,
                             lease_owner = NULL,
+                            last_lease_owner = batch.lease_owner,
                             lease_expires_at = NULL,
                             last_error = NULL,
+                            error_type = NULL,
                             completed_at = batch.completed_at
                         FROM unnest(@message_ids, @lease_owners, @lease_generations, @completed_at)
                             AS batch(message_id, lease_owner, lease_generation, completed_at)
@@ -934,8 +928,11 @@ public sealed class PostgreSqlInboxStore :
                            status = @failed_status,
                            visible_after = @visible_after,
                            lease_owner = NULL,
+                           last_lease_owner = @owner,
                            lease_expires_at = NULL,
-                           last_error = @last_error
+                           last_error = @last_error,
+                           error_type = @error_type,
+                           first_failed_at = COALESCE(first_failed_at, @first_failed_at)
                        WHERE message_id = @message_id
                            AND status = @in_flight_status
                            AND lease_owner = @owner
@@ -948,6 +945,8 @@ public sealed class PostgreSqlInboxStore :
             command.Parameters.AddWithValue("in_flight_status", (int) InboxStatus.Processing);
             command.Parameters.AddWithValue("visible_after", (object?) envelope.VisibleAfter ?? DBNull.Value);
             command.Parameters.AddWithValue("last_error", envelope.LastError!);
+            command.Parameters.AddWithValue("error_type", (object?) envelope.ErrorType ?? DBNull.Value);
+            command.Parameters.AddWithValue("first_failed_at", ResolveFirstFailedAt(envelope));
             command.Parameters.AddWithValue("message_id", envelope.Id);
             command.Parameters.AddWithValue("owner", envelope.LeaseOwner!);
             command.Parameters.AddWithValue("lease_generation", envelope.LeaseGeneration);
@@ -959,6 +958,8 @@ public sealed class PostgreSqlInboxStore :
         var generations = new long[envelopes.Count];
         var visibleAfter = new DateTimeOffset?[envelopes.Count];
         var errors = new string[envelopes.Count];
+        var errorTypes = new string?[envelopes.Count];
+        var firstFailedAt = new DateTimeOffset[envelopes.Count];
 
         for (var index = 0; index < envelopes.Count; index++)
         {
@@ -967,6 +968,8 @@ public sealed class PostgreSqlInboxStore :
             generations[index] = envelopes[index].LeaseGeneration;
             visibleAfter[index] = envelopes[index].VisibleAfter;
             errors[index] = envelopes[index].LastError!;
+            errorTypes[index] = envelopes[index].ErrorType;
+            firstFailedAt[index] = ResolveFirstFailedAt(envelopes[index]);
         }
 
         var batchSql = $"""
@@ -975,10 +978,13 @@ public sealed class PostgreSqlInboxStore :
                             status = @failed_status,
                             visible_after = batch.visible_after,
                             lease_owner = NULL,
+                            last_lease_owner = batch.lease_owner,
                             lease_expires_at = NULL,
-                            last_error = batch.last_error
-                        FROM unnest(@message_ids, @lease_owners, @lease_generations, @visible_after, @last_errors)
-                            AS batch(message_id, lease_owner, lease_generation, visible_after, last_error)
+                            last_error = batch.last_error,
+                            error_type = batch.error_type,
+                            first_failed_at = COALESCE(inbox.first_failed_at, batch.first_failed_at)
+                        FROM unnest(@message_ids, @lease_owners, @lease_generations, @visible_after, @last_errors, @error_types, @first_failed_at)
+                            AS batch(message_id, lease_owner, lease_generation, visible_after, last_error, error_type, first_failed_at)
                         WHERE inbox.message_id = batch.message_id
                             AND inbox.status = @in_flight_status
                             AND inbox.lease_owner = batch.lease_owner
@@ -994,6 +1000,8 @@ public sealed class PostgreSqlInboxStore :
         batchCommand.Parameters.AddWithValue("lease_generations", generations);
         AddVisibleAfterArrayParameter(batchCommand, visibleAfter);
         batchCommand.Parameters.AddWithValue("last_errors", errors);
+        AddNullableTextArrayParameter(batchCommand, "error_types", errorTypes);
+        AddTimestampArrayParameter(batchCommand, "first_failed_at", firstFailedAt);
         return await ExecuteTerminalUpdateWithReturningAsync(batchCommand, cancellationToken).ConfigureAwait(false);
     }
 
@@ -1016,8 +1024,12 @@ public sealed class PostgreSqlInboxStore :
                        SET
                            status = @dead_lettered_status,
                            lease_owner = NULL,
+                           last_lease_owner = @owner,
                            lease_expires_at = NULL,
-                           last_error = @last_error
+                           last_error = @last_error,
+                           error_type = @error_type,
+                           first_failed_at = COALESCE(first_failed_at, @first_failed_at),
+                           dead_lettered_at = @dead_lettered_at
                        WHERE message_id = @message_id
                            AND status = @in_flight_status
                            AND lease_owner = @owner
@@ -1029,6 +1041,9 @@ public sealed class PostgreSqlInboxStore :
             command.Parameters.AddWithValue("dead_lettered_status", (int) InboxStatus.DeadLettered);
             command.Parameters.AddWithValue("in_flight_status", (int) InboxStatus.Processing);
             command.Parameters.AddWithValue("last_error", envelope.LastError!);
+            command.Parameters.AddWithValue("error_type", (object?) envelope.ErrorType ?? DBNull.Value);
+            command.Parameters.AddWithValue("first_failed_at", ResolveFirstFailedAt(envelope));
+            command.Parameters.AddWithValue("dead_lettered_at", ResolveDeadLetteredAt(envelope));
             command.Parameters.AddWithValue("message_id", envelope.Id);
             command.Parameters.AddWithValue("owner", envelope.LeaseOwner!);
             command.Parameters.AddWithValue("lease_generation", envelope.LeaseGeneration);
@@ -1039,6 +1054,9 @@ public sealed class PostgreSqlInboxStore :
         var owners = new string[envelopes.Count];
         var generations = new long[envelopes.Count];
         var reasons = new string[envelopes.Count];
+        var reasonTypes = new string?[envelopes.Count];
+        var firstFailedAt = new DateTimeOffset[envelopes.Count];
+        var deadLetteredAt = new DateTimeOffset[envelopes.Count];
 
         for (var index = 0; index < envelopes.Count; index++)
         {
@@ -1046,6 +1064,9 @@ public sealed class PostgreSqlInboxStore :
             owners[index] = envelopes[index].LeaseOwner!;
             generations[index] = envelopes[index].LeaseGeneration;
             reasons[index] = envelopes[index].LastError!;
+            reasonTypes[index] = envelopes[index].ErrorType;
+            firstFailedAt[index] = ResolveFirstFailedAt(envelopes[index]);
+            deadLetteredAt[index] = ResolveDeadLetteredAt(envelopes[index]);
         }
 
         var batchSql = $"""
@@ -1053,10 +1074,14 @@ public sealed class PostgreSqlInboxStore :
                         SET
                             status = @dead_lettered_status,
                             lease_owner = NULL,
+                            last_lease_owner = batch.lease_owner,
                             lease_expires_at = NULL,
-                            last_error = batch.last_error
-                        FROM unnest(@message_ids, @lease_owners, @lease_generations, @last_errors)
-                            AS batch(message_id, lease_owner, lease_generation, last_error)
+                            last_error = batch.last_error,
+                            error_type = batch.error_type,
+                            first_failed_at = COALESCE(inbox.first_failed_at, batch.first_failed_at),
+                            dead_lettered_at = batch.dead_lettered_at
+                        FROM unnest(@message_ids, @lease_owners, @lease_generations, @last_errors, @error_types, @first_failed_at, @dead_lettered_at)
+                            AS batch(message_id, lease_owner, lease_generation, last_error, error_type, first_failed_at, dead_lettered_at)
                         WHERE inbox.message_id = batch.message_id
                             AND inbox.status = @in_flight_status
                             AND inbox.lease_owner = batch.lease_owner
@@ -1071,7 +1096,50 @@ public sealed class PostgreSqlInboxStore :
         batchCommand.Parameters.AddWithValue("lease_owners", owners);
         batchCommand.Parameters.AddWithValue("lease_generations", generations);
         batchCommand.Parameters.AddWithValue("last_errors", reasons);
+        AddNullableTextArrayParameter(batchCommand, "error_types", reasonTypes);
+        AddTimestampArrayParameter(batchCommand, "first_failed_at", firstFailedAt);
+        AddTimestampArrayParameter(batchCommand, "dead_lettered_at", deadLetteredAt);
         return await ExecuteTerminalUpdateWithReturningAsync(batchCommand, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Resolves the timestamp written to <c>first_failed_at</c> for a failed or dead-lettered envelope.
+    /// </summary>
+    /// <param name="envelope">The envelope being persisted.</param>
+    /// <returns>The UTC timestamp of the first failure.</returns>
+    /// <remarks>
+    ///     The statement wraps this in <c>COALESCE</c> against the stored value, so a row that already recorded a
+    ///     first failure keeps it and this value is only used for the first one.
+    /// </remarks>
+    private static DateTimeOffset ResolveFirstFailedAt(InboxEnvelope envelope)
+    {
+        return envelope.FirstFailedAt ?? DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
+    ///     Resolves the timestamp written to <c>dead_lettered_at</c> for a dead-lettered envelope.
+    /// </summary>
+    /// <param name="envelope">The envelope being persisted.</param>
+    /// <returns>The UTC timestamp at which the envelope gave up.</returns>
+    private static DateTimeOffset ResolveDeadLetteredAt(InboxEnvelope envelope)
+    {
+        return envelope.DeadLetteredAt ?? DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
+    ///     Adds a text array parameter whose entries may individually be null.
+    /// </summary>
+    /// <param name="command">The command receiving the parameter.</param>
+    /// <param name="name">The parameter name.</param>
+    /// <param name="values">The per-message values, where a null entry becomes a SQL null.</param>
+    /// <remarks>
+    ///     Npgsql infers an untyped array from the CLR element type, which fails for an all-null array. Declaring
+    ///     the array type keeps a batch of failures that carried no exception type working.
+    /// </remarks>
+    private static void AddNullableTextArrayParameter(NpgsqlCommand command, string name, string?[] values)
+    {
+        var parameter = command.Parameters.Add(name, NpgsqlDbType.Array | NpgsqlDbType.Text);
+        parameter.Value = values;
     }
 
     /// <summary>
@@ -1296,7 +1364,12 @@ public sealed class PostgreSqlInboxStore :
             TenantId = GetNullableString(reader, 14),
             TraceContext = NormalizeJsonText(GetNullableString(reader, 15)),
             CompletedAt = GetNullable<DateTimeOffset>(reader, 16),
-            LeaseGeneration = reader.GetInt64(17)
+            LeaseGeneration = reader.GetInt64(17),
+            LastAttemptedAt = GetNullable<DateTimeOffset>(reader, 18),
+            FirstFailedAt = GetNullable<DateTimeOffset>(reader, 19),
+            DeadLetteredAt = GetNullable<DateTimeOffset>(reader, 20),
+            LastLeaseOwner = GetNullableString(reader, 21),
+            ErrorType = GetNullableString(reader, 22)
         };
     }
 

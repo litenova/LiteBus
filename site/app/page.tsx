@@ -1,7 +1,8 @@
-import Image from 'next/image';
-import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { CopyButton } from '@/components/copy-button';
+import { SiteFooter } from '@/components/site-footer';
+import { SiteHeader } from '@/components/site-header';
 import {
+  changelogUrl,
   companyName,
   companyUrl,
   repositoryUrl,
@@ -9,6 +10,8 @@ import {
   siteName,
   siteUrl,
 } from '@/lib/site';
+import { defaultVersion, docsVersions } from '@/lib/versions';
+import Link from 'next/link';
 
 const structuredData = {
   '@context': 'https://schema.org',
@@ -38,275 +41,195 @@ const structuredData = {
       runtimePlatform: '.NET',
       url: siteUrl,
       license: 'https://github.com/litenova/LiteBus/blob/main/LICENSE',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
       author: { '@id': `${siteUrl}/#organization` },
     },
   ],
 };
 
-const KEYWORDS = new Set([
-  'public',
-  'private',
-  'sealed',
-  'record',
-  'class',
-  'var',
-  'await',
-  'return',
-  'void',
-  'using',
-  'namespace',
-  'new',
-  'static',
-  'async',
-  'readonly',
-  'this',
-]);
+const INSTALL_COMMAND = 'dotnet add package LiteBus.Extensions.Microsoft.DependencyInjection';
 
-const PRIMITIVES = new Set(['string', 'decimal', 'bool', 'int', 'long', 'object']);
-
-function highlight(code: string): ReactNode[] {
-  const pattern =
-    /(\/\/[^\n]*)|("(?:[^"\\]|\\.)*")|([A-Za-z_][A-Za-z0-9_]*)|(\d[\d_.]*m?)|(\s+)|([^\s\w])/g;
-  const nodes: ReactNode[] = [];
-  let match: RegExpExecArray | null;
-  let index = 0;
-
-  while ((match = pattern.exec(code)) !== null) {
-    const [full, comment, str, word, num] = match;
-    const key = index++;
-
-    if (comment) {
-      nodes.push(
-        <span key={key} className="tok-c">
-          {comment}
-        </span>,
-      );
-    } else if (str) {
-      nodes.push(
-        <span key={key} className="tok-s">
-          {str}
-        </span>,
-      );
-    } else if (word) {
-      const cls = KEYWORDS.has(word)
-        ? 'tok-k'
-        : PRIMITIVES.has(word) || /^[A-Z]/.test(word)
-          ? 'tok-t'
-          : undefined;
-      nodes.push(
-        cls ? (
-          <span key={key} className={cls}>
-            {word}
-          </span>
-        ) : (
-          <span key={key}>{word}</span>
-        ),
-      );
-    } else if (num) {
-      nodes.push(
-        <span key={key} className="tok-n">
-          {num}
-        </span>,
-      );
-    } else {
-      nodes.push(<span key={key}>{full}</span>);
-    }
-  }
-
-  return nodes;
-}
-
-function CodeWindow({ label, code }: { label: string; code: string }) {
-  return (
-    <div className="litebus-code">
-      <div className="litebus-code-bar">
-        <span className="litebus-code-mark" aria-hidden="true" />
-        <span className="litebus-code-label">{label}</span>
-      </div>
-      <pre>
-        <code>{highlight(code)}</code>
-      </pre>
-    </div>
-  );
-}
-
-const QUICKSTART_CODE = `builder.Services.AddLiteBus(bus =>
+const REGISTER_CODE = `builder.Services.AddLiteBus(bus =>
 {
     bus.AddMessaging(_ => { });
     bus.AddCommands(commands =>
         commands.RegisterFromAssembly(typeof(Program).Assembly));
-});
+});`;
 
-var id = await mediator.SendAsync(
-    new CreateProduct("Widget", 9.99m),
-    cancellationToken);`;
+const HANDLER_CODE = `public sealed record CreateProduct(string Name) : ICommand<Guid>;
 
-const CAPABILITIES = [
+public sealed class CreateProductHandler : ICommandHandler<CreateProduct, Guid>
+{
+    public Task<Guid> HandleAsync(
+        CreateProduct command,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Guid.NewGuid());
+    }
+}`;
+
+const SEND_CODE = `var id = await mediator.SendAsync(new CreateProduct("Widget"), cancellationToken);`;
+
+/** One feature card: a title, one sentence, and the documentation page it links to. */
+type Feature = Readonly<{ title: string; text: string; href: string; link: string }>;
+
+const FEATURES: readonly Feature[] = [
   {
     title: 'Commands and Queries',
-    body: 'Separate command and query mediators encode write and read intent for CQS applications.',
-    icon: <path d="M4 7h13m0 0-3-3m3 3-3 3M20 17H7m0 0 3-3m-3 3 3 3" />,
+    text: 'Separate mediators for writes and reads, so a handler states which one it is.',
+    href: '/docs/concepts/commands',
+    link: 'Commands and queries',
   },
   {
-    title: 'Domain Events',
-    body: 'Publish plain .NET event types to zero or more handlers without requiring a shared event base class.',
-    icon: <path d="M8 18h8M10 21h4M6 15h12l-1.5-2.5V9a4.5 4.5 0 0 0-9 0v3.5L6 15Z" />,
+    title: 'Events',
+    text: 'Publish a plain .NET type to any number of handlers, with no shared base class.',
+    href: '/docs/concepts/events',
+    link: 'Events',
   },
   {
-    title: 'Handler Pipelines',
-    body: 'Run validation and cross-cutting work through named pre-, post-, and error-handler stages.',
-    icon: <path d="M4 6h5m6 0h5M9 4v4m6 3v4M4 13h11m0 0h5M4 20h5m6 0h5M9 18v4" />,
+    title: 'Handler Pipeline',
+    text: 'Guards, validators, pre-, post-, error and completion handlers run in a fixed order.',
+    href: '/docs/concepts/handler-pipeline',
+    link: 'The pipeline',
   },
   {
     title: 'Durable Inbox',
-    body: 'Persist commands before deferred execution with leases, retries, receipts, and at-least-once delivery.',
-    icon: <path d="M4 5h16v14H4V5Zm4 8h2l2 2 2-2h2M12 4v7m0 0-3-3m3 3 3-3" />,
+    text: 'Accept a command into storage first, then run it under a lease with retries.',
+    href: '/docs/reliable-messaging/inbox',
+    link: 'The inbox',
   },
   {
     title: 'Transactional Outbox',
-    body: 'Store events with domain state through transactional writers, then publish them with an outbox processor.',
-    icon: <path d="M4 5h16v14H4V5Zm4 8h2l2 2 2-2h2M12 11V4m0 0-3 3m3-3 3 3" />,
+    text: 'Store an event in the same transaction as your data and publish it after commit.',
+    href: '/docs/reliable-messaging/outbox',
+    link: 'The outbox',
   },
   {
-    title: 'Saga State',
-    body: 'Persist correlated state around inbox command dispatch with in-memory or PostgreSQL storage.',
-    icon: <path d="M7 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm10 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM9.5 8.5l5-2M9.5 12l4.8 2" />,
+    title: 'Brokers and Stores',
+    text: 'RabbitMQ, Kafka, AWS SQS, Azure Service Bus, PostgreSQL and EF Core, each its own package.',
+    href: '/docs/architecture/dependency-graph',
+    link: 'Packages',
   },
   {
-    title: 'Storage and Transport',
-    body: 'Select PostgreSQL, EF Core, in-memory, RabbitMQ, Kafka, AWS SQS, or Azure Service Bus through opt-in adapters.',
-    icon: <path d="M4 6c0-1.1 3.6-2 8-2s8 .9 8 2-3.6 2-8 2-8-.9-8-2Zm0 0v6c0 1.1 3.6 2 8 2s8-.9 8-2V6M4 12v6c0 1.1 3.6 2 8 2s8-.9 8-2v-6" />,
+    title: 'Sagas',
+    text: 'Keep correlated state across the commands of a long-running workflow.',
+    href: '/docs/reliable-messaging/saga',
+    link: 'Sagas',
   },
   {
-    title: 'Hosting and Operations',
-    body: 'Run processors through host adapters and add OpenTelemetry, health checks, management endpoints, and analyzers.',
-    icon: <path d="M3 12h4l2.5-6 4 12 2.5-6h5M5 4h14M5 20h14" />,
+    title: 'Compile-Time Checks',
+    text: '20 analyzer rules catch missing handlers, duplicate handlers and contract gaps.',
+    href: '/docs/reference/analyzers',
+    link: 'Analyzers',
   },
 ];
 
+/**
+ * Landing page for the LiteBus site: the hero, three steps from install to a sent command, and the
+ * feature cards that link into the documentation.
+ */
 export default function HomePage() {
+  const prerelease = docsVersions.find((version) => version.status === 'prerelease') ?? defaultVersion;
+
   return (
-    <div className="litebus-home">
+    <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
-
-      <header className="litebus-home-header">
-        <div className="litebus-header-inner">
-          <Link className="litebus-brand" href="/" aria-label="LiteBus home">
-            <Image src="/icon.svg" alt="" width={30} height={30} priority />
-            <span>LiteBus</span>
-          </Link>
-          <nav className="litebus-home-nav" aria-label="Main navigation">
-            <Link href="/docs">Documentation</Link>
-            <Link href="https://github.com/litenova/LiteBus">GitHub</Link>
-            <Link className="nav-cta" href="/docs/getting-started">
-              Get Started
-            </Link>
-          </nav>
-        </div>
-      </header>
-
-      <main>
-        <section className="litebus-hero">
-          <div className="litebus-hero-copy">
-            <div className="litebus-badges" aria-label="Project licensing">
-              <span>MIT Licensed</span>
-              <span>Open Source</span>
-              <span>.NET 10</span>
-            </div>
-            <h1>Message Mediation and Durable Processing for .NET</h1>
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
+      <div className="wrap">
+        <SiteHeader current="home" />
+        <main id="main" tabIndex={-1}>
+          <section className="hero">
+            <a className="release" href={changelogUrl}>
+              <b>v{prerelease.release}</b>See what changed
+            </a>
+            <h1>Commands, Queries and Events for .NET</h1>
+            <ul className="tags" aria-label="Platform and license">
+              <li>.NET 10</li>
+              <li>C#</li>
+              <li>MIT</li>
+              <li>Open Source</li>
+              <li>Free for Commercial Use</li>
+            </ul>
             <p>
-              LiteBus provides command, query, and event mediation for CQS and DDD applications,
-              with optional inbox, outbox, saga, storage, and transport modules.
+              LiteBus sends commands, runs queries and publishes events through a handler pipeline in your
+              process. When a message has to survive a restart, add the durable inbox and outbox.
             </p>
-            <div className="litebus-actions">
-              <Link className="primary" href="/docs/getting-started">
-                Getting Started
-              </Link>
-              <Link href="/docs">Documentation</Link>
-            </div>
-            <div className="litebus-install" aria-label="Install command">
-              <span className="litebus-prompt" aria-hidden="true">
-                $
-              </span>
-              <code>dotnet add package LiteBus.Extensions.Microsoft.DependencyInjection</code>
-            </div>
-          </div>
-
-          <div className="litebus-hero-code">
-            <CodeWindow label="Program.cs" code={QUICKSTART_CODE} />
-          </div>
-        </section>
-
-        <section className="litebus-section litebus-capabilities" aria-labelledby="capabilities-heading">
-          <div className="litebus-section-intro">
-            <span className="litebus-section-label">Modules and Integrations</span>
-            <h2 id="capabilities-heading">What LiteBus Includes</h2>
-            <p>
-              LiteBus separates mediation, durable processing, adapters, and operational
-              integrations into independent packages.
-            </p>
-          </div>
-          <div className="litebus-capability-list">
-            {CAPABILITIES.map((capability) => (
-              <article key={capability.title} className="litebus-capability">
-                <span className="litebus-capability-icon" aria-hidden="true">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    {capability.icon}
-                  </svg>
+            <div className="install">
+              <div className="cmd">
+                <span>
+                  <span className="dim">$ </span>
+                  {INSTALL_COMMAND}
                 </span>
-                <h3>{capability.title}</h3>
-                <p>{capability.body}</p>
-              </article>
-            ))}
-          </div>
-        </section>
+                <CopyButton text={INSTALL_COMMAND} />
+              </div>
+              <p className="label">
+                <Link href="/docs/getting-started">Get started</Link> sends your first command in a few minutes.
+              </p>
+            </div>
+          </section>
 
-        <section className="litebus-mediatr" aria-labelledby="mediatr-heading">
-          <div>
-            <span className="litebus-section-label">MediatR Comparison</span>
-            <h2 id="mediatr-heading">An MIT-Licensed Alternative to MediatR</h2>
-          </div>
-          <div className="litebus-mediatr-copy">
-            <p>
-              MediatR 13 moved to dual commercial and open-source licensing and requires a license
-              key. LiteBus remains MIT licensed and free for commercial use, with a message model
-              designed around CQS and DDD.
+          <section className="section" aria-labelledby="up-and-running-heading">
+            <div className="section-head">
+              <p className="kicker">Getting Started</p>
+              <h2 id="up-and-running-heading">Up and Running in Three Steps</h2>
+              <p>Register the modules, write a handler, send a message.</p>
+            </div>
+            <ol className="steps">
+              <li>
+                <b>Register LiteBus</b>
+                <span>Scan your assembly for handlers when the host starts.</span>
+                <pre data-label="Program.cs">
+                  <code>{REGISTER_CODE}</code>
+                </pre>
+              </li>
+              <li>
+                <b>Write a handler</b>
+                <span>A command is a type; its handler is a class LiteBus finds on its own.</span>
+                <pre data-label="CreateProduct.cs">
+                  <code>{HANDLER_CODE}</code>
+                </pre>
+              </li>
+              <li>
+                <b>Send the command</b>
+                <span>Inject <code>ICommandMediator</code> wherever you need it.</span>
+                <pre data-label="C#">
+                  <code>{SEND_CODE}</code>
+                </pre>
+              </li>
+            </ol>
+            <p className="proof">
+              <Link href="/docs/getting-started">Getting Started {'->'}</Link> covers queries, events and the
+              durable modules.
             </p>
-            <Link href="/docs/migration/mediatr-differences">Compare LiteBus and MediatR</Link>
-          </div>
-        </section>
-      </main>
+          </section>
 
-      <footer className="litebus-footer">
-        <div className="litebus-footer-inner">
-          <div>
-            <Link className="litebus-brand" href="/">
-              <Image src="/icon.svg" alt="" width={24} height={24} />
-              <span>LiteBus</span>
-            </Link>
-            <p>
-              A <Link href={companyUrl}>{companyName}</Link> project.
-            </p>
-          </div>
-          <nav aria-label="Footer navigation">
-            <Link href="/docs">Documentation</Link>
-            <Link href="/docs/getting-started">Get Started</Link>
-            <Link href="/docs/architecture">Architecture</Link>
-            <Link href="/privacy">Privacy</Link>
-            <Link href="https://github.com/litenova/LiteBus">GitHub</Link>
-          </nav>
-        </div>
-      </footer>
-    </div>
+          <section className="section" aria-labelledby="features-heading">
+            <div className="section-head">
+              <h2 id="features-heading">Features</h2>
+              <p>Mediation in one package. Everything else is an opt-in package you add when you need it.</p>
+            </div>
+            <ul className="features">
+              {FEATURES.map((feature) => (
+                <li key={feature.title}>
+                  <Link href={feature.href}>
+                    <b>{feature.title}</b>
+                    <span>{feature.text}</span>
+                    <i>
+                      {feature.link} {'->'}
+                    </i>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </main>
+        <SiteFooter />
+      </div>
+    </>
   );
 }

@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Messaging.Processing;
-using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using Microsoft.Extensions.Logging;
 
@@ -85,14 +84,18 @@ internal static class OutboxProcessorEnvelopeHandler
         messageActivity?.SetTag("litebus.message_id", envelope.Id);
         var dispatchCompleted = false;
 
+        // One adapter serves every hook phase of this dispatch. Each phase used to build its own, so a single
+        // envelope allocated five of an object whose only job is to project a record behind an interface.
+        var hookEnvelope = new OutboxProcessorEnvelopeAdapter(envelope);
+
         try
         {
-            await OutboxProcessorHookRunner.RunBeforeDispatchAsync(hooks, envelope, cancellationToken)
+            await ProcessorHookRunner.RunBeforeDispatchAsync(hooks, hookEnvelope, cancellationToken)
                 .ConfigureAwait(false);
 
-            OutboxProcessorHookRunner.RunPrepareDispatchScope(hooks, envelope);
+            ProcessorHookRunner.RunPrepareDispatchScope(hooks, hookEnvelope);
 
-            if (!OutboxProcessorHookRunner.ShouldDispatch(hooks, envelope))
+            if (!ProcessorHookRunner.ShouldDispatch(hooks, hookEnvelope))
             {
                 dispatchCompleted = true;
                 return envelope.AsPublished(clock.GetUtcNow());
@@ -106,13 +109,15 @@ internal static class OutboxProcessorEnvelopeHandler
             dispatchCompleted = true;
             return published;
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        // A cancelled dispatch leaves the row untouched: no attempt consumed, no error recorded, no visibility moved.
+        // The filter also sees a cancellation a dispatcher wrapped in its own exception type.
+        catch (Exception exception) when (MediationExceptionFilters.IsCallerCancellation(exception, cancellationToken))
         {
             return null;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            var error = MessageProcessorDiagnostics.FormatError(exception);
+            var failure = MessageFailure.From(exception, clock.GetUtcNow());
 
             OutboxProcessorLogMessages.DispatchFailed(
                 logger,
@@ -120,19 +125,22 @@ internal static class OutboxProcessorEnvelopeHandler
                 envelope.AttemptCount,
                 exception);
 
-            if (envelope.AttemptCount >= options.Retry.MaxAttempts)
+            // A refusal or a missing handler produces the same outcome on every attempt, so spending the retry
+            // schedule on it only delays the dead-letter entry an operator is waiting to see.
+            if (envelope.AttemptCount >= options.Retry.MaxAttempts
+                || !MediationExceptionFilters.IsRetryableDispatchException(exception))
             {
-                return envelope.AsDeadLettered(error);
+                return envelope.AsDeadLettered(failure);
             }
 
             var visibleAfter = clock.GetUtcNow().Add(options.Retry.CalculateDelay(envelope.AttemptCount));
-            return envelope.AsFailed(error, visibleAfter);
+            return envelope.AsFailed(failure, visibleAfter);
         }
         finally
         {
             if (!dispatchCompleted)
             {
-                OutboxProcessorHookRunner.RunAbandonDispatchScopes(hooks, envelope);
+                ProcessorHookRunner.RunAbandonDispatchScopes(hooks, hookEnvelope);
             }
         }
     }

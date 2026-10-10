@@ -6,6 +6,8 @@
 
 When an axis is not registered on the host (for example inbox-only configuration), requests under that axis prefix return **404 Not Found** with an axis-not-configured message instead of **500 Internal Server Error**.
 
+> **This page is for** operators who map management routes and read processor state.
+
 ## Packages to Install
 
 | Package | Role |
@@ -103,4 +105,5 @@ operator safety rejections return **400**; unexpected failures return **500**.
 
 * [Diagnostics and health](diagnostics-and-health.md)
 * [Hosted services](../architecture/hosted-services.md)
+* [Message states and alerting](message-states.md)
 * [Production runbook](runbook.md)

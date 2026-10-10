@@ -18,12 +18,13 @@ public sealed class PostgreSqlSagaStoreConnectionTests : IClassFixture<PostgreSq
     public PostgreSqlSagaStoreConnectionTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms repeated save/load cycles do not exhaust the PostgreSQL connection pool.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task SaveAndLoad_under_load_should_not_exhaust_connection_pool()
     {
         var options = new PostgreSqlSagaStoreOptions
@@ -39,34 +40,34 @@ public sealed class PostgreSqlSagaStoreConnectionTests : IClassFixture<PostgreSq
             MaxPoolSize = 4
         }.ConnectionString;
 
-         var limitedDataSource = NpgsqlDataSource.Create(limitedConnectionString);
-         await using (limitedDataSource.ConfigureAwait(false))
-         {
-
-        var store = new PostgreSqlSagaStore(
-            limitedDataSource,
-            new SystemTextJsonMessageSerializer(),
-            options);
-
-        var correlation = new SagaCorrelation
+        var limitedDataSource = NpgsqlDataSource.Create(limitedConnectionString);
+        await using (limitedDataSource.ConfigureAwait(false))
         {
-            SagaDefinitionId = "order-flow",
-            CorrelationId = Guid.NewGuid().ToString("N")
-        };
 
-        for (var iteration = 0; iteration < 40; iteration++)
-        {
-            var instance = await store.LoadAsync<TestSagaState>(correlation).ConfigureAwait(false);
-            var version = instance?.Version ?? 0;
-            var state = instance?.State ?? new TestSagaState();
+            var store = new PostgreSqlSagaStore(
+                limitedDataSource,
+                new SystemTextJsonMessageSerializer(),
+                options);
 
-            state.Counter = iteration + 1;
-            await store.SaveAsync(new SagaSaveItem<TestSagaState>(correlation, state, version)).ConfigureAwait(false);
-        }
+            var correlation = new SagaCorrelation
+            {
+                SagaDefinitionId = "order-flow",
+                CorrelationId = Guid.NewGuid().ToString("N")
+            };
 
-        var loaded = await store.LoadAsync<TestSagaState>(correlation).ConfigureAwait(false);
-        loaded.Should().NotBeNull();
-        loaded!.State.Counter.Should().Be(40);
+            for (var iteration = 0; iteration < 40; iteration++)
+            {
+                var instance = await store.LoadAsync<TestSagaState>(correlation).ConfigureAwait(false);
+                var version = instance?.Version ?? 0;
+                var state = instance?.State ?? new TestSagaState();
+
+                state.Counter = iteration + 1;
+                await store.SaveAsync(new SagaSaveItem<TestSagaState>(correlation, state, version)).ConfigureAwait(false);
+            }
+
+            var loaded = await store.LoadAsync<TestSagaState>(correlation).ConfigureAwait(false);
+            loaded.Should().NotBeNull();
+            loaded!.State.Counter.Should().Be(40);
         }
     }
 

@@ -141,7 +141,7 @@ internal sealed class OutboxObservableMetrics : IDisposable
             yield break;
         }
 
-        yield return new Measurement<int>((int)control.State);
+        yield return new Measurement<int>((int) control.State);
     }
 
     /// <summary>
@@ -178,8 +178,11 @@ internal sealed class OutboxObservableMetrics : IDisposable
 
             if (store is null)
             {
+                OutboxDiagnosticsTelemetry.RecordUnavailable();
+
                 lock (_cacheLock)
                 {
+                    _cachedCounts = EmptyStatusCounts;
                     _cacheExpiresAt = DateTimeOffset.UtcNow.Add(CacheDuration);
                 }
 
@@ -205,6 +208,7 @@ internal sealed class OutboxObservableMetrics : IDisposable
 
             lock (_cacheLock)
             {
+                _cachedCounts = EmptyStatusCounts;
                 _cacheExpiresAt = DateTimeOffset.UtcNow.Add(CacheDuration);
             }
         }

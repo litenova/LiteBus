@@ -35,13 +35,16 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
     {
         _postgresFixture = postgresFixture;
         _rabbitMqFixture = rabbitMqFixture;
+        DockerTestGate.EnsureBrokerAvailable(_rabbitMqFixture.IsAvailable, "RabbitMQ");
+        Skip.IfNot(_rabbitMqFixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
+        Skip.IfNot(_postgresFixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that processing a leased inbox envelope publishes to AMQP and marks the PostgreSQL row completed.
     /// </summary>
     /// <returns>A task that completes when the publish and database assertions succeed.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_ShouldPublishToAmqpAndMarkPostgreSqlEnvelopeCompleted()
     {
         var storeOptions = CreateInboxStoreOptions();
@@ -86,7 +89,7 @@ public sealed class PostgreSqlAmqpInboxDispatchIntegrationTests : LiteBusTestBas
             var (body, headers) = await AmqpTestInfrastructure.ReceiveOneAsync(
                 connectionUri,
                 queueName,
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
             body.Should().Contain(workItemId.ToString());
             headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));

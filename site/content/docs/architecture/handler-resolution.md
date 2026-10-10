@@ -1,4 +1,4 @@
-# Handler Resolution Internals
+﻿# Handler Resolution Internals
 
 This page explains how the message registry turns registered CLR types into the handler lists a strategy runs, and why direct, indirect, and open generic handlers resolve the way they do. Read it after [The Handler Pipeline](../concepts/handler-pipeline.md) when you need to reason about resolution edge cases or extend the registry. The behavior here is grounded in `MessageRegistry` and `MessageDescriptor` under `src/LiteBus.Messaging/Registry`.
 
@@ -31,8 +31,8 @@ When a handler descriptor is added to a message descriptor, `MessageDescriptor.A
 
 | Relationship | Bucket | Example |
 | --- | --- | --- |
-| Handler's message type equals the message type | Direct (`Handlers`, `PreHandlers`, `PostHandlers`, `ErrorHandlers`) | `ICommandHandler<CreateProductCommand>` for `CreateProductCommand` |
-| Message type is assignable to the handler's message type | Indirect (`IndirectHandlers`, `IndirectPreHandlers`, and so on) | A pre-handler for `ICommand` applied to every command; a handler for a base event applied to a derived event |
+| Handler's message type equals the message type | Direct (`Handlers`, `PreStageHandlers`, `PostHandlers`, `ErrorHandlers`) | `ICommandHandler<CreateProductCommand>` for `CreateProductCommand` |
+| Message type is assignable to the handler's message type | Indirect (`IndirectHandlers`, `IndirectPreStageHandlers`, and so on) | A guard for `ICommand` applied to every command; a handler for a base event applied to a derived event |
 
 Indirect handlers are how global and polymorphic handlers work. A pre-handler registered against the `ICommand` marker is a direct handler of `ICommand` and an indirect handler of every concrete command, because each command is assignable to `ICommand`. The same mechanism drives [Polymorphic Dispatch](../concepts/polymorphic-dispatch.md): a handler for a base type is picked up as an indirect handler of its subtypes.
 

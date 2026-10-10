@@ -2,7 +2,6 @@
 
     <PropertyGroup>
         <RootNamespace>LiteBus.Extensions.AspNetCore</RootNamespace>
-        <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
     <ItemGroup>

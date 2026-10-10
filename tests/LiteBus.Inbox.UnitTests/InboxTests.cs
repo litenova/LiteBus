@@ -5,7 +5,7 @@ using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -46,7 +46,7 @@ public sealed class InboxTests : LiteBusTestBase
             }));
 
         receipt.Id.Should().Be(commandId);
-        receipt.MessageType.Should().Be(typeof(InboxTestFixtures.ShipOrderCommand));
+        receipt.MessageType.Should().Be<InboxTestFixtures.ShipOrderCommand>();
         receipt.Contract.Name.Should().Be("orders.commands.ship");
         receipt.Contract.Version.Should().Be(2);
         receipt.AcceptedAt.Should().Be(now);
@@ -105,7 +105,8 @@ public sealed class InboxTests : LiteBusTestBase
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
         var orderId = Guid.NewGuid();
 
-        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+        {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
         });
@@ -164,7 +165,8 @@ public sealed class InboxTests : LiteBusTestBase
         var scheduler = serviceProvider.GetRequiredService<IInbox>();
         var processor = serviceProvider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ArchiveCommand<string> {
+        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ArchiveCommand<string>
+        {
             Value = "closed-generic"
         });
 

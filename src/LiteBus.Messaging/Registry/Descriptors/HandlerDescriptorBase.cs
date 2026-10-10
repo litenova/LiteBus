@@ -23,4 +23,7 @@ internal abstract class HandlerDescriptorBase : IHandlerDescriptor
 
     /// <inheritdoc />
     public required Type HandlerType { get; init; }
+
+    /// <inheritdoc />
+    public required Type ContractType { get; init; }
 }

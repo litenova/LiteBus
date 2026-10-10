@@ -44,39 +44,39 @@ public sealed class AwsSqsInboxDispatchIntegrationTests : LiteBusTestBase
     public async Task ProcessPendingAsync_ShouldPublishLeasedEnvelopeToSqsQueue()
     {
         var queueUrl = await _fixture.CreateQueueAsync("inbox-dispatch").ConfigureAwait(false);
-         var provider = BuildProvider(queueUrl);
-         await using (provider.ConfigureAwait(false))
-         {
-
-        var inbox = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-
-        var workItemId = Guid.NewGuid();
-
-        var receipt = await inbox.AcceptAsync(new InboxAcceptItem<RemoteWorkCommand>
+        var provider = BuildProvider(queueUrl);
+        await using (provider.ConfigureAwait(false))
         {
-            Message = new RemoteWorkCommand
+
+            var inbox = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
+
+            var workItemId = Guid.NewGuid();
+
+            var receipt = await inbox.AcceptAsync(new InboxAcceptItem<RemoteWorkCommand>
             {
-                WorkItemId = workItemId,
-                IdempotencyKey = $"work:{workItemId}"
-            },
-            Metadata = InboxAcceptMetadata.Immediate with
-            {
-                Trace = new MessageTrace.Correlated("corr-sqs-dispatch")
-            }
-        }).ConfigureAwait(false);
+                Message = new RemoteWorkCommand
+                {
+                    WorkItemId = workItemId,
+                    IdempotencyKey = $"work:{workItemId}"
+                },
+                Metadata = InboxAcceptMetadata.Immediate with
+                {
+                    Trace = new MessageTrace.Correlated("corr-sqs-dispatch")
+                }
+            }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        var (body, headers) = await SqsTransportTestInfrastructure.ReceiveOneAsync(
-            _fixture.SqsClient,
-            queueUrl,
-            TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+            var (body, headers) = await SqsTransportTestInfrastructure.ReceiveOneAsync(
+                _fixture.SqsClient,
+                queueUrl,
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
-        body.Should().Contain(workItemId.ToString());
-        headers[TransportHeaders.MessageId].Should().Be(receipt.Id.ToString("D"));
-        headers[TransportHeaders.ContractName].Should().Be(ContractName);
-        headers[TransportHeaders.CorrelationId].Should().Be("corr-sqs-dispatch");
+            body.Should().Contain(workItemId.ToString());
+            headers[TransportHeaders.MessageId].Should().Be(receipt.Id.ToString("D"));
+            headers[TransportHeaders.ContractName].Should().Be(ContractName);
+            headers[TransportHeaders.CorrelationId].Should().Be("corr-sqs-dispatch");
         }
     }
 

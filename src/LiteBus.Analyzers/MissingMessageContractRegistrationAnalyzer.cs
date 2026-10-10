@@ -2,6 +2,8 @@ using System.Collections.Immutable;
 using System.Linq;
 using LiteBus.Analyzers.Analysis;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace LiteBus.Analyzers;
@@ -19,30 +21,85 @@ public sealed class MissingMessageContractRegistrationAnalyzer : DiagnosticAnaly
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
     {
-        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
+        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze);
         context.EnableConcurrentExecution();
-        context.RegisterCompilationAction(AnalyzeCompilation);
+        context.RegisterCompilationStartAction(AnalyzeCompilationStart);
+    }
+
+    /// <summary>
+    ///     Gathers handler registrations and contract registrations for one compilation.
+    /// </summary>
+    /// <param name="context">The compilation start analysis context.</param>
+    private static void AnalyzeCompilationStart(CompilationStartAnalysisContext context)
+    {
+        var typeCache = new LiteBusTypeCache(context.Compilation);
+
+        if (!HandlerAnalysis.AnyPipelineInterfaceResolves(typeCache, "command") &&
+            !HandlerAnalysis.AnyPipelineInterfaceResolves(typeCache, "event"))
+        {
+            return;
+        }
+
+        var handlers = new HandlerRegistrationCollector(typeCache);
+        var contracts = new ContractRegistrationCollector(context.Compilation);
+
+        context.RegisterSymbolAction(
+            symbolContext => AnalyzeSymbol(symbolContext, handlers),
+            SymbolKind.NamedType);
+
+        context.RegisterSyntaxNodeAction(
+            nodeContext => AnalyzeInvocation(nodeContext, contracts),
+            SyntaxKind.InvocationExpression);
+
+        context.RegisterCompilationEndAction(
+            endContext => AnalyzeCompilationEnd(endContext, handlers, contracts));
+    }
+
+    /// <summary>
+    ///     Adds the handler registrations declared on one type symbol.
+    /// </summary>
+    /// <param name="context">The symbol analysis context.</param>
+    /// <param name="handlers">The handler registration collector.</param>
+    private static void AnalyzeSymbol(SymbolAnalysisContext context, HandlerRegistrationCollector handlers)
+    {
+        if (context.Symbol is INamedTypeSymbol symbol)
+        {
+            handlers.Add(symbol);
+        }
+    }
+
+    /// <summary>
+    ///     Adds the contract registration performed by one invocation node.
+    /// </summary>
+    /// <param name="context">The syntax node analysis context.</param>
+    /// <param name="contracts">The contract registration collector.</param>
+    private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context, ContractRegistrationCollector contracts)
+    {
+        contracts.AddInvocation(
+            context.SemanticModel,
+            (InvocationExpressionSyntax) context.Node,
+            context.CancellationToken);
     }
 
     /// <summary>
     ///     Reports handled message types without durable contract registration.
     /// </summary>
     /// <param name="context">The compilation analysis context.</param>
-    private static void AnalyzeCompilation(CompilationAnalysisContext context)
+    /// <param name="handlers">The handler registration collector.</param>
+    /// <param name="contracts">The contract registration collector.</param>
+    private static void AnalyzeCompilationEnd(
+        CompilationAnalysisContext context,
+        HandlerRegistrationCollector handlers,
+        ContractRegistrationCollector contracts)
     {
-        var registeredContracts = ContractRegistrationAnalysis.CollectRegisteredContractTypes(
-            context.Compilation,
-            context.CancellationToken);
+        var registeredContracts = contracts.ToRegisteredTypes();
+        var registeredAssemblies = contracts.ToRegisteredAssemblies();
 
-        var registeredAssemblies = ContractRegistrationAnalysis.CollectRegisterFromAssemblyTargets(
-            context.Compilation,
-            context.CancellationToken);
-
-        var handlers = HandlerAnalysis.CollectHandlerRegistrations(context.Compilation, context.CancellationToken)
+        var matches = handlers.ToRegistrations(context.CancellationToken)
             .Where(handler => handler.Pipeline is "command" or "event")
             .ToList();
 
-        foreach (var handler in handlers)
+        foreach (var handler in matches)
         {
             if (handler.MessageType.TypeKind == TypeKind.TypeParameter ||
                 HandlerAnalysis.IsGenericTypeDefinition(handler.MessageType))

@@ -71,3 +71,6 @@ site/*.tsbuildinfo
 
 # Cursor agent plans (local only)
 .cursor/plans/
+
+# Generated type inventory scratch output
+types.tsv

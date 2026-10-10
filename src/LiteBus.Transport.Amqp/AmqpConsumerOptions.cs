@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Transport.Amqp;
 
@@ -17,6 +18,12 @@ public sealed record AmqpConsumerOptions
     /// </summary>
     /// <value>Use zero for RabbitMQ's unlimited native prefetch window.</value>
     public ushort PrefetchCount { get; init; } = 1;
+
+    /// <summary>
+    ///     Gets the maximum number of delivery handlers that LiteBus may execute concurrently for this subscription.
+    /// </summary>
+    /// <value>Default is <see cref="TransportConsumerOptions.DefaultMaxInFlightMessages" />.</value>
+    public int MaxInFlightMessages { get; init; } = TransportConsumerOptions.DefaultMaxInFlightMessages;
 
     /// <summary>
     ///     Gets a value indicating whether the consumer should be exclusive to this connection.

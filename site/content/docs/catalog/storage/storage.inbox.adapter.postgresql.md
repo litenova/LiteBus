@@ -10,7 +10,7 @@
 | Interface | Methods used in adapter |
 | --- | --- |
 | `IInboxStore` | `AddAsync`, `AddBatchAsync` |
-| `IInboxLeaseStore` | `LeasePendingAsync`, `RenewLeaseAsync` (via `ILeaseRenewable`) |
+| `IInboxLeaseStore` | `LeasePendingAsync`, `RenewLeaseAsync`, `ReleaseLeaseAsync` (via `ILeaseRenewable`) |
 | `IInboxStateWriter` | `PersistAsync` |
 | `IInboxDeadLetterStore` | `RequeueAsync` |
 | `IInboxRetentionStore` | `DeleteCompletedOlderThanAsync` |

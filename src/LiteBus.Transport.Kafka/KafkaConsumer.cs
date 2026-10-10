@@ -1,3 +1,6 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Confluent.Kafka;
 using LiteBus.Transport.Abstractions;
 
@@ -22,6 +25,11 @@ public sealed class KafkaConsumer : IMessageConsumer
     ///     Serializes start and stop operations on the consume loop.
     /// </summary>
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+
+    /// <summary>
+    ///     Tracks whether asynchronous disposal has started.
+    /// </summary>
+    private int _disposed;
 
     /// <summary>
     ///     Tracks repeated seek failures and computes consume delays between retries.
@@ -89,7 +97,11 @@ public sealed class KafkaConsumer : IMessageConsumer
 
             _stoppedTcs = CreateStoppedTaskSource();
             _consumeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _consumeTask = RunConsumeLoopAsync(options, handler, _consumeCts.Token);
+            var consumeToken = _consumeCts.Token;
+
+            // Consume blocks the calling thread, so the loop runs on the thread pool; started inline, StartAsync would
+            // not return until the first record arrived.
+            _consumeTask = Task.Run(() => RunConsumeLoopAsync(options, handler, consumeToken), CancellationToken.None);
         }
         finally
         {
@@ -193,6 +205,11 @@ public sealed class KafkaConsumer : IMessageConsumer
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         try
         {
             await StopAsync().ConfigureAwait(false);

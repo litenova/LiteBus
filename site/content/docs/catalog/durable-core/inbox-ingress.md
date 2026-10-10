@@ -364,9 +364,9 @@ Consumer handler failures do not increment the breaker; ack/requeue policy appli
 - **Expected outcome**: No store row
 - **Remarks**: `LiteBus.Durable.IntegrationTests` (`Ingress/Kafka/`)
 
-#### `AmqpInboxIngressModuleRegistrationTests.UseAmqpIngress_WithTransportModule_ShouldRegisterIngressHandler`
+#### `AmqpInboxIngressModuleRegistrationTests.UseAmqpIngress_WithEnabledIngressConsumer_ShouldRegisterConsumerInManifest`
 
-- **Use case**: When AMQP ingress is registered with transport module, the ingress handler is wired in DI
+- **Use case**: When AMQP ingress is registered with its consumer enabled, the manifest lists the ingress background service
 - **Test kind**: Unit
 - **Description**: Module registration wiring
 - **Behavior**: **`UseAmqpIngress`** on inbox builder

@@ -248,6 +248,30 @@ public sealed class InMemoryOutboxStore :
     }
 
     /// <inheritdoc />
+    public Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
+        {
+            if (!_envelopes.TryGetValue(request.MessageId, out var envelope) ||
+                envelope.Status != OutboxStatus.Publishing ||
+                !string.Equals(envelope.LeaseOwner, request.LeaseOwner, StringComparison.Ordinal) ||
+                envelope.LeaseGeneration != request.LeaseGeneration)
+            {
+                return Task.FromResult(false);
+            }
+
+            _envelopes[request.MessageId] = envelope.AsReleased();
+            return Task.FromResult(true);
+        }
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
         OutboxLeaseRequest request,
         CancellationToken cancellationToken = default)
@@ -274,7 +298,9 @@ public sealed class InMemoryOutboxStore :
                 .Where(envelope => IsAvailable(envelope, now, staleCutoff))
                 .OrderBy(envelope => envelope.CreatedAt)
                 .Take(request.BatchSize)
-                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt))
+                // The relational stores stamp last_attempted_at in the lease statement itself, so the
+                // in-memory store stamps it here to keep the three adapters answering the same question.
+                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt) with { LastAttemptedAt = now })
                 .ToArray();
 
             foreach (var envelope in leased)

@@ -75,6 +75,8 @@ public sealed class PostgreSqlTransactionalOutboxParticipant
         throw new InvalidOperationException(
             "ITransactionalOutbox requires an active PostgreSQL transaction. " +
             "Activate IPostgreSqlTransactionProvider in the current scope (for example by opening BeginTransactionAsync " +
-            "in unit-of-work middleware) or register AllowImmediateCommit only for development and tests.");
+            "in unit-of-work middleware) or register AllowImmediateCommit only for development and tests. " +
+            "Another ORM or document library joins the same transaction rather than owning one: pass the connection " +
+            "and transaction this provider exposes to it, for example Marten's SessionOptions.ForTransaction.");
     }
 }

@@ -118,6 +118,7 @@ public sealed class TransportInboxIngressMapperTests
                 [TransportHeaders.IdempotencyKey] = "untrusted-key",
                 [TransportHeaders.TenantId] = "tenant-east"
             },
+            messageId: brokerMessageId,
             destination: "commands.inbox");
 
         var metadata = TransportInboxIngressMapper.ToInboxAcceptMetadata(transportMessage, DefaultMapping);

@@ -543,8 +543,24 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     /// <returns>A task that completes when the delivery may be buffered.</returns>
     private async Task WaitForBatchAdmissionAsync(CancellationToken cancellationToken)
     {
-        _batchAdmission ??= new SemaphoreSlim(GetBatchBufferCapacity(), GetBatchBufferCapacity());
-        await _batchAdmission.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var admission = _batchAdmission;
+
+        if (admission is null)
+        {
+            // Batch admission exists whenever batch accept is enabled, so a missing gate means the
+            // consumer was disposed. End the delivery the way host shutdown does.
+            throw new OperationCanceledException(cancellationToken);
+        }
+
+        try
+        {
+            await admission.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Disposal can race in-flight deliveries. End the delivery the way host shutdown does.
+            throw new OperationCanceledException(cancellationToken);
+        }
     }
 
     /// <summary>
@@ -552,6 +568,20 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     /// </summary>
     private void ReleaseBatchAdmission()
     {
-        _batchAdmission?.Release();
+        var admission = _batchAdmission;
+
+        if (admission is null)
+        {
+            return;
+        }
+
+        try
+        {
+            admission.Release();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Disposal can race in-flight deliveries; the gate is gone so there is nothing to release.
+        }
     }
 }

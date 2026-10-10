@@ -26,11 +26,11 @@ public static class EfCoreRelationalTableQualifier
         return provider switch
         {
             EfCoreStorageProvider.PostgreSql => $"\"{schemaName}\".\"{tableName}\"",
-            EfCoreStorageProvider.SqlServer  => $"[{schemaName}].[{tableName}]",
-            EfCoreStorageProvider.MySql      => $"`{tableName}`",
-            EfCoreStorageProvider.InMemory   => $"\"{schemaName}\".\"{tableName}\"",
-            EfCoreStorageProvider.Sqlite     => $"\"{tableName}\"",
-            _                                => throw new EfCoreStorageNotSupportedException($"Table qualification is not supported for provider '{provider}'.")
+            EfCoreStorageProvider.SqlServer => $"[{schemaName}].[{tableName}]",
+            EfCoreStorageProvider.MySql => $"`{tableName}`",
+            EfCoreStorageProvider.InMemory => $"\"{schemaName}\".\"{tableName}\"",
+            EfCoreStorageProvider.Sqlite => $"\"{tableName}\"",
+            _ => throw new EfCoreStorageNotSupportedException($"Table qualification is not supported for provider '{provider}'.")
         };
     }
 }

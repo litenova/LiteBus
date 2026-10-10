@@ -30,7 +30,7 @@ public sealed class InboxTransportEnvelopeMapperTests
             TenantId = "tenant-west",
             TraceContext = """{"traceparent":"00-abc-def-01"}""",
             IdempotencyKey = "idem-1",
-            VisibleAfter = DateTimeOffset.Parse("2026-06-12T10:00:00Z")
+            VisibleAfter = DateTimeOffset.Parse("2026-06-12T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture)
         };
 
         var headers = InboxTransportEnvelopeMapper.BuildHeaders(envelope);

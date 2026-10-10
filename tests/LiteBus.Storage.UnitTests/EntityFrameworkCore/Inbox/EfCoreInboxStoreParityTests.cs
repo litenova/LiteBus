@@ -87,10 +87,10 @@ public sealed class EfCoreInboxStoreParityTests
         batch[0].Envelope.Id.Should().Be(firstId);
         batch[1].Envelope.Id.Should().Be(firstId);
 
-         var context = CreateContext(databaseName);
-         await using (context.ConfigureAwait(false))
-         {
-        (await context.InboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(1);
+        var context = CreateContext(databaseName);
+        await using (context.ConfigureAwait(false))
+        {
+            (await context.InboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(1);
         }
     }
 
@@ -180,16 +180,16 @@ public sealed class EfCoreInboxStoreParityTests
     /// <returns>A task that represents the asynchronous seed operation.</returns>
     private static async Task SeedProcessingWithNullLeaseAsync(string databaseName, Guid messageId, DateTimeOffset createdAt)
     {
-         var context = CreateContext(databaseName);
-         await using (context.ConfigureAwait(false))
-         {
-        var entity = await context.InboxMessages.SingleAsync(message => message.Id == messageId).ConfigureAwait(false);
-        entity.Status = InboxStatus.Processing;
-        entity.AttemptCount = 1;
-        entity.LeaseOwner = "stale-worker";
-        entity.LeaseExpiresAt = null;
-        entity.CreatedAt = createdAt;
-        await context.SaveChangesAsync().ConfigureAwait(false);
+        var context = CreateContext(databaseName);
+        await using (context.ConfigureAwait(false))
+        {
+            var entity = await context.InboxMessages.SingleAsync(message => message.Id == messageId).ConfigureAwait(false);
+            entity.Status = InboxStatus.Processing;
+            entity.AttemptCount = 1;
+            entity.LeaseOwner = "stale-worker";
+            entity.LeaseExpiresAt = null;
+            entity.CreatedAt = createdAt;
+            await context.SaveChangesAsync().ConfigureAwait(false);
         }
     }
 

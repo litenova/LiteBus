@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using Confluent.Kafka;
@@ -74,7 +76,7 @@ internal static class KafkaMessageMapper
     /// <param name="request">The publish request supplying metadata and headers.</param>
     private static void ApplyStandardHeaders(Headers headers, TransportPublishRequest request)
     {
-        AddHeader(headers, "ContentType", request.ContentType);
+        AddHeader(headers, TransportHeaders.ContentType, request.ContentType);
 
         if (!string.IsNullOrWhiteSpace(request.MessageId))
         {

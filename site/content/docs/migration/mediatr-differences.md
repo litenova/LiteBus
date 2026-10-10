@@ -1,12 +1,24 @@
 # LiteBus vs. MediatR
 
-LiteBus and MediatR are both in-process mediators for .NET, but they make different trade-offs. This page is for a developer deciding between them, or one who knows MediatR and wants to map concepts onto LiteBus quickly. It states where the two agree, where they differ, and how to translate the common patterns.
+LiteBus is MIT licensed, open source, free for commercial use, and will remain free. MediatR 13.0.0 and later ships under a commercial license with a free Community License below USD 5 million annual gross revenue; earlier versions remain Apache 2.0 or MIT (see [MediatR licensing](https://mediatr.io/), retrieved 2026-10-09). The two libraries agree on mediation and differ on how much structure the type system carries.
+
+> **This page is for** a developer deciding between LiteBus and MediatR, or one who knows MediatR and wants to map concepts onto LiteBus quickly.
+>
+> **After reading it** you can translate requests, notifications, and behaviors to commands, queries, events, and pipeline stages. [Getting Started](../getting-started/README.md) runs each LiteBus shape in code.
 
 Both libraries route a message to its handler so callers depend on an interface rather than a concrete service. The difference is in how much structure the library imposes and how much control it gives over the handler pipeline.
 
 ## The Core Split
 
 MediatR has two message shapes: a request (`IRequest<T>`), handled by one handler, and a notification (`INotification`), handled by many. Whether a request reads or writes is a convention you keep in your head.
+
+```csharp
+public sealed record CreateProductCommand(string Name, decimal Price) : ICommand<ProductDto>;
+
+public sealed record GetProductByIdQuery(Guid Id) : IQuery<ProductDto>;
+
+public sealed record ProductCreatedEvent(Guid ProductId);
+```
 
 LiteBus splits the write-side request into a command and the read-side request into a query, and gives each its own mediator and handler interfaces. The type a message implements states its intent: `ICommand<T>` changes state, `IQuery<T>` reads it, `IEvent` announces a fact. A reviewer sees the category from the declaration without opening the handler.
 
@@ -24,14 +36,14 @@ LiteBus splits the write-side request into a command and the read-side request i
 
 MediatR wraps a request in `IPipelineBehavior<TRequest, TResponse>` delegates. A behavior calls `next()` to continue, and code before and after that call runs before and after the handler. Cross-cutting steps are written as behaviors and apply to every request unless you constrain the generic.
 
-LiteBus does not use a wrapping delegate. Each message type has named stages: pre-handlers, the main handler, post-handlers, and error-handlers. You attach a step to the stage where it belongs rather than reconstructing the stage from where you call `next()`. A pre-handler always runs before the main handler; a post-handler always runs after a successful one; an error-handler runs only on exception.
+LiteBus does not use a wrapping delegate. Each message type has named stages: pre-handlers, the main handler, post-handlers, and error-handlers. You attach a step to the stage where it belongs rather than reconstructing the stage from where you call `next()`. A pre-handler always runs before the main handler. A post-handler always runs after a successful one. An error-handler runs only on exception.
 
 | Concern | MediatR | LiteBus |
 | --- | --- | --- |
 | Run before handler | Code before `next()` in a behavior | `ICommandPreHandler<T>` / `IQueryPreHandler<T>` |
 | Run after handler | Code after `next()` in a behavior | `ICommandPostHandler<T, TResult>` / `IQueryPostHandler<T, TResult>` |
 | Handle failure | `try/catch` around `next()` in a behavior | `ICommandErrorHandler<T>` |
-| Short-circuit | Skip calling `next()` | `AmbientExecutionContext.Current.Abort(result)` from any stage |
+| Short-circuit | Skip calling `next()` | Return an answer from a shortcut, a denial from a guard, or failures from a validator, which the pipeline reports as distinct outcomes |
 | Cross-cutting for all messages | Open generic behavior | Open generic pre/post/error handler, or a handler on a base interface (polymorphic dispatch) |
 
 The pipeline is documented in full at [The Handler Pipeline](../concepts/handler-pipeline.md).
@@ -75,7 +87,7 @@ public sealed class CommandLoggingPost<TCommand> : ICommandPostHandler<TCommand>
 }
 ```
 
-The cost is two types instead of one. The benefit is that "before" and "after" are not coupled through a shared local variable, and the post-handler does not run when the main handler throws, which is usually what you want for logging success.
+The cost is two types instead of one. The benefit is that "before" and "after" are not coupled through a shared local variable. The post-handler does not run when the main handler throws.
 
 ## Capability Differences
 
@@ -87,7 +99,7 @@ The cost is two types instead of one. The benefit is that "before" and "after" a
 | Handler selection | Built-in `[HandlerTag]` and runtime `HandlerPredicate` filtering | Write a behavior to filter |
 | Polymorphic dispatch | A handler for a base type or interface runs for derived messages (pre/post/error and events) | A handler for `Base` does not run for `Derived` |
 | Durable messaging | Built-in command inbox and event outbox with PostgreSQL stores | Not built in; use an external library |
-| License | MIT, free | Check the current MediatR license terms for your use |
+| License | MIT licensed, open source, free for commercial use, and will remain free | Check the current MediatR license terms for your use |
 
 ## Choosing
 
@@ -98,3 +110,7 @@ Choose MediatR when you prefer one request abstraction over the command/query sp
 The two are not mutually exclusive at the concept level: the CQS discipline LiteBus enforces is a discipline you can also keep by hand in MediatR. LiteBus moves it from convention into the compiler.
 
 ## Next
+
+- [Getting Started](../getting-started/README.md) to run each LiteBus shape in code
+- [The Handler Pipeline](../concepts/handler-pipeline.md) for stage order and decisions
+- [Migration Guides](README.md) for version upgrade procedures

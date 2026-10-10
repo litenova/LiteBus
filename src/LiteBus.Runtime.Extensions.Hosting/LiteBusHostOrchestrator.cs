@@ -34,7 +34,10 @@ internal sealed class LiteBusHostOrchestrator : BackgroundService
     /// <param name="startupTasks">The startup tasks to run in registration order.</param>
     /// <param name="backgroundServices">The background services to start after startup tasks succeed.</param>
     /// <param name="applicationLifetime">
-    ///     The optional host lifetime used to request fail-closed shutdown when a background service faults.
+    ///     The optional host lifetime used to request fail-closed shutdown when a background service faults. Without
+    ///     it, for example when a test drives the orchestrator directly, the fault is rethrown from
+    ///     <see cref="ExecuteAsync" />, which a generic host treats as fatal under its default
+    ///     <c>BackgroundServiceExceptionBehavior.StopHost</c>.
     /// </param>
     public LiteBusHostOrchestrator(
         IReadOnlyList<IStartupTask> startupTasks,

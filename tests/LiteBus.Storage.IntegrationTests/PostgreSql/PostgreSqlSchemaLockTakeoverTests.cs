@@ -20,6 +20,7 @@ public sealed class PostgreSqlSchemaLockTakeoverTests : IClassFixture<PostgreSql
     public PostgreSqlSchemaLockTakeoverTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
@@ -27,7 +28,7 @@ public sealed class PostgreSqlSchemaLockTakeoverTests : IClassFixture<PostgreSql
     ///     the schema.
     /// </summary>
     /// <returns>A task that completes when the takeover scenario has been verified.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task EnsureAsync_ShouldAcquireReleasedLockAndCreateSchema()
     {
         var logger = new LockContentionLogger();

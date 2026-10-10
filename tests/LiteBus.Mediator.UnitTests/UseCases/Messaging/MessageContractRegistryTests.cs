@@ -42,7 +42,7 @@ public sealed class MessageContractRegistryTests
         var registry = new MessageContractRegistry();
         builder.ApplyTo(registry);
 
-        registry.GetMessageType("orders.commands.replay", 3).Should().Be(typeof(ReplayCommand));
+        registry.GetMessageType("orders.commands.replay", 3).Should().Be<ReplayCommand>();
         builder.HasRegistrations.Should().BeTrue();
     }
 
@@ -90,7 +90,7 @@ public sealed class MessageContractRegistryTests
 
         contract.Should().NotBeNull();
         contract!.Name.Should().Be("orders.commands.ship");
-        registry.GetMessageType("orders.commands.ship", 2).Should().Be(typeof(AttributedCommand));
+        registry.GetMessageType("orders.commands.ship", 2).Should().Be<AttributedCommand>();
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class MessageContractRegistryTests
 
         act.Should().NotThrow();
         registry.GetContract(typeof(OrderCreated)).Name.Should().Be("order-created");
-        registry.GetMessageType("order-created", 1).Should().Be(typeof(OrderCreated));
+        registry.GetMessageType("order-created", 1).Should().Be<OrderCreated>();
     }
 
     [Fact]

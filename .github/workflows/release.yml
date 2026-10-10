@@ -1,12 +1,31 @@
-# Release - tag-triggered validation and publication for v6
+# Release - tag-triggered validation and publication
 #
 # Emulator-backed transport categories are mandatory and reject skipped tests. TransportLiveAzure remains an opt-in
 # credential-backed category and is excluded from this release job.
+#
+# A pre-release tag such as v7.0.0-preview.1 runs every gate a stable tag runs. Its version suffix is what makes
+# NuGet treat the package as a pre-release, and the GitHub release is marked as one so it does not displace the
+# latest stable release.
+#
+# Notes come from the Changelog. The first preview and every stable release publish the version's own section, so
+# each describes the whole line. A later preview publishes its own '## <tag>' section instead, which is a delta
+# against the preview before it: a reader upgrading between two previews wants what changed between them, and the
+# cumulative section is one link away for anyone who wants the whole line.
+#
+# A pre-release may be cut from any branch, so a version line can ship previews from its own branch and merge to
+# main once it is stable. A stable tag must be on main: it is what NuGet resolves without an opt-in and what the
+# documentation site deploys from, so shipping one from a branch would publish as generally available something
+# that never passed through the default branch.
 name: Release
 
 permissions:
   contents: write
   packages: write
+
+# Two tag pushes close together must not publish at the same time, and a running release is never cancelled.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 on:
   push:
@@ -18,17 +37,19 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # The branch policy below compares the tag against main, which a tag checkout does not fetch on its own.
+          ref: ${{ github.ref }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -58,14 +79,82 @@ jobs:
             exit 1
           fi
 
-          if ! grep -Fxq "## ${tag}" Changelog.md; then
+          version="${tag#v}"
+          base_tag="v${version%%-*}"
+
+          if [ "${base_tag}" = "${tag}" ]; then
+            prerelease=false
+          else
+            prerelease=true
+          fi
+
+          # A section for the tag itself wins, and for a pre-release after the first that is what makes its notes a
+          # delta against the preview before it. Falling back to the version's own section is what the first preview
+          # and every stable release read, so those publish the whole line.
+          if grep -Fxq "## ${tag}" Changelog.md; then
+            changelog_heading="## ${tag}"
+            changelog_scope=delta
+          elif [ "${prerelease}" = "true" ] && [[ "${tag}" =~ \.([0-9]+)$ ]] && [ "${BASH_REMATCH[1]}" -gt 1 ]; then
+            echo "::error::Changelog.md has no '## ${tag}' section. Every pre-release after the first of its line needs a delta section; see AGENTS.md, Releases and changelog."
+            exit 1
+          elif [ "${prerelease}" = "true" ] && grep -Fxq "## ${base_tag}" Changelog.md; then
+            changelog_heading="## ${base_tag}"
+            changelog_scope=cumulative
+          elif [ "${prerelease}" = "true" ]; then
+            echo "::error::Changelog.md contains neither a '## ${tag}' nor a '## ${base_tag}' release heading."
+            exit 1
+          else
             echo "::error::Changelog.md does not contain an exact '## ${tag}' release heading."
             exit 1
           fi
 
-          version="${tag#v}"
-          echo "Using tag version: ${version}"
+          # A stable release always describes the whole version, whichever heading it read.
+          if [ "${prerelease}" != "true" ]; then
+            changelog_scope=cumulative
+          fi
+
+          echo "Using tag version: ${version} (pre-release: ${prerelease}, ${changelog_scope} notes from ${changelog_heading})"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
+          echo "changelog_heading=${changelog_heading}" >> "${GITHUB_OUTPUT}"
+          echo "changelog_scope=${changelog_scope}" >> "${GITHUB_OUTPUT}"
+
+      - name: Validate Release Branch
+        id: branch
+        env:
+          IS_PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          tag_sha="$(git rev-parse "${GITHUB_REF_NAME}^{commit}")"
+
+          # Every remote branch the tagged commit is reachable from, for the run summary. A pre-release cut from a
+          # version branch reports that branch; the list is empty for a tag on a commit no branch points past.
+          branches="$(git branch --remotes --contains "${tag_sha}" --format="%(refname:lstrip=3)" \
+            | grep -v '^HEAD$' | sort | paste -sd ',' - | sed 's/,/, /g')"
+          branches="${branches:-none}"
+
+          if git merge-base --is-ancestor "${tag_sha}" origin/main; then
+            on_main=true
+          else
+            on_main=false
+          fi
+
+          if [ "${IS_PRERELEASE}" != "true" ] && [ "${on_main}" != "true" ]; then
+            echo "::error::Stable tag '${GITHUB_REF_NAME}' is not reachable from main (found on: ${branches}). Merge the release line to main and tag the merge commit, or cut a pre-release tag instead."
+            exit 1
+          fi
+
+          echo "Tagged commit ${tag_sha} is on: ${branches} (reachable from main: ${on_main})"
+          echo "branches=${branches}" >> "${GITHUB_OUTPUT}"
+          echo "on_main=${on_main}" >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "## Release source"
+            echo "- Tag: \`${GITHUB_REF_NAME}\`"
+            echo "- Pre-release: ${IS_PRERELEASE}"
+            echo "- Branches containing the tagged commit: ${branches}"
+            echo "- Reachable from main: ${on_main}"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Restore
         run: dotnet restore LiteBus.slnx --locked-mode
@@ -112,17 +201,22 @@ jobs:
           echo "Docker is available."
 
       - name: Unit Tests
-        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/unit --filter "FullyQualifiedName!~IntegrationTests"
+        run: |
+          mkdir -p artifacts/coverage && echo unit >> artifacts/coverage/expected.txt
+          dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/unit --filter "FullyQualifiedName!~IntegrationTests"
 
       - name: Transport Fast Integration Tests
-        run: dotnet test tests/LiteBus.Durable.IntegrationTests --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/transport-fast --filter "Category=TransportFast"
+        run: |
+          mkdir -p artifacts/coverage && echo transport-fast >> artifacts/coverage/expected.txt
+          dotnet test tests/LiteBus.Durable.IntegrationTests --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/transport-fast --filter "Category=TransportFast"
 
       - name: Transport Docker Integration Tests
         env:
           LITEBUS_CI_STRICT_TRANSPORT: 'true'
         run: |
           trx_dir="${RUNNER_TEMP}/transport-docker"
-          mkdir -p "${trx_dir}"
+          mkdir -p "${trx_dir}" artifacts/coverage
+          echo transport-docker-durable >> artifacts/coverage/expected.txt && echo transport-docker-wire >> artifacts/coverage/expected.txt
           dotnet test tests/LiteBus.Durable.IntegrationTests \
             --no-build --configuration Release --verbosity normal \
             --collect:"XPlat Code Coverage" \
@@ -145,7 +239,8 @@ jobs:
           LITEBUS_CI_STRICT_TRANSPORT: 'true'
         run: |
           trx_dir="${RUNNER_TEMP}/transport-azure"
-          mkdir -p "${trx_dir}"
+          mkdir -p "${trx_dir}" artifacts/coverage
+          echo transport-azure >> artifacts/coverage/expected.txt
           dotnet test tests/LiteBus.Durable.IntegrationTests \
             --no-build --configuration Release --verbosity normal \
             --collect:"XPlat Code Coverage" \
@@ -156,20 +251,35 @@ jobs:
           bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-azure.trx"
 
       - name: Integration Tests
-        run: dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/integration --filter "FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure"
+        run: |
+          mkdir -p artifacts/coverage && echo integration >> artifacts/coverage/expected.txt
+          dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/integration --filter "FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure"
 
       - name: Check Coverage Reports
         id: coverage-reports
         if: always()
         run: |
+          # Each test step appends its results directory to expected.txt before it runs, so a step that
+          # never started is not expected and a step that ran without producing a report fails here.
           coverage_count="$(find artifacts/coverage -type f -name 'coverage.cobertura.xml' | wc -l)"
           echo "count=${coverage_count}" >> "$GITHUB_OUTPUT"
-          if [ "${coverage_count}" -gt 0 ]; then
-            echo "has_reports=true" >> "$GITHUB_OUTPUT"
-          else
+          if [ "${coverage_count}" -eq 0 ]; then
             echo "has_reports=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::No Cobertura coverage reports were found in artifacts/coverage. Coverage upload step will be skipped."
+            echo "::error::No Cobertura coverage reports were found in artifacts/coverage."
+            exit 1
           fi
+          echo "has_reports=true" >> "$GITHUB_OUTPUT"
+          missing=0
+          if [ -f artifacts/coverage/expected.txt ]; then
+            while read -r name; do
+              [ -z "${name}" ] && continue
+              if [ -z "$(find "artifacts/coverage/${name}" -type f -name 'coverage.cobertura.xml' 2>/dev/null | head -n 1)" ]; then
+                echo "::error::The ${name} test step produced no coverage.cobertura.xml in artifacts/coverage/${name}."
+                missing=1
+              fi
+            done < artifacts/coverage/expected.txt
+          fi
+          exit "${missing}"
 
       - name: Coverage Report Summary
         if: always()
@@ -186,13 +296,12 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Enforce Merged Coverage Gate
-        if: steps.coverage-reports.outputs.has_reports == 'true'
         shell: pwsh
         run: ./scripts/Test-CoverageThreshold.ps1 -Root artifacts/coverage -LineThreshold 90
 
       - name: Upload to Codecov
         if: steps.coverage-reports.outputs.has_reports == 'true'
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
         with:
           files: ./artifacts/coverage/**/coverage.cobertura.xml
           disable_search: true
@@ -209,10 +318,14 @@ jobs:
         run: ./scripts/Test-Packages.ps1 -PackageDirectory artifacts -ExpectedVersion ${{ steps.version.outputs.version }}
 
       - name: Generate Release Notes
+        env:
+          CHANGELOG_HEADING: ${{ steps.version.outputs.changelog_heading }}
+          CHANGELOG_SCOPE: ${{ steps.version.outputs.changelog_scope }}
+          IS_PRERELEASE: ${{ steps.version.outputs.prerelease }}
         run: bash .github/scripts/generate-release-notes.sh
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nuget-packages
           path: |
@@ -222,22 +335,30 @@ jobs:
       - name: Publish to NuGet
         run: |
           for package in ./artifacts/*.nupkg; do
-            dotnet nuget push "${package}" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json
+            dotnet nuget push "${package}" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
           done
 
       - name: Publish to GitHub Packages
         run: |
           for package in ./artifacts/*.nupkg; do
-            dotnet nuget push "${package}" --api-key "${{ secrets.GITHUB_TOKEN }}" --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+            dotnet nuget push "${package}" --api-key "${{ secrets.GITHUB_TOKEN }}" --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --skip-duplicate
           done
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # A pre-release must not become the release GitHub offers as latest, and a stable tag must.
+          if [ "${{ steps.version.outputs.prerelease }}" = "true" ]; then
+            release_kind=(--prerelease)
+          else
+            release_kind=(--latest)
+          fi
+
           gh release create "${GITHUB_REF_NAME}" \
             ./artifacts/*.nupkg \
             ./artifacts/*.snupkg \
             --verify-tag \
             --title "${GITHUB_REF_NAME}" \
+            "${release_kind[@]}" \
             --notes-file release-notes.md

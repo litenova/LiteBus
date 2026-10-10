@@ -1,5 +1,7 @@
 using System;
+using System.Linq;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Runtime.Composition;
 using LiteBus.Runtime.Extensions.Microsoft.DependencyInjection;
@@ -26,6 +28,10 @@ public static class ServiceCollectionExtensions
     /// <exception cref="ArgumentNullException">
     ///     Thrown when <paramref name="services" /> or <paramref name="configure" /> is <see langword="null" />.
     /// </exception>
+    /// <exception cref="ModuleCompositionException">
+    ///     Thrown when <see cref="AddLiteBus" /> was already called on <paramref name="services" />. Each service
+    ///     collection hosts a single LiteBus composition.
+    /// </exception>
     /// <example>
     ///     <code>
     /// services.AddLiteBus(builder =>
@@ -43,6 +49,13 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
 
+        if (services.Any(service => service.ServiceType == typeof(LiteBusHostManifest)))
+        {
+            throw new ModuleCompositionException(
+                "AddLiteBus was already called on this service collection. " +
+                "Each service collection hosts a single LiteBus composition; create a new collection for another composition.");
+        }
+
         var dependencyRegistryAdapter = new MicrosoftDependencyRegistryAdapter(services);
         RegisterDispatchScopeFactory(dependencyRegistryAdapter);
         var moduleRegistry = new ModuleRegistry();
@@ -55,6 +68,12 @@ public static class ServiceCollectionExtensions
         foreach (var moduleDescriptor in moduleRegistry.BuildOrder())
         {
             moduleDescriptor.Module.Build(moduleConfiguration);
+        }
+
+        // Rules spanning several modules can only be checked once every module has registered what it owns.
+        foreach (var validate in moduleConfiguration.CompositionValidations)
+        {
+            validate();
         }
 
         RegisterHostManifest(services, moduleConfiguration);

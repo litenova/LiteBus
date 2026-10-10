@@ -37,4 +37,17 @@ public interface IHandlerDescriptor
     ///     Gets the type of the handler. This represents the actual implementation type of the handler.
     /// </summary>
     Type HandlerType { get; }
+
+    /// <summary>
+    ///     Gets the closed handler contract this descriptor was discovered from, such as
+    ///     <c>IMessagePostHandler&lt;PlaceOrderCommand, OrderId&gt;</c>.
+    /// </summary>
+    /// <remarks>
+    ///     A handler class may implement contracts for several message types, and may implement more than one contract
+    ///     for the same message type. Recording the exact contract is what lets the pipeline invoke the handler through
+    ///     the one it was registered under rather than guessing, and it names the registration in diagnostics. The
+    ///     contract is open when the handler is registered for a generic message, because the message type is a generic
+    ///     type definition until a concrete message arrives.
+    /// </remarks>
+    Type ContractType { get; }
 }

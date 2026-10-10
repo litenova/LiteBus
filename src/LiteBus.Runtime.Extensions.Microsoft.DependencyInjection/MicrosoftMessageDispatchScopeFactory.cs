@@ -57,12 +57,6 @@ internal sealed class MicrosoftMessageDispatchScopeFactory : IMessageDispatchSco
         /// <inheritdoc />
         public void Dispose()
         {
-            if (_scope is IAsyncDisposable asyncDisposable)
-            {
-                asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                return;
-            }
-
             _scope.Dispose();
         }
 

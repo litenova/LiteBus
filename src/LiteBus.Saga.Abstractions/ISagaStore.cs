@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace LiteBus.Saga.Abstractions;
 
 /// <summary>
@@ -15,6 +17,13 @@ public interface ISagaStore
     ///     The loaded saga instance, or <see langword="null" /> when no row exists and a new saga should start with
     ///     default state.
     /// </returns>
+    /// <remarks>
+    ///     <see cref="SagaInstance{TState}.LastAppliedMessageId" /> suppresses redelivery of only the most recently
+    ///     applied message: dispatch is skipped when the incoming message identifier equals the stored marker. When an
+    ///     inbox terminal persist fails after a save, a newer message for the same correlation can advance the row
+    ///     before the failed message retries, and the retry then runs its handler a second time. Handlers with
+    ///     external side effects must add their own idempotency.
+    /// </remarks>
     Task<SagaInstance<TState>?> LoadAsync<TState>(
         SagaCorrelation correlation,
         CancellationToken cancellationToken = default)
@@ -63,5 +72,14 @@ public interface ISagaStore
     /// <param name="filter">The optional purge predicates.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The number of rows removed.</returns>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when the filter has no predicates and no <see cref="SagaPurgeFilter.Take" /> limit.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <see cref="SagaPurgeFilter.Take" /> is zero or negative.
+    /// </exception>
+    /// <remarks>
+    ///     When <see cref="SagaPurgeFilter.Take" /> is set, at most that many of the oldest matching rows are removed.
+    /// </remarks>
     Task<int> PurgeAsync(SagaPurgeFilter filter, CancellationToken cancellationToken = default);
 }

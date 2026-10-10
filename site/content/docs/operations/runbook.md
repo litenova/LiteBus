@@ -1,91 +1,95 @@
 # Production Runbook
 
-**Production tier: GA**
+This page is the on-call reference for LiteBus durable messaging. It assumes PostgreSQL storage and AMQP or direct mediator dispatch unless noted.
 
-On-call reference for LiteBus durable messaging. It assumes PostgreSQL storage and AMQP or direct mediator dispatch unless noted.
+> **This page is for** operators who triage inbox and outbox backlogs, stuck leases, and deploy-time drains.
+>
+> **After reading it** you can drain a processor, replay dead letters, and validate schema state. Continue with [Troubleshooting](troubleshooting.md).
 
-## Quick Triage
+## Triage Signals Fast
 
 | Signal | Likely cause | First action |
-| --- | --- | --- |
-| Inbox/outbox depth growing | Processor paused, store down, handler failures | Check processor pause state; store connectivity; error column |
-| Rows stuck in `Processing` | Crash mid-handler, lease not renewed | Verify lease expiry; drain and replay; confirm idempotency |
-| NOTIFY degraded (PostgreSQL) | Listener disconnected | Work signal falls back to poll; check logs for reconnect |
-| Ingress lag | Slow accept, backpressure | Scale consumers; check store latency; prefetch settings |
-| Health unhealthy | Missing probes or schema drift | List manifest probes; run schema validate |
+| :--- | :--- | :--- |
+| Inbox or outbox depth growing | Processor paused, store down, handler failures | Check processor pause state, store connectivity, and the error column |
+| Rows stuck in `Processing` | Crash mid-handler with lease not renewed | Verify lease expiry, then drain and replay |
+| NOTIFY degraded on PostgreSQL | Listener disconnected | Accept poll fallback and check reconnect logs |
+| Ingress lag | Slow accept with backpressure | Scale consumers and check store latency and prefetch |
+| Health unhealthy | Missing probes or schema drift | List manifest probes and run schema validate |
 
-## Stuck `Processing` Rows
+## Free Stuck Processing Rows
 
-1. Confirm processor is running (`EnableInboxProcessor` / hosted service started).
-2. Check `lease_expires_at` and `lease_owner`. Expired leases are reclaimable on next poll.
-3. POST management `.../processor/drain` (see [Operations and management](README.md)).
-4. Stop host gracefully after drain completes.
-5. If row remains stuck with valid lease, investigate worker holding lease; terminate worker or wait for expiry.
-6. Replay from dead-letter or failed status after fixing root cause.
+1. Confirm the processor is running through `EnableInboxProcessor` or the hosted service state.
+2. Check `lease_expires_at` and `lease_owner`. Expired leases are reclaimable on the next poll.
+3. Post to the management drain route described in [Operations and Management](README.md).
+4. Stop the host gracefully after drain completes.
+5. If a row stays stuck with a valid lease, find the worker that holds the lease, end that worker or wait for expiry.
+6. Replay from dead-letter or failed status after you fix the root cause.
 
-## Dead-Letter Replay
+Confirm idempotency before you replay: the processor runs at least once, so a replayed handler must tolerate a second execution.
 
-1. Query dead-letter rows via the management API or SQL (`status = DeadLettered`).
-2. Fix the handler or downstream dependency.
-3. Use `POST /litebus/inbox/messages/requeue-dead-letters` or the matching outbox route. The endpoint pages through the store manager and applies the configured operator policy.
-4. Use a new idempotency key only when the application intends to create a new message. Do not edit durable rows directly.
-5. Monitor attempt_count and last_error during replay.
+## Replay Dead Letters
 
-## Schema Validate
+1. Query dead-letter rows through the management API or SQL with `status = DeadLettered`.
+2. Fix the handler or the downstream dependency first.
+3. Post to `/litebus/inbox/messages/requeue-dead-letters` or the matching outbox route. The endpoint pages through the store manager and applies the configured operator policy.
+4. Use a new idempotency key only when your application intends to create a new message. Do not edit durable rows directly.
+5. Watch `attempt_count` and `last_error` during replay.
+
+## Validate Schema State
 
 ```csharp
 await schemaManager.ValidateAsync(cancellationToken);
 ```
 
-Failure indicates drift from the current version 1 component schema. LiteBus does not mutate an incompatible table. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md) for validation and the [Migration Guide](../migration/v6.md) for historical table transitions.
+A failure means the table drifted from the current version 1 component schema. LiteBus does not mutate an incompatible table. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md) for validation steps. Production deploys should apply DDL and call `ValidateAsync` in deploy checks.
 
-## Processor Drain Sequence (Deployments)
+## Drain Before Deploy
 
-1. Enable maintenance mode at load balancer (stop new HTTP traffic).
-2. POST `/litebus/inbox/processor/drain` and `/litebus/outbox/processor/drain`.
-3. Wait until in-flight count zero (metrics or store query).
-4. Stop application host.
-5. Deploy new version; run schema ensure if needed.
-6. Start host; verify health and probe checks.
+1. Enable maintenance mode at the load balancer to stop new HTTP traffic.
+2. Post to `/litebus/inbox/processor/drain` and `/litebus/outbox/processor/drain`.
+3. Wait until the in-flight count reaches zero through metrics or a store query.
+4. Stop the application host.
+5. Deploy the new version and run schema ensure when needed.
+6. Start the host and verify health and probe checks.
 
-## NOTIFY Degraded Mode
+## Handle Notify Degraded Mode
 
-PostgreSQL work signals listen on channel names registered by inbox/outbox storage. When the listener connection drops, `PostgreSqlWorkSignal` reconnects after a short delay and falls back to poll interval until notifications resume.
+PostgreSQL work signals listen on channel names registered by inbox and outbox storage. When the listener connection drops, `PostgreSqlWorkSignal` reconnects after a short delay and falls back to the poll interval until notifications resume.
 
 | Symptom | Action |
-| --- | --- |
-| Higher poll latency only | Acceptable temporarily; monitor reconnect logs |
-| Repeated reconnect failures | Check PostgreSQL max connections, firewall, PgBouncer transaction pooling mode |
+| :--- | :--- |
+| Higher poll latency only | Accept it temporarily and monitor reconnect logs |
+| Repeated reconnect failures | Check PostgreSQL max connections, firewall rules, and PgBouncer transaction pooling mode |
 
-## Broker Comparison (Ingress Failure)
+## Handle Broker Ingress Failure
 
 | Broker | Transient accept failure | Poison message |
-| --- | --- | --- |
-| AMQP | Nack with requeue (unless shutdown cancel) | Reject without requeue or DLX policy |
-| Kafka | Seek to offset; no commit | Skip commit; fix handler; may require manual offset |
-| SQS | Visibility timeout backoff | Delete or DLQ when `RequeueOnFailure = false` |
-| Azure Service Bus | Abandon/defer per adapter | Dead-letter subqueue |
+| :--- | :--- | :--- |
+| AMQP | Nack with requeue unless shutdown cancelled | Reject without requeue or use DLX policy |
+| Kafka | Seek to offset with no commit | Skip commit, fix the handler, and set the offset manually when needed |
+| SQS | Visibility timeout backoff | Delete or send to DLQ when `RequeueOnFailure` is false |
+| Azure Service Bus | Abandon or defer per adapter | Move to the dead-letter subqueue |
 
-See broker docs: [AMQP](../integrations/amqp.md), [Kafka](../integrations/kafka.md), [AWS SQS](../integrations/aws-sqs.md), [Azure Service Bus](../integrations/azure-service-bus.md).
+See the broker guides: [AMQP](../integrations/amqp.md), [Kafka](../integrations/kafka.md), [AWS SQS](../integrations/aws-sqs.md), and [Azure Service Bus](../integrations/azure-service-bus.md).
 
-## Escalation Data to Collect
+## Collect Escalation Data
 
-* LiteBus package versions and `LiteBusHostManifest` probe list
-* Sample stuck row (`message_id`, status, lease fields, last_error)
-* Processor options (batch size, lease duration, heartbeat interval)
-* Recent deploy and migration changes
+- LiteBus package versions and the `LiteBusHostManifest` probe list
+- One sample stuck row with `message_id`, status, lease fields, and `last_error`
+- Processor options with batch size, lease duration, and heartbeat interval
+- Recent deploy and migration changes
 
-## Tests Proving Runbook Scenarios
+## Details
 
 | Scenario | Test home |
-| --- | --- |
+| :--- | :--- |
 | Drain then stop | `LiteBus.Transport.IntegrationTesting` component hosts |
 | Lease reclaim | `LiteBus.Storage.PostgreSql.IntegrationTests` stress tests |
-| NOTIFY reconnect | `PostgreSqlInboxWorkSignalTests`, `PostgreSqlOutboxWorkSignalTests` |
+| NOTIFY reconnect | `PostgreSqlInboxWorkSignalTests` and `PostgreSqlOutboxWorkSignalTests` |
 | Ingress ack after accept | `LiteBus.Inbox.Ingress.UnitTests` |
 
-## Related Docs
+## Next
 
-* [Reliable messaging](../reliable-messaging/README.md)
-* [Troubleshooting](troubleshooting.md)
-* [Operations and management](README.md)
+- [Reliable Messaging](../reliable-messaging/README.md)
+- [Troubleshooting](troubleshooting.md)
+- [Operations and Management](README.md)

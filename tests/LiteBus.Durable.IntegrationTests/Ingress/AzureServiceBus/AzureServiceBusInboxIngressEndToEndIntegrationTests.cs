@@ -48,8 +48,8 @@ public sealed class AzureServiceBusInboxIngressEndToEndIntegrationTests : LiteBu
     [SkippableFact]
     public async Task PublishThroughServiceBus_ShouldAcceptProcessAndDispatchCommand()
     {
-        var ingressQueue = _fixture.ResolveQueue("ingress");
-        var dispatchQueue = _fixture.ResolveQueue("dispatch");
+        var ingressQueue = ServiceBusEmulatorFixture.ResolveQueue("ingress");
+        var dispatchQueue = ServiceBusEmulatorFixture.ResolveQueue("dispatch");
         var orderId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
 

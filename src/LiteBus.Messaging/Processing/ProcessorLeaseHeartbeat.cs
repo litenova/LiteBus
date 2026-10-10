@@ -157,7 +157,7 @@ internal static class ProcessorLeaseHeartbeat
         {
             try
             {
-                await Task.Delay(context.HeartbeatInterval, operationCts.Token).ConfigureAwait(false);
+                await Task.Delay(context.HeartbeatInterval, context.Clock, operationCts.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (operationCts.IsCancellationRequested || cancellationToken.IsCancellationRequested)
             {

@@ -29,3 +29,21 @@ and verification requirements in [`AI_POLICY.md`](AI_POLICY.md).
 The repository's CI checks build, tests, documentation, package validation, benchmark
 discovery, and skipped-test policy. A maintainer may request provider-specific integration
 coverage before merging a transport or storage change.
+
+## Releases
+
+Pushing a `v*` tag runs the release workflow, which reruns every gate before publishing.
+
+A major line is developed on its own branch named after it, such as `v7`, and merges to
+`main` when it is ready to be the stable release. Pre-release tags may be cut from that
+branch: a pre-release is only resolvable by a caller who asks for one, so it does not
+change what an existing consumer gets. A stable tag must be reachable from `main`, and the
+release workflow rejects one that is not, because a stable release is what NuGet resolves
+without an opt-in and what the documentation site deploys from.
+
+Notes come from the Changelog. The first preview of a version and its stable release both
+publish that version's own section, so each describes the whole line. Every later preview
+publishes its own `## v7.0.0-preview.N` section instead, holding only what changed since
+the preview before it, because someone moving from one preview to the next wants the
+difference rather than the notes they already read. A delta section links the cumulative
+one, so the whole line stays one click away.

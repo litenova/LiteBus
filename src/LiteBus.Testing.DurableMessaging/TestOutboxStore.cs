@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
@@ -74,6 +78,14 @@ public sealed class TestOutboxStore :
         CancellationToken cancellationToken = default)
     {
         return _inner.RenewLeaseAsync(request, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return _inner.ReleaseLeaseAsync(request, cancellationToken);
     }
 
     /// <inheritdoc />

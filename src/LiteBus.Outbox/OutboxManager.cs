@@ -192,7 +192,7 @@ internal sealed class OutboxManager : IOutboxManager
 
         if (_cleanupHostOptions.Retention is null || _cleanupHostOptions.Retention <= TimeSpan.Zero)
         {
-            return 0;
+            throw new OutboxManagementException("Retention purge rejected: OutboxCleanupHostOptions.Retention must be configured with a positive retention period.");
         }
 
         var runAt = _timeProvider.GetUtcNow();

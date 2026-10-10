@@ -21,59 +21,59 @@ public sealed class EfCoreOutboxFindExistingTests
             .UseInMemoryDatabase(databaseName)
             .Options;
 
-         var context = new FindExistingOutboxDbContext(options);
-         await using (context.ConfigureAwait(false))
-         {
-        await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
-
-        var idRowId = Guid.NewGuid();
-        var keyRowId = Guid.NewGuid();
-        const string idempotencyKey = "order-99";
-        var createdAt = DateTimeOffset.UtcNow;
-
-        context.OutboxMessages.Add(new OutboxMessageEntity
+        var context = new FindExistingOutboxDbContext(options);
+        await using (context.ConfigureAwait(false))
         {
-            Id = idRowId,
-            ContractName = "tests.events.submitted",
-            ContractVersion = 1,
-            Payload = """{"by":"id"}""",
-            CreatedAt = createdAt,
-            Status = OutboxStatus.Pending,
-            AttemptCount = 0,
-            IdempotencyKey = idempotencyKey
-        });
+            await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
 
-        context.OutboxMessages.Add(new OutboxMessageEntity
-        {
-            Id = keyRowId,
-            ContractName = "tests.events.submitted",
-            ContractVersion = 1,
-            Payload = """{"by":"key"}""",
-            CreatedAt = createdAt.AddSeconds(1),
-            Status = OutboxStatus.Pending,
-            AttemptCount = 0,
-            IdempotencyKey = idempotencyKey
-        });
+            var idRowId = Guid.NewGuid();
+            var keyRowId = Guid.NewGuid();
+            const string idempotencyKey = "order-99";
+            var createdAt = DateTimeOffset.UtcNow;
 
-        await context.SaveChangesAsync().ConfigureAwait(false);
+            context.OutboxMessages.Add(new OutboxMessageEntity
+            {
+                Id = idRowId,
+                ContractName = "tests.events.submitted",
+                ContractVersion = 1,
+                Payload = """{"by":"id"}""",
+                CreatedAt = createdAt,
+                Status = OutboxStatus.Pending,
+                AttemptCount = 0,
+                IdempotencyKey = idempotencyKey
+            });
 
-        var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), new EntityFrameworkCoreOutboxStoreOptions());
+            context.OutboxMessages.Add(new OutboxMessageEntity
+            {
+                Id = keyRowId,
+                ContractName = "tests.events.submitted",
+                ContractVersion = 1,
+                Payload = """{"by":"key"}""",
+                CreatedAt = createdAt.AddSeconds(1),
+                Status = OutboxStatus.Pending,
+                AttemptCount = 0,
+                IdempotencyKey = idempotencyKey
+            });
 
-        var resolved = await store.EnqueueAsync(new OutboxEnvelope
-        {
-            Id = idRowId,
-            ContractName = "tests.events.submitted",
-            ContractVersion = 1,
-            Payload = """{"attempt":"duplicate"}""",
-            CreatedAt = createdAt.AddMinutes(1),
-            Status = OutboxStatus.Pending,
-            AttemptCount = 0,
-            IdempotencyKey = idempotencyKey
-        }).ConfigureAwait(false);
+            await context.SaveChangesAsync().ConfigureAwait(false);
 
-        resolved.Outcome.Should().Be(OutboxEnqueueOutcome.AlreadyEnqueued);
-        resolved.Envelope.Id.Should().Be(idRowId);
-        resolved.Envelope.Payload.Should().Contain("by\":\"id");
+            var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), new EntityFrameworkCoreOutboxStoreOptions());
+
+            var resolved = await store.EnqueueAsync(new OutboxEnvelope
+            {
+                Id = idRowId,
+                ContractName = "tests.events.submitted",
+                ContractVersion = 1,
+                Payload = """{"attempt":"duplicate"}""",
+                CreatedAt = createdAt.AddMinutes(1),
+                Status = OutboxStatus.Pending,
+                AttemptCount = 0,
+                IdempotencyKey = idempotencyKey
+            }).ConfigureAwait(false);
+
+            resolved.Outcome.Should().Be(OutboxEnqueueOutcome.AlreadyEnqueued);
+            resolved.Envelope.Id.Should().Be(idRowId);
+            resolved.Envelope.Payload.Should().Contain("by\":\"id");
         }
     }
 

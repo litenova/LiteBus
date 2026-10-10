@@ -1,4 +1,8 @@
-namespace LiteBus.DurableMessaging.Abstractions.Processing;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace LiteBus.Messaging.Abstractions.Processing;
 
 /// <summary>
 ///     Participates in durable message dispatch by running logic before and after processor dispatch.

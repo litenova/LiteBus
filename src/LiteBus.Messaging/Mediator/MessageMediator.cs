@@ -79,12 +79,18 @@ internal sealed class MessageMediator : IMessageMediator
     ///     Thrown when no descriptor can be found for the message type with the
     ///     specified resolve strategy.
     /// </exception>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="message" /> or <paramref name="request" /> is <see langword="null" />.
+    /// </exception>
     public TMessageResult Mediate<TMessage, TMessageResult>(
         TMessage message,
         MessageMediationRequest<TMessage, TMessageResult> request,
         CancellationToken cancellationToken = default)
         where TMessage : notnull
     {
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(request);
+
         // Create a new execution context for the current scope.
         var executionContext = new ExecutionContext(request.Tags, request.Items, cancellationToken);
 
@@ -140,5 +146,4 @@ internal sealed class MessageMediator : IMessageMediator
             throw;
         }
     }
-
 }

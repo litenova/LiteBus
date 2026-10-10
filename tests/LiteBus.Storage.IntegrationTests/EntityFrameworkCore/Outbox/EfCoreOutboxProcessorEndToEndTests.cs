@@ -23,13 +23,14 @@ public sealed class EfCoreOutboxProcessorEndToEndTests : LiteBusTestBase, IClass
     public EfCoreOutboxProcessorEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that <see cref="IOutboxProcessor.ProcessPendingAsync" /> publishes a stored event through EF Core storage.
     /// </summary>
     /// <returns>A task that completes when the event is published.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_ShouldPublishEventThroughEfCoreStore()
     {
         var storeOptions = EfCoreOutboxE2eSupport.CreateStoreOptions(TableName);
@@ -37,23 +38,23 @@ public sealed class EfCoreOutboxProcessorEndToEndTests : LiteBusTestBase, IClass
 
         var recorder = new EventRecorder();
 
-         var provider = EfCoreOutboxE2eSupport.BuildProvider<HappyPathOutboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new OutboxE2eComposition             {                 Recorder = recorder,                 LeaseOwner = "efcore-outbox-happy-path"             });
-         await using (provider.ConfigureAwait(true))
-         {
+        var provider = EfCoreOutboxE2eSupport.BuildProvider<HappyPathOutboxDbContext>(_fixture.ConnectionString, storeOptions, new OutboxE2eComposition { Recorder = recorder, LeaseOwner = "efcore-outbox-happy-path" });
+        await using (provider.ConfigureAwait(true))
+        {
 
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        var orderId = Guid.NewGuid();
-        var messageId = Guid.NewGuid();
+            var orderId = Guid.NewGuid();
+            var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
-            new OrderSubmittedIntegrationEvent { OrderId = orderId },
-            messageId)).ConfigureAwait(false);
+            await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
+                new OrderSubmittedIntegrationEvent { OrderId = orderId },
+                messageId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
+            recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
         }
     }
 

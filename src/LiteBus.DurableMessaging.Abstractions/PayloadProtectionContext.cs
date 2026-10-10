@@ -1,3 +1,5 @@
+using System;
+
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>

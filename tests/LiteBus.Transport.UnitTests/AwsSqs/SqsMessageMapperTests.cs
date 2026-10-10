@@ -39,7 +39,7 @@ public sealed class SqsMessageMapperTests
             .Should().Be("orders.commands.ship");
 
         sendRequest.MessageAttributes[TransportHeaders.ContractVersion].StringValue.Should().Be("2");
-        sendRequest.MessageAttributes["Route"].StringValue.Should().Be("ship");
+        sendRequest.MessageAttributes[TransportHeaders.Route].StringValue.Should().Be("ship");
         sendRequest.MessageAttributes[TransportHeaders.CorrelationId].StringValue.Should().Be("corr-aws");
     }
 

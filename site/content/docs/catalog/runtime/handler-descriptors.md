@@ -1,13 +1,15 @@
-# Handler Descriptor Model
+﻿# Handler Descriptor Model
 
 - **ID**: `runtime.handler-descriptors`
 - **Name**: Handler descriptor model
 - **Maturity**: GA
-- **Summary**: Defines descriptor contracts for message handlers, stages, priorities, tags, and registration sequence.
+- **Summary**: Defines descriptor contracts for message handlers, stages, priorities, tags, registration sequence, and the closed contract each handler was discovered from.
 
 ## What It Does
 
-Descriptor contracts in `LiteBus.Messaging.Abstractions` connect registration and runtime execution. `IMessageDescriptor` groups handlers by stage and direct/indirect applicability. `IHandlerDescriptor` provides metadata used by filtering and ordering.
+Descriptor contracts in `LiteBus.Messaging.Abstractions` connect registration and runtime execution. `IMessageDescriptor` groups handlers by stage and direct/indirect applicability, and exposes the declarative metadata resolved for the message type. `IHandlerDescriptor` provides metadata used by filtering and ordering, plus the closed contract the handler was discovered from.
+
+Recording the contract is what lets the pipeline invoke a handler through the contract it was registered under rather than searching its interfaces at dispatch. For the pre, post, and completion stages the descriptor also carries a `PipelineDispatch`, a delegate bound to that contract while the descriptor is built, so dispatch is a field read rather than reflection.
 
 ## Public Surface
 
@@ -16,9 +18,13 @@ Descriptor contracts in `LiteBus.Messaging.Abstractions` connect registration an
 | `IMessageDescriptor` | Message descriptor with stage-specific handler collections |
 | `IHandlerDescriptor` | Base handler metadata contract |
 | `IMainHandlerDescriptor` | Main handler descriptor |
-| `IPreHandlerDescriptor` | Pre-handler descriptor |
+| `IPreStageHandlerDescriptor` | Pre-stage descriptor, shared by guards, validators, shortcuts, and pre-handlers |
 | `IPostHandlerDescriptor` | Post-handler descriptor |
+| `ICompletionHandlerDescriptor` | Completion handler descriptor |
 | `IErrorHandlerDescriptor` | Error-handler descriptor |
+| `IHandlerDescriptor.ContractType` | The closed contract the descriptor was discovered from |
+| `PipelineDispatch` | Delegate bound to that contract at registration |
+| `IMessageDescriptor.Metadata` | Declarative metadata resolved for the message type |
 
 ## Packages
 
@@ -33,6 +39,8 @@ Descriptor contracts in `LiteBus.Messaging.Abstractions` connect registration an
 
 - `RegistrationSequence` is a stable registration-order tiebreaker.
 - Descriptor message types for generics are normalized.
+- `ContractType` is open only when the handler was registered for a generic message; the pipeline binds those on first dispatch.
+- `Dispatch` is null exactly when `ContractType` is open.
 
 ## Non-Goals
 

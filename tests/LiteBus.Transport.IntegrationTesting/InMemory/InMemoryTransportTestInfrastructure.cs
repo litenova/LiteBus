@@ -58,7 +58,7 @@ public static class InMemoryTransportTestInfrastructure
     {
         ArgumentNullException.ThrowIfNull(condition);
 
-        var deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
+        var deadline = Environment.TickCount64 + (long) timeout.TotalMilliseconds;
 
         while (!condition() && Environment.TickCount64 < deadline)
         {

@@ -224,7 +224,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
             PublicationTarget.Topic topic when !string.IsNullOrWhiteSpace(topic.Name) => topic.Name,
             PublicationTarget.Exchange exchange when !string.IsNullOrWhiteSpace(exchange.Name) => exchange.Name,
             PublicationTarget.Queue queue when !string.IsNullOrWhiteSpace(queue.Name) => queue.Name,
-            _                                                                         => null
+            _ => null
         };
     }
 

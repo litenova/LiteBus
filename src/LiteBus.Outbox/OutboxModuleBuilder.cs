@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -30,14 +31,14 @@ public sealed class OutboxModuleBuilder
     private IOutboxDispatcherModule? _dispatcherModule;
 
     /// <summary>
-    ///     Whether the application supplied processor options.
-    /// </summary>
-    private bool _processorOptionsExplicitlySet;
-
-    /// <summary>
     ///     The processor options supplied by the application or the framework defaults.
     /// </summary>
     private OutboxProcessorOptions _processorOptions = new();
+
+    /// <summary>
+    ///     The contract resolver registered through <see cref="UseContractResolver" />, if any.
+    /// </summary>
+    private IMessageContractResolver? _contractResolver;
 
     /// <summary>
     ///     Whether <see cref="EnableCleanup" /> was called.
@@ -68,7 +69,7 @@ public sealed class OutboxModuleBuilder
     /// <summary>
     ///     Gets the options controlling processor batch size, lease duration, and retry.
     /// </summary>
-    public OutboxProcessorOptions ProcessorOptions => _processorOptionsExplicitlySet || _dispatcherModule is null
+    public OutboxProcessorOptions ProcessorOptions => _processorOptions.HookFailurePolicy.HasValue || _dispatcherModule is null
         ? _processorOptions
         : _processorOptions with
         {
@@ -140,9 +141,30 @@ public sealed class OutboxModuleBuilder
         ArgumentNullException.ThrowIfNull(options);
 
         _processorOptions = options;
-        _processorOptionsExplicitlySet = true;
 
         return this;
+    }
+
+    /// <summary>
+    ///     Registers the contract resolver used to select the CLR type for contract lookup during enqueue.
+    /// </summary>
+    /// <param name="resolver">The resolver that overrides contract lookup type selection.</param>
+    /// <returns>The current builder.</returns>
+    public OutboxModuleBuilder UseContractResolver(IMessageContractResolver resolver)
+    {
+        ArgumentNullException.ThrowIfNull(resolver);
+
+        _contractResolver = resolver;
+        return this;
+    }
+
+    /// <summary>
+    ///     Collects the contract resolver registered on this builder, if any.
+    /// </summary>
+    /// <returns>The registered resolver, or <see langword="null" /> when none was registered.</returns>
+    internal IMessageContractResolver? CollectContractResolver()
+    {
+        return _contractResolver;
     }
 
     /// <summary>
@@ -157,7 +179,7 @@ public sealed class OutboxModuleBuilder
 
         if (_storageModule is not null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Outbox storage is already configured. " +
                 "Call only one of UsePostgreSqlStorage, UseEntityFrameworkCoreStorage, " +
                 "or UseInMemoryStorage.");
@@ -174,8 +196,12 @@ public sealed class OutboxModuleBuilder
     /// <param name="dispatcherModule">The dispatcher module to register as a child of the outbox module.</param>
     /// <returns>The current builder.</returns>
     /// <remarks>
-    ///     <see cref="ProcessorOptions" /> resolves the dispatcher recommendation after configuration unless the
-    ///     application supplied processor options. This makes the result independent of registration order.
+    ///     <see cref="ProcessorOptions" /> keeps an explicit <see cref="ProcessorOptions.HookFailurePolicy" /> value and
+    ///     otherwise resolves the dispatcher recommendation after configuration, independent of registration order. A
+    ///     caller-set value wins. Leaving the policy unset keeps transport dispatchers on
+    ///     <see cref="ProcessorHookFailurePolicy.CompleteDespiteHookFailure" />; overriding it with
+    ///     <see cref="ProcessorHookFailurePolicy.DeadLetter" /> dead-letters a message the broker already accepted,
+    ///     so the message is re-leased after replay and published a second time.
     /// </remarks>
     public OutboxModuleBuilder RegisterDispatcher(IOutboxDispatcherModule dispatcherModule)
     {
@@ -183,7 +209,7 @@ public sealed class OutboxModuleBuilder
 
         if (_dispatcherModule is not null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Outbox dispatcher is already configured. " +
                 "Call only one outbox dispatcher registration method such as UseInProcessDispatch or a broker-specific Use*Dispatch extension.");
         }

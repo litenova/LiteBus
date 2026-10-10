@@ -94,7 +94,12 @@ public sealed class EfCoreInboxStore :
     /// <summary>
     ///     Initializes a new instance of the <see cref="EfCoreInboxStore" /> class using a custom context factory.
     /// </summary>
-    /// <param name="contextFactory">A factory that returns a context for one store operation.</param>
+    /// <param name="contextFactory">
+    ///     A factory that returns the context for one store operation. The store does not dispose the returned context:
+    ///     the caller owns it, whether the factory returns one shared context or a new one per call. A factory that
+    ///     creates a new context per call must track and dispose those contexts itself; the storage module registration
+    ///     avoids this by creating and disposing one context per operation through <c>IDbContextFactory</c>.
+    /// </param>
     /// <param name="options">The store options.</param>
     public EfCoreInboxStore(
         Func<CancellationToken, Task<IInboxDbContext>> contextFactory,
@@ -292,6 +297,53 @@ public sealed class EfCoreInboxStore :
                     token),
                 renewalQuery,
                 entity => entity.LeaseExpiresAt = expiresAt,
+                token).ConfigureAwait(false);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+
+        return ExecuteAsync(async (context, token) =>
+        {
+            if (context is not DbContext dbContext)
+            {
+                throw new InvalidOperationException("Lease release requires a DbContext-backed inbox database context.");
+            }
+
+            var releaseQuery = dbContext.Set<InboxMessageEntity>()
+                .Where(message =>
+                    message.Id == request.MessageId &&
+                    message.Status == InboxStatus.Processing &&
+                    message.LeaseOwner == request.LeaseOwner &&
+                    message.LeaseGeneration == request.LeaseGeneration);
+
+            return await EfCoreDurableStoreOperations.ExecuteUpdateOrTrackAsync(
+                dbContext,
+                () => releaseQuery.ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(
+                            message => message.Status,
+                            message => message.LastError == null ? InboxStatus.Pending : InboxStatus.Failed)
+                        .SetProperty(message => message.LeaseOwner, (string?) null)
+                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
+                        .SetProperty(
+                            message => message.AttemptCount,
+                            message => message.AttemptCount > 0 ? message.AttemptCount - 1 : 0),
+                    token),
+                releaseQuery,
+                entity =>
+                {
+                    entity.Status = entity.LastError == null ? InboxStatus.Pending : InboxStatus.Failed;
+                    entity.LeaseOwner = null;
+                    entity.LeaseExpiresAt = null;
+                    entity.AttemptCount = Math.Max(0, entity.AttemptCount - 1);
+                },
                 token).ConfigureAwait(false);
         }, cancellationToken);
     }
@@ -702,7 +754,9 @@ public sealed class EfCoreInboxStore :
                         .SetProperty(message => message.Status, InboxStatus.Completed)
                         .SetProperty(message => message.LeaseOwner, (string?) null)
                         .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
+                        .SetProperty(message => message.LastLeaseOwner, envelope.LeaseOwner)
                         .SetProperty(message => message.LastError, (string?) null)
+                        .SetProperty(message => message.ErrorType, (string?) null)
                         .SetProperty(message => message.CompletedAt, completedAt),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -795,7 +849,10 @@ public sealed class EfCoreInboxStore :
                         .SetProperty(message => message.AttemptCount, envelope.AttemptCount)
                         .SetProperty(message => message.LeaseOwner, (string?) null)
                         .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
-                        .SetProperty(message => message.LastError, envelope.LastError),
+                        .SetProperty(message => message.LastLeaseOwner, envelope.LeaseOwner)
+                        .SetProperty(message => message.LastError, envelope.LastError)
+                        .SetProperty(message => message.ErrorType, envelope.ErrorType)
+                        .SetProperty(message => message.FirstFailedAt, message => message.FirstFailedAt ?? envelope.FirstFailedAt),
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -883,7 +940,11 @@ public sealed class EfCoreInboxStore :
                         .SetProperty(message => message.AttemptCount, envelope.AttemptCount)
                         .SetProperty(message => message.LeaseOwner, (string?) null)
                         .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
-                        .SetProperty(message => message.LastError, envelope.LastError),
+                        .SetProperty(message => message.LastLeaseOwner, envelope.LeaseOwner)
+                        .SetProperty(message => message.LastError, envelope.LastError)
+                        .SetProperty(message => message.ErrorType, envelope.ErrorType)
+                        .SetProperty(message => message.FirstFailedAt, message => message.FirstFailedAt ?? envelope.FirstFailedAt)
+                        .SetProperty(message => message.DeadLetteredAt, envelope.DeadLetteredAt ?? DateTimeOffset.UtcNow),
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -964,6 +1025,8 @@ public sealed class EfCoreInboxStore :
 
         if (_contextFactory is not null)
         {
+            // The caller owns contexts this factory returns: callers commonly hand back one shared context, which
+            // disposing here would break on the next operation.
             var context = await _contextFactory(cancellationToken).ConfigureAwait(false);
             return await action(context, cancellationToken).ConfigureAwait(false);
         }
@@ -1355,7 +1418,12 @@ public sealed class EfCoreInboxStore :
             CausationId = entity.CausationId,
             TenantId = entity.TenantId,
             TraceContext = EfCoreJsonTextNormalizer.Normalize(entity.TraceContext),
-            CompletedAt = entity.CompletedAt
+            CompletedAt = entity.CompletedAt,
+            LastAttemptedAt = entity.LastAttemptedAt,
+            FirstFailedAt = entity.FirstFailedAt,
+            DeadLetteredAt = entity.DeadLetteredAt,
+            LastLeaseOwner = entity.LastLeaseOwner,
+            ErrorType = entity.ErrorType
         };
     }
 
@@ -1384,7 +1452,12 @@ public sealed class EfCoreInboxStore :
             CorrelationId = row.CorrelationId,
             CausationId = row.CausationId,
             TenantId = row.TenantId,
-            TraceContext = EfCoreJsonTextNormalizer.Normalize(row.TraceContext)
+            TraceContext = EfCoreJsonTextNormalizer.Normalize(row.TraceContext),
+            LastAttemptedAt = row.LastAttemptedAt,
+            FirstFailedAt = row.FirstFailedAt,
+            DeadLetteredAt = row.DeadLetteredAt,
+            LastLeaseOwner = row.LastLeaseOwner,
+            ErrorType = row.ErrorType
         };
     }
 
@@ -1442,6 +1515,23 @@ public sealed class EfCoreInboxStore :
             : envelope.LeaseExpiresAt;
 
         entity.LastError = envelope.LastError;
+        entity.ErrorType = envelope.ErrorType;
+
+        // The lease owner is cleared on every terminal status, so it is copied aside first. Without it the one
+        // question a dead-letter listing always asks, which instance was handling this, has no answer.
+        if (envelope.LastLeaseOwner is not null)
+        {
+            entity.LastLeaseOwner = envelope.LastLeaseOwner;
+        }
+
+        // Only ever set once, so it keeps naming the first failure rather than the most recent one.
+        entity.FirstFailedAt = envelope.FirstFailedAt is null
+            ? null
+            : entity.FirstFailedAt ?? envelope.FirstFailedAt;
+
+        entity.DeadLetteredAt = envelope.Status == InboxStatus.DeadLettered
+            ? envelope.DeadLetteredAt ?? DateTimeOffset.UtcNow
+            : envelope.DeadLetteredAt;
 
         if (envelope.Status == InboxStatus.Processing && leasedAt is not null)
         {
@@ -1697,6 +1787,36 @@ public sealed class EfCoreInboxStore :
         /// </summary>
         [Column("trace_context")]
         public string? TraceContext { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the last attempt timestamp column.
+        /// </summary>
+        [Column("last_attempted_at")]
+        public DateTimeOffset? LastAttemptedAt { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the first failure timestamp column.
+        /// </summary>
+        [Column("first_failed_at")]
+        public DateTimeOffset? FirstFailedAt { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the dead-letter timestamp column.
+        /// </summary>
+        [Column("dead_lettered_at")]
+        public DateTimeOffset? DeadLetteredAt { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the most recent lease owner column.
+        /// </summary>
+        [Column("last_lease_owner")]
+        public string? LastLeaseOwner { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the failure type column.
+        /// </summary>
+        [Column("error_type")]
+        public string? ErrorType { get; set; }
     }
 
     /// <summary>

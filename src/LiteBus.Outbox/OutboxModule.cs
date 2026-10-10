@@ -52,21 +52,21 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
 
         if (_builder is null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "OutboxModule.Build was called without a prior DeclareChildren call. " +
                 "Register the module through IModuleRegistry.");
         }
 
         if (!_builder.IsStorageConfigured)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Outbox storage is required because AddOutboxModule registers IOutbox and related writer services. " +
                 "Call UseInMemoryStorage, UsePostgreSqlStorage, or UseEntityFrameworkCoreStorage inside AddOutboxModule(...).");
         }
 
         if (_builder.IsOutboxProcessorEnabled && !_builder.IsDispatcherConfigured)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "EnableOutboxProcessor requires an outbox dispatcher. " +
                 "Call UseInProcessDispatch, a broker-specific Use*Dispatch extension, or RegisterDispatcher inside AddOutboxModule(...).");
         }
@@ -74,6 +74,7 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
         if (_builder.IsOutboxProcessorEnabled)
         {
             _builder.ProcessorHostOptions.Validate();
+            _builder.ProcessorOptions.Retry.Validate();
         }
 
         if (_builder.IsCleanupEnabled)
@@ -101,6 +102,13 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
                 typeof(IOutboxPayloadProtector),
                 new OutboxPayloadProtector(outboxEncryptor)));
+        }
+
+        if (_builder.CollectContractResolver() is { } contractResolver)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(IMessageContractResolver),
+                contractResolver));
         }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -185,15 +193,14 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
     ///     Registers consumer-owned diagnostic probes collected by the outbox module builder.
     /// </summary>
     /// <param name="configuration">The module configuration receiving probe registrations.</param>
+    /// <remarks>
+    ///     Only the manifest entry is recorded. The host adapter called from AddLiteBus registers every manifest
+    ///     probe in the container once, so registering it here as well would add a second descriptor.
+    /// </remarks>
     private void RegisterDiagnosticChecks(IModuleConfiguration configuration)
     {
         foreach (var registration in _builder!.CollectDiagnosticChecks())
         {
-            configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                registration.ImplementationType,
-                registration.ImplementationType,
-                InstanceLifetime.Singleton));
-
             configuration.RegisterDiagnosticCheck(registration.ImplementationType, registration.Name);
         }
     }

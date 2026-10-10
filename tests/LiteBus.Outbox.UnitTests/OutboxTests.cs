@@ -42,7 +42,7 @@ public sealed class OutboxTests : LiteBusTestBase
             metadata)).ConfigureAwait(false);
 
         receipt.Id.Should().Be(eventId);
-        receipt.MessageType.Should().Be(typeof(OrderSubmittedIntegrationEvent));
+        receipt.MessageType.Should().Be<OrderSubmittedIntegrationEvent>();
         receipt.Contract.Name.Should().Be("orders.events.submitted");
         receipt.Contract.Version.Should().Be(3);
         receipt.StoredAt.Should().Be(now);

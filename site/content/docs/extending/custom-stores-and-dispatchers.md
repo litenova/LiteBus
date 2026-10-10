@@ -73,6 +73,7 @@ builder.AddInbox(inbox =>
 - **Atomic lease.** Two workers must never hold the same row at once.
 - **Reclaimable expiry.** Expired leases become claimable again.
 - **Generation fence.** Every acquisition increments a monotonic generation. Renewal and terminal persistence require owner plus generation.
+- **Lease release.** Implement `ILeaseRenewable.ReleaseLeaseAsync`: return the row to `Pending` (or `Failed` when it already carries an error) with the lease cleared, `AttemptCount` decremented, and visibility unchanged. The default returns `false`, in which case a shutdown or drain still spends an attempt.
 - **Authoritative clock.** Relational implementations calculate eligibility and expiry from database time, not the caller's wall clock.
 - **Terminal persist.** `PersistAsync` returns explicit outcomes when lease is lost (see `PersistResult`).
 

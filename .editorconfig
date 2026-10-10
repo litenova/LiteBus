@@ -1,4 +1,8 @@
 [*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
 
 # Microsoft .NET properties
 csharp_new_line_before_members_in_object_initializers = false
@@ -39,3 +43,7 @@ resharper_convert_to_using_declaration_highlighting = warning
 resharper_arrange_this_qualifier_highlighting = warning
 resharper_condition_is_always_true_or_false_highlighting = warning
 resharper_unused_member_local_highlighting = warning
+
+[*.cs]
+# IDE0161 reports block-scoped namespaces only when this preference names file_scoped; the severity lives in src/, tests/ and samples/.
+csharp_style_namespace_declarations = file_scoped

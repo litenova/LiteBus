@@ -4,7 +4,7 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.PostgreSql.Exceptions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Storage.PostgreSql;
-using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using Npgsql;
 
 namespace LiteBus.Inbox.Storage.PostgreSql;
@@ -44,11 +44,16 @@ public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<Inbox
                 "Call UseDataSource(NpgsqlDataSource) or UseConnectionString(string).");
         }
 
+        var dataSourceOwner = new PostgreSqlDataSourceOwner<PostgreSqlInboxModule>(moduleBuilder.DataSource, moduleBuilder.OwnsDataSource);
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(PostgreSqlDataSourceOwner<PostgreSqlInboxModule>),
+            _ => dataSourceOwner,
+            InstanceLifetime.Singleton));
+
         if (moduleBuilder.OwnsDataSource)
         {
-            configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(NpgsqlDataSource),
-                moduleBuilder.DataSource));
+            configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(NpgsqlDataSource), moduleBuilder.DataSource));
         }
 
         var store = new PostgreSqlInboxStore(moduleBuilder.DataSource, moduleBuilder.Options);
@@ -58,45 +63,25 @@ public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<Inbox
             typeof(PostgreSqlInboxStoreRegistration),
             registration));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IInboxStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IInboxStore), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IInboxLeaseStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IInboxLeaseStore), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IInboxStateWriter),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IInboxStateWriter), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IInboxDeadLetterStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IInboxDeadLetterStore), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IInboxRetentionStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IInboxRetentionStore), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IInboxDiagnosticsStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IInboxDiagnosticsStore), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IInboxMessageQuery),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IInboxMessageQuery), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IInboxPurgeStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IInboxPurgeStore), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IInboxProcessingStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IInboxProcessingStore), store));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IInboxOperationsStore),
-            store));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IInboxOperationsStore), store));
 
         if (moduleBuilder.EnableSchemaInitialization)
         {
@@ -111,7 +96,7 @@ public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<Inbox
             ? (IInboxWorkSignal) new PostgreSqlInboxWorkSignal(moduleBuilder.DataSource)
             : new InboxPollingWorkSignal();
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IInboxWorkSignal), workSignal));
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IInboxWorkSignal), workSignal));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(PostgreSqlInboxSchemaDiagnosticCheck),
@@ -140,8 +125,8 @@ public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<Inbox
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(PostgreSqlTransactionalInboxParticipant),
             serviceProvider => new PostgreSqlTransactionalInboxParticipant(
-                serviceProvider.GetRequiredService<PostgreSqlInboxStoreRegistration>(),
-                serviceProvider.GetRequiredService<IInboxStore>(),
+                (PostgreSqlInboxStoreRegistration) (serviceProvider.GetService(typeof(PostgreSqlInboxStoreRegistration)) ?? throw new LiteBusDependencyResolutionException(typeof(PostgreSqlInboxStoreRegistration))),
+                (IInboxStore) (serviceProvider.GetService(typeof(IInboxStore)) ?? throw new LiteBusDependencyResolutionException(typeof(IInboxStore))),
                 serviceProvider.GetService(typeof(IPostgreSqlTransactionProvider)) as IPostgreSqlTransactionProvider,
                 moduleBuilder.TransactionalWriteMode),
             InstanceLifetime.Scoped));
@@ -150,12 +135,36 @@ public sealed class PostgreSqlInboxModule : IInboxStorageModule, IRequires<Inbox
             typeof(ITransactionalInbox),
             serviceProvider =>
             {
-                var participant = serviceProvider.GetRequiredService<PostgreSqlTransactionalInboxParticipant>();
+                var participant = (PostgreSqlTransactionalInboxParticipant) (serviceProvider.GetService(typeof(PostgreSqlTransactionalInboxParticipant)) ?? throw new LiteBusDependencyResolutionException(typeof(PostgreSqlTransactionalInboxParticipant)));
 
                 return new StoreBoundTransactionalInbox(
                     participant.ResolveStore(),
-                    serviceProvider.GetRequiredService<IInboxEnvelopeFactory>());
+                    (IInboxEnvelopeFactory) (serviceProvider.GetService(typeof(IInboxEnvelopeFactory)) ?? throw new LiteBusDependencyResolutionException(typeof(IInboxEnvelopeFactory))));
             },
             InstanceLifetime.Scoped));
+    }
+
+    /// <summary>
+    ///     Creates a singleton registration that resolves the module's data source owner before returning
+    ///     <paramref name="instance" />.
+    /// </summary>
+    /// <param name="dependencyType">The service type to register.</param>
+    /// <param name="instance">The prebuilt service the registration returns.</param>
+    /// <returns>A singleton factory registration.</returns>
+    /// <remarks>
+    ///     Resolving the owner from every store registration makes the container create and capture it the first time
+    ///     any of the module's services is used, so disposing the container disposes a data source the module created.
+    ///     A prebuilt instance registration would not: Microsoft dependency injection never disposes one.
+    /// </remarks>
+    private static DependencyDescriptor CreateOwnedRegistration(Type dependencyType, object instance)
+    {
+        return new DependencyDescriptor(
+            dependencyType,
+            services =>
+            {
+                _ = services.GetService(typeof(PostgreSqlDataSourceOwner<PostgreSqlInboxModule>));
+                return instance;
+            },
+            InstanceLifetime.Singleton);
     }
 }

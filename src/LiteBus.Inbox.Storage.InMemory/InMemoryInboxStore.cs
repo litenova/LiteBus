@@ -254,6 +254,30 @@ public sealed class InMemoryInboxStore :
     }
 
     /// <inheritdoc />
+    public Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
+        {
+            if (!_envelopes.TryGetValue(request.MessageId, out var envelope) ||
+                envelope.Status != InboxStatus.Processing ||
+                !string.Equals(envelope.LeaseOwner, request.LeaseOwner, StringComparison.Ordinal) ||
+                envelope.LeaseGeneration != request.LeaseGeneration)
+            {
+                return Task.FromResult(false);
+            }
+
+            _envelopes[request.MessageId] = envelope.AsReleased();
+            return Task.FromResult(true);
+        }
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
         InboxLeaseRequest request,
         CancellationToken cancellationToken = default)
@@ -261,14 +285,14 @@ public sealed class InMemoryInboxStore :
         ArgumentNullException.ThrowIfNull(request);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.BatchSize, 0);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
-        ArgumentOutOfRangeException.ThrowIfLessThan(request.LeaseDuration, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.LeaseDuration, TimeSpan.Zero);
         cancellationToken.ThrowIfCancellationRequested();
 
         var now = ResolveLeaseClock(request);
 
-        var leaseDuration = request.LeaseDuration > TimeSpan.Zero
-            ? request.LeaseDuration
-            : _options.DefaultLeaseDuration;
+        var leaseDuration = request.LeaseDuration;
+        // Zero is rejected above, so the request value is always the effective lease.
+
 
         lock (_sync)
         {
@@ -280,7 +304,9 @@ public sealed class InMemoryInboxStore :
                 .Where(envelope => IsAvailable(envelope, now, staleCutoff))
                 .OrderBy(envelope => envelope.CreatedAt)
                 .Take(request.BatchSize)
-                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt))
+                // The relational stores stamp last_attempted_at in the lease statement itself, so the
+                // in-memory store stamps it here to keep the three adapters answering the same question.
+                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt) with { LastAttemptedAt = now })
                 .ToArray();
 
             foreach (var envelope in leased)

@@ -15,7 +15,9 @@ public sealed class UnsupportedOpenGenericHandlerException : Exception
     /// <param name="genericParameterCount">The number of generic parameters declared by the handler type.</param>
     public UnsupportedOpenGenericHandlerException(Type handlerType, int genericParameterCount)
         : base(
-            $"Open generic handler type '{handlerType.FullName ?? handlerType.Name}' declares {genericParameterCount} generic parameters. LiteBus supports open generic handlers with exactly one generic parameter.")
+            $"Open generic handler type '{handlerType.FullName ?? handlerType.Name}' declares {genericParameterCount} generic "
+            + "parameters. LiteBus closes one, binding the message type, or two, binding the message type and the "
+            + "result type the message declares. Any other arity has nothing to bind to.")
     {
         HandlerType = handlerType;
         GenericParameterCount = genericParameterCount;

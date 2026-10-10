@@ -52,9 +52,13 @@ public sealed record TransportInboxIngressSafetyOptions
     public Func<TransportMessage, CancellationToken, Task>? AuthorizeDeliveryAsync { get; init; }
 
     /// <summary>
-    ///     Gets the maximum number of ingress delivery handlers that LiteBus may execute concurrently.
+    ///     Gets the requested maximum number of ingress delivery handlers that LiteBus may execute concurrently.
     /// </summary>
-    /// <value>Default is <see cref="DefaultMaxInFlightMessages" />.</value>
+    /// <value>
+    ///     Default is <see cref="DefaultMaxInFlightMessages" />. The enforced bound is one for the AMQP, Kafka, AWS
+    ///     SQS, and in-memory adapters, which run one handler at a time; on Azure Service Bus the bound is
+    ///     the lower of this value and <c>MaxConcurrentCalls</c>, which defaults to the SDK value of one.
+    /// </value>
     public int MaxInFlightMessages { get; init; } = DefaultMaxInFlightMessages;
 
     /// <summary>
@@ -76,30 +80,30 @@ public sealed record TransportInboxIngressSafetyOptions
     /// <summary>
     ///     Validates provider-neutral ingress bounds before the broker consumer is registered.
     /// </summary>
-    /// <exception cref="LiteBusConfigurationException">A configured numeric bound is outside its supported range.</exception>
+    /// <exception cref="DurableStorageConfigurationException">A configured numeric bound is outside its supported range.</exception>
     public void Validate()
     {
         if (MaxMessageBytes < 0)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 $"{nameof(MaxMessageBytes)} must be greater than or equal to zero.");
         }
 
         if (MaxInFlightMessages < 1)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 $"{nameof(MaxInFlightMessages)} must be greater than zero.");
         }
 
         if (BatchSize < 1)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 $"{nameof(BatchSize)} must be greater than zero.");
         }
 
         if (BatchMaxWait < TimeSpan.Zero)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 $"{nameof(BatchMaxWait)} must be greater than or equal to zero.");
         }
     }

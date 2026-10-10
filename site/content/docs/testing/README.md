@@ -1,8 +1,41 @@
 # Testing
 
-This page covers testing durable messaging in LiteBus: in-memory storage for fast unit tests, shared store contract harnesses, Testcontainers for PostgreSQL and AMQP integration tests, and the durable transport integration matrix.
+This page covers testing LiteBus: the mediation harness for testing one message's pipeline, in-memory storage for fast unit tests, shared store contract harnesses, Testcontainers for PostgreSQL and AMQP integration tests, and the durable transport integration matrix.
 
 For a full inventory of integration test projects, fixtures, scenarios, and CI filters, see [Integration Tests](integration-tests.md). Pull request and release workflows collect every test batch with the repository run settings and require at least 90 percent merged source-line coverage.
+
+## Testing One Message's Pipeline
+
+`MediationHarness`, from `LiteBus.Testing.Mediation`, runs the shipped pipeline over handler instances the test builds. No host, no container, no database:
+
+```csharp
+var result = await MediationHarness.For<CloseOrganizationCommand>()
+    .With(new AuthorizationGuard<CloseOrganizationCommand>(metadata, authorizer))
+    .RunAsync(command);
+
+result.Outcome.Should().Be(MediationOutcome.Denied);
+result.StagesRun.Should().Equal(PreStage.Guard);
+result.MainHandlerRan.Should().BeFalse();
+```
+
+`StagesRun` is the assertion the harness exists for. When the point of the library is that behavior moved into named stages, which stages ran is what a test of that behavior wants to say, and only the stage runner knows it. A stage with no registered handler is skipped by the pipeline and absent from the list, so the sequence reads as what happened rather than what could have.
+
+`MediationHarnessResult` also carries `Reason`, `Code`, `Failures`, `Value`, and `MainHandlerRan`, with `IsSuccess`, `IsDenied` and `IsInvalid` for the common assertions. `MainHandlerRan` is separate from the outcome because it is the question a test of a guard is actually asking.
+
+| Member | Use |
+| --- | --- |
+| `MediationHarness.For<TMessage>()` | Start a harness for one message type |
+| `.With(handler)` / `.With(params object[])` | Add handler instances, registered by concrete type exactly as a host would |
+| `.WithTags(params string[])` | Run under mediation tags, so tag filtering can be asserted |
+| `.RunAsync(message)` | Run a message that produces no result |
+| `.RunAsync<TResult>(message)` | Run a message that produces one, and read `Value` |
+| `.EvaluateAsync(message)` | Ask the decision stages without performing the message |
+
+A refusal is reported in the result rather than raised, because a test asserting a denial should not have to catch one. A genuine fault still propagates, so a broken handler fails the test as a fault rather than as an outcome.
+
+Each harness builds its own registry, so a guard registered in one test cannot reach the next, and handler instances are supplied rather than resolved, which is the point: build the one guard under test with the doubles you want.
+
+What it deliberately leaves out is composition. It registers instances directly, so it proves nothing about a registration a host would reject, a module graph, or a container lifetime. Assert those against a host, which is what [Application Testing](application-testing.md) covers.
 
 ## Coverage Gate
 

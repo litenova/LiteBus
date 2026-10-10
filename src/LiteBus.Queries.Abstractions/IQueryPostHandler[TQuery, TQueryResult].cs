@@ -1,4 +1,4 @@
-﻿using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Queries.Abstractions;
 
@@ -14,6 +14,6 @@ namespace LiteBus.Queries.Abstractions;
 ///     result transformation, caching, logging, or other processing that depends on the query outcome.
 ///     Multiple type-specific post-handlers can be registered for each query type.
 /// </remarks>
-public interface IQueryPostHandler<in TQuery, in TQueryResult> : IAsyncMessagePostHandler<TQuery, TQueryResult>
+public interface IQueryPostHandler<in TQuery, in TQueryResult> : IMessagePostHandler<TQuery, TQueryResult>
     where TQuery : IQuery<TQueryResult>
     where TQueryResult : notnull;

@@ -46,6 +46,7 @@ public sealed class TransportInboxIngressHandlerTests
         var transportMessage = new TransportMessage
         {
             Body = """{"orderId":"99"}"""u8.ToArray(),
+            MessageId = messageId.ToString("D"),
             Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 [TransportHeaders.MessageId] = messageId.ToString("D"),
@@ -99,6 +100,7 @@ public sealed class TransportInboxIngressHandlerTests
         {
             Body = """{"orderId":"99"}"""u8.ToArray(),
             Destination = "commands.inbox",
+            MessageId = brokerMessageId,
             Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 [TransportHeaders.MessageId] = brokerMessageId,
@@ -202,6 +204,7 @@ public sealed class TransportInboxIngressHandlerTests
         var transportMessage = new TransportMessage
         {
             Body = """{"orderId":"authorized"}"""u8.ToArray(),
+            MessageId = messageId.ToString("D"),
             Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 [TransportHeaders.MessageId] = messageId.ToString("D"),
@@ -248,6 +251,7 @@ public sealed class TransportInboxIngressHandlerTests
         var transportMessage = new TransportMessage
         {
             Body = """{"orderId":"42"}"""u8.ToArray(),
+            MessageId = messageId.ToString("D"),
             Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 [TransportHeaders.MessageId] = messageId.ToString("D"),

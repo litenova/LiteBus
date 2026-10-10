@@ -20,6 +20,8 @@ public sealed class LavinMqAmqpTransportIntegrationTests : AmqpTransportIntegrat
     public LavinMqAmqpTransportIntegrationTests(LavinMqFixture fixture)
     {
         _fixture = fixture;
+        DockerTestGate.EnsureBrokerAvailable(_fixture.IsAvailable, "LavinMQ");
+        Skip.IfNot(_fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
     }
 
     /// <inheritdoc />

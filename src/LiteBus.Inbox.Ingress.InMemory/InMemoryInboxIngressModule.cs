@@ -43,7 +43,7 @@ public sealed class InMemoryInboxIngressModule :
 
         if (string.IsNullOrWhiteSpace(options.Destination))
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 $"{nameof(InMemoryInboxIngressOptions.Destination)} must be configured before registering in-memory inbox ingress.");
         }
 

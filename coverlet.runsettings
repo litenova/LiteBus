@@ -5,6 +5,10 @@
       <DataCollector friendlyName="XPlat Code Coverage">
         <Configuration>
           <Format>cobertura,json</Format>
+          <!-- Measure only LiteBus assemblies. Without this, a third-party test dependency lands in the report:
+               Marten pulls JasperFx.Blocks, whose WatchedObservable<T> declares both Publish(T) and publish(T),
+               and a JSON object with two keys differing only in case cannot be read back by the coverage gate. -->
+          <Include>[LiteBus*]*</Include>
           <Exclude>[*.Tests]*,[*.UnitTests]*,[*.IntegrationTests]*,[LiteBus.Storage.Testing]*,[LiteBus.Testing]*</Exclude>
           <ExcludeByFile>**/tests/**,**/samples/**,**/benchmarks/**</ExcludeByFile>
           <IncludeDirectory>../src/</IncludeDirectory>

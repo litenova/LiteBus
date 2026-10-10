@@ -51,7 +51,7 @@ AddLiteBus(...)
   -> each module Build(IModuleConfiguration) runs in order
   -> MessageModule creates IMessageRegistry and IMessageContractRegistry contexts
   -> mediator resolves message descriptor and handlers from scoped provider
-  -> strategy executes pre/main/post/error pipeline
+  -> strategy executes pre/main/post/error/completion pipeline
 ```
 
 ## Test Sources

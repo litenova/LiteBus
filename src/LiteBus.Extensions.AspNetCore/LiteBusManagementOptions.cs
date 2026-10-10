@@ -1,3 +1,4 @@
+using System;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 
 namespace LiteBus.Extensions.AspNetCore;
@@ -46,6 +47,14 @@ public sealed class LiteBusManagementOptions
     /// <summary>
     ///     Gets or sets the timeout and parallelism limits applied by <c>GET /litebus/health</c>.
     /// </summary>
+    /// <value>The run limits. The default allows four concurrent probes at five seconds each.</value>
+    /// <remarks>
+    ///     When <see cref="DiagnosticCheckRunOptions.RunTimeout" /> is <see langword="null" /> (the default), the run
+    ///     budget is derived from the probe count, <see cref="DiagnosticCheckRunOptions.MaxParallelism" />, and
+    ///     <see cref="DiagnosticCheckRunOptions.Timeout" />; probes still running when the budget expires are reported
+    ///     as unhealthy without waiting for them. Probes must observe their cancellation token so a timed-out run ends
+    ///     promptly instead of lingering in the background.
+    /// </remarks>
     public DiagnosticCheckRunOptions DiagnosticChecks { get; set; } = new();
 
     /// <summary>

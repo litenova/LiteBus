@@ -50,6 +50,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     public PostgreSqlReliableMessagingEndToEndTests(PostgreSqlFixture postgresFixture)
     {
         _postgresFixture = postgresFixture;
+        Skip.IfNot(_postgresFixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
@@ -57,7 +58,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     ///     dispatch.
     /// </summary>
     /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task OutboxToInbox_ShouldPublishProcessAndDispatchCommand()
     {
         var rabbitMqFixture = new RabbitMqBrokerFixture();
@@ -77,7 +78,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     ///     Verifies that a duplicate broker delivery with the same message identifier executes the handler only once.
     /// </summary>
     /// <returns>A task that completes when the idempotency assertion succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task DuplicateBrokerDelivery_ShouldExecuteHandlerOnce()
     {
         var rabbitMqFixture = new RabbitMqBrokerFixture();
@@ -153,7 +154,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
                     var inboxAfterDuplicate = await PostgreSqlTableReaders.ReadInboxAsync(
                         _postgresFixture.DataSource,
                         inboxOptions,
-                        messageId);
+                        messageId).ConfigureAwait(false);
 
                     inboxAfterDuplicate!.Status.Should().Be(InboxStatus.Completed);
                     inboxAfterDuplicate.AttemptCount.Should().Be(1);
@@ -174,7 +175,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     ///     Verifies that an unknown contract is discarded without requeue and does not reach the PostgreSQL inbox store.
     /// </summary>
     /// <returns>A task that completes when the acknowledgement assertion succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task UnknownContract_ShouldNackWithoutRequeueAndSkipPostgreSqlStore()
     {
         var rabbitMqFixture = new RabbitMqBrokerFixture();
@@ -232,7 +233,7 @@ public sealed class PostgreSqlReliableMessagingEndToEndTests : LiteBusTestBase, 
     ///     Verifies that invalid JSON is discarded without requeue and does not reach the PostgreSQL inbox store.
     /// </summary>
     /// <returns>A task that completes when the acknowledgement assertion succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task InvalidJson_ShouldNackWithoutRequeueAndSkipPostgreSqlStore()
     {
         var rabbitMqFixture = new RabbitMqBrokerFixture();

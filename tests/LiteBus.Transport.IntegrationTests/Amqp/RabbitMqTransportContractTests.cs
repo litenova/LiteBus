@@ -22,6 +22,8 @@ public sealed class RabbitMqTransportContractTests : TransportContractTests, ICl
     public RabbitMqTransportContractTests(RabbitMqFixture fixture)
     {
         _fixture = fixture;
+        DockerTestGate.EnsureBrokerAvailable(_fixture.IsAvailable, "RabbitMQ");
+        Skip.IfNot(_fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
     }
 
     /// <inheritdoc />

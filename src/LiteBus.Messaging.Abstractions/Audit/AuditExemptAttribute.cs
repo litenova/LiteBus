@@ -1,0 +1,66 @@
+using System;
+
+namespace LiteBus.Messaging.Abstractions;
+
+/// <summary>
+///     Declares that the annotated message is deliberately not audited, and records why.
+/// </summary>
+/// <remarks>
+///     <para>
+///         An exemption is a decision, not an omission. Recording the rationale beside the message is what makes the
+///         selection of audited events reviewable, and is what auditing standards ask for when they require event
+///         selection to be documented.
+///     </para>
+///     <para>
+///         Pair with <see cref="AuditedAttribute" />, so a message carrying neither can be reported as undeclared rather
+///         than silently going unaudited.
+///     </para>
+///     <para>
+///         This is shorthand for <c>[DeclarationExempt(typeof(AuditDeclaration), rationale)]</c> and records the same
+///         exemption, so every exemption a message carries is readable from one
+///         <see cref="DeclarationExemptions" /> value however it was written. It exists because auditing is the one
+///         declaration whose two positions are both modelled as values, so an exempt message also contributes an
+///         <see cref="AuditExemptDeclaration" /> the record writer reads.
+///     </para>
+/// </remarks>
+/// <example>
+///     <code><![CDATA[
+/// [AuditExempt("browsing a public storefront is not a sensitive action")]
+/// public sealed record GetStorefrontQuery(Guid StoreId) : IQuery<StorefrontView>;
+/// ]]></code>
+/// </example>
+[MessageDeclaration(typeof(AuditDeclaration))]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
+public sealed class AuditExemptAttribute : Attribute, IMessageDeclarationSource, IMessageDeclarationExemptionSource
+{
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="AuditExemptAttribute" /> class.
+    /// </summary>
+    /// <param name="rationale">The recorded reason the message is exempt from auditing.</param>
+    /// <exception cref="ArgumentException"><paramref name="rationale" /> is null, empty, or whitespace.</exception>
+    public AuditExemptAttribute(string rationale)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rationale);
+        Rationale = rationale;
+    }
+
+    /// <summary>
+    ///     Gets the recorded reason the message is exempt from auditing.
+    /// </summary>
+    public string Rationale { get; }
+
+    /// <inheritdoc />
+    public Type DeclarationType => typeof(AuditDeclaration);
+
+    /// <inheritdoc />
+    public object CreateDeclaration()
+    {
+        return AuditDeclaration.Exempt(Rationale);
+    }
+
+    /// <inheritdoc />
+    public DeclarationExemption CreateExemption()
+    {
+        return new DeclarationExemption(typeof(AuditDeclaration), Rationale);
+    }
+}

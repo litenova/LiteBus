@@ -17,38 +17,39 @@ public sealed class EfCoreInboxProcessorUnknownContractEndToEndTests : LiteBusTe
     public EfCoreInboxProcessorUnknownContractEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenContractIsUnknown_ShouldMarkFailedInDatabase()
     {
         var storeOptions = EfCoreInboxE2eSupport.CreateStoreOptions(TableName);
         await EfCoreInboxE2eSupport.EnsureInboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
-         var provider = EfCoreInboxE2eSupport.BuildProvider<UnknownContractInboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new InboxE2eComposition             {                 RegisterShipHandler = false,                 LeaseOwner = "efcore-inbox-unknown-contract"             });
-         await using (provider.ConfigureAwait(true))
-         {
-
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-        var writer = provider.GetRequiredService<IInboxStore>();
-        var commandId = Guid.NewGuid();
-
-        await writer.EnqueueAsync(new InboxEnvelope
+        var provider = EfCoreInboxE2eSupport.BuildProvider<UnknownContractInboxDbContext>(_fixture.ConnectionString, storeOptions, new InboxE2eComposition { RegisterShipHandler = false, LeaseOwner = "efcore-inbox-unknown-contract" });
+        await using (provider.ConfigureAwait(true))
         {
-            Id = commandId,
-            ContractName = "unknown.contract",
-            ContractVersion = 99,
-            Payload = "{}",
-            CreatedAt = EfCoreInboxE2eSupport.BaseTime,
-            AttemptCount = 0,
-            Status = InboxStatus.Pending
-        }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            var processor = provider.GetRequiredService<IInboxProcessor>();
+            var writer = provider.GetRequiredService<IInboxStore>();
+            var commandId = Guid.NewGuid();
 
-        var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, commandId).ConfigureAwait(false);
-        row!.Status.Should().Be(InboxStatus.Failed);
-        row.LastError.Should().Contain(nameof(MessageContractNotRegisteredException));
+            await writer.EnqueueAsync(new InboxEnvelope
+            {
+                Id = commandId,
+                ContractName = "unknown.contract",
+                ContractVersion = 99,
+                Payload = "{}",
+                CreatedAt = EfCoreInboxE2eSupport.BaseTime,
+                AttemptCount = 0,
+                Status = InboxStatus.Pending
+            }).ConfigureAwait(false);
+
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+            var row = await EfCoreInboxTableReaders.ReadInboxAsync(_fixture.ConnectionString, storeOptions, commandId).ConfigureAwait(false);
+            row!.Status.Should().Be(InboxStatus.Failed);
+            row.LastError.Should().Contain(nameof(MessageContractNotRegisteredException));
         }
     }
 

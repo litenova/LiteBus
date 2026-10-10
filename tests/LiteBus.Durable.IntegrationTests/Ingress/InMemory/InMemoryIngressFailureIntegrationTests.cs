@@ -60,34 +60,34 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
     {
         var ingressDestination = $"litebus-inmemory-ingress-fail-{Guid.NewGuid():N}";
 
-         var provider = BuildProvider(ingressDestination, 1);
-         await using (provider.ConfigureAwait(false))
-         {
-        await StartIngressAsync(provider).ConfigureAwait(false);
-
-        var inbox = provider.GetRequiredService<IInbox>();
-
-        await inbox.AcceptAsync(new InboxAcceptItem<ShipOrderCommand>
+        var provider = BuildProvider(ingressDestination, 1);
+        await using (provider.ConfigureAwait(false))
         {
-            Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
-        }).ConfigureAwait(false);
+            await StartIngressAsync(provider).ConfigureAwait(false);
 
-        var publisher = provider.GetRequiredService<ITransportPublisher>();
-        var messageId = Guid.NewGuid();
+            var inbox = provider.GetRequiredService<IInbox>();
 
-        await publisher.PublishAsync(new TransportPublishRequest
-        {
-            Destination = ingressDestination,
-            Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
-            MessageId = messageId.ToString("D"),
-            Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-        }).ConfigureAwait(false);
+            await inbox.AcceptAsync(new InboxAcceptItem<ShipOrderCommand>
+            {
+                Message = new ShipOrderCommand { OrderId = Guid.NewGuid() }
+            }).ConfigureAwait(false);
 
-        await PollingWait.UntilAsync(
-            () => GetInboxStoreCount(provider) == 1,
-            TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
+            var messageId = Guid.NewGuid();
 
-        GetInboxStoreCount(provider).Should().Be(1);
+            await publisher.PublishAsync(new TransportPublishRequest
+            {
+                Destination = ingressDestination,
+                Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
+                MessageId = messageId.ToString("D"),
+                Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
+            }).ConfigureAwait(false);
+
+            await PollingWait.UntilAsync(
+                () => GetInboxStoreCount(provider) == 1,
+                TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+
+            GetInboxStoreCount(provider).Should().Be(1);
         }
     }
 
@@ -107,25 +107,25 @@ public sealed class InMemoryIngressFailureIntegrationTests : LiteBusTestBase
     {
         var ingressDestination = $"litebus-inmemory-ingress-fail-{Guid.NewGuid():N}";
 
-         var provider = BuildProvider(ingressDestination, 100);
-         await using (provider.ConfigureAwait(false))
-         {
-        await StartIngressAsync(provider).ConfigureAwait(false);
-
-        var publisher = provider.GetRequiredService<ITransportPublisher>();
-        var messageId = Guid.NewGuid();
-
-        await publisher.PublishAsync(new TransportPublishRequest
+        var provider = BuildProvider(ingressDestination, 100);
+        await using (provider.ConfigureAwait(false))
         {
-            Destination = ingressDestination,
-            Body = Encoding.UTF8.GetBytes(body),
-            MessageId = messageId.ToString("D"),
-            Headers = TransportTestHeaders.Create(messageId, contractName, contractVersion)
-        }).ConfigureAwait(false);
+            await StartIngressAsync(provider).ConfigureAwait(false);
 
-        await PollingWait.UntilAsync(
-            () => GetInboxStoreCount(provider) == expectedPendingCount,
-            TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            var publisher = provider.GetRequiredService<ITransportPublisher>();
+            var messageId = Guid.NewGuid();
+
+            await publisher.PublishAsync(new TransportPublishRequest
+            {
+                Destination = ingressDestination,
+                Body = Encoding.UTF8.GetBytes(body),
+                MessageId = messageId.ToString("D"),
+                Headers = TransportTestHeaders.Create(messageId, contractName, contractVersion)
+            }).ConfigureAwait(false);
+
+            await PollingWait.UntilAsync(
+                () => GetInboxStoreCount(provider) == expectedPendingCount,
+                TimeSpan.FromSeconds(10)).ConfigureAwait(false);
         }
     }
 

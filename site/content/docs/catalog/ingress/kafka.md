@@ -144,4 +144,4 @@ Shared broker infrastructure: `LiteBus.Transport.IntegrationTesting` (`KafkaBrok
 
 - [Kafka transport](../../integrations/kafka.md)
 - [Integration tests](../../testing/integration-tests.md) (Kafka harness notes)
-- [Feature Index: Ingress](../../reference/feature-index-v6.md)
+- [Feature Index: Ingress](../../reference/feature-index-v7.md)

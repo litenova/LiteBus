@@ -4,6 +4,9 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <AnalysisLevel>latest-recommended</AnalysisLevel>
+        <AnalysisMode>Recommended</AnalysisMode>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>

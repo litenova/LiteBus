@@ -2,6 +2,8 @@
 
 The PostgreSQL inbox and outbox stores need a small, stable set of tables and indexes. This page explains how those objects are created and validated, and how to choose between explicit bootstrap, opt-in host bootstrap, and migration-owned SQL files without tying LiteBus to a migration framework. It assumes you have set up a store from [Reliable Messaging](../reliable-messaging/README.md).
 
+> **This page is for** developers who own PostgreSQL schema for inbox or outbox stores.
+
 ## Two Different Version Concepts
 
 LiteBus uses two independent version numbers. Mixing them up is a common source of confusion.
@@ -116,6 +118,8 @@ Placeholders use the form `{{TokenName}}`. Prefer `GetCreateScript(options)` ove
 | --- | --- |
 | `UseDataSource(NpgsqlDataSource)` | Production apps that already build one shared data source for pooling, health checks, and tracing |
 | `UseConnectionString(string)` | Samples, tests, and small services where the module should create and register the data source |
+
+Ownership follows the overload. `UseConnectionString` creates a data source the module owns, and disposing the service provider disposes it and closes its pool, together with the dedicated LISTEN connection of a `UseListenNotify` work signal. `UseDataSource` leaves ownership with the application: the provider never disposes a data source it was given, so dispose it where you created it. Both behaviours are covered with Microsoft.Extensions.DependencyInjection by `PostgreSqlDataSourceOwnershipTests`; Autofac disposes the same registrations when its container is disposed.
 
 When inbox and outbox share one database, build a single `NpgsqlDataSource` and pass it to both stores with `UseDataSource`. Calling `UseConnectionString` on both stores creates two pools against the same server.
 

@@ -30,45 +30,46 @@ public sealed class EfCoreInboxSaveChangesInterceptorAbortTests : IClassFixture<
     public EfCoreInboxSaveChangesInterceptorAbortTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms duplicate idempotency keys abort the caller transaction instead of resolving idempotently.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task SaveChangesAsync_WhenDuplicateIdempotencyKeyConflicts_ShouldAbortTransaction()
     {
         var storeOptions = await CreateInboxTableAsync().ConfigureAwait(true);
         var interceptor = new LiteBusInboxSaveChangesInterceptor();
         const string idempotencyKey = "duplicate-idem-key";
 
-         var seedContext = CreateContext(storeOptions, interceptor);
-         await using (seedContext.ConfigureAwait(false))
-         {
-        interceptor.Enqueue(seedContext, CreateEnvelope(idempotencyKey));
-        await seedContext.SaveChangesAsync().ConfigureAwait(true);
+        var seedContext = CreateContext(storeOptions, interceptor);
+        await using (seedContext.ConfigureAwait(false))
+        {
+            interceptor.Enqueue(seedContext, CreateEnvelope(idempotencyKey));
+            await seedContext.SaveChangesAsync().ConfigureAwait(true);
 
-         var context = CreateContext(storeOptions, interceptor);
-         await using (context.ConfigureAwait(false))
-         {
-         var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(true);
-         await using (transaction.ConfigureAwait(false))
-         {
+            var context = CreateContext(storeOptions, interceptor);
+            await using (context.ConfigureAwait(false))
+            {
+                var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(true);
+                await using (transaction.ConfigureAwait(false))
+                {
 
-        interceptor.Enqueue(context, CreateEnvelope(idempotencyKey) with { Id = Guid.NewGuid() });
+                    interceptor.Enqueue(context, CreateEnvelope(idempotencyKey) with { Id = Guid.NewGuid() });
 
-        var act = () => context.SaveChangesAsync();
-        await act.Should().ThrowAsync<DbUpdateException>();
+                    var act = () => context.SaveChangesAsync();
+                    await act.Should().ThrowAsync<DbUpdateException>().ConfigureAwait(false);
 
-        await transaction.RollbackAsync().ConfigureAwait(true);
+                    await transaction.RollbackAsync().ConfigureAwait(true);
 
-         var verificationContext = CreateContext(storeOptions);
-         await using (verificationContext.ConfigureAwait(false))
-         {
-        (await verificationContext.InboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(1);
-        }
-        }
-        }
+                    var verificationContext = CreateContext(storeOptions);
+                    await using (verificationContext.ConfigureAwait(false))
+                    {
+                        (await verificationContext.InboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(1);
+                    }
+                }
+            }
         }
     }
 
@@ -80,25 +81,25 @@ public sealed class EfCoreInboxSaveChangesInterceptorAbortTests : IClassFixture<
     {
         var options = new EntityFrameworkCoreInboxStoreOptions
         {
-            SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
+            SchemaName = EfCoreProviderTestInfrastructure.SchemaName,
             TableName = $"inbox_ef_abort_{Guid.NewGuid():N}"
         };
 
-         var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
-         await using (dataSource.ConfigureAwait(false))
-         {
+        var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+        await using (dataSource.ConfigureAwait(false))
+        {
 
-        await PostgreSqlInboxSchema.EnsureAsync(
-            dataSource,
-            new PostgreSqlInboxStoreOptions
-            {
-                SchemaName = options.SchemaName,
-                TableName = options.TableName,
-                ValidateSchemaCreationOnStartup = false
-            }).ConfigureAwait(false);
+            await PostgreSqlInboxSchema.EnsureAsync(
+                dataSource,
+                new PostgreSqlInboxStoreOptions
+                {
+                    SchemaName = options.SchemaName,
+                    TableName = options.TableName,
+                    ValidateSchemaCreationOnStartup = false
+                }).ConfigureAwait(false);
 
 
-        return options;
+            return options;
         }
     }
 
@@ -113,7 +114,7 @@ public sealed class EfCoreInboxSaveChangesInterceptorAbortTests : IClassFixture<
         LiteBusInboxSaveChangesInterceptor? interceptor = null)
     {
         var builder = new DbContextOptionsBuilder<IntegrationInboxAbortDbContext>()
-            .UseNpgsql(EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(_fixture.ConnectionString, storeOptions));
+            .UseNpgsql(EfCoreProviderTestInfrastructure.CreateInboxScopedConnectionString(_fixture.ConnectionString, storeOptions));
 
         if (interceptor is not null)
         {

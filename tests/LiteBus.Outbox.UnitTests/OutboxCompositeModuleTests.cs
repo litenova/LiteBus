@@ -1,5 +1,6 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
@@ -65,9 +66,12 @@ public sealed class OutboxCompositeModuleTests
     }
 
     [Fact]
-    public void AddOutboxModule_WithNestedStorageAndDispatcher_ShouldResolveOutboxServices()
+    public async Task AddOutboxModule_WithNestedStorageAndDispatcher_ShouldResolveOutboxServices()
     {
+        var dispatcherHolder = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
+
         var services = new ServiceCollection()
+            .AddSingleton(dispatcherHolder)
             .AddLiteBus(registry =>
             {
                 registry.AddMessaging(_ =>
@@ -79,7 +83,15 @@ public sealed class OutboxCompositeModuleTests
                     outbox.Contracts.Register<OutboxTests.OrderSubmittedIntegrationEvent>(
                         "orders.events.submitted");
 
+                    outbox.UseProcessorOptions(new OutboxProcessorOptions
+                    {
+                        BatchSize = 10,
+                        LeaseOwner = "test-publisher",
+                        Retry = new RetryOptions { UseJitter = false }
+                    });
+
                     outbox.UseInMemoryStorage();
+                    outbox.UseRecordingOutboxDispatcher(dispatcherHolder);
                 });
             });
 
@@ -92,6 +104,22 @@ public sealed class OutboxCompositeModuleTests
         provider.GetRequiredService<IOutboxDeadLetterStore>().Should().NotBeNull();
         provider.GetRequiredService<IOutboxRetentionStore>().Should().NotBeNull();
         provider.GetRequiredService<IOutboxDiagnosticsStore>().Should().NotBeNull();
+        provider.GetRequiredService<IOutboxDispatcher>().Should().BeSameAs(dispatcherHolder.Instance);
+
+        var outbox = provider.GetRequiredService<IOutbox>();
+        var orderId = Guid.NewGuid();
+
+        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId },
+            Guid.NewGuid())).ConfigureAwait(false);
+
+        var result = await provider.GetRequiredService<IOutboxProcessor>().ProcessPendingAsync().ConfigureAwait(false);
+
+        result.SucceededCount.Should().Be(1);
+        dispatcherHolder.Instance!.DispatchedMessages
+            .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
+            .Should()
+            .ContainSingle(submitted => submitted.OrderId == orderId);
     }
 
     private sealed class RecommendingDispatcherModule : IOutboxDispatcherModule

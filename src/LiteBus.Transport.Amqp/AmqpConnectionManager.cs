@@ -22,6 +22,11 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     private readonly SemaphoreSlim _connectionGate = new(1, 1);
 
     /// <summary>
+    ///     Tracks whether asynchronous disposal has started.
+    /// </summary>
+    private int _disposed;
+
+    /// <summary>
     ///     Gets the connection settings used to connect to the broker.
     /// </summary>
     private readonly AmqpConnectionOptions _options;
@@ -131,6 +136,11 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         await _connectionGate.WaitAsync().ConfigureAwait(false);
 
         try

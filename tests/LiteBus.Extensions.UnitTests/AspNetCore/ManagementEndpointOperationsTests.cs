@@ -265,7 +265,11 @@ public sealed class ManagementEndpointOperationsTests
 
                         if (includeOutbox)
                         {
-                            registry.AddOutbox(outbox => outbox.UseInMemoryStorage());
+                            registry.AddOutbox(outbox =>
+                            {
+                                outbox.UseInMemoryStorage();
+                                outbox.CleanupHostOptions.Retention = TimeSpan.FromDays(7);
+                            });
                         }
                     });
 

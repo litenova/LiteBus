@@ -24,24 +24,25 @@ public sealed class PostgreSqlInboxStoreTests : ContractTests, IClassFixture<Pos
     public PostgreSqlInboxStoreTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that direct PostgreSQL leasing ignores a skewed caller clock.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public Task LeasePendingAsync_WhenCallerClockIsSkewed_ShouldUseDatabaseClock()
     {
         return AssertDatabaseClockIgnoresCallerSkewAsync();
     }
 
     /// <inheritdoc />
-    protected override InboxStoreRoles CreateStore()
+    protected override InboxStoreContractRoles CreateStore()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).GetAwaiter().GetResult();
         var store = new PostgreSqlInboxStore(_fixture.DataSource, options);
-        return new InboxStoreRoles(store, store, store, store, store, store, store, store);
+        return new InboxStoreContractRoles(store, store, store, store, store, store, store, store);
     }
 }

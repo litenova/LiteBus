@@ -12,7 +12,7 @@
 In command/query single-handler flows, priority affects pre and post handler ordering. In event broadcast flows, handlers are grouped by priority and executed according to:
 - `PriorityGroupsConcurrencyMode`
 - `HandlersWithinSamePriorityConcurrencyMode`
-- `ParallelFaultMode`
+- `HandlerFaultMode`
 
 ## Public Surface
 
@@ -31,7 +31,7 @@ public sealed class ValidateOrderPreHandler : ICommandPreHandler<PlaceOrderComma
 | `IMainHandlerDescriptor.Priority` | Resolved priority metadata |
 | `EventExecutionSettings.PriorityGroupsConcurrencyMode` | Cross-group execution mode |
 | `EventExecutionSettings.HandlersWithinSamePriorityConcurrencyMode` | Intra-group execution mode |
-| `EventExecutionSettings.ParallelFaultMode` | Parallel error surfacing mode |
+| `EventExecutionSettings.FaultMode` | Error surfacing mode for sibling handlers |
 
 ## Packages
 
@@ -50,7 +50,7 @@ public sealed class ValidateOrderPreHandler : ICommandPreHandler<PlaceOrderComma
 - Default priority is `0` when attribute is absent.
 - Lower priority executes first in sequential group mode.
 - Parallel group mode removes strict cross-priority completion ordering.
-- Both fault modes wait for already-started parallel tasks. `AggregateAll` combines every failure, while `PropagateFirst` surfaces one failure.
+- Both fault modes wait for already-started parallel tasks. `ContinueAndAggregate` runs every handler in the group and combines the failures, while `PropagateFirst` stops the group and surfaces one failure. The mode never carries across priority groups.
 
 ## Non-Goals
 
@@ -77,7 +77,9 @@ Operational alternatives:
 | `mediating_event_with_sequential_priority_groups_parallel_handlers_executes_same_priority_concurrently` | `LiteBus.Mediator.UnitTests` |
 | `mediating_event_with_parallel_priority_groups_executes_all_handlers_concurrently` | `LiteBus.Mediator.UnitTests` |
 | `PropagateFirst_waits_for_started_siblings_before_surfacing_one_failure` | `LiteBus.Mediator.UnitTests` |
-| `AggregateAll_waits_for_started_siblings_and_surfaces_every_failure` | `LiteBus.Mediator.UnitTests` |
+| `ContinueAndAggregate_waits_for_started_siblings_and_surfaces_every_failure` | `LiteBus.Mediator.UnitTests` |
+| `ContinueAndAggregate_runs_the_handlers_behind_a_failure` | `LiteBus.Mediator.UnitTests` |
+| `ContinueAndAggregate_does_not_run_a_later_priority_group_after_a_failure` | `LiteBus.Mediator.UnitTests` |
 | `Send_CommandWithMultiplePostHandlers_LastWriteWins` | `LiteBus.Mediator.UnitTests` |
 
 ### Untested

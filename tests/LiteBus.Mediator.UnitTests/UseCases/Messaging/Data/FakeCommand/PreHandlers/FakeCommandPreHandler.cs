@@ -1,6 +1,6 @@
 using LiteBus.Commands.Abstractions;
 
-namespace LiteBus.Mediator.UnitTests.UseCases.Messaging.Data.FakeCommand.PreHandlers;
+namespace LiteBus.Mediator.UnitTests.UseCases.Messaging.Data.FakeCommand.PreStageHandlers;
 
 public sealed class FakeCommandPreHandler : ICommandPreHandler<Messages.FakeCommand>
 {

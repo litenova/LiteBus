@@ -20,6 +20,8 @@ public sealed class RabbitMqAmqpTransportIntegrationTests : AmqpTransportIntegra
     public RabbitMqAmqpTransportIntegrationTests(RabbitMqFixture fixture)
     {
         _fixture = fixture;
+        DockerTestGate.EnsureBrokerAvailable(_fixture.IsAvailable, "RabbitMQ");
+        Skip.IfNot(_fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
     }
 
     /// <inheritdoc />

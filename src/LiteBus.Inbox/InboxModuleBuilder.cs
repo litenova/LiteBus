@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -41,6 +42,11 @@ public sealed class InboxModuleBuilder
     private IInboxDispatcherModule? _dispatcherModule;
 
     /// <summary>
+    ///     The processor options supplied by the application or the framework defaults.
+    /// </summary>
+    private InboxProcessorOptions _processorOptions = new();
+
+    /// <summary>
     ///     Whether <see cref="EnableCleanup" /> was called.
     /// </summary>
     private bool _enableCleanup;
@@ -69,7 +75,12 @@ public sealed class InboxModuleBuilder
     /// <summary>
     ///     Gets the options controlling processor batch size, lease duration, and retry.
     /// </summary>
-    public InboxProcessorOptions ProcessorOptions { get; private set; } = new();
+    public InboxProcessorOptions ProcessorOptions => _processorOptions.HookFailurePolicy.HasValue
+        ? _processorOptions
+        : _processorOptions with
+        {
+            HookFailurePolicy = ProcessorHookFailurePolicy.DeadLetter
+        };
 
     /// <summary>
     ///     Gets the options controlling the background service lifecycle and poll behaviour.
@@ -139,7 +150,7 @@ public sealed class InboxModuleBuilder
     public InboxModuleBuilder UseProcessorOptions(InboxProcessorOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ProcessorOptions = options;
+        _processorOptions = options;
         return this;
     }
 
@@ -155,7 +166,7 @@ public sealed class InboxModuleBuilder
 
         if (_storageModule is not null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Inbox storage is already configured. " +
                 "Call only one of UsePostgreSqlStorage, UseEntityFrameworkCoreStorage, " +
                 "or UseInMemoryStorage.");
@@ -177,7 +188,7 @@ public sealed class InboxModuleBuilder
 
         if (_dispatcherModule is not null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Inbox dispatcher is already configured. " +
                 "Call only one inbox dispatcher registration method such as UseInProcessDispatch or a broker-specific Use*Dispatch extension.");
         }
@@ -199,7 +210,7 @@ public sealed class InboxModuleBuilder
 
         if (_ingressModule is not null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Inbox ingress is already configured. Register one ingress source per inbox module.");
         }
 

@@ -46,7 +46,7 @@ Typical deployment: application enqueues domain events via `IOutbox`; processor 
 ### Extension Points
 
 - **`IOutboxDispatcher`**: Exactly one dispatcher (in-process event mediator, AMQP, Kafka, and similar).
-- **`IOutboxProcessorEnvelopeHook`**: Pre/post publication hooks (see processor-hooks capability).
+- **`IProcessorEnvelopeHook`** (`LiteBus.Messaging.Abstractions.Processing`): Pre/post publication hooks (see processor-hooks capability).
 - Custom storage implements lease and state writer roles.
 
 ## Packages
@@ -79,81 +79,22 @@ Typical deployment: application enqueues domain events via `IOutbox`; processor 
 
 ## Observability
 
-Outbox processor instrumentation uses meter `LiteBus.Outbox` (`LiteBusOutboxTelemetry.MeterName`) and activity source `LiteBus.Outbox`. Register with `AddLiteBusOutboxMetrics()` and `AddLiteBusOutboxInstrumentation()` from `LiteBus.Outbox.Extensions.OpenTelemetry`.
+Outbox processor instrumentation uses meter `LiteBus.Outbox` (`LiteBusOutboxTelemetry.MeterName`) and activity source `LiteBus.Outbox`. Register with `AddLiteBusOutboxMetrics()` and `AddLiteBusOutboxInstrumentation()` from `LiteBus.Outbox.Extensions.OpenTelemetry`. The [OpenTelemetry Metric Catalog](../../architecture/README.md#opentelemetry-metric-catalog) lists every public instrument name with its meter, constant and description; the table below says only what each one tells an operator.
 
-### `litebus.outbox.processor.state`
-
-- **Kind**: Observable gauge (`LiteBusOutboxTelemetry.ProcessorStateInstrumentName`)
-- **When emitted**: Scrape when `IOutboxProcessorControl` is registered
-- **Value**: `0` Running, `1` Paused, `2` Draining
-- **Operational note**: Use during broker maintenance or controlled drain
-
-### `litebus.outbox.processor.published`
-
-- **Kind**: Counter
-- **When emitted**: Each envelope marked published in a pass
-- **Operational note**: May exceed business events when at-least-once republish occurs after crash
-
-### `litebus.outbox.processor.failed`
-
-- **Kind**: Counter
-- **When emitted**: Each envelope marked failed (retry scheduled)
-- **Operational note**: Correlates with broker outages or serialization errors
-
-### `litebus.outbox.processor.dead_lettered`
-
-- **Kind**: Counter
-- **When emitted**: Each envelope moved to dead letter
-- **Operational note**: Requires operator requeue or manual inspection
-
-### `litebus.outbox.processor.loop_errors`
-
-- **Kind**: Counter
-- **When emitted**: Background loop unhandled exception
-- **Operational note**: Investigate store connectivity and unexpected pass failures
-
-### `litebus.outbox.processor.leases_acquired`
-
-- **Kind**: Counter (`LiteBusOutboxTelemetry.ProcessorLeasesAcquiredInstrumentName`)
-- **When emitted**: Envelopes leased at pass start
-- **Operational note**: Compare to pending queue depth gauge
-
-### `litebus.outbox.processor.lease_lost`
-
-- **Kind**: Counter (`LiteBusOutboxTelemetry.ProcessorLeaseLostInstrumentName`)
-- **When emitted**: Lease renewal failure cancels publication
-- **Operational note**: Long broker publish calls need adequate lease and heartbeat
-
-### `litebus.outbox.processor.persist_skipped` / `litebus.outbox.processor.persist_rejected`
-
-- **Kind**: Counter
-- **When emitted**: Terminal persist skipped after lease loss (may follow successful broker publish)
-- **Operational note**: Source of at-least-once republish; see `InMemoryOutboxAtLeastOnceIntegrationTests`
-
-### `litebus.outbox.processor.persist_failed`
-
-- **Kind**: Counter (`LiteBusOutboxTelemetry.ProcessorPersistFailedInstrumentName`)
-- **When emitted**: Terminal persist throws after successful broker publish (exception is logged; pass continues)
-- **Operational note**: Row may republish on retry; consumers must deduplicate
-
-### `litebus.outbox.diagnostics.unavailable`
-
-- **Kind**: Counter (`LiteBusOutboxTelemetry.DiagnosticsUnavailableInstrumentName`)
-- **When emitted**: Queue depth diagnostic probe fails against the backing store
-- **Operational note**: Rising counter with flat `litebus.outbox.queue.depth` suggests probe failures
-
-### `litebus.outbox.processor.dispatch_duration`
-
-- **Kind**: Histogram in milliseconds (`LiteBusOutboxTelemetry.ProcessorDispatchDurationInstrumentName`)
-- **When emitted**: After each publication attempt completes
-- **Operational note**: Broker latency informs lease duration tuning
-
-### `litebus.outbox.queue.depth`
-
-- **Kind**: Observable gauge (`LiteBusOutboxTelemetry.QueueDepthInstrumentName`)
-- **When emitted**: Periodic diagnostics scrape grouped by status
-- **Tags**: `litebus.outbox.status`
-- **Operational note**: Rising pending with flat publishing rate signals publication backlog
+| Instrument | What it tells you |
+|---|---|
+| `litebus.outbox.processor.state` | Recorded on scrape when `IOutboxProcessorControl` is registered. Use during broker maintenance or controlled drain. |
+| `litebus.outbox.processor.published` | Recorded for each envelope marked published in a pass. May exceed business events when at-least-once republish occurs after crash. |
+| `litebus.outbox.processor.failed` | Recorded for each envelope marked failed (retry scheduled). Correlates with broker outages or serialization errors. |
+| `litebus.outbox.processor.dead_lettered` | Recorded for each envelope moved to dead letter. Requires operator requeue or manual inspection. |
+| `litebus.outbox.processor.loop_errors` | Recorded when the background loop catches an unhandled exception. Investigate store connectivity and unexpected pass failures. |
+| `litebus.outbox.processor.leases_acquired` | Recorded as the envelopes leased at pass start. Compare to pending queue depth gauge. |
+| `litebus.outbox.processor.lease_lost` | Recorded when lease renewal failure cancels publication. Long broker publish calls need adequate lease and heartbeat. |
+| `litebus.outbox.processor.persist_skipped`, `litebus.outbox.processor.persist_rejected` | Recorded when terminal persist is skipped after lease loss (may follow successful broker publish). Source of at-least-once republish; see `InMemoryOutboxAtLeastOnceIntegrationTests`. |
+| `litebus.outbox.processor.persist_failed` | Recorded when terminal persist throws after successful broker publish (exception is logged; pass continues). Row may republish on retry; consumers must deduplicate. |
+| `litebus.outbox.diagnostics.unavailable` | Recorded when the queue depth diagnostic probe fails against the backing store. Rising counter with flat `litebus.outbox.queue.depth` suggests probe failures. |
+| `litebus.outbox.processor.dispatch_duration` | Recorded after each publication attempt completes. Broker latency informs lease duration tuning. |
+| `litebus.outbox.queue.depth` | Recorded on periodic diagnostics scrape grouped by status. Rising pending with flat publishing rate signals publication backlog. |
 
 ## Deep Docs
 

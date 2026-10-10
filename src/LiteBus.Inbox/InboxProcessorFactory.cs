@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Processing;
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.Logging;
@@ -43,20 +43,6 @@ internal static class InboxProcessorFactory
             hooks,
             services.GetService(typeof(ILogger<PipelinedInboxProcessor>)) as ILogger<PipelinedInboxProcessor> ?? NullLogger<PipelinedInboxProcessor>.Instance,
             dispatchScopeFactory);
-    }
-
-    /// <summary>
-    ///     Resolves the lease owner name for a processor instance.
-    /// </summary>
-    /// <param name="options">The processor options.</param>
-    /// <returns>The effective lease owner string.</returns>
-    public static string ResolveLeaseOwner(InboxProcessorOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-
-        return string.IsNullOrWhiteSpace(options.LeaseOwner)
-            ? $"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}"
-            : options.LeaseOwner;
     }
 
     /// <summary>
@@ -102,7 +88,7 @@ internal static class InboxProcessorFactory
             return service;
         }
 
-        throw new LiteBusConfigurationException(
+        throw new DurableStorageConfigurationException(
             $"Inbox processor requires {typeof(T).FullName} to be registered. " +
             "Configure inbox storage and dispatcher inside AddInboxModule(...).");
     }

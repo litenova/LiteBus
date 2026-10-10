@@ -2,7 +2,6 @@
 
     <PropertyGroup>
         <RootNamespace>LiteBus.Extensions.Diagnostics.HealthChecks</RootNamespace>
-        <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
     <ItemGroup>

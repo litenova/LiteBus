@@ -1,4 +1,4 @@
-# API Design Reference
+﻿# API Design Reference
 
 This page defines the current LiteBus public API model: named types, CLR shapes, package placement, method signatures, parameter limits, mapping boundaries, and durable-messaging examples.
 
@@ -193,7 +193,7 @@ await outbox.EnqueueAsync(
     cancellationToken);
 ```
 
-Feature guides ([Inbox](../reliable-messaging/inbox.md), [Outbox](../reliable-messaging/outbox.md), [Transactional messaging writes](../reliable-messaging/transactional-writes.md)) show end-to-end usage. Historical names and package mappings remain in the [Migration Guide](../migration/v6.md).
+Feature guides ([Inbox](../reliable-messaging/inbox.md), [Outbox](../reliable-messaging/outbox.md), [Transactional messaging writes](../reliable-messaging/transactional-writes.md)) show end-to-end usage. Historical names and package mappings remain in the [v6 Migration Guide](../migration/v6.md).
 
 ## Ergonomics
 
@@ -206,7 +206,7 @@ Feature guides ([Inbox](../reliable-messaging/inbox.md), [Outbox](../reliable-me
 
 Error handlers use `HandleErrorAsync(MessageErrorContext<TMessage, TResult>, CancellationToken)`. The typed context shares `Outcome` and `HandledResult` with the mediation pipeline, so observing a failure leaves it unhandled while recovery is an explicit state transition. Cancellation is always the token supplied to the mediation call; error handlers do not depend on ambient token lookup.
 
-Related durable surfaces include `ILeaseRenewable.RenewLeaseAsync(LeaseRenewalRequest, ...)` on inbox and outbox lease stores; `ISagaStore.SaveAsync(SagaSaveItem<TState>, ...)`, `SagaCompleteItem`, `SagaSaveItem.From`, `SagaCorrelation.SagaDefinitionId`, and tenant-scoped saga primary keys. See [Saga](../reliable-messaging/saga.md).
+Related durable surfaces include `ILeaseRenewable.RenewLeaseAsync(LeaseRenewalRequest, ...)` and `ILeaseRenewable.ReleaseLeaseAsync(LeaseReleaseRequest, ...)` on inbox and outbox lease stores; `ISagaStore.SaveAsync(SagaSaveItem<TState>, ...)`, `SagaCompleteItem`, `SagaSaveItem.From`, `SagaCorrelation.SagaDefinitionId`, and tenant-scoped saga primary keys. See [Saga](../reliable-messaging/saga.md).
 
 Track broader roadmap items in [Roadmap](../roadmap/README.md).
 
@@ -214,10 +214,11 @@ Track broader roadmap items in [Roadmap](../roadmap/README.md).
 
 - Dependency role rules (see [Dependency graph](dependency-graph.md))
 - Module registration and hosted-service manifest (see [Hosted services](hosted-services.md))
+- Mediation contract naming, stage rules, and vocabulary (see [Mediation Layer Design Rules](mediation-design.md))
 - Mediation pipeline behavior (see [The handler pipeline](../concepts/handler-pipeline.md))
 
 ## Next
 
 - [Architecture](README.md): storage accept/process paths and dependency roles
 - [Inbox](../reliable-messaging/inbox.md) / [Outbox](../reliable-messaging/outbox.md): feature guides for durable messaging
-- [Migration Guide](../migration/v6.md): historical API and database transitions
+- [v6 Migration Guide](../migration/v6.md): historical API and database transitions

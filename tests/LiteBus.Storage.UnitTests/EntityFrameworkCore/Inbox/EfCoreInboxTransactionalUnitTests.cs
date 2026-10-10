@@ -23,33 +23,33 @@ public sealed class EfCoreInboxTransactionalUnitTests
             .UseInMemoryDatabase(databaseName)
             .Options;
 
-         var context = new TestInboxDbContext(options);
-         await using (context.ConfigureAwait(false))
-         {
-        await context.Database.EnsureCreatedAsync().ConfigureAwait(true);
-
-        var store = new EfCoreInboxStore(_ => Task.FromResult<IInboxDbContext>(context), new EntityFrameworkCoreInboxStoreOptions());
-        var transactionalStore = store.UseExistingDbContext(context);
-
-        var envelope = new InboxEnvelope
+        var context = new TestInboxDbContext(options);
+        await using (context.ConfigureAwait(false))
         {
-            Id = Guid.NewGuid(),
-            ContractName = "orders.commands.submit",
-            ContractVersion = 1,
-            Payload = """{"orderId":"1"}""",
-            CreatedAt = DateTimeOffset.UtcNow,
-            Status = InboxStatus.Pending,
-            AttemptCount = 0
-        };
+            await context.Database.EnsureCreatedAsync().ConfigureAwait(true);
 
-        await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
+            var store = new EfCoreInboxStore(_ => Task.FromResult<IInboxDbContext>(context), new EntityFrameworkCoreInboxStoreOptions());
+            var transactionalStore = store.UseExistingDbContext(context);
 
-        context.InboxMessages.Local.Should().ContainSingle(message => message.Id == envelope.Id);
-        (await context.InboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(0);
+            var envelope = new InboxEnvelope
+            {
+                Id = Guid.NewGuid(),
+                ContractName = "orders.commands.submit",
+                ContractVersion = 1,
+                Payload = """{"orderId":"1"}""",
+                CreatedAt = DateTimeOffset.UtcNow,
+                Status = InboxStatus.Pending,
+                AttemptCount = 0
+            };
 
-        await context.SaveChangesAsync().ConfigureAwait(true);
+            await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
 
-        (await context.InboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(1);
+            context.InboxMessages.Local.Should().ContainSingle(message => message.Id == envelope.Id);
+            (await context.InboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(0);
+
+            await context.SaveChangesAsync().ConfigureAwait(true);
+
+            (await context.InboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(1);
         }
     }
 

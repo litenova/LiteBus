@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using Amazon.SQS.Model;
@@ -16,8 +18,18 @@ internal static class SqsMessageMapper
     private const string Base64ContentEncoding = "base64";
 
     /// <summary>
+    ///     The SQS FIFO queue URL suffix that selects ordered, deduplicated delivery.
+    /// </summary>
+    private const string FifoQueueSuffix = ".fifo";
+
+    /// <summary>
     ///     Creates an SQS send request from a LiteBus publish request.
     /// </summary>
+    /// <remarks>
+    ///     FIFO destinations (queue URLs ending in <c>.fifo</c>) also carry <c>MessageDeduplicationId</c> and
+    ///     <c>MessageGroupId</c> from <see cref="TransportPublishRequest.DeduplicationKey" /> and
+    ///     <see cref="TransportPublishRequest.MessageGroupId" />; standard queues carry neither.
+    /// </remarks>
     /// <param name="request">The publish request describing destination, body, and headers.</param>
     /// <returns>The send request ready for the SQS client.</returns>
     internal static SendMessageRequest ToSendMessageRequest(TransportPublishRequest request)
@@ -27,12 +39,15 @@ internal static class SqsMessageMapper
         var body = request.Body.Span;
         var useBase64 = !IsValidUtf8Text(body);
 
+        // AWSSDK 4 stopped initializing collection properties, so an attribute dictionary assigned here is the only
+        // thing that keeps the writes below from dereferencing null.
         var sendRequest = new SendMessageRequest
         {
             QueueUrl = request.Destination,
             MessageBody = useBase64
                 ? Convert.ToBase64String(body)
-                : Encoding.UTF8.GetString(body)
+                : Encoding.UTF8.GetString(body),
+            MessageAttributes = new Dictionary<string, MessageAttributeValue>(StringComparer.Ordinal)
         };
 
         if (useBase64)
@@ -54,14 +69,15 @@ internal static class SqsMessageMapper
 
         if (!string.IsNullOrWhiteSpace(request.Route))
         {
-            sendRequest.MessageAttributes["Route"] = CreateStringAttribute(request.Route);
+            sendRequest.MessageAttributes[TransportHeaders.Route] = CreateStringAttribute(request.Route);
         }
 
         if (!string.IsNullOrWhiteSpace(request.ContentType))
         {
-            sendRequest.MessageAttributes["ContentType"] = CreateStringAttribute(request.ContentType);
+            sendRequest.MessageAttributes[TransportHeaders.ContentType] = CreateStringAttribute(request.ContentType);
         }
 
+        ApplyFifoFields(sendRequest, request);
         ApplyHeaders(sendRequest, request.Headers);
         return sendRequest;
     }
@@ -89,10 +105,10 @@ internal static class SqsMessageMapper
             Body = body,
             Headers = headers,
             Destination = queueUrl,
-            Route = GetAttribute(headers, "Route"),
+            Route = GetAttribute(headers, TransportHeaders.Route),
             MessageId = message.MessageId ?? GetAttribute(headers, TransportHeaders.MessageId),
             CorrelationId = GetAttribute(headers, TransportHeaders.CorrelationId),
-            Redelivered = message.Attributes.TryGetValue("ApproximateReceiveCount", out var count) &&
+            Redelivered = message.Attributes?.TryGetValue("ApproximateReceiveCount", out var count) == true &&
                           int.TryParse(count, NumberStyles.Integer, CultureInfo.InvariantCulture, out var receiveCount) &&
                           receiveCount > 1,
             AckAsync = ackHandlers.AckAsync,
@@ -109,7 +125,7 @@ internal static class SqsMessageMapper
     {
         var rawBody = message.Body ?? string.Empty;
 
-        if (message.MessageAttributes.TryGetValue(TransportHeaders.ContentEncoding, out var encoding) &&
+        if (message.MessageAttributes?.TryGetValue(TransportHeaders.ContentEncoding, out var encoding) == true &&
             string.Equals(encoding.StringValue, Base64ContentEncoding, StringComparison.Ordinal))
         {
             return Convert.FromBase64String(rawBody);
@@ -167,6 +183,43 @@ internal static class SqsMessageMapper
     }
 
     /// <summary>
+    ///     Applies FIFO ordering fields to the send request when the destination is a FIFO queue.
+    /// </summary>
+    /// <remarks>
+    ///     Standard queues carry neither field. SQS rejects FIFO parameters on non-FIFO destinations, so the
+    ///     request fields stay transport-neutral and only take effect on queue URLs ending in <c>.fifo</c>.
+    /// </remarks>
+    /// <param name="sendRequest">The send request receiving FIFO fields.</param>
+    /// <param name="request">The publish request supplying group and deduplication values.</param>
+    private static void ApplyFifoFields(SendMessageRequest sendRequest, TransportPublishRequest request)
+    {
+        if (!IsFifoQueue(request.Destination))
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.DeduplicationKey))
+        {
+            sendRequest.MessageDeduplicationId = request.DeduplicationKey;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.MessageGroupId))
+        {
+            sendRequest.MessageGroupId = request.MessageGroupId;
+        }
+    }
+
+    /// <summary>
+    ///     Returns whether a queue URL addresses an SQS FIFO queue.
+    /// </summary>
+    /// <param name="queueUrl">The destination queue URL.</param>
+    /// <returns><see langword="true" /> when the URL ends with the FIFO suffix; otherwise, <see langword="false" />.</returns>
+    private static bool IsFifoQueue(string queueUrl)
+    {
+        return queueUrl.EndsWith(FifoQueueSuffix, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Creates a string-typed SQS message attribute.
     /// </summary>
     /// <param name="value">The attribute value.</param>
@@ -183,12 +236,12 @@ internal static class SqsMessageMapper
     /// <summary>
     ///     Copies SQS message attributes into a read-only header dictionary.
     /// </summary>
-    /// <param name="attributes">The SQS message attributes.</param>
+    /// <param name="attributes">The SQS message attributes, which AWSSDK 4 leaves null when the message carries none.</param>
     /// <returns>A read-only header dictionary.</returns>
     private static Dictionary<string, object?> CopyMessageAttributes(
-        Dictionary<string, MessageAttributeValue> attributes)
+        Dictionary<string, MessageAttributeValue>? attributes)
     {
-        if (attributes.Count == 0)
+        if (attributes is null || attributes.Count == 0)
         {
             return new Dictionary<string, object?>(StringComparer.Ordinal);
         }

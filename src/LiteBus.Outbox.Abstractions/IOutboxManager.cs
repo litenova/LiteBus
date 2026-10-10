@@ -89,6 +89,7 @@ public interface IOutboxManager
     ///     Deletes published outbox messages older than the configured retention period immediately.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the purge operation.</param>
-    /// <returns>The number of rows deleted.</returns>
+    /// <returns>The number of rows deleted; 0 when no rows were eligible.</returns>
+    /// <exception cref="OutboxManagementException">Thrown when retention is null or non-positive.</exception>
     Task<int> RunRetentionPurgeAsync(CancellationToken cancellationToken = default);
 }

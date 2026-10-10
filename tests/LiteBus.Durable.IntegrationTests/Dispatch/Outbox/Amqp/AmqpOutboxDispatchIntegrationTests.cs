@@ -32,11 +32,13 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
     /// </summary>
     protected abstract string BrokerName { get; }
 
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web);
+
     /// <summary>
     ///     Verifies that the outbox processor publishes a stored envelope to the configured AMQP queue.
     /// </summary>
     /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_ShouldPublishEnvelopeToAmqpQueue()
     {
         var queueName = CreateUniqueName("dispatch");
@@ -79,7 +81,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
 
             var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
                 json,
-                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                JsonOptions);
 
             payload!.OrderId.Should().Be(orderId);
             amqpMessage.MessageId.Should().Be(messageId.ToString("D"));
@@ -95,7 +97,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
     ///     Verifies that contract-name routing is used when no topic is stored on the envelope.
     /// </summary>
     /// <returns>A task that completes when contract-name routing succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenTopicMissing_ShouldUseContractNameAsRoutingKey()
     {
         const string routingKey = "orders.order-submitted";
@@ -131,7 +133,7 @@ public abstract class AmqpOutboxDispatchIntegrationTests : LiteBusTestBase
     /// </summary>
     /// <param name="honorShutdownTokenOnPersist">Whether terminal persistence should receive the shutdown token.</param>
     /// <returns>A task that completes when publication and persistence behavior are verified.</returns>
-    [Theory]
+    [SkippableTheory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task ProcessPendingAsync_WhenShutdownBeginsAfterAmqpPublish_ShouldApplyTerminalPersistPolicy(
@@ -463,6 +465,8 @@ public sealed class RabbitMqOutboxDispatchIntegrationTests : AmqpOutboxDispatchI
     public RabbitMqOutboxDispatchIntegrationTests(RabbitMqFixture fixture)
     {
         _fixture = fixture;
+        DockerTestGate.EnsureBrokerAvailable(_fixture.IsAvailable, "RabbitMQ");
+        Skip.IfNot(_fixture.IsAvailable, RabbitMqFixture.DockerRequiredMessage);
     }
 
     /// <inheritdoc />
@@ -487,6 +491,8 @@ public sealed class LavinMqOutboxDispatchIntegrationTests : AmqpOutboxDispatchIn
     public LavinMqOutboxDispatchIntegrationTests(LavinMqFixture fixture)
     {
         _fixture = fixture;
+        DockerTestGate.EnsureBrokerAvailable(_fixture.IsAvailable, "LavinMQ");
+        Skip.IfNot(_fixture.IsAvailable, LavinMqFixture.DockerRequiredMessage);
     }
 
     /// <inheritdoc />

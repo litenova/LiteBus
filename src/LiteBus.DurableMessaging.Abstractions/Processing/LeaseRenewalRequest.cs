@@ -9,7 +9,7 @@ namespace LiteBus.Messaging.Abstractions.Processing;
 /// <param name="LeaseOwner">The worker name that currently owns the lease.</param>
 /// <param name="LeaseGeneration">The fencing generation returned by the lease acquisition.</param>
 /// <param name="LeaseDuration">The duration added to the store's authoritative current time.</param>
-/// <param name="RequestedExpiresAt">The fallback expiration used by stores without an authoritative database clock.</param>
+/// <param name="RequestedExpiresAt">The fallback expiration used by stores without an authoritative database clock. Stores with a database clock use the database clock instead.</param>
 public sealed record LeaseRenewalRequest(
     Guid MessageId,
     string LeaseOwner,

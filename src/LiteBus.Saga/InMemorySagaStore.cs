@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Saga.Abstractions;
 
@@ -51,10 +53,19 @@ public sealed class InMemorySagaStore : ISagaStore
 
         var state = await _serializer.DeserializeAsync(typeof(TState), row.StateJson, cancellationToken).ConfigureAwait(false);
 
+        if (state is not TState typedState)
+        {
+            throw new MessageSerializationException(
+                typeof(TState),
+                "deserialized",
+                new InvalidCastException(
+                    $"Saga state payload deserialized to '{state?.GetType().FullName ?? "null"}' but '{typeof(TState).FullName}' was requested."));
+        }
+
         return new SagaInstance<TState>
         {
             Correlation = correlation,
-            State = (TState) state,
+            State = typedState,
             Version = row.Version,
             IsCompleted = row.IsCompleted,
             LastAppliedMessageId = row.LastAppliedMessageId
@@ -94,7 +105,7 @@ public sealed class InMemorySagaStore : ISagaStore
                     StateJson = stateJson,
                     Version = existing.Version + 1,
                     UpdatedAt = now,
-                    LastAppliedMessageId = item.AppliedMessageId
+                    LastAppliedMessageId = item.AppliedMessageId ?? existing.LastAppliedMessageId
                 };
             });
     }
@@ -153,15 +164,40 @@ public sealed class InMemorySagaStore : ISagaStore
     {
         ArgumentNullException.ThrowIfNull(filter);
 
+        if (filter.Take is not null)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(filter.Take.Value, 0);
+        }
+
+        if (filter is
+            {
+                SagaDefinitionId: null,
+                CorrelationId: null,
+                TenantId: null,
+                IsCompleted: null,
+                CompletedBefore: null,
+                Take: null
+            })
+        {
+            throw new ArgumentException(
+                "Saga purge requires at least one predicate or a Take limit; refusing to delete every saga row.",
+                nameof(filter));
+        }
+
+        var candidates = _rows
+            .Where(pair => MatchesPurge(pair.Key, pair.Value, filter))
+            .OrderBy(pair => pair.Value.UpdatedAt)
+            .Select(pair => pair.Key);
+
+        if (filter.Take is not null)
+        {
+            candidates = candidates.Take(filter.Take.Value);
+        }
+
         var removed = 0;
 
-        foreach (var key in _rows.Keys.ToArray())
+        foreach (var key in candidates.ToArray())
         {
-            if (!_rows.TryGetValue(key, out var row) || !MatchesPurge(key, row, filter))
-            {
-                continue;
-            }
-
             if (_rows.TryRemove(key, out _))
             {
                 removed++;

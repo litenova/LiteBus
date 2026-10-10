@@ -1,3 +1,4 @@
+using System;
 using LiteBus.Inbox.Abstractions;
 using Microsoft.AspNetCore.Mvc;
 

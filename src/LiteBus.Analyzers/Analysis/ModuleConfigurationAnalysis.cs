@@ -189,24 +189,14 @@ internal static class ModuleConfigurationAnalysis
             return true;
         }
 
-        if (method is { IsExtensionMethod: true, Parameters.Length: > 0 })
+        // ReducedFrom carries the original signature including the "this" parameter. It has to be preferred over the
+        // reduced symbol, whose Parameters[0] is the first ordinary parameter and therefore matches the builder only
+        // for extensions that take nothing else. An optional configuration argument is enough to break that.
+        var declaredMethod = method.ReducedFrom ?? method;
+
+        if (declaredMethod is { IsExtensionMethod: true, Parameters.Length: > 0 })
         {
-            var firstParameterType = method.Parameters[0].Type;
-
-            if (inboxBuilder is not null &&
-                SymbolEqualityComparer.Default.Equals(firstParameterType, inboxBuilder))
-            {
-                return true;
-            }
-
-            return IsNamedModuleBuilder(firstParameterType, "InboxModuleBuilder", "LiteBus.Inbox.Abstractions");
-        }
-
-        var reducedFrom = method.ReducedFrom;
-
-        if (reducedFrom is { IsExtensionMethod: true, Parameters.Length: > 0 })
-        {
-            var firstParameterType = reducedFrom.Parameters[0].Type;
+            var firstParameterType = declaredMethod.Parameters[0].Type;
 
             if (inboxBuilder is not null &&
                 SymbolEqualityComparer.Default.Equals(firstParameterType, inboxBuilder))
@@ -247,24 +237,14 @@ internal static class ModuleConfigurationAnalysis
             return true;
         }
 
-        if (method is { IsExtensionMethod: true, Parameters.Length: > 0 })
+        // ReducedFrom carries the original signature including the "this" parameter. It has to be preferred over the
+        // reduced symbol, whose Parameters[0] is the first ordinary parameter and therefore matches the builder only
+        // for extensions that take nothing else. An optional configuration argument is enough to break that.
+        var declaredMethod = method.ReducedFrom ?? method;
+
+        if (declaredMethod is { IsExtensionMethod: true, Parameters.Length: > 0 })
         {
-            var firstParameterType = method.Parameters[0].Type;
-
-            if (outboxBuilder is not null &&
-                SymbolEqualityComparer.Default.Equals(firstParameterType, outboxBuilder))
-            {
-                return true;
-            }
-
-            return IsNamedModuleBuilder(firstParameterType, "OutboxModuleBuilder", "LiteBus.Outbox.Abstractions");
-        }
-
-        var reducedFrom = method.ReducedFrom;
-
-        if (reducedFrom is { IsExtensionMethod: true, Parameters.Length: > 0 })
-        {
-            var firstParameterType = reducedFrom.Parameters[0].Type;
+            var firstParameterType = declaredMethod.Parameters[0].Type;
 
             if (outboxBuilder is not null &&
                 SymbolEqualityComparer.Default.Equals(firstParameterType, outboxBuilder))

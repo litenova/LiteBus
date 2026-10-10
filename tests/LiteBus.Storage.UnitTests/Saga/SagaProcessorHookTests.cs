@@ -6,7 +6,7 @@ using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Saga;
 using LiteBus.Saga.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,7 +39,7 @@ public sealed class SagaProcessorHookTests
         registry.RegisterStateType<OrderSagaState>("process-order");
 
         registry.ResolveDefinitionId("process-order").Should().Be("process-order");
-        registry.ResolveStateType("process-order").Should().Be(typeof(OrderSagaState));
+        registry.ResolveStateType("process-order").Should().Be<OrderSagaState>();
     }
 
     /// <summary>

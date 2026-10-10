@@ -31,7 +31,7 @@ public sealed class DependencyRegistry : IDependencyRegistry
     /// </summary>
     /// <param name="descriptor">The dependency descriptor that defines how the dependency should be registered.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="ModuleCompositionException">
     ///     Thrown when another module already registered <see cref="DependencyDescriptor.DependencyType" /> with a different
     ///     binding.
     /// </exception>
@@ -41,7 +41,7 @@ public sealed class DependencyRegistry : IDependencyRegistry
 
         if (descriptor.IsCollectionRegistration)
         {
-            throw new LiteBusConfigurationException(
+            throw new ModuleCompositionException(
                 $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' was registered with collection metadata. " +
                 $"Use {nameof(RegisterCollection)} for multi-registration services such as IEnumerable<T> hooks.");
         }
@@ -56,7 +56,7 @@ public sealed class DependencyRegistry : IDependencyRegistry
 
         if (!descriptor.IsCollectionRegistration)
         {
-            throw new LiteBusConfigurationException(
+            throw new ModuleCompositionException(
                 $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' must be created with " +
                 $"{nameof(DependencyDescriptor.ForCollection)} before calling {nameof(RegisterCollection)}.");
         }

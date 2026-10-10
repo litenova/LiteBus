@@ -1,3 +1,4 @@
+using System;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Transport.Abstractions;
 
@@ -37,6 +38,9 @@ public sealed class InMemoryTransportModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        // Runs first so a second transport module in the composition is refused with a message naming both modules.
+        TransportMetricsRegistration.RegisterIfNeeded(configuration, "inmemory", GetType());
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(InMemoryTransportOptions),
             _options));
@@ -61,12 +65,12 @@ public sealed class InMemoryTransportModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ITransportPublisher),
-            typeof(InMemoryPublisher)));
+            typeof(InMemoryPublisher),
+            InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageConsumer),
             typeof(InMemoryConsumer)));
 
-        TransportMetricsRegistration.RegisterIfNeeded(configuration, "inmemory");
     }
 }
