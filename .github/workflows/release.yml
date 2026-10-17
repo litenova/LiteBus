@@ -21,6 +21,8 @@ name: Release
 permissions:
   contents: write
   packages: write
+  # NuGet trusted publishing: the job exchanges a GitHub OIDC token for a short-lived nuget.org API key.
+  id-token: write
 
 # Two tag pushes close together must not publish at the same time, and a running release is never cancelled.
 concurrency:
@@ -332,10 +334,20 @@ jobs:
             artifacts/*.nupkg
             artifacts/*.snupkg
 
+      - name: Log in to NuGet
+        # Trusted publishing: the nuget.org policy for lite_nova allows release.yml in litenova/LiteBus to push
+        # LiteBus* packages, so no long-lived API key is stored in the repository.
+        id: nuget-login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: lite_nova
+
       - name: Publish to NuGet
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
           for package in ./artifacts/*.nupkg; do
-            dotnet nuget push "${package}" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+            dotnet nuget push "${package}" --api-key "${NUGET_API_KEY}" --source https://api.nuget.org/v3/index.json --skip-duplicate
           done
 
       - name: Publish to GitHub Packages
