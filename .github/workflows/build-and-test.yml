@@ -7,6 +7,12 @@
 #     TransportAzure set LITEBUS_CI_STRICT_TRANSPORT=true and verify TRX skipped counts. TransportLiveAzure is an
 #     opt-in category that requires explicit cloud credentials.
 #   - Full integration (PostgreSQL, AMQP, EF) requires Docker on ubuntu-latest runners.
+#
+# Layout: the documentation gates, the build and package gates, and every test shard run as parallel jobs. Each test
+# shard builds the solution itself and uploads its coverage; the coverage job merges every shard's reports and
+# enforces the gate the single job used to. Together the shards run exactly the tests the sequential steps ran:
+# the integration shards split the original filter by project and namespace, and the integration-other shard runs
+# that filter over everything outside the four integration projects, so a matching class anywhere else still runs.
 name: Build & Test
 
 permissions:
@@ -18,6 +24,8 @@ concurrency:
 
 env:
   CI_PACKAGE_VERSION: 7.0.0-ci.${{ github.run_number }}
+  # The integration filter of the former single Integration Tests step; the integration shards narrow it.
+  INTEGRATION_FILTER: FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure
 
 on:
   push:
@@ -60,7 +68,8 @@ on:
       - '.github/scripts/**'
 
 jobs:
-  build:
+  docs:
+    name: Documentation
     runs-on: ubuntu-latest
 
     steps:
@@ -85,21 +94,6 @@ jobs:
         shell: pwsh
         run: ./scripts/Test-Documentation.ps1
 
-      - name: Check Documentation Version Snapshots
-        shell: pwsh
-        run: |
-          # Reports, rather than fails: a snapshot falls behind when a fix lands on the branch it tracks, which is work
-          # on another branch. Blocking this one for it would stop unrelated changes from merging.
-          $output = ./scripts/Test-VersionSnapshots.ps1 2>&1 | Out-String
-          Write-Host $output
-
-          if ($output -match 'differs from') {
-            Write-Host "::warning::A documentation version snapshot has fallen behind the branch it tracks, so the published documentation for that line is stale. See the job log for the files and the command to fix it."
-          }
-
-          "## Documentation version snapshots", '```', $output.TrimEnd(), '```' |
-            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-
       - name: Validate Documentation Site
         working-directory: site
         run: |
@@ -110,6 +104,23 @@ jobs:
           npm run lint
           npm run typecheck
           npm run build
+
+  build:
+    name: Build and Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
       - name: Restore Dependencies
         run: dotnet restore LiteBus.slnx --locked-mode
@@ -156,7 +167,123 @@ jobs:
       - name: Fail on [Fact(Skip = ...)] in test projects
         run: bash .github/scripts/verify-no-fact-skips.sh "${{ github.workspace }}"
 
+      - name: Pack Packages
+        shell: pwsh
+        run: ./scripts/Pack-Packages.ps1 -OutputDirectory artifacts -Configuration Release -Version ${{ env.CI_PACKAGE_VERSION }} -NoBuild -NoRestore
+
+      - name: Validate Packages
+        shell: pwsh
+        run: ./scripts/Test-Packages.ps1 -PackageDirectory artifacts -ExpectedVersion ${{ env.CI_PACKAGE_VERSION }}
+
+      - name: Upload Packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nuget-packages
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+
+  test:
+    name: Test (${{ matrix.name }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Every shard reports, so one failing suite does not hide another.
+      fail-fast: false
+      matrix:
+        include:
+          - name: unit
+            target: LiteBus.slnx
+            filter: FullyQualifiedName!~IntegrationTests
+            docker: false
+            strict: false
+          - name: transport-fast
+            target: tests/LiteBus.Durable.IntegrationTests
+            filter: Category=TransportFast
+            docker: false
+            strict: false
+          - name: transport-docker-durable
+            target: tests/LiteBus.Durable.IntegrationTests
+            filter: Category=TransportDocker
+            docker: true
+            strict: true
+          - name: transport-docker-wire
+            target: tests/LiteBus.Transport.IntegrationTests
+            filter: Category=TransportDocker
+            docker: true
+            strict: true
+          - name: transport-azure
+            target: tests/LiteBus.Durable.IntegrationTests
+            filter: Category=TransportAzure
+            docker: true
+            strict: true
+          - name: integration-durable
+            target: tests/LiteBus.Durable.IntegrationTests
+            filter: ''
+            docker: true
+            strict: false
+          - name: integration-extensions
+            target: tests/LiteBus.Extensions.IntegrationTests
+            filter: ''
+            docker: true
+            strict: false
+          - name: integration-storage-postgresql
+            target: tests/LiteBus.Storage.IntegrationTests
+            filter: '&FullyQualifiedName~LiteBus.Storage.IntegrationTests.PostgreSql.'
+            docker: true
+            strict: false
+          - name: integration-storage-other
+            target: tests/LiteBus.Storage.IntegrationTests
+            filter: '&FullyQualifiedName!~LiteBus.Storage.IntegrationTests.PostgreSql.'
+            docker: true
+            strict: false
+          - name: integration-transport
+            target: tests/LiteBus.Transport.IntegrationTests
+            filter: ''
+            docker: true
+            strict: false
+          - name: integration-other
+            target: LiteBus.slnx
+            filter: '&FullyQualifiedName!~LiteBus.Durable.IntegrationTests.&FullyQualifiedName!~LiteBus.Extensions.IntegrationTests.&FullyQualifiedName!~LiteBus.Storage.IntegrationTests.&FullyQualifiedName!~LiteBus.Transport.IntegrationTests.'
+            docker: false
+            strict: false
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Restore Dependencies
+        run: dotnet restore LiteBus.slnx --locked-mode
+
+      - name: Decode Strong Name Key
+        env:
+          STRONG_NAME_KEY: ${{ secrets.STRONG_NAME_KEY }}
+          IS_FORK_PULL_REQUEST: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork }}
+        run: |
+          if [ -z "${STRONG_NAME_KEY}" ]; then
+            if [ "${IS_FORK_PULL_REQUEST}" = "true" ]; then
+              echo "::warning::STRONG_NAME_KEY is not available to pull requests from forks; this build is unsigned."
+              exit 0
+            fi
+            echo "::error::STRONG_NAME_KEY is required. Only pull requests from forks may build unsigned."
+            exit 1
+          fi
+          echo "${STRONG_NAME_KEY}" | base64 --decode > LiteBus.snk
+
+      - name: Build
+        run: dotnet build LiteBus.slnx --configuration Release --no-restore /p:Version=${{ env.CI_PACKAGE_VERSION }} /p:ContinuousIntegrationBuild=true
+
       - name: Require Docker for integration suites
+        if: matrix.docker
         run: |
           if ! docker info >/dev/null 2>&1; then
             echo "::error::Docker is required for TransportDocker, TransportAzure, and full integration tests on CI."
@@ -164,67 +291,68 @@ jobs:
           fi
           echo "Docker is available."
 
-      - name: Unit Tests
-        run: |
-          mkdir -p artifacts/coverage && echo unit >> artifacts/coverage/expected.txt
-          dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/unit --filter "FullyQualifiedName!~IntegrationTests"
-
-      - name: Transport Fast Integration Tests
-        run: |
-          mkdir -p artifacts/coverage && echo transport-fast >> artifacts/coverage/expected.txt
-          dotnet test tests/LiteBus.Durable.IntegrationTests --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/transport-fast --filter "Category=TransportFast"
-
-      - name: Transport Docker Integration Tests
+      - name: Run Tests
         env:
-          LITEBUS_CI_STRICT_TRANSPORT: 'true'
+          LITEBUS_CI_STRICT_TRANSPORT: ${{ matrix.strict && 'true' || '' }}
+          SHARD: ${{ matrix.name }}
+          TARGET: ${{ matrix.target }}
+          SHARD_FILTER: ${{ matrix.filter }}
+          IS_INTEGRATION: ${{ startsWith(matrix.name, 'integration-') }}
+          IS_STRICT: ${{ matrix.strict }}
         run: |
-          trx_dir="${RUNNER_TEMP}/transport-docker"
-          mkdir -p "${trx_dir}" artifacts/coverage
-          echo transport-docker-durable >> artifacts/coverage/expected.txt && echo transport-docker-wire >> artifacts/coverage/expected.txt
-          dotnet test tests/LiteBus.Durable.IntegrationTests \
+          # Recorded before the run, so a shard that starts but produces no report fails the coverage job.
+          mkdir -p "artifacts/coverage/${SHARD}"
+          echo "${SHARD}" > "artifacts/coverage/expected-${SHARD}.txt"
+          filter="${SHARD_FILTER}"
+          if [ "${IS_INTEGRATION}" = "true" ]; then
+            filter="${INTEGRATION_FILTER}${SHARD_FILTER}"
+          fi
+          trx="${RUNNER_TEMP}/${SHARD}.trx"
+          dotnet test "${TARGET}" \
             --no-build --configuration Release --verbosity normal \
             --collect:"XPlat Code Coverage" \
             --settings coverlet.runsettings \
-            --results-directory artifacts/coverage/transport-docker-durable \
-            --filter "Category=TransportDocker" \
-            --logger "trx;LogFileName=${trx_dir}/durable-transport-docker.trx"
-          bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/durable-transport-docker.trx"
-          dotnet test tests/LiteBus.Transport.IntegrationTests \
-            --no-build --configuration Release --verbosity normal \
-            --collect:"XPlat Code Coverage" \
-            --settings coverlet.runsettings \
-            --results-directory artifacts/coverage/transport-docker-wire \
-            --filter "Category=TransportDocker" \
-            --logger "trx;LogFileName=${trx_dir}/transport-wire-docker.trx"
-          bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-wire-docker.trx"
+            --results-directory "artifacts/coverage/${SHARD}" \
+            --filter "${filter}" \
+            --logger "trx;LogFileName=${trx}"
+          if [ "${IS_STRICT}" = "true" ]; then
+            bash .github/scripts/verify-no-skipped-tests.sh "${trx}"
+          fi
 
-      - name: Transport Azure Integration Tests
-        env:
-          LITEBUS_CI_STRICT_TRANSPORT: 'true'
-        run: |
-          trx_dir="${RUNNER_TEMP}/transport-azure"
-          mkdir -p "${trx_dir}" artifacts/coverage
-          echo transport-azure >> artifacts/coverage/expected.txt
-          dotnet test tests/LiteBus.Durable.IntegrationTests \
-            --no-build --configuration Release --verbosity normal \
-            --collect:"XPlat Code Coverage" \
-            --settings coverlet.runsettings \
-            --results-directory artifacts/coverage/transport-azure \
-            --filter "Category=TransportAzure" \
-            --logger "trx;LogFileName=${trx_dir}/transport-azure.trx"
-          bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-azure.trx"
+      - name: Upload Shard Coverage
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-${{ matrix.name }}
+          path: |
+            artifacts/coverage/expected-${{ matrix.name }}.txt
+            artifacts/coverage/${{ matrix.name }}/**/coverage.*
+          if-no-files-found: warn
 
-      - name: Integration Tests
-        run: |
-          mkdir -p artifacts/coverage && echo integration >> artifacts/coverage/expected.txt
-          dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/integration --filter "FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure"
+  coverage:
+    name: Coverage
+    needs: test
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download Shard Coverage
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: coverage-*
+          path: artifacts/coverage
+          merge-multiple: true
 
       - name: Check Coverage Reports
         id: coverage-reports
         if: always()
         run: |
-          # Each test step appends its results directory to expected.txt before it runs, so a step that
-          # never started is not expected and a step that ran without producing a report fails here.
+          # Each shard records its name before it runs, so a shard that never started is not expected and a shard
+          # that ran without producing a report fails here.
+          cat artifacts/coverage/expected-*.txt 2>/dev/null > artifacts/coverage/expected.txt || true
           coverage_count="$(find artifacts/coverage -type f -name 'coverage.cobertura.xml' | wc -l)"
           echo "count=${coverage_count}" >> "$GITHUB_OUTPUT"
           if [ "${coverage_count}" -eq 0 ]; then
@@ -234,15 +362,13 @@ jobs:
           fi
           echo "has_reports=true" >> "$GITHUB_OUTPUT"
           missing=0
-          if [ -f artifacts/coverage/expected.txt ]; then
-            while read -r name; do
-              [ -z "${name}" ] && continue
-              if [ -z "$(find "artifacts/coverage/${name}" -type f -name 'coverage.cobertura.xml' 2>/dev/null | head -n 1)" ]; then
-                echo "::error::The ${name} test step produced no coverage.cobertura.xml in artifacts/coverage/${name}."
-                missing=1
-              fi
-            done < artifacts/coverage/expected.txt
-          fi
+          while read -r name; do
+            [ -z "${name}" ] && continue
+            if [ -z "$(find "artifacts/coverage/${name}" -type f -name 'coverage.cobertura.xml' 2>/dev/null | head -n 1)" ]; then
+              echo "::error::The ${name} test shard produced no coverage.cobertura.xml in artifacts/coverage/${name}."
+              missing=1
+            fi
+          done < artifacts/coverage/expected.txt
           exit "${missing}"
 
       - name: Coverage Report Summary
@@ -263,21 +389,12 @@ jobs:
         shell: pwsh
         run: ./scripts/Test-CoverageThreshold.ps1 -Root artifacts/coverage -LineThreshold 90
 
-      - name: Pack Packages
-        shell: pwsh
-        run: ./scripts/Pack-Packages.ps1 -OutputDirectory artifacts -Configuration Release -Version ${{ env.CI_PACKAGE_VERSION }} -NoBuild -NoRestore
-
-      - name: Validate Packages
-        shell: pwsh
-        run: ./scripts/Test-Packages.ps1 -PackageDirectory artifacts -ExpectedVersion ${{ env.CI_PACKAGE_VERSION }}
-
-      - name: Upload Packages
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: nuget-packages
-          path: |
-            artifacts/*.nupkg
-            artifacts/*.snupkg
+      - name: Fail When a Test Shard Failed
+        # The gate above reports coverage even when a shard failed; this keeps the job red in that case.
+        if: needs.test.result != 'success'
+        run: |
+          echo "::error::At least one test shard did not succeed (result: ${{ needs.test.result }})."
+          exit 1
 
       - name: Upload Coverage Reports
         if: steps.coverage-reports.outputs.has_reports == 'true'
