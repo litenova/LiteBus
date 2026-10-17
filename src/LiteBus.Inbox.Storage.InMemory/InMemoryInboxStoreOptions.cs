@@ -18,8 +18,13 @@ public sealed record InMemoryInboxStoreOptions : IMessageStoreRetentionOptions
     public int Capacity { get; init; }
 
     /// <summary>
-    ///     Gets the default processing lease duration used when a lease request supplies a zero duration.
+    ///     Gets the lease duration value validated at construction.
     /// </summary>
+    /// <value>
+    ///     The store requires a positive value but never applies it to a lease. <see cref="InMemoryInboxStore.LeasePendingAsync" />
+    ///     requires a positive duration on every request and throws <see cref="ArgumentOutOfRangeException" /> for a zero
+    ///     duration. Defaults to one minute.
+    /// </value>
     public TimeSpan DefaultLeaseDuration { get; init; } = TimeSpan.FromMinutes(1);
 
     /// <inheritdoc />
