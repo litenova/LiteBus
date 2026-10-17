@@ -123,7 +123,7 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:3000`. The build command is `npm run build` and the production
+Open `http://localhost:3100`. The build command is `npm run build` and the production
 server is `npm run start`. Run `npm run lint` for the Next.js ESLint rules and
 `npm run typecheck` for a standalone TypeScript check.
 

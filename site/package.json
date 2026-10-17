@@ -6,7 +6,7 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "local-md dev -- node node_modules/next/dist/bin/next dev",
+    "dev": "local-md dev -- node node_modules/next/dist/bin/next dev --port 3100",
     "build": "next build && npm run check:links && npm run check:llms && npm run check:search-trace",
     "check:links": "node scripts/check-rendered-links.mjs",
     "check:llms": "node scripts/check-llms.mjs",
