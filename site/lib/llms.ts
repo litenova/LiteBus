@@ -1,14 +1,20 @@
 import type { Item, Node, Root } from 'fumadocs-core/page-tree';
 import { llms } from 'fumadocs-core/source/llms';
 import { type DocsPage, markdownHref, repositorySourcesUrl, resolveDocHref } from '@/lib/doc-links';
-import { repositoryUrl, siteUrl } from '@/lib/site';
+import {
+  docsBasePath,
+  docsContentDir,
+  latestRelease,
+  repositoryUrl,
+  siteUrl,
+  sourceRef,
+} from '@/lib/site';
 import { type DocsSource, getSource } from '@/lib/source';
-import { type DocsVersion, defaultVersion, docsVersions, versionBasePath } from '@/lib/versions';
 
 /**
  * The plain-text views of the documentation that agents read.
  *
- * Three endpoints per version, following the llms.txt convention (https://llmstxt.org):
+ * Three endpoints, following the llms.txt convention (https://llmstxt.org):
  *
  * - `llms.txt` is an index: a short summary of the library, then one link per page with a note.
  * - `llms-full.txt` is every page's complete Markdown in one document.
@@ -45,10 +51,10 @@ type CuratedEntry = {
  * The pages to read first, in order, with the reason to read each.
  *
  * These notes describe what a page is for rather than what it says, so they stay true as the pages are edited. Every
- * slug is resolved against the version being rendered and a missing one fails the build, which is what keeps the list
+ * slug is resolved against the pages being rendered and a missing one fails the build, which is what keeps the list
  * from quietly rotting as pages move.
  */
-function curatedEntries(version: DocsVersion): CuratedEntry[] {
+function curatedEntries(): CuratedEntry[] {
   return [
     {
       slug: [],
@@ -59,7 +65,7 @@ function curatedEntries(version: DocsVersion): CuratedEntry[] {
       note: 'Install the packages, register the modules, write a first handler, and send a first message.',
     },
     {
-      slug: ['reference', `feature-index-${version.id}`],
+      slug: ['reference', 'feature-index'],
       note: 'Capability to documentation to package, one table per axis. The fastest way to find the package a feature needs.',
     },
     {
@@ -79,7 +85,7 @@ function curatedEntries(version: DocsVersion): CuratedEntry[] {
       note: 'The exact meaning of the terms these pages use, including the ones that differ from other messaging libraries.',
     },
     {
-      slug: ['migration', 'from-mediatr'],
+      slug: ['migration', 'mediatr-differences'],
       note: 'The MediatR equivalences, for translating an existing application rather than starting a new one.',
     },
   ];
@@ -140,8 +146,8 @@ function* walkPages(nodes: readonly Node[]): Generator<Item> {
  * are the same idea, so one drives the other. A node ahead of the first separator is dropped, which means the
  * documentation index page: `Start Here` links it with a better note than its own description makes.
  */
-function sectionsFromTree(tree: Root, version: DocsVersion): IndexSection[] {
-  const base = versionBasePath(version);
+function sectionsFromTree(tree: Root): IndexSection[] {
+  const base = docsBasePath;
   const optionalPaths = optionalSections.map((section) => `${base}/${section}`);
   const sections: IndexSection[] = [];
   const optional: IndexSection = { heading: 'Optional', nodes: [] };
@@ -190,7 +196,7 @@ function withoutByteOrderMark(content: string): string {
  * or concatenated with every other page. Each one becomes the absolute URL of the target's `.md` endpoint, or the
  * file in the repository when the target is Markdown the site does not serve.
  */
-function contentWithAbsoluteLinks(page: DocsPage, source: DocsSource, version: DocsVersion): string {
+function contentWithAbsoluteLinks(page: DocsPage, source: DocsSource): string {
   return withoutByteOrderMark(page.data.content).replace(
     /\]\(([^)]+)\)/g,
     (match, href: string) => {
@@ -200,7 +206,7 @@ function contentWithAbsoluteLinks(page: DocsPage, source: DocsSource, version: D
         return match;
       }
 
-      const resolved = resolveDocHref(href, page, source, version);
+      const resolved = resolveDocHref(href, page, source);
 
       return resolved.startsWith('/')
         ? `](${siteUrl}${markdownHref(resolved)})`
@@ -210,38 +216,19 @@ function contentWithAbsoluteLinks(page: DocsPage, source: DocsSource, version: D
 }
 
 /**
- * Where a version's index is served.
+ * Where the index is served.
  *
- * The default version answers at the site root, which is the path the convention has clients probe first, so its
- * documentation prefix is not repeated there. Every other line carries its own prefix. `next.config.mjs` redirects
- * `/docs/llms.txt` to the root copy, because the prefixed form is the other reasonable guess.
+ * The index answers at the site root, which is the path the convention has clients probe first. `next.config.mjs`
+ * redirects `/docs/llms.txt` to this route for clients that guess the prefixed form.
  */
-export function llmsIndexPath(version: DocsVersion): string {
-  return version.default ? '/llms.txt' : `${versionBasePath(version)}/llms.txt`;
-}
+export const llmsIndexPath = '/llms.txt';
 
-/** Where a version's complete text is served, following `llmsIndexPath`. */
-export function llmsFullPath(version: DocsVersion): string {
-  return version.default ? '/llms-full.txt' : `${versionBasePath(version)}/llms-full.txt`;
-}
+/** Where the complete text is served, following `llmsIndexPath`. */
+export const llmsFullPath = '/llms-full.txt';
 
-/** How a version describes itself, for the lines that have to be honest about which release is documented. */
-function releaseLine(version: DocsVersion): string {
-  return version.status === 'prerelease'
-    ? `LiteBus ${version.release}, a pre-release of the ${version.label} line`
-    : `LiteBus ${version.release}, the ${version.label} line`;
-}
-
-/** The other documentation lines this site serves, so a client on the wrong one can find the right one. */
-function otherVersionLines(version: DocsVersion): string[] {
-  return docsVersions
-    .filter((candidate) => candidate.id !== version.id)
-    .map((candidate) => {
-      const suffix = candidate.status === 'prerelease' ? ' (pre-release)' : ' (stable)';
-      const index = `${siteUrl}${llmsIndexPath(candidate)}`;
-
-      return `- LiteBus ${candidate.label}${suffix}, release ${candidate.release}: ${index}`;
-    });
+/** How the documentation describes the release it documents, for the lines that have to name it. */
+function releaseLine(): string {
+  return `LiteBus ${latestRelease}`;
 }
 
 /**
@@ -251,8 +238,8 @@ function otherVersionLines(version: DocsVersion): string[] {
  * goes there: what the library is, where the durability boundary sits, how the packages are shaped, and what the rest
  * of this file set contains. A client that reads only this far should still be able to choose a package.
  */
-function preamble(version: DocsVersion): string[] {
-  const lines = [
+function preamble(): string[] {
+  return [
     '# LiteBus',
     '',
     '> LiteBus is a mediator and durable messaging library for .NET 10, MIT licensed, open source, free for commercial use, and will remain free. It',
@@ -260,9 +247,9 @@ function preamble(version: DocsVersion): string[] {
     '> adds opt-in inbox, outbox, saga, storage, transport, ingress, hosting, and observability modules that persist',
     '> and carry those messages between processes.',
     '',
-    `This index describes ${releaseLine(version)}. Every link below points at Markdown rather than at a rendered page:`,
+    `This index describes ${releaseLine()}. Every link below points at Markdown rather than at a rendered page:`,
     `appending \`.md\` to any documentation URL returns that page's source. The complete text of every page listed here`,
-    `is available as a single document at ${siteUrl}${llmsFullPath(version)}.`,
+    `is available as a single document at ${siteUrl}${llmsFullPath}.`,
     '',
     'Mediation and durability are separate decisions. Command, query, and event mediation executes handlers in the',
     'caller\'s process and persists nothing. Durable behavior begins only when an application selects an inbox or',
@@ -290,43 +277,23 @@ function preamble(version: DocsVersion): string[] {
     '    liteBus.AddEvents(events => events.RegisterFromAssembly(applicationAssembly));',
     '});',
     '```',
-  ];
-
-  if (version.status === 'prerelease') {
-    lines.push(
-      '',
-      `${version.label} is a pre-release and its API can still change. An application that is not specifically`,
-      `targeting ${version.release} should read the ${defaultVersion.label} documentation instead, indexed at`,
-      `${siteUrl}${llmsIndexPath(defaultVersion)}.`,
-    );
-  }
-
-  const others = otherVersionLines(version);
-
-  if (others.length > 0) {
-    lines.push('', 'Other documentation lines this site serves:', '', ...others);
-  }
-
-  lines.push(
     '',
-    `The Markdown sources for these pages are in the repository at ${repositorySourcesUrl(version)}, and the library`,
+    `The Markdown sources for these pages are in the repository at ${repositorySourcesUrl()}, and the library`,
     `itself is at ${repositoryUrl}.`,
-  );
-
-  return lines;
+  ];
 }
 
-/** The `Start Here` list, with the curated slugs resolved against this version's pages. */
-function startHereSection(source: DocsSource, version: DocsVersion): string[] {
+/** The `Start Here` list, with the curated slugs resolved against the pages. */
+function startHereSection(source: DocsSource): string[] {
   const lines = ['## Start Here', ''];
 
-  for (const entry of curatedEntries(version)) {
+  for (const entry of curatedEntries()) {
     const page = source.getPage(entry.slug);
 
     if (page === undefined) {
       throw new Error(
-        `The Start Here list in lib/llms.ts points at '${[versionBasePath(version), ...entry.slug].join('/')}', ` +
-          `which is not a page in the ${version.label} documentation. Update curatedEntries for the move or removal.`,
+        `The Start Here list in lib/llms.ts points at '${[docsBasePath, ...entry.slug].join('/')}', ` +
+          `which is not a page in the documentation. Update curatedEntries for the move or removal.`,
       );
     }
 
@@ -337,14 +304,12 @@ function startHereSection(source: DocsSource, version: DocsVersion): string[] {
 }
 
 /**
- * The `llms.txt` index for one version.
- *
- * @param version - The documentation line to index.
+ * The `llms.txt` index.
  */
-export async function llmsIndex(version: DocsVersion): Promise<string> {
-  const source = await getSource(version.id);
+export async function llmsIndex(): Promise<string> {
+  const source = await getSource();
   const indexer = llms(source);
-  const sections = sectionsFromTree(source.getPageTree(), version);
+  const sections = sectionsFromTree(source.getPageTree());
   const generated = sections.map((section) => {
     const body = section.nodes.map((node) => indexer.indexNode(node)).join('\n');
 
@@ -352,9 +317,9 @@ export async function llmsIndex(version: DocsVersion): Promise<string> {
   });
 
   return `${[
-    ...preamble(version),
+    ...preamble(),
     '',
-    ...startHereSection(source, version),
+    ...startHereSection(source),
     '',
     ...generated.flatMap((section) => [section, '']),
   ]
@@ -363,7 +328,7 @@ export async function llmsIndex(version: DocsVersion): Promise<string> {
 }
 
 /**
- * Every page of one version, in navigation order, with no page left out.
+ * Every page, in navigation order, with no page left out.
  *
  * Tree order first, then any page the tree does not reach. A page whose folder is missing from a `meta.json` is still
  * served by the site, so leaving it out here would make this file quietly incomplete.
@@ -392,27 +357,25 @@ function orderedPages(source: DocsSource): DocsPage[] {
 }
 
 /**
- * The `llms-full.txt` document for one version: the complete text of every page.
+ * The `llms-full.txt` document: the complete text of every page.
  *
  * Page content is reproduced in full. Nothing is summarized, truncated, or filtered, including the snippet-source
  * comments, the roadmap, and the contributing guide. The only edit is to links, for the reason given on
  * `contentWithAbsoluteLinks`.
- *
- * @param version - The documentation line to render.
  */
-export async function llmsFull(version: DocsVersion): Promise<string> {
-  const source = await getSource(version.id);
+export async function llmsFull(): Promise<string> {
+  const source = await getSource();
   const pages = orderedPages(source);
   const documents = pages.map((page) => {
     const canonical = `${siteUrl}${page.url}`;
-    const sourcePath = `site/${version.dir}/${page.path}`;
+    const sourcePath = `site/${docsContentDir}/${page.path}`;
 
     return [
       `<!-- page: ${canonical} -->`,
       `<!-- markdown: ${siteUrl}${markdownHref(page.url)} -->`,
       `<!-- source: ${sourcePath} -->`,
       '',
-      contentWithAbsoluteLinks(page, source, version).trim(),
+      contentWithAbsoluteLinks(page, source).trim(),
       '',
     ].join('\n');
   });
@@ -422,18 +385,18 @@ export async function llmsFull(version: DocsVersion): Promise<string> {
   );
 
   const header = [
-    `# LiteBus ${version.label} Documentation, Complete Text`,
+    '# LiteBus Documentation, Complete Text',
     '',
-    `> The complete LiteBus ${version.label} documentation in one document: ${pages.length} pages in navigation`,
-    `> order, describing ${releaseLine(version)}. For the index of the same pages with a note on each, read`,
-    `> ${siteUrl}${llmsIndexPath(version)}.`,
+    `> The complete LiteBus documentation in one document: ${pages.length} pages in navigation`,
+    `> order, describing ${releaseLine()}. For the index of the same pages with a note on each, read`,
+    `> ${siteUrl}${llmsIndexPath}.`,
     '',
     'Every page is reproduced in full. Nothing is summarized, truncated, or filtered out, including the roadmap, the',
     'contributing guide, the per-capability catalog pages, and the `snippet-source` comments that record which sample',
     'file a code block is compiled from. The one edit to page content is to links: a relative path to another Markdown',
     "source becomes the absolute URL of that page's `.md` endpoint, because a relative path resolves to nothing once",
     'the pages are concatenated. A link to Markdown the site does not serve becomes the file in the repository at the',
-    'ref this version shipped from.',
+    'ref the documentation sources live on.',
     '',
     'Each page below is introduced by three HTML comments naming its page URL, its Markdown endpoint, and its source',
     'file in this repository. The page then begins at its own level-one heading, so heading levels within a page are',
@@ -443,10 +406,10 @@ export async function llmsFull(version: DocsVersion): Promise<string> {
     'Sources outside these pages, which this document does not contain:',
     '',
     `- Library source, issues, and releases: ${repositoryUrl}`,
-    `- Markdown sources for this version: ${repositorySourcesUrl(version)}`,
-    `- Release history for every version, including entries older than this line: ${repositoryUrl}/blob/${version.ref}/Changelog.md`,
-    `- Repository conventions for contributors, which are not usage documentation: ${repositoryUrl}/blob/${version.ref}/AGENTS.md`,
-    `- Compile-checked sample application: ${repositoryUrl}/tree/${version.ref}/samples/LiteBus.Sample`,
+    `- Markdown sources for these pages: ${repositorySourcesUrl()}`,
+    `- Release history: ${repositoryUrl}/blob/${sourceRef}/Changelog.md`,
+    `- Repository conventions for contributors, which are not usage documentation: ${repositoryUrl}/blob/${sourceRef}/AGENTS.md`,
+    `- Compile-checked sample application: ${repositoryUrl}/tree/${sourceRef}/samples/LiteBus.Sample`,
     `- Published packages: https://www.nuget.org/packages?q=LiteBus`,
     '',
     '## Contents',
@@ -461,20 +424,16 @@ export async function llmsFull(version: DocsVersion): Promise<string> {
 /**
  * One page's Markdown, as served by its `.md` endpoint.
  *
- * @param version - The documentation line the page belongs to.
- * @param slug - The page's slug, with the version prefix and the `docs` segment already removed.
+ * @param slug - The page's slug, with the `docs` segment already removed.
  * @returns The page's Markdown, or `undefined` when the slug names no page.
  */
-export async function pageMarkdown(
-  version: DocsVersion,
-  slug: string[],
-): Promise<string | undefined> {
-  const source = await getSource(version.id);
+export async function pageMarkdown(slug: string[]): Promise<string | undefined> {
+  const source = await getSource();
   const page = source.getPage(slug);
 
   if (page === undefined) {
     return undefined;
   }
 
-  return `${contentWithAbsoluteLinks(page, source, version).trim()}\n`;
+  return `${contentWithAbsoluteLinks(page, source).trim()}\n`;
 }

@@ -11,6 +11,18 @@ export const siteDescription =
 
 export const siteOgImage = '/og.png';
 
+/** The LiteBus release the documentation describes. Updated in the commit that cuts a release. */
+export const latestRelease = '7.0.0-preview.5';
+
+/** Where the documentation is served. */
+export const docsBasePath = '/docs';
+
+/** The Markdown content root, relative to the site directory. */
+export const docsContentDir = 'content/docs';
+
+/** Git ref used for fallback links into the repository from documentation pages. */
+export const sourceRef = 'v7';
+
 export const repositoryUrl = 'https://github.com/litenova/LiteBus';
 
 export const changelogUrl = `${repositoryUrl}/blob/main/Changelog.md`;

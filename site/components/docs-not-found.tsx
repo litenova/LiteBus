@@ -2,56 +2,42 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  docsVersions,
-  slugFromPathname,
-  versionBasePath,
-  versionFromPathname,
-  versionHref,
-} from '@/lib/versions';
+import { StatusBar } from '@/components/status-bar';
+import { changelogUrl, companyName, docsBasePath, latestRelease } from '@/lib/site';
 
 /**
  * The documentation not-found page.
  *
- * Most requests that land here come from switching versions on a page that only one version has, so the page leads
- * with the same path in the other versions rather than only offering the index.
+ * Renders in the docs chrome with the explorer from the shell and its own status bar, pointing at the documentation
+ * index and the home page.
  */
 export function DocsNotFound() {
   const pathname = usePathname();
-  const version = versionFromPathname(pathname);
-  const slug = slugFromPathname(pathname);
-  const others = docsVersions.filter((candidate) => candidate.id !== version.id);
 
   return (
-    <main id="main" className="page" tabIndex={-1}>
-      <h1>That page is not in {version.label}</h1>
-      <p className="intro">
-        <code>{pathname}</code> does not exist in the {version.label} documentation.
-      </p>
-      {slug.length > 0 ? (
-        <>
-          <h2>Try the same page in another version</h2>
+    <>
+      <main id="main" className="doc" tabIndex={-1}>
+        <article className="prose">
+          <h1>That page does not exist</h1>
+          <p className="intro">
+            <code>{pathname}</code> is not a documentation page.
+          </p>
+          <h2>Start from somewhere that exists</h2>
           <ul>
-            {others.map((candidate) => (
-              <li key={candidate.id}>
-                <Link href={versionHref(candidate, slug)}>
-                  {candidate.label} - {candidate.description}
-                </Link>
-              </li>
-            ))}
+            <li>
+              <Link href={docsBasePath}>Documentation index</Link>
+            </li>
+            <li>
+              <Link href="/">Home</Link>
+            </li>
           </ul>
-        </>
-      ) : null}
-      <h2>Start from a documentation index</h2>
-      <ul>
-        {docsVersions.map((candidate) => (
-          <li key={candidate.id}>
-            <Link href={versionBasePath(candidate)}>
-              {candidate.label} - {candidate.description}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </main>
+        </article>
+      </main>
+      <StatusBar end={<span>{companyName}</span>}>
+        <a href={changelogUrl} title="Changelog">
+          v{latestRelease}
+        </a>
+      </StatusBar>
+    </>
   );
 }

@@ -1,10 +1,9 @@
 import type { Item, Node, Root } from 'fumadocs-core/page-tree';
 import { DocsSidebar, type CuratedGroup, type SidebarNode, type SidebarPage } from '@/components/docs-sidebar';
-import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import { getSource } from '@/lib/source';
 import { curatedNavigation } from '@/lib/docs-nav';
-import { versionHref, type DocsVersion } from '@/lib/versions';
+import { docsBasePath } from '@/lib/site';
 
 /**
  * The display text of a page tree node.
@@ -64,20 +63,18 @@ function toSidebarTree(tree: Root): SidebarNode[] {
 }
 
 /**
- * The documentation shell for one version: header, sidebar, and footer around the page.
+ * The documentation shell: the header above the explorer, page, and outline grid.
  *
- * Every version renders its own shell, so the sidebar never lists pages the reader cannot reach from where they are.
+ * The page-dependent chrome, the outline and the status bar, renders where its data is: the article and the
+ * not-found page each render their own status bar below the grid.
  */
-export async function DocsShell({
-  version,
-  children,
-}: Readonly<{ version: DocsVersion; children: React.ReactNode }>) {
-  const tree = toSidebarTree((await getSource(version.id)).getPageTree());
-  const curated: CuratedGroup[] | undefined = curatedNavigation[version.id]?.map((group) => ({
+export async function DocsShell({ children }: Readonly<{ children: React.ReactNode }>) {
+  const tree = toSidebarTree((await getSource()).getPageTree());
+  const curated: CuratedGroup[] = curatedNavigation.map((group) => ({
     heading: group.heading,
     links: group.links.map((link) => ({
       label: link.label,
-      url: versionHref(version, link.slug.length === 0 ? [] : link.slug.split('/')),
+      url: [docsBasePath, ...(link.slug.length === 0 ? [] : link.slug.split('/'))].join('/'),
     })),
   }));
 
@@ -86,13 +83,12 @@ export async function DocsShell({
       <a className="skip-link" href="#main">
         Skip to content
       </a>
-      <div className="wrap wide">
+      <div className="app">
         <SiteHeader current="docs" />
-        <div className="docs">
+        <div className="grow docs">
+          <DocsSidebar tree={tree} curated={curated} />
           {children}
-          <DocsSidebar tree={tree} curated={curated} versionId={version.id} />
         </div>
-        <SiteFooter />
       </div>
     </>
   );

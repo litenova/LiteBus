@@ -17,6 +17,7 @@ Package inventories, registration recipes, and feature-specific detail live in `
 Write for experienced .NET developers who already understand messaging, CQS, DDD, and dependency injection.
 
 - Use plain ASCII punctuation. Do not use em dashes, smart quotes, emoji, or decorative symbols.
+- Do not hard-wrap Markdown prose. Write each paragraph and each list item on one line; break lines only between blocks (paragraphs, list items, table rows, headings). Line ends inside a sentence make the source hard to read and diff.
 - Lead with the exact capability, then a runnable example, then constraints and explanation. Keep reference pages dense and precise.
 - Describe LiteBus in technical terms: command, query, and event mediation, with optional inbox, outbox, saga, storage, transport, hosting, and observability modules.
 - Prefer nouns and verbs over slogans or taglines. Headings name the capability. Use `Durable Inbox and Transactional Outbox`; avoid claims such as `Messages That Never Get Lost`.
@@ -530,7 +531,7 @@ Before adding a project:
 - Keep `site/content/docs/architecture/hosted-services.md` and `site/content/docs/architecture/README.md` aligned with the manifest model (`IStartupTask`, `IBackgroundService`, `IDiagnosticCheck`, `LiteBusHostManifest`).
 - Keep `site/content/docs/architecture/dependency-graph.md` as the living package inventory and dependency rule reference.
 - **The documentation is also served as plain text for agents.** `/llms.txt`, `/llms-full.txt`, and a `.md` endpoint per page are generated from the same Markdown and the same page tree the navigation uses, so a page added to a `meta.json` reaches them with no separate edit. Titles and descriptions are derived from each page's prose, so a page that opens with neither an intro paragraph, a `Summary` metadata field, nor a `## Summary` section reaches the index with no note and fails `site/scripts/check-llms.mjs`. The hand-written parts, the summary and the `Start Here` list, are in `site/lib/llms.ts`; `site/README.md` documents the endpoints.
-- **`site/content/docs/` is the version under development; `site/content/versions/<id>/` is a released line.** A snapshot is corrected, not evolved: fixing an error in it is right, and rewriting it to describe a later version is not, because it would make the documentation disagree with the release it documents. While a line still receives patches, its fix lands on the branch named by that version's `tracks` in `site/versions.json`, and the snapshot has to be updated to match; `scripts/Test-VersionSnapshots.ps1` reports when it has fallen behind. The repository documentation gates deliberately scan only `site/content/docs/`, because a snapshot's snippets reference source that has since moved.
+- **The site documents the branch it is built from.** There are no versioned documentation snapshots: `site/content/docs/` is the one documentation set, served at `/docs`. Cutting a release updates `latestRelease` in `site/lib/site.ts`. Old `/v7/` documentation links redirect to the same path without the prefix.
 
 ## Evolving this guide
 

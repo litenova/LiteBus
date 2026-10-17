@@ -5,8 +5,8 @@ import { useState } from 'react';
 /**
  * Copies an install command to the clipboard.
  *
- * Renders the copy button used in `.cmd` rows. After a successful write the
- * label flips to `Copied` for 1500 ms, matching the static reference site.
+ * Renders the mock `.copy` button used in `.install` rows. After a successful write the label
+ * flips to `Copied` for 1500 ms, matching the static reference site.
  */
 export function CopyButton({ text, label }: Readonly<{ text: string; label?: string }>) {
   const [copied, setCopied] = useState(false);
@@ -14,8 +14,7 @@ export function CopyButton({ text, label }: Readonly<{ text: string; label?: str
   return (
     <button
       type="button"
-      className="copy-cmd"
-      data-copy={text}
+      className="copy"
       aria-label={label ?? `Copy ${text}`}
       onClick={() => {
         if (!navigator.clipboard) {

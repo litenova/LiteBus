@@ -1,6 +1,6 @@
 import { pageMarkdown } from '@/lib/llms';
-import { getAllSources } from '@/lib/source';
-import { slugFromPathname, versionBasePath, versionFromPathname } from '@/lib/versions';
+import { docsBasePath } from '@/lib/site';
+import { getSource } from '@/lib/source';
 
 /**
  * One documentation page as Markdown.
@@ -15,27 +15,24 @@ import { slugFromPathname, versionBasePath, versionFromPathname } from '@/lib/ve
 export const revalidate = false;
 
 export async function generateStaticParams() {
-  const sources = await getAllSources();
+  const source = await getSource();
 
-  return sources.flatMap(({ source }) =>
-    source.getPages().map((page) => ({
-      path: page.url.split('/').filter((segment) => segment.length > 0),
-    })),
-  );
+  return source.getPages().map((page) => ({
+    path: page.url.split('/').filter((segment) => segment.length > 0),
+  }));
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const pathname = `/${(await params).path.join('/')}`;
-  const version = versionFromPathname(pathname);
-  const base = versionBasePath(version);
 
   // Only a documentation path resolves here. Without this the slug of an unrelated path would be looked up anyway, and
   // `/getting-started.md` would answer with the page that belongs at `/docs/getting-started.md`.
-  if (pathname !== base && !pathname.startsWith(`${base}/`)) {
+  if (pathname !== docsBasePath && !pathname.startsWith(`${docsBasePath}/`)) {
     return notFound();
   }
 
-  const markdown = await pageMarkdown(version, slugFromPathname(pathname));
+  const slug = pathname === docsBasePath ? [] : pathname.slice(docsBasePath.length + 1).split('/');
+  const markdown = await pageMarkdown(slug);
 
   if (markdown === undefined) {
     return notFound();

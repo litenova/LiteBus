@@ -12,19 +12,11 @@ import { join } from 'node:path';
  */
 
 const outputRoot = join(process.cwd(), '.next', 'server', 'app');
-const { versions } = JSON.parse(await readFile(join(process.cwd(), 'versions.json'), 'utf8'));
+const indexPath = '/llms.txt';
+const fullPath = '/llms-full.txt';
+const docsBasePath = '/docs';
 const siteUrl = 'https://litebus.io';
 const failures = [];
-
-/** Mirrors `versionBasePath` in lib/versions.ts. */
-function versionBasePath(version) {
-  return version.default ? '/docs' : `/${version.id}/docs`;
-}
-
-/** Mirrors `llmsIndexPath` and `llmsFullPath` in lib/llms.ts. */
-function plainTextPath(version, name) {
-  return version.default ? `/${name}` : `${versionBasePath(version)}/${name}`;
-}
 
 /** The prerendered body of a route, or `undefined` when the route was not built. */
 async function readBody(route) {
@@ -35,8 +27,8 @@ async function readBody(route) {
   }
 }
 
-function fail(version, message) {
-  failures.push(`${version.id}: ${message}`);
+function fail(message) {
+  failures.push(message);
 }
 
 /** Every Markdown link in a document, as `{ text, url }`. */
@@ -59,50 +51,42 @@ function markdownRoute(url) {
   return `md${path}`;
 }
 
-for (const version of versions) {
-  const indexPath = plainTextPath(version, 'llms.txt');
-  const fullPath = plainTextPath(version, 'llms-full.txt');
-  const index = await readBody(indexPath.slice(1));
-  const full = await readBody(fullPath.slice(1));
+const index = await readBody(indexPath.slice(1));
+const full = await readBody(fullPath.slice(1));
 
-  if (index === undefined) {
-    fail(version, `no index was built at ${indexPath}.`);
-    continue;
-  }
-
-  if (full === undefined) {
-    fail(version, `no complete text was built at ${fullPath}.`);
-    continue;
-  }
-
+if (index === undefined) {
+  fail(`no index was built at ${indexPath}.`);
+} else if (full === undefined) {
+  fail(`no complete text was built at ${fullPath}.`);
+} else {
   const lines = index.split('\n');
   const firstContent = lines.find((line) => line.trim().length > 0);
 
   // The convention requires an H1 naming the project, then a blockquote summary, then file lists under H2 headings.
   // Anything deeper than H2 would make a list ambiguous about which section it belongs to.
   if (firstContent === undefined || !firstContent.startsWith('# ')) {
-    fail(version, `${indexPath} does not open with a level-one heading.`);
+    fail(`${indexPath} does not open with a level-one heading.`);
   }
 
   const headings = lines.filter((line) => /^#{1,6}\s/.test(line));
   const firstSection = lines.findIndex((line) => line.startsWith('## '));
 
   if (headings.filter((heading) => heading.startsWith('# ')).length !== 1) {
-    fail(version, `${indexPath} has ${headings.length} level-one headings, and the convention allows one.`);
+    fail(`${indexPath} has ${headings.length} level-one headings, and the convention allows one.`);
   }
 
   if (firstSection === -1) {
-    fail(version, `${indexPath} has no level-two section.`);
+    fail(`${indexPath} has no level-two section.`);
   }
 
   if (!lines.slice(0, firstSection === -1 ? undefined : firstSection).some((line) => line.startsWith('> '))) {
-    fail(version, `${indexPath} has no blockquote summary above its first section.`);
+    fail(`${indexPath} has no blockquote summary above its first section.`);
   }
 
   const deepHeading = headings.find((heading) => /^#{3,6}\s/.test(heading));
 
   if (deepHeading !== undefined) {
-    fail(version, `${indexPath} has a heading below level two (${deepHeading.trim()}).`);
+    fail(`${indexPath} has a heading below level two (${deepHeading.trim()}).`);
   }
 
   // Only the entries under a section are file lists. The prose above the first one may mention a URL without linking.
@@ -119,23 +103,23 @@ for (const version of versions) {
     }
 
     if (!link.url.startsWith(`${siteUrl}/`)) {
-      fail(version, `${indexPath} links '${link.text}' to '${link.url}', which is not an absolute site URL.`);
+      fail(`${indexPath} links '${link.text}' to '${link.url}', which is not an absolute site URL.`);
       continue;
     }
 
     if (!/\.md(?:#|$)/.test(link.url)) {
-      fail(version, `${indexPath} links '${link.text}' to '${link.url}', which is not a Markdown endpoint.`);
+      fail(`${indexPath} links '${link.text}' to '${link.url}', which is not a Markdown endpoint.`);
       continue;
     }
 
     if ((await readBody(markdownRoute(link.url))) === undefined) {
-      fail(version, `${indexPath} links '${link.text}' to '${link.url}', which was not built.`);
+      fail(`${indexPath} links '${link.text}' to '${link.url}', which was not built.`);
     }
 
     // The note after the link is the page's description. A missing one means a page the description extraction in
     // lib/doc-summary.ts could not read, and an index entry that says nothing about the page it points at.
     if (!/\):\s\S/.test(entry)) {
-      fail(version, `${indexPath} lists '${link.text}' with no note.`);
+      fail(`${indexPath} lists '${link.text}' with no note.`);
     }
   }
 
@@ -150,12 +134,11 @@ for (const version of versions) {
   ).map((link) => link.url);
 
   if (pageComments.length === 0) {
-    fail(version, `${fullPath} contains no pages.`);
+    fail(`${fullPath} contains no pages.`);
   }
 
   if (pageComments.length !== contents.length) {
     fail(
-      version,
       `${fullPath} lists ${contents.length} pages in its contents but reproduces ${pageComments.length}.`,
     );
   }
@@ -163,7 +146,7 @@ for (const version of versions) {
   const missing = contents.filter((url) => !pageComments.includes(url));
 
   if (missing.length > 0) {
-    fail(version, `${fullPath} lists pages it does not reproduce: ${missing.slice(0, 5).join(', ')}.`);
+    fail(`${fullPath} lists pages it does not reproduce: ${missing.slice(0, 5).join(', ')}.`);
   }
 
   // A relative path resolves against nothing once the pages are concatenated, so one surviving here is a link that
@@ -171,14 +154,14 @@ for (const version of versions) {
   const relative = [...full.matchAll(/\]\((\.{1,2}\/[^)]*)\)/g)].map((match) => match[1]);
 
   if (relative.length > 0) {
-    fail(version, `${fullPath} has ${relative.length} unresolved relative links, such as '${relative[0]}'.`);
+    fail(`${fullPath} has ${relative.length} unresolved relative links, such as '${relative[0]}'.`);
   }
 
-  const base = versionBasePath(version);
+  const base = docsBasePath;
   const foreign = pageComments.filter((url) => !url.startsWith(`${siteUrl}${base}/`) && url !== `${siteUrl}${base}.md`);
 
   if (foreign.length > 0) {
-    fail(version, `${fullPath} reproduces pages outside ${base}: ${foreign.slice(0, 5).join(', ')}.`);
+    fail(`${fullPath} reproduces pages outside ${base}: ${foreign.slice(0, 5).join(', ')}.`);
   }
 }
 
@@ -186,8 +169,4 @@ if (failures.length > 0) {
   throw new Error(`The plain-text documentation views failed validation:\n  ${failures.join('\n  ')}`);
 }
 
-console.log(
-  `Plain-text documentation views validated for ${versions.length} version(s): ${versions
-    .map((version) => version.id)
-    .join(', ')}.`,
-);
+console.log('Plain-text documentation views validated.');

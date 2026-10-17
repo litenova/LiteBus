@@ -4,20 +4,16 @@ import { dynamicLoader } from 'fumadocs-core/source/dynamic';
 import { pageSchema } from 'fumadocs-core/source/schema';
 import { z } from 'zod';
 import { extractDescription, extractTitle } from '@/lib/doc-summary';
-import {
-  type DocsVersion,
-  defaultVersion,
-  docsVersions,
-  findVersion,
-  versionBasePath,
-} from '@/lib/versions';
+import { rehypeCodeOptions } from '@/lib/highlight';
+import { docsBasePath, docsContentDir } from '@/lib/site';
 
-function createDocsLoader(version: DocsVersion) {
+function createDocsLoader() {
   const docs = localMd({
-    dir: version.dir,
+    dir: docsContentDir,
     frontmatterSchema: pageSchema.extend({
       title: z.string().optional(),
     }),
+    mdOptions: { rehypeCodeOptions },
   });
 
   if (process.env.NODE_ENV === 'development') {
@@ -54,7 +50,7 @@ function createDocsLoader(version: DocsVersion) {
   } satisfies typeof rawSource;
 
   return dynamicLoader<typeof rawSource>(docsSource, {
-    baseUrl: versionBasePath(version),
+    baseUrl: docsBasePath,
     slugs: (file) => {
       const slugs = getSlugs(file.path);
 
@@ -63,38 +59,15 @@ function createDocsLoader(version: DocsVersion) {
   });
 }
 
-// One loader per version, created once per process. Each loader owns a file watcher in development, so building them
-// eagerly on every request would leak watchers and re-read the whole tree.
-const loaders = new Map(
-  docsVersions.map((version) => [version.id, createDocsLoader(version)] as const),
-);
+// One loader, created once per process. It owns a file watcher in development, so building it eagerly on every
+// request would leak watchers and re-read the whole tree.
+const loader = createDocsLoader();
 
-export async function getSource(versionId: string = defaultVersion.id) {
-  const loader = loaders.get(versionId);
-
-  if (loader === undefined) {
-    throw new Error(`'${versionId}' is not a documentation version declared in lib/versions.ts.`);
-  }
-
+/**
+ * The one documentation set.
+ */
+export async function getSource() {
   return loader.get();
 }
 
 export type DocsSource = Awaited<ReturnType<typeof getSource>>;
-
-/** Every version paired with its loaded source, for the routes that have to walk all of them. */
-export async function getAllSources(): Promise<{ version: DocsVersion; source: DocsSource }[]> {
-  return Promise.all(
-    docsVersions.map(async (version) => ({ version, source: await getSource(version.id) })),
-  );
-}
-
-/** Resolves the version named by a route segment, or throws if the segment names nothing. */
-export function requireVersion(id: string): DocsVersion {
-  const version = findVersion(id);
-
-  if (version === undefined) {
-    throw new Error(`'${id}' is not a documentation version declared in lib/versions.ts.`);
-  }
-
-  return version;
-}

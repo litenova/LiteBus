@@ -16,10 +16,10 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /**
- * Copies the code block it sits beside.
+ * Copies the code block it sits above.
  *
- * The docs renderer wraps every fenced code block in `div.code` with the `pre` first and this button second, so the
- * block to copy is the sibling `pre` of whichever button is pressed.
+ * The docs renderer wraps every fenced code block in `div.block` with this button in the block head, so the block
+ * to copy is the `pre` inside the enclosing block of whichever button is pressed.
  */
 export function CodeCopyButton() {
   const [copied, setCopied] = useState(false);
@@ -30,7 +30,7 @@ export function CodeCopyButton() {
       className="copy"
       aria-label="Copy code block"
       onClick={(event) => {
-        const text = event.currentTarget.parentElement?.querySelector('pre')?.textContent ?? '';
+        const text = event.currentTarget.closest('.block')?.querySelector('pre')?.textContent ?? '';
 
         if (text.length === 0) {
           return;

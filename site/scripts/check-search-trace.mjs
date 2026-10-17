@@ -1,10 +1,10 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
-// The search route reads Markdown at request time, so every version's content has to reach the deployed bundle; a
-// missing trace entry is a version whose search returns nothing in production.
-const { versions } = JSON.parse(await readFile(path.resolve('versions.json'), 'utf8'));
-const contentRoots = versions.map((version) => version.dir);
+// The search route reads Markdown at request time, so the content has to reach the deployed bundle; a missing
+// trace entry is documentation whose search returns nothing in production. Keep this in step with `docsContentDir`
+// in lib/site.ts.
+const contentRoots = ['content/docs'];
 const traceFile = path.resolve('.next/server/app/api/search/route.js.nft.json');
 const trace = JSON.parse(await readFile(traceFile, 'utf8'));
 

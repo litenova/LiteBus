@@ -5,26 +5,30 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Node } from 'fumadocs-core/page-tree';
 import { CodeCopyButton } from '@/components/code-copy-button';
-import { resolveDocHref } from '@/lib/doc-links';
+import { DocsOutline } from '@/components/docs-outline';
+import { StatusBar } from '@/components/status-bar';
+import { repositorySourcesUrl, resolveDocHref } from '@/lib/doc-links';
 import { getSource } from '@/lib/source';
-import { siteDescription, siteName } from '@/lib/site';
-import { type DocsVersion, defaultVersion, versionBasePath } from '@/lib/versions';
+import {
+  changelogUrl,
+  companyName,
+  docsBasePath,
+  latestRelease,
+  siteDescription,
+  siteName,
+} from '@/lib/site';
 
 /**
  * Metadata for one documentation page.
- *
- * A pre-release version is excluded from indexing so that a search engine does not offer documentation for a package
- * most readers should not install yet, ahead of the stable page that answers the same question.
  */
-export async function docsMetadata(version: DocsVersion, slug: string[]): Promise<Metadata> {
-  const page = (await getSource(version.id)).getPage(slug);
+export async function docsMetadata(slug: string[]): Promise<Metadata> {
+  const page = (await getSource()).getPage(slug);
 
   if (!page) {
     notFound();
   }
 
-  const versionSuffix = version.default ? '' : ` (${version.label})`;
-  const title = `${page.data.title ?? siteName}${versionSuffix}`;
+  const title = page.data.title ?? siteName;
   const description = page.data.description ?? siteDescription;
 
   return {
@@ -33,7 +37,6 @@ export async function docsMetadata(version: DocsVersion, slug: string[]): Promis
     alternates: {
       canonical: page.url,
     },
-    robots: version.status === 'prerelease' ? { index: false, follow: true } : undefined,
     openGraph: {
       type: 'article',
       url: page.url,
@@ -161,7 +164,7 @@ function leadingStrongText(paragraphChildren: ReactNode): string | null {
 }
 
 /**
- * The Fuse box a blockquote maps to, decided by its first paragraph's leading marker.
+ * The box a blockquote maps to, decided by its first paragraph's leading marker.
  *
  * A first paragraph starting with `This page is for` renders as the audience box. A first paragraph starting with
  * `Note` or `Warning` renders as the matching callout. Anything else stays a plain blockquote so the `.md`
@@ -215,38 +218,84 @@ function classifyBlockquote(children: ReactNode): 'audience' | 'note' | 'warning
 }
 
 /**
- * A blockquote with Fuse styling when it carries a leading marker, otherwise a plain quote.
+ * A blockquote with callout styling when it carries a leading marker, otherwise a plain quote.
+ *
+ * The audience box and notes share the callout look; warnings keep the same box with the warning colour on the
+ * left rule.
  */
 function DocsBlockquote({ children, ...rest }: Readonly<ComponentProps<'blockquote'>>) {
   const kind = classifyBlockquote(children);
 
-  if (kind === 'audience') {
-    return <aside className="audience">{children}</aside>;
-  }
-
-  if (kind === 'note') {
-    return <aside className="callout">{children}</aside>;
-  }
-
   if (kind === 'warning') {
     return <aside className="callout warn">{children}</aside>;
+  }
+
+  if (kind === 'audience' || kind === 'note') {
+    return <aside className="callout">{children}</aside>;
   }
 
   return <blockquote {...rest}>{children}</blockquote>;
 }
 
 /**
- * One documentation page: crumbs, the Markdown body, an on-page table of contents, and the pager.
+ * The display label for a fence language tag.
  *
- * The body renders with three Markdown overrides: links resolve through `resolveDocHref` so the sources can keep
- * linking by relative path, code blocks gain a copy button, and marked blockquotes render as Fuse audience and
- * callout boxes. Internal links use the router; anything else renders as a plain anchor.
+ * The listed languages map to fixed labels; anything else shows the tag with an initial capital, and a bare fence
+ * shows `Text`.
  */
-export async function DocsArticle({
-  version,
-  slug,
-}: Readonly<{ version: DocsVersion; slug: string[] }>) {
-  const source = await getSource(version.id);
+function languageLabel(tag: string): string {
+  switch (tag.toLowerCase()) {
+    case 'csharp':
+    case 'cs':
+      return 'C#';
+    case 'bash':
+    case 'sh':
+      return 'Bash';
+    case 'json':
+      return 'JSON';
+    case 'xml':
+      return 'XML';
+    case 'powershell':
+    case 'pwsh':
+      return 'PowerShell';
+    case 'sql':
+      return 'SQL';
+    case 'yaml':
+    case 'yml':
+      return 'YAML';
+    case '':
+    case 'text':
+    case 'plaintext':
+      return 'Text';
+    default:
+      return tag.slice(0, 1).toUpperCase() + tag.slice(1);
+  }
+}
+
+/**
+ * The `pre` class list with the `code` class present.
+ *
+ * The syntax styles hang off `pre.code`, so a block that arrives without it gains it here rather than rendering
+ * unstyled.
+ */
+function codeClassName(className: string | undefined): string {
+  if (className === undefined || className.length === 0) {
+    return 'code';
+  }
+
+  return className.split(' ').includes('code') ? className : `code ${className}`;
+}
+
+/**
+ * One documentation page: the file tab, crumbs, the Markdown body, the outline, the pager, and the status bar.
+ *
+ * The body renders with Markdown overrides: links resolve through `resolveDocHref` so the sources can keep linking
+ * by relative path, headings gain hover anchors, tables wrap for scrolling, code blocks gain a labelled head with a
+ * copy button, and marked blockquotes render as callout boxes. Internal links use the router; anything else renders
+ * as a plain anchor.
+ */
+export async function DocsArticle({ slug }: Readonly<{ slug: string[] }>) {
+  const source = await getSource();
   const page = source.getPage(slug);
 
   if (!page) {
@@ -260,7 +309,7 @@ export async function DocsArticle({
         return <a {...props} />;
       }
 
-      const resolved = resolveDocHref(href, page, source, version);
+      const resolved = resolveDocHref(href, page, source);
 
       if (resolved.startsWith('/')) {
         return <Link href={resolved} {...props} />;
@@ -268,12 +317,41 @@ export async function DocsArticle({
 
       return <a href={resolved} {...props} />;
     },
-    pre: (props: ComponentProps<'pre'>) => (
-      <div className="code">
-        <pre {...props} />
-        <CodeCopyButton />
+    h2: ({ id, children, ...props }: ComponentProps<'h2'>) => {
+      const headingText = textContent(children).trim();
+      const label =
+        headingText.length > 0 ? `Link to section ${headingText}` : `Link to section ${id ?? ''}`;
+
+      return (
+        <h2 id={id} {...props}>
+          {children}
+          {typeof id === 'string' && id.length > 0 ? (
+            <a className="anchor" href={`#${id}`} aria-label={label}>
+              <span aria-hidden="true">#</span>
+            </a>
+          ) : null}
+        </h2>
+      );
+    },
+    table: (props: ComponentProps<'table'>) => (
+      <div className="tbl">
+        <table {...props} />
       </div>
     ),
+    pre: (props: ComponentProps<'pre'>) => {
+      const lang = (props as Record<string, unknown>)['data-lang'];
+      const title = typeof props.title === 'string' && props.title.length > 0 ? props.title : undefined;
+
+      return (
+        <div className="block">
+          <div className="block-head">
+            <span>{title ?? languageLabel(typeof lang === 'string' ? lang : '')}</span>
+            <CodeCopyButton />
+          </div>
+          <pre {...props} className={codeClassName(props.className)} style={undefined} title={undefined} />
+        </div>
+      );
+    },
     blockquote: (props: ComponentProps<'blockquote'>) => <DocsBlockquote {...props} />,
   });
 
@@ -308,64 +386,82 @@ export async function DocsArticle({
       : ordered[currentIndex + 1];
   const headings = rendered.toc.filter((entry) => entry.depth === 2);
   const crumbs = current === undefined ? [] : crumbsFor(current);
+  const pathSegments = page.path.split('/');
+  const fileName = pathSegments[pathSegments.length - 1] ?? 'README.md';
+  const editUrl = `${repositorySourcesUrl()}${page.path}`;
 
   return (
-    <main id="main" className="page" tabIndex={-1}>
-      <p className="crumbs">
-        {slug.length === 0 ? (
-          'Docs'
-        ) : (
+    <>
+      <main id="main" className="doc" tabIndex={-1}>
+        <div className="ed-tabs">
+          <span className="ed-tab on">
+            {fileName}
+            <span className="x" aria-hidden="true">
+              x
+            </span>
+          </span>
+        </div>
+        <p className="crumbs">
+          {slug.length === 0 ? (
+            'Docs'
+          ) : (
+            <>
+              <Link href={docsBasePath}>Docs</Link>
+              {crumbs.map((segment, index) => (
+                <Fragment key={`${segment}-${index}`}>
+                  <b>&gt;</b>
+                  {segment}
+                </Fragment>
+              ))}
+            </>
+          )}
+        </p>
+        <article className="prose">
+          {rendered.body}
+          {previous === undefined && next === undefined ? null : (
+            <nav className="pager" aria-label="Previous and next page">
+              {previous === undefined ? (
+                <span className="pager-gap" aria-hidden="true" />
+              ) : (
+                <Link href={previous.url}>
+                  <small>Previous</small>
+                  {previous.name}
+                </Link>
+              )}
+              {next === undefined ? null : (
+                <Link href={next.url}>
+                  <small>Next</small>
+                  {next.name}
+                </Link>
+              )}
+            </nav>
+          )}
+        </article>
+      </main>
+      <aside className="outline" aria-label="On this page">
+        <div className="sticky">
+          <h2 className="xhead">On This Page</h2>
+          <DocsOutline headings={headings.map((entry) => ({ url: entry.url, title: entry.title }))} />
+          <a className="edit" href={editUrl}>
+            Edit this page on GitHub
+          </a>
+        </div>
+      </aside>
+      <StatusBar
+        end={
           <>
-            <Link href={versionBasePath(version)}>Docs</Link>
-            {crumbs.map((segment, index) => (
-              <Fragment key={`${segment}-${index}`}> / {segment}</Fragment>
-            ))}
+            <a className="hide-sm" href={editUrl}>
+              Edit this page on GitHub
+            </a>
+            <span>{companyName}</span>
           </>
-        )}
-      </p>
-      <a className="jump" href="#docs-nav">
-        All documentation pages
-      </a>
-      {version.status === 'prerelease' ? (
-        <aside className="callout warn">
-          <strong>{version.label} is a pre-release.</strong> This page documents{' '}
-          <code>{version.release}</code>, which ships to NuGet as a pre-release package and may still
-          change.{' '}
-          <Link href={versionBasePath(defaultVersion)}>
-            Read the {defaultVersion.label} documentation
-          </Link>{' '}
-          for the version most applications should install.
-        </aside>
-      ) : null}
-      {headings.length >= 3 ? (
-        <nav className="toc" aria-label="On this page">
-          <p>On this page</p>
-          <ol>
-            {headings.map((entry) => (
-              <li key={entry.url}>
-                <a href={entry.url}>{entry.title}</a>
-              </li>
-            ))}
-          </ol>
-        </nav>
-      ) : null}
-      <div className="prose">{rendered.body}</div>
-      {previous === undefined && next === undefined ? null : (
-        <nav className="pager" aria-label="Previous and next page">
-          {previous === undefined ? null : (
-            <Link href={previous.url}>
-              <span>Previous</span>
-              {previous.name}
-            </Link>
-          )}
-          {next === undefined ? null : (
-            <Link href={next.url} className="next-page">
-              <span>Next</span>
-              {next.name}
-            </Link>
-          )}
-        </nav>
-      )}
-    </main>
+        }
+      >
+        <a href={changelogUrl} title="Changelog">
+          v{latestRelease}
+        </a>
+        <span className="hide-sm">{page.path}</span>
+      </StatusBar>
+    </>
   );
 }

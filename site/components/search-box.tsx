@@ -2,7 +2,28 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+
+/**
+ * The platform never changes during a page view, so there is nothing to subscribe to.
+ */
+function subscribeToNothing(): () => void {
+  return () => {};
+}
+
+/**
+ * Whether the visitor is on macOS, where the shortcut is Cmd K.
+ */
+function readIsMac(): boolean {
+  return window.navigator.platform.toLowerCase().includes('mac');
+}
+
+/**
+ * The server renders the Ctrl K hint.
+ */
+function readIsMacOnServer(): boolean {
+  return false;
+}
 import type { SortedResult } from 'fumadocs-core/search';
 
 /**
@@ -21,20 +42,52 @@ const minQueryLength = 2;
 const maxResults = 8;
 
 /**
- * Searches one documentation version.
+ * Searches the documentation.
  *
- * Every request carries that version's id as `tag`, so a question asked from one version's pages is answered from
- * that version's pages. Typing past the minimum length queries the index; arrow keys move through the matches, Enter
- * opens the active one, and Escape clears the box.
+ * Typing past the minimum length queries the index; arrow keys move through the matches, Enter opens the active one,
+ * and Escape clears the box. Ctrl K or Cmd K focuses the box from anywhere on the page.
  */
-export function SearchBox({ versionId }: Readonly<{ versionId: string }>) {
+export function SearchBox() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [found, setResults] = useState<readonly SortedResult[]>([]);
   const [active, setActive] = useState(0);
+  const isMac = useSyncExternalStore(subscribeToNothing, readIsMac, readIsMacOnServer);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listboxId = useId();
 
   // A query below the minimum length shows nothing, whatever an earlier, longer query returned.
   const results = query.trim().length < minQueryLength ? [] : found;
+  const expanded = results.length > 0;
+  const activeOptionId =
+    results.length === 0 ? undefined : `${listboxId}-option-${Math.min(active, results.length - 1)}`;
+
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        const target = event.target;
+
+        // Typing in any other editable field keeps the browser binding; only this input refocuses.
+        if (
+          target instanceof HTMLElement &&
+          target !== inputRef.current &&
+          target.closest('input, textarea, select, [contenteditable]') !== null
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, []);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -45,7 +98,7 @@ export function SearchBox({ versionId }: Readonly<{ versionId: string }>) {
 
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      const params = new URLSearchParams({ query: trimmed, tag: versionId });
+      const params = new URLSearchParams({ query: trimmed });
 
       void fetch(`/api/search?${params.toString()}`)
         .then(async (response) => (response.ok ? ((await response.json()) as SortedResult[]) : []))
@@ -66,11 +119,12 @@ export function SearchBox({ versionId }: Readonly<{ versionId: string }>) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query, versionId]);
+  }, [query]);
 
   return (
     <div className="search">
       <input
+        ref={inputRef}
         type="search"
         value={query}
         onChange={(event) => {
@@ -98,14 +152,26 @@ export function SearchBox({ versionId }: Readonly<{ versionId: string }>) {
         aria-label="Search documentation"
         autoComplete="off"
         spellCheck={false}
+        role="combobox"
+        aria-expanded={expanded}
+        aria-controls={expanded ? listboxId : undefined}
+        aria-activedescendant={activeOptionId}
+        aria-autocomplete="list"
       />
+      <kbd>{isMac ? 'Cmd K' : 'Ctrl K'}</kbd>
       {results.length > 0 ? (
-        <ul className="search-results">
+        <ul className="search-results" role="listbox" id={listboxId} aria-label="Search results">
           {results.map((result, index) => (
-            <li key={result.id}>
+            <li
+              key={result.id}
+              role="option"
+              id={`${listboxId}-option-${index}`}
+              aria-selected={index === Math.min(active, results.length - 1)}
+            >
               <Link
                 href={result.url}
                 data-active={index === active}
+                tabIndex={-1}
                 onClick={() => {
                   setQuery('');
                   setResults([]);

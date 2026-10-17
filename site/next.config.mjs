@@ -1,5 +1,3 @@
-import { readFile } from 'node:fs/promises';
-
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -27,24 +25,19 @@ const securityHeaders = [
   },
 ];
 
-const { versions } = JSON.parse(await readFile(new URL('./versions.json', import.meta.url), 'utf8'));
-const prefixedVersions = versions.filter((version) => !version.default);
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   outputFileTracingIncludes: {
-    // The search route reads every version's Markdown at request time, so each content root has to be traced into the
-    // serverless bundle. Keep this in step with `dir` in lib/versions.ts.
-    '/api/search': ['./content/docs/**/*', './content/versions/**/*'],
+    // The search route reads the documentation's Markdown at request time, so the content root has to be traced into
+    // the serverless bundle. Keep this in step with `docsContentDir` in lib/site.ts.
+    '/api/search': ['./content/docs/**/*'],
     // The plain-text views read the same Markdown. They are prerendered, so this only matters for the `.md` route
     // reached by a path that was not in `generateStaticParams`, but the cost of tracing them is a build-time copy.
-    '/llms.txt': ['./content/docs/**/*', './content/versions/**/*'],
-    '/llms-full.txt': ['./content/docs/**/*', './content/versions/**/*'],
-    '/[version]/docs/llms.txt': ['./content/docs/**/*', './content/versions/**/*'],
-    '/[version]/docs/llms-full.txt': ['./content/docs/**/*', './content/versions/**/*'],
-    '/md/[...path]': ['./content/docs/**/*', './content/versions/**/*'],
+    '/llms.txt': ['./content/docs/**/*'],
+    '/llms-full.txt': ['./content/docs/**/*'],
+    '/md/[...path]': ['./content/docs/**/*'],
   },
   async headers() {
     return [
@@ -68,37 +61,39 @@ const nextConfig = {
     ];
   },
   async redirects() {
-    // The plain-text index for the default version answers at the site root, since that is where the convention has
-    // clients probe. The prefixed form is the other reasonable guess, so it lands on the same file instead of on the
-    // documentation catch-all. Keep in step with `llmsIndexPath` in lib/llms.ts.
+    // The plain-text index answers at the site root, since that is where the convention has clients probe. The
+    // prefixed form is the other reasonable guess, so it lands on the same file instead of on the documentation
+    // catch-all. Keep in step with `llmsIndexPath` in lib/llms.ts.
     const plainTextIndexes = [
       { source: '/docs/llms.txt', destination: '/llms.txt', permanent: false },
       { source: '/docs/llms-full.txt', destination: '/llms-full.txt', permanent: false },
     ];
 
-    // A version identifier is a plausible thing to type or guess on its own, and `/docs/v7` is the shape a reader
-    // familiar with the unprefixed default would try first. Both land on that version's documentation index rather
-    // than on a not-found page.
-    return [
-      ...plainTextIndexes,
-      ...prefixedVersions.flatMap((version) => [
-        {
-          source: `/${version.id}`,
-          destination: `/${version.id}/docs`,
-          permanent: false,
-        },
-        {
-          source: `/docs/${version.id}/:path*`,
-          destination: `/${version.id}/docs/:path*`,
-          permanent: false,
-        },
-        {
-          source: `/docs/${version.id}`,
-          destination: `/${version.id}/docs`,
-          permanent: false,
-        },
-      ]),
+    // Old `/v7/` documentation links redirect to the same path without the prefix, so links written while the
+    // documentation carried a version segment keep working.
+    const legacyVersionPrefix = [
+      { source: '/v7/docs', destination: '/docs', permanent: true },
+      { source: '/v7/docs/:path*', destination: '/docs/:path*', permanent: true },
+      { source: '/docs/v7/:path*', destination: '/docs/:path*', permanent: true },
+      { source: '/v7', destination: '/docs', permanent: true },
     ];
+
+    // Pages that moved, merged, or were deleted in the documentation restructure keep their old URL working. The old
+    // `/docs/operations` overview is the one exception: it now serves the new operations overview, so a redirect there
+    // would shadow it; the management-endpoints content it used to hold lives at `/docs/operations/management-endpoints`.
+    const restructuredDocs = [
+      { source: '/docs/concepts/domain-events-and-unit-of-work', destination: '/docs/reliable-messaging/domain-events-and-unit-of-work', permanent: true },
+      { source: '/docs/concepts/recurring-commands', destination: '/docs/integrations/recurring-commands', permanent: true },
+      { source: '/docs/reference/feature-index-v7', destination: '/docs/reference/feature-index', permanent: true },
+      { source: '/docs/reference/feature-index-v6', destination: '/docs/reference/feature-index', permanent: true },
+      { source: '/docs/reference/semantic-validation', destination: '/docs/contributing/semantic-validation', permanent: true },
+      { source: '/docs/migration/from-mediatr', destination: '/docs/migration/mediatr-differences', permanent: true },
+      { source: '/docs/integrations/inbox-amqp', destination: '/docs/integrations/inbox-amqp-ingress', permanent: true },
+      { source: '/docs/catalog/hosting/module-registry', destination: '/docs/catalog/runtime/module-registry', permanent: true },
+      { source: '/docs/catalog/saga/processor-envelope-hooks', destination: '/docs/catalog/durable-core/processor-hooks', permanent: true },
+    ];
+
+    return [...plainTextIndexes, ...legacyVersionPrefix, ...restructuredDocs];
   },
 };
 
