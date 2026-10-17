@@ -23,7 +23,7 @@ The repository's CI checks build, tests, documentation, package validation, benc
 
 ## Releases
 
-Pushing a `v*` tag runs the release workflow, which reruns every gate before publishing.
+CI (`.github/workflows/ci.yml`) runs every gate once per commit pushed to `main` or a version branch, with the test suites sharded across parallel jobs. Pushing a `v*` tag runs the release workflow (`.github/workflows/release.yml`), which reruns no tests: it publishes only a commit whose CI run succeeded, waiting for that run if it is still going. Push the branch first, then the tag.
 
 A major line is developed on its own branch named after it, such as `v7`, and merges to `main` when it is ready to be the stable release. Pre-release tags may be cut from that branch: a pre-release is only resolvable by a caller who asks for one, so it does not change what an existing consumer gets. A stable tag must be reachable from `main`, and the release workflow rejects one that is not, because a stable release is what NuGet resolves without an opt-in and what the documentation site deploys from.
 

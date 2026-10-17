@@ -5,7 +5,7 @@ This page is the reference for LiteBus integration tests: which projects exist, 
 For handler-level and in-memory processor recipes, see [Testing LiteBus](application-testing.md). For durable messaging setup snippets, see [Testing](README.md).
 
 > [!NOTE]
-> Project counts, trait names, and container images reflect the repository at the time this page was written. When in doubt, inspect `tests/` and `.github/workflows/build-and-test.yml`.
+> Project counts, trait names, and container images reflect the repository at the time this page was written. When in doubt, inspect `tests/` and `.github/workflows/ci.yml`.
 
 ## How Integration Tests Are Organized
 
@@ -124,7 +124,7 @@ Projects differ in how they handle a missing Docker daemon:
 | **Throw after retries** | `Storage.IntegrationTests` (SQL Server) | Fixture throws `InvalidOperationException` after its container start retry loop |
 | **No Docker needed** | `TransportFast` cases in `LiteBus.Durable.IntegrationTests`, health checks, OpenTelemetry | Always runs |
 
-CI (`.github/workflows/build-and-test.yml`) runs unit tests without Docker (`FullyQualifiedName!~IntegrationTests`), then durable transport in three filtered batches (`TransportFast`, `TransportDocker`, `TransportAzure`), then remaining integration tests (`FullyQualifiedName~IntegrationTests` excluding those categories and the opt-in `TransportLiveAzure` category).
+CI (`.github/workflows/ci.yml`) runs the suites as parallel shards, each on its own runner: unit tests without Docker (`FullyQualifiedName!~IntegrationTests`), the durable transport categories (`TransportFast`, `TransportDocker` for the durable and wire suites, `TransportAzure`), and the remaining integration tests (`FullyQualifiedName~IntegrationTests` excluding those categories and the opt-in `TransportLiveAzure` category), split by project, with PostgreSQL storage in its own shard and one shard for matching tests outside the integration projects. A coverage job merges every shard and enforces the 90 percent line gate.
 
 ### Environment Variable Overrides (Local Troubleshooting)
 

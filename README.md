@@ -5,7 +5,7 @@
 <h1 align="center">LiteBus</h1>
 
 <p align="center">
-  <a href="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml"><img src="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml/badge.svg" alt="Build and test status"></a>
+  <a href="https://github.com/litenova/LiteBus/actions/workflows/ci.yml"><img src="https://github.com/litenova/LiteBus/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="https://app.codecov.io/gh/litenova/LiteBus"><img src="https://codecov.io/gh/litenova/LiteBus/branch/main/graph/badge.svg" alt="Test coverage"></a>
   <a href="https://litebus.io/docs"><img src="https://img.shields.io/badge/Documentation-Available-0A66C2?logo=gitbook" alt="Documentation"></a>
   <a href="https://www.nuget.org/packages/LiteBus"><img src="https://img.shields.io/nuget/v/LiteBus.svg" alt="NuGet version"></a>

@@ -1,28 +1,25 @@
-# Release - tag-triggered validation and publication
+# Release - publish a tag whose commit already passed CI.
 #
-# Emulator-backed transport categories are mandatory and reject skipped tests. TransportLiveAzure remains an opt-in
-# credential-backed category and is excluded from this release job.
+# The release does not rerun the gates. CI (ci.yml) runs every gate on each push to main and to version branches;
+# pushing a v* tag runs this workflow, which checks the tag and changelog, requires a successful CI push or dispatch
+# run on the exact tagged commit (waiting for one that is still running), then builds the signed packages at the
+# tag's version and publishes them. Push the branch, let CI finish or keep running, then push the tag.
 #
-# A pre-release tag such as v7.0.0-preview.1 runs every gate a stable tag runs. Its version suffix is what makes
-# NuGet treat the package as a pre-release, and the GitHub release is marked as one so it does not displace the
-# latest stable release.
+# A pre-release tag such as v7.0.0-preview.1 publishes like a stable tag. Its version suffix is what makes NuGet
+# treat the package as a pre-release, and the GitHub release is marked as one so it does not displace the latest
+# stable release.
 #
 # Notes come from the Changelog. The first preview and every stable release publish the version's own section, so
 # each describes the whole line. A later preview publishes its own '## <tag>' section instead, which is a delta
-# against the preview before it: a reader upgrading between two previews wants what changed between them, and the
-# cumulative section is one link away for anyone who wants the whole line.
+# against the preview before it.
 #
 # A pre-release may be cut from any branch, so a version line can ship previews from its own branch and merge to
 # main once it is stable. A stable tag must be on main: it is what NuGet resolves without an opt-in and what the
-# documentation site deploys from, so shipping one from a branch would publish as generally available something
-# that never passed through the default branch.
+# documentation site deploys from.
 name: Release
 
 permissions:
-  contents: write
-  packages: write
-  # NuGet trusted publishing: the job exchanges a GitHub OIDC token for a short-lived nuget.org API key.
-  id-token: write
+  contents: read
 
 # Two tag pushes close together must not publish at the same time, and a running release is never cancelled.
 concurrency:
@@ -34,8 +31,17 @@ on:
     tags: [ 'v*' ]
 
 jobs:
-  release:
+  verify:
+    name: Verify
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      changelog_heading: ${{ steps.version.outputs.changelog_heading }}
+      changelog_scope: ${{ steps.version.outputs.changelog_scope }}
 
     steps:
       - name: Checkout Repository
@@ -44,33 +50,6 @@ jobs:
           fetch-depth: 0
           # The branch policy below compares the tag against main, which a tag checkout does not fetch on its own.
           ref: ${{ github.ref }}
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: site/package-lock.json
-
-      - name: Validate Documentation
-        shell: pwsh
-        run: ./scripts/Test-Documentation.ps1
-
-      - name: Validate Documentation Site
-        working-directory: site
-        run: |
-          npm ci
-          if ! npm audit --audit-level=high; then
-            echo "::warning::npm audit (high) reported vulnerabilities. Continuing CI because documentation dependencies are best-effort validated here."
-          fi
-          npm run lint
-          npm run typecheck
-          npm run build
 
       - name: Validate Release Tag and Changelog
         id: version
@@ -95,13 +74,13 @@ jobs:
           # and every stable release read, so those publish the whole line.
           if grep -Fxq "## ${tag}" Changelog.md; then
             changelog_heading="## ${tag}"
-            changelog_scope=delta
+            changelog_scope="delta"
           elif [ "${prerelease}" = "true" ] && [[ "${tag}" =~ \.([0-9]+)$ ]] && [ "${BASH_REMATCH[1]}" -gt 1 ]; then
             echo "::error::Changelog.md has no '## ${tag}' section. Every pre-release after the first of its line needs a delta section; see AGENTS.md, Releases and changelog."
             exit 1
           elif [ "${prerelease}" = "true" ] && grep -Fxq "## ${base_tag}" Changelog.md; then
             changelog_heading="## ${base_tag}"
-            changelog_scope=cumulative
+            changelog_scope="cumulative"
           elif [ "${prerelease}" = "true" ]; then
             echo "::error::Changelog.md contains neither a '## ${tag}' nor a '## ${base_tag}' release heading."
             exit 1
@@ -112,25 +91,25 @@ jobs:
 
           # A stable release always describes the whole version, whichever heading it read.
           if [ "${prerelease}" != "true" ]; then
-            changelog_scope=cumulative
+            changelog_scope="cumulative"
           fi
 
           echo "Using tag version: ${version} (pre-release: ${prerelease}, ${changelog_scope} notes from ${changelog_heading})"
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
-          echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
-          echo "changelog_heading=${changelog_heading}" >> "${GITHUB_OUTPUT}"
-          echo "changelog_scope=${changelog_scope}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "version=${version}"
+            echo "prerelease=${prerelease}"
+            echo "changelog_heading=${changelog_heading}"
+            echo "changelog_scope=${changelog_scope}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Validate Release Branch
-        id: branch
         env:
           IS_PRERELEASE: ${{ steps.version.outputs.prerelease }}
         run: |
           git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
           tag_sha="$(git rev-parse "${GITHUB_REF_NAME}^{commit}")"
 
-          # Every remote branch the tagged commit is reachable from, for the run summary. A pre-release cut from a
-          # version branch reports that branch; the list is empty for a tag on a commit no branch points past.
+          # Every remote branch the tagged commit is reachable from, for the run summary.
           branches="$(git branch --remotes --contains "${tag_sha}" --format="%(refname:lstrip=3)" \
             | grep -v '^HEAD$' | sort | paste -sd ',' - | sed 's/,/, /g')"
           branches="${branches:-none}"
@@ -146,187 +125,101 @@ jobs:
             exit 1
           fi
 
-          echo "Tagged commit ${tag_sha} is on: ${branches} (reachable from main: ${on_main})"
-          echo "branches=${branches}" >> "${GITHUB_OUTPUT}"
-          echo "on_main=${on_main}" >> "${GITHUB_OUTPUT}"
-
           {
             echo "## Release source"
             echo "- Tag: \`${GITHUB_REF_NAME}\`"
+            echo "- Commit: \`${tag_sha}\`"
             echo "- Pre-release: ${IS_PRERELEASE}"
             echo "- Branches containing the tagged commit: ${branches}"
             echo "- Reachable from main: ${on_main}"
           } >> "${GITHUB_STEP_SUMMARY}"
 
+      - name: Require Green CI on the Tagged Commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The release publishes what CI proved, so it needs a successful push or dispatch run of ci.yml on this
+          # exact commit. Pull request runs do not count: they may skip as duplicates of the push run.
+          tag_sha="$(git rev-parse "${GITHUB_REF_NAME}^{commit}")"
+          deadline=$(( $(date +%s) + 45 * 60 ))
+          while true; do
+            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${tag_sha}&per_page=50" \
+              --jq '[.workflow_runs[] | select(.event == "push" or .event == "workflow_dispatch")]')"
+            if [ "$(jq '[.[] | select(.conclusion == "success")] | length' <<< "${runs}")" -gt 0 ]; then
+              url="$(jq -r '[.[] | select(.conclusion == "success")][0].html_url' <<< "${runs}")"
+              echo "CI passed on ${tag_sha}: ${url}"
+              echo "- CI run: ${url}" >> "${GITHUB_STEP_SUMMARY}"
+              exit 0
+            fi
+            pending="$(jq '[.[] | select(.status != "completed")] | length' <<< "${runs}")"
+            total="$(jq 'length' <<< "${runs}")"
+            if [ "${total}" -gt 0 ] && [ "${pending}" -eq 0 ]; then
+              echo "::error::CI did not succeed on ${tag_sha}. Fix the failure, push the fix, and tag the new commit."
+              exit 1
+            fi
+            if [ "$(date +%s)" -ge "${deadline}" ]; then
+              if [ "${total}" -eq 0 ]; then
+                echo "::error::No CI push run exists for ${tag_sha}. Push the commit to main or a version branch, or run CI on it with workflow_dispatch, then rerun this release."
+              else
+                echo "::error::CI on ${tag_sha} is still running after 45 minutes. Rerun this release once it finishes."
+              fi
+              exit 1
+            fi
+            echo "Waiting for CI on ${tag_sha} (${pending} running of ${total})."
+            sleep 30
+          done
+
+  publish:
+    name: Publish
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      # NuGet trusted publishing: the job exchanges a GitHub OIDC token for a short-lived nuget.org API key.
+      id-token: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
       - name: Restore
         run: dotnet restore LiteBus.slnx --locked-mode
 
-      - name: Audit NuGet Dependencies
-        shell: bash
-        run: |
-          audit_output="$(dotnet list LiteBus.slnx package --vulnerable --include-transitive)"
-          printf '%s\n' "${audit_output}"
-          if grep -qi "has the following vulnerable packages" <<< "${audit_output}"; then
-            echo "::error::NuGet vulnerability audit found a vulnerable package."
-            exit 1
-          fi
-
       - name: Decode Strong Name Key
-        env:
-          STRONG_NAME_KEY: ${{ secrets.STRONG_NAME_KEY }}
-        run: |
-          if [ -z "${STRONG_NAME_KEY}" ]; then
-            echo "::error::STRONG_NAME_KEY is required for release builds."
-            exit 1
-          fi
-          echo "${STRONG_NAME_KEY}" | base64 --decode > LiteBus.snk
+        uses: ./.github/actions/strong-name-key
+        with:
+          key: ${{ secrets.STRONG_NAME_KEY }}
+          required: 'true'
 
       - name: Build
-        run: dotnet build LiteBus.slnx --configuration Release --no-restore /p:Version=${{ steps.version.outputs.version }} /p:ContinuousIntegrationBuild=true
-
-      - name: Validate Documentation Semantics
-        shell: pwsh
-        run: ./scripts/Test-DocumentationSemantics.ps1 -Configuration Release
-
-      - name: Verify Benchmark Discovery
-        run: dotnet run --project benchmarks/LiteBus.Processor.Benchmarks --configuration Release --no-build -- --list flat
-
-      - name: Fail on [Fact(Skip = ...)] in test projects
-        run: bash .github/scripts/verify-no-fact-skips.sh "${{ github.workspace }}"
-
-      - name: Require Docker for integration suites
-        run: |
-          if ! docker info >/dev/null 2>&1; then
-            echo "::error::Docker is required for release integration tests."
-            exit 1
-          fi
-          echo "Docker is available."
-
-      - name: Unit Tests
-        run: |
-          mkdir -p artifacts/coverage && echo unit >> artifacts/coverage/expected.txt
-          dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/unit --filter "FullyQualifiedName!~IntegrationTests"
-
-      - name: Transport Fast Integration Tests
-        run: |
-          mkdir -p artifacts/coverage && echo transport-fast >> artifacts/coverage/expected.txt
-          dotnet test tests/LiteBus.Durable.IntegrationTests --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/transport-fast --filter "Category=TransportFast"
-
-      - name: Transport Docker Integration Tests
-        env:
-          LITEBUS_CI_STRICT_TRANSPORT: 'true'
-        run: |
-          trx_dir="${RUNNER_TEMP}/transport-docker"
-          mkdir -p "${trx_dir}" artifacts/coverage
-          echo transport-docker-durable >> artifacts/coverage/expected.txt && echo transport-docker-wire >> artifacts/coverage/expected.txt
-          dotnet test tests/LiteBus.Durable.IntegrationTests \
-            --no-build --configuration Release --verbosity normal \
-            --collect:"XPlat Code Coverage" \
-            --settings coverlet.runsettings \
-            --results-directory artifacts/coverage/transport-docker-durable \
-            --filter "Category=TransportDocker" \
-            --logger "trx;LogFileName=${trx_dir}/durable-transport-docker.trx"
-          bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/durable-transport-docker.trx"
-          dotnet test tests/LiteBus.Transport.IntegrationTests \
-            --no-build --configuration Release --verbosity normal \
-            --collect:"XPlat Code Coverage" \
-            --settings coverlet.runsettings \
-            --results-directory artifacts/coverage/transport-docker-wire \
-            --filter "Category=TransportDocker" \
-            --logger "trx;LogFileName=${trx_dir}/transport-wire-docker.trx"
-          bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-wire-docker.trx"
-
-      - name: Transport Azure Integration Tests
-        env:
-          LITEBUS_CI_STRICT_TRANSPORT: 'true'
-        run: |
-          trx_dir="${RUNNER_TEMP}/transport-azure"
-          mkdir -p "${trx_dir}" artifacts/coverage
-          echo transport-azure >> artifacts/coverage/expected.txt
-          dotnet test tests/LiteBus.Durable.IntegrationTests \
-            --no-build --configuration Release --verbosity normal \
-            --collect:"XPlat Code Coverage" \
-            --settings coverlet.runsettings \
-            --results-directory artifacts/coverage/transport-azure \
-            --filter "Category=TransportAzure" \
-            --logger "trx;LogFileName=${trx_dir}/transport-azure.trx"
-          bash .github/scripts/verify-no-skipped-tests.sh "${trx_dir}/transport-azure.trx"
-
-      - name: Integration Tests
-        run: |
-          mkdir -p artifacts/coverage && echo integration >> artifacts/coverage/expected.txt
-          dotnet test LiteBus.slnx --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory artifacts/coverage/integration --filter "FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure"
-
-      - name: Check Coverage Reports
-        id: coverage-reports
-        if: always()
-        run: |
-          # Each test step appends its results directory to expected.txt before it runs, so a step that
-          # never started is not expected and a step that ran without producing a report fails here.
-          coverage_count="$(find artifacts/coverage -type f -name 'coverage.cobertura.xml' | wc -l)"
-          echo "count=${coverage_count}" >> "$GITHUB_OUTPUT"
-          if [ "${coverage_count}" -eq 0 ]; then
-            echo "has_reports=false" >> "$GITHUB_OUTPUT"
-            echo "::error::No Cobertura coverage reports were found in artifacts/coverage."
-            exit 1
-          fi
-          echo "has_reports=true" >> "$GITHUB_OUTPUT"
-          missing=0
-          if [ -f artifacts/coverage/expected.txt ]; then
-            while read -r name; do
-              [ -z "${name}" ] && continue
-              if [ -z "$(find "artifacts/coverage/${name}" -type f -name 'coverage.cobertura.xml' 2>/dev/null | head -n 1)" ]; then
-                echo "::error::The ${name} test step produced no coverage.cobertura.xml in artifacts/coverage/${name}."
-                missing=1
-              fi
-            done < artifacts/coverage/expected.txt
-          fi
-          exit "${missing}"
-
-      - name: Coverage Report Summary
-        if: always()
-        run: |
-          {
-            echo "## Coverage report status"
-            if [ "${{ steps.coverage-reports.outputs.has_reports }}" = "true" ]; then
-              echo "- Found ${{ steps.coverage-reports.outputs.count }} Cobertura coverage report(s)."
-              echo "- Coverage gate and upload steps will run."
-            else
-              echo "- No Cobertura coverage reports were found."
-              echo "- Coverage gate and upload steps were skipped."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Enforce Merged Coverage Gate
-        shell: pwsh
-        run: ./scripts/Test-CoverageThreshold.ps1 -Root artifacts/coverage -LineThreshold 90
-
-      - name: Upload to Codecov
-        if: steps.coverage-reports.outputs.has_reports == 'true'
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
-        with:
-          files: ./artifacts/coverage/**/coverage.cobertura.xml
-          disable_search: true
-          fail_ci_if_error: true
-          token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true
+        run: dotnet build LiteBus.slnx --configuration Release --no-restore /p:Version=${{ needs.verify.outputs.version }} /p:ContinuousIntegrationBuild=true
 
       - name: Pack Packages
         shell: pwsh
-        run: ./scripts/Pack-Packages.ps1 -OutputDirectory artifacts -Configuration Release -Version ${{ steps.version.outputs.version }} -NoBuild -NoRestore
+        run: ./scripts/Pack-Packages.ps1 -OutputDirectory artifacts -Configuration Release -Version ${{ needs.verify.outputs.version }} -NoBuild -NoRestore
 
       - name: Validate Packages
         shell: pwsh
-        run: ./scripts/Test-Packages.ps1 -PackageDirectory artifacts -ExpectedVersion ${{ steps.version.outputs.version }}
+        run: ./scripts/Test-Packages.ps1 -PackageDirectory artifacts -ExpectedVersion ${{ needs.verify.outputs.version }}
 
       - name: Generate Release Notes
         env:
-          CHANGELOG_HEADING: ${{ steps.version.outputs.changelog_heading }}
-          CHANGELOG_SCOPE: ${{ steps.version.outputs.changelog_scope }}
-          IS_PRERELEASE: ${{ steps.version.outputs.prerelease }}
+          CHANGELOG_HEADING: ${{ needs.verify.outputs.changelog_heading }}
+          CHANGELOG_SCOPE: ${{ needs.verify.outputs.changelog_scope }}
+          IS_PRERELEASE: ${{ needs.verify.outputs.prerelease }}
         run: bash .github/scripts/generate-release-notes.sh
 
-      - name: Upload Artifacts
+      - name: Upload Packages
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nuget-packages
@@ -351,17 +244,20 @@ jobs:
           done
 
       - name: Publish to GitHub Packages
+        env:
+          GH_PACKAGES_TOKEN: ${{ github.token }}
         run: |
           for package in ./artifacts/*.nupkg; do
-            dotnet nuget push "${package}" --api-key "${{ secrets.GITHUB_TOKEN }}" --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --skip-duplicate
+            dotnet nuget push "${package}" --api-key "${GH_PACKAGES_TOKEN}" --source "https://nuget.pkg.github.com/${GITHUB_REPOSITORY_OWNER}/index.json" --skip-duplicate
           done
 
       - name: Create GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          IS_PRERELEASE: ${{ needs.verify.outputs.prerelease }}
         run: |
           # A pre-release must not become the release GitHub offers as latest, and a stable tag must.
-          if [ "${{ steps.version.outputs.prerelease }}" = "true" ]; then
+          if [ "${IS_PRERELEASE}" = "true" ]; then
             release_kind=(--prerelease)
           else
             release_kind=(--latest)
