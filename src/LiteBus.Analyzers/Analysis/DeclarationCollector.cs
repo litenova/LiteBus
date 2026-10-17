@@ -49,13 +49,15 @@ internal sealed class DeclarationCollector
         bool StatesAuditPosition,
         bool PassesCollector,
         SyntaxTree Tree,
-        TextSpan Span)> DescribeBodies { get; } = new();
+        TextSpan Span)> DescribeBodies
+    { get; } = new();
 
     /// <summary>
     ///     Gets the source attribute classes annotated as declaring a value type.
     /// </summary>
     internal ConcurrentBag<(INamedTypeSymbol AttributeClass, INamedTypeSymbol DeclaredValue)>
-        SourceDeclaringAttributes { get; } = new();
+        SourceDeclaringAttributes
+    { get; } = new();
 
     /// <summary>
     ///     Gets the required declaration names configured per syntax tree.

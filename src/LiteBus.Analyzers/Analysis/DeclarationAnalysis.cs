@@ -223,7 +223,7 @@ internal static class DeclarationAnalysis
         DeclarationCollector collector,
         DeclarationSymbols symbols)
     {
-        var declaration = (MethodDeclarationSyntax)context.Node;
+        var declaration = (MethodDeclarationSyntax) context.Node;
 
         if (!string.Equals(declaration.Identifier.Text, DescribeMethodName, StringComparison.Ordinal) ||
             declaration.ParameterList.Parameters.Count != 1)

@@ -80,7 +80,7 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeAssignment(SyntaxNodeAnalysisContext context, TagReferenceCollector tags)
     {
         TagReferenceAnalysis.CollectTagsFromAssignment(
-            (AssignmentExpressionSyntax)context.Node,
+            (AssignmentExpressionSyntax) context.Node,
             context.SemanticModel,
             tags,
             context.CancellationToken);
@@ -94,7 +94,7 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeObjectCreation(SyntaxNodeAnalysisContext context, TagReferenceCollector tags)
     {
         TagReferenceAnalysis.CollectTagsFromObjectCreation(
-            (ObjectCreationExpressionSyntax)context.Node,
+            (ObjectCreationExpressionSyntax) context.Node,
             context.SemanticModel,
             tags,
             context.CancellationToken);
@@ -108,7 +108,7 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context, TagReferenceCollector tags)
     {
         TagReferenceAnalysis.CollectTagsFromInvocation(
-            (InvocationExpressionSyntax)context.Node,
+            (InvocationExpressionSyntax) context.Node,
             context.SemanticModel,
             tags,
             context.CancellationToken);
