@@ -16,11 +16,15 @@ namespace LiteBus.Messaging.Registry;
 ///         second implementations that can disagree with the runtime.
 ///     </para>
 ///     <para>
-///         The ordering rules it reproduces are the pipeline's own. Every role but completion runs handlers registered
-///         for the message before handlers registered for a base type, and orders within each group by priority and
-///         then registration sequence. Completion orders by priority alone across both groups, because a completion
-///         handler observes an ending rather than wrapping the handler, and that order decides whether an audit record
-///         lands inside the transaction.
+///         The ordering rules it reproduces are the pipeline's own. Indirect handlers wrap direct ones: the pre stages
+///         and the error handlers run handlers registered for a base type before handlers registered for the message,
+///         going in, while the post stage runs handlers registered for the message before handlers registered for a
+///         base type, coming out. Within each group the order is priority and then registration sequence. Main and
+///         refusal steps list indirect handlers before direct ones; at runtime a command resolves one of each with
+///         the direct registration preferred, while an event broadcast runs main handlers by priority across both
+///         groups. Completion orders by priority alone across both groups, because a completion handler observes an
+///         ending rather than wrapping the handler, and that order decides whether an audit record lands inside the
+///         transaction.
 ///     </para>
 /// </remarks>
 public static class MessagePipelineExplainer
@@ -62,7 +66,7 @@ public static class MessagePipelineExplainer
         }
 
         steps.AddRange(Describe("main", descriptor.Handlers, descriptor.IndirectHandlers));
-        steps.AddRange(Describe("post", descriptor.PostHandlers, descriptor.IndirectPostHandlers));
+        steps.AddRange(Describe("post", descriptor.PostHandlers, descriptor.IndirectPostHandlers, indirectFirst: false));
         steps.AddRange(Describe("error", descriptor.ErrorHandlers, descriptor.IndirectErrorHandlers));
         steps.AddRange(Describe("refusal", descriptor.RefusalMappers, descriptor.IndirectRefusalMappers));
 
@@ -84,25 +88,29 @@ public static class MessagePipelineExplainer
     }
 
     /// <summary>
-    ///     Describes one role, indirect handlers before direct ones.
+    ///     Describes one role, direct and indirect handlers in the order the pipeline runs them.
     /// </summary>
     /// <typeparam name="TDescriptor">The descriptor kind for the role.</typeparam>
     /// <param name="stage">The stage name written to each step.</param>
     /// <param name="direct">The handlers registered for the message itself.</param>
     /// <param name="indirect">The handlers registered for a base type or marker interface.</param>
+    /// <param name="indirectFirst">Whether indirect handlers run before direct ones for this role.</param>
     /// <returns>The steps for that role, in the order the pipeline runs them.</returns>
     /// <remarks>
-    ///     Indirect first, matching the rule that a broadly registered cross-cutting concern wraps a message-specific
-    ///     one.
+    ///     Indirect handlers wrap direct ones: roles that run going in list indirect first, while the post stage lists
+    ///     direct first, coming out.
     /// </remarks>
     private static IEnumerable<MessagePipelineStep> Describe<TDescriptor>(
         string stage,
         IEnumerable<TDescriptor> direct,
-        IEnumerable<TDescriptor> indirect)
+        IEnumerable<TDescriptor> indirect,
+        bool indirectFirst = true)
         where TDescriptor : IHandlerDescriptor
     {
-        return Ordered(indirect).Select(handler => ToStep(stage, handler, isIndirect: true))
-            .Concat(Ordered(direct).Select(handler => ToStep(stage, handler, isIndirect: false)));
+        var orderedDirect = Ordered(direct).Select(handler => ToStep(stage, handler, isIndirect: false));
+        var orderedIndirect = Ordered(indirect).Select(handler => ToStep(stage, handler, isIndirect: true));
+
+        return indirectFirst ? orderedIndirect.Concat(orderedDirect) : orderedDirect.Concat(orderedIndirect);
     }
 
     /// <summary>
