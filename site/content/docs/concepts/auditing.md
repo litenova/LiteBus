@@ -1,8 +1,8 @@
 # Auditing
 
-An audit trail answers a question no other log answers: for any action a person or a machine took inside somebody else's data, who did it, what they did it to, when, why, and whether it worked. LiteBus produces those records at the mediation boundary, from metadata you declare once per message, on every outcome including refusals. This page explains the model, the wiring, and the decisions LiteBus deliberately leaves to you.
+An audit trail records who acted on whose data, what they did, when, why, and whether it worked. LiteBus produces those records at the mediation boundary, from metadata you declare once per message, on every outcome including refusals. This page explains the model, the wiring, and the decisions LiteBus deliberately leaves to you.
 
-## Three Logs That Are Not the Same Log
+## Audit Records, Application Logs, and Diagnostics
 
 Before wiring anything, it helps to separate three things that are often confused:
 
@@ -16,7 +16,7 @@ The tempting shortcut is to derive the third from the second. It does not hold u
 
 Keep the streams separate. LiteBus does not publish audit records through the outbox for the same reason: the outbox gives at-least-once delivery to other systems, while evidence needs durability at the source.
 
-## Why the Boundary and Not the Handler
+## Recording at the Mediation Boundary
 
 Writing audit records inside a handler can only ever record success. Authorization typically refuses before the audit line is reached, and a post-handler does not run when the main handler throws. A trail of successes is a changelog, not an audit.
 
@@ -231,9 +231,9 @@ An application that refuses by **throwing** rather than through a guard owns the
 ```csharp
 public sealed class UseCaseAuditOutcomeMapper : IAuditOutcomeMapper
 {
-    public AuditOutcome Map(MessageCompletionContext context) => context.Exception switch
+    public AuditOutcome Map(MessageCompletionContext context) => context.Outcome switch
     {
-        ForbiddenException => AuditOutcome.Denied,
+        MediationOutcome.Failed when context.Exception is ForbiddenException => AuditOutcome.Denied,
         _ => DefaultAuditOutcomeMapper.MapByOutcome(context)
     };
 }

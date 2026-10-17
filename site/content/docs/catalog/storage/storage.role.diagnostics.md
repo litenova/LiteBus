@@ -7,7 +7,7 @@
 
 ## What It Does
 
-`IInboxDiagnosticsStore` and `IOutboxDiagnosticsStore` expose `GetStatusCountsAsync` and `GetSchemaInfoAsync`. Counts feed OpenTelemetry observable gauges (`litebus.inbox.queue.depth`, `litebus.outbox.queue.depth`) tagged by status. Schema info reports table schema version, store technology, and configured object names for management endpoints and operator tooling.
+`IInboxDiagnosticsStore` and `IOutboxDiagnosticsStore` expose `GetStatusCountsAsync` and `GetSchemaInfoAsync`. Counts feed OpenTelemetry observable gauges (`litebus.inbox.queue.depth`, `litebus.outbox.queue.depth`) tagged by status. Schema info reports table schema version, store component, and configured object names for management endpoints and operator tooling.
 
 ## Public Surface
 
@@ -18,7 +18,7 @@
 | `IInboxDiagnosticsStore` | Inbox status counts and schema metadata |
 | `IOutboxDiagnosticsStore` | Outbox status counts and schema metadata |
 | `InboxStatusCounts` / `OutboxStatusCounts` | Per-status row totals |
-| Schema info DTOs | Version, technology, object names |
+| Schema info DTOs | Component, expected and recorded version, object names |
 
 ### Invocation
 
@@ -72,8 +72,8 @@
 
 | Meter | Instrument | Type | When observed | Tags | Storage coupling |
 | --- | --- | --- | --- | --- | --- |
-| `LiteBus.Inbox` | `litebus.inbox.queue.depth` | Observable gauge | Each OpenTelemetry scrape | `litebus.inbox.status` (pending, processing, failed, completed, dead_lettered) | `GetStatusCountsAsync` on inbox diagnostics store |
-| `LiteBus.Outbox` | `litebus.outbox.queue.depth` | Observable gauge | Each OpenTelemetry scrape | `litebus.outbox.status` (pending, publishing, failed, published, dead_lettered) | `GetStatusCountsAsync` on outbox diagnostics store |
+| `LiteBus.Inbox` | `litebus.inbox.queue.depth` | Observable gauge | Each OpenTelemetry scrape | `litebus.inbox.status` (`Pending`, `Processing`, `Completed`, `Failed`, `DeadLettered`) | `GetStatusCountsAsync` on inbox diagnostics store |
+| `LiteBus.Outbox` | `litebus.outbox.queue.depth` | Observable gauge | Each OpenTelemetry scrape | `litebus.outbox.status` (`Pending`, `Publishing`, `Published`, `Failed`, `DeadLettered`) | `GetStatusCountsAsync` on outbox diagnostics store |
 
 | Probe / API | Source | Purpose |
 | --- | --- | --- |
@@ -116,7 +116,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: InMemory test helper filters by status and contract
 - **Behavior**: `GetAll` with status and contract name predicates
 - **Expected outcome**: Filtered subset returned
-- **Remarks**: `LiteBus.Inbox.Storage.InMemory.UnitTests`; test-only surface
+- **Remarks**: `LiteBus.Storage.UnitTests`; test-only surface
 
 #### `InMemoryOutboxGetAllFilterTests.GetAll_WithStatusAndContractName_ShouldFilterResults`
 
@@ -125,7 +125,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: InMemory test helper filters by status and contract
 - **Behavior**: `GetAll` with predicates
 - **Expected outcome**: Filtered subset returned
-- **Remarks**: `LiteBus.Outbox.Storage.InMemory.UnitTests`; test-only surface
+- **Remarks**: `LiteBus.Storage.UnitTests`; test-only surface
 
 ### Untested
 

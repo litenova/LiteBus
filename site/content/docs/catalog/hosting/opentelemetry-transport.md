@@ -23,9 +23,9 @@ The extensions register LiteBus sources only. Exporters, resources, sampling, an
 
 | API | Registration |
 | --- | --- |
-| `TracerProviderBuilder.AddLiteBusTransportInstrumentation()` | Activity source `LiteBus.Transport` |
-| `MeterProviderBuilder.AddLiteBusTransportMetrics()` | Meter `LiteBus.Transport` |
-| `MeterProviderBuilder.AddLiteBusAmqpMetrics()` | AMQP compatibility alias for the same shared meter |
+| `TracerProviderBuilder AddLiteBusTransportInstrumentation(this TracerProviderBuilder builder)` | Activity source `LiteBus.Transport` |
+| `MeterProviderBuilder AddLiteBusTransportMetrics(this MeterProviderBuilder builder)` | Meter `LiteBus.Transport` |
+| `MeterProviderBuilder AddLiteBusAmqpMetrics(this MeterProviderBuilder builder)` | AMQP compatibility alias for the same shared meter |
 
 `LiteBusTransportTelemetry` exposes the source, meter, operation, instrument, and tag names used by these extensions.
 

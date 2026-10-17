@@ -22,7 +22,7 @@
 - Multiple workers can lease in parallel without double-claiming the same row.
 - Lost worker case is handled by lease expiry and reclaim.
 - Renewal path extends `lease_expires_at` when the caller still owns the lease.
-- Release path returns a dispatch the processor cancelled to pending without spending an attempt; without a store implementation the lease expires with the attempt counted.
+- Release path returns a dispatch the processor cancelled to pending (or to failed when the row already carries an error) with the attempt count decremented; without a store implementation the lease expires with the attempt counted.
 
 ## Index Interaction
 

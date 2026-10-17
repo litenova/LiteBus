@@ -11,9 +11,7 @@
 
 AMQP registration includes a transport connectivity diagnostic check and shared transport circuit-breaker metrics tagged with broker value `amqp`.
 
-RabbitMQ's default exchange has an empty name and routes directly to the queue named by the routing key. LiteBus scopes
-its publisher circuit by named exchange, or by routing key for the default exchange, so one unavailable default-exchange
-queue does not reject publications to another queue.
+RabbitMQ's default exchange has an empty name and routes directly to the queue named by the routing key. LiteBus scopes its publisher circuit by named exchange, or by routing key for the default exchange, so one unavailable default-exchange queue does not reject publications to another queue.
 
 ## Public Surface
 
@@ -45,6 +43,7 @@ queue does not reject publications to another queue.
 | `AmqpConnectionOptions` | `CircuitBreaker` | `new()` | AMQP breaker threshold and duration |
 | `AmqpConsumerOptions` | `QueueName` | required | Queue to consume |
 | `AmqpConsumerOptions` | `PrefetchCount` | `1` | Unacked delivery window |
+| `AmqpConsumerOptions` | `MaxInFlightMessages` | `32` | Concurrent handler limit |
 | `AmqpConsumerOptions` | `Exclusive` | `false` | Exclusive consumer |
 | `AmqpConsumerOptions` | `ConsumerTag` | `null` | Explicit consumer tag |
 | `AmqpConsumerOptions` | `DeclareQueue` | `true` | Declare queue before consume |

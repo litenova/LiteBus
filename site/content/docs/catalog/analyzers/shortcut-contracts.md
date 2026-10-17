@@ -1,4 +1,4 @@
-﻿# Shortcut Contracts
+# Shortcut Contracts
 
 ## Header
 
@@ -25,7 +25,7 @@ Registration is where the guarantee actually lives, because it cannot be turned 
 
 For a message that produces a result the typed contract is a strict superset of the untyped one, which is why the rule reports the declaration rather than the individual call: the contract choice is the mistake, and the declaration is where the fix goes.
 
-The guard contracts have no equivalent rule, and need none. A refusal does not owe the caller the value the handler would have produced, so `ICommandGuard<CreateProductCommand>` is correct for a result-returning command; refusing raises `LiteBusMessageDeniedException` by design. The typed guard exists only for applications that would rather hand back a failed result object.
+The guard contracts have no equivalent rule, and need none. A refusal does not owe the caller the value the handler would have produced, so `ICommandGuard<CreateProductCommand>` is correct for a result-returning command; refusing raises `LiteBusMessageDeniedException` by design. Where the caller should receive a refusal value rather than an exception, that mapping lives in an `ICommandRefusalMapper<TCommand, TCommandResult>` instead.
 
 ## When It Reports
 
@@ -41,6 +41,8 @@ The rule stays silent for a message that produces no result, for an event, for a
 
 ```csharp
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 
@@ -59,22 +61,33 @@ public sealed class SkipDuplicateProduct : ICommandShortcut<CreateProductCommand
 ## Good Example
 
 ```csharp
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using LiteBus.Commands.Abstractions;
+using LiteBus.Messaging.Abstractions;
+
+public sealed record CreateProductCommand(string Name) : ICommand<Guid>;
+
 public sealed class SkipDuplicateProduct : ICommandShortcut<CreateProductCommand, Guid>
 {
     public async Task<Shortcut<Guid>> TryAnswerAsync(
         CreateProductCommand command,
         CancellationToken cancellationToken = default)
     {
-        var existing = await _products.FindIdByNameAsync(command.Name, cancellationToken);
+        var existing = await LookupIdByNameAsync(command.Name, cancellationToken).ConfigureAwait(false);
 
         return existing is null
             ? Shortcut<Guid>.None
             : Shortcut<Guid>.Answer(existing.Value, "the product already exists");
     }
+
+    private static Task<Guid?> LookupIdByNameAsync(string name, CancellationToken cancellationToken)
+        => Task.FromResult<Guid?>(null);
 }
 ```
 
-Refusing that same command is a different job and belongs to a guard, which the framework runs first. `ICommandGuard<CreateProductCommand>` needs no result type at all, because a refusal does not owe the caller the value the handler would have produced. Where the caller should receive a refusal value rather than an exception, that mapping lives in an `ICommandRefusalMapper<TCommand, TCommandResult>`, registered once for the message or for the whole axis.
+Refusing that same command is a different job and belongs to a guard, which the framework runs first. `ICommandGuard<CreateProductCommand>` needs no result type at all, because a refusal does not owe the caller the value the handler would have produced. Where the caller should receive a refusal value rather than an exception, that mapping lives in an `ICommandRefusalMapper<TCommand, TCommandResult>`, registered once for the message or for the whole axis. There is no typed guard contract: guards only refuse, and a refusal reaches the caller as a `LiteBusMessageDeniedException` unless a refusal mapper supplies a value.
 
 ## Packages
 

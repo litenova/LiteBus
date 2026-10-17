@@ -8,7 +8,7 @@ This page keeps every LiteBus registration and mediation call you use daily on o
 
 ## Mediators
 
-Inject `ICommandMediator`, `IQueryMediator`, or `IEventMediator`. Handlers and pipeline stages (pre, post, error) are discovered by `RegisterFromAssembly` and resolved per mediation call.
+Inject `ICommandMediator`, `IQueryMediator`, or `IEventMediator`. Handlers and pipeline stages (guards, validators, shortcuts, pre, post, error, completion) are discovered by `RegisterFromAssembly` and resolved per mediation call.
 
 ```csharp
 await commandMediator.SendAsync(new CreateOrderCommand(orderId));

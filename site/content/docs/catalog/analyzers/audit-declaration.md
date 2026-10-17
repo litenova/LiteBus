@@ -91,9 +91,9 @@ Or declare it from a definition beside the message:
 ```csharp
 public sealed class RefundOrderCommandDefinition : IAuditDefinition<RefundOrderCommand>
 {
-    public AuditDeclaration Audit => AuditDeclaration.Audited(AuditActions.Orders.Refund) with
+    public AuditDeclaration Audit => AuditDeclaration.Audited("orders.refund-order") with
     {
-        Category = AuditCategories.Money,
+        Category = "money",
         TargetKind = "order"
     };
 }
@@ -110,6 +110,8 @@ public sealed class RefundOrderCommandDefinition : IAuditDefinition<RefundOrderC
 | `AuditedCommand_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `ExemptCommand_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `CommandWithAuditDefinition_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
+| `AuditDefinitionOnAMarkerInterface_CoversTheFamily` | `LiteBus.Analyzers.UnitTests` |
+| `GeneralDeclarationExemption_SatisfiesTheAuditPosition` | `LiteBus.Analyzers.UnitTests` |
 | `CommandDescribedThroughDescribe_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `CommandDescribedAsNotAudited_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `DescribeOnAMarkerInterface_CoversTheFamily` | `LiteBus.Analyzers.UnitTests` |

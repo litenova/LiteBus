@@ -1,0 +1,25 @@
+{
+    "title":  "Runtime",
+    "pages":  [
+                  "README",
+                  "composite-modules",
+                  "contract-registry",
+                  "dependency-registry",
+                  "dispatch-scopes",
+                  "handler-descriptors",
+                  "litebus-builder",
+                  "mediation-strategies",
+                  "message-mediator",
+                  "message-module",
+                  "message-registry",
+                  "message-resolution",
+                  "message-serialization",
+                  "module-configuration",
+                  "module-dependencies",
+                  "module-registry",
+                  "modules",
+                  "payload-protection",
+                  "trace-metadata"
+              ]
+}
+

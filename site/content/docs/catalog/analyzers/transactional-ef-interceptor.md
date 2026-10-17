@@ -19,6 +19,8 @@
 ## Bad Example
 
 ```csharp
+using LiteBus.Outbox.Storage.EntityFrameworkCore;
+
 public static void Configure(EfCoreOutboxStorageModuleBuilder builder)
 {
     builder.EnforceTransactionalSetup();
@@ -32,6 +34,8 @@ Expected diagnostic:
 ## Good Example
 
 ```csharp
+using LiteBus.Inbox.Storage.EntityFrameworkCore;
+
 public static void Configure(EfCoreInboxStorageModuleBuilder builder)
 {
     builder.EnableSaveChangesInterceptor();

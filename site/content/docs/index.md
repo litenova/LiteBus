@@ -6,7 +6,7 @@ LiteBus provides command, query, and event mediation for .NET applications. Hand
 >
 > **After reading it** you know what LiteBus mediates, what durability costs, the words the rest of the pages use, and which page answers your question. To run code, go on to [Getting Started](getting-started/README.md).
 
-These pages describe the pre-release line v7 (`7.0.0-preview.5`). The current stable release is 6.0.2.
+These pages describe the current LiteBus release, shown beside the navigation.
 
 ## Why LiteBus Exists
 
@@ -22,7 +22,7 @@ You register the mediators first, then add durability only where you need it.
 
 - Mediation for commands, queries, and events through ordered pipelines with guards, validators, shortcuts, post-handlers, error handlers, and completion handlers. Per-mediation state travels in the execution context. Start with [Commands](concepts/commands.md), [Queries](concepts/queries.md), [Events](concepts/events.md), and [The Handler Pipeline](concepts/handler-pipeline.md).
 - Durable execution and publication: the [inbox](reliable-messaging/inbox.md) accepts commands and runs them under a lease, the [outbox](reliable-messaging/outbox.md) records events beside domain data and publishes them after commit, and [sagas](reliable-messaging/saga.md) keep correlated state across dispatches. [Transactional writes](reliable-messaging/transactional-writes.md) commit domain and message rows together.
-- Storage, transport, dispatch, and ingress adapters in per-concern packages: five transports (RabbitMQ through AMQP, Kafka, AWS SQS, Azure Service Bus, and in-memory) and three store families (PostgreSQL, Entity Framework Core, and in-memory). See [Storage](reference/feature-index-v7.md#storage) and [Ingress](reference/feature-index-v7.md#ingress). [PostgreSQL schema management](integrations/postgresql-schema-management.md) covers migration-owned DDL.
+- Storage, transport, dispatch, and ingress adapters in per-concern packages: five transports (RabbitMQ through AMQP, Kafka, AWS SQS, Azure Service Bus, and in-memory) and three store families (PostgreSQL, Entity Framework Core, and in-memory). See [Storage](reference/feature-index.md#storage) and [Ingress](reference/feature-index.md#ingress). [PostgreSQL schema management](integrations/postgresql-schema-management.md) covers migration-owned DDL.
 - Operations support: the host [manifest](architecture/hosted-services.md) for startup tasks, background loops, and diagnostic probes, [diagnostics and health](operations/diagnostics-and-health.md) endpoints, the [production runbook](operations/runbook.md), and Roslyn [analyzers](reference/analyzers.md) that catch registration and inbox mistakes at compile time.
 
 ## What It Costs
@@ -61,9 +61,9 @@ Pick the row that matches your task.
 | Goal | Page |
 | --- | --- |
 | Install LiteBus and run a handler | [Getting Started](getting-started/README.md) |
-| Run a compile-checked application | [LiteBus Sample](https://github.com/litenova/LiteBus/blob/main/samples/LiteBus.Sample/README.md) |
+| Run a compile-checked application | [Sample Application Tour](getting-started/sample.md) |
 | Select packages and integrations | [Dependency Graph](architecture/dependency-graph.md) |
-| Review supported capabilities | [Feature Index](reference/feature-index-v7.md) |
+| Review supported capabilities | [Feature Index](reference/feature-index.md) |
 | Find a contract, builder, or adapter | [Capability Catalog](reference/capability-catalog.md) |
 | Diagnose configuration or runtime behavior | [Troubleshooting](operations/troubleshooting.md) |
 
@@ -76,7 +76,7 @@ Pick the row that matches your task.
 | [Operations](operations/README.md) | Diagnostics, security, management, performance, and troubleshooting |
 | [Testing](testing/README.md) | Application testing, repository suites, and integration categories |
 | [Extending](extending/README.md) | Custom modules, stores, dispatchers, and host adapters |
-| [Reference](reference/feature-index-v7.md) | Feature inventory, analyzers, glossary, and semantic validation |
+| [Reference](reference/feature-index.md) | Feature inventory, analyzers, glossary, and limits |
 | [Catalog](catalog/mediator/README.md) | Contract-level capability pages grouped by subsystem |
 | [Migration](migration/README.md) | Historical version and MediatR migration procedures |
 | [Roadmap](roadmap/README.md) | Planned work that is not part of the current product |
@@ -95,12 +95,10 @@ If you upgrade from the stable release, read the [v7 migration guide](migration/
 
 These pages are also served as plain text, following the [llms.txt convention](https://llmstxt.org), for language models and agents that would otherwise read rendered HTML.
 
-The site root serves `llms.txt` with a one-line description of every page of the latest stable documentation, and `llms-full.txt` with the complete text of those pages in one document. Each versioned documentation root serves its own pair, so the pre-release pages described here are indexed under the v7 documentation path rather than the site root pair. Appending `.md` to any documentation URL returns that page's Markdown source.
-
-A line served under a version prefix indexes itself at `<prefix>/docs/llms.txt` and `<prefix>/docs/llms-full.txt`, because the root index describes a different release.
+The site root serves `llms.txt` with a one-line description of every page, and `llms-full.txt` with the complete text of those pages in one document. Appending `.md` to any documentation URL returns that page's Markdown source.
 
 ## Next
 
 - [Getting Started](getting-started/README.md) to register LiteBus and send your first messages
-- [Feature Index](reference/feature-index-v7.md) to review supported capabilities
+- [Feature Index](reference/feature-index.md) to review supported capabilities
 - [Troubleshooting](operations/troubleshooting.md) when a message fails to mediate

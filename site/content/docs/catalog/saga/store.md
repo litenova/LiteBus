@@ -22,7 +22,7 @@ Custom stores implement `ISagaStore` and expose an `ISagaStorageModule` selected
 | `ISagaStore.CompleteAsync(...)` | `LiteBus.Saga.Abstractions` | Optimistic completion mark |
 | `ISagaStore.QueryAsync(...)` | `LiteBus.Saga.Abstractions` | Operational summaries with filter |
 | `ISagaStore.PurgeAsync(...)` | `LiteBus.Saga.Abstractions` | Retention cleanup API |
-| `SagaSaveItem`, `SagaCompleteItem`, `SagaInstance`, `SagaInstanceSummary` | `LiteBus.Saga.Abstractions` | Store command and result value objects |
+| `SagaSaveItem<TState>`, `SagaCompleteItem`, `SagaInstance<TState>`, `SagaInstanceSummary` | `LiteBus.Saga.Abstractions` | Store command and result value objects |
 
 ## Packages
 

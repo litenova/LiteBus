@@ -51,7 +51,7 @@ envelope.AsDeadLettered(MessageFailure.From(exception, clock.GetUtcNow()));
 
 `MessageFailure.FromError(text, occurredAt)` covers a failure with a reason but no exception, such as a lost lease; the resulting envelope records no `ErrorType`, which is the honest answer when no exception exists.
 
-Because `IInboxManager.QueryAsync` and `IOutboxManager.QueryAsync` return envelopes, a dead-letter listing reads these directly instead of querying the store's table for the columns the operator API could not return.
+Because `IInboxManager.QueryAsync` and `IOutboxManager.QueryAsync` return envelopes, a dead-letter listing reads these fields directly from the query result instead of reading store tables.
 
 ### Registration
 
@@ -142,7 +142,7 @@ Lifecycle depth and processor state export through meter `LiteBus.Inbox` and `Li
 
 - [Architecture](../../architecture/README.md) (store roles, retention)
 - [Custom stores and dispatchers](../../extending/custom-stores-and-dispatchers.md)
-- [Operations and management](../../operations/README.md)
+- [Operations and management](../../operations/management-endpoints.md)
 
 ## Test Coverage
 
@@ -150,9 +150,8 @@ Lifecycle depth and processor state export through meter `LiteBus.Inbox` and `Li
 
 - `LiteBus.Inbox.UnitTests`
 - `LiteBus.Outbox.UnitTests`
-- `LiteBus.Storage.IntegrationTests`
-- `LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests`
-- `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
+- `LiteBus.Storage.IntegrationTests` (`PostgreSql/`, `EntityFrameworkCore/`)
+- `LiteBus.Storage.Testing` (shared inbox/outbox store contract suites)
 
 ### Covered Use Cases
 
@@ -322,9 +321,9 @@ Lifecycle depth and processor state export through meter `LiteBus.Inbox` and `Li
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| Automatic contract upgrade of in-flight payloads | No | Not shipped |: |: |
-| Cross-axis unified envelope table | No | Separate inbox/outbox tables |: |: |
-| Operator purge of in-progress leased rows | No (by design) | Management skips active leases |: |: |
+| Automatic contract upgrade of in-flight payloads | No | Not shipped | N/A | N/A |
+| Cross-axis unified envelope table | No | Separate inbox/outbox tables | N/A | N/A |
+| Operator purge of in-progress leased rows | No (by design) | Management skips active leases | N/A | N/A |
 
 ### Out-of-Scope Use Cases
 

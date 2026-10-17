@@ -1,8 +1,8 @@
 # Domain Events and Unit of Work
 
-Domain events let an aggregate record facts ("order placed") that other parts of the system react to. Collect events on the aggregate during command handling, then act on them at the transaction boundary so persistence and publication stay aligned. This page builds on [Reliable Messaging](../reliable-messaging/README.md) and the [Event Module](events.md).
+Domain events let an aggregate record facts ("order placed") that other parts of the system react to. Collect events on the aggregate during command handling, then act on them at the transaction boundary so persistence and publication stay aligned. This page builds on [Reliable Messaging](README.md) and the [Event Module](../concepts/events.md).
 
-For integration events that must commit with aggregate persistence, map domain facts to integration-shaped messages and enqueue through the **transactional** outbox API. See [Transactional messaging writes](../reliable-messaging/transactional-writes.md).
+For integration events that must commit with aggregate persistence, map domain facts to integration-shaped messages and enqueue through the **transactional** outbox API. See [Transactional messaging writes](transactional-writes.md).
 
 ## Domain Event Contracts
 
@@ -93,9 +93,9 @@ await transactionalOutbox.EnqueueAsync(
         {
             Target = new PublicationTarget.Topic("orders"),
         }),
-    cancellationToken);
+    cancellationToken).ConfigureAwait(false);
 
-await dbContext.SaveChangesAsync(cancellationToken); // EF
+await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false); // EF
 // or CommitAsync on your PostgreSQL unit of work
 ```
 
@@ -103,29 +103,53 @@ Do not use `IOutbox` inside a handler that already holds an open domain transact
 
 ## Command Pipeline Boundary
 
-Use open generic command pre-handlers and post-handlers for unit-of-work concerns.
+Open the unit of work from a command pre-handler and commit it from a completion handler at `HandlerPriorities.UnitOfWork`, gated on `MessageCompletionContext.Outcome`. The commit does not belong in a post-handler: a post-handler never runs when the main handler throws, so a commit placed there cannot decide anything about a failure, and everything LiteBus writes afterwards (including the audit record at `HandlerPriorities.Observability`) lands outside the transaction.
 
 ```csharp
 public sealed class TransactionCommandPreHandler<TCommand> : ICommandPreHandler<TCommand>
     where TCommand : ICommand
 {
+    private readonly OrderUnitOfWork _unitOfWork;
+
+    public TransactionCommandPreHandler(OrderUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
     public Task PreHandleAsync(TCommand command, CancellationToken cancellationToken)
     {
         return _unitOfWork.BeginAsync(cancellationToken);
     }
 }
 
-public sealed class TransactionCommandPostHandler<TCommand> : ICommandPostHandler<TCommand>
+[HandlerPriority(HandlerPriorities.UnitOfWork)]
+public sealed class TransactionCommandCompletionHandler<TCommand> : ICommandCompletionHandler<TCommand>
     where TCommand : ICommand
 {
-    public Task PostHandleAsync(TCommand command, object? result, CancellationToken cancellationToken)
+    private readonly OrderUnitOfWork _unitOfWork;
+
+    public TransactionCommandCompletionHandler(OrderUnitOfWork unitOfWork)
     {
-        return _unitOfWork.CommitAsync(cancellationToken);
+        _unitOfWork = unitOfWork;
+    }
+
+    public Task HandleCompletionAsync(
+        MessageCompletionContext<TCommand> context,
+        CancellationToken cancellationToken)
+    {
+        if (context.Outcome == MediationOutcome.Succeeded)
+        {
+            return _unitOfWork.CommitAsync(cancellationToken);
+        }
+
+        return _unitOfWork.RollbackAsync(cancellationToken);
     }
 }
 ```
 
-Run validation before opening a transaction when validation does not need database locks. Persist domain events to an outbox in the same transaction as the aggregate change when publication matters after a process crash.
+The completion stage runs on every path, so the gate matters: a failed mediation must roll back rather than commit. Pre-handlers run only after guards, validators, and shortcuts have passed, so a transaction opened in the pre-handler commits only when the main handler and every post-handler ran without throwing. Use post-handlers for reactions inside the transaction (publish follow-up events, refresh projections); the commit stays in the completion handler.
+
+Run validation before opening a transaction when validation does not need database locks. Persist domain events to an outbox in the same transaction as the aggregate change when publication matters after a process crash. See [The Handler Pipeline](../concepts/handler-pipeline.md) for the stage order and the completion rules.
 
 ## CQS Rules
 
@@ -133,6 +157,6 @@ Command handlers can change state and publish domain events. Query handlers shou
 
 ## Next
 
-- Writer API and registration: [Transactional messaging writes](../reliable-messaging/transactional-writes.md)
+- Writer API and registration: [Transactional messaging writes](transactional-writes.md)
 - Outbox tables: [PostgreSQL schema management](../integrations/postgresql-schema-management.md)
 - Processors: [Hosted services](../architecture/hosted-services.md)

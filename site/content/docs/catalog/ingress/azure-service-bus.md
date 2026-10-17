@@ -75,7 +75,7 @@ bus.AddInbox(inbox => inbox.UseAzureServiceBusIngress(ingress =>
 ## Invariants
 
 - `Destination` and root `AddAzureServiceBusTransport(...)` are required at compose time.
-- `SubscriptionName` is required when `Destination` is a topic.
+- Set `SubscriptionName` when `Destination` is a topic.
 - `PrefetchCount` fills the Azure client cache, while `MaxConcurrentCalls` controls Azure processor callbacks. `Safety.MaxInFlightMessages` applies the final LiteBus handler cap.
 - LiteBus contract headers are required on the wire payload.
 - Beta tier per the Feature Index; applications must test broker-specific edge cases.
@@ -149,4 +149,4 @@ Service Bus ingress uses shared mapper defaults:
 ## Deep Docs
 
 - [Azure Service Bus transport](../../integrations/azure-service-bus.md)
-- [Feature Index: Ingress](../../reference/feature-index-v7.md)
+- [Feature Index: Ingress](../../reference/feature-index.md)

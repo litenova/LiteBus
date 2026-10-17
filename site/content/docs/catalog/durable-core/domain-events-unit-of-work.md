@@ -1,4 +1,4 @@
-# Domain Events and Unit of Work
+# Domain Events and Unit of Work Contract
 
 **ID:** `durable-core.domain-events-unit-of-work`
 **Maturity:** GA
@@ -7,45 +7,7 @@
 
 Aggregates can record application-owned domain events during business operations. The application drains and maps those facts to integration contracts at the transaction boundary, then stages them through `ITransactionalOutbox` before committing domain state.
 
-## Domain Boundary
-
-LiteBus does not define `IDomainEvent`, `IHasDomainEvents`, or an aggregate base class. These types belong to the application domain and do not require a LiteBus reference.
-
-```csharp
-public interface IDomainEvent;
-
-public interface IHasDomainEvents
-{
-    IReadOnlyCollection<IDomainEvent> DomainEvents { get; }
-
-    IReadOnlyList<IDomainEvent> DrainDomainEvents();
-}
-```
-
-An aggregate records a fact such as `OrderPlacedDomainEvent`. It does not enqueue an outbox message itself. This keeps broker routes, contract versions, tenant metadata, and idempotency policy outside the domain model.
-
-## Transaction Boundary
-
-The application handler or unit-of-work component performs four operations in one transaction:
-
-1. Mutate and persist the aggregate.
-2. Drain recorded domain events.
-3. Map each domain event to a registered integration contract.
-4. Enqueue through the transactional outbox before commit.
-
-```csharp
-order.Place();
-
-foreach (var domainEvent in collector.Drain(order))
-{
-    var item = mapper.Map(domainEvent);
-    await transactionalOutbox.EnqueueAsync(item, cancellationToken).ConfigureAwait(false);
-}
-
-await unitOfWork.CommitAsync(cancellationToken).ConfigureAwait(false);
-```
-
-Use `ITransactionalOutbox<TContext>` with an existing EF Core context. Use `ITransactionalOutbox` with a bound PostgreSQL connection and transaction. `IOutbox` writes through its own store boundary and must not replace a transactional writer inside an open domain transaction.
+This page is the contract companion to [Domain Events and Unit of Work](../../reliable-messaging/domain-events-and-unit-of-work.md), which carries the collector shape, transaction boundary steps, timing choices, and pipeline guidance. What remains here is the public surface, package mapping, invariants, observability, and test coverage behind that guide.
 
 ## Mapping
 
@@ -62,16 +24,6 @@ return OutboxEnqueueItem<OrderPlacedIntegrationEvent>.From(
 ```
 
 Mapping at this boundary also lets the application copy correlation, causation, and tenant metadata from the command context without adding those concerns to the domain event.
-
-## Timing Choices
-
-| Timing | Suitable Use | Failure Behavior |
-| --- | --- | --- |
-| Before commit | Local handler must participate in the same transaction | Handler failure rolls back the command |
-| After commit | Local reaction can be retried by application code | State is already committed when the handler fails |
-| Transactional outbox | Notification must survive process loss or cross a process boundary | Domain row and outbox row commit or roll back together; publication is asynchronous |
-
-Use `IEventMediator` after commit for local reactions that do not require durable delivery. Use the transactional outbox for cross-process integration events and local work that must survive host failure.
 
 ## Public Surface
 
@@ -125,7 +77,7 @@ The command pre-handler and post-handler transaction wrapper remains an applicat
 
 ## Related Documentation
 
-- [Domain Events and Unit of Work](../../concepts/domain-events-and-unit-of-work.md)
+- [Domain Events and Unit of Work](../../reliable-messaging/domain-events-and-unit-of-work.md)
 - [Transactional Messaging Writes](../../reliable-messaging/transactional-writes.md)
 - [Outbox](../../reliable-messaging/outbox.md)
 - [Event Module](../../concepts/events.md)

@@ -32,7 +32,7 @@ The store enforces the same optimistic concurrency rules as PostgreSQL. A new ro
 ## Invariants
 
 - Process-local only; data is lost on restart.
-- Same storage key algorithm as PostgreSQL store via `SagaCorrelationKey`.
+- Same composite key shape (tenant, definition, correlation) with the same whitespace-to-empty tenant normalization as the PostgreSQL store.
 - Query returns most recently updated rows first and rejects `Take` values less than 1.
 - `CompletedBefore` compares the recorded completion update time, not the current clock at query time.
 - Cannot be combined with another storage selection in one saga composition.

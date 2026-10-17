@@ -1,5 +1,7 @@
 # Inbox Ingress Capability Catalog
 
+Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+
 Inbox ingress is the durable intake edge for commands. It receives broker deliveries, maps headers to inbox metadata, and writes `InboxEnvelope` rows through `IInbox.AcceptAsync` or `IInbox.AcceptBatchAsync`.
 
 Ingress does not execute handlers. Handler execution starts later in the inbox processor.

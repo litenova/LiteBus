@@ -1,8 +1,8 @@
 # Outbox Entity Framework Core Storage
 
-`LiteBus.Outbox.Storage.EntityFrameworkCore` provides `EfCoreOutboxStore`, which implements `IOutboxStore`, `IOutboxLeaseStore`, and `IOutboxStateWriter` on a single `DbContext`.
+`LiteBus.Outbox.Storage.EntityFrameworkCore` provides `EfCoreOutboxStore`, which implements `IOutboxStore`, `IOutboxLeaseStore`, and `IOutboxStateWriter` on a single `DbContext`. Use it when the application already owns a `DbContext` and EF migrations.
 
-For EF transactional enqueue (`ITransactionalOutbox<TContext>`), see [Transactional messaging writes](../reliable-messaging/transactional-writes.md).
+For EF transactional enqueue (`ITransactionalOutbox<TContext>`), see [Transactional Messaging Writes](../reliable-messaging/transactional-writes.md).
 
 ## Schema Ownership
 
@@ -32,7 +32,7 @@ builder.Services.AddLiteBus(builder =>
 
 ## Transactional Writes
 
-The default `IOutboxStore` registration creates a context through `IDbContextFactory<AppDbContext>` and calls `SaveChanges` during `EnqueueAsync`. That commits outbox rows in a separate unit of work from your application `DbContext` unless you opt in to one of the patterns below.
+The default `IOutboxStore` registration creates a context through `IDbContextFactory<AppDbContext>` and calls `SaveChanges` during `EnqueueAsync`. That commits outbox rows in a separate unit of work from your application `DbContext` unless you opt in to one of the patterns below. [Transactional Messaging Writes](../reliable-messaging/transactional-writes.md) owns the full pattern; this section covers the EF Core mechanics.
 
 ### Participate in the Caller `DbContext`
 
@@ -40,7 +40,7 @@ The default `IOutboxStore` registration creates a context through `IDbContextFac
 var store = serviceProvider.GetRequiredService<EfCoreOutboxStore>();
 var transactionalStore = store.UseExistingDbContext(appDbContext);
 
-await transactionalStore.EnqueueAsync(envelope, cancellationToken);
+await transactionalStore.AddAsync(envelope, cancellationToken);
 await appDbContext.SaveChangesAsync(cancellationToken);
 ```
 
@@ -68,7 +68,7 @@ options.AddLiteBusOutboxInterceptor(
 Queue envelopes before `SaveChanges`:
 
 ```csharp
-interceptor.Enqueue(envelope);
+interceptor.Enqueue(appDbContext, envelope);
 await appDbContext.SaveChangesAsync(cancellationToken);
 ```
 
@@ -91,9 +91,15 @@ await appDbContext.SaveChangesAsync(cancellationToken);
 | `topic` | Optional routing hint for external dispatchers |
 | `created_at`, `visible_after`, `attempt_count`, `status` | Scheduling and lifecycle |
 | `lease_owner`, `lease_expires_at` | Processor leasing |
-| `last_error` | Last failure message |
+| `lease_generation` | Fencing counter incremented on each lease |
+| `last_error`, `error_type` | Last failure message and the exception type full name (or type name when the full name is unavailable) |
+| `published_at`, `last_attempted_at`, `first_failed_at`, `dead_lettered_at` | Forensic timestamps for terminal state, last attempt, first failure, and dead-lettering |
+| `last_lease_owner` | Owner of the most recent expired or completed lease |
 | `correlation_id`, `causation_id`, `tenant_id` | Optional metadata |
 | `idempotency_key` | Optional deduplication scoped per `tenant_id` (unique composite index with `IS NOT NULL` filter) |
+| `trace_context` | Optional distributed trace payload (`jsonb` on PostgreSQL) |
+
+Operators query `last_error`, `error_type`, `last_lease_owner`, and the forensic timestamps; processors use `status`, `visible_after`, `lease_expires_at`, and `lease_generation`.
 
 Indexes: unique filtered index on `(tenant_id, idempotency_key)`; composite index on `(status, visible_after, lease_expires_at, created_at)`; chronological index `IX_LiteBus_Outbox_CreatedAt`; filtered index on `topic` where `topic IS NOT NULL`. Null or whitespace `tenant_id` values normalize to an empty string for idempotency scope.
 
@@ -130,7 +136,7 @@ Pass the same `EntityFrameworkCoreOutboxStoreOptions` schema and table names to 
 
 `EfCoreOutboxStore` reloads rows after insert when the store normalizes JSON payloads. Leasing uses the same multi-provider skip-locked SQL as `EfCoreInboxStore`.
 
-Register dispatchers before `EnableOutboxProcessor()`.
+Register storage and a dispatcher before `EnableOutboxProcessor()`; module build fails when the processor is enabled without a dispatcher.
 
 ## Idempotency on the EF Transactional Path
 
@@ -139,7 +145,9 @@ Register dispatchers before `EnableOutboxProcessor()`.
 | `IdempotencyConflictMode` | Behavior on duplicate key in one transaction |
 | --- | --- |
 | `ReturnExisting` (default) | Returns the existing receipt without inserting a second row. |
-| `Strict` | Throws `IdempotencyConflictException` before `SaveChanges`. |
+| `Strict` | Throws `IdempotencyConflictException` before `SaveChanges`, but only when the conflicting row differs. A byte-identical replay returns the existing receipt. |
+
+`Strict` compares message id, contract name, contract version, payload, topic, idempotency key, correlation id, causation id, and tenant id. Rows that match on all nine fields return the stored receipt; any difference throws.
 
 The `LiteBusOutboxSaveChangesInterceptor` path does not dedupe at enqueue time. A duplicate `(tenant_id, idempotency_key)` pair in the same `SaveChanges` batch surfaces as a `DbUpdateException` from the unique index and aborts the caller transaction. Use `ReturnExisting` on `IOutbox` / `ITransactionalOutbox` when you need silent dedupe; reserve the interceptor for envelopes staged without idempotency keys or when duplicate keys should fail the unit of work.
 
@@ -152,6 +160,6 @@ Generate the complete current model into a new table when an existing table has 
 ## Related Docs
 
 - [Outbox](../reliable-messaging/outbox.md)
-- [Hosted services](../architecture/hosted-services.md)
+- [Hosted Services](../architecture/hosted-services.md)
 - [PostgreSQL Schema Management](postgresql-schema-management.md)
 - [Inbox Entity Framework Core Storage](inbox-ef-core-storage.md)

@@ -31,12 +31,12 @@ Relative visibility delay takes precedence over absolute visible-after when both
 
 ## Public Surface
 
-Internal mapper used by `TransportInboxIngressHandler`. Policy flags on `TransportInboxIngressMappingOptions` (from `TransportInboxIngressOptions`):
+Internal mapper used by `TransportInboxIngressHandler`. Policy flags on `TransportInboxIngressMappingOptions` (from `Safety` on `TransportInboxIngressOptions`):
 
 | Property | Default | Role |
 | --- | --- | --- |
-| `RequireStableIdentity` | `true` | Fail when broker delivery id is missing |
-| `TrustApplicationHeaders` | `false` | Honor app idempotency, tenant, and message id headers |
+| `Safety.RequireStableIdentity` | `true` | Fail when broker delivery id is missing |
+| `Safety.TrustApplicationHeaders` | `false` | Honor app idempotency, tenant, and message id headers |
 
 Canonical wire header names on `TransportHeaders` (`LiteBus.Transport.Abstractions`): `litebus-contract-name`, `litebus-contract-version`, `litebus-message-id`, `litebus-idempotency-key`, `litebus-visible-after`, `litebus-visible-after-delay`, `tenant-id`, `causation-id`, `litebus-trace-context`, `correlation-id`.
 
@@ -52,7 +52,7 @@ Canonical wire header names on `TransportHeaders` (`LiteBus.Transport.Abstractio
 
 Every ingress adapter uses this same mapper. Broker pages differ in test coverage depth, not in mapping rules:
 
-- AMQP: richest mapping validation via unit tests and AMQP ingress integration tests.
+- AMQP: mapping validation through unit tests and AMQP ingress integration tests.
 - Kafka: no dedicated header edge-case matrix in broker Docker tests.
 - AWS SQS: partial header edge-case matrix in broker Docker tests.
 - Azure Service Bus: header edge-case matrix not yet covered in emulator ingress tests.

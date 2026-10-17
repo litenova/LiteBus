@@ -31,7 +31,7 @@ Remote workers typically consume via SQS inbox ingress or custom consumers that 
 
 - SQS has no routing key; route resolver affects attribute mapping where applicable.
 - Requeue on consumer side uses visibility timeout change (transport layer).
-- One SQS transport module per process.
+- One SQS transport module per composition.
 
 ## Non-Goals
 
@@ -103,7 +103,6 @@ SQS message attributes carry LiteBus headers mapped from envelope metadata.
 
 | Test method | Project |
 | --- | --- |
-| `InboxModuleBuilderAwsDispatchExtensions_should_expose_use_aws_sqs_dispatch` | `LiteBus.Inbox.UnitTests` (`Dispatch/AwsSqs/`) |
 | `InboxDispatchExtensions_ShouldRegisterTransportDispatcher` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
 | `ProcessPendingAsync_ShouldPublishLeasedEnvelopeToSqsQueue` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Inbox/AwsSqs/`) (LocalStack) |
 

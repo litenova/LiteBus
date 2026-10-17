@@ -27,7 +27,8 @@ Runtime captures correlation and distributed tracing fields in durable envelopes
 
 ## Packages
 
-- `LiteBus.Messaging.Abstractions`
+- `LiteBus.DurableMessaging.Abstractions`
+- `LiteBus.Runtime.Abstractions`
 - `LiteBus.Messaging`
 
 ## Requires

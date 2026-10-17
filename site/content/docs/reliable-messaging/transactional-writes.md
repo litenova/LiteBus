@@ -1,8 +1,8 @@
 # Transactional Messaging Writes
 
-For developers who must persist domain state and durable inbox/outbox rows in **one database transaction** so they commit or roll back together. Read [Reliable messaging](README.md) first if you are new to inbox and outbox.
+A command handler that saves an aggregate and enqueues an integration event needs both writes in one database transaction, so they commit or roll back together. This page selects the writer API for each stack and shows the registration for EF Core, PostgreSQL with Marten, and raw ADO.NET. Read [Reliable messaging](README.md) first if you are new to inbox and outbox.
 
-**You will leave with:** which writer API to inject, how LiteBus participates in your transaction (without owning it), and a registration pattern for EF Core, PostgreSQL + Marten, or raw ADO.NET.
+This page owns the transactional writer pattern: which API to inject, how LiteBus participates in a caller-owned transaction, and the registration for each stack. The EF Core storage guides defer here for writer choice and interceptor behavior.
 
 ## What This Page Covers
 
@@ -23,12 +23,12 @@ For developers who must persist domain state and durable inbox/outbox rows in **
 
 ## The Problem
 
-A command handler saves an aggregate and enqueues an integration event. If those writes use **different transactions**, you can get:
+A command handler saves an aggregate and enqueues an integration event. If those writes use different transactions, two failure modes follow:
 
 - Outbox row committed, domain change rolled back (event published for state that never existed).
 - Domain change committed, outbox missing (state saved, notification lost).
 
-LiteBus solves this by letting the **writer store participate** in a transaction you already opened. LiteBus does not open or commit your domain transaction.
+LiteBus solves this by letting the writer store participate in a transaction you already opened. LiteBus does not open or commit your domain transaction.
 
 ## Two Writer APIs
 
@@ -36,11 +36,11 @@ LiteBus keeps both APIs. They are not interchangeable inside a command handler t
 
 | API | Use when | What happens on `AcceptAsync` / `EnqueueAsync` |
 | --- | --- | --- |
-| `IInbox` / `IOutbox` | Ingress, operator tools, tests without shared domain work | Singleton store opens its own connection and **commits immediately** |
-| `ITransactionalInbox` / `ITransactionalOutbox` | Command handler + domain persistence in the same PostgreSQL or EF unit of work | Bound store **inserts inside your transaction**; you call `SaveChangesAsync` or `CommitAsync` |
-| `ITransactionalInbox<TContext>` / `ITransactionalOutbox<TContext>` | EF Core apps with a shared `DbContext` | Envelopes **staged** on your context until `SaveChangesAsync` |
+| `IInbox` / `IOutbox` | Ingress, operator tools, tests without shared domain work | Singleton store opens its own connection and commits immediately |
+| `ITransactionalInbox` / `ITransactionalOutbox` | Command handler plus domain persistence in the same PostgreSQL unit of work | Bound store inserts inside your transaction; you call `SaveChangesAsync` or `CommitAsync` |
+| `ITransactionalInbox<TContext>` / `ITransactionalOutbox<TContext>` | EF Core apps with a shared `DbContext` | Envelopes staged on your context until `SaveChangesAsync` |
 
-Background **processors** always use `IInbox` / `IOutbox` against the singleton store. They intentionally use their own pooled connections, not your HTTP request connection.
+Background processors always use `IInbox` / `IOutbox` against the singleton store. They use their own pooled connections, not your HTTP request connection.
 
 ```mermaid
 flowchart LR
@@ -56,9 +56,11 @@ flowchart LR
   end
 ```
 
+Batch writers (`AcceptBatchAsync`, `EnqueueBatchAsync`) exist on every writer API. On the immediate APIs a batch commits in one store round trip; on the transactional APIs the batch stages inside the caller transaction and commits atomically with it, with receipts in input order on both paths.
+
 ## Connection Sharing
 
-Register **one** `NpgsqlDataSource` per database and pass it to inbox, outbox, and your application (Marten, Dapper, or similar):
+Register one `NpgsqlDataSource` per database and pass it to inbox, outbox, and your application (Marten, Dapper, or similar):
 
 ```csharp
 var dataSource = NpgsqlDataSource.Create(configuration.GetConnectionString("Orders")!);
@@ -67,22 +69,22 @@ services.AddSingleton(dataSource);
 
 Call `UseDataSource(dataSource)` on both `UsePostgreSqlStorage` builders. Calling `UseConnectionString` separately on inbox and outbox creates duplicate data sources against the same database (redundant, harder to reason about).
 
-Per **request**, use one connection and one transaction for atomic domain + messaging writes. Multiple connections from the **same pool** across the process (request + inbox processor + outbox processor) is normal and correct.
+Per request, use one connection and one transaction for atomic domain plus messaging writes. Multiple connections from the same pool across the process (request plus inbox processor plus outbox processor) is normal and correct.
 
 ## How Participation Works
 
-1. **You** open the transaction (or own the `DbContext` that will call `SaveChanges`).
-2. **You** bind LiteBus to that boundary: EF interceptor, `IPostgreSqlTransactionProvider`, or `CreateTransactionalStore`.
+1. You open the transaction (or own the `DbContext` that will call `SaveChanges`).
+2. You bind LiteBus to that boundary: EF interceptor, `IPostgreSqlTransactionProvider`, or `CreateTransactionalStore`.
 3. Handler calls `ITransactionalOutbox.EnqueueAsync` (or inbox accept).
 4. LiteBus serializes the message and runs `INSERT` on your connection (or stages on your `DbContext`).
-5. **You** commit once. LiteBus does not commit your domain work.
+5. You commit once. LiteBus does not commit your domain work.
 
 ## Choose a Path
 
 | Your stack | Start here |
 | --- | --- |
-| EF Core `DbContext` for domain + outbox table | [EF Core](#ef-core-shared-dbcontext) |
-| PostgreSQL + Marten, Dapper, or raw SQL | [Ambient provider](#postgresql-ambient-provider) (recommended) or [Manual bind](#postgresql-manual-bind) |
+| EF Core `DbContext` for domain plus outbox table | [EF Core](#ef-core-shared-dbcontext) |
+| PostgreSQL plus Marten, Dapper, or raw SQL | [Ambient provider](#postgresql-ambient-provider) (recommended) or [Manual bind](#postgresql-manual-bind) |
 | AMQP/Kafka ingress only storing commands | [Ingress](#ingress-auto-commit): use `IInbox`, not transactional writers |
 | Unit tests with `UseInMemoryStorage` | [Tests](#tests-and-in-memory) |
 
@@ -97,9 +99,15 @@ Per **request**, use one connection and one transaction for atomic domain + mess
 **Registration:**
 
 ```csharp
-services.AddDbContextFactory<OrdersDbContext>(options =>
+services.AddDbContext<OrdersDbContext>((serviceProvider, options) =>
     options.UseNpgsql(connectionString)
-        .AddLiteBusOutboxInterceptor());
+        .AddLiteBusOutboxInterceptor(
+            serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
+
+services.AddDbContextFactory<OrdersDbContext>((serviceProvider, options) =>
+    options.UseNpgsql(connectionString)
+        .AddLiteBusOutboxInterceptor(
+            serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
 
 builder.AddOutbox(outbox =>
 {
@@ -107,6 +115,7 @@ builder.AddOutbox(outbox =>
     {
         ef.UseDbContext<OrdersDbContext>();
         ef.EnableSaveChangesInterceptor();
+        ef.EnforceTransactionalSetup();
     });
     outbox.UseInProcessDispatch();
     outbox.EnableOutboxProcessor();
@@ -115,16 +124,18 @@ builder.AddOutbox(outbox =>
 
 `OrdersDbContext` must implement `IOutboxDbContext` and expose `DbSet<OutboxMessageEntity>`. Full schema steps: [Outbox Entity Framework Core storage](../integrations/outbox-ef-core-storage.md).
 
-`AddDbContextFactory` supplies operation contexts to the singleton LiteBus store and also registers `OrdersDbContext` for scoped transactional use. LiteBus does not create an `IServiceScope` inside the EF store.
+Register both the factory and the scoped context. The factory (`IDbContextFactory<OrdersDbContext>`) supplies operation contexts to the singleton LiteBus store, while `ITransactionalOutbox<OrdersDbContext>` resolves the scoped `OrdersDbContext` from the current scope; factory-only registration cannot satisfy the transactional path. LiteBus does not create an `IServiceScope` inside the EF store.
+
+`EnforceTransactionalSetup()` is a fail-fast guard: module build throws when `EnableSaveChangesInterceptor()` was not called, so a missing interceptor registration fails at startup instead of at the first save.
 
 **Handler:**
 
 ```csharp
-await domainRepository.SaveOrderAsync(order, cancellationToken);
+await domainRepository.SaveOrderAsync(order, cancellationToken).ConfigureAwait(false);
 await transactionalOutbox.EnqueueAsync(
     new OrderSubmittedIntegrationEvent { OrderId = order.Id },
-    cancellationToken);
-await dbContext.SaveChangesAsync(cancellationToken);
+    cancellationToken).ConfigureAwait(false);
+await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 ```
 
 **Commit owner:** `SaveChangesAsync` (and optional explicit `BeginTransactionAsync` on the context).
@@ -169,11 +180,17 @@ public sealed class OrderUnitOfWork : IPostgreSqlTransactionProvider, IAsyncDisp
 {
     private NpgsqlConnection? _connection;
     private NpgsqlTransaction? _transaction;
+    private readonly NpgsqlDataSource _dataSource;
 
-    public async Task BeginAsync(NpgsqlDataSource dataSource, CancellationToken cancellationToken)
+    public OrderUnitOfWork(NpgsqlDataSource dataSource)
     {
-        _connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        _transaction = await _connection.BeginTransactionAsync(cancellationToken);
+        _dataSource = dataSource;
+    }
+
+    public async Task BeginAsync(CancellationToken cancellationToken)
+    {
+        _connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        _transaction = await _connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public bool TryGetCurrent(
@@ -189,28 +206,38 @@ public sealed class OrderUnitOfWork : IPostgreSqlTransactionProvider, IAsyncDisp
     {
         if (_transaction is not null)
         {
-            await _transaction.CommitAsync(cancellationToken);
+            await _transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (_transaction is not null) await _transaction.DisposeAsync();
-        if (_connection is not null) await _connection.DisposeAsync();
+        if (_transaction is not null)
+        {
+            await _transaction.DisposeAsync().ConfigureAwait(false);
+        }
+
+        if (_connection is not null)
+        {
+            await _connection.DisposeAsync().ConfigureAwait(false);
+        }
     }
 }
 ```
 
-Register: `services.AddScoped<IPostgreSqlTransactionProvider>(sp => sp.GetRequiredService<OrderUnitOfWork>());`
+Register both the unit of work and the provider alias:
 
-Integration tests use the same pattern in the `ScopedTransactionProvider` helper nested inside `PostgreSqlTransactionalWritersIntegrationTests`.
+```csharp
+services.AddScoped<OrderUnitOfWork>();
+services.AddScoped<IPostgreSqlTransactionProvider>(sp => sp.GetRequiredService<OrderUnitOfWork>());
+```
 
 ### 3. Enlist Marten on the Same Transaction
 
 Your unit of work implements `IPostgreSqlTransactionProvider` and owns the transaction. Marten joins it through `SessionOptions.ForTransaction`, and LiteBus resolves a bound store from the same provider when the handler injects `ITransactionalOutbox`:
 
 ```csharp
-await unitOfWork.BeginAsync(dataSource, cancellationToken);
+await unitOfWork.BeginAsync(cancellationToken).ConfigureAwait(false);
 
 if (!unitOfWork.TryGetCurrent(out _, out var transaction))
 {
@@ -222,18 +249,14 @@ await using var session = documentStore.LightweightSession(SessionOptions.ForTra
 session.Store(order);
 await transactionalOutbox.EnqueueAsync(
     new OrderSubmittedIntegrationEvent { OrderId = order.Id },
-    cancellationToken);
-await session.SaveChangesAsync(cancellationToken);
-await unitOfWork.CommitAsync(cancellationToken);
+    cancellationToken).ConfigureAwait(false);
+await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+await unitOfWork.CommitAsync(cancellationToken).ConfigureAwait(false);
 ```
 
-`SessionOptions` is in the `Marten.Services` namespace.
+Queries use a separately resolved session and never open a write transaction. The session above is constructed at the point of the write. Registering one Marten session for both reads and writes is what would make every query hold a write transaction for its duration; that is an application composition choice, not something the ambient provider requires.
 
-**The read path stays out of this.** The session above is constructed at the point of the write, so a session used for queries is resolved separately and never opens a write transaction. Registering one Marten session for both reads and writes is what would make every query hold a write transaction for its duration; that is an application composition choice, not something the ambient provider requires.
-
-`ITransactionalOutbox` binds its store when it is **resolved**, not when `EnqueueAsync` is called. A handler that injects it without an open unit of work therefore fails at injection with `InvalidOperationException`, which is what `TransactionalWriteMode.RequireActiveTransaction` is for: the alternative would be silently committing the outbox row on its own connection.
-
-Covered by `PostgreSqlMartenTransactionalOutboxTests` in `LiteBus.Storage.IntegrationTests`, which asserts that the document and the outbox row commit together, that neither survives a rollback, and that the writer refuses to resolve with no active transaction.
+`ITransactionalOutbox` binds its store when it is resolved, not when `EnqueueAsync` is called. A handler that injects it without an open unit of work therefore fails at injection with `InvalidOperationException`, which is what `TransactionalWriteMode.RequireActiveTransaction` is for: the alternative would be silently committing the outbox row on its own connection.
 
 ### `TransactionalWriteMode`
 
@@ -253,37 +276,36 @@ Use when you prefer explicit control and do not enable `EnableAmbientTransaction
 ```csharp
 var registration = serviceProvider.GetRequiredService<PostgreSqlOutboxStoreRegistration>();
 
-await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
 var store = registration.CreateTransactionalStore(connection, transaction);
 var writer = new StoreBoundTransactionalOutbox(
     store,
-    envelopeFactory,
-    TimeProvider.System);
+    serviceProvider.GetRequiredService<IOutboxEnvelopeFactory>());
 
 // Domain SQL or enlisted ORM on the same connection/transaction
-await writer.EnqueueAsync(integrationEvent, cancellationToken);
-await transaction.CommitAsync(cancellationToken);
+await writer.EnqueueAsync(integrationEvent, cancellationToken).ConfigureAwait(false);
+await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 ```
 
-`IInboxEnvelopeFactory` / `IOutboxEnvelopeFactory` handle contract resolution and serialization so you do not build `InboxEnvelope` / `OutboxEnvelope` by hand.
+`IInboxEnvelopeFactory` / `IOutboxEnvelopeFactory` handle contract resolution and serialization so you do not build `InboxEnvelope` / `OutboxEnvelope` by hand. The inbox manual path mirrors this shape with `StoreBoundTransactionalInbox`, which takes the same two constructor arguments.
 
 ---
 
 ## Ingress (Auto-Commit)
 
-Broker ingress calls `IInbox.AcceptAsync`. That path **auto-commits** to the singleton store. There is no shared domain transaction at the edge.
+Broker ingress calls `IInbox.AcceptAsync`. That path auto-commits to the singleton store. There is no shared domain transaction at the edge.
 
-If a later command handler must accept into inbox **and** mutate domain state atomically (uncommon), use `ITransactionalInbox` with the same PostgreSQL patterns above inside that handler: not at ingress.
+If a later command handler must accept into inbox and mutate domain state atomically (uncommon), use `ITransactionalInbox` with the same PostgreSQL patterns above inside that handler: not at ingress.
 
 ---
 
-## Tests and InMemory
+## Tests and In-Memory
 
 `UseInMemoryStorage` has no database transaction. Use `IInbox` / `IOutbox` for immediate commits. Cross-store atomicity with a real database is not available on the in-memory path.
 
-PostgreSQL transactional tests: `PostgreSqlInboxTransactionalIntegrationTests`, `PostgreSqlOutboxTransactionalIntegrationTests`, `PostgreSqlTransactionalWritersIntegrationTests`. Run with Docker or `LITEBUS_TEST_POSTGRES_CONNECTION_STRING`. See [Integration tests](../testing/integration-tests.md).
+PostgreSQL transactional tests live under `tests/LiteBus.Storage.IntegrationTests` and `tests/LiteBus.Durable.IntegrationTests`. Run with Docker or `LITEBUS_TEST_POSTGRES_CONNECTION_STRING`. See [Integration tests](../testing/integration-tests.md).
 
 ---
 
@@ -315,6 +337,6 @@ PostgreSQL transactional tests: `PostgreSqlInboxTransactionalIntegrationTests`, 
 ## Next
 
 - Registration reference: [Outbox](outbox.md), [Inbox](inbox.md)
-- Domain events to integration events: [Domain events and unit of work](../concepts/domain-events-and-unit-of-work.md)
+- Domain events to integration events: [Domain events and unit of work](domain-events-and-unit-of-work.md)
 - Custom databases: [Custom stores and dispatchers](../extending/custom-stores-and-dispatchers.md)
 - Cookbook recipes: [Cookbook and scenarios](../getting-started/cookbook.md): transactional outbox with PostgreSQL

@@ -1,12 +1,12 @@
 # Recurring Commands
 
-**You will leave with:** how to send a command on an interval without writing a hosted service, what the loop guarantees, and the boundary this feature deliberately does not cross.
+A recurring command sends one command on a fixed interval for the life of the host, without a hand-written hosted service. This page covers registration, options, backlog draining, failure behavior, and limitations.
 
 **Package:** `LiteBus.Commands.Recurring`
 
-## The Problem
+## Poll Loop for Batch-Draining Commands
 
-Every CQRS application grows a folder of hosted services that are the same file: create a scope, resolve `ICommandMediator`, send one command carrying a batch size, loop immediately when the batch came back full, sleep an idle interval otherwise, back off further on an exception, and never let one escape the loop. Ten of them differ only in the command type, two `TimeSpan` values, and a log message.
+Polling loops that send one batch-draining command share one shape: send, loop immediately when the batch came back full, sleep when idle, back off on error, and never let an exception escape the loop. `AddRecurring` registers that loop so each job differs only in the command type, the timing values, and the declaration.
 
 ## Registration
 
@@ -28,7 +28,13 @@ The factory is called once per pass, not once at registration, so a command carr
 commands.AddRecurring<ExpireStaleHoldsCommand>(host => host.Interval = TimeSpan.FromMinutes(1));
 ```
 
+Each registration stores a `RecurringCommandDeclaration<TCommand>`: the per-pass command factory plus the loop options, resolved as a singleton so the background loop for one command type finds its own factory and options without positional matching. `AddRecurring` also registers the command type with the command module, so calling only this method is enough for the loop to send.
+
+A command that implements more than one `ICommand<T>` contract fails composition at registration with `LiteBusConfigurationException`: a recurring command must declare at most one result type.
+
 Each registration gets its own loop and its own options. The loop registers as an `IBackgroundService` through the host manifest, so it starts and stops with the host like every other LiteBus background service.
+
+`AddRecurring` composes through `CommandModuleBuilder.RegisterChildModule`, the seam feature packages use to register inside `AddCommands` rather than as a second top-level module. Child modules are declared during `DeclareChildren` and built in dependency order; `LiteBus.Commands.Recurring` is the worked example of this pattern.
 
 ## Options
 
@@ -46,7 +52,7 @@ Stagger `StartupDelay` across loops that share a database, so a host start does 
 
 ## Draining a Backlog
 
-A command that clears work in batches usually knows whether it filled the batch, and that is the difference between a backlog cleared in one interval and a backlog cleared in a hundred. A result implementing `IRecurringWorkReport` makes the loop send again immediately instead of waiting out the interval:
+A result implementing `IRecurringWorkReport` makes the loop send again immediately instead of waiting out the interval, which clears a backlog in one busy period rather than one batch per interval:
 
 ```csharp
 public sealed record SendDueRemindersResult(int Sent, int BatchSize) : IRecurringWorkReport
@@ -64,11 +70,11 @@ Implementing it is optional. A command with no result, or one whose result does 
 
 ## Failure Behavior
 
-A pass that throws is logged and the loop continues after `ErrorBackoff`, unless the `IsConcurrencyConflict` predicate classifies the exception as an optimistic-concurrency conflict: a conflict is logged at Information (EventId 2104) and the loop waits `Interval`, because another instance already did the work. The default predicate, `IsConcurrencyConflictByTypeName`, matches a type name ending in `ConcurrencyException` anywhere in the inner or aggregate exception chain; set the predicate to `null` to treat conflicts as failures. An exception never escapes the loop, because a background service that ends on the first transient database blip is a scheduled outage. A failing dependency is usually still failing one interval later, which is why the error delay is longer than the poll interval by default: it keeps a broken loop from filling the log at the polling rate.
+A pass that throws is logged and the loop continues after `ErrorBackoff`, unless the `IsConcurrencyConflict` predicate classifies the exception as an optimistic-concurrency conflict: a conflict is logged at Information (EventId 2104) and the loop waits `Interval`, because another instance already did the work. The default predicate, `IsConcurrencyConflictByTypeName`, matches a type name ending in `ConcurrencyException` anywhere in the inner or aggregate exception chain; set the predicate to `null` to treat conflicts as failures. An exception never escapes the loop. A failing dependency is usually still failing one interval later, which is why the error delay is longer than the poll interval by default: it keeps a broken loop from filling the log at the polling rate.
 
 Cancellation ends the loop immediately. The host's shutdown token is passed to the send, so an in-flight command observes it.
 
-## What This Is Not
+## Limitations
 
 **It is not a scheduler.** There is no cron expression, no wall-clock alignment, no missed-run catch-up, and no notion of a run that was due while the host was down. If the work must happen at a particular time rather than regularly, use a scheduler.
 
@@ -76,8 +82,8 @@ Cancellation ends the loop immediately. The host's shutdown token is passed to t
 
 Make the handler safe to run concurrently with itself, or do not use this. The usual shape that is safe:
 
-```csharp
-// Each instance claims its own rows; the database decides who gets what.
+```text
+-- Each instance claims its own rows; the database decides who gets what.
 UPDATE reminders SET claimed_by = @instance
 WHERE id IN (
     SELECT id FROM reminders
@@ -88,9 +94,9 @@ WHERE id IN (
 )
 ```
 
-If the work genuinely must run once per interval across the deployment, the durable [inbox](../reliable-messaging/inbox.md) and [outbox](../reliable-messaging/outbox.md) processors already lease and fence per message, and are the right tool for that shape.
+If the work genuinely must run once per interval across the deployment, the durable [Inbox](../reliable-messaging/inbox.md) and [Outbox](../reliable-messaging/outbox.md) processors already lease and fence per message, and are the right tool for that shape.
 
-## See Also
+## Next
 
-- [Commands](commands.md) for the mediation pipeline each pass runs through
+- [Commands](../concepts/commands.md) for the mediation pipeline each pass runs through
 - [Outbox](../reliable-messaging/outbox.md) for lease-based processing with fencing across instances

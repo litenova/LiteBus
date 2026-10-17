@@ -1,6 +1,6 @@
 # Handler Priority
 
-`[HandlerPriority]` controls the order handlers run within a single stage of the pipeline. Use it when one pre-handler must run before another, or when event handlers need to run in phases. This page assumes you know the four pipeline stages from [The Handler Pipeline](handler-pipeline.md); priority orders handlers inside each stage, it does not reorder the stages themselves.
+`[HandlerPriority]` controls the order handlers run within a single stage of the pipeline. Use it when one pre-handler must run before another, or when event handlers need to run in phases. This page assumes you know the eight pipeline stages from [The Handler Pipeline](handler-pipeline.md); priority orders handlers inside each stage, it does not reorder the stages themselves.
 
 ## What Handler Priority Controls
 
@@ -39,7 +39,7 @@ public class MyDefaultPriorityHandler : ICommandPreHandler<MyCommand>
 
 ### Use Case: Pre-Handler Ordering
 
-Priority is commonly used to make validation run before enrichment in a pre-handler chain.
+Priority is commonly used to order checks before enrichment in a pre-handler chain. For well-formedness decisions that report failures as values, use a validator instead; see [Validation](validation.md).
 
 ```csharp
 // Priority 1: Validation runs first.
@@ -71,7 +71,7 @@ public class EnrichmentPreHandler : ICommandPreHandler<CreateUserCommand>
 
 ### Use Case: Event Handler Priority Groups
 
-For events, handlers with the same priority value form a **priority group**. The `EventMediationSettings` control how these groups execute relative to each other.
+For events, handlers with the same priority value form a **priority group**. The `EventMediationSettings.Execution` settings control how these groups execute relative to each other.
 
 - By default, priority groups execute sequentially (Group 1 finishes before Group 2 starts).
 - This allows you to create phases of event processing.
@@ -130,7 +130,7 @@ public sealed class CommitUnitOfWork : ICommandCompletionHandler
 
 An application that needs its audit record to be atomic with the change it describes cannot commit before the record exists. The audit writer runs at `Observability`, so the commit has to run after it, which means it has to sit outside the reserved window on the far side. That is the whole reason `ReservedCeiling` exists, and it is why `UnitOfWork` is a named constant instead of advice to add one to `Observability`. It sits above the ceiling rather than on it so the ceiling stays a boundary with nothing to tie with. See [Auditing](auditing.md) for the full pattern, including what happens to a record for a failed mediation.
 
-Priority is the only ordering rule in the completion stage. Every other role runs handlers registered for the message type before handlers registered for a base type or interface, but the completion stage merges the two and sorts by priority alone. A commit that must follow a broadly registered framework writer would otherwise be unorderable.
+Priority is the only ordering rule in the completion stage. In every pre stage and in the error stage, handlers registered for a base type or interface run before handlers registered for the message type; in the post stage the message-type handlers run first. The completion stage merges the two collections and sorts by priority alone. A commit that must follow a broadly registered framework writer would otherwise be unorderable.
 
 ## Best Practices
 
@@ -150,3 +150,5 @@ public static class AppPriorities
 ```
 
 ## Next
+
+Read [Auditing](auditing.md) for the framework handlers this ordering applies to, and [The Handler Pipeline](handler-pipeline.md) for the stages priority orders within.

@@ -45,11 +45,11 @@ Broker module builders expose `UseOptions`, `DisableIngressConsumer()`, and `Hos
 
 | Broker | Required ingress option members | Required root transport | Additional ingress options mapped |
 | --- | --- | --- | --- |
-| AMQP | `QueueName` | `AddAmqpTransport(...)` | Declare queue, durable queue, trust headers, batch accept |
-| Kafka | `Destination` | `AddKafkaTransport(...)` | Prefetch, requeue |
-| AWS SQS | `Destination` | `AddAwsSqsTransport(...)` | Prefetch, requeue |
-| Azure Service Bus | `Destination` | `AddAzureServiceBusTransport(...)` | Prefetch, requeue |
-| InMemory | `Destination` | `AddInMemoryTransport()` | Prefetch, requeue |
+| AMQP | `QueueName` | `AddAmqpTransport(...)` | `PrefetchCount`, `DeclareQueue`, `DurableQueue` |
+| Kafka | `Destination` | `AddKafkaTransport(...)` | None beyond shared safety and requeue |
+| AWS SQS | `Destination` | `AddAwsSqsTransport(...)` | `ReceiveBatchSize` |
+| Azure Service Bus | `Destination` | `AddAzureServiceBusTransport(...)` | `SubscriptionName`, `PrefetchCount`, `MaxConcurrentCalls` |
+| InMemory | `Destination` | `AddInMemoryTransport()` | None beyond shared safety and requeue |
 
 ## Packages
 
@@ -59,7 +59,7 @@ Broker module builders expose `UseOptions`, `DisableIngressConsumer()`, and `Hos
 
 ## Requires
 
-- `durable-core.inbox.accept` (inbox core and storage; documented in durable-core catalog)
+- `durable-core.inbox-acceptance` (inbox core and storage; documented in durable-core catalog)
 - Matching root `transport.*` consumer
 - Registered message contracts for payloads ingress deserializes (`runtime.contract-registry` or explicit `Contracts.Register`)
 

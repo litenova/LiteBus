@@ -17,7 +17,7 @@ Each adapter maps these calls to its native API. The Architecture resilience mat
 | InMemory | Remove from channel | Re-enqueue | In-process only |
 | Azure Service Bus | `CompleteMessage` | `AbandonMessage` | Exponential processor restart on errors |
 | AWS SQS | `DeleteMessage` | `ChangeMessageVisibility` with backoff | Uses receive count when present |
-| Kafka | Offset commit | Seek to failed offset | No queue-style lease; offset not advanced until accept |
+| Kafka | Offset commit | Seek to failed offset | Offset committed on accept or discard; only requeue seeks without committing |
 
 ## Public Surface
 
@@ -43,7 +43,7 @@ Each adapter maps these calls to its native API. The Architecture resilience mat
 
 - Handlers that return without calling an ack method leave deliveries unacknowledged; broker behavior varies (peek-lock renewal, visibility timeout, or uncommitted Kafka offset).
 - Raw `IMessageConsumer` hosts have no LiteBus redelivery cap at the transport layer; poison handling requires `DiscardAsync`, broker DLQ policy, or inbox ingress.
-- Kafka commits offset only after `AcceptAsync`; `ReturnToQueueAsync` seeks back before the next read.
+- Kafka commits offset on `AcceptAsync` or `DiscardAsync`; only `ReturnToQueueAsync` seeks back without committing before the next read.
 
 ## Non-Goals
 

@@ -4,6 +4,7 @@
 - **Name**: Message definitions and metadata
 - **Maturity**: GA
 - **Summary**: Resolves declarative per-message metadata from declaring attributes and definitions, once at registration, for pipeline stages to read.
+- **Guide**: [Message definitions](../../concepts/message-definitions.md)
 
 ## What It Does
 

@@ -13,7 +13,7 @@
 
 - Named type has a public constructor.
 - Constructor has a parameter implementing or equal to `ITransactionalInboxStore`.
-- Constructor has no parameter type that inherits from `DbContext`.
+- Constructor has no parameter type that is or inherits from `DbContext`.
 
 ## Bad Example
 

@@ -9,8 +9,8 @@
 | --- | --- |
 | `IInboxStore` | `AddAsync`, `AddBatchAsync` |
 | `IOutboxStore` | `AddAsync`, `AddBatchAsync` |
-| `ITransactionalInboxStore` | transactional variants of append methods |
-| `ITransactionalOutboxStore` | transactional variants of append methods |
+| `ITransactionalInboxStore` | inherits `AddAsync`, `AddBatchAsync` bound to the caller transaction (marker interface, no new methods) |
+| `ITransactionalOutboxStore` | inherits `AddAsync`, `AddBatchAsync` bound to the caller transaction (marker interface, no new methods) |
 
 ## SQL Behavior
 

@@ -48,6 +48,12 @@ Broker ingress deduplicates redeliveries with a broker-scoped key of the form `i
 
 During the upgrade window, a delivery accepted under the exchange-scoped key and redelivered after the new mapping creates a second row, and both rows execute. Roll out when redelivery is unlikely, and keep handlers idempotent across the window.
 
+## No Trimming or NativeAOT Guarantee
+
+Assembly scanning (`RegisterFromAssembly`) and open-generic closing use runtime reflection over handler and message types. Reflection-heavy APIs carry trimming annotations, but LiteBus publishes no trim-safe guarantee today: NativeAOT smoke builds for the mediator, durable, and transport paths are planned work on the [Reliability Roadmap](../roadmap/reliability.md), not a shipped gate.
+
+When trimming matters, register handlers explicitly with `Register<T>` or `Register(typeof(OpenGenericHandler<>))` instead of scanning assemblies, and validate the trimmed application before release.
+
 ## Next
 
 - Read the [Inbox](../reliable-messaging/inbox.md) and [Outbox](../reliable-messaging/outbox.md) contracts for the full accept and enqueue paths.

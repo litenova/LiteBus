@@ -23,6 +23,7 @@ Each save and completion records the inbox message identifier in `last_applied_m
 | --- | --- | --- |
 | `SagaProcessorHook.BeforeDispatchAsync(...)` | `LiteBus.Saga` | Resolve mapping, build correlation, load state, begin scope |
 | `SagaProcessorHook.PrepareDispatchScope(...)` | `LiteBus.Saga` | Attach the message-keyed scope before dispatcher execution |
+| `SagaProcessorHook.ShouldDispatch(...)` | `LiteBus.Saga` | Skip the dispatcher when the message was already applied |
 | `SagaProcessorHook.AbandonDispatchScope(...)` | `LiteBus.Saga` | Remove state after canceled or failed dispatch |
 | `SagaProcessorHook.AfterDispatchAsync(...)` | `LiteBus.Saga` | Save dirty state once or complete saga with bounded retry |
 | Registration via `EnableSaga()` | `LiteBus.Saga.InboxIntegration` | Adds hook as `IProcessorEnvelopeHook` singleton |
@@ -35,7 +36,7 @@ Each save and completion records the inbox message identifier in `last_applied_m
 
 ## Requires
 
-- `saga.processor-envelope-hooks`
+- `durable-core.processor-hooks`
 - `saga.store` (or `saga.in-memory-store` / `saga.postgresql-storage`)
 - `saga.state-registration`
 - `saga.correlation-and-tenancy`

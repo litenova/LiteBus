@@ -78,7 +78,7 @@ LiteBus also ships pipeline handlers of its own, such as the audit record writer
 
 ## Commands and Queries: The Single-Handler Pipeline
 
-A command or query must resolve to exactly one main handler. If more than one is registered, mediation throws `MultipleHandlerFoundException` before anything runs. The flow for a result-returning message is:
+A command or query must resolve to exactly one main handler. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level survives: direct handlers registered for the message win whenever any survive, and indirect handlers registered for a base type are considered only when no direct handler does. One direct handler plus one indirect handler resolves without throwing. The flow for a result-returning message is:
 
 ```text
 decision = RunAsyncPreStages(message) // guards, validators, shortcuts, pre-handlers; stops on the first decision
@@ -108,6 +108,8 @@ public sealed class WrapInEnvelope : IQueryPostHandler<GetProductByIdQuery, Prod
     }
 }
 ```
+
+Stream queries carry their own post-handler contract, `IStreamQueryPostHandler<TQuery, TQueryResult>`, typed over `IAsyncEnumerable<TQueryResult>`. It runs after the consumer has fully enumerated the stream, so the stream object it receives is already consumed: do not re-enumerate it unless its implementation supports it. To pass data from the stream handler to the post-handler, write to `IExecutionContext.Items` instead.
 
 ## Events: The Broadcast Pipeline
 
@@ -302,6 +304,14 @@ One registration against `ICommand` covers every command producing that result t
 
 Mapping is synchronous and must stay pure. It runs on the refusal path, where reaching for a database is exactly what the decision was trying to avoid.
 
+| Contract | For |
+| --- | --- |
+| `ICommandRefusalMapper<TCommand, TCommandResult>` | A command that produces a result |
+| `IQueryRefusalMapper<TQuery, TQueryResult>` | A query |
+| `IStreamQueryRefusalMapper<TQuery, TQueryResult>` | A stream query |
+
+The stream mapper is typed over `IAsyncEnumerable<TQueryResult>`, because the value a stream query produces is the stream itself. Returning an empty sequence hands the caller a refusal it enumerates as no items; without a mapper the refusal reaches the caller as an exception instead. Events have no mapper: an event produces no result, so there is no value a mapper could return, and a refusal there always raises.
+
 ### The Rules
 
 - Everything after the stage that stopped the pipeline **does not run**: later decision stages, every pre-handler, the main handler, and every post-handler.
@@ -330,6 +340,137 @@ The three axes do not carry identical contracts, and the gaps are deliberate. Ea
 One rule produces every gap in that table: **a contract that names a result exists only where the axis has one.** A query always produces a result, so it has no untyped shortcut. An event never produces one, so it has no typed shortcut and no refusal mapper: there is no value a mapper could return, and a denied event raises instead.
 
 A new axis follows that rule rather than copying whichever axis it most resembles.
+
+## Refusal as a Value
+
+The ordinary mediator methods convert a denial and a validation failure to `LiteBusMessageDeniedException` and `LiteBusMessageInvalidException`, which leaves an HTTP endpoint catching an exception to produce a 403 or a validation problem response. The `Try` methods return the same ending as a value instead:
+
+```csharp
+Task<MediationResult> TrySendAsync(
+    ICommand command,
+    CommandMediationSettings? commandMediationSettings = null,
+    CancellationToken cancellationToken = default);
+
+Task<MediationResult<TCommandResult>> TrySendAsync<TCommandResult>(
+    ICommand<TCommandResult> command,
+    CommandMediationSettings? commandMediationSettings = null,
+    CancellationToken cancellationToken = default);
+
+Task<MediationResult<TQueryResult>> TryQueryAsync<TQueryResult>(
+    IQuery<TQueryResult> query,
+    QueryMediationSettings? queryMediationSettings = null,
+    CancellationToken cancellationToken = default);
+```
+
+```csharp
+var result = await commandMediator.TrySendAsync(command, cancellationToken: cancellationToken);
+
+if (result.IsDenied)
+{
+    return Results.Forbid();
+}
+
+if (result.IsInvalid)
+{
+    return Results.ValidationProblem(result.Failures
+        .GroupBy(failure => failure.Member ?? string.Empty)
+        .ToDictionary(group => group.Key, group => group.Select(f => f.Message).ToArray()));
+}
+```
+
+| Member | Meaning |
+| --- | --- |
+| `Outcome` | How the mediation ended. |
+| `Reason` | Why the pipeline stopped, or `null` when nothing stopped it. |
+| `Code` | The machine-readable code the decision supplied, or `null` when it supplied none. Switch on this rather than matching the reason. |
+| `Failures` | Every failure the validator stage collected, or an empty list for any other outcome. |
+| `IsSuccess` | `true` for `Succeeded` and `Answered`: an answered message succeeded, because the work had already been applied. |
+| `Value`, `HasValue` | On `MediationResult<TMessageResult>`: the value the caller receives, and whether one was produced. Test `HasValue` before reading `Value`, because a refusal produces none. |
+
+A genuine fault still throws. A database timeout is not something a boundary branches on, so the line stays where the pipeline draws it: a decision is a value, a fault is an exception.
+
+Where a refusal mapper is registered, the mapped value arrives in `Value` alongside a denied outcome, so an application that models failure in its own result type sees both its value and the framework classification. This is not a replacement for a mapper: a mapper is for an application whose own result type models failure on every call, while `MediationResult` is for a caller that wants the framework answer and needs no type of its own.
+
+### Evaluating Without Performing
+
+`EvaluateAsync` asks what the guard and validator stages would say about a message, without performing it:
+
+```csharp
+Task<MediationDecision> EvaluateAsync(
+    ICommand command,
+    CommandMediationSettings? commandMediationSettings = null,
+    CancellationToken cancellationToken = default);
+
+Task<MediationDecision> EvaluateAsync(
+    IQuery query,
+    QueryMediationSettings? queryMediationSettings = null,
+    CancellationToken cancellationToken = default);
+```
+
+```csharp
+var decision = await commandMediator.EvaluateAsync(command, cancellationToken: cancellationToken);
+
+approveButton.Visible = decision.IsAllowed;
+```
+
+`IsAllowed` reports that nothing objected, `IsDenied` that a guard would refuse, and `IsInvalid` that a validator would report the message malformed. `Outcome` carries only those three endings, because nothing was performed.
+
+Evaluation runs guards and validators only. It deliberately never runs shortcuts or pre-handlers, because those act rather than decide: the shipped idempotency shortcut claims a key, so evaluating a page full of controls would burn keys for commands nobody submitted, and a cache shortcut would warm entries for reads nobody made. A message reported as permitted may still be answered from a cache when it is actually sent.
+
+That puts one obligation on a guard: it must be free of effects a caller would not want from a "may I" question. A guard that loads an aggregate to decide is fine, and the load happens on every evaluation, so check the execution context data store before loading when it is expensive.
+
+## Inspecting the Plan
+
+`IMessageReader.Explain` reads everything registered for one message out of the registry, in the order the pipeline runs it:
+
+```csharp
+var plan = provider.GetRequiredService<IMessageReader>().Explain(typeof(ProcessPaymentCommand));
+Console.WriteLine(plan);
+```
+
+Illustrative output:
+
+```text
+ProcessPaymentCommand
+  guard               0  RequireSecondApproverGuard
+  shortcut            0  SkipAppliedPaymentShortcut
+  main                0  ProcessPaymentCommandHandler
+  post                0  PublishPaymentProcessed
+  completion  2000100  CommitUnitOfWork
+```
+
+`MessagePipelinePlan` carries the message type, the result type the message declares, and one `MessagePipelineStep` per handler. Each step names the stage, the priority that orders it inside the stage, the handler type, the closed contract the pipeline dispatches through, whether the handler was registered for a base type (`IsIndirect`), and whether the registry closed an open generic over the message (`IsClosedOpenGeneric`). A message with nothing registered produces a plan with no steps.
+
+Tags are not applied. The plan describes what is registered; a mediation that filters by tag runs a subset of it. Call `Explain` from a unit test, a startup log line, or a management endpoint. It is for tests and diagnostics, not the hot path.
+
+## Mediation Telemetry
+
+Mediation records one span per message and a duration histogram, an outcome counter, and a decision counter through the `LiteBus.Mediation` activity source and meter. `MessageModuleBuilder.UseTelemetry` tunes what is recorded:
+
+```csharp
+liteBus.AddMessaging(messaging => messaging.UseTelemetry(new MediationTelemetryOptions
+{
+    StageSpans = true,
+    StageMetrics = true
+}));
+```
+
+| Option | Default | Records |
+| --- | --- | --- |
+| `Spans` | `true` | One span per mediation, named `mediate {MessageType}`. |
+| `Metrics` | `true` | The duration histogram, the outcome counter, and the decision counter. |
+| `StageSpans` | `false` | A child span per pre stage. Opt-in, because mediation volume is orders of magnitude above durable-processing volume. |
+| `StageMetrics` | `false` | Per-stage durations. Opt-in for the same reason: one measurement per stage per message is four to five times the instrument traffic of one per message. |
+
+`MediationTelemetryOptions.Disabled` records nothing, for a benchmark or a host that exports the same measurements through its own instrumentation. Instruments with no listener record nothing whatever is configured here, so register the source and the meter with an exporter through `LiteBus.Messaging.Extensions.OpenTelemetry`:
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithTracing(t => t.AddLiteBusMediationInstrumentation())
+    .WithMetrics(m => m.AddLiteBusMediationMetrics());
+```
+
+Only a `Failed` outcome sets the error span status. Denials and validation refusals keep a success status so error views show faults only. The instrument names are public constants on `LiteBusMediationTelemetry` and the full meter table lives in [Architecture](../architecture/README.md).
 
 ## Suppressing Post-Handlers
 

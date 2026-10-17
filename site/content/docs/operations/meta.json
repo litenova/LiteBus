@@ -1,0 +1,14 @@
+{
+    "title":  "Operations",
+    "pages":  [
+                  "README",
+                  "management-endpoints",
+                  "diagnostics-and-health",
+                  "message-states",
+                  "runbook",
+                  "security-and-tenancy",
+                  "performance",
+                  "troubleshooting"
+              ]
+}
+

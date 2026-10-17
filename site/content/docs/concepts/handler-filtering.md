@@ -1,52 +1,38 @@
 # Handler Filtering
 
-Filtering lets the same message run a different set of handlers depending on the call. Use it to process a command differently for a public API versus an internal service, or to publish an event to only a subset of subscribers. There are two mechanisms: tags applied at compile time and a predicate evaluated at publish time. This page builds on the handler stages in [The Handler Pipeline](handler-pipeline.md).
+Filtering runs a different set of handlers for the same message depending on the call. Tag handlers at registration and select tags per call, or pass a predicate that inspects each handler descriptor. Tags and predicates work on commands, queries, and events: each axis exposes routing settings on its mediation settings type (`CommandRoutingSettings`, `QueryRoutingSettings`, `EventRoutingSettings`). This page builds on the handler stages in [The Handler Pipeline](handler-pipeline.md).
 
-Tags and predicates work on **commands**, **queries**, and **events**. Each axis exposes routing settings on its mediation settings type: `CommandRoutingSettings`, `QueryRoutingSettings`, and `EventRoutingSettings`.
+## Tag-Based Filtering
 
-## 1. Tag-Based Filtering
-
-Tags are static labels applied to handlers at compile time. You can then specify which tags are active during mediation.
-
-### Applying Tags to Handlers
-
-Use the `[HandlerTag]` or `[HandlerTags]` attributes.
+Apply the `[HandlerTag]` or `[HandlerTags]` attribute to handlers that belong to a named context, then pass the active tags when you mediate:
 
 ```csharp
-using LiteBus.Messaging.Abstractions;
-
-// This handler will only run if the "PublicAPI" tag is active.
 [HandlerTag("PublicAPI")]
-public class StrictValidationPreHandler : ICommandPreHandler<CreateUserCommand>
+public sealed class StrictValidationPreHandler : ICommandPreHandler<CreateUserCommand>
 {
-    // ... logic for strict validation
+    public Task PreHandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
+    {
+        // ...
+        return Task.CompletedTask;
+    }
 }
 
-// This handler is untagged and will always be considered for execution.
-public class CommonValidationPreHandler : ICommandPreHandler<CreateUserCommand>
+// Untagged, so it runs in every context.
+public sealed class CommonValidationPreHandler : ICommandPreHandler<CreateUserCommand>
 {
-    // ... logic for common validation
-}
-
-// This handler runs if either "Admin" or "Internal" tags are active.
-[HandlerTags("Admin", "Internal")]
-public class AdminDataEnrichmentHandler : IQueryPostHandler<GetUserQuery>
-{
-    // ... logic to add sensitive data
+    public Task PreHandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
+    {
+        // ...
+        return Task.CompletedTask;
+    }
 }
 ```
 
-### Mediating with Tags
-
-You can specify tags when sending a message using either the extension methods or the mediation settings object.
-
 ```csharp
-// Using the extension method (for a single tag)
-await _commandMediator.SendAsync(command, "PublicAPI");
-await _queryMediator.QueryAsync(query, "Admin");
-await _eventMediator.PublishAsync(orderPlaced, "Notifications");
+// One tag, through the sugar overload.
+await commandMediator.SendAsync(command, "PublicAPI", cancellationToken);
 
-// Using the settings object (for one or more tags)
+// One or more tags, through the settings object.
 var settings = new CommandMediationSettings
 {
     Routing = new CommandRoutingSettings
@@ -54,7 +40,8 @@ var settings = new CommandMediationSettings
         Tags = ["Admin", "HighPriority"]
     }
 };
-await _commandMediator.SendAsync(command, settings);
+
+await commandMediator.SendAsync(command, settings, cancellationToken);
 ```
 
 Query and event calls follow the same shape with `QueryMediationSettings` / `QueryRoutingSettings` and `EventMediationSettings` / `EventRoutingSettings`.
@@ -63,34 +50,25 @@ Query and event calls follow the same shape with `QueryMediationSettings` / `Que
 
 When you mediate with a set of tags:
 
-1. **Untagged handlers are always executed.** They are considered universal.
-2. **Tagged handlers are executed only if at least one of their tags matches** one of the tags provided during mediation.
-3. Handlers whose tags do not match any of the provided tags are skipped.
+1. **Untagged handlers always run.** They are considered universal.
+2. **Tagged handlers run only when at least one of their tags matches** a tag passed for the call.
+3. Handlers whose tags match none of the passed tags are skipped.
 
-## 2. Predicate-Based Filtering
+## Predicate-Based Filtering
 
-For more dynamic or complex filtering logic, you can provide a predicate function. The predicate is evaluated for each potential handler and receives an `IHandlerDescriptor` object, which contains rich metadata about the handler.
-
-`HandlerPredicate` is available on `CommandRoutingSettings`, `QueryRoutingSettings`, and `EventRoutingSettings`.
-
-### Using a Predicate
+For filtering beyond static labels, pass a predicate. It receives the handler descriptor for each candidate handler and returns whether that handler runs:
 
 ```csharp
 var settings = new EventMediationSettings
 {
     Routing = new EventRoutingSettings
     {
-        // The predicate receives a descriptor for each potential handler.
-        // It should return true if the handler should be executed.
         HandlerPredicate = descriptor =>
-        {
-            // Example: Only execute handlers from the "Core" namespace.
-            return descriptor.HandlerType.Namespace?.StartsWith("MyProject.Core") == true;
-        }
+            descriptor.HandlerType.Namespace?.StartsWith("MyProject.Core") == true
     }
 };
 
-await _eventMediator.PublishAsync(myEvent, settings);
+await eventMediator.PublishAsync(myEvent, settings, cancellationToken);
 ```
 
 The same pattern applies to commands and queries:
@@ -103,30 +81,39 @@ var commandSettings = new CommandMediationSettings
         HandlerPredicate = d => d.HandlerType.Namespace?.StartsWith("MyApp.Admin") == true
     }
 };
-await _commandMediator.SendAsync(command, commandSettings);
+
+await commandMediator.SendAsync(command, commandSettings, cancellationToken);
 ```
+
+The predicate type differs by axis. Command and query routing use `Func<IHandlerDescriptor, bool>`; event routing uses the named `EventHandlerFilter` delegate, which takes an `IHandlerDescriptor` and returns whether the handler runs. The lambda shape is identical; name the delegate type when you store a predicate in a field or combine several with logical operators.
 
 ### `IHandlerDescriptor` Properties
 
-The descriptor provides access to:
+The descriptor carries the message type, the handler type, the tags, the priority, and the registration metadata:
 
-- `HandlerType`: The `System.Type` of the handler class.
-- `MessageType`: The `System.Type` of the message it handles.
-- `Priority`: The handler's priority value.
-- `Tags`: A collection of tags applied to the handler.
+- `HandlerType`: the `System.Type` of the handler class.
+- `MessageType`: the `System.Type` of the message it handles.
+- `Priority`: the handler priority value.
+- `Tags`: the tags applied to the handler.
+- `RegistrationSequence`: the sequence assigned when the descriptor was committed to the registry. Lower values indicate earlier registration and break priority ties.
+- `ContractType`: the closed handler contract the dispatch was discovered from, such as `IMessagePostHandler<PlaceOrderCommand, OrderId>`. A handler class may implement contracts for several message types; this names the one the pipeline invokes through, which is what appears in diagnostics.
 
 ### Use Case: Filtering by Marker Interface
 
-A common pattern is to filter handlers based on a marker interface, which is cleaner than checking type names.
+A common pattern is to filter handlers on a marker interface rather than on type names:
 
 ```csharp
 // 1. Define a marker interface
 public interface IHighPriorityEventHandler { }
 
 // 2. Apply it to a handler
-public class CriticalNotificationHandler : IEventHandler<SystemAlertEvent>, IHighPriorityEventHandler
+public sealed class CriticalNotificationHandler : IEventHandler<SystemAlertEvent>, IHighPriorityEventHandler
 {
-    // ...
+    public Task HandleAsync(SystemAlertEvent @event, CancellationToken cancellationToken = default)
+    {
+        // ...
+        return Task.CompletedTask;
+    }
 }
 
 // 3. Filter using the predicate
@@ -137,19 +124,20 @@ var settings = new EventMediationSettings
         HandlerPredicate = descriptor => descriptor.HandlerType.IsAssignableTo(typeof(IHighPriorityEventHandler))
     }
 };
-await _eventMediator.PublishAsync(alert, settings);
+
+await eventMediator.PublishAsync(alert, settings, cancellationToken);
 ```
 
 ## Combining Tags and Predicates
 
-Tags and predicates can be used together. The filtering logic in LiteBus applies tags first to create an initial set of candidate handlers, and then the predicate is applied to further refine that set.
+Tags and predicates combine. Filtering applies tags first to build the candidate set, then applies the predicate to refine it.
 
 ## Best Practices
 
-1. **Use tags for static contexts**: Tags are ideal for well-defined, static contexts like "PublicAPI", "InternalService", or "Reporting".
-2. **Use predicates for dynamic logic**: Predicates are better for runtime decisions, feature flags, or complex rules that can't be expressed with simple labels.
-3. **Define constants for tags**: Avoid magic strings by defining your tags as constants in a shared class.
-4. **Document your filters**: Maintain clear documentation for what your tags and predicates represent so your team uses them consistently.
+1. **Use tags for static contexts**: tags fit well-defined contexts such as "PublicAPI", "InternalService", or "Reporting".
+2. **Use predicates for dynamic logic**: predicates fit runtime decisions, feature flags, and rules that static labels cannot express.
+3. **Define constants for tags**: hold tags as constants in a shared class instead of repeating string literals.
+4. **Document your filters**: record what each tag and predicate means so a team applies them consistently.
 
 ## Next
 

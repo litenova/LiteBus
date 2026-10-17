@@ -16,12 +16,12 @@
 | Type | Role |
 | --- | --- |
 | `EfCoreStorageProvider` | PostgreSQL, SQL Server, MySQL, SQLite, InMemory detection |
-| `EfCoreRelationalLeaseExecutor` | Executes provider lease SQL against a `DbContext` |
-| `EfCorePostgreSqlLeaseSql` / `EfCoreSqlServerLeaseSql` / `EfCoreMySqlLeaseSql` | Lease statement templates |
-| `EfCoreDurableStoreOperations` | Shared state transition helpers |
-| `EfCoreBulkUpdateCapabilities` | Provider bulk update feature detection |
+| `EfCoreRelationalLeaseExecutor` | Internal: executes provider lease SQL against a `DbContext` |
+| `EfCorePostgreSqlLeaseSql` / `EfCoreSqlServerLeaseSql` / `EfCoreMySqlLeaseSql` | Internal lease statement templates |
+| `EfCoreDurableStoreOperations` | Internal shared state transition helpers |
+| `EfCoreBulkUpdateCapabilities` | Internal provider bulk update feature detection |
 | `EfCoreRelationalModelColumnTypes` | Payload and trace column type mapping |
-| `EfCoreJsonTextNormalizer` | JSON serialization alignment for relational providers |
+| `EfCoreJsonTextNormalizer` | Internal JSON serialization alignment for relational providers |
 | `EfCoreProviderResolver` | Resolve provider from `DbContext` |
 
 ### Invocation
@@ -48,7 +48,7 @@
 
 ### Extension Points
 
-- Custom EF store adapters may reuse lease executor and durable operation helpers from this package.
+- Internal lease and persist helpers are shared with the inbox and outbox EF adapters through `InternalsVisibleTo`; custom adapters build on the public provider resolver, column types, and table qualifier.
 - Unsupported providers throw `EfCoreStorageNotSupportedException` at resolve time.
 
 ## Packages
@@ -67,7 +67,7 @@
 - Lease SQL requires a supported relational provider. SQLite leasing runs inside a serializable transaction, which serializes claims across store instances through the database write lock.
 - MySQL leasing uses `READ COMMITTED`, the axis `IX_LiteBus_*_CreatedAt` index, and direct primary-key updates so concurrent workers claim disjoint ordered batches without range-lock starvation.
 - Store options `SchemaName` and `TableName` must match the EF model configuration used in migrations.
-- Payload and trace context columns map to text so payload protection can return opaque ciphertext.
+- Payload columns map to text so payload protection can return opaque ciphertext; trace context uses provider-specific JSON types (`jsonb` on PostgreSQL).
 
 ## Non-Goals
 
@@ -82,13 +82,13 @@ No dedicated meters in this package. Processor and queue metrics come from axis 
 | Meter | Instrument | Type | When observed | Tags | Storage coupling |
 | --- | --- | --- | --- | --- | --- |
 | `LiteBus.Inbox` | `litebus.inbox.queue.depth` | Observable gauge | OpenTelemetry scrape | `litebus.inbox.status` | EF inbox store implements diagnostics role |
-| `LiteBus.Inbox` | `litebus.inbox.processor.leases_acquired` | Counter | Each processor pass |: | Lease SQL from this package acquires rows |
-| `LiteBus.Inbox` | `litebus.inbox.processor.persist_skipped` | Counter | Terminal persist with lost lease |: | `EfCoreDurableStoreOperations` skip path |
-| `LiteBus.Inbox` | `litebus.inbox.processor.persist_rejected` | Counter | Competing persist rejected |: | Optimistic lease guard |
+| `LiteBus.Inbox` | `litebus.inbox.processor.leases_acquired` | Counter | Each processor pass | none | Lease SQL from this package acquires rows |
+| `LiteBus.Inbox` | `litebus.inbox.processor.persist_skipped` | Counter | Terminal persist with lost lease | none | `EfCoreDurableStoreOperations` skip path |
+| `LiteBus.Inbox` | `litebus.inbox.processor.persist_rejected` | Counter | Competing persist rejected | none | Optimistic lease guard |
 | `LiteBus.Outbox` | `litebus.outbox.queue.depth` | Observable gauge | OpenTelemetry scrape | `litebus.outbox.status` | EF outbox store implements diagnostics role |
-| `LiteBus.Outbox` | `litebus.outbox.processor.leases_acquired` | Counter | Each processor pass |: | Lease SQL from this package |
-| `LiteBus.Outbox` | `litebus.outbox.processor.persist_skipped` | Counter | Terminal persist with lost lease |: | Shared persist helpers |
-| `LiteBus.Outbox` | `litebus.outbox.processor.persist_rejected` | Counter | Competing persist rejected |: | Optimistic lease guard |
+| `LiteBus.Outbox` | `litebus.outbox.processor.leases_acquired` | Counter | Each processor pass | none | Lease SQL from this package |
+| `LiteBus.Outbox` | `litebus.outbox.processor.persist_skipped` | Counter | Terminal persist with lost lease | none | Shared persist helpers |
+| `LiteBus.Outbox` | `litebus.outbox.processor.persist_rejected` | Counter | Competing persist rejected | none | Optimistic lease guard |
 
 Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOutboxTelemetry`.
 
@@ -108,7 +108,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: DbContext with unsupported provider
 - **Behavior**: `EfCoreProviderResolver` resolve
 - **Expected outcome**: `EfCoreStorageNotSupportedException` thrown
-- **Remarks**: `LiteBus.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreInboxStorePostgreSqlContractTests` (Inherits `InboxStoreContractTests`)
 
@@ -117,7 +117,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Full inbox contract suite against EF Npgsql store
 - **Behavior**: All inherited contract tests run on PostgreSQL EF
 - **Expected outcome**: Same outcomes as abstract contract tests
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `EfCoreInboxStoreSqlServerContractTests` (Inherits `InboxStoreContractTests`)
 
@@ -126,7 +126,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Full inbox contract suite against EF SQL Server store
 - **Behavior**: Inherited contract tests on SQL Server
 - **Expected outcome**: Same outcomes as abstract contract tests
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `EfCoreOutboxStorePostgreSqlContractTests` (Inherits `OutboxStoreContractTests`)
 
@@ -135,7 +135,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Full outbox contract suite against EF Npgsql store
 - **Behavior**: Inherited contract tests on PostgreSQL EF
 - **Expected outcome**: Same outcomes as abstract contract tests
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `EfCoreOutboxStoreSqlServerContractTests` (Inherits `OutboxStoreContractTests`)
 
@@ -144,7 +144,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Full outbox contract suite against EF SQL Server store
 - **Behavior**: Inherited contract tests on SQL Server
 - **Expected outcome**: Same outcomes as abstract contract tests
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `EfCoreInboxStoreContractTests` (Inherits `InboxStoreContractTests`)
 
@@ -153,7 +153,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Full inbox contract suite against EF in-memory provider
 - **Behavior**: Inherited contract tests
 - **Expected outcome**: Same outcomes as abstract contract tests
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreOutboxStoreContractTests` (Inherits `OutboxStoreContractTests`)
 
@@ -162,7 +162,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Full outbox contract suite against EF in-memory provider
 - **Behavior**: Inherited contract tests
 - **Expected outcome**: Same outcomes as abstract contract tests
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreInboxStoreParityTests.LeasePendingAsync_FiltersByTenantId`
 
@@ -171,7 +171,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Pending rows for multiple tenants
 - **Behavior**: `LeasePendingAsync` with tenant filter
 - **Expected outcome**: Only matching tenant rows leased
-- **Remarks**: Exercises shared lease executor; `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: Exercises shared lease executor; `LiteBus.Storage.UnitTests`
 
 #### `EfCoreInboxStoreParityTests.LeasePendingAsync_ReclaimsStaleNullLeaseAfterLeaseDuration`
 
@@ -180,7 +180,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Row with expired null lease owner
 - **Behavior**: Lease after lease duration elapsed
 - **Expected outcome**: Row reclaimed
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreInboxStoreParityTests.AddBatchAsync_DeduplicatesWithinBatchByIdAndIdempotencyKey`
 
@@ -189,7 +189,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Batch with duplicate ids and idempotency keys
 - **Behavior**: `AddBatchAsync`
 - **Expected outcome**: Within-batch dedup applied
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreInboxStoreParityTests.PersistAsync_ReturnsSkippedCountWhenLeaseIsLost`
 
@@ -198,7 +198,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Persist after lease stolen by another worker
 - **Behavior**: `PersistAsync` with lost lease token
 - **Expected outcome**: Skipped count reported; row unchanged
-- **Remarks**: Uses `EfCoreDurableStoreOperations`; `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: Uses `EfCoreDurableStoreOperations`; `LiteBus.Storage.UnitTests`
 
 #### `EfCoreOutboxStoreParityTests.LeasePendingAsync_FiltersByTenantId`
 
@@ -207,7 +207,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Pending outbox rows for multiple tenants
 - **Behavior**: `LeasePendingAsync` with tenant filter
 - **Expected outcome**: Only matching tenant rows leased
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreOutboxStoreParityTests.LeasePendingAsync_ReclaimsStaleNullLeaseAfterLeaseDuration`
 
@@ -216,7 +216,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Outbox row with expired null lease
 - **Behavior**: Lease after duration elapsed
 - **Expected outcome**: Row reclaimed
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreOutboxStoreParityTests.AddBatchAsync_DeduplicatesWithinBatchByIdAndIdempotencyKey`
 
@@ -225,7 +225,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Batch with duplicate ids and keys
 - **Behavior**: Batch enqueue
 - **Expected outcome**: Within-batch dedup applied
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreOutboxStoreParityTests.PersistAsync_ReturnsSkippedCountWhenLeaseIsLost`
 
@@ -234,7 +234,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Persist after lease lost
 - **Behavior**: `PersistAsync` with invalid lease
 - **Expected outcome**: Skipped count returned
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreOutboxStoreConcurrencyTests.PersistAsync_WhenTwoWorkersPersistSameEnvelopeConcurrently_ShouldApplyExactlyOnce`
 
@@ -243,7 +243,7 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Description**: Two workers persist same leased envelope
 - **Behavior**: Concurrent `PersistAsync`
 - **Expected outcome**: Exactly one terminal update applied
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 ### Untested
 

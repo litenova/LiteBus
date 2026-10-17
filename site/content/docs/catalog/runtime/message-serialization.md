@@ -14,8 +14,10 @@ Runtime serialization converts CLR message objects to payload strings and back. 
 The default is `JsonSerializerDefaults.Web`, which is camel case. The serializer decides the wire format of every persisted message, so it is a compose-time decision like `UseTimeProvider` and is stated on `MessageModuleBuilder`:
 
 ```csharp
+var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
 liteBus.AddMessaging(messaging => messaging
-    .UseSerializerInstance(new SystemTextJsonMessageSerializer(OutboxSerialization.Options)));
+    .UseSerializerInstance(new SystemTextJsonMessageSerializer(options)));
 ```
 
 | Member | Use when |
@@ -58,7 +60,7 @@ Existing rows are not rewritten. Changing the serializer of a system with messag
 
 ## Observability
 
-No serializer-specific meter or activity contract exists in runtime core. Call sites log serialization exceptions with contract context.
+No serializer-specific meter or activity contract exists in runtime core. Failures surface as `MessageSerializationException`, which carries the message type or contract name, the contract version, and the operation that failed.
 
 ## Test Coverage
 

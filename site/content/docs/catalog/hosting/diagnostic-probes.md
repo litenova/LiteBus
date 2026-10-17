@@ -13,6 +13,18 @@
 
 `DiagnosticCheckRunner.RunAsync(...)` aggregates status and handles zero-probe policy (`failHealthWhenNoProbes`). Probes run concurrently with a bounded semaphore, and each probe has a timeout. A missing registration, timeout, or probe exception becomes an unhealthy outcome for that probe while sibling probes continue.
 
+## Run Budget
+
+`DiagnosticCheckRunOptions` carries three limits:
+
+| Option | Default | Role |
+| --- | --- | --- |
+| `MaxParallelism` | `4` | Probes that may execute concurrently |
+| `Timeout` | 5 seconds | Maximum time allowed for one probe |
+| `RunTimeout` | `null` | Maximum time allowed for the whole run |
+
+A `null` `RunTimeout` derives the budget as the worst-case packing of the probe count over `MaxParallelism` lanes at `Timeout` per probe. An explicit `RunTimeout` cancels the run when it expires and reports unfinished probes as unhealthy. After a computed budget expires, the runner allows a 1-second grace period before reporting over-budget probes, since the computed budget already equals the worst case of the in-flight per-probe timeouts.
+
 ## Public Surface
 
 ### Consumer Contracts

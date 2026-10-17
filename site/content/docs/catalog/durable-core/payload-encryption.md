@@ -19,7 +19,7 @@ Inbox and outbox writers can encrypt serialized payload bodies before persistenc
 | `InboxModuleBuilder.UsePayloadEncryption` | Applies protection to inbox acceptance and dispatch |
 | `OutboxModuleBuilder.UsePayloadEncryption` | Applies protection to outbox enqueue and dispatch |
 
-Register protection on each durable axis that shares the encrypted store:
+Register protection on each durable axis that shares the encrypted store. The encryptor below is application code: implement `IPayloadEncryptor` against your key provider, since LiteBus ships the contract only.
 
 ```csharp
 var encryptor = new ApplicationPayloadEncryptor(keyProvider);

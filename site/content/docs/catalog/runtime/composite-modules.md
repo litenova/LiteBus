@@ -7,7 +7,7 @@
 
 ## What It Does
 
-When `ModuleRegistry.Register` receives an `ICompositeModule`, it calls `DeclareChildren(Action<IModule>)` and registers each child immediately. This keeps parent-owned module graphs deterministic.
+When `IModuleRegistry.Register` receives an `ICompositeModule`, it calls `DeclareChildren(Action<IModule>)` and stages each child immediately after the parent in the same registration call. This keeps parent-owned module graphs deterministic.
 
 ## Public Surface
 
@@ -15,6 +15,7 @@ When `ModuleRegistry.Register` receives an `ICompositeModule`, it calls `Declare
 | --- | --- |
 | `ICompositeModule` | Parent-child module contract |
 | `DeclareChildren(Action<IModule>)` | Child declaration callback |
+| `ICompositeModule.BuildOrder` (`CompositeModuleBuildOrder`) | Parent-first by default; children-first reverses the ordering edge |
 
 ## Packages
 
@@ -30,6 +31,8 @@ When `ModuleRegistry.Register` receives an `ICompositeModule`, it calls `Declare
 
 - Children are declared during registration, not build.
 - Duplicate child type registration fails.
+- Parent-first build order is the default; children-first adds the reversed ordering edge before topological sort.
+- A failed composite expansion commits nothing to the registry.
 
 ## Non-Goals
 
@@ -37,7 +40,7 @@ When `ModuleRegistry.Register` receives an `ICompositeModule`, it calls `Declare
 
 ## Observability
 
-No direct telemetry. Duplicate paths fail fast at compose time.
+No direct telemetry. Duplicate registrations fail fast at compose time.
 
 ## Test Coverage
 
@@ -51,11 +54,21 @@ No direct telemetry. Duplicate paths fail fast at compose time.
 - **Test kind**: Unit
 - **Expected outcome**: duplicate child path is rejected
 
+#### `CompositeModuleRegistryTests.BuildOrder_WithChildrenFirstComposite_ShouldBuildChildBeforeParent`
+- **Test kind**: Unit
+- **Expected outcome**: children-first edge builds the child before the parent
+
+#### `CompositeModuleRegistryTests.BuildOrder_WithNestedOppositeRelationships_ShouldHonorEveryCompositeEdge`
+- **Test kind**: Unit
+- **Expected outcome**: nested composite ordering edges are honored
+
+#### `CompositeModuleRegistryTests.Register_WhenCompositeExpansionFails_ShouldNotCommitPartialGraph`
+- **Test kind**: Unit
+- **Expected outcome**: failed expansion leaves the registry unchanged
+
 ### Untested Use Cases
 
-| Use case | Priority | Notes |
-| --- | --- | --- |
-| Deep nested composite chains | Low | Recursive path exists but not stress-tested |
+None currently tracked.
 
 ### Out-of-Scope Use Cases
 

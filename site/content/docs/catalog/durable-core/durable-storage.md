@@ -31,7 +31,7 @@ Query and purge roles are exposed through manager APIs backed by the same store 
 | Extension | Package | Backend |
 | --- | --- | --- |
 | `UseInMemoryStorage()` | `LiteBus.Inbox.Storage.InMemory`, `LiteBus.Outbox.Storage.InMemory` | Process-local, single-worker |
-| `UsePostgreSqlStorage(configure)` | `LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.Storage.PostgreSql` | PostgreSQL schema v3 |
+| `UsePostgreSqlStorage(configure)` | `LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.Storage.PostgreSql` | PostgreSQL schema v1 |
 | `UseEntityFrameworkCoreStorage(configure)` | `LiteBus.Inbox.Storage.EntityFrameworkCore`, `LiteBus.Outbox.Storage.EntityFrameworkCore` | Application-owned EF migrations |
 | `UseDataSource(NpgsqlDataSource)` | `LiteBus.Storage.PostgreSql` | Shared connection pool across axes |
 | `EnsureSchemaCreationOnStartup()` | PostgreSQL storage modules | Dev-only schema bootstrap via startup task |
@@ -145,13 +145,9 @@ Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only
 
 ### Consolidated Test Projects
 
-- `LiteBus.Inbox.Storage.InMemory.UnitTests`
-- `LiteBus.Outbox.Storage.InMemory.UnitTests`
-- `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
-- `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
-- `LiteBus.Storage.IntegrationTests`
-- `LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests`
-- `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
+- `LiteBus.Storage.UnitTests` (`InMemory/`, `EntityFrameworkCore/`)
+- `LiteBus.Storage.IntegrationTests` (`PostgreSql/`, `EntityFrameworkCore/`)
+- `LiteBus.Storage.Testing` (shared inbox/outbox store contract suites)
 
 ### Covered Use Cases
 
@@ -198,7 +194,7 @@ Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only
 - **Description**: Module registration through inbox builder
 - **Behavior**: **`UseInMemoryStorage()`** on inbox module
 - **Expected outcome**: All store interfaces registered
-- **Remarks**: `LiteBus.Inbox.Storage.InMemory.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests` (`InMemory/Inbox/`)
 
 #### `InMemoryOutboxStorageModuleTests.UseInMemoryStorage_ShouldRegisterAllStoreRoles`
 
@@ -207,7 +203,7 @@ Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only
 - **Description**: Module registration through outbox builder
 - **Behavior**: **`UseInMemoryStorage()`** on outbox module
 - **Expected outcome**: All store interfaces registered
-- **Remarks**: `LiteBus.Outbox.Storage.InMemory.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests` (`InMemory/Outbox/`)
 
 #### `PostgreSqlInboxSchemaTests.EnsureAsync_ShouldCreateSchemaAndBeIdempotent`
 
@@ -261,7 +257,7 @@ Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only
 - **Description**: EF model builder configuration
 - **Behavior**: **`GetModelBuilderConfiguration`**
 - **Expected outcome**: Expected v1 columns mapped
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests` (`EntityFrameworkCore/Inbox/`)
 
 #### `OutboxEntityFrameworkCoreModelTests.GetModelBuilderConfiguration_ShouldMapVersion1Columns`
 
@@ -270,7 +266,7 @@ Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only
 - **Description**: EF model builder configuration
 - **Behavior**: **`GetModelBuilderConfiguration`**
 - **Expected outcome**: Expected v1 columns mapped
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests` (`EntityFrameworkCore/Outbox/`)
 
 #### `EfCoreOutboxStorageModuleTests.AddEfCoreOutboxStorage_ShouldRegisterSingleStoreInstanceForAllRoles`
 
@@ -279,7 +275,7 @@ Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only
 - **Description**: DI registration for EF outbox store
 - **Behavior**: Module build and service resolution
 - **Expected outcome**: Single instance registered for writer, lease, and state roles
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests` (`EntityFrameworkCore/Outbox/`)
 
 #### `PostgreSqlModuleRegistrationTests.AddPostgreSqlInboxStorage_ShouldRegisterWriterLeaseAndStateRoles`
 
@@ -315,7 +311,7 @@ Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only
 - **Description**: Tenant filter in EF lease query
 - **Behavior**: **`LeasePendingAsync`** with tenant-scoped processor options
 - **Expected outcome**: Scoped rows only in lease batch
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests` (`EntityFrameworkCore/Outbox/`)
 
 #### `InMemoryInboxStorageModuleTests.UseInMemoryStorage_WhenCalledTwiceOnBuilder_ShouldThrow`
 
@@ -324,15 +320,15 @@ Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only
 - **Description**: Builder guard against duplicate storage registration
 - **Behavior**: Two **`UseInMemoryStorage()`** calls on one inbox builder
 - **Expected outcome**: **`LiteBusConfigurationException`**
-- **Remarks**: `LiteBus.Inbox.Storage.InMemory.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests` (`InMemory/Inbox/`)
 
 ### Untested Use Cases
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
 | Custom Oracle store implementation | Yes (extension point) | No sample third-party store test | Contract | Low |
-| SQL Server storage adapter | No | Not shipped |: |: |
-| Multi-worker in-memory production simulation | No (by design) | In-memory is single-process |: |: |
+| SQL Server storage adapter | No | Not shipped | N/A | N/A |
+| Multi-worker in-memory production simulation | No (by design) | In-memory is single-process | N/A | N/A |
 
 ### Out-of-Scope Use Cases
 

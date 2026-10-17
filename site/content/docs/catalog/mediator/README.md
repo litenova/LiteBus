@@ -1,5 +1,7 @@
 # Mediator Axis Capability Catalog
 
+Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+
 The mediator axis provides in-process command, query, and event mediation on top of the shared message module. It covers semantic contracts (`ICommand`, `IQuery<T>`, `IEvent`), pipeline stages (pre/main/post/error/completion), routing filters, handler priority, declarative message metadata, audit records, and execution context behavior.
 
 ## Capability Index

@@ -1,5 +1,7 @@
 # Durable Core Capability Catalog
 
+Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+
 LiteBus durable messaging persists commands and events before execution or publication, then replays them through background processors with at-least-once delivery, leases, retries, and operator tooling. This catalog maps each capability to its public surface, packages, invariants, observability, and test coverage.
 
 **Scope:** inbox, outbox, reliable semantics, transactional writes, domain events, command-inbox patterns, envelope lifecycle, processors, lease/retry/dead-letter, idempotency, and scheduling metadata. Broker-specific transport guides live outside this axis; dispatch and ingress capabilities here describe how durable core connects to transport adapters.
@@ -56,6 +58,6 @@ LiteBus durable messaging persists commands and events before execution or publi
 | Outbox reference | [Outbox](../../reliable-messaging/outbox.md) |
 | Delivery guarantees | [Reliable messaging semantics](../../reliable-messaging/semantics.md) |
 | Atomic domain + store | [Transactional messaging writes](../../reliable-messaging/transactional-writes.md) |
-| Domain events pattern | [Domain events and unit of work](../../concepts/domain-events-and-unit-of-work.md) |
+| Domain events pattern | [Domain events and unit of work](../../reliable-messaging/domain-events-and-unit-of-work.md) |
 | Architecture | [Architecture](../../architecture/README.md) (durable sections) |
 | Roadmap | [Roadmap](../../roadmap/README.md) |

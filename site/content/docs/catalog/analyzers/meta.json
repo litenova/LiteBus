@@ -1,0 +1,22 @@
+{
+  "title": "Analyzers",
+  "pages": [
+    "README",
+    "audit-declaration",
+    "contract-registration",
+    "cross-assembly-handlers",
+    "handler-coverage",
+    "handler-duplicates",
+    "handler-tags",
+    "inbox-accept-rules",
+    "open-generic-handlers",
+    "processor-dispatcher-coupling",
+    "query-handler-purity",
+    "reserved-handler-priority",
+    "required-declarations",
+    "shortcut-contracts",
+    "transactional-ef-interceptor",
+    "transactional-inbox-wiring",
+    "transactional-outbox-wiring"
+  ]
+}

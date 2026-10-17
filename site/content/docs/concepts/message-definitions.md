@@ -4,7 +4,7 @@ A message definition declares metadata about a message: facts that pipeline stag
 
 Three words appear throughout and mean different things. A **declaration** is the value: `AuditDeclaration`, `RequiredPermission`. A **definition** is the class that declares it. **Metadata** is the resolved collection on the message descriptor.
 
-## Why Not Just Attributes
+## Limits of Attributes
 
 Attributes work, and LiteBus supports them. They are the right shape when the declaration is a single fact:
 

@@ -136,14 +136,7 @@ PostgreSQL and EF Core stores implement all roles on one implementation class. I
 
 ### Retention Cutoff Semantics
 
-Cleanup services call `IInboxRetentionStore.DeleteCompletedOlderThanAsync` and `IOutboxRetentionStore.DeletePublishedOlderThanAsync` with a cutoff timestamp. Implementations compare the cutoff against the effective terminal timestamp:
-
-| Store | Effective timestamp | SQL expression |
-| --- | --- | --- |
-| Inbox | Completion time when recorded, otherwise acceptance time | `COALESCE(completed_at, created_at)` |
-| Outbox | Publication time when recorded, otherwise enqueue time | `COALESCE(published_at, created_at)` |
-
-Inbox and outbox schemas include `completed_at`, `published_at`, and operational history columns such as `last_attempted_at` and `dead_lettered_at`. Retention deletes rows by finish time, not accept time: a message accepted long ago but completed recently stays until the cutoff passes its completion time.
+Retention deletes terminal rows by finish time, not accept time: cleanup calls `IInboxRetentionStore.DeleteCompletedOlderThanAsync` and `IOutboxRetentionStore.DeletePublishedOlderThanAsync` with a cutoff compared against the effective terminal timestamp. See [Message States and Alerting](../operations/message-states.md#retention-cutoff) for the per-axis expressions and the cleanup loop contract.
 
 ### OpenTelemetry Metric Catalog
 
@@ -183,7 +176,7 @@ Instrument names are stable public constants on `LiteBusMediationTelemetry`, `Li
 | `LiteBus.Transport.Kafka` | (reserved) | | Adapter meter identity for custom instrumentation |
 | `LiteBus.Transport.InMemory` | (reserved) | | Adapter meter identity for test and CI transports |
 
-Mediation also emits one span per message on the `LiteBus.Mediation` activity source, named `mediate {MessageType}` and tagged with `litebus.message`, `litebus.outcome` and, when a decision supplied one, `litebus.code`. Only a `Failed` outcome sets the error status: a denial is a decision, and colouring every refused request red makes a trace view useless for finding the requests that actually broke. Per-stage child spans are opt-in through `MediationTelemetryOptions.StageSpans`, because mediation volume is orders of magnitude above durable-processing volume.
+Mediation also emits one span per message on the `LiteBus.Mediation` activity source, named `mediate {MessageType}` and tagged with `litebus.message`, `litebus.outcome` and, when a decision supplied one, `litebus.code`. Only a `Failed` outcome sets the error status. Denials and validation refusals keep a success status so error views show faults only. Per-stage child spans are opt-in through `MediationTelemetryOptions.StageSpans`, because mediation volume is orders of magnitude above durable-processing volume.
 
 Processor pass counters below are recorded by internal processor instrumentation (`InboxProcessorTelemetry`, `OutboxProcessorTelemetry`). Names are stable for metric export but are not public constants; dashboards may reference them, yet renames are not governed by the public instrument contract until promoted to `LiteBusInboxTelemetry` or `LiteBusOutboxTelemetry`.
 
@@ -202,7 +195,7 @@ Processor pass counters below are recorded by internal processor instrumentation
 
 Circuit breaker instruments use the `litebus.transport.circuit_breaker.*` names on the `LiteBus.Transport` meter with the `litebus.transport.broker` tag identifying the active adapter.
 
-Framework-neutral diagnostic probes use `IDiagnosticCheck` and `LiteBusHostManifest`. Applications map probe results to health endpoints or custom sinks.
+Framework-neutral diagnostic probes use `IDiagnosticCheck` and `LiteBusHostManifest`. Applications map probe results to health endpoints or custom sinks. For probe registration, run budgets, and meter export, see [Diagnostics and Health](../operations/diagnostics-and-health.md).
 
 ## Transport Platform
 
@@ -241,27 +234,15 @@ services.AddLiteBus(bus =>
 
 ### Kafka At-Least-Once Semantics
 
-`LiteBus.Transport.Kafka` uses manual offset commit. `TransportMessage.AcceptAsync` commits the consumed offset. `ReturnToQueueAsync` seeks the consumer back to the failed offset before the next read so the record is retried in-session. `DiscardAsync` leaves the offset uncommitted until consumer restart or rebalance. Kafka has no queue-style lease equivalent. Pair Kafka ingress with inbox idempotency keys and treat handlers as idempotent.
+`LiteBus.Transport.Kafka` uses manual offset commit. `TransportMessage.AcceptAsync` commits the consumed offset. `ReturnToQueueAsync` seeks the consumer back to the failed offset before the next read so the record is retried in-session. `DiscardAsync` commits the offset so poison deliveries are skipped without blocking the consume loop. Kafka has no queue-style lease equivalent. Pair Kafka ingress with inbox idempotency keys and treat handlers as idempotent.
 
 ### Transport Resilience Capability Matrix
 
-The table lists the minimum acknowledgement and recovery behavior per adapter. Raw `IMessageConsumer` hosts use `TransportConsumerHandlerInvoker`, which returns failed deliveries to the broker and continues the consume loop. Inbox ingress applies its own poison, retry, and dead-letter policy on top of transport deliveries.
-
-| Provider | Ack (`AcceptAsync`) | Requeue (`ReturnToQueueAsync`) | Handler throw (raw consumer) | Consumer reconnect |
-| --- | --- | --- | --- | --- |
-| AMQP (RabbitMQ) | `basic.ack` | `basic.nack` with requeue | Auto-nack with requeue via shared invoker | Channel shutdown signals stop; caller restarts consumer |
-| InMemory | Remove from channel | Re-enqueue on channel | Re-enqueue via shared invoker | N/A (in-process) |
-| Azure Service Bus | `CompleteMessage` | `AbandonMessage` | Abandon via shared invoker | Exponential backoff restart loop in `AzureServiceBusConsumer` |
-| AWS SQS | `DeleteMessage` | `ChangeMessageVisibility` with backoff | Requeue via shared invoker | Poll loop continues after receive errors |
-| Kafka | Offset commit | Seek to failed offset with backoff | Seek via shared invoker; offset not advanced | Consumer restart / rebalance redelivers uncommitted offsets |
+Raw `IMessageConsumer` hosts use `TransportConsumerHandlerInvoker`, which returns failed deliveries to the broker and continues the consume loop. Inbox ingress applies its own poison, retry, and dead-letter policy on top of transport deliveries. See [Production Runbook](../operations/runbook.md#handle-broker-ingress-failure) for the per-adapter acknowledgement, requeue, and recovery behavior.
 
 ### Poison Message Handling
 
-| Host | Behavior |
-| --- | --- |
-| Raw `IMessageConsumer` | Handler exceptions requeue indefinitely unless the handler calls `DiscardAsync` or the broker dead-letters after its own redelivery limits. No LiteBus redelivery cap is applied at the transport layer. |
-| Inbox ingress | Maps transport deliveries to inbox accept. Transient failures can requeue at the broker when `RequeueOnFailure` is enabled. Poison and contract failures are discarded or dead-lettered according to `IngressAckPolicy` and inbox processor retry limits. |
-| Application guidance | Use inbox ingress when you need idempotency, store-backed retries, and dead-lettering. Use raw consumers only when the application owns retry caps, poison queues, and idempotent handlers. |
+Raw consumers requeue handler exceptions indefinitely unless the handler calls `DiscardAsync`; inbox ingress requeues transient accept failures and discards poison and contract failures per `IngressAckPolicy`. See [Production Runbook](../operations/runbook.md#poison-messages) for the per-host policy and operator guidance.
 
 ### AMQP Transport Bootstrap
 
@@ -344,7 +325,7 @@ Idempotency keys are scoped per tenant across in-memory, EF Core, and PostgreSQL
 
 ### Encryption Rotation
 
-`IPayloadEncryptor` key rotation is an application responsibility. LiteBus stores ciphertext as opaque bytes; plan re-encryption or multi-key decrypt outside the framework.
+`IPayloadEncryptor` key rotation is an application responsibility. LiteBus stores ciphertext as opaque bytes; plan re-encryption or multi-key decrypt outside the framework. See [Security and Tenancy](../operations/security-and-tenancy.md#key-rotation) for the operator procedure.
 
 ### Instrument Stability
 

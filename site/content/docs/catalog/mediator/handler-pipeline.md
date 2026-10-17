@@ -4,6 +4,7 @@
 - **Name**: Handler pipeline
 - **Maturity**: GA
 - **Summary**: Defines pre, main, post, error, and completion stage execution for command, query, and event mediation. The pre stage holds four framework-ordered roles: guard, validator, shortcut, and pre-handler.
+- **Guide**: [The handler pipeline](../../concepts/handler-pipeline.md)
 
 ## What It Does
 
@@ -53,6 +54,10 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | `LiteBusMessageDeniedException` | Raised when a refusal supplies no result for the caller |
 | `IAsyncMessageHandler<TMessage>` / `IAsyncMessageHandler<TMessage, TResult>` | Main handler contracts |
 | `IMessagePostHandler<TMessage, TResult>` | Post stage contract |
+| `IStreamQueryPostHandler<TQuery, TQueryResult>` | Post stage contract for stream queries |
+| `IQueryRefusalMapper<TQuery, TQueryResult>` | Refusal mapper for single-result queries |
+| `IStreamQueryRefusalMapper<TQuery, TQueryResult>` | Refusal mapper for stream queries, mapping to `IAsyncEnumerable<T>` semantics (events have no mapper: a refusal there always raises) |
+| `MessageModuleBuilder.UseTelemetry(MediationTelemetryOptions)` | Selects which mediation telemetry is recorded |
 | `IExecutionContext.SuppressPostHandlers()` | Skips the post-handlers that have not run yet |
 | `IMessageErrorHandler<TMessage, TResult>` | Error stage contract |
 | `MessageErrorContext<TMessage, TResult>` | Typed error data and shared recovery outcome |
@@ -91,7 +96,7 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 
 ## Invariants
 
-- Single-handler strategies resolve exactly one main handler.
+- Single-handler strategies resolve one main handler at the winning level: direct handlers first, an indirect (base-type) handler only when no direct handler survives filtering.
 - Post-handler result override uses `executionContext.MessageResult`.
 - Recoverable exceptions route to error handlers with the caller's explicit cancellation token.
 - Error handlers suppress the original exception only by setting their shared context outcome to `Handled`.
@@ -118,7 +123,16 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 
 ## Observability
 
-No pipeline-specific meter, activity source, or structured event catalog is exposed in mediator packages.
+Mediation telemetry is recorded by default and exported through `LiteBus.Messaging.Extensions.OpenTelemetry` (`AddLiteBusMediationInstrumentation`, `AddLiteBusMediationMetrics`). Names live on `LiteBusMediationTelemetry` (`LiteBus.Mediation` source and meter) and are stable consumer contract:
+
+| Instrument | Default | Records |
+| --- | --- | --- |
+| `litebus.mediation.duration` | On | Total mediation duration histogram |
+| `litebus.mediation.count` | On | Count tagged by outcome (`litebus.message`, `litebus.outcome`, plus `litebus.code` when a decision stopped the mediation) |
+| `litebus.mediation.decisions` | On | Decision counter tagged by stage (`litebus.stage`) and handler (`litebus.decided_by`) |
+| `litebus.mediation.stage.duration` | Off | Per-stage duration histogram (`StageMetrics`) |
+
+One span per mediation is on by default; per-stage spans are opt-in (`StageSpans`). Select both through `MessageModuleBuilder.UseTelemetry(new MediationTelemetryOptions { StageSpans = true, StageMetrics = true })`. Only a `Failed` outcome sets the error status; denials and validation refusals keep a success status so error views show faults only.
 
 Operational alternatives:
 - Add application logs in pre/post/error handlers.

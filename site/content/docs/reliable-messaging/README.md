@@ -1,6 +1,6 @@
 # Reliable Messaging
 
-LiteBus runs command, query, and event handlers in your process by default. When accepted work must survive a crash, you store it first and let a background processor finish it. This page maps that choice to the inbox, the outbox, or a saga.
+LiteBus runs command, query, and event handlers in the caller's process by default. When accepted work must survive a crash, you store it first and let a background processor finish it. This page maps that choice to the inbox, the outbox, or a saga.
 
 > **This page is for** developers who need accepted work to survive a process crash.
 >
@@ -77,10 +77,11 @@ LiteBus durable messaging provides at-least-once execution and publication, not 
 
 `IInbox.AcceptAsync` and `IOutbox.EnqueueAsync` commit immediately. When a handler must persist domain state and inbox or outbox rows in one database transaction, use `ITransactionalInbox` and `ITransactionalOutbox` (PostgreSQL) or the generic variants over your `DbContext` (EF Core). Registration, Marten enlistment, and API choice live in [Transactional messaging writes](transactional-writes.md).
 
-Every durable message needs a stable contract name and version on the matching module builder, or `[MessageContract]` with analyzer enforcement for production code. Built-in idempotency middleware stays deferred to the [Roadmap](../roadmap/README.md).
+Every durable message needs a stable contract name and version on the matching module builder, or `[MessageContract]` with analyzer enforcement for production code. Declared command keys use `EnableIdempotency` (see [Idempotency](../concepts/idempotency.md)); automatic mediator idempotency stays a non-goal (see the [Idempotency Non-Goals](../catalog/durable-core/idempotency.md#non-goals)).
 
 ## Next
 
+- [Durable Messaging Walkthrough](walkthrough.md)
 - [Inbox](inbox.md)
 - [Outbox](outbox.md)
 - [Saga](saga.md)

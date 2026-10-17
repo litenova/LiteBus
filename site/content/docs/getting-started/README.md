@@ -1,8 +1,8 @@
 # Getting Started
 
-This guide takes you from an empty project to a working command, query, and event in about ten minutes. You install the adapter packages, register the modules once, and send each message type through its mediator.
+This guide takes you from an empty project to a working command, query, and event. You install the adapter packages, register the modules once, and send each message type through its mediator.
 
-> **This page is for** developers who know C# and want a working command, query, and event in about ten minutes.
+> **This page is for** developers who know C# and want a working command, query, and event.
 >
 > **After reading it** you can register LiteBus and send a command, a query, and an event. The [Cheat Sheet](cheat-sheet.md) keeps the same APIs on one page.
 
@@ -44,7 +44,7 @@ You do not need all three modules. Install only the message types your applicati
 
 Call `AddLiteBus` once, add messaging, then add the command, query, and event features you installed. During composition, the module registry validates each `IRequires<TModule>` dependency across the completed graph and builds dependencies before their dependents. Callback order does not change dependency resolution, and semantic modules do not register the messaging core automatically.
 
-Use `RegisterFromAssembly` on command, query, and event module builders to discover handlers in each assembly. Call it once per assembly on the semantic module that owns those handlers. Optional `RegisterFromAssembly` on `AddMessaging` is for contract registration and cross-cutting handlers only. When both messaging and semantic modules scan the same assembly, handler dependency injection is owned by the semantic module with scoped lifetime.
+Use `RegisterFromAssembly` on command, query, and event module builders to discover handlers in each assembly. Call it once per assembly on the semantic module that owns those handlers. `RegisterFromAssembly` on `AddMessaging` registers every applicable construct it finds, main handlers included, plus all durable contracts in the assembly; prefer the axis scans for handlers and use the messaging scan for contracts and messaging-level pipeline roles. When both messaging and semantic modules scan the same assembly, handler dependency injection is owned by the semantic module with scoped lifetime.
 
 `RegisterFromAssembly` scans an assembly once at startup and records every handler, pre-handler, post-handler, and error-handler it finds. This is the only reflection-heavy step; after it, mediation reads cached metadata. Point it at each assembly that contains handlers.
 
@@ -86,11 +86,26 @@ var container = builder.Build();
 
 `RegisterFromAssembly` registers handler types with `InstanceLifetime.Scoped`. A handler can therefore receive scoped dependencies such as a `DbContext` from the current dispatch scope.
 
+### Log the Composition Summary
+
+`LiteBusCompositionSummary` records what the host composed: message counts per axis, each open generic handler and how many messages it closed over, whether auditing is on and which trail, actor resolver, and record writer it uses, the declaration policies enforced, and the number of composition checks. Resolve it from the container after the host is built and log it once at startup:
+
+```csharp
+var summary = app.Services.GetRequiredService<LiteBusCompositionSummary>();
+app.Logger.LogInformation("{Summary}", summary.ToString());
+```
+
+The summary is filled in after every module has built; resolving it during composition returns an empty summary. The open generic line is the reason to log it: a scanned-in generic handler inserts a pipeline stage into every message it fits, and here that is a number that changes when the set changes.
+
+### Set the Clock and the Serializer
+
+Two cross-cutting decisions live on the messaging builder. `UseTimeProvider` overrides the clock for deterministic tests; when omitted, `TimeProvider.System` is used. `UseSerializer<T>` and `UseSerializerInstance` select the `IMessageSerializer` that produces and reads persisted payloads, which is a compose-time decision because the serializer defines the wire format of every durable message. The default is `SystemTextJsonMessageSerializer` with `JsonSerializerDefaults.Web` (camel case); applications whose payloads are read by other systems state the format here rather than inherit it. See [Message Serialization](../catalog/runtime/message-serialization.md).
+
 ## 3. Send a Command
 
 A command is an intent to change state. It is handled by exactly one handler and may return a result. Define the command as a record implementing `ICommand<TResult>`, then write the handler.
 
-### 1. Define the command and result
+### 1. Define the Command and Result
 
 ```csharp
 public sealed record ProductDto(Guid Id, string Name, decimal Price);
@@ -98,7 +113,7 @@ public sealed record ProductDto(Guid Id, string Name, decimal Price);
 public sealed record CreateProductCommand(string Name, decimal Price) : ICommand<ProductDto>;
 ```
 
-### 2. Write the handler
+### 2. Write the Handler
 
 The handler holds the business logic. Inject whatever it needs from the container.
 
@@ -121,7 +136,7 @@ public sealed class CreateProductCommandHandler : ICommandHandler<CreateProductC
 }
 ```
 
-### 3. Add a validator
+### 3. Add a Validator
 
 A validator runs before the main handler. Implement `ICommandValidator<TCommand>` and return `Validity.Invalid` for bad input; the pipeline reports it as an invalid outcome without running the handler.
 
@@ -141,7 +156,7 @@ public sealed class CreateProductValidator : ICommandValidator<CreateProductComm
 }
 ```
 
-### 4. React after success
+### 4. React After Success
 
 A post-handler runs after the main handler returns. It receives both the command and the result, which is useful for publishing a follow-up event.
 
@@ -165,7 +180,7 @@ public sealed class ProductCreationNotifier : ICommandPostHandler<CreateProductC
 }
 ```
 
-### 5. Send the command
+### 5. Send the Command
 
 Inject `ICommandMediator` and call `SendAsync`. LiteBus runs the validator, then the handler, then the notifier in that order. The stages run sequentially in one call; LiteBus does not open a database transaction for you, so wrap the work in your own unit of work if you need atomicity.
 
@@ -286,6 +301,7 @@ When you enable inbox or outbox processors, add the matching OpenTelemetry adapt
 
 ## Next
 
+- [Sample Application Tour](sample.md) for a runnable application that composes every module on this page
 - [Cheat Sheet](cheat-sheet.md) for the same APIs on one page
 - [Inbox](../reliable-messaging/inbox.md) and [Outbox](../reliable-messaging/outbox.md) for durable messaging depth
 - [The Handler Pipeline](../concepts/handler-pipeline.md) for stage order and decisions

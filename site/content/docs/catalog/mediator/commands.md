@@ -4,10 +4,11 @@
 - **Name**: Commands
 - **Maturity**: GA
 - **Summary**: Executes state-changing messages through exactly one main handler, plus pre, post, and error stages.
+- **Guide**: [Command module](../../concepts/commands.md)
 
 ## What It Does
 
-`ICommandMediator` sends command messages through `SingleAsyncHandlerMediationStrategy`. Commands require exactly one main handler after routing filters are applied. When no handler or multiple handlers remain, mediation fails fast (`NoHandlerFoundException` or `MultipleHandlerFoundException`).
+`ICommandMediator` sends command messages through `SingleAsyncHandlerMediationStrategy`. Commands resolve one main handler after routing filters are applied: direct handlers win, and an indirect (base-type) handler applies only when no direct handler survives. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level (direct, else indirect) survives.
 
 Commands support both void (`ICommand`) and result (`ICommand<TResult>`) flows. A guard, a validator, or a shortcut can stop execution before the handler runs, as a refusal, a report that the message is malformed, or an early answer. Post-handlers can observe results, and result post-handlers can replace the returned value through `AmbientExecutionContext.Current.MessageResult`.
 
@@ -52,7 +53,7 @@ var id = await commandMediator.SendAsync(new CreateProductCommand("keyboard"), c
 
 ## Invariants
 
-- One main handler must resolve for each command after routing filters.
+- One main handler must resolve for each command after routing filters, at the winning level (direct, else indirect).
 - `ArgumentNullException` is thrown for `null` commands.
 - A shortcut that answers a result-returning command must supply the result, which `ICommandShortcut<TCommand, TCommandResult>` makes a compile-time requirement; using the untyped contract instead throws `LiteBusConfigurationException`. A guard carries no such duty, so `ICommandGuard<TCommand>` fits every command.
 - Post-handler result override applies to result commands only.

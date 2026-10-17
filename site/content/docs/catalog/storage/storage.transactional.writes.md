@@ -10,7 +10,7 @@
 | `ITransactionalInboxStore` | `AddAsync`, `AddBatchAsync` |
 | `ITransactionalOutboxStore` | `AddAsync`, `AddBatchAsync` |
 | PostgreSQL ambient provider | `IPostgreSqlTransactionProvider.TryGetCurrent(...)` |
-| PostgreSQL manual binding | `UseExistingConnection(...)` / `CreateTransactionalStore(...)` style APIs on stores |
+| PostgreSQL manual binding | `UseExistingConnection(...)` on the stores and `CreateTransactionalStore(...)` on the store registrations |
 | EF Core transactional path | `ITransactionalInbox<TContext>`, `ITransactionalOutbox<TContext>`, save-changes interceptors |
 
 ## SQL Behavior

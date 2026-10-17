@@ -1,0 +1,20 @@
+{
+    "title":  "Concepts",
+    "pages":  [
+                  "commands",
+                  "queries",
+                  "events",
+                  "handler-pipeline",
+                  "validation",
+                  "handler-filtering",
+                  "handler-priority",
+                  "execution-context",
+                  "message-definitions",
+                  "auditing",
+                  "idempotency",
+                  "polymorphic-dispatch",
+                  "open-generic-handlers",
+                  "generic-messages-and-handlers"
+              ]
+}
+

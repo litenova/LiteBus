@@ -25,7 +25,7 @@ With no encryptor, payload is passed through unchanged.
 
 ## Packages
 
-- `LiteBus.Messaging.Abstractions`
+- `LiteBus.DurableMessaging.Abstractions`
 - `LiteBus.Messaging`
 
 ## Requires

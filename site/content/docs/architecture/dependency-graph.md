@@ -28,6 +28,54 @@ Each role describes dependency direction and package purpose. Roles are not nume
 
 Only the `LiteBus` aggregate meta-package bundles core mediators and durable messaging. Storage, dispatch, ingress, broker transports, and OpenTelemetry remain opt-in.
 
+## Aggregate Package Contents
+
+The `LiteBus` package ID pulls exactly these projects, and nothing else:
+
+- Mediation contracts and cores: `Messaging.Abstractions`, `Messaging`, `Commands.Abstractions`, `Commands`, `Queries.Abstractions`, `Queries`, `Events.Abstractions`, `Events`.
+- Durable contracts and cores: `DurableMessaging.Abstractions`, `Inbox.Abstractions`, `Inbox`, `Outbox.Abstractions`, `Outbox`.
+
+It does not pull storage adapters, dispatch or ingress adapters, transports, OpenTelemetry exporters, analyzers, or DI container adapters. Installing the aggregate never implies a broker SDK or an ORM. Reference the DI adapter for the container in use (`LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` or the Autofac equivalent, usually through the per-module shells or the semantic aggregate `LiteBus.Extensions.Microsoft.DependencyInjection`).
+
+Mediation only:
+
+```csharp
+// Packages: LiteBus, LiteBus.Extensions.Microsoft.DependencyInjection
+services.AddLiteBus(builder =>
+{
+    builder.AddMessaging(_ => { });
+    builder.AddCommands(c => c.RegisterFromAssembly(typeof(Program).Assembly));
+    builder.AddQueries(q => q.RegisterFromAssembly(typeof(Program).Assembly));
+    builder.AddEvents(e => e.RegisterFromAssembly(typeof(Program).Assembly));
+});
+```
+
+Durable inbox and outbox with PostgreSQL storage and in-process dispatch:
+
+```csharp
+// Packages: LiteBus, LiteBus.Extensions.Microsoft.DependencyInjection,
+// LiteBus.Inbox.Storage.PostgreSql, LiteBus.Outbox.Storage.PostgreSql,
+// LiteBus.Inbox.Dispatch.InProcess, LiteBus.Outbox.Dispatch.InProcess
+services.AddLiteBus(builder =>
+{
+    builder.AddMessaging(_ => { });
+    builder.AddInbox(inbox =>
+    {
+        inbox.Contracts.Register<ShipOrder>("orders.ship", 1);
+        inbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
+        inbox.UseInProcessDispatch();
+        inbox.EnableInboxProcessor();
+    });
+    builder.AddOutbox(outbox =>
+    {
+        outbox.Contracts.Register<OrderSubmitted>("orders.submitted", 1);
+        outbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
+        outbox.UseInProcessDispatch();
+        outbox.EnableOutboxProcessor();
+    });
+});
+```
+
 ## Role Map
 
 ```text

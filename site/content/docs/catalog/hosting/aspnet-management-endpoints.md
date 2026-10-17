@@ -74,7 +74,7 @@ When an inbox or outbox manager is absent, the entire matching route group retur
 
 ## Requires
 
-- `LiteBus.Extensions.Microsoft.DependencyInjection`
+- `hosting.add-lite-bus-microsoft-di` or `hosting.add-lite-bus-autofac`
 - `IInboxManager` for inbox routes
 - `IOutboxManager` for outbox routes
 - `IInboxProcessorControl` or `IOutboxProcessorControl` for processor routes
@@ -137,6 +137,6 @@ Management routes do not define a separate meter. Use `LiteBus.Inbox` and `LiteB
 
 ## Deep Docs
 
-- [Operations and Management](../../operations/README.md)
+- [Operations and Management](../../operations/management-endpoints.md)
 - [Hosted Services](../../architecture/hosted-services.md)
 - [Diagnostics and Health](../../operations/diagnostics-and-health.md)

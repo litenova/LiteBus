@@ -1,4 +1,4 @@
-﻿# Handler Descriptor Model
+# Handler Descriptor Model
 
 - **ID**: `runtime.handler-descriptors`
 - **Name**: Handler descriptor model
@@ -9,7 +9,7 @@
 
 Descriptor contracts in `LiteBus.Messaging.Abstractions` connect registration and runtime execution. `IMessageDescriptor` groups handlers by stage and direct/indirect applicability, and exposes the declarative metadata resolved for the message type. `IHandlerDescriptor` provides metadata used by filtering and ordering, plus the closed contract the handler was discovered from.
 
-Recording the contract is what lets the pipeline invoke a handler through the contract it was registered under rather than searching its interfaces at dispatch. For the pre, post, and completion stages the descriptor also carries a `PipelineDispatch`, a delegate bound to that contract while the descriptor is built, so dispatch is a field read rather than reflection.
+Recording the contract is what lets the pipeline invoke a handler through the contract it was registered under rather than searching its interfaces at dispatch. For the pre, post, and completion stages the descriptor also carries a `PipelineDispatch`, a bound dispatch holder for that contract built while the descriptor is built, so dispatch is a field read rather than reflection.
 
 ## Public Surface
 
@@ -23,7 +23,7 @@ Recording the contract is what lets the pipeline invoke a handler through the co
 | `ICompletionHandlerDescriptor` | Completion handler descriptor |
 | `IErrorHandlerDescriptor` | Error-handler descriptor |
 | `IHandlerDescriptor.ContractType` | The closed contract the descriptor was discovered from |
-| `PipelineDispatch` | Delegate bound to that contract at registration |
+| `PipelineDispatch` | Bound dispatch holder for that contract, built at registration |
 | `IMessageDescriptor.Metadata` | Declarative metadata resolved for the message type |
 
 ## Packages
@@ -40,7 +40,7 @@ Recording the contract is what lets the pipeline invoke a handler through the co
 - `RegistrationSequence` is a stable registration-order tiebreaker.
 - Descriptor message types for generics are normalized.
 - `ContractType` is open only when the handler was registered for a generic message; the pipeline binds those on first dispatch.
-- `Dispatch` is null exactly when `ContractType` is open.
+- On descriptors that carry `Dispatch` (pre, post, completion), it is null exactly when `ContractType` is open.
 
 ## Non-Goals
 

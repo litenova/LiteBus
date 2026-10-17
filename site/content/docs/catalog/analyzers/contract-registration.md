@@ -56,7 +56,7 @@ public sealed record ProcessPaymentCommand(int PaymentId) : ICommand;
 
 public static class ModuleConfiguration
 {
-    public static void Configure(ContractsRegistry contracts)
+    public static void Configure(IContractWriter contracts)
     {
         contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
     }

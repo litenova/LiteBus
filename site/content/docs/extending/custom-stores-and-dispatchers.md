@@ -40,7 +40,7 @@ public interface IInboxDispatcher
 
 public interface IOutboxDispatcher
 {
-    Task DispatchAsync(OutboxEnvelope envelope, CancellationToken cancellationToken = default);
+    Task DispatchAsync(OutboxEnvelope message, CancellationToken cancellationToken = default);
 }
 ```
 

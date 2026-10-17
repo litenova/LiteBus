@@ -60,7 +60,7 @@ outbox.UseInMemoryStorage();
 
 ## Requires
 
-- Outbox module with dispatch adapter
+- A registered dispatcher when the processor is enabled
 
 ## Invariants
 
@@ -84,29 +84,29 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 ## Deep Docs
 
 - [Outbox](../../reliable-messaging/outbox.md)
-- [Feature Index](../../reference/feature-index-v7.md)
+- [Feature Index](../../reference/feature-index.md)
 
 ## Test Coverage
 
 ### Covered
 
-#### `OutboxStoreContractTests` (in `LiteBus.Outbox.Storage.InMemory.UnitTests`)
+#### `OutboxStoreContractTests` (in `LiteBus.Storage.UnitTests`, shared base in `LiteBus.Storage.Testing`)
 
 - **Use case**: Full outbox store contract in memory
 - **Test kind**: Contract (unit)
 - **Description**: Complete shared outbox contract suite against `InMemoryOutboxStore`
 - **Behavior**: Enqueue, lease, persist, query, purge, diagnostics
 - **Expected outcome**: Parity with `LiteBus.Storage.Testing` expectations
-- **Remarks**: `LiteBus.Outbox.Storage.InMemory.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
-#### `OutboxRetentionStoreContractTests` (in `LiteBus.Outbox.Storage.InMemory.UnitTests`)
+#### `OutboxRetentionStoreContractTests` (in `LiteBus.Storage.UnitTests`, shared base in `LiteBus.Storage.Testing`)
 
 - **Use case**: Full outbox retention contract in memory
 - **Test kind**: Contract (unit)
 - **Description**: Retention delete eligibility tests
 - **Behavior**: `DeletePublishedOlderThanAsync` variants
 - **Expected outcome**: Same outcomes as shared retention contract
-- **Remarks**: `LiteBus.Outbox.Storage.InMemory.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InMemoryOutboxStorageModuleTests.UseInMemoryStorage_ShouldRegisterAllStoreRoles`
 
@@ -115,7 +115,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Build module with in-memory storage
 - **Behavior**: Resolve store interfaces
 - **Expected outcome**: All roles on singleton
-- **Remarks**: `LiteBus.Outbox.Storage.InMemory.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InMemoryOutboxStoreLeaseAvailabilityTests.LeasePendingAsync_WhenPublishingWithNullLeaseExpiry_ShouldNotLeaseImmediately`
 
@@ -124,7 +124,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Row in publishing state with null lease expiry
 - **Behavior**: Immediate lease attempt
 - **Expected outcome**: Row not leased until stale
-- **Remarks**: `LiteBus.Outbox.Storage.InMemory.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InMemoryOutboxStoreLeaseAvailabilityTests.LeasePendingAsync_WhenPublishingWithNullLeaseExpiryBecomesStale_ShouldReclaim`
 
@@ -133,7 +133,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Publishing row with null expiry; advance time
 - **Behavior**: Lease after stale threshold
 - **Expected outcome**: Row reclaimed
-- **Remarks**: `LiteBus.Outbox.Storage.InMemory.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InMemoryOutboxIdempotencyIndexTests.DeletePublishedOlderThanAsync_ShouldRemoveIdempotencyIndexEntry`
 
@@ -142,7 +142,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Published row eligible for retention delete
 - **Behavior**: `DeletePublishedOlderThanAsync`
 - **Expected outcome**: Row and idempotency index entry removed
-- **Remarks**: `LiteBus.Outbox.Storage.InMemory.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InMemoryOutboxIdempotencyIndexTests.Clear_ShouldRemoveIdempotencyIndexEntry`
 
@@ -151,7 +151,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Store with idempotency-keyed row
 - **Behavior**: Test `Clear` helper
 - **Expected outcome**: Index entry removed with store clear
-- **Remarks**: `LiteBus.Outbox.Storage.InMemory.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InMemoryOutboxGetAllFilterTests.GetAll_WithStatusAndContractName_ShouldFilterResults`
 
@@ -160,7 +160,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Test-only filter by status and contract
 - **Behavior**: `GetAll` predicates
 - **Expected outcome**: Filtered subset returned
-- **Remarks**: Test-only surface; `LiteBus.Outbox.Storage.InMemory.UnitTests`
+- **Remarks**: Test-only surface; `LiteBus.Storage.UnitTests`
 
 ### Untested
 

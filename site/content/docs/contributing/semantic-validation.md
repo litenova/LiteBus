@@ -9,7 +9,7 @@ LiteBus documentation CI has a fast structural gate and a post-build semantic ga
 | Shipping package inventory | Evaluated `IsPackable`, `PackageId`, `ProjectReference`, and directly declared `PackageReference` MSBuild items | `Get-PackageInventory.ps1` regenerates `architecture/generated-package-inventory.md`; structural validation rejects a byte-level difference |
 | C# snippets | Marked regions in compiled sample projects | The semantic gate compares the Markdown fence with its source region and rebuilds the owning project |
 | Referenced tests | Tests discovered from the built solution, plus methods declared by abstract test bases | Every test class and method reference in `docs/` must resolve |
-| Analyzer rules | `LiteBus.Analyzers/DiagnosticIds.cs` | Implemented IDs must match the analyzer table; LB1002 must remain the only reserved slot |
+| Analyzer rules | `LiteBus.Analyzers/DiagnosticIds.cs` | Implemented IDs must match the analyzer table; LB1002 and LB1006 must remain the only reserved slots |
 | ASP.NET management routes | `LiteBusManagementEndpointExtensions` | The documented inbox route table and health endpoint must match mapped methods and paths |
 
 Run both gates after a Release build:

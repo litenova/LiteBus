@@ -44,6 +44,8 @@ Use the full metadata name of each value type. Separate several with commas or s
 `IMessageDefinition<TMessage>.Describe(IMessageDeclarations)` names nothing in the contract, so the body is read instead. `Declare<TValue>` and `Exempt<TValue>` are matched on the type argument, and `Audited(...)` and `NotAudited(...)` both count as declaring `AuditDeclaration`, because both state an audit position and the rule asks whether the message answered rather than which answer it gave:
 
 ```csharp
+using LiteBus.Messaging.Abstractions;
+
 public sealed class ShipOrderCommandDefinition : IMessageDefinition<ShipOrderCommand>
 {
     public void Describe(IMessageDeclarations declarations)
@@ -74,6 +76,9 @@ A definition class needs nothing: a keyed one puts its declaration in the type s
 An attribute needs `[MessageDeclaration]`, because `IMessageDeclarationSource.DeclarationType` is a runtime property an analyzer cannot execute:
 
 ```csharp
+using System;
+using LiteBus.Messaging.Abstractions;
+
 [MessageDeclaration(typeof(RequiredPermission))]
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
 public sealed class RequiresPermissionAttribute : Attribute, IMessageDeclarationSource
@@ -93,6 +98,7 @@ Registration verifies that the annotation and the property name the same type, a
 ## Bad Example
 
 ```csharp
+using System;
 using LiteBus.Commands.Abstractions;
 
 // LB1020: declares no RequiredPermission
@@ -104,6 +110,9 @@ public sealed record RefundOrderCommand(Guid OrderId) : ICommand;
 Declare it with the annotated attribute:
 
 ```csharp
+using System;
+using LiteBus.Commands.Abstractions;
+
 [RequiresPermission("orders.refund")]
 public sealed record RefundOrderCommand(Guid OrderId) : ICommand;
 ```
@@ -111,6 +120,8 @@ public sealed record RefundOrderCommand(Guid OrderId) : ICommand;
 Declare it from a definition beside the message:
 
 ```csharp
+using LiteBus.Messaging.Abstractions;
+
 public sealed class RefundOrderCommandDefinition
     : IMessageDefinition<RefundOrderCommand, RequiredPermission>
 {
@@ -121,6 +132,8 @@ public sealed class RefundOrderCommandDefinition
 Declare a whole family once, through a marker interface:
 
 ```csharp
+using LiteBus.Messaging.Abstractions;
+
 public sealed class PublicCommandDefinition : IMessageDefinition<IPublicCommand, RequiredPermission>
 {
     public RequiredPermission Value => Permissions.Public;
@@ -130,6 +143,10 @@ public sealed class PublicCommandDefinition : IMessageDefinition<IPublicCommand,
 Or record why the message needs none:
 
 ```csharp
+using System;
+using LiteBus.Messaging.Abstractions;
+using LiteBus.Queries.Abstractions;
+
 [DeclarationExempt(typeof(RequiredPermission), "the storefront is public, so there is no actor to authorize")]
 public sealed record BrowseStorefrontQuery(Guid StoreId) : IQuery<StorefrontView>;
 ```

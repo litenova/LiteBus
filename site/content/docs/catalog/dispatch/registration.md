@@ -146,7 +146,6 @@ Register inbox and outbox meters through `AddLiteBusInboxMetrics()` and `AddLite
 | `AddOutboxInProcessDispatcher_WhenCalledTwice_ShouldThrow` | `LiteBus.Outbox.UnitTests` (`Dispatch/InProcess/`) |
 | `AddOutboxInProcessDispatcher_WhenAnotherDispatcherRegistered_ShouldThrow` | `LiteBus.Outbox.UnitTests` (`Dispatch/InProcess/`) |
 | `InboxDispatchExtensions_ShouldRegisterTransportDispatcher` | `LiteBus.Durable.IntegrationTests` (`Registration/`) | InMemory, AMQP, Azure, AWS SQS, Kafka (Theory data) |
-| `InboxModuleBuilderAwsDispatchExtensions_should_expose_use_aws_sqs_dispatch` | `LiteBus.Inbox.UnitTests` (`Dispatch/AwsSqs/`) | AWS SQS public API surface |
 | `OutboxDispatchExtensions_ShouldRegisterTransportDispatcher` | `LiteBus.Durable.IntegrationTests` (`Registration/`) | InMemory, AMQP, Azure, AWS SQS, Kafka (Theory data) |
 | `UseAmqpDispatch_WithAmqpTransportModule_ShouldRegisterTransportOutboxDispatcher` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Amqp/`) | AMQP module wiring |
 | `ProcessorBackgroundService_WhenDispatcherMissing_ShouldThrowOnBuild` | `LiteBus.Inbox.UnitTests` |

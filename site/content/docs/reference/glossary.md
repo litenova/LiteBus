@@ -10,7 +10,7 @@ This page defines the terms used across the LiteBus documentation. Each entry li
 
 | Term | Definition |
 | --- | --- |
-| Mediator | The in-process component that routes a message to its handlers. LiteBus exposes typed mediators (`ICommandMediator`, `IQueryMediator`, `IEventMediator`) over a shared `IMessageMediator`. See [Architecture](../architecture/README.md). |
+| Mediator | The command, query, and event mediation layer that routes a message to its handlers. Handlers execute in the caller's process. LiteBus exposes typed mediators (`ICommandMediator`, `IQueryMediator`, `IEventMediator`) over a shared `IMessageMediator`. See [Architecture](../architecture/README.md). |
 | Command | A message expressing an intention to change state. Resolves to exactly one main handler. See [Command Module](../concepts/commands.md). |
 | Query | A message that reads state and returns a result. Resolves to exactly one main handler. See [Query Module](../concepts/queries.md). |
 | Event | A message reporting a fact. Broadcasts to every matching handler, or none. See [Event Module](../concepts/events.md). |
@@ -80,12 +80,15 @@ LiteBus keeps domain-specific names instead of one generic "store" verb:
 | --- | --- |
 | Inbox | Storage that accepts messages through `IInbox.AcceptAsync` for later execution. See [Inbox](../reliable-messaging/inbox.md). |
 | Outbox | Storage that records messages through `IOutbox.EnqueueAsync` for later publication. See [Outbox](../reliable-messaging/outbox.md). |
+| Envelope | The stored form of an accepted or enqueued message (`InboxEnvelope` or `OutboxEnvelope`), carrying the contract name and version, payload, lease, and delivery status. See [Inbox](../reliable-messaging/inbox.md). |
 | Stable contract | Persisted message identity: name plus integer version. See [Architecture Decisions](../architecture/decisions.md). |
 | Lease | Temporary row ownership so concurrent workers do not process the same envelope twice. |
 | Dispatcher | `IInboxDispatcher` or `IOutboxDispatcher`; executes or publishes a leased envelope. |
 | Processor | `PipelinedInboxProcessor` or `PipelinedOutboxProcessor`; leases rows and invokes dispatchers. |
 | At-least-once | Messages may be delivered more than once; handlers must be idempotent. See [Reliable Messaging](../reliable-messaging/README.md). |
 | Dead-letter | Terminal state after retry exhaustion. |
+| Store | A persistence adapter behind the inbox, outbox, or saga roles. See [Reliable Messaging](../reliable-messaging/README.md). |
+| Ingress | A broker consumer that accepts deliveries into the inbox. See [Inbox](../reliable-messaging/inbox.md). |
 
 ## Registration Vocabulary
 

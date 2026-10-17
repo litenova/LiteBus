@@ -4,6 +4,7 @@
 - **Name**: Execution context
 - **Maturity**: GA
 - **Summary**: Shares per-call state across handlers through a scoped dependency or an ambient context scope.
+- **Guide**: [Execution context](../../concepts/execution-context.md)
 
 ## What It Does
 

@@ -1,4 +1,4 @@
-﻿# Handler Resolution Internals
+# Handler Resolution Internals
 
 This page explains how the message registry turns registered CLR types into the handler lists a strategy runs, and why direct, indirect, and open generic handlers resolve the way they do. Read it after [The Handler Pipeline](../concepts/handler-pipeline.md) when you need to reason about resolution edge cases or extend the registry. The behavior here is grounded in `MessageRegistry` and `MessageDescriptor` under `src/LiteBus.Messaging/Registry`.
 
@@ -16,7 +16,7 @@ Both views are built during registration, not at mediation time. Mediation reads
 Each call to `Register(Type)` runs under a lock and does this:
 
 1. Skip the type if it was processed before. `_processedTypes` prevents duplicate work when the same assembly is scanned twice.
-2. Run the four descriptor builders against the type: `HandlerDescriptorBuilder`, `ErrorHandlerDescriptorBuilder`, `PostHandlerDescriptorBuilder`, `PreHandlerDescriptorBuilder`. Each builder reports whether it can build from the type and, if so, produces handler descriptors.
+2. Run the six descriptor builders against the type: `HandlerDescriptorBuilder`, `CompletionHandlerDescriptorBuilder`, `ErrorHandlerDescriptorBuilder`, `PostHandlerDescriptorBuilder`, `PreStageHandlerDescriptorBuilder`, `RefusalMapperDescriptorBuilder`. Each builder reports whether it can build from the type and, if so, produces handler descriptors.
 3. Branch on the result:
    - No descriptors: treat the type as a message type and register it.
    - Descriptors whose message type is a bare generic parameter, on an open generic type definition: store it as an open generic handler for later closing.
@@ -43,8 +43,8 @@ At mediation time `MessageDependencies` resolves both direct and indirect descri
 An open generic handler such as `LoggingPreHandler<T> : ICommandPreHandler<T>` cannot be resolved until LiteBus knows the concrete `T`. The registry stores these separately and closes them on demand:
 
 1. `Register` detects a generic type definition whose handler descriptor has a bare type parameter and calls `StoreOpenGenericHandler`.
-2. `ThrowIfOpenGenericHandlerShapeIsUnsupported` rejects any open generic handler that does not declare exactly one type parameter, throwing `UnsupportedOpenGenericHandlerException`. This is why two-parameter shapes like `Handler<TCommand, TResult>` fail at startup. See [Open Generic Handlers](../concepts/open-generic-handlers.md).
-3. The handler is closed against every already-known message type, and against each new message type as it registers. Closing runs `SatisfiesGenericConstraints` first, so a handler with `where T : ICommand` is closed only for command types.
+2. `ThrowIfOpenGenericHandlerShapeIsUnsupported` validates the handler shape, throwing `UnsupportedOpenGenericHandlerException` for anything it cannot close. One parameter binds the message type. Two are closed when the handler implements a typed contract over both in order (for example `ICommandPostHandler<TCommand, TCommandResult>`); a second parameter that is the handler's own invention, such as `TContext` or `TStore`, has nothing to bind to and is still rejected. See [Open Generic Handlers](../concepts/open-generic-handlers.md).
+3. The handler is closed against every already-known message type, and against each new message type as it registers. Closing builds type arguments with `BuildOpenGenericTypeArguments`, checks `CanCloseForMessage`, and lets the CLR enforce generic constraints through `MakeGenericType` (a constraint mismatch skips the message), so a handler with `where T : ICommand` is closed only for command types.
 4. `MakeGenericType` builds the closed handler type, the builders produce descriptors for it, and those descriptors join `Handlers` and the relevant message descriptor.
 
 Because closing happens during registration, the per-message handler lists are complete before any message is mediated. There is no per-call reflection to close generics on the hot path.

@@ -1,0 +1,16 @@
+{
+  "title": "Integrations",
+  "pages": [
+    "amqp",
+    "kafka",
+    "aws-sqs",
+    "azure-service-bus",
+    "inmemory-transport",
+    "inbox-amqp-ingress",
+    "outbox-amqp-dispatch",
+    "inbox-ef-core-storage",
+    "outbox-ef-core-storage",
+    "postgresql-schema-management",
+    "recurring-commands"
+  ]
+}

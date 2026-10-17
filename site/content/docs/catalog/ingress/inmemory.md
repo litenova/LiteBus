@@ -20,11 +20,7 @@ bus.AddInbox(inbox => inbox.UseInMemoryIngress(ingress =>
     ingress.UseOptions(new InMemoryInboxIngressOptions
     {
         Destination = "commands.inbox",
-        RequeueOnFailure = true,
-        Safety = new TransportInboxIngressSafetyOptions
-        {
-            MaxInFlightMessages = 4
-        }
+        RequeueOnFailure = true
     });
 }));
 ```

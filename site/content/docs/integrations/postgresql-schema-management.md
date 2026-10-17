@@ -1,6 +1,6 @@
 # PostgreSQL Schema Management
 
-The PostgreSQL inbox and outbox stores need a small, stable set of tables and indexes. This page explains how those objects are created and validated, and how to choose between explicit bootstrap, opt-in host bootstrap, and migration-owned SQL files without tying LiteBus to a migration framework. It assumes you have set up a store from [Reliable Messaging](../reliable-messaging/README.md).
+The PostgreSQL inbox and outbox stores need a small, stable set of tables and indexes. This page explains how those objects are created and validated, and how to choose between explicit bootstrap, default host bootstrap, and migration-owned SQL files without tying LiteBus to a migration framework. It assumes you have set up a store from [Reliable Messaging](../reliable-messaging/README.md).
 
 > **This page is for** developers who own PostgreSQL schema for inbox or outbox stores.
 
@@ -163,7 +163,16 @@ Pick one model per environment. You can use different models in development and 
 
 Your team owns schema timing. Copy the canonical `.sql` files or rendered output from `GetCreateScript`.
 
-Leave `EnsureSchemaCreationOnStartup = false` (the default). Run validation in deploy checks if you want a fail-fast guard:
+`EnsureSchemaCreationOnStartup` defaults to `true`, so migration-owned deployments must set it to `false` explicitly and keep `ValidateSchemaCreationOnStartup` (`true`) so startup validates instead of creating:
+
+```csharp
+postgres.UseOptions(new PostgreSqlInboxStoreOptions
+{
+    EnsureSchemaCreationOnStartup = false
+});
+```
+
+Run validation in deploy checks if you want a fail-fast guard:
 
 ```csharp
 await PostgreSqlInboxSchema.ValidateAsync(dataSource, options, cancellationToken);
@@ -180,9 +189,9 @@ await PostgreSqlOutboxSchema.EnsureAsync(dataSource, options, cancellationToken)
 
 Use this for internal services, prototypes, and test environments where a migration pipeline is overhead.
 
-### 3. Opt-in Host Schema Creation
+### 3. Host Schema Creation (Default)
 
-Enable automatic schema creation when the generic host starts. Call `EnsureSchemaCreationOnStartup()` on the nested PostgreSQL storage builder. `UsePostgreSqlStorage` registers `PostgreSqlInboxSchemaInitializer` as `IStartupTask` when `EnableSchemaInitialization` is enabled (the default).
+`UsePostgreSqlStorage` registers `PostgreSqlInboxSchemaInitializer` as `IStartupTask` whenever `EnableSchemaInitialization` is enabled (the default), and `EnsureSchemaCreationOnStartup` defaults to `true`, so a plain registration creates schema when the generic host starts:
 
 ```csharp
 builder.Services.AddLiteBus(builder =>
@@ -193,7 +202,6 @@ builder.Services.AddLiteBus(builder =>
         inbox.UsePostgreSqlStorage(postgres =>
         {
             postgres.UseDataSource(dataSource);
-            postgres.EnsureSchemaCreationOnStartup();
         });
         inbox.UseInProcessDispatch();
         inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(1));
@@ -201,7 +209,7 @@ builder.Services.AddLiteBus(builder =>
 });
 ```
 
-When `EnsureSchemaCreationOnStartup` is `false`, the initializer skips `EnsureAsync` but still runs `ValidateAsync` when `ValidateSchemaCreationOnStartup` is `true`. Use `postgres.DisableSchemaInitialization()` when you do not want the hosted initializer at all.
+Calling `EnsureSchemaCreationOnStartup()` on the nested builder restates the default. When `EnsureSchemaCreationOnStartup` is `false`, the initializer skips `EnsureAsync` but still runs `ValidateAsync` when `ValidateSchemaCreationOnStartup` is `true`. Use `postgres.DisableSchemaInitialization()` when you do not want the hosted initializer at all.
 
 ## Configuration Options
 
@@ -213,9 +221,10 @@ Both inbox and outbox share the same option shape through `PostgreSqlSchemaStore
 | `TableName` | `litebus_inbox_messages` / `litebus_outbox_messages` | Store table name |
 | `MetadataSchemaName` | `public` | Schema for the version metadata table |
 | `MetadataTableName` | `litebus_schema_versions` | Version metadata table name |
-| `EnsureSchemaCreationOnStartup` | `false` | Run `EnsureAsync` inside `PostgreSql*SchemaInitializer` when the host starts |
+| `EnsureSchemaCreationOnStartup` | `true` | Run `EnsureAsync` inside `PostgreSql*SchemaInitializer` when the host starts. Migration-owned deployments must set this to `false`. |
 | `ValidateSchemaCreationOnStartup` | `true` | Run `ValidateAsync` in the initializer when enabled, including validate-only when ensure is `false` |
 | `ValidateIndexesOnStartup` | `true` | When validation runs, also verify required store indexes exist |
+| `UseListenNotify` | `false` | Listen for PostgreSQL `NOTIFY` work signals with polling as a fallback. Enable only through `UseOptions`; see below. |
 | `Logger` | `null` | Optional `IPostgreSqlSchemaLogger` for schema operations |
 
 When `ValidateSchemaCreationOnStartup` is `true`, the initializer runs `ValidateAsync` even if `EnsureSchemaCreationOnStartup` is `false` (validate-only startup). When both are enabled, ensure runs first, then validation.
@@ -234,6 +243,23 @@ postgres.UseOptions(new PostgreSqlInboxStoreOptions
 ```
 
 Use the same option instance for the store registration and schema helpers so table names stay aligned.
+
+## Listen/Notify Work Signal
+
+By default the processors poll the store on `PollInterval`. `UseListenNotify` switches the work signal to PostgreSQL `LISTEN`/`NOTIFY`: an `AFTER INSERT` trigger notifies the store channel, and the processor wakes immediately instead of waiting out the poll interval. Polling remains as a fallback: the wait still returns when the poll interval elapses, and disposal falls back to the polling delay.
+
+There is no builder method for this setting. Enable it through `UseOptions` on the nested storage builder:
+
+```csharp
+postgres.UseOptions(new PostgreSqlInboxStoreOptions
+{
+    UseListenNotify = true
+});
+```
+
+The `NOTIFY` trigger is installed unconditionally by the canonical `create.sql` scripts, so enabling the listener later requires no schema change. The listener holds one dedicated connection per store outside the pool; connection poolers that reassign the connection between statements (transaction pooling) break the subscription, so use session pooling or leave `UseListenNotify` disabled behind such a pooler.
+
+When the listener connection breaks, the loop reconnects with a 1-second backoff and keeps serving the poll interval meanwhile.
 
 ## Logging
 
@@ -298,6 +324,69 @@ The schema validator checks required columns, payload and fencing column types, 
 
 `EnsureAsync` runs the idempotent `ensure_indexes` script after create so required indexes exist. `ValidateAsync` checks that the table exists, required columns for `CurrentSchemaVersion` are present, required column types match, required indexes exist, and metadata or inferred column shape matches the current version.
 
+## Store Table Columns
+
+Version 1 store tables carry the envelope fields plus forensic columns for operators. Processors use `status`, `visible_after`, `lease_expires_at`, and `lease_generation`; operators query `last_error`, `error_type`, `last_lease_owner`, and the forensic timestamps.
+
+### Inbox Columns
+
+| Column | Type | Role |
+| --- | --- | --- |
+| `message_id` | `uuid`, primary key | Application-assigned message identifier |
+| `contract_name` | `text`, not null | Stable message contract name |
+| `contract_version` | `integer`, not null | Contract version stored with the payload |
+| `payload` | `text`, not null | Opaque JSON payload |
+| `created_at` | `timestamptz`, not null | Accept timestamp |
+| `visible_after` | `timestamptz`, null | Retry visibility timestamp |
+| `attempt_count` | `integer`, not null | Attempts charged against the row |
+| `status` | `integer`, not null | Lifecycle status |
+| `idempotency_key` | `text`, null | Deduplication key scoped per `tenant_id` |
+| `lease_owner` | `text`, null | Current lease owner |
+| `lease_expires_at` | `timestamptz`, null | Current lease expiry |
+| `last_error` | `text`, null | Last failure message |
+| `correlation_id` | `text`, null | Correlation identifier |
+| `causation_id` | `text`, null | Causation identifier |
+| `tenant_id` | `text`, null | Tenant scope |
+| `trace_context` | `jsonb`, null | Distributed trace payload |
+| `completed_at` | `timestamptz`, null | When the row reached terminal state |
+| `last_attempted_at` | `timestamptz`, null | When the last attempt ran |
+| `first_failed_at` | `timestamptz`, null | When the first failure was recorded |
+| `dead_lettered_at` | `timestamptz`, null | When the row was dead-lettered |
+| `last_lease_owner` | `text`, null | Owner of the most recent expired or completed lease |
+| `error_type` | `text`, null | Exception type full name (or type name) from the last failure |
+| `lease_generation` | `bigint`, not null, default `0` | Fencing counter incremented on each lease |
+
+### Outbox Columns
+
+The outbox table mirrors the inbox shape with two differences: a `topic` routing hint and `published_at` in place of `completed_at`.
+
+| Column | Type | Role |
+| --- | --- | --- |
+| `message_id` | `uuid`, primary key | Application-assigned message identifier |
+| `contract_name` | `text`, not null | Stable message contract name |
+| `contract_version` | `integer`, not null | Contract version stored with the payload |
+| `payload` | `text`, not null | Opaque JSON payload |
+| `topic` | `text`, null | Routing hint for external dispatchers |
+| `created_at` | `timestamptz`, not null | Enqueue timestamp |
+| `visible_after` | `timestamptz`, null | Retry visibility timestamp |
+| `status` | `integer`, not null | Lifecycle status |
+| `attempt_count` | `integer`, not null | Attempts charged against the row |
+| `lease_owner` | `text`, null | Current lease owner |
+| `lease_expires_at` | `timestamptz`, null | Current lease expiry |
+| `last_error` | `text`, null | Last failure message |
+| `correlation_id` | `text`, null | Correlation identifier |
+| `causation_id` | `text`, null | Causation identifier |
+| `tenant_id` | `text`, null | Tenant scope |
+| `idempotency_key` | `text`, null | Deduplication key scoped per `tenant_id` |
+| `trace_context` | `jsonb`, null | Distributed trace payload |
+| `published_at` | `timestamptz`, null | When the row reached terminal state |
+| `last_attempted_at` | `timestamptz`, null | When the last attempt ran |
+| `first_failed_at` | `timestamptz`, null | When the first failure was recorded |
+| `dead_lettered_at` | `timestamptz`, null | When the row was dead-lettered |
+| `last_lease_owner` | `text`, null | Owner of the most recent expired or completed lease |
+| `error_type` | `text`, null | Exception type full name (or type name) from the last failure |
+| `lease_generation` | `bigint`, not null, default `0` | Fencing counter incremented on each lease |
+
 ## API Reference
 
 ### Create and Validate
@@ -335,7 +424,7 @@ Waiting instances poll the metadata table and physical column shape. They do not
 
 | Operation | Safe from all pods | Recommended pattern |
 | --- | --- | --- |
-| First-time `EnsureAsync` | Yes | Opt-in host schema creation or startup call |
+| First-time `EnsureAsync` | Yes | Host schema creation or startup call |
 | `ValidateAsync` | Yes | Deploy check or startup when `ValidateSchemaCreationOnStartup = true` |
 
 ## Existing Tables
@@ -349,14 +438,14 @@ Register storage and dispatchers before processor modules so dependencies resolv
 ```csharp
 builder.AddInbox(inbox =>
 {
-    inbox.UsePostgreSqlStorage(pg => pg.EnsureSchemaCreationOnStartup());
+    inbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
     inbox.UseInProcessDispatch();
     inbox.EnableInboxProcessor();
 });
 
 builder.AddOutbox(outbox =>
 {
-    outbox.UsePostgreSqlStorage(pg => pg.EnsureSchemaCreationOnStartup());
+    outbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
     outbox.UseInProcessDispatch();
     outbox.EnableOutboxProcessor();
 });
@@ -370,7 +459,7 @@ LiteBus ships EF Core inbox and outbox stores for applications that already use 
 
 | Topic | PostgreSQL Npgsql store | EF Core store |
 | --- | --- | --- |
-| Schema ownership | Migration-owned SQL, `EnsureAsync`, or opt-in host bootstrap | Application EF migrations |
+| Schema ownership | Migration-owned SQL, `EnsureAsync`, or host bootstrap | Application EF migrations |
 | Default table | `public.litebus_inbox_messages` / `public.litebus_outbox_messages` | Same defaults via `EntityFrameworkCoreInboxStoreOptions` / `EntityFrameworkCoreOutboxStoreOptions` |
 | Column mapping | Canonical `.sql` files | `GetModelBuilderConfiguration()` on `InboxMessageEntity` / `OutboxMessageEntity` |
 | Table schema version | Inbox **1** / outbox **1** | Generate the complete current model, including `lease_generation bigint NOT NULL DEFAULT 0` |

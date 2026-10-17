@@ -4,6 +4,7 @@
 - **Name**: Polymorphic dispatch
 - **Maturity**: GA
 - **Summary**: Resolves base-type and interface handlers for derived messages and prevents ambiguous descriptor selection.
+- **Guide**: [Polymorphic dispatch](../../concepts/polymorphic-dispatch.md)
 
 ## What It Does
 

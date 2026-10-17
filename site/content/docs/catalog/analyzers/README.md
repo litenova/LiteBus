@@ -1,5 +1,7 @@
 # Analyzers Axis Capability Catalog
 
+Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+
 `LiteBus.Analyzers` adds compile-time rules for handler coverage, handler uniqueness, durable contract registration, inbox acceptance shape, and transactional configuration wiring. The package has no runtime dependency and can be referenced from application projects and test projects.
 
 ```xml
@@ -28,6 +30,7 @@
 | [analyzers.missing-audit-declaration](audit-declaration.md) | Command or query states no audit position | GA |
 | [analyzers.untyped-shortcut-on-result-message](shortcut-contracts.md) | Untyped shortcut on a message that produces a result | GA |
 | [analyzers.missing-declaration](required-declarations.md) | Command or query states no position on a required declaration | GA |
+| [analyzers.reserved-handler-priority](reserved-handler-priority.md) | Handler priority inside the reserved range | GA |
 
 ## Diagnostic Inventory (LB1001-LB1022)
 
@@ -54,7 +57,7 @@
 | `LB1019` | Warning | `LiteBus.Handlers` | Shortcut uses the untyped contract for a message that produces a result | [shortcut-contracts.md](shortcut-contracts.md) |
 | `LB1020` | Warning (off by default) | `LiteBus.Declarations` | Command or query type states no position on a configured declaration | [required-declarations.md](required-declarations.md) |
 | `LB1021` | Warning | `LiteBus.Declarations` | `litebus_required_declarations` names a type that does not resolve | [required-declarations.md](required-declarations.md) |
-| `LB1022` | Warning | `LiteBus.Handlers` | `[HandlerPriority]` value falls inside the range LiteBus reserves for its own handlers | [../../reference/analyzers.md](../../reference/analyzers.md) |
+| `LB1022` | Warning | `LiteBus.Handlers` | `[HandlerPriority]` value falls inside the range LiteBus reserves for its own handlers | [reserved-handler-priority.md](reserved-handler-priority.md) |
 
 ## Suppression Policy
 

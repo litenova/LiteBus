@@ -16,9 +16,9 @@ public sealed record CreateProductCommand(string Name, decimal Price) : ICommand
 
 You pick one of two contracts. Use `ICommand` when the caller only needs success or failure. Use `ICommand<TResult>` when the caller needs a value back, most often the identity of something just created. Model commands as immutable records or classes with `init`-only properties so no step can change them after construction.
 
-Two rules define a command. It is handled by exactly one handler, and it expresses an intent to change something. When zero handlers or more than one handler is registered, mediation throws rather than guessing. Name commands as imperatives, such as `CreateProductCommand` or `CancelSubscriptionCommand`.
+Two rules define a command. It is handled by exactly one handler, and it expresses an intent to change something. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level survives: direct handlers win whenever any survive, and handlers registered for a base type apply only when no direct handler does. Name commands as imperatives, such as `CreateProductCommand` or `CancelSubscriptionCommand`.
 
-Returning a value from a state-changing command is a deliberate exception to strict CQS. LiteBus allows it because returning a generated id from the same call beats forcing a follow-up query. Keep the returned value small. A command is not a query.
+Returning a value from a state-changing command is a deliberate exception to strict CQS. LiteBus allows it because returning a generated id from the same call avoids forcing a follow-up query. Keep the returned value small. A command is not a query.
 
 ## Handle a Command
 
@@ -123,7 +123,7 @@ Task SendAsync(ICommand command, CommandMediationSettings? commandMediationSetti
 Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command, CommandMediationSettings? commandMediationSettings = null, CancellationToken cancellationToken = default);
 ```
 
-Pass `CommandMediationSettings` to filter handlers per call with tags or a predicate, or to carry context items through the pipeline. See [Handler Filtering](handler-filtering.md). When a refusal is a routine branch rather than a fault, call `TrySendAsync` and read the outcome value instead of catching. When you need to ask whether a command would be permitted without running it, call `EvaluateAsync`.
+Pass `CommandMediationSettings` to filter handlers per call with tags or a predicate, or to carry context items through the pipeline. See [Handler Filtering](handler-filtering.md). When a refusal is a routine branch rather than a fault, call `TrySendAsync` and read the outcome value instead of catching. When you need to ask whether a command would be permitted without running it, call `EvaluateAsync`. See [Refusal as a Value](handler-pipeline.md#refusal-as-a-value).
 
 ## Defer a Command to the Inbox
 

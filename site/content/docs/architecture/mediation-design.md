@@ -108,7 +108,7 @@ Do not invent a second noun for the value, and do not force one verb across diff
 
 The untyped shortcut is the worked example: the compiler cannot express the constraint, so LB1019 reports the declaration, registration rejects a direct registration outright, and dispatch names the offending shortcut for the indirect case neither of the earlier points can prove.
 
-**Rule 19. An error message names the offender and the fix.** Not just the symptom. The registration and dispatch errors for the untyped shortcut both name the shortcut type, the message type, the result type, and the contract to implement instead.
+**Rule 19. An error message names the offender and the fix, not only the symptom.** The registration and dispatch errors for the untyped shortcut name the shortcut type, the message type, the result type, and the contract to implement instead.
 
 **Rule 20. Handlers LiteBus itself ships sit at or above `HandlerPriorities.ReservedFloor`.** An application handler with no explicit priority runs before all of them. Ordering against a LiteBus handler is a documented guarantee, not something each application rediscovers.
 

@@ -46,8 +46,9 @@ These types are always treated as poison or configuration errors and discard whe
 - `ArgumentException`
 - `FormatException`
 - `JsonException`
+- `OperationCanceledException`
 
-Any other exception type requeues when `RequeueOnFailure` is `true`.
+Any other exception type requeues when `RequeueOnFailure` is `true`. Cancellation is never requeued.
 
 ## Packages
 
@@ -73,7 +74,7 @@ Any other exception type requeues when `RequeueOnFailure` is `true`.
 | AMQP | Nack with requeue | Nack or reject without requeue |
 | Kafka | Offset left uncommitted and redelivered | Offset committed without store write |
 | AWS SQS | Message returned by visibility timeout / explicit retry path | Message deleted without store write |
-| Azure Service Bus | Message abandoned for redelivery | Message completed or dead-letter flow owned by transport setup |
+| Azure Service Bus | Message abandoned for redelivery | Message dead-lettered through the transport adapter |
 | InMemory | Re-enqueue in channel | Drop from in-memory queue |
 
 ## Non-Goals

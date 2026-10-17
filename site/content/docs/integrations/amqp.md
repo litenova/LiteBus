@@ -1,8 +1,8 @@
 # AMQP Transport
 
-**Production tier: GA**
+`LiteBus.Transport.Amqp` publishes and consumes through an AMQP 0.9.1 broker such as RabbitMQ or LavinMQ with the `RabbitMQ.Client` SDK. Inbox and outbox adapters compose it independently: installing the AMQP transport does not pull Kafka, AWS, or Azure SDKs.
 
-`LiteBus.Transport.Amqp` wraps RabbitMQ.Client for publish and consume. Inbox and outbox adapters compose it independently; installing AMQP transport does not pull Kafka or AWS SDKs.
+**Production tier: GA**
 
 ## Packages to Install
 
@@ -14,7 +14,7 @@
 | `LiteBus.Inbox.Ingress.Amqp` | Broker intake into `IInbox.AcceptAsync` |
 | `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | Optional `AddLiteBusAmqpMetrics()` registration |
 
-Add inbox/outbox core and storage packages as usual. See [Dependency graph](../architecture/dependency-graph.md).
+Add inbox or outbox core and a storage package alongside the transport. Durable processing needs a store and a processor host; the transport alone persists nothing. See [Dependency Graph](../architecture/dependency-graph.md).
 
 ## Registration
 
@@ -33,9 +33,7 @@ builder.AddAmqpTransport(connection);
 builder.AddInbox(inbox =>
 {
     inbox.Contracts.Register<ShipOrderCommand>("orders.commands.ship", 1);
-    inbox.UsePostgreSqlStorage(connectionString);
-    inbox.UseInProcessDispatch();
-
+    inbox.UsePostgreSqlStorage(pg => pg.UseConnectionString(connectionString));
     inbox.UseAmqpDispatch(transport => transport.DefaultDestination = "orders.commands");
 
     inbox.UseAmqpIngress(ingress =>
@@ -44,12 +42,7 @@ builder.AddInbox(inbox =>
         {
             QueueName = "orders.commands",
             PrefetchCount = 10,
-            RequeueOnFailure = true,
-            Safety = new TransportInboxIngressSafetyOptions
-            {
-                MaxInFlightMessages = 8,
-                BatchSize = 10
-            }
+            RequeueOnFailure = true
         });
     });
 
@@ -57,15 +50,43 @@ builder.AddInbox(inbox =>
 });
 ```
 
-`AddAmqpTransport` owns the broker connection at the root. Dispatch and ingress require that module and share its publisher and consumer.
+`AddAmqpTransport` owns the broker connection at the root. Dispatch and ingress require that module and share its publisher and consumer. Register exactly one dispatcher per inbox or outbox: a second dispatcher registration throws `LiteBusConfigurationException`.
 
-Set the destination to `string.Empty` to publish through RabbitMQ's default exchange and set the route to the target
-queue name. LiteBus uses that queue route as the publisher circuit scope. Named exchanges use the exchange name, so a
-failure on one exchange does not open another exchange's circuit.
+Set the destination to `string.Empty` to publish through RabbitMQ's default exchange and set the route to the target queue name. LiteBus uses that queue route as the publisher circuit scope. Named exchanges use the exchange name, so a failure on one exchange does not open another exchange's circuit.
+
+## Options Reference
+
+| Type | Property | Default | Notes |
+| --- | --- | --- | --- |
+| `AmqpConnectionOptions` | `Uri` | `null` | When set, overrides `HostName`, `Port`, `UserName`, `Password`, and `VirtualHost`. Must be absolute, use the `amqp` or `amqps` scheme, and include a host. |
+| | `HostName` | `"localhost"` | Broker host name. Required unless `Uri` is set. |
+| | `Port` | `5672` | Broker port. Valid range is 1 through 65535. |
+| | `VirtualHost` | `"/"` | AMQP virtual host. |
+| | `UserName` | `"guest"` | Broker credential. |
+| | `Password` | `"guest"` | Broker credential. |
+| | `ClientProvidedName` | `null` | Optional connection name shown in broker management tools. |
+| | `AutomaticRecoveryEnabled` | `true` | Recreate dropped connections and channels. |
+| | `NetworkRecoveryInterval` | 5 s | Delay between recovery attempts. Must be positive when recovery is enabled. |
+| | `CircuitBreaker.FailureThreshold` | `5` | Consecutive failures before the circuit opens. `0` disables the breaker. Copied into the connection breaker and each publisher circuit. |
+| | `CircuitBreaker.BreakDuration` | 30 s | How long broker operations are rejected after the circuit opens. Must be positive when the threshold is above `0`. |
+| `AmqpInboxIngressOptions` | `QueueName` | `""` (required) | Queue the ingress consumer subscribes to. |
+| | `PrefetchCount` | `10` | Broker-side prefetch window. |
+| | `DeclareQueue` | `true` | Declare the queue before consuming. |
+| | `DurableQueue` | `true` | Declare the queue as durable. |
+| | `RequeueOnFailure` | `true` | `basic.nack` with requeue on transient accept failure; poison failures are still discarded. |
+| | `Safety.MaxInFlightMessages` | `32` requested | Enforced bound is 1: the AMQP adapter runs one handler at a time. |
+
+## Connection Recovery
+
+Recovery is configured on `AmqpConnectionOptions`: `AutomaticRecoveryEnabled` (default `true`) with a `NetworkRecoveryInterval` of 5 seconds. Recovery recreates the connection and its channels after a drop. Deliveries that were in flight when the connection dropped are redelivered by the broker rather than resumed, so handlers must be idempotent.
+
+`TransportReconnectOptions` in `LiteBus.Transport` carries the same two settings as the shared reconnect shape; AMQP recovery itself is configured through `AmqpConnectionOptions`.
 
 ## Wire Headers
 
 Dispatch copies durable envelope metadata through `TransportEnvelopeHeaderMapper` using canonical names from `TransportHeaders` (`litebus-message-id`, `litebus-contract-name`, `correlation-id`, `litebus-idempotency-key`, `litebus-visible-after`, and related fields). Ingress maps those headers back into `InboxAcceptItem` metadata.
+
+For the transport-level acknowledgement mapping (`AcceptAsync` to `basic.ack`, and the nack variants), see the [AMQP transport contract](../catalog/transport/amqp.md).
 
 ## Guarantees and Non-Guarantees
 
@@ -75,7 +96,7 @@ Dispatch copies durable envelope metadata through `TransportEnvelopeHeaderMapper
 | `basic.nack` with requeue on `ReturnToQueueAsync` | Ordering across competing consumers |
 | Poison drain when `RequeueOnFailure = false` | Cross-broker federation |
 
-Handler exceptions propagate to ingress, which applies `RequeueOnFailure` through `ReturnToQueueAsync` or `DiscardAsync`.
+Handler exceptions propagate to ingress, which applies `RequeueOnFailure` through `ReturnToQueueAsync` or `DiscardAsync`. Poison failures (unknown contract, oversize body, malformed payload) are never requeued.
 
 ## Operations
 
@@ -83,7 +104,7 @@ Handler exceptions propagate to ingress, which applies `RequeueOnFailure` throug
 | --- | --- | --- |
 | Messages requeued indefinitely | Consumer prefetch, store health | Fix accept failure; verify idempotency keys |
 | No ingress deliveries | Queue name, vhost, credentials | Confirm queue exists and consumer tag is unique |
-| Circuit breaker open | `litebus.amqp.circuit_breaker.open` metric | Inspect broker connectivity and backoff settings |
+| Circuit breaker open | `litebus.transport.circuit_breaker.open` gauge with `litebus.transport.broker="amqp"` | Inspect broker connectivity and backoff settings |
 
 ## Tests
 
@@ -95,7 +116,7 @@ Handler exceptions propagate to ingress, which applies `RequeueOnFailure` throug
 
 ## Related Docs
 
-* [Inbox AMQP ingress](inbox-amqp-ingress.md)
-* [Outbox AMQP dispatch](outbox-amqp-dispatch.md)
-* [Kafka transport](kafka.md)
-* [Reliable messaging](../reliable-messaging/README.md)
+* [Inbox AMQP Ingress](inbox-amqp-ingress.md)
+* [Outbox AMQP Dispatch](outbox-amqp-dispatch.md)
+* [Kafka Transport](kafka.md)
+* [Reliable Messaging](../reliable-messaging/README.md)

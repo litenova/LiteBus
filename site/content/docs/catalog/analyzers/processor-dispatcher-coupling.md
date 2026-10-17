@@ -30,19 +30,10 @@ Dispatcher calls are recognized for direct builder methods and extension methods
 ## Bad Example
 
 ```csharp
-namespace LiteBus.Inbox.Abstractions;
-
-public sealed class InboxModuleBuilder
+registry.AddInboxModule(inbox =>
 {
-    public InboxModuleBuilder EnableInboxProcessor() => this;
-    public InboxModuleBuilder RegisterDispatcher(object module) => this;
-}
-
-public static class InboxConfiguration
-{
-    public static void Configure(InboxModuleBuilder inbox)
-        => inbox.EnableInboxProcessor();
-}
+    inbox.EnableInboxProcessor();
+});
 ```
 
 Expected diagnostic:
@@ -52,22 +43,11 @@ Expected diagnostic:
 ## Good Example
 
 ```csharp
-namespace LiteBus.Outbox.Abstractions;
-
-public sealed class OutboxModuleBuilder
+registry.AddOutboxModule(outbox =>
 {
-    public OutboxModuleBuilder EnableOutboxProcessor() => this;
-    public OutboxModuleBuilder UseInProcessDispatch() => this;
-}
-
-public static class OutboxConfiguration
-{
-    public static void Configure(OutboxModuleBuilder outbox)
-    {
-        outbox.UseInProcessDispatch();
-        outbox.EnableOutboxProcessor();
-    }
-}
+    outbox.UseInProcessDispatch();
+    outbox.EnableOutboxProcessor();
+});
 ```
 
 ## Suppression Guidance

@@ -1,6 +1,8 @@
 # Ordering and Concurrency Guarantees
 
-LiteBus durable messaging guarantees at-least-once execution under leases, not ordered execution. This page names the exact property or option behind each ordering-related behavior, so callers know what holds, when it holds, and what to build themselves. For delivery semantics start with [Reliable Messaging Semantics](semantics.md); for the status model behind retries see [Envelope Lifecycle](../catalog/durable-core/envelope-lifecycle.md).
+This page defines the concurrency properties. [Reliable Messaging Semantics](semantics.md) defines the delivery guarantees, and [Message States](../operations/message-states.md) defines the operator states and alerts.
+
+LiteBus durable messaging guarantees at-least-once execution under leases, not ordered execution. This page names the exact property or option behind each ordering-related behavior, so callers know what holds, when it holds, and what to build themselves. For delivery semantics start with [Reliable Messaging Semantics](semantics.md). For the full contract, see [Envelope Lifecycle](../catalog/durable-core/envelope-lifecycle.md).
 
 ## Guarantee Table
 
@@ -14,6 +16,7 @@ LiteBus durable messaging guarantees at-least-once execution under leases, not o
 | Saga completion survives a version race | `SagaProcessorHook` completion retry (up to 3 attempts): reloads and re-completes, treating already-completed as success | Completion intent races a concurrent save | Dirty state plus completion in one dispatch, which the hook refuses with `InvalidOperationException` |
 | A redelivered durable message does not re-run saga mutation | `SagaInstance<TState>.LastAppliedMessageId`: `SagaProcessorHook` suppresses dispatch (`ShouldDispatch` false) when the stored row already applied the message id | At-least-once redelivery of an already-applied inbox message | A different message id carrying the same business intent: suppression is per message id, not per business key |
 | Resubmitted accepts return the stored row | `IdempotencyKey` with `IdempotencyConflictMode.ReturnExisting` (default) on `InboxEnvelope` and `OutboxEnvelope`; outcomes `InboxAcceptOutcome.AlreadyAccepted` and `OutboxEnqueueOutcome.AlreadyEnqueued` | Same key or message id is resubmitted | Distinct keys for one business intent still create two rows; deduplication happens at accept, and says nothing about execution order |
+| Strict conflicts throw only for differing submissions | `IdempotencyConflictMode.Strict`: identical replays return the existing row, differing conflicts throw `IdempotencyConflictException` | The replayed submission matches the stored row on id, contract name and version, payload, topic (outbox), idempotency key, correlation, causation, and tenant | Any compared field differs: the store throws instead of returning the row |
 | Handlers of one in-process event run in a defined sequence | `EventExecutionSettings`: `PriorityGroupsConcurrencyMode` and `HandlersWithinSamePriorityConcurrencyMode`, both `ConcurrencyMode.Sequential` by default | In-process mediation with default settings: groups run in priority order, handlers inside a group run in registration order | Either mode is set to `ConcurrencyMode.Parallel`; durable dispatch, where each message is a separate lease |
 | Retries become due after their delay | `RetryOptions.CalculateDelay` written to `VisibleAfter` on `AsFailed` | Any retryable failure: the row is invisible until the computed delay passes | Across messages: visibility is per row, so a retry never jumps ahead of or behind another row by design |
 | No global cross-worker message order | Nothing provides it | Never relied upon | Any design that assumes FIFO across passes, workers, tenants, or processor instances |
@@ -32,19 +35,19 @@ outbox.UseProcessorOptions(new OutboxProcessorOptions
 });
 ```
 
-This bounds the damage to reordered completion, not to ordered completion: retries with different `RetryOptions` delays, reclaimed leases, and a second processor instance still interleave. When strict per-key order matters across workers, partition the work before LiteBus (one tenant per processor via `ProcessorOptions.TenantId`) or serialize on the saga correlation for state updates, and make the consumer idempotent because at-least-once redelivery still duplicates.
+This serializes dispatch starts within one pass; completion order still varies with retries, reclaimed leases, and additional processor instances. When strict per-key order matters across workers, partition the work before LiteBus (one tenant per processor via `ProcessorOptions.TenantId`) or serialize on the saga correlation for state updates, and make the consumer idempotent because at-least-once redelivery still duplicates.
 
 ## Tenancy Partitions Leases, Not Order
 
 Setting `ProcessorOptions.TenantId` restricts one processor instance to one tenant partition. Use it to isolate noisy tenants or to pin a tenant to a serial (`DispatcherConcurrency = 1`) processor. It does not order tenants relative to each other, and rows without a matching tenant are invisible to that instance, so every tenant still needs a processor that leases it.
 
-## Saga Serialization Is Per Correlation And Per Host
+## Saga Serialization Is Per Correlation and Per Host
 
 The `SagaProcessorHook` gate serializes only dispatches that share tenant, saga definition, and `CorrelationId`, and only within one host process. Across hosts, correctness comes from `ISagaStore` version checks: concurrent saves throw `SagaConcurrencyException`, and completion reloads and retries. Handlers keyed by `SagaCorrelation` therefore see serial state transitions per instance on one host, and optimistic-concurrency failures instead of silent overwrites everywhere else. Different correlations never block each other. See [Saga](saga.md) for registration and the state model.
 
 ## Transports Preserve Nothing By Default
 
-LiteBus transport dispatch maps an envelope to `Destination` plus `Route` (the outbox topic or contract name by default through `ResolveRoute`) and publishes. No dispatcher option selects a Kafka partition, an SQS FIFO group, or a Service Bus session, and ingress concurrency (`TransportConsumerOptions.MaxInFlightMessages`, default `32`, plus `MaxConcurrentCalls` and `ReceiveBatchSize` where the broker supports them) redelivers into `IInbox.AcceptAsync` concurrently. Applications that need broker-ordered intake must configure broker-side ordering (partition keys, FIFO queues, sessions) in their own topology and keep consumer concurrency at one per ordered unit; LiteBus records whatever arrives as unordered `Pending` rows.
+LiteBus transport dispatch maps an envelope to `Destination` plus `Route` (tenant strategy, then `ResolveRoute`, then the outbox topic, then the contract name) and publishes. No dispatcher option selects a Kafka partition, an SQS FIFO group, or a Service Bus session, and ingress concurrency (`TransportConsumerOptions.MaxInFlightMessages`, default `32`, plus `MaxConcurrentCalls` and `ReceiveBatchSize` where the broker supports them) redelivers into `IInbox.AcceptAsync` concurrently. Applications that need broker-ordered intake must configure broker-side ordering (partition keys, FIFO queues, sessions) in their own topology and keep consumer concurrency at one per ordered unit; LiteBus records whatever arrives as unordered `Pending` rows.
 
 ## Next
 

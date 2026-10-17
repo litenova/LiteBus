@@ -73,7 +73,7 @@ A message declared this way that reaches the shortcut with no key in context rai
 | `Scope` | Prefixes the key. Defaults to the message type name, so two message types never collide by accident. Set it when two types share a key space on purpose. |
 | `ReplayResult` | Whether a repeat replays the result the first attempt produced. Off by default. |
 
-A blank key raises `LiteBusConfigurationException` rather than being used. Every message with a blank key shares one key space, so the first would answer all the others.
+A blank key raises `IdempotencyConfigurationException` rather than being used. Every message with a blank key shares one key space, so the first would answer all the others.
 
 ## Enabling It
 
@@ -125,12 +125,12 @@ A repeat can only be answered with a value if the first attempt recorded one. Se
 public sealed class SettlePaymentCommandDefinition : IIdempotencyDefinition<SettlePaymentCommand>
 {
     public IdempotencyDeclaration Idempotency =>
-        IdempotencyDeclaration.KeyedBy<SettlePaymentCommand>(command => command.PaymentId)
+        IdempotencyDeclaration.KeyedBy<SettlePaymentCommand>(command => command.PaymentId.ToString())
             with { ReplayResult = true };
 }
 ```
 
-Without it, a repeated result-producing command raises `LiteBusConfigurationException` naming the fix. LiteBus will not invent an answer: returning `default` would hand the caller a zero or a null that looks like a real result.
+Without it, a repeated result-producing command raises `PipelineContractException` naming the fix. LiteBus will not invent an answer: returning `default` would hand the caller a zero or a null that looks like a real result.
 
 Turn replay on for a command whose caller needs the same answer twice, such as an endpoint a client retries. Leave it off for a redelivered command nobody is waiting on, and for a command with no result, where there is nothing to replay.
 

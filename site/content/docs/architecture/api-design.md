@@ -1,4 +1,4 @@
-﻿# API Design Reference
+# API Design Reference
 
 This page defines the current LiteBus public API model: named types, CLR shapes, package placement, method signatures, parameter limits, mapping boundaries, and durable-messaging examples.
 
@@ -21,7 +21,7 @@ This page defines the current LiteBus public API model: named types, CLR shapes,
 | `*Options` | Module, host, processor, or adapter configuration | `ProcessorOptions`, `PostgreSqlInboxStoreOptions` |
 | `*HostOptions` | Background-service lifecycle | `InboxProcessorHostOptions` |
 | `*Filter` | Query or purge predicates | `InboxMessageFilter` |
-| `*Binding` | Framework adapter input at the HTTP or host edge | `InboxQueryBinding`, `OutboxPurgeBinding` |
+| `*Binding` | Framework adapter input at the HTTP or host edge | `InboxMessageQueryBinding`, `OutboxMessagePurgeBinding` |
 | (no suffix) | Small, shared value objects | `SagaCorrelation`, `MessageIdentity` |
 
 ### Mediation vs Durable Writers
@@ -40,7 +40,7 @@ Public types use a consistent CLR kind per role.
 | `record` (non-sealed) | Rare bases (`ProcessorOptions`, `PostgreSqlSchemaStoreOptions`) | New public APIs unless inheritance is required |
 | `sealed class` | `*HostOptions` with `get`/`set`; modules, mediators, stores; optional thin construction namespaces (`OutboxEnqueue`); exceptions | New immutable value objects |
 | `readonly struct` / `readonly record struct` | Internal perf helpers and store keys only | Public contracts |
-| `interface` | `*.Abstractions` contracts |: |
+| `interface` | `*.Abstractions` contracts | Concrete implementations |
 
 **`*HostOptions` stay `sealed class`:** host and processor lifecycle bags remain mutable after instantiation (`ProcessorHostOptions`, `InboxCleanupHostOptions`, and similar).
 

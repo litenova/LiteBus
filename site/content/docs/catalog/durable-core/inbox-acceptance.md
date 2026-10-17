@@ -35,7 +35,7 @@ Typical call sites: HTTP controllers deferring work, ingress handlers after brok
 
 - **`AddInbox()`** with **`Use*Storage()`** registered inside the same inbox module builder (required before first accept).
 - **`Contracts.Register<TMessage>(name, version)`** or **`RegisterFromAssembly`** for each stored message type.
-- Default **`IInbox`** registers as singleton against the non-transactional store.
+- Default **`IInbox`** registers transient against the singleton non-transactional store.
 
 ### Configuration
 

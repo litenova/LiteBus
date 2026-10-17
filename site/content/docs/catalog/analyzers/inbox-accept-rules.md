@@ -12,7 +12,7 @@
 `LB1004` reports when:
 
 - Invocation target is `AcceptAsync` or `AcceptBatchAsync`.
-- Receiver type is `IInbox`, `ITransactionalInbox`, or a type implementing either.
+- Receiver type is `IInbox`, `ITransactionalInbox`, `ITransactionalInbox<TContext>`, or a type implementing any of them.
 - Message type implements `ICommand<TResult>`.
 
 Batch detection includes:
@@ -75,7 +75,7 @@ Source: `tests/LiteBus.Analyzers.UnitTests/CommandWithResultScheduledToInboxAnal
 | `CommandWithResultStoredInInbox_ProducesDiagnostic` | Result command in `AcceptAsync` reports `LB1004` |
 | `ExplicitGenericAcceptAsyncWithCommandResult_ProducesDiagnostic` | Explicit generic `AcceptAsync<T>` reports `LB1004` |
 | `CommandWithResultStoredThroughInboxImplementation_ProducesDiagnostic` | Interface implementations of `IInbox` are recognized |
-
-Untested in this suite:
-
-- `AcceptBatchAsync` fixture coverage for mixed item sources and collection expressions.
+| `ResultCommandInCollectionExpressionBatch_ProducesDiagnostic` | Result command in an inline heterogeneous batch reports `LB1004` at the offending item |
+| `ResultCommandInLocalSpreadBatch_ProducesDiagnostic` | Result command found through local initializers and collection spreads reports `LB1004` |
+| `ResultCommandInTransactionalArrayBatch_ProducesDiagnostic` | Result command in an explicitly created array batch to a transactional inbox reports `LB1004` |
+| `ResultCommandInLocalListBatch_ProducesDiagnostic` | Result command in a target-typed local list batch reports `LB1004` |

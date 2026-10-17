@@ -1,5 +1,7 @@
 # Runtime Capability Catalog
 
+Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+
 LiteBus runtime capabilities define the compose-time module graph and the in-process messaging engine used by mediator, durable, transport, and hosting axes. Runtime and messaging stay container-neutral and host-neutral by design.
 
 ## Axis Scope
@@ -24,21 +26,21 @@ LiteBus runtime capabilities define the compose-time module graph and the in-pro
 | ID | Name | Maturity | Package(s) |
 | --- | --- | --- | --- |
 | [runtime.modules](modules.md) | Module contract | GA | `LiteBus.Runtime.Abstractions` |
-| [runtime.module-registry](module-registry.md) | Module registry and build order | GA | `LiteBus.Runtime` |
+| [runtime.module-registry](module-registry.md) | Module registry and build order | GA | `LiteBus.Runtime`, `LiteBus.Runtime.Abstractions` |
 | [runtime.module-dependencies](module-dependencies.md) | Module dependency ordering | GA | `LiteBus.Runtime`, `LiteBus.Runtime.Abstractions` |
-| [runtime.module-configuration](module-configuration.md) | Module configuration and shared context | GA | `LiteBus.Runtime` |
+| [runtime.module-configuration](module-configuration.md) | Module configuration and shared context | GA | `LiteBus.Runtime`, `LiteBus.Runtime.Abstractions` |
 | [runtime.composite-modules](composite-modules.md) | Composite parent and child modules | GA | `LiteBus.Runtime`, `LiteBus.Runtime.Abstractions` |
 | [runtime.litebus-builder](litebus-builder.md) | Composition builder surface | GA | `LiteBus.Runtime.Abstractions`, `LiteBus.Runtime` |
-| [runtime.dependency-registry](dependency-registry.md) | Container-neutral dependency registry | GA | `LiteBus.Runtime` |
+| [runtime.dependency-registry](dependency-registry.md) | Container-neutral dependency registry | GA | `LiteBus.Runtime`, `LiteBus.Runtime.Abstractions` |
 | [runtime.message-module](message-module.md) | Foundational messaging module | GA | `LiteBus.Messaging` |
 | [runtime.message-registry](message-registry.md) | Message and handler type registry | GA | `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions` |
 | [runtime.contract-registry](contract-registry.md) | Message contract registry | GA | `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions` |
-| [runtime.message-mediator](message-mediator.md) | Core message mediator | GA | `LiteBus.Messaging` |
+| [runtime.message-mediator](message-mediator.md) | Core message mediator | GA | `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions` |
 | [runtime.mediation-strategies](mediation-strategies.md) | Pluggable mediation strategies | GA | `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions` |
 | [runtime.handler-descriptors](handler-descriptors.md) | Handler descriptor model | GA | `LiteBus.Messaging.Abstractions` |
-| [runtime.message-resolution](message-resolution.md) | Message resolve strategies | GA | `LiteBus.Messaging` |
-| [runtime.dispatch-scopes](dispatch-scopes.md) | Per-mediation DI scopes | GA | `LiteBus.Runtime.Abstractions`, runtime DI adapters, `LiteBus.Messaging` |
-| [runtime.message-serialization](message-serialization.md) | Message serialization | GA | `LiteBus.Messaging` |
+| [runtime.message-resolution](message-resolution.md) | Message resolve strategies | GA | `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions` |
+| [runtime.dispatch-scopes](dispatch-scopes.md) | Per-mediation DI scopes | GA | `LiteBus.Runtime.Abstractions`, `LiteBus.Runtime`, runtime DI adapters, `LiteBus.Messaging` |
+| [runtime.message-serialization](message-serialization.md) | Message serialization | GA | `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions` |
 | [runtime.payload-protection](payload-protection.md) | Payload encryption hook | GA | `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions` |
 | [runtime.trace-metadata](trace-metadata.md) | Trace metadata and propagation | GA | `LiteBus.Messaging.Abstractions`, `LiteBus.Messaging` |
 
@@ -64,6 +66,5 @@ AddLiteBus(...)
 ## Cross-Axis Links
 
 - Runtime module ordering in this axis: [runtime.module-registry](module-registry.md)
-- Host manifest bridge of the same ordering output: [hosting.module-registry](../hosting/module-registry.md)
 - Architecture context: [Architecture](../../architecture/README.md)
 - Extensibility guidance: [Extensibility](../../extending/README.md)

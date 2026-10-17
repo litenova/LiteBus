@@ -4,12 +4,13 @@
 - **Name**: Audit trail
 - **Maturity**: GA
 - **Summary**: Produces audit records at the mediation boundary from declarative metadata, on every outcome including refusals and cancellations.
+- **Guide**: [Auditing](../../concepts/auditing.md)
 
 ## What It Does
 
 `AddAuditing` configures the trail, the actor resolver, the outcome mapper, and which axes produce records. Selecting an axis registers a completion handler there. When a mediation ends, the handler reads the message's `AuditDeclaration` from message metadata, combines it with the actor the resolver established and the detail the handler pushed through `IAuditScope`, and hands an `AuditRecord` to the application's `IAuditTrail`.
 
-Because it runs at the completion stage, refusals, failures, and cancellations produce records just as successes do. That is the difference between an audit trail and a changelog: an audit exists to answer who attempted something and was stopped, and a handler-written record can never capture that, since authorization refuses before the handler reaches its audit line. The stage is not cancellable, so a cancelled mediation still produces its record. Attribution runs there for the same reason: a resolver at the completion stage names the actor on a denied command, and a pre-stage handler never runs on that path.
+Because it runs at the completion stage, refusals, failures, and cancellations produce records in the same way successes do. That is the difference between an audit trail and a changelog: an audit exists to answer who attempted something and was stopped, and a handler-written record can never capture that, since authorization refuses before the handler reaches its audit line. The stage is not cancellable, so a cancelled mediation still produces its record. Attribution runs there for the same reason: a resolver at the completion stage names the actor on a denied command, and a pre-stage handler never runs on that path.
 
 The constant half of a record is declared once per message, with `[Audited]` and `[AuditExempt]` or with an `IAuditDefinition<TMessage>`. Both contribute an `AuditDeclaration`, so the writer reads one metadata key and a definition overwrites an attribute rather than sitting beside it. The variable half, such as an identifier the handler generated, is pushed at runtime.
 

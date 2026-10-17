@@ -9,7 +9,7 @@
 
 `AddAmqpTransport(...)` registers `AmqpTransportModule` once at the root. `UseAmqpDispatch(configure)` on `OutboxModuleBuilder` registers `TransportOutboxDispatchModule` as a feature bridge to that transport. After domain logic enqueues events to outbox storage, the processor publishes to the configured exchange when rows are leased.
 
-Route resolution prefers envelope `Topic`, then custom resolver, then contract name. Headers carry contract identity and trace context for downstream ingress.
+Route resolution prefers the custom resolver, then envelope `Topic`, then contract name. Headers carry contract identity and trace context for downstream ingress.
 
 ## Packages
 
@@ -76,11 +76,11 @@ services.AddLiteBus(litebus =>
 | `DefaultDestination` | `""` | Exchange name |
 | `ContentType` | `application/json` | Outgoing MIME content type |
 | `Persistent` | `true` | Durable message flag |
-| `Mandatory` | `false` | Fail publish when unroutable |
+| `Mandatory` | `true` | Fail publish when unroutable |
 | `ResolveRoute` | `null` | Route selector after topic fallback |
 | `ValidatePayloadBeforeDispatch` | `false` | Deserialize payload before publish for validation |
 
-Outbox route order is tenant strategy, then envelope `Topic`, then `ResolveRoute`, then contract name.
+Outbox route order is tenant strategy, then `ResolveRoute`, then envelope `Topic`, then contract name.
 
 `AmqpConnectionOptions`:
 

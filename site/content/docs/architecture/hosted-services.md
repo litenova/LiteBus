@@ -24,7 +24,7 @@ builder.Services.AddLiteBus(liteBus =>
 
 You register storage, dispatch, and processor hosting inside one builder lambda. The builder records your choices before module build, so the order of calls inside the lambda does not change the resolved path. Startup tasks run sequentially before any background service loop starts.
 
-## Register Work On The Manifest
+## Register Work on the Manifest
 
 Modules register host work through `IModuleConfiguration`, and `AddLiteBus` exposes the result as `LiteBusHostManifest`. Use the manifest to see what a composition registered.
 
@@ -41,7 +41,7 @@ Modules register host work through `IModuleConfiguration`, and `AddLiteBus` expo
 
 Compose through parent module builders. Register storage, dispatch, and ingress inside `AddInbox` or `AddOutbox` with `Use*` extensions. Do not register host framework types directly from core or adapter packages.
 
-## Enable The Inbox Processor
+## Enable the Inbox Processor
 
 ```csharp
 builder.AddInbox(inbox =>
@@ -55,7 +55,7 @@ builder.AddInbox(inbox =>
 
 `EnableInboxProcessor` registers `InboxProcessorBackgroundService` on the manifest. You must register one storage module and one dispatcher module on the same builder first. The inbox module throws at build time when the processor is enabled without a dispatcher. `PollInterval` defaults to one second, `StartupDelay` defaults to zero, and `UseAdaptivePolling` defaults to true.
 
-## Enable The Outbox Processor
+## Enable the Outbox Processor
 
 ```csharp
 builder.AddOutbox(outbox =>
@@ -95,11 +95,11 @@ inbox.UsePostgreSqlStorage(postgres =>
 
 `UsePostgreSqlStorage` registers the inbox or outbox schema initializer as `IStartupTask` when schema initialization is enabled, which is the default. `EnsureAsync` creates missing tables and rejects incompatible shapes without converting them. Inbox, outbox, and saga use schema version 1. Apply DDL in your deploy path and call `ValidateAsync` in deploy checks. Call `DisableSchemaInitialization()` when migrations own all DDL. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md).
 
-## Consume Broker Messages With Ingress
+## Consume Broker Messages with Ingress
 
 `UseAmqpIngress` registers `TransportInboxIngressConsumer` by default. Call `ingress.DisableIngressConsumer()` or set `ingress.HostOptions.Enabled = false` to register the handler without a consumer loop. Register `AddAmqpTransport(connectionOptions)` once at the root composition boundary. AMQP ingress and dispatch share its `IMessageConsumer` and `ITransportPublisher`; neither feature adapter creates broker connectivity during `Build()`.
 
-## Send Commands On A Loop
+## Send Commands on a Loop
 
 ```csharp
 registry.AddCommands(commands => commands
@@ -111,9 +111,9 @@ registry.AddCommands(commands => commands
 
 `CommandModuleBuilder.AddRecurring` from `LiteBus.Commands.Recurring` registers `RecurringCommandBackgroundService<TCommand>` through the manifest, one per registered command type. Each pass opens its own dispatch scope and sends one command. A pass that throws is logged and the loop continues after `ErrorBackoff`, which defaults to five minutes. A pass classified as an optimistic-concurrency conflict by `RecurringCommandHostOptions.IsConcurrencyConflict` is logged at Information (EventId 2104) and waits `Interval`, which defaults to one minute. A result that implements `IRecurringWorkReport` with `HasMoreWork` set to true skips the interval so a backlog clears without idle waits.
 
-The loop runs on every host instance because LiteBus has no leader election. Use it for a command that drains work by leasing rows. Use inbox or outbox processors for work that must be claimed exactly once. See [Recurring Commands](../concepts/recurring-commands.md).
+The loop runs on every host instance because LiteBus has no leader election. Use it for a command that drains work by leasing rows. Use inbox or outbox processors for work that must be claimed exactly once. See [Recurring Commands](../integrations/recurring-commands.md).
 
-## Run Without The Generic Host
+## Run Without the Generic Host
 
 Resolve `InboxProcessorBackgroundService` or any manifest `IBackgroundService` and call `ExecuteAsync` when you do not use the generic host. Resolve schema initializers or any `IStartupTask` and call `RunAsync` for manual startup work.
 
@@ -125,12 +125,12 @@ Resolve `InboxProcessorBackgroundService` or any manifest `IBackgroundService` a
 | Startup failure | When a startup task throws, host startup fails closed: background services do not start and the exception propagates from `IHostedService.StartAsync` |
 | Loop failure | When a LiteBus loop throws unexpectedly, the orchestrator requests `IHostApplicationLifetime.StopApplication()` and rethrows for the host to observe |
 | Management and health defaults | `FailHealthWhenNoProbes` defaults to true; probe timeout defaults to five seconds; `MaxParallelism` defaults to four; see [Diagnostics and Health](../operations/diagnostics-and-health.md) |
-| Operator queries | `IInboxManager` and `IOutboxManager` expose `GetStatusCountsAsync`, filtered queries, selective requeue, purge guards, and dead-letter replay; see [Operations and Management](../operations/README.md) |
+| Operator queries | `IInboxManager` and `IOutboxManager` expose `GetStatusCountsAsync`, filtered queries, selective requeue, purge guards, and dead-letter replay; see [Operations and Management](../operations/management-endpoints.md) |
 | Delayed visibility | Schedule inbox accept or outbox enqueue through `MessageVisibility` on `InboxAcceptMetadata` and `OutboxEnqueueMetadata`, not through separate scheduler interfaces |
 | Telemetry names | Instrument names on public telemetry types are stable contract; see [Architecture](README.md) |
 
 ## Next
 
 - [Diagnostics and Health](../operations/diagnostics-and-health.md)
-- [Operations and Management](../operations/README.md)
+- [Operations and Management](../operations/management-endpoints.md)
 - [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md)

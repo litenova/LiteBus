@@ -109,6 +109,74 @@ Choose MediatR when you prefer one request abstraction over the command/query sp
 
 The two are not mutually exclusive at the concept level: the CQS discipline LiteBus enforces is a discipline you can also keep by hand in MediatR. LiteBus moves it from convention into the compiler.
 
+## Migrating from MediatR
+
+### Handler Registration
+
+MediatR:
+
+```csharp
+services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(PlaceOrderHandler).Assembly));
+```
+
+LiteBus:
+
+```csharp
+services.AddLiteBus(builder =>
+{
+    builder.AddMessaging(messaging =>
+        messaging.Contracts.Register<OrderPlaced>("orders.events.placed", 1));
+    builder.AddCommands(c => c.RegisterFromAssembly(typeof(PlaceOrderHandler).Assembly));
+    builder.AddEvents(e => e.RegisterFromAssembly(typeof(PlaceOrderHandler).Assembly));
+});
+```
+
+Call `RegisterFromAssembly` once per assembly on each semantic module builder (`AddCommands`, `AddQueries`, `AddEvents`). Each scan registers the message types and handlers for its axis. Register durable contracts for any type stored in inbox or outbox.
+
+`IMediator.Send` maps to `ICommandMediator.SendAsync` or `IQueryMediator.QueryAsync`, and `IMediator.Publish` maps to `IEventMediator.PublishAsync`.
+
+### Pipeline Behaviors
+
+Register pre/post handlers as ordinary DI types discovered by assembly scanning. See [Pipeline Model](#pipeline-model) for the full behavior mapping.
+
+| MediatR behavior concern | LiteBus approach |
+| --- | --- |
+| Validation before handler | `ICommandValidator<TCommand>` (returns `Validity`; a failure is a return value, not an exception) |
+| Query read-only guard | Analyzer LB1003 warns when query handlers inject command, event, inbox, or outbox APIs |
+
+### Commands with Results
+
+MediatR uses one `IRequest<TResponse>` abstraction. LiteBus keeps writes and reads separate:
+
+- `ICommand` for fire-and-forget mutations
+- `ICommand<TResult>` when the handler returns a value
+- `IQuery<TResult>` for reads
+
+Do not store `ICommand<TResult>` in the inbox. Analyzer LB1004 reports that mistake.
+
+### Notifications and Events
+
+Replace `INotification` with `IEvent` and `INotificationHandler<T>` with `IEventHandler<T>`. Publish through `IEventMediator.PublishAsync`. For integration events that must survive process restarts, enqueue through `IOutbox.EnqueueAsync` and let the outbox processor publish after commit.
+
+### Durable Messaging Patterns
+
+MediatR has no inbox or outbox. Common LiteBus replacements:
+
+| MediatR pattern | LiteBus replacement |
+| --- | --- |
+| Retry failed handler in memory | Inbox processor with lease, retry, and dead-letter storage |
+| Publish after `SaveChanges` | EF Core transactional outbox plus `ITransactionalOutbox` |
+| Defer work to background thread | `MessageVisibility` on `InboxAcceptMetadata` (for example `Visibility`) |
+| Idempotent webhook handling | `IInbox.AcceptAsync` with `InboxAcceptMetadata.Idempotency` |
+
+### Hosting and Operations
+
+- Register background processors with `EnableInboxProcessor` / `EnableOutboxProcessor` on the module builder.
+- Map operator APIs with `AddLiteBusManagementEndpoints` from `LiteBus.Extensions.AspNetCore`.
+- Export metrics with `AddLiteBusInboxMetrics()`, `AddLiteBusOutboxMetrics()`, and `AddLiteBusTransportMetrics()` from the matching `*.Extensions.OpenTelemetry` packages you reference.
+
+See [Hosted services](../architecture/hosted-services.md) for startup tasks, processor options, and management endpoint recipes.
+
 ## Next
 
 - [Getting Started](../getting-started/README.md) to run each LiteBus shape in code

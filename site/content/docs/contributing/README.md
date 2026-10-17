@@ -14,7 +14,7 @@ Build the whole solution from the repository root. The solution uses the `.slnx`
 dotnet build LiteBus.slnx
 ```
 
-`StyleCop.Analyzers` runs documentation rules (SA1600 through SA1629) as warnings from `src/Directory.Build.props`. Layout and naming rules stay off so existing code does not churn. Fix documentation warnings before you finish a change under `src/`. File header rules (SA1633 and related) stay off, so do not add copyright or license banners.
+`StyleCop.Analyzers` is referenced from `src/Directory.Build.props` and runs documentation rules (SA1600 through SA1629) as warnings via `src/.editorconfig`. Layout, naming, ordering, readability, and spacing rules stay off except one-type-per-file (SA1402), file-name-matches-type (SA1649), and file-scoped namespaces (IDE0161, error). Fix documentation warnings before you finish a change under `src/`. File header rules (SA1633 and related) stay off, so do not add copyright or license banners.
 
 ## Test
 
@@ -24,7 +24,7 @@ Run the full suite with this command.
 dotnet test LiteBus.slnx
 ```
 
-`LiteBus.Storage.PostgreSql.IntegrationTests` uses Testcontainers and needs a running Docker daemon. Without Docker those tests skip with a message that says so. Run the unit tests only with this filter.
+`LiteBus.Storage.IntegrationTests` uses Testcontainers and needs a running Docker daemon. Without Docker those tests skip during fixture setup with a message that says so. Exclude the PostgreSQL integration tests with this filter.
 
 ```bash
 dotnet test LiteBus.slnx --filter "FullyQualifiedName!~PostgreSql"

@@ -26,6 +26,7 @@ Publishers record documented broker SDK exceptions. Caller cancellation and unex
 | `ITransportCircuitBreaker` | `AcquirePermit()` | Admit a normal operation or the single half-open probe |
 | `ITransportCircuitBreaker` | `RecordFailure(permit)` | Record a failure for the generation that admitted the operation |
 | `ITransportCircuitBreaker` | `RecordSuccess(permit)` | Record success without allowing stale completion to reset newer state |
+| `ITransportCircuitBreaker` | `ReleasePermit(permit)` | Release a permit without changing broker resilience state |
 | `TransportCircuitBreakerPermit` | opaque value | Carries admission generation and recovery-probe identity |
 | `ITransportCircuitBreakerRegistry` | `GetPublisherCircuit(destination)` | Stable publisher breaker scoped by destination |
 | `ITransportCircuitBreakerRegistry` | `IsAnyOpen`, `FailureCount` | Aggregate publisher state for metrics |

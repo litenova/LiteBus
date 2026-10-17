@@ -56,7 +56,7 @@ public class MyHandler : ICommandHandler<MyCommand>
 
 ## Key Features
 
-### 1. Data: Handing a Typed Value Forward
+### Typed Data
 
 `Data` is an `IHandleContextData`: a store keyed by the CLR type of the value rather than by a string. Use it whenever one stage resolves something a later stage needs.
 
@@ -135,9 +135,22 @@ Keys are compared with `object.Equals`, which is what makes an identifier value 
 
 Access is synchronised, so event handlers running in parallel over one context can read and write safely. Two handlers racing to set the same type still leave whichever landed last.
 
-### 2. Items Dictionary
+### Items Dictionary
 
 The `Items` dictionary is a key-value collection (`IDictionary<string, object>`) for sharing state between handlers in the same pipeline. Reach for it when the key comes from outside the process, or when the value is a flag rather than an object. Prefer `Data` for anything with a type worth keying on: the string key is invented at both ends, the cast is unchecked, and a rename in one stage becomes a runtime failure in another.
+
+Seed `Items` per call through the mediation settings object. `CommandMediationSettings.Items`, `QueryMediationSettings.Items`, and `EventMediationSettings.Items` are copied into the context when the mediation starts, so every stage sees the seeded values:
+
+```csharp
+var settings = new CommandMediationSettings
+{
+    Items = { ["TenantId"] = tenantId }
+};
+
+await commandMediator.SendAsync(command, settings, cancellationToken);
+```
+
+The context holds a copy: writes a handler makes to `Items` during the mediation do not flow back into the settings object.
 
 **Example**: Passing a User ID from a pre-handler to a post-handler for auditing.
 
@@ -167,7 +180,7 @@ public class AuditPostHandler : ICommandPostHandler<CreateProductCommand>
 }
 ```
 
-### 3. Suppressing Post-Handlers
+### Suppressing Post-Handlers
 
 `SuppressPostHandlers()` stops the post-handlers that have not run yet. Use it when the work turned out to be a no-op and the reactions to it should not fire.
 
@@ -183,7 +196,7 @@ It does not stop the calling handler, and it does not change the outcome: the me
 
 To stop the pipeline **before** the work happens, implement a guard such as `ICommandGuard<TCommand>` and return a `Verdict`, or a shortcut such as `IQueryShortcut<TQuery, TResult>` and return a `Shortcut<TResult>`. Both are return values rather than context calls, so the compiler requires the decision and nothing after it runs by accident. See [The Handler Pipeline](handler-pipeline.md).
 
-### 4. `MessageResult`: Aborting and Post-Handler Override
+### Overriding the Result
 
 The `MessageResult` property (`object? MessageResult { get; set; }`) on `IExecutionContext` serves two purposes:
 
@@ -214,7 +227,7 @@ public class EnrichResultPostHandler : ICommandPostHandler<MyCommand, Result<MyR
 ```
 
 > **Important nuances:**
-> - Writing to `MessageResult` from a pre-handler or the main handler has **no effect** on the value returned to the caller; only the post-handler code path reads it on the normal (non-aborted) flow.
+> - The mediator reads `MessageResult` once, after the final post-handler on the normal (non-aborted) flow. A non-null value replaces the main handler's result no matter which stage wrote it, so a pre-handler or main-handler write takes effect the same way a post-handler write does.
 > - **Last write wins**: if multiple post-handlers write to `MessageResult`, the value present after the final post-handler executes is the one returned.
 > - This feature applies to commands with results (`ICommand<TResult>`) and queries (`IQuery<TResult>`). It does **not** apply to void commands (`ICommand`) or events; writing to `MessageResult` in those pipelines is silently ignored.
 

@@ -42,7 +42,7 @@ flowchart TD
 
 ## Batch Mode Behavior
 
-When `EnableBatchAccept=true`, the consumer:
+When `Safety.EnableBatchAccept` is true, the consumer:
 
 - Buffers messages up to `Safety.BatchSize`.
 - Flushes on threshold, timer (`BatchMaxWait`), or shutdown.
@@ -58,7 +58,7 @@ When `EnableBatchAccept=true`, the consumer:
 - `ingress.transport-handler`
 - `ingress.ack-policy`
 - `ingress.host-loop`
-- `transport.message-consumer` (broker adapter)
+- `transport.publish-consume-contracts` (broker adapter)
 
 ## Invariants
 

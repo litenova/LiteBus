@@ -4,6 +4,7 @@
 - **Name**: Events
 - **Maturity**: GA
 - **Summary**: Broadcasts in-process events to zero or many handlers with configurable routing and concurrency.
+- **Guide**: [Event module](../../concepts/events.md)
 
 ## What It Does
 

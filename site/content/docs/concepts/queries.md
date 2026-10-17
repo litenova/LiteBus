@@ -16,7 +16,7 @@ public sealed record SearchProductsQuery(string SearchTerm) : IStreamQuery<Produ
 
 Every query returns a result. Use `IQuery<TResult>` for one awaitable value and `IStreamQuery<TResult>` for an async stream of values. Pick the stream shape when the result set is large enough that holding it all in memory is wasteful, for real-time feeds, or for server-driven paging.
 
-Two rules define a query. It is handled by exactly one handler, and it has no side effects. Mediation throws when zero handlers or more than one handler is registered. The no-side-effects rule is a discipline you keep: when the handler writes, model the operation as a command instead. Name queries for the data they return, such as `GetProductByIdQuery` or `ListOpenOrdersQuery`.
+Two rules define a query. It is handled by exactly one handler, and it has no side effects. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level survives: direct handlers win whenever any survive, and handlers registered for a base type apply only when no direct handler does. The no-side-effects rule is a discipline you keep: when the handler writes, model the operation as a command instead. Name queries for the data they return, such as `GetProductByIdQuery` or `ListOpenOrdersQuery`.
 
 ## Handle a Query
 
@@ -131,7 +131,7 @@ Refusing a read is a different job. Implement `IQueryGuard<TQuery>` and return `
 ## Details
 
 - The full stage order, including guards, validators, shortcuts, post-handlers, error-handlers, and completion handlers, lives on [The Handler Pipeline](handler-pipeline.md). That page is authoritative when this page and that page seem to differ.
-- When a refusal is a routine branch rather than a fault, call `TryQueryAsync` and read the outcome value instead of catching. When you need to ask whether a read would be permitted without running it, call `EvaluateAsync`.
+- When a refusal is a routine branch rather than a fault, call `TryQueryAsync` and read the outcome value instead of catching. When you need to ask whether a read would be permitted without running it, call `EvaluateAsync`. See [Refusal as a Value](handler-pipeline.md#refusal-as-a-value).
 
 ## Next
 

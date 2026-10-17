@@ -4,6 +4,7 @@
 - **Name**: Handler priority
 - **Maturity**: GA
 - **Summary**: Orders handlers by explicit priority and registration sequence, with optional parallel execution for events.
+- **Guide**: [Handler priority](../../concepts/handler-priority.md)
 
 ## What It Does
 
@@ -28,7 +29,7 @@ public sealed class ValidateOrderPreHandler : ICommandPreHandler<PlaceOrderComma
 | API | Role |
 | --- | --- |
 | `[HandlerPriority(int)]` | Declares handler priority |
-| `IMainHandlerDescriptor.Priority` | Resolved priority metadata |
+| `IHandlerDescriptor.Priority` | Resolved priority metadata |
 | `EventExecutionSettings.PriorityGroupsConcurrencyMode` | Cross-group execution mode |
 | `EventExecutionSettings.HandlersWithinSamePriorityConcurrencyMode` | Intra-group execution mode |
 | `EventExecutionSettings.FaultMode` | Error surfacing mode for sibling handlers |

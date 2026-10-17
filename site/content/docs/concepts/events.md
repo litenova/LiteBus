@@ -79,7 +79,22 @@ Task PublishAsync(IEvent @event, EventMediationSettings? eventMediationSettings 
 Task PublishAsync<TEvent>(TEvent @event, EventMediationSettings? eventMediationSettings = null, CancellationToken cancellationToken = default) where TEvent : notnull;
 ```
 
-Publish an `IEvent` through either overload and a plain object through the generic one. An in-memory publish runs every handler in the same call before `PublishAsync` returns. Set `ThrowIfNoHandlerFound` to fail a publish with no subscribers; leave the default `false` when silence is fine. To publish across a transaction or process boundary instead, store the event and publish it after commit. See [Outbox](../reliable-messaging/outbox.md) and [Domain Events and Unit of Work](domain-events-and-unit-of-work.md).
+Publish an `IEvent` through either overload and a plain object through the generic one. An in-memory publish runs every handler in the same call before `PublishAsync` returns. Set `ThrowIfNoHandlerFound` to fail a publish with no subscribers; leave the default `false` when silence is fine.
+
+Set `AutoRegisterUnregisteredMessageTypes` to register a plain unregistered event type in the message registry on first publish:
+
+```csharp
+var settings = new EventMediationSettings
+{
+    AutoRegisterUnregisteredMessageTypes = true
+};
+
+await eventMediator.PublishAsync(new OrderShipped(orderId, tracking, shippedAt), settings, cancellationToken);
+```
+
+The default is `false`, and the setting is independent of `ThrowIfNoHandlerFound`: it controls registration, not whether a publish with no subscribers fails. It covers plain-object events that were never registered, so a domain event reaches the pipeline without a registration line. It is not a substitute for assembly registration: registered handlers, pipeline roles, and metadata still come from `RegisterFromAssembly` or explicit `Register` calls.
+
+To publish across a transaction or process boundary instead, store the event and publish it after commit. See [Outbox](../reliable-messaging/outbox.md) and [Domain Events and Unit of Work](../reliable-messaging/domain-events-and-unit-of-work.md).
 
 ## Control How Handlers Run
 

@@ -2,6 +2,7 @@
 
 - **ID**: `mediator.recurring-commands`
 - **Summary**: Sends one command on a fixed interval for the life of the host, registered through `CommandModuleBuilder.AddRecurring`.
+- **Guide**: [Recurring commands](../../integrations/recurring-commands.md)
 - **Maturity**: GA
 
 ## What It Does
@@ -22,7 +23,7 @@
 
 ### Registration
 
-- Composed inside `AddCommands`, so a loop cannot be registered without the axis that mediates it.
+- Composed inside `AddCommands`, so a loop cannot be registered without the axis that mediates it. `CommandModuleBuilder.RegisterChildModule(IModule)` is the seam feature packages compose through; `LiteBus.Commands.Recurring` is the worked example.
 - Registers `RecurringCommandBackgroundService<TCommand>` through `IModuleConfiguration.RegisterBackgroundService`.
 - One registration per command type; each gets its own loop and options.
 
@@ -67,7 +68,7 @@
 
 ## Deep Docs
 
-- [Recurring Commands](../../concepts/recurring-commands.md)
+- [Recurring Commands](../../integrations/recurring-commands.md)
 
 ## Test Coverage
 

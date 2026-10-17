@@ -45,7 +45,6 @@ Expected diagnostic:
 ## Good Example
 
 ```csharp
-using System.Collections.Generic;
 using LiteBus.Commands.Abstractions;
 
 public sealed class Sender
@@ -56,7 +55,7 @@ public sealed class Sender
         {
             Routing = new CommandRoutingSettings
             {
-                Tags = new List<string> { "frontend" }
+                Tags = ["frontend"]
             }
         };
     }

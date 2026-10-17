@@ -1,5 +1,7 @@
 # Dispatch Axis Capability Catalog
 
+Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+
 Dispatch adapters turn a leased durable envelope into a side effect. Inbox processors call `IInboxDispatcher.DispatchAsync`; outbox processors call `IOutboxDispatcher.DispatchAsync`. The processor persists outcome state after dispatch returns or throws.
 
 The dispatch axis sits between durable processing and execution targets. It never accepts new messages, never owns store schema, and never decides retry budgets. Those responsibilities belong to ingress, storage, and durable core capabilities.
@@ -91,4 +93,4 @@ Primary test projects referenced across capability pages:
 - [Kafka transport guide](../../integrations/kafka.md)
 - [Dependency graph: Dispatch packages](../../architecture/dependency-graph.md)
 - [Integration tests: Dispatch matrix](../../testing/integration-tests.md)
-- [Feature Index: Dispatch](../../reference/feature-index-v7.md)
+- [Feature Index: Dispatch](../../reference/feature-index.md)

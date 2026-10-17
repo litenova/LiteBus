@@ -1,4 +1,12 @@
 {
-  "title": "Roadmap",
-  "pages": ["...", "reliability"]
+    "title":  "Roadmap",
+    "pages":  [
+                  "README",
+                  "reliability",
+                  "---Design Notes---",
+                  "integrator-feedback",
+                  "marten-outbox-writer",
+                  "storage-deduplication"
+              ]
 }
+

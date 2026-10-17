@@ -37,7 +37,7 @@ This capability is composition only. It does not own ASP.NET routes, health chec
 
 ## Requires
 
-- `hosting.module-registry`
+- `runtime.module-registry`
 - `hosting.host-manifest`
 - `hosting.microsoft-hosting-bridge`
 

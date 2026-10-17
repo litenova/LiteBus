@@ -21,11 +21,11 @@ Quick map from capability to documentation and primary packages. For install com
 | Execution context | [Execution context](../concepts/execution-context.md) | `LiteBus.Messaging.Abstractions` |
 | Unit-of-work commit position | [Handler priority](../concepts/handler-priority.md#the-reserved-framework-window) | `LiteBus.Messaging.Abstractions` |
 | Audit actor attribution | [Auditing](../concepts/auditing.md) | `LiteBus.Messaging`, axis packages |
-| Refusal as a value (`TrySendAsync`) | [The handler pipeline](../concepts/handler-pipeline.md#refusal-mappers) | Core mediator packages |
-| Dry-run evaluation (`EvaluateAsync`) | [The handler pipeline](../concepts/handler-pipeline.md#deciding-whether-the-work-happens) | Core mediator packages |
-| Mediation telemetry | [Architecture](../architecture/README.md) | `LiteBus.Messaging.Extensions.OpenTelemetry` |
-| Pipeline plan (`Explain`) | [The handler pipeline](../concepts/handler-pipeline.md) | `LiteBus.Messaging` |
-| Composition summary | [Hosted services](../architecture/hosted-services.md) | `LiteBus.Messaging` |
+| Refusal as a value (`TrySendAsync`) | [The handler pipeline](../concepts/handler-pipeline.md#refusal-as-a-value) | Core mediator packages |
+| Dry-run evaluation (`EvaluateAsync`) | [The handler pipeline](../concepts/handler-pipeline.md#refusal-as-a-value) | Core mediator packages |
+| Mediation telemetry | [The handler pipeline](../concepts/handler-pipeline.md#mediation-telemetry) | `LiteBus.Messaging.Extensions.OpenTelemetry` |
+| Pipeline plan (`Explain`) | [The handler pipeline](../concepts/handler-pipeline.md#inspecting-the-plan) | `LiteBus.Messaging` |
+| Composition summary | [Getting started](../getting-started/README.md#log-the-composition-summary) | `LiteBus.Messaging` |
 | Pipeline test harness | [Testing](../testing/README.md) | `LiteBus.Testing.Mediation` |
 | Declaration defaults | [Message definitions](../concepts/message-definitions.md) | `LiteBus.Messaging` |
 | Audit catalogue | [Auditing](../concepts/auditing.md) | `LiteBus.Messaging` |
@@ -39,7 +39,7 @@ Quick map from capability to documentation and primary packages. For install com
 | Outbox enqueue + processor | [Outbox](../reliable-messaging/outbox.md) | `IOutbox.EnqueueAsync(OutboxEnqueueItem)` |
 | Delivery semantics | [Reliable messaging semantics](../reliable-messaging/semantics.md) | Metadata on `*Item` |
 | Atomic domain + durable writes | [Transactional messaging writes](../reliable-messaging/transactional-writes.md) | `ITransactionalInbox` / `ITransactionalOutbox` |
-| Domain events to outbox | [Domain events and unit of work](../concepts/domain-events-and-unit-of-work.md) | `OutboxEnqueueMetadata` |
+| Domain events to outbox | [Domain events and unit of work](../reliable-messaging/domain-events-and-unit-of-work.md) | `OutboxEnqueueMetadata` |
 
 ## Storage
 
@@ -53,7 +53,7 @@ Shared PostgreSQL primitives: `LiteBus.Storage.PostgreSql`.
 
 ## Dispatch
 
-Broker dispatch adapters ship for every transport package. The [Documentation Index](../index.md) records the release classification for each transport, dispatch, and ingress surface.
+Broker dispatch adapters ship for every transport package. The [Capability Catalog](capability-catalog.md) records the maturity tier for each transport, dispatch, and ingress capability.
 
 | Path | Inbox | Outbox |
 | --- | --- | --- |
@@ -81,7 +81,7 @@ Transport platform: `LiteBus.Transport.*`. Kafka transport is GA; AWS SQS and Az
 | Capability | Doc | Registration |
 | --- | --- | --- |
 | Manifest (startup, background, diagnostics) | [Hosted services](../architecture/hosted-services.md) | `IModuleConfiguration` |
-| Management HTTP | [Operations and management](../operations/README.md) | `LiteBus.Extensions.AspNetCore` |
+| Management HTTP | [Operations and management](../operations/management-endpoints.md) | `LiteBus.Extensions.AspNetCore` |
 | Health checks | [Diagnostics and health](../operations/diagnostics-and-health.md) | `LiteBus.Extensions.Diagnostics.HealthChecks` |
 | OpenTelemetry | [Architecture](../architecture/README.md) | `*.Extensions.OpenTelemetry` per axis, including `LiteBus.Messaging.Extensions.OpenTelemetry` for mediation |
 

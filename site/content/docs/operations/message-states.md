@@ -1,6 +1,8 @@
 # Message States and Alerting
 
-Inbox rows move through `InboxStatus` and outbox rows move through `OutboxStatus`. Each value names who owns the row right now: the writer, the leased processor, or nobody (terminal). This page is the operator reference for those values. For the transition model, forensic fields, and retention cutoff semantics, read [Envelope Lifecycle](../catalog/durable-core/envelope-lifecycle.md) first.
+This page defines the operator states and alerts. [Reliable Messaging Semantics](../reliable-messaging/semantics.md) defines the delivery guarantees, and [Ordering and Concurrency Guarantees](../reliable-messaging/ordering.md) defines the concurrency properties.
+
+Inbox rows move through `InboxStatus` and outbox rows move through `OutboxStatus`. Each value names who owns the row right now: the writer, the leased processor, or nobody (terminal). This page is the operator reference for those values. For test evidence behind these transitions, see [Envelope Lifecycle](../catalog/durable-core/envelope-lifecycle.md).
 
 ## Outbox States (`OutboxStatus`)
 
@@ -28,22 +30,78 @@ Inbox rows move through `InboxStatus` and outbox rows move through `OutboxStatus
 
 ## Attempt Count Is Not a Failure Count
 
-Leasing a row charges the attempt: `InboxEnvelope.AsLeased` and `OutboxEnvelope.AsLeased` add one to `AttemptCount`, and the lease update writes `attempt_count + 1`, so a process that crashes mid-dispatch still spends an attempt. `AsFailed` and `AsDeadLettered` do not add to it. A dispatch cancelled by the caller's token is not a failure: `InboxProcessorEnvelopeHandler` and `OutboxProcessorEnvelopeHandler` return no outcome through the `MediationExceptionFilters.IsCallerCancellation` filter, so no error is recorded and no retry is scheduled. When the cancellation came from the processor's own pass token (host shutdown or a drain), the processor also calls `ILeaseRenewable.ReleaseLeaseAsync`, which returns the row to `Pending` (or `Failed` when it already carries `LastError`), clears the lease, and decrements `AttemptCount`, so a shutdown leaves the counter where it was. A release that fails or exceeds its 5 second budget is logged (EventId 3012) and the lease expires instead, with the attempt counted. A cancellation caused by a lost lease is not released: another processor may already own the row. `AttemptCount` therefore counts leases that ended in an outcome or a crash, not failures.
+Leasing a row charges the attempt: `InboxEnvelope.AsLeased` and `OutboxEnvelope.AsLeased` add one to `AttemptCount`, and the lease update writes `attempt_count + 1`, so a process that crashes mid-dispatch still spends an attempt. `AsFailed` and `AsDeadLettered` do not add to it.
+
+A dispatch cancelled by the caller's token is not a failure: `InboxProcessorEnvelopeHandler` and `OutboxProcessorEnvelopeHandler` return no outcome through the `MediationExceptionFilters.IsCallerCancellation` filter, so no error is recorded and no retry is scheduled.
+
+When the cancellation came from the processor's own pass token (host shutdown or a drain), the processor also calls `ILeaseRenewable.ReleaseLeaseAsync`, which returns the row to `Pending` (or `Failed` when it already carries `LastError`), clears the lease, and decrements `AttemptCount`, so a shutdown leaves the counter where it was. A release that fails or exceeds its 5 second budget is logged (EventId 3012) and the lease expires instead, with the attempt counted. A cancellation caused by a lost lease is not released: another processor may already own the row. `AttemptCount` therefore counts leases that ended in an outcome or a crash, not failures.
 
 Alert on the dead-letter count and on the age of the oldest pending message rather than on `attempt_count >= N` heuristics, for two reasons. First, a fast-failing message reaches dead letter through the retry policy on its own: `AttemptCount >= Retry.MaxAttempts` already dead-letters, and non-retryable messages dead-letter on the first attempt, so a count heuristic duplicates the policy and pages on messages the processor already retired. Second, the counter cannot distinguish a message failing every attempt from one leased repeatedly after crashes or lost leases. Dead-letter count names messages that gave up; oldest-pending age names lag. Both are actionable; an attempt-count threshold is neither.
 
 ```csharp
-var counts = await outboxManager.GetStatusCountsAsync(cancellationToken);
+var counts = await outboxManager.GetStatusCountsAsync(cancellationToken).ConfigureAwait(false);
 var deadLettered = counts.TryGetValue(OutboxStatus.DeadLettered, out var n) ? n : 0;
 
 var page = await outboxManager.QueryAsync(
     new OutboxMessageFilter { Statuses = [OutboxStatus.Pending] },
     new OutboxMessagePageRequest { PageSize = 100 },
-    cancellationToken);
+    cancellationToken).ConfigureAwait(false);
 var oldestPendingAge = page.Items.Count == 0
     ? TimeSpan.Zero
     : DateTimeOffset.UtcNow - page.Items.Min(m => m.CreatedAt);
 ```
+
+## Query and Page Messages
+
+`IInboxManager.QueryAsync` and `IOutboxManager.QueryAsync` take a filter plus a page request. Every filter field is optional; unset fields do not narrow the result.
+
+| Field | Inbox | Outbox |
+| --- | --- | --- |
+| `MessageId`, `MessageIds` | Yes | Yes |
+| `Statuses` | `InboxStatus` values | `OutboxStatus` values |
+| `ContractName` | Yes | Yes |
+| `Topic` | No | Yes |
+| `CorrelationId`, `CausationId` | Yes | Yes |
+| `TenantId` | Yes | Yes |
+| `CreatedAfter`, `CreatedBefore` | Inclusive `CreatedAt` bounds | Inclusive `CreatedAt` bounds |
+
+`InboxMessageFilter.DeadLettered` and `OutboxMessageFilter.DeadLettered` are presets that match only dead-lettered rows. Page requests carry `PageSize` (default 50) and an opaque keyset `Cursor`. Each page returns its items plus `HasMore` and `NextCursor`; pass `NextCursor` as the next `Cursor` until `HasMore` is false.
+
+```csharp
+var filter = InboxMessageFilter.DeadLettered;
+string? cursor = null;
+
+do
+{
+    var page = await inboxManager.QueryAsync(
+        filter,
+        new InboxMessagePageRequest { PageSize = 50, Cursor = cursor },
+        cancellationToken).ConfigureAwait(false);
+
+    foreach (var envelope in page.Items)
+    {
+        // Inspect envelope.ErrorType, envelope.LastError, and envelope.AttemptCount.
+    }
+
+    cursor = page.HasMore ? page.NextCursor : null;
+}
+while (cursor is not null);
+```
+
+Two more manager calls support operations. `GetSchemaInfoAsync` returns `StoreSchemaInfo`: the store component name, the expected and recorded schema versions, and the schema and table names for relational backends. Poll it after deploys and migrations to confirm the store matches the running release. `GetRetentionStatusAsync` returns `RetentionRunStatus`: whether the cleanup loop is enabled, the configured retention period and interval, and the timestamp, deleted count, and error of the last pass. Poll it when terminal rows accumulate to see whether cleanup runs and what its last pass did.
+
+## Retention Cutoff
+
+Cleanup services call `IInboxRetentionStore.DeleteCompletedOlderThanAsync` and `IOutboxRetentionStore.DeletePublishedOlderThanAsync` with a cutoff timestamp. Implementations compare the cutoff against the effective terminal timestamp:
+
+| Store | Effective timestamp | SQL expression |
+| --- | --- | --- |
+| Inbox | Completion time when recorded, otherwise acceptance time | `COALESCE(completed_at, created_at)` |
+| Outbox | Publication time when recorded, otherwise enqueue time | `COALESCE(published_at, created_at)` |
+
+Inbox and outbox schemas include `completed_at`, `published_at`, and operational history columns such as `last_attempted_at` and `dead_lettered_at`. Retention deletes rows by finish time, not accept time: a message accepted long ago but completed recently stays until the cutoff passes its completion time.
+
+Retention runs either on the `EnableCleanup` background loop or on demand through `RunRetentionPurgeAsync` (and `POST .../retention/purge` on the [Management Endpoints](management-endpoints.md)). Use `GetRetentionStatusAsync` to confirm the loop policy and its last outcome before purging by hand.
 
 ## Management and Observability Surfaces
 
@@ -52,8 +110,8 @@ Counts and rows are exposed in two places. Use the manager APIs for point-in-tim
 | Surface | Members | Use |
 | --- | --- | --- |
 | `IInboxManager` / `IOutboxManager` | `GetStatusCountsAsync`, `QueryAsync`, `GetMessageAsync` | Dashboards, runbooks, and health probes read live counts and rows here. These are authoritative; gauges below are cached for export efficiency. |
-| `IInboxManager` / `IOutboxManager` | `RequeueAsync`, `RequeueDeadLettersAsync`, `PurgeAsync`, `RunRetentionPurgeAsync`, `GetRetentionStatusAsync`, `GetSchemaInfoAsync` | Replay, purge, retention, and schema inspection. The same operations back the HTTP management endpoints; see [Operations and Management](README.md). |
-| `LiteBusInboxTelemetry` / `LiteBusOutboxTelemetry` | `QueueDepthInstrumentName` (`litebus.inbox.queue.depth`, `litebus.outbox.queue.depth`) tagged by `QueueStatusAttributeName` with per-status values | Queue-depth trends per status. Rising `Pending` with flat `Processing` or `Publishing` indicates processor lag. |
+| `IInboxManager` / `IOutboxManager` | `RequeueAsync`, `RequeueDeadLettersAsync`, `PurgeAsync`, `RunRetentionPurgeAsync`, `GetRetentionStatusAsync`, `GetSchemaInfoAsync` | Replay, purge, retention, and schema inspection. The same operations back the HTTP management endpoints; see [Management Endpoints](management-endpoints.md). |
+| `LiteBusInboxTelemetry` / `LiteBusOutboxTelemetry` | `QueueDepthInstrumentName` (`litebus.inbox.queue.depth`, `litebus.outbox.queue.depth`) tagged by `QueueStatusAttributeName` (`litebus.inbox.status`, `litebus.outbox.status`) | Queue-depth trends per status. Rising `Pending` with flat `Processing` or `Publishing` indicates processor lag. |
 | `LiteBusInboxTelemetry` / `LiteBusOutboxTelemetry` | `ProcessorLeaseLostInstrumentName`, `ProcessorPersistSkippedInstrumentName`, `ProcessorPersistRejectedInstrumentName`, `ProcessorPersistFailedInstrumentName`, `CleanupErrorInstrumentName` | Lease fencing, skipped or rejected terminal persists, and retention cleanup failures. Alert when cleanup errors persist: terminal rows accumulate without purge. |
 
-Wire trend alerts to the queue-depth gauges and dead-letter counts, and link runbook pages to `GetStatusCountsAsync` plus a first-page `QueryAsync` so the on-call engineer starts from the oldest row, not from an attempt count. See [Diagnostics and health](diagnostics-and-health.md) for probe wiring.
+Wire trend alerts to the queue-depth gauges and dead-letter counts, and link runbook pages to `GetStatusCountsAsync` plus a first-page `QueryAsync` so the on-call engineer starts from the oldest row, not from an attempt count. See [Diagnostics and Health](diagnostics-and-health.md) for probe wiring.
