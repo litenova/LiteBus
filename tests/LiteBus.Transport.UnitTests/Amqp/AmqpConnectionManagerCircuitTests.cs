@@ -1,7 +1,6 @@
-using System.Net;
-using System.Net.Sockets;
 using LiteBus.Transport.Amqp;
-using RabbitMQ.Client.Exceptions;
+using LiteBus.Transport.Abstractions;
+using RabbitMQ.Client;
 
 namespace LiteBus.Transport.UnitTests.Amqp;
 
@@ -17,53 +16,60 @@ public sealed class AmqpConnectionManagerCircuitTests
     [Fact]
     public async Task GetConnectionAsync_AfterCancelledHalfOpenProbe_ShouldAdmitNextAttempt()
     {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint) listener.LocalEndpoint).Port;
-        listener.Stop();
+        var attempts = 0;
 
-        var manager = new AmqpConnectionManager(new AmqpConnectionOptions
+        // The first attempt fails and opens the circuit; every later attempt waits until it is cancelled, which is what
+        // a broker that accepts the socket but never completes the handshake looks like to the client.
+        async Task<IConnection> ConnectAsync(CancellationToken cancellationToken)
         {
-            HostName = "127.0.0.1",
-            Port = port,
-            AutomaticRecoveryEnabled = false,
-            CircuitBreaker = new AmqpCircuitBreakerOptions
+            if (Interlocked.Increment(ref attempts) == 1)
             {
-                FailureThreshold = 1,
-                BreakDuration = TimeSpan.FromMilliseconds(100)
+                throw new InvalidOperationException("broker refused the connection");
             }
-        });
+
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException("unreachable");
+        }
+
+        var manager = new AmqpConnectionManager(
+            new AmqpConnectionOptions
+            {
+                CircuitBreaker = new AmqpCircuitBreakerOptions
+                {
+                    FailureThreshold = 1,
+                    BreakDuration = TimeSpan.FromMilliseconds(50)
+                }
+            },
+            ConnectAsync);
+
         await using (manager.ConfigureAwait(false))
         {
-            try
+            var refused = () => manager.GetConnectionAsync(CancellationToken.None);
+            await refused.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
+
+            // The open circuit rejects without calling the broker.
+            var rejected = () => manager.GetConnectionAsync(CancellationToken.None);
+            await rejected.Should().ThrowAsync<TransportCircuitBreakerOpenException>().ConfigureAwait(false);
+
+            await Task.Delay(TimeSpan.FromMilliseconds(150)).ConfigureAwait(false);
+
+            using (var probeCancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100)))
             {
-                var refused = () => manager.GetConnectionAsync(CancellationToken.None);
-                await refused.Should().ThrowAsync<BrokerUnreachableException>().ConfigureAwait(false);
-
-                // The listener accepts no connections, so the AMQP handshake hangs until cancelled.
-                listener.Start();
-                await Task.Delay(TimeSpan.FromMilliseconds(300)).ConfigureAwait(false);
-
-                using (var probeCancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(500)))
-                {
-                    var probe = () => manager.GetConnectionAsync(probeCancellation.Token);
-                    await probe.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
-                }
-
-                await Task.Delay(TimeSpan.FromMilliseconds(300)).ConfigureAwait(false);
-
-                using (var retryCancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(500)))
-                {
-                    // Without the probe-permit release this attempt throws
-                    // TransportCircuitBreakerOpenException immediately instead of connecting.
-                    var retry = () => manager.GetConnectionAsync(retryCancellation.Token);
-                    await retry.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
-                }
+                var probe = () => manager.GetConnectionAsync(probeCancellation.Token);
+                await probe.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
             }
-            finally
+
+            await Task.Delay(TimeSpan.FromMilliseconds(150)).ConfigureAwait(false);
+
+            using (var retryCancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100)))
             {
-                listener.Stop();
+                // Without the probe-permit release this attempt throws TransportCircuitBreakerOpenException at once and
+                // never reaches the connect step.
+                var retry = () => manager.GetConnectionAsync(retryCancellation.Token);
+                await retry.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
             }
+
+            attempts.Should().Be(3);
         }
     }
 }

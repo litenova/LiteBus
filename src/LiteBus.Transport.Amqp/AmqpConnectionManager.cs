@@ -32,6 +32,11 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     private readonly AmqpConnectionOptions _options;
 
     /// <summary>
+    ///     Opens a new broker connection; the RabbitMQ connection factory outside tests.
+    /// </summary>
+    private readonly Func<CancellationToken, Task<IConnection>> _connect;
+
+    /// <summary>
     ///     Gets the lazily created shared connection, if one has been opened.
     /// </summary>
     private IConnection? _connection;
@@ -41,10 +46,24 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     /// </summary>
     /// <param name="options">The connection settings used to connect to the broker.</param>
     public AmqpConnectionManager(AmqpConnectionOptions options)
+        : this(options, null)
+    {
+    }
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="AmqpConnectionManager" /> class with a replaceable connect step.
+    /// </summary>
+    /// <param name="options">The connection settings used to connect to the broker.</param>
+    /// <param name="connect">
+    ///     Opens a new broker connection, or <see langword="null" /> to use the RabbitMQ connection factory built from
+    ///     <paramref name="options" />.
+    /// </param>
+    internal AmqpConnectionManager(AmqpConnectionOptions options, Func<CancellationToken, Task<IConnection>>? connect)
     {
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
         _circuitBreaker = new TransportCircuitBreaker(options.CircuitBreaker.ToTransportOptions());
+        _connect = connect ?? (cancellationToken => CreateConnectionFactory().CreateConnectionAsync(cancellationToken));
     }
 
     /// <inheritdoc />
@@ -79,8 +98,7 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
 
             try
             {
-                var factory = CreateConnectionFactory();
-                _connection = await factory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
+                _connection = await _connect(cancellationToken).ConfigureAwait(false);
                 _circuitBreaker.RecordSuccess(permit);
                 return _connection;
             }
