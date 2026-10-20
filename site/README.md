@@ -39,7 +39,7 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:3100`. The build command is `npm run build` and the production server is `npm run start`. Run `npm run lint` for the Next.js ESLint rules and `npm run typecheck` for a standalone TypeScript check.
+Open `http://localhost:3100`. The build command is `npm run build`, and `npm run check` then runs the rendered-link, plain-text, search-trace, and title checks against its output. The production server is `npm run start`. Run `npm run lint` for the Next.js ESLint rules and `npm run typecheck` for a standalone TypeScript check.
 
 The build and release workflows run a clean install, a high-severity dependency audit, linting, type checking, the production build, the rendered-link gate, the plain-text gate, the search-trace gate, and the title gate. The title gate in `scripts/check-titles.mjs` asserts the naming model: each folder label matches its index page H1, and page names are unique within a top-level section. Changes under `site/` trigger the build workflow.
 
@@ -47,7 +47,7 @@ The build and release workflows run a clean install, a high-severity dependency 
 
 Import the `litenova/LiteBus` repository as a Vercel project and set **Root Directory** to `site`. Leave the output directory unset so the Next.js preset can manage `.next`. The project does not require environment variables.
 
-The checked-in `vercel.json` pins the Next.js framework preset and uses `npm ci` followed by `npm run build`. The build includes the rendered-link, plain-text, search-trace, and title checks. Vercel reads Node.js 24 from `package.json`. Deployments are skipped when a commit has no changes under `site/`; a manual redeployment can bypass the ignored build step in the Vercel dashboard.
+The checked-in `vercel.json` pins the Next.js framework preset and uses `npm ci` followed by `npm run build`. Vercel does not run `npm run check`: on Vercel, Next.js writes its build output through the Vercel adapter rather than the `.next/server/app` layout the checks read, so the CI Documentation job runs them instead. Vercel reads Node.js 24 from `package.json`. Deployments are skipped when a commit has no changes under `site/`; a manual redeployment can bypass the ignored build step in the Vercel dashboard.
 
 Use these project settings:
 

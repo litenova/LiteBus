@@ -54,8 +54,9 @@
 
 /*
  * Light theme: VS Code's default Light Modern workbench colours, with its Light+ syntax colours for code, so the light
- * mode looks like the editor most .NET developers already use. Panels are #F8F8F8, borders #E5E5E5, text #3B3B3B and
- * the accent #005FB8, as in that theme.
+ * mode looks like the editor most .NET developers already use. Panels are #F8F8F8, text #3B3B3B and the accent #005FB8,
+ * as in that theme. Borders use #CCCCCC, the widget and input border of the same theme, because these pages separate
+ * regions by border more than by background.
  */
 [data-theme="light"] {
   color-scheme: light;
@@ -64,8 +65,8 @@
   --side: #f8f8f8;
   --raised: #f3f3f3;
   --hover: #f2f2f2;
-  --line: #e0e0e0;
-  --line-soft: #ebebeb;
+  --line: #cccccc;
+  --line-soft: #e0e0e0;
   --fg: #3b3b3b;
   --dim: #616161;
   --faint: #767676;

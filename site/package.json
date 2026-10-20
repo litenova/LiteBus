@@ -10,7 +10,8 @@
     "predev": "npm run sync:changelog",
     "prebuild": "npm run sync:changelog",
     "dev": "local-md dev -- node node_modules/next/dist/bin/next dev --port 3100",
-    "build": "next build && npm run check:links && npm run check:llms && npm run check:search-trace && npm run check:titles",
+    "build": "next build",
+    "check": "npm run check:links && npm run check:llms && npm run check:search-trace && npm run check:titles",
     "check:links": "node scripts/check-rendered-links.mjs",
     "check:llms": "node scripts/check-llms.mjs",
     "check:search-trace": "node scripts/check-search-trace.mjs",
@@ -33,7 +34,7 @@
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "eslint": "^10.13.0",
+    "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.2",
     "typescript": "~6.0.3"
   }
