@@ -163,6 +163,25 @@ public sealed class InMemoryOutboxStore :
     }
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
+        {
+            var summaries = _envelopes.Values
+                .Where(envelope => envelope.Status is OutboxStatus.Failed or OutboxStatus.DeadLettered)
+                .GroupBy(envelope => (envelope.ContractName, envelope.ContractVersion))
+                .Select(BuildFailureSummary)
+                .OrderByDescending(summary => summary.LastFailedAt)
+                .ThenBy(summary => summary.ContractName)
+                .ToArray();
+
+            return Task.FromResult<IReadOnlyList<OutboxFailureSummary>>(summaries);
+        }
+    }
+
+    /// <inheritdoc />
     public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -478,6 +497,31 @@ public sealed class InMemoryOutboxStore :
     private OutboxEnvelope GetRequired(Guid messageId)
     {
         return _envelopes[messageId];
+    }
+
+    /// <summary>
+    ///     Builds one failure summary row from the failing envelopes that share a contract.
+    /// </summary>
+    /// <param name="group">The failing envelopes grouped by contract name and version.</param>
+    /// <returns>The summary row for the contract.</returns>
+    private static OutboxFailureSummary BuildFailureSummary(
+        IGrouping<(string ContractName, int ContractVersion), OutboxEnvelope> group)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+
+        var envelopes = group.ToList();
+        var latest = envelopes.MaxBy(envelope => envelope.LastAttemptedAt);
+
+        return new OutboxFailureSummary
+        {
+            ContractName = group.Key.ContractName,
+            ContractVersion = group.Key.ContractVersion,
+            FailedCount = envelopes.Count(envelope => envelope.Status == OutboxStatus.Failed),
+            DeadLetteredCount = envelopes.Count(envelope => envelope.Status == OutboxStatus.DeadLettered),
+            LastError = latest?.LastError,
+            LastErrorType = latest?.ErrorType,
+            LastFailedAt = latest?.LastAttemptedAt
+        };
     }
 
     /// <summary>

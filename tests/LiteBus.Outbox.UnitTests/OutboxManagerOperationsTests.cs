@@ -46,6 +46,41 @@ public sealed class OutboxManagerOperationsTests
     }
 
     /// <summary>
+    ///     Verifies the manager returns failure summary rows from the diagnostics store.
+    /// </summary>
+    [Fact]
+    public async Task GetFailureSummaryAsync_ReturnsStoreRows()
+    {
+        var store = new InMemoryOutboxStore();
+        var manager = CreateManager(store);
+
+        await store.AddBatchAsync([
+            CreateEnvelope(Guid.NewGuid(), OutboxStatus.Failed, null) with
+            {
+                ContractName = "tests.events.orders",
+                LastError = "broker down",
+                LastAttemptedAt = BaseTime
+            },
+            CreateEnvelope(Guid.NewGuid(), OutboxStatus.DeadLettered, null) with
+            {
+                ContractName = "tests.events.payments",
+                LastError = "poison",
+                LastAttemptedAt = BaseTime.AddMinutes(1)
+            }
+        ]).ConfigureAwait(false);
+
+        var summary = await manager.GetFailureSummaryAsync().ConfigureAwait(false);
+
+        summary.Should().HaveCount(2);
+        summary[0].ContractName.Should().Be("tests.events.payments");
+        summary[0].DeadLetteredCount.Should().Be(1);
+        summary[0].LastError.Should().Be("poison");
+        summary[1].ContractName.Should().Be("tests.events.orders");
+        summary[1].FailedCount.Should().Be(1);
+        summary[1].LastError.Should().Be("broker down");
+    }
+
+    /// <summary>
     ///     Verifies bulk dead-letter replay follows keyset pagination beyond the internal page size.
     /// </summary>
     [Fact]

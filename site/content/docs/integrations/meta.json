@@ -10,6 +10,7 @@
     "outbox-amqp-dispatch",
     "inbox-ef-core-storage",
     "outbox-ef-core-storage",
+    "outbox-marten-storage",
     "postgresql-schema-management",
     "recurring-commands"
   ]

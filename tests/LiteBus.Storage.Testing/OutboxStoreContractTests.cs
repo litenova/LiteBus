@@ -761,6 +761,165 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies an empty failure summary when no message is failing.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task GetFailureSummaryAsync_WhenNothingIsFailing_ShouldReturnEmpty()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var publishedId = Guid.NewGuid();
+        var pendingId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(publishedId, now)).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now.AddSeconds(1))).ConfigureAwait(false);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-1",
+            Now = now.AddSeconds(2),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle();
+        leased[0].Id.Should().Be(publishedId);
+
+        await store.StateWriter.PersistAsync([leased[0].AsPublished(DateTimeOffset.UtcNow)]).ConfigureAwait(false);
+
+        var summary = await store.Diagnostics.GetFailureSummaryAsync().ConfigureAwait(false);
+
+        summary.Should().BeEmpty();
+    }
+
+    /// <summary>
+    ///     Verifies failure summaries group failing messages by contract with per-status counts.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task GetFailureSummaryAsync_WithFailedAndDeadLetteredContracts_ShouldGroupCountsByContract()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+
+        await FailOneAsync(
+            store,
+            CreatePendingEnvelope(Guid.NewGuid(), now) with
+            {
+                ContractName = "tests.events.orders",
+                TenantId = "failure-orders-1"
+            },
+            now.AddMinutes(1),
+            "orders-error-1",
+            false).ConfigureAwait(false);
+
+        await FailOneAsync(
+            store,
+            CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(1)) with
+            {
+                ContractName = "tests.events.orders",
+                TenantId = "failure-orders-2"
+            },
+            now.AddMinutes(2),
+            "orders-error-2",
+            false).ConfigureAwait(false);
+
+        await SeparateLeaseTimestampsAsync().ConfigureAwait(false);
+
+        await FailOneAsync(
+            store,
+            CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(2)) with
+            {
+                ContractName = "tests.events.payments",
+                ContractVersion = 2,
+                TenantId = "failure-payments-1"
+            },
+            now.AddMinutes(3),
+            "payments-error",
+            true).ConfigureAwait(false);
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(3))).ConfigureAwait(false);
+
+        var summary = await store.Diagnostics.GetFailureSummaryAsync().ConfigureAwait(false);
+
+        summary.Should().HaveCount(2);
+
+        var payments = summary[0];
+        payments.ContractName.Should().Be("tests.events.payments");
+        payments.ContractVersion.Should().Be(2);
+        payments.FailedCount.Should().Be(0);
+        payments.DeadLetteredCount.Should().Be(1);
+        payments.LastError.Should().Be("payments-error");
+        payments.LastFailedAt.Should().NotBeNull();
+
+        var orders = summary[1];
+        orders.ContractName.Should().Be("tests.events.orders");
+        orders.ContractVersion.Should().Be(1);
+        orders.FailedCount.Should().Be(2);
+        orders.DeadLetteredCount.Should().Be(0);
+        orders.LastFailedAt.Should().NotBeNull();
+
+        payments.LastFailedAt!.Value.Should().BeAfter(orders.LastFailedAt!.Value);
+    }
+
+    /// <summary>
+    ///     Verifies a failure summary reports the error of the most recently attempted message.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task GetFailureSummaryAsync_WithTwoFailuresForOneContract_ShouldReportMostRecentError()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+
+        await FailOneAsync(
+            store,
+            CreatePendingEnvelope(firstId, now) with
+            {
+                ContractName = "tests.events.flaky",
+                TenantId = "failure-flaky-1"
+            },
+            now.AddMinutes(1),
+            "first-error",
+            false).ConfigureAwait(false);
+
+        await SeparateLeaseTimestampsAsync().ConfigureAwait(false);
+
+        await FailOneAsync(
+            store,
+            CreatePendingEnvelope(secondId, now.AddSeconds(1)) with
+            {
+                ContractName = "tests.events.flaky",
+                TenantId = "failure-flaky-2"
+            },
+            now.AddMinutes(2),
+            "second-error",
+            false).ConfigureAwait(false);
+
+        var summary = await store.Diagnostics.GetFailureSummaryAsync().ConfigureAwait(false);
+
+        summary.Should().ContainSingle();
+
+        var row = summary[0];
+        row.ContractName.Should().Be("tests.events.flaky");
+        row.ContractVersion.Should().Be(1);
+        row.FailedCount.Should().Be(2);
+        row.DeadLetteredCount.Should().Be(0);
+        row.LastError.Should().Be("second-error");
+        row.LastErrorType.Should().BeNull();
+
+        var second = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { MessageId = secondId },
+            new OutboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
+
+        second.Items.Should().ContainSingle();
+        row.LastFailedAt.Should().Be(second.Items[0].LastAttemptedAt);
+    }
+
+    /// <summary>
     ///     Verifies that only one terminal persist succeeds when competing writers use different lease owners.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
@@ -1038,6 +1197,59 @@ public abstract class OutboxStoreContractTests
         ]);
 
         await action.Should().ThrowAsync<IdempotencyConflictException>().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Enqueues one envelope and moves it to a failing state through a lease.
+    /// </summary>
+    /// <param name="store">The store contracts under test.</param>
+    /// <param name="envelope">The pending envelope to enqueue.</param>
+    /// <param name="leaseNow">The lease timestamp honored by stores without a database clock.</param>
+    /// <param name="error">The error text recorded for the failure.</param>
+    /// <param name="deadLetter">Whether the message is dead-lettered instead of left failed.</param>
+    /// <returns>A task that represents the asynchronous seeding.</returns>
+    private static async Task FailOneAsync(
+        OutboxStoreContracts store,
+        OutboxEnvelope envelope,
+        DateTimeOffset leaseNow,
+        string error,
+        bool deadLetter)
+    {
+        await store.Writer.EnqueueAsync(envelope).ConfigureAwait(false);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-1",
+            Now = leaseNow,
+            LeaseDuration = TimeSpan.FromMinutes(1),
+            TenantId = envelope.TenantId
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle();
+        leased[0].Id.Should().Be(envelope.Id);
+
+        var terminal = deadLetter
+            ? leased[0].AsDeadLettered(Failure(error))
+            : leased[0].AsFailed(Failure(error));
+
+        await store.StateWriter.PersistAsync([terminal]).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Waits past a database clock tick so sequential leases record distinct attempt timestamps.
+    /// </summary>
+    /// <remarks>
+    ///     Stores without a database clock honor the caller timestamp, so no wait is needed. Stores with one stamp the
+    ///     database time, and coarse clocks need a real second boundary between two leases under test.
+    /// </remarks>
+    /// <returns>A task that represents the asynchronous wait.</returns>
+    private async Task SeparateLeaseTimestampsAsync()
+    {
+        if (UsesDatabaseClock)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        }
     }
 
     /// <summary>

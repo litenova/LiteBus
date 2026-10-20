@@ -143,12 +143,12 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     /// <summary>
     ///     Converts this shortcut to the decision the pipeline acts on.
     /// </summary>
-    /// <param name="answeredBy">The shortcut that produced this answer, recorded so a misuse can be named.</param>
+    /// <param name="decidedBy">The shortcut that produced this answer, recorded so a misuse can be named.</param>
     /// <returns>The decision for an answer, or <see cref="PipelineDecision.Continue" /> when the mediation proceeds.</returns>
-    internal PipelineDecision ToDecision(Type answeredBy)
+    internal PipelineDecision ToDecision(Type decidedBy)
     {
         return IsAnswered
-            ? PipelineDecision.Answered(Reason, Code, hasResult: false, result: null, answeredBy)
+            ? PipelineDecision.Answered(Reason, Code, hasResult: false, result: null, decidedBy)
             : PipelineDecision.Continue;
     }
 }

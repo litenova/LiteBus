@@ -181,20 +181,21 @@ public static class MessageContextExtensions
         }
 
         List<ValidationFailure>? failures = null;
+        Type? rejectedBy = null;
 
         foreach (var handler in messageDependencies.IndirectPreStageHandlers)
         {
-            failures = await CollectFailuresAsync(handler, stage, message, failures, cancellationToken)
+            (failures, rejectedBy) = await CollectFailuresAsync(handler, stage, message, failures, rejectedBy, cancellationToken)
                 .ConfigureAwait(false);
         }
 
         foreach (var handler in messageDependencies.PreStageHandlers)
         {
-            failures = await CollectFailuresAsync(handler, stage, message, failures, cancellationToken)
+            (failures, rejectedBy) = await CollectFailuresAsync(handler, stage, message, failures, rejectedBy, cancellationToken)
                 .ConfigureAwait(false);
         }
 
-        return failures is null ? PipelineDecision.Continue : PipelineDecision.Invalid(failures);
+        return failures is null ? PipelineDecision.Continue : PipelineDecision.Invalid(failures, rejectedBy);
     }
 
     /// <summary>
@@ -648,22 +649,27 @@ public static class MessageContextExtensions
     /// <param name="stage">The stage being collected for; a handler from any other stage is skipped.</param>
     /// <param name="message">The message being mediated.</param>
     /// <param name="failures">The failures collected so far, or null when nothing has failed yet.</param>
+    /// <param name="rejectedBy">The first validator that reported a failure, or null when none has yet.</param>
     /// <param name="cancellationToken">The cancellation token passed to the validator invocation.</param>
-    /// <returns>The collected failures, still null when the stage has found nothing wrong.</returns>
+    /// <returns>
+    ///     The collected failures, still null when the stage has found nothing wrong, and the first validator that
+    ///     reported one, which the refusal names as the validator that rejected the message.
+    /// </returns>
     /// <remarks>
     ///     The list is allocated only once something fails, so a message that validates cleanly costs nothing beyond the
     ///     stage filter.
     /// </remarks>
-    private static async Task<List<ValidationFailure>?> CollectFailuresAsync(
+    private static async Task<(List<ValidationFailure>? Failures, Type? RejectedBy)> CollectFailuresAsync(
         LazyHandler<IMessagePreStageHandler, IPreStageHandlerDescriptor> handler,
         PreStage stage,
         object message,
         List<ValidationFailure>? failures,
+        Type? rejectedBy,
         CancellationToken cancellationToken)
     {
         if (handler.Descriptor.Stage != stage)
         {
-            return failures;
+            return (failures, rejectedBy);
         }
 
         var decision = await PipelineHandlerInvoker
@@ -672,12 +678,12 @@ public static class MessageContextExtensions
 
         if (!decision.StopsPipeline)
         {
-            return failures;
+            return (failures, rejectedBy);
         }
 
         failures ??= [];
         failures.AddRange(decision.Failures);
 
-        return failures;
+        return (failures, rejectedBy ?? decision.DecidedBy);
     }
 }

@@ -44,6 +44,12 @@ public sealed class TestOutboxStore :
     }
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        return _inner.GetFailureSummaryAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
     {
         return _inner.GetSchemaInfoAsync(cancellationToken);

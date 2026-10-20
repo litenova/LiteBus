@@ -131,12 +131,13 @@ public readonly struct Verdict : IEquatable<Verdict>
     /// <summary>
     ///     Converts this verdict to the pipeline decision the stage runner acts on.
     /// </summary>
+    /// <param name="decidedBy">The guard that produced this verdict, recorded so a denial can be named.</param>
     /// <returns>
     ///     A decision that reports <see cref="MediationOutcome.Denied" /> when the guard denied, otherwise
     ///     <see cref="PipelineDecision.Continue" />.
     /// </returns>
-    internal PipelineDecision ToDecision()
+    internal PipelineDecision ToDecision(Type decidedBy)
     {
-        return IsDenied ? PipelineDecision.Denied(Reason!, Code) : PipelineDecision.Continue;
+        return IsDenied ? PipelineDecision.Denied(Reason!, Code, decidedBy) : PipelineDecision.Continue;
     }
 }

@@ -205,7 +205,7 @@ public sealed class RejectSelfApproval : ICommandGuard<ApproveRefundCommand>
 
 A refusal always carries a reason and may carry a code, which a refusal mapper can switch on without parsing prose. The stage stops at the first refusal, because one reason is enough for a caller who may not proceed.
 
-`LiteBusMessageDeniedException` does **not** reach error handlers. An error handler exists to recover from faults, and letting it see a refusal would let it undo one. The mediation still reports `Denied`, so the completion stage records it.
+`LiteBusMessageDeniedException` does **not** reach error handlers. An error handler exists to recover from faults, and letting it see a refusal would let it undo one. The mediation still reports `Denied`, so the completion stage records it. The exception carries `DeniedBy` with the concrete guard type, and its message names that guard.
 
 ### Validator Contracts
 
@@ -248,7 +248,7 @@ public sealed class TransferValidator : ICommandValidator<TransferCommand>
 
 **This is the one stage that does not stop at the first decision.** Every validator runs, global and specific, and the stage gathers their failures into one result. A caller fixing a malformed message should not discover its problems one round trip at a time. Guards stop at the first refusal for the opposite reason: one reason is enough, and listing the rest would tell an unauthorized caller more than they should learn.
 
-The failures reach the caller on `LiteBusMessageInvalidException.Failures`, and the mediation reports `MediationOutcome.Invalid`. Like a denial, an invalid message is a decision rather than a fault, so error handlers do not see it. It stays apart from `Denied` so malformed input stays out of the list a security review reads.
+The failures reach the caller on `LiteBusMessageInvalidException.Failures`, and the mediation reports `MediationOutcome.Invalid`. Like a denial, an invalid message is a decision rather than a fault, so error handlers do not see it. It stays apart from `Denied` so malformed input stays out of the list a security review reads. The exception carries `RejectedBy` with the concrete validator type, and its message names that validator.
 
 ### Shortcut Contracts
 

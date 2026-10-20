@@ -167,7 +167,8 @@ internal static class InboxProcessorEnvelopeHandler
             // A refusal or a missing handler produces the same outcome on every attempt, so spending the retry
             // schedule on it only delays the dead-letter entry an operator is waiting to see.
             if (envelope.AttemptCount >= options.Retry.MaxAttempts
-                || !MediationExceptionFilters.IsRetryableDispatchException(exception))
+                || !MediationExceptionFilters.IsRetryableDispatchException(exception)
+                || IsPermanent(options.Retry, exception, envelope.Id, logger))
             {
                 return envelope.AsDeadLettered(failure);
             }
@@ -183,6 +184,39 @@ internal static class InboxProcessorEnvelopeHandler
                 ProcessorHookRunner.RunAbandonDispatchScopes(hooks, hookEnvelope);
             }
         }
+    }
+
+    /// <summary>
+    ///     Determines whether an application-supplied classifier marks a dispatch failure as permanent.
+    /// </summary>
+    /// <param name="retry">The retry settings carrying the application classifier.</param>
+    /// <param name="exception">The exception that ended the dispatch.</param>
+    /// <param name="messageId">The identifier of the message whose failure is classified.</param>
+    /// <param name="logger">Records a classifier that throws.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the classifier recognizes the failure as permanent; otherwise
+    ///     <see langword="false" />.
+    /// </returns>
+    private static bool IsPermanent(RetryOptions retry, Exception exception, Guid messageId, ILogger logger)
+    {
+        var classifier = retry.IsPermanentFailure;
+
+        if (classifier is null)
+        {
+            return false;
+        }
+
+#pragma warning disable CA1031 // A throwing classifier is treated as non-permanent so a faulty predicate cannot lose a message.
+        try
+        {
+            return classifier(exception);
+        }
+        catch (Exception classifierException)
+        {
+            InboxProcessorLogMessages.PermanentFailureClassifierFailed(logger, messageId, classifierException);
+            return false;
+        }
+#pragma warning restore CA1031
     }
 
     /// <summary>

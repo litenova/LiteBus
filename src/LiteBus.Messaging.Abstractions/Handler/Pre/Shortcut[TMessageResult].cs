@@ -141,14 +141,14 @@ public readonly struct Shortcut<TMessageResult> : IEquatable<Shortcut<TMessageRe
     /// <summary>
     ///     Converts this shortcut to the pipeline decision the stage runner acts on.
     /// </summary>
-    /// <param name="answeredBy">The shortcut that produced this answer, recorded so a misuse can be named.</param>
+    /// <param name="decidedBy">The shortcut that produced this answer, recorded so a misuse can be named.</param>
     /// <returns>
     ///     A decision carrying the result when the shortcut answered, otherwise <see cref="PipelineDecision.Continue" />.
     /// </returns>
-    internal PipelineDecision ToDecision(Type answeredBy)
+    internal PipelineDecision ToDecision(Type decidedBy)
     {
         return IsAnswered
-            ? PipelineDecision.Answered(Reason, Code, hasResult: true, Result, answeredBy)
+            ? PipelineDecision.Answered(Reason, Code, hasResult: true, Result, decidedBy)
             : PipelineDecision.Continue;
     }
 }

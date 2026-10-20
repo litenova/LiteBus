@@ -9,7 +9,7 @@ Persist domain state and inbox/outbox envelopes in one database transaction so t
 
 ## What It Does
 
-Transactional writers insert envelope rows inside a transaction the application already opened. LiteBus does not open or commit domain transactions. EF Core stages envelopes on a shared `DbContext` until `SaveChangesAsync`. PostgreSQL supports ambient `IPostgreSqlTransactionProvider` or manual `CreateTransactionalStore` binding. Background processors always use non-transactional singleton stores on their own pooled connections.
+Transactional writers insert envelope rows inside a transaction the application already opened. LiteBus does not open or commit domain transactions. EF Core stages envelopes on a shared `DbContext` until `SaveChangesAsync`. PostgreSQL supports ambient `IPostgreSqlTransactionProvider` or manual `CreateTransactionalStore` binding. Marten applications whose session also serves reads use the queued writer from [Outbox Marten Storage](../../integrations/outbox-marten-storage.md), which stages the schema-owned insert on the current `IDocumentSession`. Background processors always use non-transactional singleton stores on their own pooled connections.
 
 ## Public Surface
 
@@ -19,6 +19,7 @@ Transactional writers insert envelope rows inside a transaction the application 
 - **`ITransactionalInbox` / `ITransactionalOutbox`**: PostgreSQL scoped writers that participate in an ambient transaction via `IPostgreSqlTransactionProvider`.
 - **`ITransactionalInbox<TContext>` / `ITransactionalOutbox<TContext>`**: EF Core scoped writers bound to a shared `DbContext`; envelopes stage until `SaveChangesAsync`.
 - **`StoreBoundTransactionalInbox` / `StoreBoundTransactionalOutbox`**: Manual PostgreSQL bind when the application owns connection and transaction lifecycle explicitly.
+- **Marten queued writer**: `ITransactionalOutbox` backed by the scoped Marten `IDocumentSession`; staged rows commit with `SaveChangesAsync`.
 
 ### Invocation
 
@@ -32,6 +33,7 @@ Transactional writers insert envelope rows inside a transaction the application 
 - **EF Core**: `UseEntityFrameworkCoreStorage<TContext>()` on inbox/outbox builder plus **`EnableSaveChangesInterceptor()`** for automatic flush on SaveChanges.
 - **PostgreSQL ambient**: **`EnableAmbientTransactionProvider()`** on the PostgreSQL storage builder; register shared `NpgsqlDataSource` across application and LiteBus storage.
 - **Manual bind**: Application calls storage factory **`CreateTransactionalStore`** at request scope; no ambient provider required.
+- **Marten queued writer**: **`UseMartenTransactionalOutbox()`** on the PostgreSQL outbox storage builder; the application registers Marten with `AddMarten` against the same database.
 
 ### Configuration
 
@@ -53,6 +55,7 @@ Transactional writers insert envelope rows inside a transaction the application 
 | `LiteBus.Outbox.Storage.EntityFrameworkCore` | EF transactional outbox |
 | `LiteBus.Inbox.Storage.PostgreSql` | PostgreSQL transactional inbox |
 | `LiteBus.Outbox.Storage.PostgreSql` | PostgreSQL transactional outbox |
+| `LiteBus.Outbox.Storage.Marten` | Marten queued transactional outbox |
 | `LiteBus.Storage.PostgreSql` | `IPostgreSqlTransactionProvider` |
 
 ## Requires
@@ -107,6 +110,7 @@ No dedicated transactional-write meter. Success and failure appear through appli
 - [Transactional messaging writes](../../reliable-messaging/transactional-writes.md)
 - [Inbox EF Core storage](../../integrations/inbox-ef-core-storage.md)
 - [Outbox EF Core storage](../../integrations/outbox-ef-core-storage.md)
+- [Outbox Marten storage](../../integrations/outbox-marten-storage.md)
 
 ## Test Coverage
 

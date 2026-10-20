@@ -11,6 +11,7 @@ This page owns the transactional writer pattern: which API to inject, how LiteBu
 | `IInbox` / `IOutbox` vs `ITransactionalInbox` / `ITransactionalOutbox` | Yes |
 | EF Core with shared `DbContext` | Yes |
 | PostgreSQL with ambient `IPostgreSqlTransactionProvider` | Yes |
+| Marten queued writer | Pointer only: see [Outbox Marten Storage](../integrations/outbox-marten-storage.md) |
 | Manual PostgreSQL bind (`CreateTransactionalStore`) | Yes |
 | Ingress, processors, connection pooling | Yes (brief) |
 | Custom database adapters | Pointer only: see [Custom stores and dispatchers](../extending/custom-stores-and-dispatchers.md) |
@@ -85,6 +86,7 @@ Per request, use one connection and one transaction for atomic domain plus messa
 | --- | --- |
 | EF Core `DbContext` for domain plus outbox table | [EF Core](#ef-core-shared-dbcontext) |
 | PostgreSQL plus Marten, Dapper, or raw SQL | [Ambient provider](#postgresql-ambient-provider) (recommended) or [Manual bind](#postgresql-manual-bind) |
+| Marten with one session serving reads and writes | [Queued writer](../integrations/outbox-marten-storage.md) |
 | AMQP/Kafka ingress only storing commands | [Ingress](#ingress-auto-commit): use `IInbox`, not transactional writers |
 | Unit tests with `UseInMemoryStorage` | [Tests](#tests-and-in-memory) |
 
@@ -254,7 +256,7 @@ await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 await unitOfWork.CommitAsync(cancellationToken).ConfigureAwait(false);
 ```
 
-Queries use a separately resolved session and never open a write transaction. The session above is constructed at the point of the write. Registering one Marten session for both reads and writes is what would make every query hold a write transaction for its duration; that is an application composition choice, not something the ambient provider requires.
+Queries use a separately resolved session and never open a write transaction. The session above is constructed at the point of the write. Registering one Marten session for both reads and writes is what would make every query hold a write transaction for its duration; that is an application composition choice, not something the ambient provider requires. When one Marten session serves reads and writes and the application owns no transaction, use the queued writer instead: `UseMartenTransactionalOutbox()` stages the outbox row on the session so it commits with `SaveChangesAsync`. See [Outbox Marten Storage](../integrations/outbox-marten-storage.md).
 
 `ITransactionalOutbox` binds its store when it is resolved, not when `EnqueueAsync` is called. A handler that injects it without an open unit of work therefore fails at injection with `InvalidOperationException`, which is what `TransactionalWriteMode.RequireActiveTransaction` is for: the alternative would be silently committing the outbox row on its own connection.
 

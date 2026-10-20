@@ -106,9 +106,24 @@ public sealed class PostgreSqlOutboxModule : IOutboxStorageModule, IRequires<Out
 
         configuration.RegisterDiagnosticCheck(typeof(PostgreSqlOutboxSchemaDiagnosticCheck), "outbox.postgresql.schema");
 
+        if (moduleBuilder.EnableAmbientTransactionProviderRegistration && moduleBuilder.TransactionalOutboxFactory is not null)
+        {
+            throw new OutboxPostgreSqlStorageConfigurationException(
+                "EnableAmbientTransactionProvider() and UseMartenTransactionalOutbox() both register ITransactionalOutbox. " +
+                "Call only one of them: the ambient provider when the application owns the transaction, or the Marten queued writer when one Marten session serves reads and writes.");
+        }
+
         if (moduleBuilder.EnableAmbientTransactionProviderRegistration)
         {
             RegisterAmbientTransactionalOutbox(configuration, moduleBuilder, store);
+        }
+
+        if (moduleBuilder.TransactionalOutboxFactory is { } transactionalOutboxFactory)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(ITransactionalOutbox),
+                transactionalOutboxFactory,
+                InstanceLifetime.Scoped));
         }
     }
 

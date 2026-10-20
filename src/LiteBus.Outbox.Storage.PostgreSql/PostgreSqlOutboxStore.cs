@@ -272,6 +272,59 @@ public sealed class PostgreSqlOutboxStore :
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        var sql = $"""
+                   WITH counts AS (
+                       SELECT
+                           contract_name,
+                           contract_version,
+                           COUNT(*) FILTER (WHERE status = @failed_status)::int AS failed_count,
+                           COUNT(*) FILTER (WHERE status = @dead_lettered_status)::int AS dead_lettered_count,
+                           MAX(last_attempted_at) AS last_failed_at
+                       FROM {_tableName}
+                       WHERE status IN (@failed_status, @dead_lettered_status)
+                       GROUP BY contract_name, contract_version
+                   ),
+                   latest AS (
+                       SELECT DISTINCT ON (contract_name, contract_version)
+                           contract_name,
+                           contract_version,
+                           last_error,
+                           error_type
+                       FROM {_tableName}
+                       WHERE status IN (@failed_status, @dead_lettered_status)
+                       ORDER BY contract_name, contract_version, last_attempted_at DESC NULLS LAST
+                   )
+                   SELECT
+                       counts.contract_name,
+                       counts.contract_version,
+                       counts.failed_count,
+                       counts.dead_lettered_count,
+                       latest.last_error,
+                       latest.error_type,
+                       counts.last_failed_at
+                   FROM counts
+                   JOIN latest USING (contract_name, contract_version)
+                   ORDER BY counts.last_failed_at DESC NULLS LAST, counts.contract_name ASC;
+                   """;
+
+        using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("failed_status", (int) OutboxStatus.Failed);
+        command.Parameters.AddWithValue("dead_lettered_status", (int) OutboxStatus.DeadLettered);
+
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var summaries = new List<OutboxFailureSummary>();
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            summaries.Add(ReadFailureSummary(reader));
+        }
+
+        return summaries;
+    }
+
+    /// <inheritdoc />
     public async Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
     {
         using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -601,7 +654,7 @@ public sealed class PostgreSqlOutboxStore :
     /// <param name="requested">The incoming envelope.</param>
     /// <param name="stored">The existing envelope.</param>
     /// <returns><see langword="true" /> when identity and message content match.</returns>
-    private static bool HasSameSubmission(OutboxEnvelope requested, OutboxEnvelope stored)
+    internal static bool HasSameSubmission(OutboxEnvelope requested, OutboxEnvelope stored)
     {
         return requested.Id == stored.Id &&
                requested.ContractVersion == stored.ContractVersion &&
@@ -1161,6 +1214,28 @@ public sealed class PostgreSqlOutboxStore :
         string? idempotencyKey,
         CancellationToken cancellationToken)
     {
+        return await FindExistingOrDefaultAsync(messageId, tenantId, idempotencyKey, cancellationToken).ConfigureAwait(false) ??
+               throw new InvalidOperationException("The outbox insert was skipped but the existing message could not be found.");
+    }
+
+    /// <summary>
+    ///     Reads the stored row that shares a message id, or a tenant-scoped idempotency key, with a pending insert.
+    /// </summary>
+    /// <remarks>
+    ///     Used by writers that stage the insert in another unit of work, such as the Marten transactional outbox, and
+    ///     so must resolve idempotency before the row is written rather than from a skipped insert.
+    /// </remarks>
+    /// <param name="messageId">The message id of the pending insert.</param>
+    /// <param name="tenantId">The tenant identifier of the pending insert.</param>
+    /// <param name="idempotencyKey">The optional idempotency key of the pending insert.</param>
+    /// <param name="cancellationToken">A token used to cancel the lookup.</param>
+    /// <returns>The stored envelope, or <see langword="null" /> when no row matches.</returns>
+    internal async Task<OutboxEnvelope?> FindExistingOrDefaultAsync(
+        Guid messageId,
+        string? tenantId,
+        string? idempotencyKey,
+        CancellationToken cancellationToken)
+    {
         var (sql, requiresTenantParameter) = PostgreSqlIdempotencyResolution.BuildFindExistingSql(
             _tableName,
             BatchSelectColumns,
@@ -1183,8 +1258,7 @@ public sealed class PostgreSqlOutboxStore :
 
         command.CommandText = sql;
 
-        return await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false) ??
-               throw new InvalidOperationException("The outbox insert was skipped but the existing message could not be found.");
+        return await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1304,6 +1378,25 @@ public sealed class PostgreSqlOutboxStore :
             DeadLetteredAt = GetNullable<DateTimeOffset>(reader, 21),
             LastLeaseOwner = GetNullableString(reader, 22),
             ErrorType = GetNullableString(reader, 23)
+        };
+    }
+
+    /// <summary>
+    ///     Maps the current failure-summary row to an <see cref="OutboxFailureSummary" />.
+    /// </summary>
+    /// <param name="reader">The reader positioned on a summary row.</param>
+    /// <returns>The mapped summary.</returns>
+    private static OutboxFailureSummary ReadFailureSummary(NpgsqlDataReader reader)
+    {
+        return new OutboxFailureSummary
+        {
+            ContractName = reader.GetString(0),
+            ContractVersion = reader.GetInt32(1),
+            FailedCount = reader.GetInt32(2),
+            DeadLetteredCount = reader.GetInt32(3),
+            LastError = GetNullableString(reader, 4),
+            LastErrorType = GetNullableString(reader, 5),
+            LastFailedAt = GetNullable<DateTimeOffset>(reader, 6)
         };
     }
 

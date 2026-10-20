@@ -181,4 +181,24 @@ internal static class InboxProcessorLogMessages
             deadLetteredCount,
             null);
     }
+
+    /// <summary>
+    ///     The delegate that writes the event for an application failure classifier that threw.
+    /// </summary>
+    private static readonly Action<ILogger, Guid, Exception> PermanentFailureClassifierFailedMessage =
+        LoggerMessage.Define<Guid>(
+            LogLevel.Warning,
+            new EventId(1009, nameof(PermanentFailureClassifierFailed)),
+            "The permanent-failure classifier threw for message {MessageId}; the failure follows the retry schedule.");
+
+    /// <summary>
+    ///     Logs that <c>RetryOptions.IsPermanentFailure</c> threw, so the failure was treated as retryable.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="messageId">The identifier of the message whose failure was being classified.</param>
+    /// <param name="exception">The exception the classifier threw.</param>
+    public static void PermanentFailureClassifierFailed(ILogger logger, Guid messageId, Exception exception)
+    {
+        PermanentFailureClassifierFailedMessage(logger, messageId, exception);
+    }
 }

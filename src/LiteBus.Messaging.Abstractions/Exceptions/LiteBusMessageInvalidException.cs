@@ -36,11 +36,13 @@ public sealed class LiteBusMessageInvalidException : Exception
     /// </summary>
     /// <param name="messageType">The type of the message that was rejected.</param>
     /// <param name="failures">The failures the validator stage collected.</param>
-    public LiteBusMessageInvalidException(Type messageType, IReadOnlyList<ValidationFailure> failures)
-        : base(BuildMessage(messageType, failures))
+    /// <param name="rejectedBy">The validator that rejected the message, when known.</param>
+    public LiteBusMessageInvalidException(Type messageType, IReadOnlyList<ValidationFailure> failures, Type? rejectedBy = null)
+        : base(BuildMessage(messageType, failures, rejectedBy))
     {
         MessageType = messageType;
         Failures = failures ?? NoFailures;
+        RejectedBy = rejectedBy;
     }
 
     /// <summary>
@@ -85,20 +87,31 @@ public sealed class LiteBusMessageInvalidException : Exception
     public IReadOnlyList<ValidationFailure> Failures { get; }
 
     /// <summary>
+    ///     Gets the validator that rejected the message.
+    /// </summary>
+    /// <value>The concrete validator type that rejected the message, or <see langword="null" /> when unknown.</value>
+    public Type? RejectedBy { get; }
+
+    /// <summary>
     ///     Builds the exception message from the collected failures.
     /// </summary>
     /// <param name="messageType">The type of the message that was rejected.</param>
     /// <param name="failures">The failures the validator stage collected.</param>
+    /// <param name="rejectedBy">The validator that rejected the message, when known.</param>
     /// <returns>A message naming the message type and listing every failure.</returns>
-    private static string BuildMessage(Type messageType, IReadOnlyList<ValidationFailure>? failures)
+    private static string BuildMessage(Type messageType, IReadOnlyList<ValidationFailure>? failures, Type? rejectedBy = null)
     {
         if (failures is null || failures.Count == 0)
         {
-            return $"Mediation of '{messageType?.Name}' was stopped because the message is invalid.";
+            return rejectedBy is null
+                ? $"Mediation of '{messageType?.Name}' was stopped because the message is invalid."
+                : $"Mediation of '{messageType?.Name}' was stopped because the message is invalid by '{rejectedBy.Name}'.";
         }
 
         var listed = string.Join("; ", failures.Select(failure => failure.ToString()));
 
-        return $"Mediation of '{messageType?.Name}' was stopped because the message is invalid: {listed}";
+        return rejectedBy is null
+            ? $"Mediation of '{messageType?.Name}' was stopped because the message is invalid: {listed}"
+            : $"Mediation of '{messageType?.Name}' was stopped because the message is invalid by '{rejectedBy.Name}': {listed}";
     }
 }

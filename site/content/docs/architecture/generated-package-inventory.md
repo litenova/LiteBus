@@ -55,6 +55,7 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Outbox.Extensions.OpenTelemetry` | `LiteBus.Outbox` | `OpenTelemetry` |
 | `LiteBus.Outbox.Storage.EntityFrameworkCore` | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.EntityFrameworkCore` | `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Relational` |
 | `LiteBus.Outbox.Storage.InMemory` | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Outbox.Storage.Marten` | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Storage.PostgreSql`, `LiteBus.Runtime.Abstractions` | `Marten` |
 | `LiteBus.Outbox.Storage.PostgreSql` | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
 | `LiteBus.Queries` | `LiteBus.Messaging`, `LiteBus.Queries.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Queries.Abstractions` | `LiteBus.Messaging.Abstractions` | none |

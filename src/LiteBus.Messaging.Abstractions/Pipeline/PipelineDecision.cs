@@ -50,7 +50,7 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
     /// <param name="reason">The reason the decision supplied.</param>
     /// <param name="code">The code the decision supplied.</param>
     /// <param name="failures">The failures a validator collected.</param>
-    /// <param name="answeredBy">The shortcut that answered, when one did.</param>
+    /// <param name="decidedBy">The handler that stopped the pipeline, when one did.</param>
     private PipelineDecision(
         bool stopsPipeline,
         MediationOutcome outcome,
@@ -59,7 +59,7 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
         string? reason,
         string? code,
         IReadOnlyList<ValidationFailure>? failures,
-        Type? answeredBy = null)
+        Type? decidedBy = null)
     {
         StopsPipeline = stopsPipeline;
         Outcome = outcome;
@@ -68,7 +68,7 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
         Reason = reason;
         Code = code;
         _failures = failures;
-        AnsweredBy = answeredBy;
+        DecidedBy = decidedBy;
     }
 
     /// <summary>
@@ -129,18 +129,19 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
     public IReadOnlyList<ValidationFailure> Failures => _failures ?? NoFailures;
 
     /// <summary>
-    ///     Gets the shortcut that answered the message.
+    ///     Gets the handler that stopped the pipeline.
     /// </summary>
     /// <value>
-    ///     The concrete shortcut type when <see cref="Outcome" /> is <see cref="MediationOutcome.Answered" />, otherwise
-    ///     <see langword="null" />.
+    ///     The concrete handler type that decided the outcome when <see cref="Outcome" /> is
+    ///     <see cref="MediationOutcome.Answered" />, <see cref="MediationOutcome.Denied" />, or
+    ///     <see cref="MediationOutcome.Invalid" />, otherwise <see langword="null" />.
     /// </value>
     /// <remarks>
-    ///     Recorded so that a misconfigured shortcut can be named rather than merely described. A message reached by
-    ///     several globally registered shortcuts gives the reader no way to tell which one answered, and the message
-    ///     type alone does not narrow it down.
+    ///     Recorded so that the handler that stopped the pipeline can be named rather than merely described. A message
+    ///     reached by several globally registered handlers gives the reader no way to tell which one decided, and the
+    ///     message type alone does not narrow it down.
     /// </remarks>
-    public Type? AnsweredBy { get; }
+    public Type? DecidedBy { get; }
 
     /// <summary>
     ///     Gets a value indicating whether this decision refused the message.
@@ -211,8 +212,8 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
         ArgumentNullException.ThrowIfNull(messageType);
 
         return Outcome == MediationOutcome.Invalid
-            ? new LiteBusMessageInvalidException(messageType, Failures)
-            : new LiteBusMessageDeniedException(messageType, Reason ?? "no reason was given", Code);
+            ? new LiteBusMessageInvalidException(messageType, Failures, DecidedBy)
+            : new LiteBusMessageDeniedException(messageType, Reason ?? "no reason was given", Code, DecidedBy);
     }
 
     /// <summary>
@@ -239,7 +240,7 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
 
         if (!HasResult)
         {
-            var culprit = AnsweredBy?.Name ?? "A shortcut";
+            var culprit = DecidedBy?.Name ?? "A shortcut";
 
             throw new PipelineContractException(
                 $"'{culprit}' answered the mediation of '{messageType.Name}' through the untyped shortcut contract, "
@@ -260,7 +261,7 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
         }
 
         throw new PipelineContractException(
-            $"'{AnsweredBy?.Name ?? "A shortcut"}' answered '{messageType.Name}' with a result of type "
+            $"'{DecidedBy?.Name ?? "A shortcut"}' answered '{messageType.Name}' with a result of type "
             + $"'{Result.GetType().Name}', but the message expects '{typeof(TMessageResult).Name}'.");
     }
 
@@ -273,7 +274,7 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
                && Equals(Result, other.Result)
                && string.Equals(Reason, other.Reason, StringComparison.Ordinal)
                && string.Equals(Code, other.Code, StringComparison.Ordinal)
-               && AnsweredBy == other.AnsweredBy
+               && DecidedBy == other.DecidedBy
                && Failures.SequenceEqual(other.Failures);
     }
 
@@ -286,7 +287,7 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
     /// <inheritdoc />
     public override int GetHashCode()
     {
-        return HashCode.Combine(StopsPipeline, Outcome, HasResult, Result, Reason, Code, AnsweredBy, Failures.Count);
+        return HashCode.Combine(StopsPipeline, Outcome, HasResult, Result, Reason, Code, DecidedBy, Failures.Count);
     }
 
     /// <summary>
@@ -294,8 +295,9 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
     /// </summary>
     /// <param name="reason">Why the message is refused.</param>
     /// <param name="code">The code the guard supplied, when any.</param>
+    /// <param name="decidedBy">The guard that refused the message, when known.</param>
     /// <returns>A decision reporting <see cref="MediationOutcome.Denied" />.</returns>
-    internal static PipelineDecision Denied(string reason, string? code)
+    internal static PipelineDecision Denied(string reason, string? code, Type? decidedBy = null)
     {
         return new PipelineDecision(
             stopsPipeline: true,
@@ -304,15 +306,17 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
             result: null,
             reason,
             code,
-            failures: null);
+            failures: null,
+            decidedBy);
     }
 
     /// <summary>
     ///     Creates the decision the validator stage produces when it collected failures.
     /// </summary>
     /// <param name="failures">Every failure the stage collected.</param>
+    /// <param name="decidedBy">The validator that reported the failures, when known.</param>
     /// <returns>A decision reporting <see cref="MediationOutcome.Invalid" />.</returns>
-    internal static PipelineDecision Invalid(IReadOnlyList<ValidationFailure> failures)
+    internal static PipelineDecision Invalid(IReadOnlyList<ValidationFailure> failures, Type? decidedBy = null)
     {
         var reason = string.Join("; ", failures.Select(failure => failure.ToString()));
         var code = failures.Count == 1 ? failures[0].Code : null;
@@ -324,7 +328,8 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
             result: null,
             reason,
             code,
-            failures);
+            failures,
+            decidedBy);
     }
 
     /// <summary>
@@ -334,14 +339,14 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
     /// <param name="code">The machine-readable code the shortcut supplied, when it supplied one.</param>
     /// <param name="hasResult">Whether the shortcut supplied a result.</param>
     /// <param name="result">The result the shortcut supplied.</param>
-    /// <param name="answeredBy">The shortcut that answered.</param>
+    /// <param name="decidedBy">The shortcut that answered.</param>
     /// <returns>A decision reporting <see cref="MediationOutcome.Answered" />.</returns>
     internal static PipelineDecision Answered(
         string? reason,
         string? code,
         bool hasResult,
         object? result,
-        Type? answeredBy = null)
+        Type? decidedBy = null)
     {
         return new PipelineDecision(
             stopsPipeline: true,
@@ -351,6 +356,6 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
             reason,
             code,
             failures: null,
-            answeredBy);
+            decidedBy);
     }
 }

@@ -21,7 +21,7 @@ Direct and indirect handlers run in a fixed order:
 - Error: indirect then direct.
 - Completion: one pass over the merged direct and indirect sets, ordered by `[HandlerPriority]` then registration sequence.
 
-The pre stage is four framework-ordered stages, not one. Guards run first and refuse through `Verdict`; validators run next and report failures through `Validity`; shortcuts run third and answer through `Shortcut` or `Shortcut<TResult>`; plain pre-handlers run last and cannot stop the pipeline by returning. Priority orders handlers inside a stage and never reorders the stages, so a globally registered shortcut cannot answer ahead of a message-specific guard, and a malformed message cannot claim an idempotency key. Guards and shortcuts stop at the first decision; the validator stage runs every validator and collects their failures. A refusal with no registered `IMessageRefusalMapper<TMessage, TMessageResult>` raises `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException`, both excluded from the recoverable filter so error handlers never see a decision as a fault. Any stage may call `IExecutionContext.SuppressPostHandlers()` to skip the remaining post-handlers without changing the outcome.
+The pre stage is four framework-ordered stages, not one. Guards run first and refuse through `Verdict`; validators run next and report failures through `Validity`; shortcuts run third and answer through `Shortcut` or `Shortcut<TResult>`; plain pre-handlers run last and cannot stop the pipeline by returning. Priority orders handlers inside a stage and never reorders the stages, so a globally registered shortcut cannot answer ahead of a message-specific guard, and a malformed message cannot claim an idempotency key. Guards and shortcuts stop at the first decision; the validator stage runs every validator and collects their failures. A refusal with no registered `IMessageRefusalMapper<TMessage, TMessageResult>` raises `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException`, both excluded from the recoverable filter so error handlers never see a decision as a fault. `LiteBusMessageDeniedException` carries `DeniedBy` and `LiteBusMessageInvalidException` carries `RejectedBy`, and each message names the handler that decided it. Any stage may call `IExecutionContext.SuppressPostHandlers()` to skip the remaining post-handlers without changing the outcome.
 
 The completion stage runs in a `finally` inside the ambient execution scope, so it observes success, an early answer, a denial, a validation failure, a fault, and cancellation alike. It is the only stage guaranteed to run, and it is not cancellable.
 
@@ -51,7 +51,8 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | `Shortcut` / `Shortcut<TResult>` | `None` to carry on, or `Answer` with a reason, a code, and, when the message produces one, a result |
 | `PreStage` | `Guard`, `Validator`, `Shortcut`, `PreHandler`; the framework-fixed stage order. Covers the pre stage only |
 | `PipelineDecision` | What a pre-stage handler reported: `Continue`, or a stop carrying the outcome, reason, and result |
-| `LiteBusMessageDeniedException` | Raised when a refusal supplies no result for the caller |
+| `LiteBusMessageDeniedException` | Raised when a refusal supplies no result for the caller; carries `DeniedBy` naming the guard |
+| `LiteBusMessageInvalidException` | Raised for a validation failure; carries `RejectedBy` naming the validator |
 | `IAsyncMessageHandler<TMessage>` / `IAsyncMessageHandler<TMessage, TResult>` | Main handler contracts |
 | `IMessagePostHandler<TMessage, TResult>` | Post stage contract |
 | `IStreamQueryPostHandler<TQuery, TQueryResult>` | Post stage contract for stream queries |

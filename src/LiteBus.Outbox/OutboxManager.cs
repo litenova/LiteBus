@@ -173,6 +173,13 @@ internal sealed class OutboxManager : IOutboxManager
     }
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return _operationsStore.GetFailureSummaryAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
     {
         return _operationsStore.GetSchemaInfoAsync(cancellationToken);

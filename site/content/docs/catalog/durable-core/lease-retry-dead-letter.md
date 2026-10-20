@@ -11,12 +11,28 @@ Processors claim work with time-bounded leases, renew leases during long handler
 
 Lease stores atomically claim due rows with `lease_owner`, `lease_generation`, and `lease_expires_at`. Each claim increments the generation. Heartbeat renewal starts as soon as each envelope is leased, including while it waits for a worker slot, and continues through terminal persistence. PostgreSQL and relational EF Core stores calculate visibility and expiry from the database clock. On failure, processors persist `Failed` with retry visibility computed from `RetryOptions`. When `AttemptCount` reaches `MaxAttempts`, rows move to `DeadLettered`. Operators requeue via `IInboxManager` / `IOutboxManager`. Lease loss during dispatch persists retryable failure instead of leaving row stuck in processing. When the processor cancels a dispatch itself during shutdown or drain, it releases the lease through `ILeaseRenewable.ReleaseLeaseAsync` with a `LeaseReleaseRequest`, so the row returns to `Pending` (or `Failed` when it already carries an error) with its lease cleared, its attempt count decremented, and its visibility unchanged; the release runs under a 5 second budget, logs EventId 3011 at Debug, and falls back to lease expiry with EventId 3012 at Warning when it fails.
 
+## Permanent Failures
+
+Processors dead-letter a message on its first failure when the exception can never succeed on retry. The built-in non-retryable set covers a missing handler (`NoHandlerFoundException`), multiple handlers (`MultipleHandlerFoundException`), a guard denial (`LiteBusMessageDeniedException`), and a validation failure (`LiteBusMessageInvalidException`), checked through `MediationExceptionFilters.IsRetryableDispatchException` including inner exceptions. Applications mark their own exception types as permanent with `RetryOptions.IsPermanentFailure`, which runs in addition to the built-in set and dead-letters on the matching attempt regardless of `MaxAttempts`.
+
+```csharp
+builder.UseProcessorOptions(new OutboxProcessorOptions
+{
+    Retry = new RetryOptions
+    {
+        IsPermanentFailure = exception => exception is UseCaseUnprocessableException
+    }
+});
+```
+
+The predicate receives the exception that ended the dispatch; returning `true` dead-letters the message on that attempt. It is not called for a cancellation the processor treats as a shutdown. A predicate that throws is treated as `false`, so a faulty classifier keeps the retry schedule instead of losing the message. The same `Retry` property exists on `InboxProcessorOptions`, and both processors share this behavior.
+
 ## Public Surface
 
 ### Consumer Contracts
 
 - **`ProcessorOptions`**: Shared base for inbox/outbox processor options including lease and retry settings.
-- **`RetryOptions`**: `MaxAttempts`, initial delay, backoff strategy (`Fixed`, `Exponential`, or `Schedule` with an explicit `Delays` ladder), multiplier, and jitter.
+- **`RetryOptions`**: `MaxAttempts`, initial delay, backoff strategy (`Fixed`, `Exponential`, or `Schedule` with an explicit `Delays` ladder), multiplier, jitter, and an optional `IsPermanentFailure` classifier that dead-letters matching failures on first failure.
 - **`IInboxLeaseStore` / `IOutboxLeaseStore`**: Atomic claim of due pending or failed-visible rows.
 - **`LeaseRenewalRequest`**: Heartbeat input carrying envelope id, lease owner, fencing generation, extension duration, and an in-memory expiry fallback.
 - **`LeaseReleaseRequest`**: Release input carrying message id, lease owner, and fencing generation for a dispatch the processor cancelled.

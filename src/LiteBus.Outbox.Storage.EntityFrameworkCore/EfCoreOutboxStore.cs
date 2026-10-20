@@ -201,6 +201,70 @@ public sealed class EfCoreOutboxStore :
     }
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        return ExecuteAsync(async (context, token) =>
+        {
+            var countRows = await context.OutboxMessages
+                .Where(message => message.Status == OutboxStatus.Failed || message.Status == OutboxStatus.DeadLettered)
+                .GroupBy(message => new { message.ContractName, message.ContractVersion, message.Status })
+                .Select(group => new
+                {
+                    group.Key.ContractName,
+                    group.Key.ContractVersion,
+                    Status = group.Key.Status,
+                    Count = group.Count()
+                })
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+
+            if (countRows.Count == 0)
+            {
+                return (IReadOnlyList<OutboxFailureSummary>) [];
+            }
+
+            var summaries = new List<OutboxFailureSummary>();
+
+            // One indexed top-1 read per failing contract keeps the cost bounded by the number of contracts rather
+            // than the number of failing messages, which is the quantity that grows when a probe matters most.
+            foreach (var group in countRows.GroupBy(row => new { row.ContractName, row.ContractVersion }))
+            {
+                var latest = await context.OutboxMessages
+                    .Where(message =>
+                        (message.Status == OutboxStatus.Failed || message.Status == OutboxStatus.DeadLettered) &&
+                        message.ContractName == group.Key.ContractName &&
+                        message.ContractVersion == group.Key.ContractVersion)
+                    .OrderBy(message => message.LastAttemptedAt == null)
+                    .ThenByDescending(message => message.LastAttemptedAt)
+                    .Select(message => new
+                    {
+                        message.LastError,
+                        message.ErrorType,
+                        message.LastAttemptedAt
+                    })
+                    .FirstOrDefaultAsync(token)
+                    .ConfigureAwait(false);
+
+                summaries.Add(new OutboxFailureSummary
+                {
+                    ContractName = group.Key.ContractName,
+                    ContractVersion = group.Key.ContractVersion,
+                    FailedCount = group.Where(row => row.Status == OutboxStatus.Failed).Sum(row => row.Count),
+                    DeadLetteredCount = group.Where(row => row.Status == OutboxStatus.DeadLettered).Sum(row => row.Count),
+                    LastError = latest?.LastError,
+                    LastErrorType = latest?.ErrorType,
+                    LastFailedAt = latest?.LastAttemptedAt
+                });
+            }
+
+            return (IReadOnlyList<OutboxFailureSummary>) summaries
+                .OrderByDescending(summary => summary.LastFailedAt)
+                .ThenBy(summary => summary.ContractName, StringComparer.Ordinal)
+                .ToArray();
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

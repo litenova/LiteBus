@@ -23,11 +23,22 @@ Processor controls are separate contracts. `IInboxProcessorControl` and `IOutbox
 | Requeue dead letters | `RequeueDeadLettersAsync` | `RequeueDeadLettersAsync` | Reads and requeues in pages of 200 |
 | Purge | `PurgeAsync` | `PurgeAsync` | Requires confirmation for an unrestricted filter |
 | Status counts | `GetStatusCountsAsync` | `GetStatusCountsAsync` | Groups current rows by durable status |
+| Failure summary | - | `GetFailureSummaryAsync` | One row per failing contract with per-status counts and the latest error |
 | Schema information | `GetSchemaInfoAsync` | `GetSchemaInfoAsync` | Returns logical or physical schema metadata |
 | Retention status | `GetRetentionStatusAsync` | `GetRetentionStatusAsync` | Returns the latest run outcome |
 | Run retention | `RunRetentionPurgeAsync` | `RunRetentionPurgeAsync` | Deletes terminal rows older than the configured retention period |
 
 Query and purge APIs accept `InboxMessageFilter` or `OutboxMessageFilter`. Filters can select identifiers, statuses, contract names, trace fields, tenants, and creation-time bounds. Page requests use opaque keyset cursors returned by the previous page.
+`IOutboxManager.GetFailureSummaryAsync` returns one row per contract name and version that has `Failed` or `DeadLettered` messages, ordered by the latest attempt time. Health probes report unhealthy when any contract has `DeadLetteredCount > 0` or a `FailedCount` whose `LastFailedAt` is recent.
+
+```csharp
+var summary = await outboxManager.GetFailureSummaryAsync(cancellationToken).ConfigureAwait(false);
+var unhealthy = summary.Any(row =>
+    row.DeadLetteredCount > 0 ||
+    (row.FailedCount > 0 && row.LastFailedAt >= DateTimeOffset.UtcNow.AddMinutes(-15)));
+
+return unhealthy ? HealthCheckResult.Unhealthy("Outbox failures.") : HealthCheckResult.Healthy();
+```
 
 ## Processor Control
 

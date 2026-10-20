@@ -120,9 +120,17 @@ Fix: implement the typed shortcut, `ICommandShortcut<TCommand, TCommandResult>` 
 
 You see `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException` at the caller.
 
-Cause: a guard refused the message or a validator reported it malformed, and no refusal mapper covers it. Both are decisions rather than faults: neither reaches error handlers, the mediation reports `MediationOutcome.Denied` or `Invalid`, and `LiteBusMessageInvalidException.Failures` carries every failure the validator stage collected.
+Cause: a guard refused the message or a validator reported it malformed, and no refusal mapper covers it. Both are decisions rather than faults: neither reaches error handlers, the mediation reports `MediationOutcome.Denied` or `Invalid`, and `LiteBusMessageInvalidException.Failures` carries every failure the validator stage collected. `LiteBusMessageDeniedException.DeniedBy` names the guard and `LiteBusMessageInvalidException.RejectedBy` names the validator, and each message includes that handler name.
 
 Fix: register an `IMessageRefusalMapper<TMessage, TMessageResult>` when the caller should receive a value instead of an exception. One registration against `ICommand` or `IQuery` covers the whole axis, and a mapper against a concrete message type overrides it. A message with no result, and any event, has nothing a mapper could return, so a refusal there always raises. When the caller should branch instead, call `TrySendAsync` or `TryQueryAsync` and map the returned `MediationResult` to a 403 or 400 without catching anything. A genuine fault still throws.
+
+### Finding the Guard That Denied a Message
+
+You need to know which guard refused a message.
+
+Cause: several guards cover the message and the reason alone does not identify one.
+
+Fix: read `LiteBusMessageDeniedException.DeniedBy` for the concrete guard type, or read the exception message which names that guard; for a validation failure read `LiteBusMessageInvalidException.RejectedBy` the same way. The decision counter also tags the handler in `litebus.decided_by`.
 
 ### More Than One Refusal Mapper
 

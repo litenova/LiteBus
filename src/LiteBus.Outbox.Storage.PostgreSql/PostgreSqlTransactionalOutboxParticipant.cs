@@ -77,6 +77,8 @@ public sealed class PostgreSqlTransactionalOutboxParticipant
             "Activate IPostgreSqlTransactionProvider in the current scope (for example by opening BeginTransactionAsync " +
             "in unit-of-work middleware) or register AllowImmediateCommit only for development and tests. " +
             "Another ORM or document library joins the same transaction rather than owning one: pass the connection " +
-            "and transaction this provider exposes to it, for example Marten's SessionOptions.ForTransaction.");
+            "and transaction this provider exposes to it, for example Marten's SessionOptions.ForTransaction. " +
+            "A Marten application whose session also serves reads can call UseMartenTransactionalOutbox() from " +
+            "LiteBus.Outbox.Storage.Marten instead.");
     }
 }

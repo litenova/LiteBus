@@ -447,6 +447,7 @@ public sealed class ArchitectureDependencyPolicyTests
             "AWSSDK.SQS" => "AwsSqs",
             "Azure.Messaging.ServiceBus" => "AzureServiceBus",
             "Confluent.Kafka" => "Kafka",
+            "Marten" => "PostgreSql",
             "Npgsql" => "PostgreSql",
             "RabbitMQ.Client" => "Amqp",
             _ => null

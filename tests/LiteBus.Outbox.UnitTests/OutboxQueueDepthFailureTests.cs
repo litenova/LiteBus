@@ -165,6 +165,12 @@ public sealed class OutboxQueueDepthFailureTests
             return Task.FromResult(_counts);
         }
 
+        public Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<OutboxFailureSummary>>([]);
+        }
+
         public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult(StoreSchemaInfo.ForLogicalStore("outbox", 1));

@@ -50,6 +50,7 @@
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.Amqp\LiteBus.Outbox.Dispatch.Amqp.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.InProcess\LiteBus.Outbox.Dispatch.InProcess.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.EntityFrameworkCore\LiteBus.Outbox.Storage.EntityFrameworkCore.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.Marten\LiteBus.Outbox.Storage.Marten.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.PostgreSql\LiteBus.Outbox.Storage.PostgreSql.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Saga.InboxIntegration\LiteBus.Saga.InboxIntegration.csproj"/>

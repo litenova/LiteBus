@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Outbox.Abstractions;
 using LiteBus.Storage.PostgreSql;
 using Npgsql;
 
@@ -61,6 +62,17 @@ public sealed class PostgreSqlOutboxModuleBuilder
     ///     Gets the transactional write mode used when ambient registration is enabled.
     /// </summary>
     public TransactionalWriteMode TransactionalWriteMode { get; private set; } = TransactionalWriteMode.RequireActiveTransaction;
+
+    /// <summary>
+    ///     Gets or sets the factory used to register a custom scoped transactional outbox writer.
+    /// </summary>
+    /// <remarks>
+    ///     Companion writer packages set this through their own builder extension instead of adding public API here.
+    ///     When set, <see cref="PostgreSqlOutboxModule" /> registers the factory result as scoped
+    ///     <see cref="ITransactionalOutbox" />. It cannot be combined with
+    ///     <see cref="EnableAmbientTransactionProvider(TransactionalWriteMode)" />.
+    /// </remarks>
+    internal Func<IServiceProvider, ITransactionalOutbox>? TransactionalOutboxFactory { get; set; }
 
     /// <summary>
     ///     Disables registration of outbox schema initialization background service work.

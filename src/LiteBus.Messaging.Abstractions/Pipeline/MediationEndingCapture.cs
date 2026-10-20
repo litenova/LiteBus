@@ -87,7 +87,7 @@ public sealed class MediationEndingCapture
         capture.Reason = decision.Reason;
         capture.Code = decision.Code;
         capture.Failures = decision.Failures;
-        capture.DecidedBy = decision.AnsweredBy;
+        capture.DecidedBy = decision.DecidedBy;
     }
 
     /// <summary>

@@ -40,6 +40,8 @@ Typical deployment: enable processor on generic host; application code accepts c
 
 - **`InboxProcessorOptions`**: `BatchSize`, `LeaseDuration`, `LeaseHeartbeatInterval` (must be `<= LeaseDuration / 2`), `Retry`, `DispatcherConcurrency`, `HookFailurePolicy` (default `DeadLetter`), optional `TenantId`.
 - **`InboxProcessorHostOptions.PollInterval`**: Delay between passes; adaptive polling when full batches return quickly.
+
+Set `Retry.IsPermanentFailure` to dead-letter application failures that can never succeed on retry; see [Permanent Failures](lease-retry-dead-letter.md#permanent-failures).
 - Compose-time validation rejects invalid batch size and max attempts.
 
 ### Extension Points

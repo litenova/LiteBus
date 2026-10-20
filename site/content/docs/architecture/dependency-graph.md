@@ -162,6 +162,7 @@ The Direct project references and Direct package references columns repeat [Gene
 | `LiteBus.Saga.InboxIntegration` | Feature bridge | `LiteBus.Commands.Abstractions`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Saga` | none |
 | `LiteBus.Saga.Storage.PostgreSql` | Feature bridge | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga`, `LiteBus.Saga.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
 | `LiteBus.Outbox.Storage.PostgreSql` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
+| `LiteBus.Outbox.Storage.Marten` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Storage.PostgreSql`, `LiteBus.Runtime.Abstractions` | `Marten` |
 | `LiteBus.Outbox.Storage.EntityFrameworkCore` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.EntityFrameworkCore` | `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Relational` |
 | `LiteBus.Outbox.Storage.InMemory` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Outbox.Dispatch.InProcess` | Feature bridge | `LiteBus.Events`, `LiteBus.Events.Abstractions`, `LiteBus.Messaging`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |

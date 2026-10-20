@@ -89,6 +89,7 @@ while (cursor is not null);
 ```
 
 Two more manager calls support operations. `GetSchemaInfoAsync` returns `StoreSchemaInfo`: the store component name, the expected and recorded schema versions, and the schema and table names for relational backends. Poll it after deploys and migrations to confirm the store matches the running release. `GetRetentionStatusAsync` returns `RetentionRunStatus`: whether the cleanup loop is enabled, the configured retention period and interval, and the timestamp, deleted count, and error of the last pass. Poll it when terminal rows accumulate to see whether cleanup runs and what its last pass did.
+`IOutboxManager.GetFailureSummaryAsync` returns per-contract failing counts with the latest error, which separates messages that fail on every attempt from a backlog that is merely slow.
 
 ## Retention Cutoff
 

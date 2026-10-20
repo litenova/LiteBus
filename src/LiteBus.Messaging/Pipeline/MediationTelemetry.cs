@@ -204,13 +204,13 @@ internal static class MediationTelemetry
     /// <param name="decision">The decision that stopped it.</param>
     /// <returns>The handler type name, or a stand-in when the stage does not record one.</returns>
     /// <remarks>
-    ///     Only the shortcut stage records the deciding handler today, because that is the stage where naming it
-    ///     resolves a genuine ambiguity between several globally registered shortcuts. A guard stage stops at the first
-    ///     denial and the reason usually identifies it.
+    ///     Every stopping decision records the deciding handler, because naming it resolves the ambiguity between
+    ///     several globally registered handlers. A guard stage stops at the first denial and the reason usually
+    ///     identifies it, and the name removes the remaining doubt.
     /// </remarks>
     private static string DecidedBy(PipelineDecision decision)
     {
-        return decision.AnsweredBy?.Name ?? "unnamed";
+        return decision.DecidedBy?.Name ?? "unnamed";
     }
 
     /// <summary>

@@ -72,6 +72,33 @@ public sealed record RetryOptions
     public bool UseJitter { get; init; } = true;
 
     /// <summary>
+    ///     Gets the application-supplied predicate that marks a dispatch failure as permanent.
+    /// </summary>
+    /// <value>
+    ///     <see langword="null" /> by default, which retries every failure the built-in non-retryable set allows. Set
+    ///     it to dead-letter a message on the first failure the predicate recognizes, regardless of
+    ///     <see cref="MaxAttempts" />.
+    /// </value>
+    /// <remarks>
+    ///     <para>
+    ///         The predicate receives the exception that ended the dispatch and runs in addition to the built-in
+    ///         non-retryable set (a missing handler, multiple handlers, a guard denial, and a validation failure). It
+    ///         is not called for a cancellation the processor treats as a shutdown. A predicate that throws is treated
+    ///         as <see langword="false" />, so a faulty classifier keeps the retry schedule instead of losing the
+    ///         message.
+    ///     </para>
+    /// </remarks>
+    /// <example>
+    ///     <code>
+    /// Retry = new RetryOptions
+    /// {
+    ///     IsPermanentFailure = exception => exception is UseCaseUnprocessableException
+    /// }
+    /// </code>
+    /// </example>
+    public Func<Exception, bool>? IsPermanentFailure { get; init; }
+
+    /// <summary>
     ///     Calculates the visibility delay before the next dispatch attempt.
     /// </summary>
     /// <param name="attemptCount">

@@ -14,6 +14,7 @@
         <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.400" PrivateAssets="All"/>
         <!-- Held on Npgsql 9.x to match the EF Core 9 PostgreSQL provider used by the storage tests. -->
         <PackageVersion Include="Npgsql" Version="9.0.5"/>
+        <PackageVersion Include="Marten" Version="9.50.1"/>
         <PackageVersion Include="AWSSDK.SQS" Version="4.0.100.11"/>
         <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.20.2"/>
         <PackageVersion Include="Confluent.Kafka" Version="2.15.0"/>

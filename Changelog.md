@@ -181,6 +181,11 @@ Major release for .NET 10, describing the change from v6.0.2. Adds a completion 
 
 ### Added
 
+- `LiteBus.Outbox.Storage.Marten` stages outbox rows on the current Marten `IDocumentSession` with `QueueSqlCommand`, so the row commits in the same `SaveChangesAsync` as the documents. Register it with `UsePostgreSqlStorage(postgres => postgres.UseMartenTransactionalOutbox())`. It suits an application whose session serves reads and writes, where the ambient-transaction route would open a write transaction for every read; it resolves `ReturnExisting` and `Strict` idempotency with one read before staging.
+- `PostgreSqlOutboxSchema.CreateInsertStatement` returns the outbox insert for one envelope at the current schema version, so a unit of work that queues SQL writes the row the PostgreSQL store writes instead of hand-written column lists.
+- `RetryOptions.IsPermanentFailure` marks an application exception as permanent, so the inbox and outbox processors dead-letter the message on that attempt instead of spending the retry schedule on a failure no retry can fix. A classifier that throws is treated as not permanent.
+- `IOutboxManager.GetFailureSummaryAsync` reports, per contract, the `Failed` and `DeadLettered` counts with the most recent error and time, so a health probe can tell a failing message from a slow backlog.
+- `LiteBusMessageDeniedException.DeniedBy` and `LiteBusMessageInvalidException.RejectedBy` name the guard or validator that refused the message, and the exception message includes its type name.
 - `TransportOutboxDispatcherOptions.TenantRoutingStrategy` and `OutboxModuleBuilder.UseContractResolver(IMessageContractResolver)` make the dispatcher's tenant routing and the envelope factory's contract resolver configurable. Both constructor parameters existed before, but no builder could fill them.
 - `TransportPublishRequest.MessageGroupId` and `TransportPublishRequest.DeduplicationKey`. The transport outbox dispatcher fills them from the envelope (the idempotency key, otherwise the message id; the tenant id, otherwise the contract name), and the SQS adapter sets them on queues whose URL ends in `.fifo`, so outbox dispatch can publish to SQS FIFO queues.
 - `KafkaTransportOptions.SocketTimeoutMs` and `KafkaTransportOptions.MessageSendMaxRetries`, each positive when set and left at the librdkafka default otherwise.
@@ -334,6 +339,8 @@ Major release for .NET 10, describing the change from v6.0.2. Adds a completion 
 
 ### Breaking
 
+- `PipelineDecision.AnsweredBy` is renamed `DecidedBy` and is set for a guard denial and a validation failure as well as a shortcut answer.
+- `IOutboxDiagnosticsStore` and `IOutboxManager` gain `GetFailureSummaryAsync`; a custom outbox store implements it.
 - A second `AddLiteBus` on one service collection or container builder throws `ModuleCompositionException`; each container hosts one LiteBus composition.
 - A second transport module in one composition throws `ModuleCompositionException` naming both modules. Both modules register the single `ITransportPublisher` binding, so two transports in one composition could not work before either.
 - Registering a service type both as a single binding and as collection items throws `ModuleCompositionException`; the single-binding and collection views used to disagree silently.

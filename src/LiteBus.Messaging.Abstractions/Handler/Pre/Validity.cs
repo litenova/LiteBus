@@ -153,6 +153,7 @@ public readonly struct Validity : IEquatable<Validity>
     /// <summary>
     ///     Converts this validity to the pipeline decision the stage runner acts on.
     /// </summary>
+    /// <param name="decidedBy">The validator that produced this validity, recorded so a rejection can be named.</param>
     /// <returns>
     ///     A decision reporting <see cref="MediationOutcome.Invalid" /> when failures were reported, otherwise
     ///     <see cref="PipelineDecision.Continue" />.
@@ -161,8 +162,8 @@ public readonly struct Validity : IEquatable<Validity>
     ///     The stage runner does not act on this decision immediately. It collects the failures from every validator and
     ///     builds one decision from all of them, because a caller fixing a malformed message wants every failure at once.
     /// </remarks>
-    internal PipelineDecision ToDecision()
+    internal PipelineDecision ToDecision(Type decidedBy)
     {
-        return IsInvalid ? PipelineDecision.Invalid(Failures) : PipelineDecision.Continue;
+        return IsInvalid ? PipelineDecision.Invalid(Failures, decidedBy) : PipelineDecision.Continue;
     }
 }

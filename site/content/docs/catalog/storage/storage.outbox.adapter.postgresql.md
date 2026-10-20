@@ -26,6 +26,14 @@
 - Dead-letter replay resets row to pending and clears lease and error fields.
 - Status diagnostics uses grouped counts by outbox status.
 
+## Insert Statement for Other Units of Work
+
+`PostgreSqlOutboxSchema.CreateInsertStatement(envelope, options)` builds a `PostgreSqlOutboxInsertStatement` carrying the parameterized insert for one `OutboxEnvelope` against `CurrentSchemaVersion`. `Sql` uses Npgsql positional parameters `$1` through `$18` with an explicit `$17::jsonb` cast for the trace context, and `Values` holds the converted values in the same order with `DBNull.Value` for every absent value. The statement covers all 18 insert columns, ends with `ON CONFLICT DO NOTHING`, and has no `RETURNING` clause.
+
+`FormatSql(placeholder)` returns the same statement with each `$n` marker replaced by `placeholder` while keeping casts, for units of work that take their own placeholder character. Marten sessions execute it through `IDocumentOperations.QueueSqlCommand('?', statement.FormatSql('?'), [.. statement.Values])`, which replaces each `?` with the next positional parameter inside the batch `SaveChangesAsync` sends.
+
+The statement silently skips conflicting inserts, so idempotency resolution (Strict and ReturnExisting) is the caller job: look up the existing row before queueing rather than reading it back from a skipped insert. `LiteBus.Outbox.Storage.Marten` is the shipped caller; see [Outbox Marten Storage](../../integrations/outbox-marten-storage.md). Callers must not edit the statement text: a schema change updates `CreateInsertStatement` in one place.
+
 ## Concurrency Model
 
 - Leasing uses `FOR UPDATE SKIP LOCKED`.

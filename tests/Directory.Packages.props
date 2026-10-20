@@ -17,7 +17,7 @@
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11"/>
         <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.11"/>
         <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.11"/>
-        <PackageVersion Include="Marten" Version="9.32.1"/>
+        <PackageVersion Include="Marten" Version="9.50.1"/>
         <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.11"/>
         <PackageVersion Include="OpenTelemetry" Version="1.18.0"/>
         <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11"/>

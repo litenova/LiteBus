@@ -309,7 +309,7 @@ public sealed class PipelineDispatch
             .DecideAsync((TMessage) message, cancellationToken)
             .ConfigureAwait(false);
 
-        return verdict.ToDecision();
+        return verdict.ToDecision(handler.GetType());
     }
 
     /// <summary>
@@ -334,7 +334,7 @@ public sealed class PipelineDispatch
             .ValidateAsync((TMessage) message, cancellationToken)
             .ConfigureAwait(false);
 
-        return validity.ToDecision();
+        return validity.ToDecision(handler.GetType());
     }
 
     /// <summary>

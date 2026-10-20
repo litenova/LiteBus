@@ -26,12 +26,16 @@ public sealed class LiteBusMessageDeniedException : Exception
     /// <param name="messageType">The type of the message that was denied.</param>
     /// <param name="reason">The reason the guard gave for denying the message.</param>
     /// <param name="code">The code the guard supplied, when any.</param>
-    public LiteBusMessageDeniedException(Type messageType, string reason, string? code = null)
-        : base($"Mediation of '{messageType?.Name}' was denied: {reason}")
+    /// <param name="deniedBy">The guard that denied the message, when known.</param>
+    public LiteBusMessageDeniedException(Type messageType, string reason, string? code = null, Type? deniedBy = null)
+        : base(deniedBy is null
+            ? $"Mediation of '{messageType?.Name}' was denied: {reason}"
+            : $"Mediation of '{messageType?.Name}' was denied by '{deniedBy.Name}': {reason}")
     {
         MessageType = messageType;
         Reason = reason;
         Code = code;
+        DeniedBy = deniedBy;
     }
 
     /// <summary>
@@ -76,4 +80,10 @@ public sealed class LiteBusMessageDeniedException : Exception
     ///     Gets the code the guard supplied, when it supplied one.
     /// </summary>
     public string? Code { get; }
+
+    /// <summary>
+    ///     Gets the guard that denied the message.
+    /// </summary>
+    /// <value>The concrete guard type that denied the message, or <see langword="null" /> when unknown.</value>
+    public Type? DeniedBy { get; }
 }

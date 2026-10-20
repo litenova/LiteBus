@@ -43,6 +43,8 @@ Typical deployment: application enqueues domain events via `IOutbox`; processor 
 - **In-process dispatch**: Default `HookFailurePolicy = DeadLetter`.
 - **`ValidatePayloadBeforeDispatch`**: When enabled on transport options, dispatcher deserializes before broker publish.
 
+Set `Retry.IsPermanentFailure` to dead-letter application failures that can never succeed on retry; see [Permanent Failures](lease-retry-dead-letter.md#permanent-failures).
+
 ### Extension Points
 
 - **`IOutboxDispatcher`**: Exactly one dispatcher (in-process event mediator, AMQP, Kafka, and similar).
