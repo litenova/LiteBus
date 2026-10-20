@@ -12,7 +12,7 @@ export const siteDescription =
 export const siteOgImage = '/og.png';
 
 /** The LiteBus release the documentation describes. Updated in the commit that cuts a release. */
-export const latestRelease = '7.0.0-preview.6';
+export const latestRelease = '7.0.0-preview.7';
 
 /** Where the documentation is served. */
 export const docsBasePath = '/docs';

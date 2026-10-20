@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## v7.0.0-preview.7
+
+What changed since `v7.0.0-preview.6`; for everything landing in 7.0.0, see [v7.0.0](#v700). Acts on integrator feedback from a production Marten application: refusals name the handler that decided them, a failure no retry can fix dead-letters at once, and Marten applications get a transactional outbox writer.
+
+### Added
+
+- `LiteBus.Outbox.Storage.Marten` queues outbox rows on the current Marten `IDocumentSession`, registered with `UseMartenTransactionalOutbox()`.
+- `PostgreSqlOutboxSchema.CreateInsertStatement`, the schema-owned outbox insert for one envelope.
+- `RetryOptions.IsPermanentFailure` dead-letters a message on the first failure the application marks permanent.
+- `IOutboxManager.GetFailureSummaryAsync` reports failing and dead-lettered counts per contract with the latest error.
+- `LiteBusMessageDeniedException.DeniedBy` and `LiteBusMessageInvalidException.RejectedBy` name the guard or validator that refused the message.
+
+### Breaking
+
+- `PipelineDecision.AnsweredBy` is renamed `DecidedBy`.
+- `IOutboxDiagnosticsStore` and `IOutboxManager` gain `GetFailureSummaryAsync`.
+
+### Documentation
+
+- An Outbox Marten Storage integration page, a Permanent Failures section on the retry page, and a troubleshooting entry for finding the guard that denied a message.
+
 ## v7.0.0-preview.6
 
 What changed since `v7.0.0-preview.5`; for everything landing in 7.0.0, see [v7.0.0](#v700). Acts on an audit of composition, durable processing and the transports: cancelled work no longer spends the retry budget, what LiteBus creates it also disposes, and composition mistakes fail at build time. The documentation site is rebuilt and serves one documentation set.
