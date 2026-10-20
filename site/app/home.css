@@ -51,8 +51,8 @@ button.ed-tab { background: transparent; border: 0; border-right: var(--bw) soli
 .stepper .file pre.code { height: calc(20 * 1.65em + 30px); }
 
 /* next action: a command-palette row */
-.next { margin-top: 20px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 14px 16px 14px 18px; border: var(--bw) solid var(--line); border-radius: 8px; background: var(--side); color: var(--fg); transition: border-color .14s, background-color .14s, box-shadow .14s; }
-.next:hover { text-decoration: none; border-color: var(--acc); background: var(--acc-soft); box-shadow: 0 0 0 3px var(--acc-soft); }
+.next { margin-top: 20px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 14px 16px 14px 18px; border: var(--bw) solid var(--line); border-radius: 8px; background: var(--side); color: var(--fg); transition: border-color .14s, background-color .14s; }
+.next:hover { text-decoration: none; border-color: var(--acc); background: var(--acc-soft); }
 .next .pr { font-family: var(--mono); color: var(--acc); font-size: 15px; }
 .next b { font-weight: 600; font-size: 15px; }
 .next .d { display: block; color: var(--dim); font-size: 13.5px; }

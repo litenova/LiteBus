@@ -43,7 +43,8 @@
   --sx-pun: #9aa3b5;
   --sx-ln: #4f5668;
   --sx-line: rgb(255 255 255 / .035);
-  --shadow: 0 40px 80px -40px rgb(0 0 0 / .8), 0 0 0 1px rgb(0 0 0 / .4);
+  /* Outer edges: the window frame, header, status bar and the sidebar and outline edges. */
+  --frame: #3a3f4c;
   /* type: next/font variables first, then the mock fallbacks */
   --sans: var(--font-sans), 'Source Sans 3', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
   --mono: var(--font-mono), 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
@@ -93,7 +94,7 @@
   --sx-pun: #3b3b3b;
   --sx-ln: #6e7681;
   --sx-line: rgb(0 0 0 / .03);
-  --shadow: 0 40px 80px -48px rgb(0 0 0 / .25), 0 0 0 1px rgb(0 0 0 / .08);
+  --frame: #b3b3b3;
 }
 
 /* Base */
@@ -172,7 +173,7 @@ img { max-width: 100%; height: auto; }
   align-items: center;
   gap: 24px;
   padding: 0 20px;
-  border-bottom: var(--bw) solid var(--line);
+  border-bottom: var(--bw) solid var(--frame);
   background: var(--side);
 }
 .top-l { display: flex; align-items: center; gap: 24px; min-width: 0; }
@@ -267,9 +268,8 @@ img { max-width: 100%; height: auto; }
   margin: 0;
   padding: 4px;
   background: var(--raised);
-  border: var(--bw) solid var(--line);
+  border: var(--bw) solid var(--frame);
   border-radius: 8px;
-  box-shadow: 0 16px 32px -16px rgb(0 0 0 / .5);
   max-height: 20rem;
   overflow-y: auto;
 }
@@ -372,12 +372,11 @@ kbd {
 
 /* Editor window */
 .ed {
-  border: var(--bw) solid var(--line);
+  border: var(--bw) solid var(--frame);
   border-radius: 8px;
   overflow: hidden;
   background: var(--bg);
   min-width: 0;
-  box-shadow: 0 24px 48px -32px rgb(0 0 0 / .6);
 }
 .ed-tabs { display: flex; background: var(--side); border-bottom: var(--bw) solid var(--line); overflow-x: auto; scrollbar-width: none; }
 .ed-tab {
@@ -459,8 +458,8 @@ pre.code code { display: block; min-width: max-content; counter-reset: ln; white
   counter-increment: ln;
   content: counter(ln);
   display: inline-block;
-  width: 3.2em;
-  padding-right: 1.4em;
+  width: 2.1em;
+  padding-right: .6em;
   text-align: right;
   color: var(--sx-ln);
   user-select: none;
@@ -480,7 +479,7 @@ pre.code code { display: block; min-width: max-content; counter-reset: ln; white
   justify-content: space-between;
   height: 26px;
   background: var(--side);
-  border-top: var(--bw) solid var(--line);
+  border-top: var(--bw) solid var(--frame);
   font-family: var(--mono);
   font-size: 11.5px;
   color: var(--dim);
@@ -512,7 +511,6 @@ pre.code code { display: block; min-width: max-content; counter-reset: ln; white
 @media (min-width: 1600px) {
   body {
     background: var(--desk);
-    background-image: radial-gradient(1200px 600px at 50% -10%, var(--acc-soft), transparent 70%);
     padding: 40px 0;
   }
   .app {
@@ -521,8 +519,7 @@ pre.code code { display: block; min-width: max-content; counter-reset: ln; white
     min-height: calc(100vh - 80px);
     border-radius: 12px;
     overflow: hidden;
-    box-shadow: var(--shadow);
-    border: var(--bw) solid var(--line);
+    border: var(--bw) solid var(--frame);
   }
   .top { position: static; }
 }

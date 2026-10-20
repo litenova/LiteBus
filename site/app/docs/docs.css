@@ -6,7 +6,7 @@
 .docs > .status { grid-column: 1 / -1; }
 
 /* Explorer navigation. */
-.explorer { background: var(--side); border-right: var(--bw) solid var(--line); padding: 14px 0 24px; font-size: 13.5px; min-width: 0; }
+.explorer { background: var(--side); border-right: var(--bw) solid var(--frame); padding: 14px 0 24px; font-size: 13.5px; min-width: 0; }
 .explorer:focus { outline: none; }
 /* Drawer search: hidden on desktop, where the header holds the search box. */
 .explorer .search { display: none; }
@@ -116,7 +116,7 @@ details[open] > summary.xrow .chev { transform: rotate(90deg); }
 .pager small { display: block; font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
 
 /* Outline. */
-.outline { border-left: var(--bw) solid var(--line-soft); padding: 22px 0 24px; font-size: 13px; min-width: 0; }
+.outline { border-left: var(--bw) solid var(--frame); padding: 22px 0 24px; font-size: 13px; min-width: 0; }
 .outline .sticky { position: sticky; top: 74px; }
 .outline .xhead { padding: 0 20px 6px; }
 .outline a { display: block; padding: 4px 20px; color: var(--dim); border-left: 2px solid transparent; margin-left: -1px; line-height: 1.45; transition: color .12s, border-color .12s; }
@@ -142,7 +142,7 @@ details[open] > summary.xrow .chev { transform: rotate(90deg); }
   .menurow .path { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .menurow .path b { color: var(--faint); font-weight: 400; }
   .menurow .ver { margin-left: auto; flex: none; }
-  .explorer { position: fixed; z-index: 61; top: 0; bottom: 0; left: 0; width: min(320px, 86vw); overflow-y: auto; padding-top: 16px; border-right: var(--bw) solid var(--line); box-shadow: 24px 0 48px -24px rgb(0 0 0 / .5); transform: translateX(-104%); transition: transform .24s var(--ease); }
+  .explorer { position: fixed; z-index: 61; top: 0; bottom: 0; left: 0; width: min(320px, 86vw); overflow-y: auto; padding-top: 16px; border-right: var(--bw) solid var(--frame); transform: translateX(-104%); transition: transform .24s var(--ease); }
   .explorer.open { transform: none; }
   .explorer .search { display: flex; width: auto; margin: 0 12px 12px; }
   .scrim { display: block; position: fixed; inset: 0; z-index: 60; background: rgb(0 0 0 / .45); border: 0; padding: 0; opacity: 0; pointer-events: none; transition: opacity .24s; }
