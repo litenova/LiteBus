@@ -5,7 +5,6 @@
                   "reliability",
                   "---Design Notes---",
                   "integrator-feedback",
-                  "marten-outbox-writer",
                   "storage-deduplication"
               ]
 }

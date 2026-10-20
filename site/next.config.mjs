@@ -85,6 +85,7 @@ const nextConfig = {
       { source: '/docs/concepts/domain-events-and-unit-of-work', destination: '/docs/reliable-messaging/domain-events-and-unit-of-work', permanent: true },
       { source: '/docs/concepts/recurring-commands', destination: '/docs/integrations/recurring-commands', permanent: true },
       { source: '/docs/reference/feature-index-v7', destination: '/docs/reference/feature-index', permanent: true },
+      { source: '/docs/roadmap/marten-outbox-writer', destination: '/docs/integrations/outbox-marten-storage', permanent: true },
       { source: '/docs/reference/feature-index-v6', destination: '/docs/reference/feature-index', permanent: true },
       { source: '/docs/reference/semantic-validation', destination: '/docs/contributing/semantic-validation', permanent: true },
       { source: '/docs/migration/from-mediatr', destination: '/docs/migration/mediatr-differences', permanent: true },
