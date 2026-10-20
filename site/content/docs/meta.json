@@ -1,23 +1,23 @@
 {
-    "title":  "Documentation",
-    "pages":  [
-                  "index",
-                  "---Learn---",
-                  "getting-started",
-                  "concepts",
-                  "reliable-messaging",
-                  "integrations",
-                  "operations",
-                  "---Build---",
-                  "reference",
-                  "architecture",
-                  "testing",
-                  "extending",
-                  "migration",
-                  "contributing",
-                  "roadmap",
-                  "---Contributor Reference---",
-                  "catalog"
-              ]
+    "title": "Documentation",
+    "pages": [
+        "index",
+        "---Learn---",
+        "getting-started",
+        "concepts",
+        "reliable-messaging",
+        "integrations",
+        "operations",
+        "---Build---",
+        "reference",
+        "architecture",
+        "testing",
+        "extending",
+        "migration",
+        "changelog",
+        "contributing",
+        "roadmap",
+        "---Contributor Reference---",
+        "catalog"
+    ]
 }
-

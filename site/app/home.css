@@ -5,7 +5,7 @@
 
 /* ------------------------------------------------------------------- hero */
 .hero { padding: 96px 0 80px; }
-.chip { display: inline-flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12.5px; color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px 4px 10px; transition: border-color .12s; }
+.chip { display: inline-flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12.5px; color: var(--dim); border: var(--bw) solid var(--line); border-radius: 999px; padding: 4px 12px 4px 10px; transition: border-color .12s; }
 .chip:hover { border-color: var(--acc); text-decoration: none; }
 .chip b { color: var(--fg); font-weight: 500; }
 .chip i { font-style: normal; color: var(--acc); }
@@ -13,20 +13,20 @@
 .hero h1 { font-size: clamp(38px, 5.2vw, 60px); font-weight: 700; letter-spacing: -.035em; line-height: 1.05; margin-top: 24px; max-width: 15ch; }
 .lead { margin-top: 20px; font-size: 18px; line-height: 1.6; color: var(--dim); max-width: 58ch; }
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
-.install { display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 6px 0 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--side); font-family: var(--mono); font-size: 13.5px; color: var(--fg); min-width: 0; max-width: 100%; }
+.install { display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 6px 0 14px; border: var(--bw) solid var(--line); border-radius: 6px; background: var(--side); font-family: var(--mono); font-size: 13.5px; color: var(--fg); min-width: 0; max-width: 100%; }
 .install .pr { color: var(--acc); flex: none; }
 .cmdbox { display: inline-grid; min-width: 0; }
 .cmdbox > span { grid-area: 1 / 1; }
 .ghost { visibility: hidden; white-space: nowrap; padding-right: 9px; }
 .typed { display: inline-block; overflow: hidden; white-space: nowrap; width: 0; border-right: 7px solid var(--acc); padding-right: 2px; animation: e-type 1.7s steps(67) .5s forwards, e-caret 1.1s steps(1) infinite; }
-.facts { margin: 52px 0 0; padding-top: 22px; border-top: 1px solid var(--line-soft); display: flex; flex-wrap: wrap; row-gap: 16px; max-width: 760px; }
-.facts div { padding: 0 28px; border-left: 1px solid var(--line); }
+.facts { margin: 52px 0 0; padding-top: 22px; border-top: var(--bw) solid var(--line-soft); display: flex; flex-wrap: wrap; row-gap: 16px; max-width: 760px; }
+.facts div { padding: 0 28px; border-left: var(--bw) solid var(--line); }
 .facts div:first-child { padding-left: 0; border-left: 0; }
 .facts dt { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
 .facts dd { margin: 3px 0 0; font-size: 15px; font-weight: 500; color: var(--fg); }
 
 /* -------------------------------------------------------------- sections */
-.sec { padding: 80px 0; border-top: 1px solid var(--line-soft); }
+.sec { padding: 80px 0; border-top: var(--bw) solid var(--line-soft); }
 .sec h2 { font-size: 30px; font-weight: 700; }
 .sub { margin-top: 8px; color: var(--dim); max-width: 62ch; }
 
@@ -36,7 +36,7 @@
 /* Steps are real buttons; strip the UA button chrome so the mock card holds. */
 .step { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 4px 12px; padding: 14px 14px 14px 12px; border-radius: 8px; border: 1px solid transparent; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; transition: background-color .14s, border-color .14s; }
 .step:hover { background: var(--hover); }
-.step .num { grid-row: span 3; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 12px; color: var(--dim); transition: background-color .16s, border-color .16s, color .16s; }
+.step .num { grid-row: span 3; width: 26px; height: 26px; border-radius: 50%; border: var(--bw) solid var(--line); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 12px; color: var(--dim); transition: background-color .16s, border-color .16s, color .16s; }
 .step b { font-weight: 600; font-size: 15px; }
 .step .d { color: var(--dim); font-size: 14px; line-height: 1.55; }
 .step .d code { font-family: var(--mono); font-size: 12.5px; color: var(--fg); }
@@ -45,13 +45,13 @@
 .step.on .num { background: var(--acc); border-color: var(--acc); color: var(--acc-fg); }
 /* Tabs are real buttons on the home stepper; strip the UA button chrome. The
    global .ed-tab.on rule still wins for the active tab background. */
-button.ed-tab { background: transparent; border: 0; border-right: 1px solid var(--line); }
+button.ed-tab { background: transparent; border: 0; border-right: var(--bw) solid var(--line); }
 .file { display: none; }
 .file.on { display: block; }
 .stepper .file pre.code { height: calc(20 * 1.65em + 30px); }
 
 /* next action: a command-palette row */
-.next { margin-top: 20px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 14px 16px 14px 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--side); color: var(--fg); transition: border-color .14s, background-color .14s, box-shadow .14s; }
+.next { margin-top: 20px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 14px 16px 14px 18px; border: var(--bw) solid var(--line); border-radius: 8px; background: var(--side); color: var(--fg); transition: border-color .14s, background-color .14s, box-shadow .14s; }
 .next:hover { text-decoration: none; border-color: var(--acc); background: var(--acc-soft); box-shadow: 0 0 0 3px var(--acc-soft); }
 .next .pr { font-family: var(--mono); color: var(--acc); font-size: 15px; }
 .next b { font-weight: 600; font-size: 15px; }
@@ -68,8 +68,8 @@ button.ed-tab { background: transparent; border: 0; border-right: 1px solid var(
 .write .line:last-child .lc::after { content: ""; display: inline-block; width: 2px; height: 1.15em; margin-left: 2px; vertical-align: -3px; background: var(--acc); animation: e-blink 1.1s steps(1) infinite; }
 
 /* features */
-.feats { margin-top: 32px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 40px; border-top: 1px solid var(--line-soft); }
-.feat { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; padding: 20px 8px; border-bottom: 1px solid var(--line-soft); color: var(--fg); transition: background-color .14s; }
+.feats { margin-top: 32px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 40px; border-top: var(--bw) solid var(--line-soft); }
+.feat { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; padding: 20px 8px; border-bottom: var(--bw) solid var(--line-soft); color: var(--fg); transition: background-color .14s; }
 .feat:hover { text-decoration: none; background: linear-gradient(90deg, var(--acc-soft), transparent 70%); }
 .feat .sym { grid-column: 1; font-family: var(--mono); font-size: 12.5px; }
 .feat b { grid-column: 1; font-weight: 600; font-size: 15.5px; }

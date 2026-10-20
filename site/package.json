@@ -6,30 +6,35 @@
     "node": "24.x"
   },
   "scripts": {
+    "sync:changelog": "node scripts/sync-changelog.mjs",
+    "predev": "npm run sync:changelog",
+    "prebuild": "npm run sync:changelog",
     "dev": "local-md dev -- node node_modules/next/dist/bin/next dev --port 3100",
-    "build": "next build && npm run check:links && npm run check:llms && npm run check:search-trace",
+    "build": "next build && npm run check:links && npm run check:llms && npm run check:search-trace && npm run check:titles",
     "check:links": "node scripts/check-rendered-links.mjs",
     "check:llms": "node scripts/check-llms.mjs",
     "check:search-trace": "node scripts/check-search-trace.mjs",
+    "check:titles": "node scripts/check-titles.mjs",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@fumadocs/local-md": "^0.3.0",
-    "fumadocs-core": "^16.11.5",
-    "next": "^16.2.10",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "shiki": "^4.3.1",
-    "zod": "^4.1.12"
+    "@fumadocs/local-md": "^0.3.5",
+    "fumadocs-core": "^16.17.7",
+    "next": "^16.4.2",
+    "ondine": "^0.0.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "shiki": "^4.5.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@types/node": "^24.10.0",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "eslint": "^9.39.5",
-    "eslint-config-next": "^16.2.10",
-    "typescript": "^5.9.3"
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^10.13.0",
+    "eslint-config-next": "^16.4.2",
+    "typescript": "~6.0.3"
   }
 }

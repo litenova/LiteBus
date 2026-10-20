@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Fragment } from 'react';
 import { DocsDrawer } from '@/components/docs-drawer';
+import { docsBasePath } from '@/lib/site';
 
 /**
  * A sidebar page link, serialisable across the server to client boundary.
@@ -39,29 +39,16 @@ export type SidebarFolder = {
 export type SidebarNode = SidebarPage | SidebarSeparator | SidebarFolder;
 
 /**
- * One labelled group of the curated navigation, with each link already resolved to a URL.
- */
-export type CuratedGroup = {
-  readonly heading: string;
-  readonly links: readonly { readonly label: string; readonly url: string }[];
-};
-
-/**
- * The documentation sidebar: the curated groups above the full page tree.
+ * The documentation sidebar: the page tree, in the order and groups the content `meta.json` files declare.
  *
- * The tree arrives as serialisable data from the docs shell because the page tree's names are React nodes, which the
- * server to client boundary cannot carry unchanged. The current page is highlighted from the pathname, so the sidebar
- * stays correct as the reader moves without another round trip to the server. Rendering goes through the docs drawer,
- * which also shows the mobile menu row with the current page path.
+ * It is the only navigation. Every page is in it once, under the folder that holds it, so the sidebar, the breadcrumb
+ * and the tab title all name a page the same way. The tree arrives as serialisable data from the docs shell because the
+ * page tree's names are React nodes, which the server to client boundary cannot carry unchanged. The current page is
+ * highlighted from the pathname, so the sidebar stays correct as the reader moves without another round trip to the
+ * server. Rendering goes through the docs drawer, which also shows the mobile menu row with the current page path.
  */
-export function DocsSidebar({
-  tree,
-  curated,
-}: Readonly<{ tree: readonly SidebarNode[]; curated: readonly CuratedGroup[] }>) {
+export function DocsSidebar({ tree }: Readonly<{ tree: readonly SidebarNode[] }>) {
   const pathname = usePathname();
-
-  const curatedUrls = new Set(curated.flatMap((group) => group.links.map((link) => link.url)));
-  const inMore = !curatedUrls.has(pathname) && tree.some((node) => nodeContains(node, pathname));
   const found = menuPathFor(tree, pathname);
 
   // The drawer remounts for the new path, which closes it after navigating to a page.
@@ -70,48 +57,7 @@ export function DocsSidebar({
       key={pathname}
       parent={found.parent}
       current={found.current}
-      navigation={
-        <>
-          {curated.map((group, index) => {
-            const body = (
-              <>
-                <h2 className="xhead">{group.heading}</h2>
-                {group.links.map((link) => {
-                  const current = link.url === pathname;
-
-                  return (
-                    <Link
-                      key={link.url}
-                      href={link.url}
-                      className={current ? 'xrow leaf cur' : 'xrow leaf'}
-                      aria-current={current ? 'page' : undefined}
-                    >
-                      {link.label}
-                    </Link>
-                  );
-                })}
-              </>
-            );
-
-            return index === 0 ? (
-              <Fragment key={group.heading}>{body}</Fragment>
-            ) : (
-              <div key={group.heading} className="xgroup">
-                {body}
-              </div>
-            );
-          })}
-          <details className="all" open={inMore}>
-            <summary className="xhead">
-              <span className="chev" aria-hidden="true">
-                &gt;
-              </span>
-              All Pages
-            </summary>
-            <SidebarGroups nodes={tree} pathname={pathname} depth={0} />
-          </details>
-        </>
-      }
+      navigation={<SidebarGroups nodes={tree} pathname={pathname} depth={0} />}
     />
   );
 }
@@ -146,8 +92,12 @@ function SidebarGroups({
       {groups
         .filter((group) => group.nodes.length > 0)
         .map((group, index) => (
-          <Fragment key={`group-${index}`}>
-            {group.heading === undefined ? null : <h2 className="xhead">{group.heading}</h2>}
+          <div key={`group-${index}`} className="xsec">
+            {group.heading === undefined ? null : depth === 0 ? (
+              <h2 className="xhead">{group.heading}</h2>
+            ) : (
+              <h3 className="xhead">{group.heading}</h3>
+            )}
             {group.nodes.map((node, nodeIndex) => (
               <SidebarNodeItem
                 key={sidebarKey(node, nodeIndex)}
@@ -156,7 +106,7 @@ function SidebarGroups({
                 depth={depth}
               />
             ))}
-          </Fragment>
+          </div>
         ))}
     </>
   );
@@ -205,11 +155,14 @@ function SidebarPageItem({
   depth,
 }: Readonly<{ page: SidebarPage; pathname: string; depth: number }>) {
   const current = page.url === pathname;
-  const row = depth === 0 ? 'xrow leaf' : 'xrow xsub';
+  const row = depth === 0 ? 'xrow' : 'xrow xsub';
+  // A top-level page fills the slot a folder uses for its chevron, so every top-level row starts at the same edge.
+  const glyph = depth === 0 ? <PageGlyph home={page.url === docsBasePath} /> : null;
 
   if (page.external) {
     return (
       <a href={page.url} className={row}>
+        {glyph}
         {page.name}
       </a>
     );
@@ -221,8 +174,26 @@ function SidebarPageItem({
       className={current ? `${row} cur` : row}
       aria-current={current ? 'page' : undefined}
     >
+      {glyph}
       {page.name}
     </Link>
+  );
+}
+
+/**
+ * The leading glyph of a top-level page row: a house for the documentation home, a page for any other page.
+ */
+function PageGlyph({ home }: Readonly<{ home: boolean }>) {
+  return (
+    <span className="chev" aria-hidden="true">
+      <svg className="xglyph" viewBox="0 0 16 16" width="12" height="12">
+        {home ? (
+          <path d="M2.5 7.2 8 2.5l5.5 4.7M4 6v7.5h3V10h2v3.5h3V6" />
+        ) : (
+          <path d="M4 1.75h5.25L12.5 5v9.25H4zM9 1.75V5.5h3.5" />
+        )}
+      </svg>
+    </span>
   );
 }
 
@@ -257,14 +228,7 @@ function SidebarFolderItem({
       </summary>
       {children.length === 0 ? null : (
         <div className="xkids">
-          {children.map((child, index) => (
-            <SidebarNodeItem
-              key={sidebarKey(child, index)}
-              node={child}
-              pathname={pathname}
-              depth={depth + 1}
-            />
-          ))}
+          <SidebarGroups nodes={children} pathname={pathname} depth={depth + 1} />
         </div>
       )}
     </details>

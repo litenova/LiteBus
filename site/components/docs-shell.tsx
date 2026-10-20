@@ -1,9 +1,7 @@
 import type { Item, Node, Root } from 'fumadocs-core/page-tree';
-import { DocsSidebar, type CuratedGroup, type SidebarNode, type SidebarPage } from '@/components/docs-sidebar';
+import { DocsSidebar, type SidebarNode, type SidebarPage } from '@/components/docs-sidebar';
 import { SiteHeader } from '@/components/site-header';
 import { getSource } from '@/lib/source';
-import { curatedNavigation } from '@/lib/docs-nav';
-import { docsBasePath } from '@/lib/site';
 
 /**
  * The display text of a page tree node.
@@ -70,13 +68,6 @@ function toSidebarTree(tree: Root): SidebarNode[] {
  */
 export async function DocsShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const tree = toSidebarTree((await getSource()).getPageTree());
-  const curated: CuratedGroup[] = curatedNavigation.map((group) => ({
-    heading: group.heading,
-    links: group.links.map((link) => ({
-      label: link.label,
-      url: [docsBasePath, ...(link.slug.length === 0 ? [] : link.slug.split('/'))].join('/'),
-    })),
-  }));
 
   return (
     <>
@@ -86,7 +77,7 @@ export async function DocsShell({ children }: Readonly<{ children: React.ReactNo
       <div className="app">
         <SiteHeader current="docs" />
         <div className="grow docs">
-          <DocsSidebar tree={tree} curated={curated} />
+          <DocsSidebar tree={tree} />
           {children}
         </div>
       </div>

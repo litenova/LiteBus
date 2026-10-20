@@ -1,4 +1,5 @@
 import { localMd } from '@fumadocs/local-md';
+import { remarkOndine } from 'ondine/remark';
 import { getSlugs } from 'fumadocs-core/source';
 import { dynamicLoader } from 'fumadocs-core/source/dynamic';
 import { pageSchema } from 'fumadocs-core/source/schema';
@@ -13,7 +14,8 @@ function createDocsLoader() {
     frontmatterSchema: pageSchema.extend({
       title: z.string().optional(),
     }),
-    mdOptions: { rehypeCodeOptions },
+    // Mermaid fences compile to inline SVG at build time, so pages ship no diagram renderer.
+    mdOptions: { rehypeCodeOptions, remarkPlugins: [remarkOndine] },
   });
 
   if (process.env.NODE_ENV === 'development') {

@@ -25,7 +25,8 @@ export const sourceRef = 'v7';
 
 export const repositoryUrl = 'https://github.com/litenova/LiteBus';
 
-export const changelogUrl = `${repositoryUrl}/blob/main/Changelog.md`;
+/** The changelog page, published from the repository Changelog.md by scripts/sync-changelog.mjs. */
+export const changelogUrl = `${docsBasePath}/changelog`;
 
 export const nugetUrl = 'https://www.nuget.org/packages?q=LiteBus';
 

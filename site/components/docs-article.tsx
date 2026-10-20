@@ -20,19 +20,29 @@ import {
 
 /**
  * Metadata for one documentation page.
+ *
+ * The tab title is the page name with its top-level section, so two pages that share a name in different sections stay
+ * distinct; a section landing page and the documentation root show the page name alone. The layout template appends the
+ * site name, while the Open Graph and Twitter titles keep this string unchanged.
  */
 export async function docsMetadata(slug: string[]): Promise<Metadata> {
-  const page = (await getSource()).getPage(slug);
+  const source = await getSource();
+  const page = source.getPage(slug);
 
   if (!page) {
     notFound();
   }
 
   const title = page.data.title ?? siteName;
+  const section = sectionFor(source.getPageTree().children, page.url);
+  const fullTitle =
+    slug.length === 0 || section === undefined || page.url === section.indexUrl || title === section.name
+      ? title
+      : `${title} - ${section.name}`;
   const description = page.data.description ?? siteDescription;
 
   return {
-    title,
+    title: fullTitle,
     description,
     alternates: {
       canonical: page.url,
@@ -40,16 +50,55 @@ export async function docsMetadata(slug: string[]): Promise<Metadata> {
     openGraph: {
       type: 'article',
       url: page.url,
-      title,
+      title: fullTitle,
       description,
     },
     twitter: {
       card: 'summary_large_image',
-      title,
+      title: fullTitle,
       description,
     },
   };
 }
+
+/**
+ * The top-level section holding a page: its display name and its landing page URL, when it has one.
+ *
+ * A section without an index page, such as the catalog, has a name but no landing URL. A page the tree does not reach
+ * has no section, and its tab title shows the page name alone.
+ */
+function sectionFor(
+  nodes: readonly Node[],
+  url: string,
+): { readonly name: string; readonly indexUrl: string | undefined } | undefined {
+  for (const node of nodes) {
+    if (node.type !== 'folder') {
+      continue;
+    }
+
+    const name = nodeText(node.name, '');
+
+    if (name.length === 0) {
+      continue;
+    }
+
+    const holds = flattenPages([node], []).some((entry) => entry.url === url);
+
+    if (holds) {
+      return { name, indexUrl: node.index?.url };
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * One breadcrumb segment: the display name and the landing page URL, when the segment has one.
+ */
+type Crumb = {
+  readonly name: string;
+  readonly url: string | undefined;
+};
 
 /**
  * One page in navigation order, with the folders above it for the breadcrumb.
@@ -57,7 +106,7 @@ export async function docsMetadata(slug: string[]): Promise<Metadata> {
 type FlatPage = {
   readonly name: string;
   readonly url: string;
-  readonly folders: readonly string[];
+  readonly folders: readonly Crumb[];
 };
 
 /**
@@ -73,7 +122,7 @@ function nodeText(name: unknown, fallback: string): string {
  * A folder's index page is emitted ahead of the folder's other children. Callers dedupe on URL: whether an index
  * page also stays in `children` is a page tree detail this does not depend on.
  */
-function flattenPages(nodes: readonly Node[], folders: readonly string[]): FlatPage[] {
+function flattenPages(nodes: readonly Node[], folders: readonly Crumb[]): FlatPage[] {
   const pages: FlatPage[] = [];
 
   for (const node of nodes) {
@@ -81,7 +130,7 @@ function flattenPages(nodes: readonly Node[], folders: readonly string[]): FlatP
       pages.push({ name: nodeText(node.name, node.url), url: node.url, folders });
     } else if (node.type === 'folder') {
       const name = nodeText(node.name, '');
-      const below = name.length > 0 ? [...folders, name] : [...folders];
+      const below = name.length > 0 ? [...folders, { name, url: node.index?.url }] : [...folders];
 
       if (node.index !== undefined) {
         pages.push({
@@ -101,12 +150,32 @@ function flattenPages(nodes: readonly Node[], folders: readonly string[]): FlatP
 /**
  * The breadcrumb segments for a page: its folders, then its own name.
  *
- * A folder index page usually repeats its folder's name, so a repeated segment is shown once.
+ * A folder index page usually repeats its folder's name, so a repeated segment is shown once. Each segment keeps the
+ * landing page URL of the folder or page it names, so segments with a landing page can link to it.
  */
-function crumbsFor(page: FlatPage): readonly string[] {
-  const segments = [...page.folders, page.name];
+function crumbsFor(page: FlatPage): readonly Crumb[] {
+  const segments: Crumb[] = [...page.folders, { name: page.name, url: page.url }];
 
-  return segments.filter((segment, index) => index === 0 || segment !== segments[index - 1]);
+  return segments.filter(
+    (segment, index) => index === 0 || segment.name !== segments[index - 1].name,
+  );
+}
+
+/**
+ * One breadcrumb segment: a link when an earlier segment has a landing page, otherwise plain text.
+ *
+ * The last segment is the page being read, so it is marked current instead of linking to itself.
+ */
+function CrumbSegment({ segment, last }: Readonly<{ segment: Crumb; last: boolean }>) {
+  if (last) {
+    return <span aria-current="page">{segment.name}</span>;
+  }
+
+  if (segment.url === undefined) {
+    return segment.name;
+  }
+
+  return <Link href={segment.url}>{segment.name}</Link>;
 }
 
 /**
@@ -408,9 +477,9 @@ export async function DocsArticle({ slug }: Readonly<{ slug: string[] }>) {
             <>
               <Link href={docsBasePath}>Docs</Link>
               {crumbs.map((segment, index) => (
-                <Fragment key={`${segment}-${index}`}>
+                <Fragment key={`${segment.name}-${index}`}>
                   <b>&gt;</b>
-                  {segment}
+                  <CrumbSegment segment={segment} last={index === crumbs.length - 1} />
                 </Fragment>
               ))}
             </>

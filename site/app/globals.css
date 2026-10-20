@@ -12,8 +12,8 @@
   --side: #16181d;
   --raised: #20232b;
   --hover: #232733;
-  --line: #2a2e38;
-  --line-soft: #23262f;
+  --line: #3a3f4c;
+  --line-soft: #2e323d;
   /* text */
   --fg: #d7dbe4;
   --dim: #8a92a6;
@@ -45,47 +45,54 @@
   --sx-line: rgb(255 255 255 / .035);
   --shadow: 0 40px 80px -40px rgb(0 0 0 / .8), 0 0 0 1px rgb(0 0 0 / .4);
   /* type: next/font variables first, then the mock fallbacks */
-  --sans: var(--font-sans), 'Inter', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+  --sans: var(--font-sans), 'Source Sans 3', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
   --mono: var(--font-mono), 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
   --ease: cubic-bezier(.2, .7, .2, 1);
+  /* Border width for every border and rule line, so all of them change together. */
+  --bw: 1.5px;
 }
 
+/*
+ * Light theme: VS Code's default Light Modern workbench colours, with its Light+ syntax colours for code, so the light
+ * mode looks like the editor most .NET developers already use. Panels are #F8F8F8, borders #E5E5E5, text #3B3B3B and
+ * the accent #005FB8, as in that theme.
+ */
 [data-theme="light"] {
   color-scheme: light;
-  --desk: #e3e6eb;
+  --desk: #eeeeee;
   --bg: #ffffff;
-  --side: #f6f7f9;
-  --raised: #eef1f4;
-  --hover: #e9edf2;
-  --line: #d3d8e0;
-  --line-soft: #e4e7ec;
-  --fg: #0d1117;
-  --dim: #373e4a;
-  --faint: #596170;
-  --acc: #2563d8;
+  --side: #f8f8f8;
+  --raised: #f3f3f3;
+  --hover: #f2f2f2;
+  --line: #e0e0e0;
+  --line-soft: #ebebeb;
+  --fg: #3b3b3b;
+  --dim: #616161;
+  --faint: #767676;
+  --acc: #005fb8;
   --acc-fg: #ffffff;
-  --acc-soft: rgb(37 99 216 / .09);
-  --acc-ring: rgb(37 99 216 / .45);
-  --warn: #b45309;
-  --logo-line: #3e3643;
+  --acc-soft: rgb(0 95 184 / .08);
+  --acc-ring: rgb(0 95 184 / .45);
+  --warn: #895503;
+  --logo-line: #3b3b3b;
   --logo-route: #fdbf00;
-  --sx-kw: #0033b3;
-  --sx-ctl: #8b0f9e;
-  --sx-cls: #006b75;
-  --sx-ifc: #2e6a00;
-  --sx-st: #006d4a;
-  --sx-attr: #006b75;
-  --sx-fn: #8a4300;
-  --sx-var: #12408f;
-  --sx-fld: #12408f;
-  --sx-prop: #5b2a9e;
+  --sx-kw: #0000ff;
+  --sx-ctl: #af00db;
+  --sx-cls: #267f99;
+  --sx-ifc: #267f99;
+  --sx-st: #267f99;
+  --sx-attr: #267f99;
+  --sx-fn: #795e26;
+  --sx-var: #001080;
+  --sx-fld: #001080;
+  --sx-prop: #001080;
   --sx-str: #a31515;
-  --sx-num: #0b6e3f;
-  --sx-com: #4c7a52;
-  --sx-pun: #1f242d;
-  --sx-ln: #7f8794;
-  --sx-line: rgb(0 0 0 / .04);
-  --shadow: 0 40px 80px -48px rgb(20 30 60 / .35), 0 0 0 1px rgb(0 0 0 / .08);
+  --sx-num: #098658;
+  --sx-com: #008000;
+  --sx-pun: #3b3b3b;
+  --sx-ln: #6e7681;
+  --sx-line: rgb(0 0 0 / .03);
+  --shadow: 0 40px 80px -48px rgb(0 0 0 / .25), 0 0 0 1px rgb(0 0 0 / .08);
 }
 
 /* Base */
@@ -164,7 +171,7 @@ img { max-width: 100%; height: auto; }
   align-items: center;
   gap: 24px;
   padding: 0 20px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: var(--bw) solid var(--line);
   background: var(--side);
 }
 .top-l { display: flex; align-items: center; gap: 24px; min-width: 0; }
@@ -185,7 +192,7 @@ img { max-width: 100%; height: auto; }
   margin-left: 6px;
   padding: 0;
   border-radius: 6px;
-  border: 1px solid var(--line);
+  border: var(--bw) solid var(--line);
   background: transparent;
   color: var(--dim);
   cursor: pointer;
@@ -228,7 +235,7 @@ img { max-width: 100%; height: auto; }
   gap: 8px;
   height: 32px;
   padding: 0 6px 0 12px;
-  border: 1px solid var(--line);
+  border: var(--bw) solid var(--line);
   border-radius: 6px;
   background: var(--bg);
   color: var(--faint);
@@ -259,7 +266,7 @@ img { max-width: 100%; height: auto; }
   margin: 0;
   padding: 4px;
   background: var(--raised);
-  border: 1px solid var(--line);
+  border: var(--bw) solid var(--line);
   border-radius: 8px;
   box-shadow: 0 16px 32px -16px rgb(0 0 0 / .5);
   max-height: 20rem;
@@ -275,7 +282,7 @@ kbd {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--dim);
-  border: 1px solid var(--line);
+  border: var(--bw) solid var(--line);
   border-bottom-width: 2px;
   border-radius: 4px;
   padding: 0 5px;
@@ -305,7 +312,7 @@ kbd {
   height: 36px;
   padding: 0 14px;
   border-radius: 6px;
-  border: 1px solid var(--line);
+  border: var(--bw) solid var(--line);
   color: var(--fg);
   font-size: 14px;
   transition: border-color .12s;
@@ -316,7 +323,7 @@ kbd {
   font-family: var(--sans);
   font-size: 12px;
   color: var(--dim);
-  border: 1px solid var(--line);
+  border: var(--bw) solid var(--line);
   border-radius: 4px;
   padding: 3px 9px;
   background: var(--raised);
@@ -331,7 +338,7 @@ kbd {
   font-family: var(--mono);
   font-size: 11.5px;
   color: var(--dim);
-  border: 1px solid var(--line);
+  border: var(--bw) solid var(--line);
   border-radius: 999px;
   padding: 1px 9px 1px 7px;
   white-space: nowrap;
@@ -344,7 +351,7 @@ kbd {
   font-size: .86em;
   color: var(--fg);
   background: var(--raised);
-  border: 1px solid var(--line-soft);
+  border: var(--bw) solid var(--line-soft);
   border-radius: 4px;
   padding: 1px 5px;
 }
@@ -353,7 +360,7 @@ kbd {
 .callout {
   margin-top: 28px;
   padding: 14px 18px;
-  border: 1px solid var(--line);
+  border: var(--bw) solid var(--line);
   border-left: 2px solid var(--acc);
   border-radius: 6px;
   background: var(--side);
@@ -364,14 +371,14 @@ kbd {
 
 /* Editor window */
 .ed {
-  border: 1px solid var(--line);
+  border: var(--bw) solid var(--line);
   border-radius: 8px;
   overflow: hidden;
   background: var(--bg);
   min-width: 0;
   box-shadow: 0 24px 48px -32px rgb(0 0 0 / .6);
 }
-.ed-tabs { display: flex; background: var(--side); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.ed-tabs { display: flex; background: var(--side); border-bottom: var(--bw) solid var(--line); overflow-x: auto; scrollbar-width: none; }
 .ed-tab {
   position: relative;
   display: inline-flex;
@@ -382,7 +389,7 @@ kbd {
   font-family: var(--mono);
   font-size: 12.5px;
   color: var(--faint);
-  border-right: 1px solid var(--line);
+  border-right: var(--bw) solid var(--line);
   white-space: nowrap;
   cursor: pointer;
   transition: color .12s, background-color .12s;
@@ -412,7 +419,7 @@ kbd {
   font-family: var(--mono);
   font-size: 12px;
   color: var(--faint);
-  border-bottom: 1px solid var(--line-soft);
+  border-bottom: var(--bw) solid var(--line-soft);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -424,7 +431,7 @@ kbd {
   height: 26px;
   align-items: center;
   padding: 0 14px;
-  border-top: 1px solid var(--line-soft);
+  border-top: var(--bw) solid var(--line-soft);
   font-family: var(--mono);
   font-size: 11.5px;
   color: var(--faint);
@@ -461,7 +468,7 @@ pre.code code { display: block; min-width: max-content; counter-reset: ln; white
 .code .line:hover::before { color: var(--dim); }
 
 /* Footer and status bar */
-.foot { border-top: 1px solid var(--line-soft); padding: 28px 0; }
+.foot { border-top: var(--bw) solid var(--line-soft); padding: 28px 0; }
 .foot .in { display: flex; justify-content: space-between; gap: 16px 32px; flex-wrap: wrap; font-size: 13.5px; color: var(--dim); }
 .foot nav { display: flex; gap: 20px; flex-wrap: wrap; }
 .foot nav a { color: var(--dim); }
@@ -472,7 +479,7 @@ pre.code code { display: block; min-width: max-content; counter-reset: ln; white
   justify-content: space-between;
   height: 26px;
   background: var(--side);
-  border-top: 1px solid var(--line);
+  border-top: var(--bw) solid var(--line);
   font-family: var(--mono);
   font-size: 11.5px;
   color: var(--dim);
@@ -487,7 +494,7 @@ pre.code code { display: block; min-width: max-content; counter-reset: ln; white
   transition: background-color .12s, color .12s;
 }
 .status a:hover { background: var(--hover); color: var(--fg); text-decoration: none; }
-.status .home { gap: 7px; padding: 0 12px; color: var(--fg); border-right: 1px solid var(--line); }
+.status .home { gap: 7px; padding: 0 12px; color: var(--fg); border-right: var(--bw) solid var(--line); }
 .status .home .logo { width: 13px; height: 13px; }
 .status a.gh { gap: 6px; }
 .status .ghm { width: 12px; height: 12px; }
@@ -514,7 +521,7 @@ pre.code code { display: block; min-width: max-content; counter-reset: ln; white
     border-radius: 12px;
     overflow: hidden;
     box-shadow: var(--shadow);
-    border: 1px solid var(--line);
+    border: var(--bw) solid var(--line);
   }
   .top { position: static; }
 }

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import { JetBrains_Mono, Source_Sans_3 } from 'next/font/google';
 import './globals.css';
 import {
   authorName,
@@ -12,7 +12,11 @@ import {
   siteUrl,
 } from '@/lib/site';
 
-const inter = Inter({
+/**
+ * The text face for the whole site: a humanist sans designed for running text, narrower than a UI face, so justified
+ * paragraphs keep even word spacing.
+ */
+const sourceSans = Source_Sans_3({
   subsets: ['latin'],
   variable: '--font-sans',
   display: 'swap',
@@ -32,7 +36,7 @@ const jetBrainsMono = JetBrains_Mono({
  * The server always renders `data-theme="dark"`; this script switches to light only when the
  * visitor chose light before. The site never reads `prefers-color-scheme`.
  */
-const themeScript = `try{if(localStorage.getItem('litebus-theme')==='light'){document.documentElement.setAttribute('data-theme','light');var m=document.querySelector('meta[name="theme-color"]');if(m){m.setAttribute('content','#f6f7f9')}}}catch(e){}`;
+const themeScript = `try{if(localStorage.getItem('litebus-theme')==='light'){document.documentElement.setAttribute('data-theme','light');var m=document.querySelector('meta[name="theme-color"]');if(m){m.setAttribute('content','#f8f8f8')}}}catch(e){}`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -99,7 +103,7 @@ export const viewport: Viewport = {
 /**
  * Root layout for every page.
  *
- * Renders `<html>` dark by default with the Inter and JetBrains Mono font variables, plus the
+ * Renders `<html>` dark by default with the Source Sans 3 and JetBrains Mono font variables, plus the
  * theme bootstrap script in `<head>`. Pages compose the window themselves from `SiteHeader`, a
  * `.grow` element, `SiteFooter`, and `StatusBar`.
  */
@@ -109,7 +113,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       lang="en"
       data-theme="dark"
       suppressHydrationWarning
-      className={`${inter.variable} ${jetBrainsMono.variable}`}
+      className={`${sourceSans.variable} ${jetBrainsMono.variable}`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />

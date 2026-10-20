@@ -27,6 +27,10 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Ondine loads its compiler WebAssembly from a file URL, which only works when Node loads the package unbundled.
+  serverExternalPackages: ['ondine'],
+  // The repository root AGENTS.md is the agent guidance; Next must not write a second one into site/.
+  agentRules: false,
   reactStrictMode: true,
   poweredByHeader: false,
   outputFileTracingIncludes: {

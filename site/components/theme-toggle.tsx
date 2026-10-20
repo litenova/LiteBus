@@ -47,7 +47,7 @@ export function ThemeToggle() {
       aria-pressed={theme === 'light'}
       onClick={() => {
         document.documentElement.setAttribute('data-theme', next);
-        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', next === 'light' ? '#f6f7f9' : '#16181d');
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', next === 'light' ? '#f8f8f8' : '#16181d');
 
         try {
           window.localStorage.setItem('litebus-theme', next);
