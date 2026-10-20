@@ -10,18 +10,18 @@
       },
       "coverlet.collector": {
         "type": "Direct",
-        "requested": "[10.0.1, )",
-        "resolved": "10.0.1",
-        "contentHash": "27jXSV/0DbVqF5jDrAxuQFZ9oaz6gmG03p8ttxAFk+X0M4woFYj7MoWDLCna5EGLb0CE6OE7X6ZH3Wt5smTtaA=="
+        "requested": "[10.1.0, )",
+        "resolved": "10.1.0",
+        "contentHash": "SlYCIHnBYxINSUpR75SiM5JEmnx11pqT+Ac/C/fUqTTA0dLPl9eYzmFXKKuxmQhL3ZdTQl4PBD3YdAxAauaKLQ=="
       },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
-        "requested": "[18.9.0, )",
-        "resolved": "18.9.0",
-        "contentHash": "xIzVXa/VpKXqDWzyC/5Hw8JbFY5u9k3Jc53CpcjBiOXvkQGio484LD9FNwOiGUSMDcYL3Rcw9sNgGi5WrswlPQ==",
+        "requested": "[18.11.0, )",
+        "resolved": "18.11.0",
+        "contentHash": "xf/bR0LNkhK0SnadDRlZIQmC4sac5Wk0e1WAdiQjRN3MSo6gQ9M2c4c1XRNnVGjfOvckh704W5CJ19AL0/Xsdg==",
         "dependencies": {
-          "Microsoft.CodeCoverage": "18.9.0",
-          "Microsoft.TestPlatform.TestHost": "18.9.0"
+          "Microsoft.CodeCoverage": "18.11.0",
+          "Microsoft.TestPlatform.TestHost": "18.11.0"
         }
       },
       "xunit": {
@@ -37,34 +37,34 @@
       },
       "xunit.runner.visualstudio": {
         "type": "Direct",
-        "requested": "[4.0.0, )",
-        "resolved": "4.0.0",
-        "contentHash": "kzLFyBYUnoidpGOXvpNOfIo8C92gVgVR6X8ncHwhcrDYugiOut5rrhDkr0L3cWHd7J2pKXf6LgaeXoBBDlx1ag=="
+        "requested": "[4.0.1, )",
+        "resolved": "4.0.1",
+        "contentHash": "8CoAaZkniVekR1ycJyxn+hOz+6ZQCDPcoIsIs6ujd4WyFcBMlxGNU15Qb8Uxd4iO4UmOuETb0M6vzBbwX/mfLA=="
       },
       "Microsoft.CodeCoverage": {
         "type": "Transitive",
-        "resolved": "18.9.0",
-        "contentHash": "MtegCIKGuG0r/LCdIjoR1HgzCGIUBhR3aNdbtQpts5vMXQuqBDZ2Jsd2uFKoHFM2XrQV6ZrDf3F5oLi3SLTp8w=="
+        "resolved": "18.11.0",
+        "contentHash": "MhN9wpvL1Es4hfIYslrsVgIsUdDFxuOBTbAl9mGIMvFo8PP5CLf4DrGdNrfwWSyn0lqi6sssm+I/qkkLL3MU+g=="
       },
       "Microsoft.Extensions.Logging.Abstractions": {
         "type": "Transitive",
-        "resolved": "10.0.11",
-        "contentHash": "Ljd0Uxoq5XpScD2Bg0nM/r3mwx7Ao5Uq24eo2ARxbGvqJ7Zht6rt2cJtwVRH4Cv+1ZVMdXz6TB43KbpmsxRrvQ==",
+        "resolved": "10.0.13",
+        "contentHash": "aSZEhEig4fvNiw2zs8Z6NyDlniKtq6YjcF3DyHuqTEHcZ2VKA/6itMPZ+dW+yWABWExlDcQwwdbqX1Rcb7W8WQ==",
         "dependencies": {
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.11"
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.13"
         }
       },
       "Microsoft.TestPlatform.ObjectModel": {
         "type": "Transitive",
-        "resolved": "18.9.0",
-        "contentHash": "Fz/qXC52VXXopzHj7v2reCKcCqSxkTDCkEDfkNAH0vni/7qK/KLMiEYtRmnUanxO2F2g2zZZ60qCpxF0AF7URA=="
+        "resolved": "18.11.0",
+        "contentHash": "BXBHYnwSOljKute8UYCMXOLAdB7awxEMppPSpqOF1ZxLD/W/OH+vTBgFaXA7q0aditJTVXSMVenel+wOkEIyNg=="
       },
       "Microsoft.TestPlatform.TestHost": {
         "type": "Transitive",
-        "resolved": "18.9.0",
-        "contentHash": "Oq+Pma/J86aZL72t71bcESvDszDsTjUfl6PIsuDdPoKTHZfNMhKamCfLD5fKx51W/u0KozXtJo2/3fnt0sgPxg==",
+        "resolved": "18.11.0",
+        "contentHash": "AKjwKpyRBwoQFQmpcchtoYlfJEBlaY/40uxBRi+qXP4NR7xT8t+XTJtOyEyumfvfJcH5pASs75LwNdXYRr4XNA==",
         "dependencies": {
-          "Microsoft.TestPlatform.ObjectModel": "18.9.0"
+          "Microsoft.TestPlatform.ObjectModel": "18.11.0"
         }
       },
       "xunit.abstractions": {
@@ -110,126 +110,126 @@
       "litebus.commands": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Commands.Abstractions": "[6.1.0, )",
-          "LiteBus.Messaging": "[6.1.0, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
+          "LiteBus.Commands.Abstractions": "[7.0.0, )",
+          "LiteBus.Messaging": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.commands.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging.Abstractions": "[6.1.0, )"
+          "LiteBus.Messaging.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.durablemessaging.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging.Abstractions": "[6.1.0, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
+          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.events": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Events.Abstractions": "[6.1.0, )",
-          "LiteBus.Messaging": "[6.1.0, )",
-          "LiteBus.Messaging.Abstractions": "[6.1.0, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
+          "LiteBus.Events.Abstractions": "[7.0.0, )",
+          "LiteBus.Messaging": "[7.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.events.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging.Abstractions": "[6.1.0, )"
+          "LiteBus.Messaging.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.inbox": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[6.1.0, )",
-          "LiteBus.Inbox.Abstractions": "[6.1.0, )",
-          "LiteBus.Messaging": "[6.1.0, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )",
-          "Microsoft.Extensions.Logging.Abstractions": "[10.0.11, )"
+          "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[7.0.0, )",
+          "LiteBus.Messaging": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.13, )"
         }
       },
       "litebus.inbox.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[6.1.0, )",
-          "LiteBus.Messaging.Abstractions": "[6.1.0, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
+          "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.inbox.dispatch.inprocess": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Commands": "[6.1.0, )",
-          "LiteBus.Commands.Abstractions": "[6.1.0, )",
-          "LiteBus.Inbox": "[6.1.0, )",
-          "LiteBus.Inbox.Abstractions": "[6.1.0, )",
-          "LiteBus.Messaging": "[6.1.0, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
+          "LiteBus.Commands": "[7.0.0, )",
+          "LiteBus.Commands.Abstractions": "[7.0.0, )",
+          "LiteBus.Inbox": "[7.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[7.0.0, )",
+          "LiteBus.Messaging": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.inbox.storage.inmemory": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Inbox": "[6.1.0, )",
-          "LiteBus.Inbox.Abstractions": "[6.1.0, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
+          "LiteBus.Inbox": "[7.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.messaging": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[6.1.0, )",
-          "LiteBus.Messaging.Abstractions": "[6.1.0, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )",
-          "Microsoft.Extensions.Logging.Abstractions": "[10.0.11, )"
+          "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.13, )"
         }
       },
       "litebus.messaging.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.outbox": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[6.1.0, )",
-          "LiteBus.Messaging": "[6.1.0, )",
-          "LiteBus.Outbox.Abstractions": "[6.1.0, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )",
-          "Microsoft.Extensions.Logging.Abstractions": "[10.0.11, )"
+          "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
+          "LiteBus.Messaging": "[7.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.13, )"
         }
       },
       "litebus.outbox.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[6.1.0, )",
-          "LiteBus.Messaging.Abstractions": "[6.1.0, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
+          "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.outbox.dispatch.inprocess": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Events": "[6.1.0, )",
-          "LiteBus.Events.Abstractions": "[6.1.0, )",
-          "LiteBus.Messaging": "[6.1.0, )",
-          "LiteBus.Outbox": "[6.1.0, )",
-          "LiteBus.Outbox.Abstractions": "[6.1.0, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
+          "LiteBus.Events": "[7.0.0, )",
+          "LiteBus.Events.Abstractions": "[7.0.0, )",
+          "LiteBus.Messaging": "[7.0.0, )",
+          "LiteBus.Outbox": "[7.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.outbox.storage.inmemory": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Outbox": "[6.1.0, )",
-          "LiteBus.Outbox.Abstractions": "[6.1.0, )",
-          "LiteBus.Runtime.Abstractions": "[6.1.0, )"
+          "LiteBus.Outbox": "[7.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
         }
       },
       "litebus.runtime.abstractions": {
@@ -243,9 +243,9 @@
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {
         "type": "CentralTransitive",
-        "requested": "[10.0.11, )",
-        "resolved": "10.0.11",
-        "contentHash": "/a1aJz4m7ylhEDf25ugQChLQoN5XwoGjWw/BoR/ZWWKsO1v4DdJElS1uyngahz4B/eOzjFk1KNTkarRLE5wsIg=="
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "G2GrGWNAPZBsii2F6AU8n+JT2tC1/I0Ml/e9ZyNCgPjf3hZqronP7o0X91aAynCmVeae8KkSIUNXXeXCNRmdVQ=="
       }
     }
   }
