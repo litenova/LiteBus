@@ -32,7 +32,7 @@ Relative Markdown links are rewritten to absolute URLs in both files, because a 
 
 ## Local development
 
-Use Node.js 24. Fumadocs, Next.js, CI, and Vercel use the major version pinned in `package.json`. The documentation layer uses `fumadocs-core` and `@fumadocs/local-md` only, styled by one hand-written stylesheet (`app/globals.css`) and components in `components/` (`site-header.tsx`, `site-footer.tsx`, `docs-shell.tsx`, `docs-sidebar.tsx`, `docs-article.tsx`, `search-box.tsx`, `code-copy-button.tsx`, `copy-button.tsx`, `docs-not-found.tsx`). Regenerate `package-lock.json` on Linux when optional native dependencies change so `npm ci` remains portable between contributor workstations, CI, and Vercel.
+Use Node.js 24. Fumadocs, Next.js, CI, and Vercel use the major version pinned in `package.json`. The documentation layer uses `fumadocs-core` and `@fumadocs/local-md` only, styled by one hand-written stylesheet (`app/globals.css`) and components in `components/` (`site-header.tsx`, `site-footer.tsx`, `docs-shell.tsx`, `docs-sidebar.tsx`, `docs-article.tsx`, `search-box.tsx`, `code-copy-button.tsx`, `copy-button.tsx`, `docs-not-found.tsx`). Produce every `package-lock.json` change on Linux. npm on Windows leaves out packages that optional WebAssembly dependencies need on Linux, so a lockfile written there makes `npm ci` fail in CI and on Vercel. To add or update a dependency, edit `package.json`, then run `docker run --rm -v "$PWD:/w" -w /w node:24 npm install --package-lock-only --ignore-scripts` from `site/`. On Windows, install with `npm ci`, not `npm install`, so the lockfile is not rewritten.
 
 ```bash
 npm ci
