@@ -13,7 +13,7 @@
 
 - Named type has a public constructor.
 - Constructor has a parameter implementing or equal to `ITransactionalOutboxStore`.
-- Constructor has no parameter type that is or inherits from `DbContext`.
+- Constructor has no parameter type that is or inherits from the Entity Framework Core `DbContext` (`Microsoft.EntityFrameworkCore`).
 
 ## Bad Example
 

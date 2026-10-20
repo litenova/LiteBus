@@ -57,8 +57,12 @@ internal static class TagReferenceAnalysis
     /// <param name="semanticModel">The semantic model for the containing tree.</param>
     /// <param name="tags">The tag collection to populate.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <remarks>
+    ///     The base creation syntax covers both explicit <c>new T { ... }</c> and target-typed <c>new() { ... }</c>
+    ///     initializers, including the <c>new(args) { ... }</c> form, which the semantic model types the same way.
+    /// </remarks>
     internal static void CollectTagsFromObjectCreation(
-        ObjectCreationExpressionSyntax objectCreation,
+        BaseObjectCreationExpressionSyntax objectCreation,
         SemanticModel semanticModel,
         TagReferenceCollector tags,
         CancellationToken cancellationToken = default)

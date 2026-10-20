@@ -228,7 +228,7 @@ internal static class HandlerAnalysis
     ///     handler interface taking the handler's two parameters in order is closable, because the registry closes it by
     ///     position.
     /// </remarks>
-    private static bool BindsBothParametersToATypedContract(INamedTypeSymbol openDefinition)
+    internal static bool BindsBothParametersToATypedContract(INamedTypeSymbol openDefinition)
     {
         var parameters = openDefinition.TypeParameters;
 

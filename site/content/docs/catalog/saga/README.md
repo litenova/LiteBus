@@ -1,4 +1,4 @@
-# Saga Capability Catalog
+# Saga
 
 Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 

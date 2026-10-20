@@ -22,16 +22,22 @@ namespace LiteBus.Commands.Idempotency;
 ///         key and the work atomic.
 ///     </para>
 ///     <para>
-///         An <see cref="MediationOutcome.Answered" /> mediation is left alone. The shortcut answered it because the key
-///         was already applied, so there is no claim of its own to settle and completing it again would overwrite the
-///         recorded result with nothing.
+///         Only the claim the same mediation was granted is settled. The shortcut records each granted key as a
+///         <see cref="ClaimedIdempotencyKey" />, and without that record this handler returns: a denial, a validation
+///         failure, a repeat answered from the store, and a claim that threw a conflict all end here holding nothing,
+///         so settling by recomputing the key would delete another delivery's in-flight claim.
+///     </para>
+///     <para>
+///         Anything but <see cref="MediationOutcome.Succeeded" /> releases the recorded key, including
+///         <see cref="MediationOutcome.Answered" />. An answer after this mediation claimed means a later shortcut
+///         answered, not a repeat, so the granted claim is released rather than leaked.
 ///     </para>
 /// </remarks>
 [HandlerPriority(HandlerPriorities.Persistence)]
 internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
 {
     /// <summary>
-    ///     Resolves the scoped key from the command's declaration, the same way the shortcut did.
+    ///     Reads the declaration that decides whether a result is recorded for replay.
     /// </summary>
     private readonly IdempotencyKeyResolver _keys;
 
@@ -48,7 +54,7 @@ internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
     /// <summary>
     ///     Initializes a new instance of the <see cref="IdempotencyCompletionHandler" /> class.
     /// </summary>
-    /// <param name="keys">Resolves the scoped key from the command's declaration.</param>
+    /// <param name="keys">Reads the declaration from the message type's metadata.</param>
     /// <param name="store">Remembers which keys have been applied.</param>
     /// <param name="serializer">Serializes the result recorded for replay.</param>
     public IdempotencyCompletionHandler(
@@ -72,7 +78,9 @@ internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (context.Outcome == MediationOutcome.Answered)
+        var executionContext = AmbientExecutionContext.GetCurrentOrDefault();
+
+        if (executionContext is null || !executionContext.Data.TryGet<ClaimedIdempotencyKey>(out var claimed))
         {
             return;
         }
@@ -86,7 +94,7 @@ internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
 
         if (context.Outcome != MediationOutcome.Succeeded)
         {
-            await _store.ReleaseAsync(resolved.Value.Key, CancellationToken.None).ConfigureAwait(false);
+            await _store.ReleaseAsync(claimed.Value, CancellationToken.None).ConfigureAwait(false);
             return;
         }
 
@@ -94,6 +102,6 @@ internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
             ? await _serializer.SerializeAsync(context.MessageResult, CancellationToken.None).ConfigureAwait(false)
             : null;
 
-        await _store.CompleteAsync(resolved.Value.Key, payload, CancellationToken.None).ConfigureAwait(false);
+        await _store.CompleteAsync(claimed.Value, payload, CancellationToken.None).ConfigureAwait(false);
     }
 }

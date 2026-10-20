@@ -274,17 +274,195 @@ internal static class MessageAnalysis
     ///     <see langword="true" /> when the handler would close for the message type; otherwise, <see langword="false" />
     ///     .
     /// </returns>
+    /// <remarks>
+    ///     An arity-2 handler closes as <c>[messageType, resultType]</c>, mirroring the registry, so it covers only
+    ///     messages that declare exactly one result type through <c>IProducesResult&lt;TMessageResult&gt;</c>. A void
+    ///     message has no result to bind the second parameter to and stays uncovered.
+    /// </remarks>
     private static bool OpenGenericHandlerCoversMessageType(
         INamedTypeSymbol openGenericHandler,
         INamedTypeSymbol messageType,
         Compilation compilation)
     {
-        if (openGenericHandler.TypeParameters.Length != 1)
+        if (openGenericHandler.TypeParameters.Length == 1)
+        {
+            return SatisfiesGenericConstraints(openGenericHandler.TypeParameters[0], messageType, compilation);
+        }
+
+        if (openGenericHandler.TypeParameters.Length != 2 ||
+            !HandlerAnalysis.BindsBothParametersToATypedContract(openGenericHandler))
         {
             return false;
         }
 
-        return SatisfiesGenericConstraints(openGenericHandler.TypeParameters[0], messageType, compilation);
+        if (!TryGetDeclaredResultType(messageType, compilation, out var resultType) || resultType is null)
+        {
+            return false;
+        }
+
+        var parameters = openGenericHandler.TypeParameters;
+        ImmutableArray<ITypeSymbol> arguments = [messageType, resultType];
+
+        return SatisfiesBoundConstraints(parameters[0], messageType, parameters, arguments, compilation) &&
+               SatisfiesBoundConstraints(parameters[1], resultType, parameters, arguments, compilation);
+    }
+
+    /// <summary>
+    ///     Gets the result type a message declares through <c>IProducesResult&lt;TMessageResult&gt;</c>.
+    /// </summary>
+    /// <param name="messageType">The concrete message type.</param>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="resultType">The declared result type, when the message declares exactly one.</param>
+    /// <returns><see langword="true" /> when the message declares exactly one result type; otherwise, <see langword="false" />.</returns>
+    /// <remarks>
+    ///     A message declaring two result types is a modelling error with no correct arity-2 closing, so it is
+    ///     answered as no result, the same silence the registry produces when it skips the handler.
+    /// </remarks>
+    private static bool TryGetDeclaredResultType(
+        INamedTypeSymbol messageType,
+        Compilation compilation,
+        out ITypeSymbol? resultType)
+    {
+        resultType = null;
+
+        var producer = compilation.GetTypeByMetadataName("LiteBus.Messaging.Abstractions.IProducesResult`1");
+
+        if (producer is null)
+        {
+            return false;
+        }
+
+        foreach (var candidate in messageType.AllInterfaces)
+        {
+            if (!SymbolEqualityComparer.Default.Equals(candidate.OriginalDefinition, producer))
+            {
+                continue;
+            }
+
+            if (resultType is not null)
+            {
+                resultType = null;
+
+                return false;
+            }
+
+            resultType = candidate.TypeArguments[0];
+        }
+
+        return resultType is not null;
+    }
+
+    /// <summary>
+    ///     Determines whether a concrete type satisfies the generic parameter constraints after substitution.
+    /// </summary>
+    /// <param name="typeParameter">The generic type parameter symbol.</param>
+    /// <param name="candidateType">The concrete candidate type bound to the parameter.</param>
+    /// <param name="parameters">The handler type parameters being closed.</param>
+    /// <param name="arguments">The type arguments bound to <paramref name="parameters" />, in order.</param>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <returns><see langword="true" /> when all constraints are satisfied; otherwise, <see langword="false" />.</returns>
+    /// <remarks>
+    ///     Constraint types name the handler's own type parameters (for example <c>ICommand&lt;TResult&gt;</c>), so
+    ///     they are substituted with the bound arguments before checking, mirroring how the CLR checks substituted
+    ///     constraints when the registry closes the handler.
+    /// </remarks>
+    private static bool SatisfiesBoundConstraints(
+        ITypeParameterSymbol typeParameter,
+        ITypeSymbol candidateType,
+        ImmutableArray<ITypeParameterSymbol> parameters,
+        ImmutableArray<ITypeSymbol> arguments,
+        Compilation compilation)
+    {
+        foreach (var constraint in typeParameter.ConstraintTypes)
+        {
+            var substituted = SubstituteHandlerArguments(constraint, parameters, arguments);
+
+            if (!IsAssignableTo(compilation, candidateType, substituted))
+            {
+                return false;
+            }
+        }
+
+        if (typeParameter.HasReferenceTypeConstraint && candidateType.IsValueType)
+        {
+            return false;
+        }
+
+        if (typeParameter.HasValueTypeConstraint && !candidateType.IsValueType)
+        {
+            return false;
+        }
+
+        if (typeParameter.HasUnmanagedTypeConstraint && !candidateType.IsUnmanagedType)
+        {
+            return false;
+        }
+
+        if (typeParameter.HasConstructorConstraint &&
+            !candidateType.IsValueType &&
+            !HasPublicParameterlessConstructor(candidateType))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Substitutes the bound type arguments into a constraint type that names the handler's type parameters.
+    /// </summary>
+    /// <param name="type">The constraint type to substitute into.</param>
+    /// <param name="parameters">The handler type parameters being closed.</param>
+    /// <param name="arguments">The type arguments bound to <paramref name="parameters" />, in order.</param>
+    /// <returns>The constraint type with handler parameters replaced by their bound arguments.</returns>
+    /// <remarks>
+    ///     Only type parameters and constructed generic types are substituted. Any other shape is returned
+    ///     unchanged, which keeps the coverage answer conservative for constraint forms the registry would still
+    ///     have to close.
+    /// </remarks>
+    private static ITypeSymbol SubstituteHandlerArguments(
+        ITypeSymbol type,
+        ImmutableArray<ITypeParameterSymbol> parameters,
+        ImmutableArray<ITypeSymbol> arguments)
+    {
+        for (var index = 0; index < parameters.Length; index++)
+        {
+            if (SymbolEqualityComparer.Default.Equals(type, parameters[index]))
+            {
+                return arguments[index];
+            }
+        }
+
+        if (type is INamedTypeSymbol named &&
+            named.IsGenericType &&
+            !SymbolEqualityComparer.Default.Equals(named, named.ConstructedFrom))
+        {
+            var substituted = named.TypeArguments.Select(argument =>
+                SubstituteHandlerArguments(argument, parameters, arguments)).ToArray();
+
+            for (var index = 0; index < substituted.Length; index++)
+            {
+                if (!SymbolEqualityComparer.Default.Equals(substituted[index], named.TypeArguments[index]))
+                {
+                    return named.ConstructedFrom.Construct(substituted);
+                }
+            }
+        }
+
+        return type;
+    }
+
+    /// <summary>
+    ///     Determines whether the type exposes an accessible parameterless instance constructor.
+    /// </summary>
+    /// <param name="candidateType">The candidate type symbol.</param>
+    /// <returns><see langword="true" /> when a public parameterless constructor exists; otherwise, <see langword="false" />.</returns>
+    private static bool HasPublicParameterlessConstructor(ITypeSymbol candidateType)
+    {
+        return candidateType is INamedTypeSymbol named &&
+               named.InstanceConstructors.Any(constructor =>
+                   constructor.Parameters.IsEmpty &&
+                   constructor.DeclaredAccessibility == Accessibility.Public);
     }
 
     /// <summary>

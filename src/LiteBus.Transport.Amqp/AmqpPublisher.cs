@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Transport.Abstractions;
+using LiteBus.Transport.Amqp.Exceptions;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
 
@@ -125,6 +127,22 @@ public sealed class AmqpPublisher : IAmqpPublisher, ITransportPublisher, IAsyncD
             TransportTracing.RecordException(activity, exception);
             circuitBreaker.RecordFailure(permit);
             throw;
+        }
+        catch (PublishReturnException exception)
+        {
+            // The broker is reachable and returned a mandatory publication as unroutable: a routing problem, not broker
+            // unavailability, so the permit is released rather than counted as a failure that could open the circuit.
+            TransportTracing.RecordException(activity, exception);
+            circuitBreaker.ReleasePermit(permit);
+            throw new AmqpMessageReturnedException(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"The broker returned the message published to exchange '{exception.Exchange}' with routing key '{exception.RoutingKey}' as unroutable: {exception.ReplyCode} {exception.ReplyText}."),
+                exception.Exchange,
+                exception.RoutingKey,
+                exception.ReplyCode,
+                exception.ReplyText,
+                exception);
         }
         catch (PublishException exception)
         {

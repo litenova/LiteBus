@@ -68,6 +68,7 @@
 - MySQL leasing uses `READ COMMITTED`, the axis `IX_LiteBus_*_CreatedAt` index, and direct primary-key updates so concurrent workers claim disjoint ordered batches without range-lock starvation.
 - Store options `SchemaName` and `TableName` must match the EF model configuration used in migrations.
 - Payload columns map to text so payload protection can return opaque ciphertext; trace context uses provider-specific JSON types (`jsonb` on PostgreSQL).
+- Table qualification escapes provider quote characters per provider (doubled double-quote for PostgreSQL and SQLite, doubled closing bracket for SQL Server, doubled backtick for MySQL) and rejects null characters.
 
 ## Non-Goals
 

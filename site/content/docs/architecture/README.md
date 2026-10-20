@@ -171,6 +171,8 @@ Instrument names are stable public constants on `LiteBusMediationTelemetry`, `Li
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_rejected` | `LiteBusOutboxTelemetry.ProcessorPersistRejectedInstrumentName` | Terminal persist rejected an update because the lease was lost |
 | `LiteBus.Transport` | `litebus.transport.circuit_breaker.open` | `LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName` | `1` when any publisher circuit is open or half-open; tag `litebus.transport.broker` |
 | `LiteBus.Transport` | `litebus.transport.circuit_breaker.failure_count` | `LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName` | Current failure sum across publisher destinations; tag `litebus.transport.broker` |
+| `LiteBus.Transport` | `litebus.transport.circuit_breaker.failure_recorded` | `LiteBusTransportTelemetry.CircuitBreakerFailureRecordedInstrumentName` | One per failure recorded while the circuit is closed; no tags |
+| `LiteBus.Transport` | `litebus.transport.circuit_breaker.opened` | `LiteBusTransportTelemetry.CircuitBreakerOpenedInstrumentName` | One per circuit opening after reaching the failure threshold; no tags |
 | `LiteBus.Transport.AzureServiceBus` | (reserved) | | Adapter meter identity for custom instrumentation |
 | `LiteBus.Transport.AwsSqs` | (reserved) | | Adapter meter identity for custom instrumentation |
 | `LiteBus.Transport.Kafka` | (reserved) | | Adapter meter identity for custom instrumentation |

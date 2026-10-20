@@ -41,12 +41,12 @@ Activity names include the destination, for example `send orders` and `process c
 
 ## Metric Contract
 
-| Instrument | Type | Tags |
-| --- | --- | --- |
-| `litebus.transport.circuit_breaker.open` | Observable gauge | `litebus.transport.broker` |
-| `litebus.transport.circuit_breaker.failure_count` | Observable gauge | `litebus.transport.broker` |
-| `litebus.transport.circuit_breaker.failure_recorded` | Counter | None |
-| `litebus.transport.circuit_breaker.opened` | Counter | None |
+| Instrument | Type | Tags | Public constant |
+| --- | --- | --- | --- |
+| `litebus.transport.circuit_breaker.open` | Observable gauge | `litebus.transport.broker` | `LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName` |
+| `litebus.transport.circuit_breaker.failure_count` | Observable gauge | `litebus.transport.broker` | `LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName` |
+| `litebus.transport.circuit_breaker.failure_recorded` | Counter | None | `LiteBusTransportTelemetry.CircuitBreakerFailureRecordedInstrumentName` |
+| `litebus.transport.circuit_breaker.opened` | Counter | None | `LiteBusTransportTelemetry.CircuitBreakerOpenedInstrumentName` |
 
 Built-in modules use broker tag values `amqp`, `kafka`, `sqs`, `azure_service_bus`, and `inmemory`. `AddLiteBusAmqpMetrics()` subscribes the shared meter; it does not create an AMQP-only meter.
 

@@ -102,7 +102,7 @@ Throws when contract resolution, validation, or transport publish fails. Does no
 | `DefaultDestination` | `""` | Exchange, topic, queue URL, or InMemory destination name |
 | `ContentType` | `application/json` | Wire MIME type |
 | `Persistent` | `true` | Broker durability flag (AMQP) |
-| `Mandatory` | `true` | Fail publish when unroutable (AMQP) |
+| `Mandatory` | `true` | Fail publish with `AmqpMessageReturnedException` when unroutable (AMQP) |
 | `ResolveRoute` | `null` | Per-envelope route override delegate |
 | `ValidatePayloadBeforeDispatch` | `false` | Deserialize before publish to catch contract wiring errors |
 

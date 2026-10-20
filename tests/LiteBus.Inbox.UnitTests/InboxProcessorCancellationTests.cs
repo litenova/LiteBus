@@ -177,6 +177,94 @@ public sealed class InboxProcessorCancellationTests
         stored.VisibleAfter.Should().BeNull();
     }
 
+    /// <summary>
+    ///     Verifies a handler-internal timeout takes the normal failure path with an error type instead of lease loss.
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingAsync_when_handler_cancels_own_token_should_record_failure_with_error_type()
+    {
+        var store = new InMemoryInboxStore();
+
+        var processor = new PipelinedInboxProcessor(
+            store,
+            store,
+            new TimeoutInboxDispatcher(),
+            new InboxProcessorOptions
+            {
+                BatchSize = 1,
+                LeaseOwner = "timeout-worker",
+                LeaseDuration = TimeSpan.FromMinutes(1),
+                DispatcherConcurrency = 1,
+                Retry = new RetryOptions { MaxAttempts = 5, UseJitter = false }
+            },
+            TimeProvider.System,
+            []);
+
+        var messageId = Guid.NewGuid();
+
+        await store.AddAsync(new InboxEnvelope
+        {
+            Id = messageId,
+            ContractName = "orders.commands.ship",
+            ContractVersion = 1,
+            Payload = "{}",
+            CreatedAt = BaseTime,
+            AttemptCount = 0,
+            Status = InboxStatus.Pending
+        }).ConfigureAwait(false);
+
+        await processor.ProcessPendingAsync(CancellationToken.None).ConfigureAwait(false);
+
+        var stored = store.Get(messageId);
+        stored.Status.Should().Be(InboxStatus.Failed);
+        stored.ErrorType.Should().Be(typeof(TaskCanceledException).FullName);
+        stored.LastError.Should().NotBeNullOrWhiteSpace();
+        stored.VisibleAfter.Should().NotBeNull();
+    }
+
+    /// <summary>
+    ///     Verifies a handler-internal timeout dead-letters after exhausting attempts instead of retrying forever.
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingAsync_when_handler_timeout_exhausts_attempts_should_dead_letter()
+    {
+        var store = new InMemoryInboxStore();
+
+        var processor = new PipelinedInboxProcessor(
+            store,
+            store,
+            new TimeoutInboxDispatcher(),
+            new InboxProcessorOptions
+            {
+                BatchSize = 1,
+                LeaseOwner = "timeout-worker",
+                LeaseDuration = TimeSpan.FromMinutes(1),
+                DispatcherConcurrency = 1,
+                Retry = new RetryOptions { MaxAttempts = 1, UseJitter = false }
+            },
+            TimeProvider.System,
+            []);
+
+        var messageId = Guid.NewGuid();
+
+        await store.AddAsync(new InboxEnvelope
+        {
+            Id = messageId,
+            ContractName = "orders.commands.ship",
+            ContractVersion = 1,
+            Payload = "{}",
+            CreatedAt = BaseTime,
+            AttemptCount = 0,
+            Status = InboxStatus.Pending
+        }).ConfigureAwait(false);
+
+        await processor.ProcessPendingAsync(CancellationToken.None).ConfigureAwait(false);
+
+        var stored = store.Get(messageId);
+        stored.Status.Should().Be(InboxStatus.DeadLettered);
+        stored.ErrorType.Should().Be(typeof(TaskCanceledException).FullName);
+    }
+
     private static InboxEnvelope CreateLeasedEnvelope()
     {
         return new InboxEnvelope
@@ -189,6 +277,14 @@ public sealed class InboxProcessorCancellationTests
             AttemptCount = 1,
             Status = InboxStatus.Processing
         };
+    }
+
+    private sealed class TimeoutInboxDispatcher : IInboxDispatcher
+    {
+        public Task DispatchAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
+        {
+            throw new TaskCanceledException("Handler operation timed out.");
+        }
     }
 
     private sealed class CancellingInboxDispatcher : IInboxDispatcher

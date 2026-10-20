@@ -153,8 +153,10 @@ internal static class InboxProcessorEnvelopeHandler
             return null;
         }
 
+        // A handler-internal cancellation (for example a dependency timeout) arrives as OperationCanceledException
+        // while the processor token is still live; it is a dispatch failure like any other, not a lease loss.
 #pragma warning disable CA1031 // Handler, mediator, and hook failures surface as unrelated exception types; map them to retry or dead-letter transitions.
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             var failure = MessageFailure.From(exception, clock.GetUtcNow());
 

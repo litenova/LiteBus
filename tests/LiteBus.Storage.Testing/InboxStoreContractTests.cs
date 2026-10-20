@@ -1277,6 +1277,148 @@ public abstract class InboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies strict replay of a byte-identical unscoped envelope returns the existing outcome.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task AddAsync_WithStrictIdenticalUnscopedReplay_ShouldReturnExistingOutcome()
+    {
+        var roles = CreateStore();
+        var envelope = CreatePendingEnvelope(Guid.NewGuid(), BaseTime) with
+        {
+            IdempotencyConflictMode = IdempotencyConflictMode.Strict
+        };
+
+        var first = await roles.Writer.EnqueueAsync(envelope).ConfigureAwait(false);
+        var replay = await roles.Writer.EnqueueAsync(envelope).ConfigureAwait(false);
+
+        first.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
+        replay.Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
+        replay.Envelope.Id.Should().Be(first.Envelope.Id);
+        replay.Envelope.Payload.Should().Be(first.Envelope.Payload);
+    }
+
+    /// <summary>
+    ///     Verifies a strict batch holding the same unscoped envelope twice reports the duplicate as existing.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task AddBatchAsync_WithStrictIdenticalSameIdBatch_ShouldReturnExistingOutcome()
+    {
+        var roles = CreateStore();
+        var envelope = CreatePendingEnvelope(Guid.NewGuid(), BaseTime) with
+        {
+            IdempotencyConflictMode = IdempotencyConflictMode.Strict
+        };
+
+        var results = await roles.Writer.AddBatchAsync([envelope, envelope]).ConfigureAwait(false);
+
+        results.Should().HaveCount(2);
+        results[0].Outcome.Should().Be(InboxAcceptOutcome.Accepted);
+        results[1].Outcome.Should().Be(InboxAcceptOutcome.AlreadyAccepted);
+        results[1].Envelope.Id.Should().Be(envelope.Id);
+    }
+
+    /// <summary>
+    ///     Verifies an empty tenant query filter matches only unscoped rows on every adapter.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task QueryAsync_WithEmptyTenantFilter_ShouldMatchOnlyUnscopedRows()
+    {
+        var roles = CreateStore();
+        var now = BaseTime;
+        var unscopedId = Guid.NewGuid();
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(unscopedId, now)).ConfigureAwait(false);
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(1)) with
+        {
+            TenantId = "tenant-a"
+        }).ConfigureAwait(false);
+
+        var unrestricted = await roles.MessageQuery.QueryAsync(
+            new InboxMessageFilter(),
+            new InboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
+        var unscoped = await roles.MessageQuery.QueryAsync(
+            new InboxMessageFilter { TenantId = string.Empty },
+            new InboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
+
+        unrestricted.Items.Should().HaveCount(2);
+        unscoped.Items.Should().ContainSingle().Which.Id.Should().Be(unscopedId);
+    }
+
+    /// <summary>
+    ///     Verifies an empty tenant purge filter deletes only unscoped rows on every adapter.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task PurgeAsync_WithEmptyTenantFilter_ShouldDeleteOnlyUnscopedRows()
+    {
+        var roles = CreateStore();
+        var now = BaseTime;
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now)).ConfigureAwait(false);
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(1)) with
+        {
+            TenantId = "tenant-a"
+        }).ConfigureAwait(false);
+
+        var deleted = await roles.PurgeStore.PurgeAsync(
+            new InboxMessageFilter { TenantId = string.Empty }).ConfigureAwait(false);
+        var remaining = await roles.MessageQuery.QueryAsync(
+            new InboxMessageFilter(),
+            new InboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
+
+        deleted.Should().Be(1);
+        remaining.Items.Should().ContainSingle().Which.TenantId.Should().Be("tenant-a");
+    }
+
+    /// <summary>
+    ///     Verifies an empty tenant lease filter claims only unscoped rows on every adapter.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task LeasePendingAsync_WithEmptyTenantFilter_ShouldLeaseOnlyUnscopedRows()
+    {
+        var roles = CreateStore();
+        var now = BaseTime;
+        var unscopedId = Guid.NewGuid();
+
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(unscopedId, now)).ConfigureAwait(false);
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(1)) with
+        {
+            TenantId = "tenant-a"
+        }).ConfigureAwait(false);
+
+        var leased = await roles.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 5,
+            LeaseOwner = "worker-unscoped",
+            Now = now.AddSeconds(2),
+            LeaseDuration = TimeSpan.FromMinutes(1),
+            TenantId = string.Empty
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle().Which.Id.Should().Be(unscopedId);
+    }
+
+    /// <summary>
+    ///     Verifies persisting a non-terminal envelope throws on every adapter.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task PersistAsync_WithNonTerminalEnvelope_ShouldThrow()
+    {
+        var roles = CreateStore();
+        var commandId = Guid.NewGuid();
+        await roles.Writer.EnqueueAsync(CreatePendingEnvelope(commandId, BaseTime)).ConfigureAwait(false);
+
+        var persist = () => roles.StateWriter.PersistAsync([CreatePendingEnvelope(commandId, BaseTime)]);
+
+        await persist.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
+    }
+
+    /// <summary>
     ///     Creates a pending envelope for contract tests.
     /// </summary>
     /// <param name="commandId">The command identifier.</param>

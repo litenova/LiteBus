@@ -105,6 +105,61 @@ public sealed class MissingCommandHandlerAnalyzerTests
     }
 
     /// <summary>
+    ///     Verifies that a result command covered only by an arity-2 open generic main handler produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task ResultCommandWithArityTwoOpenGenericHandler_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System;
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record CreateProductCommand(string Name) : ICommand<Guid>;
+
+                              public sealed class AuditHandler<TCommand, TResult> : ICommandHandler<TCommand, TResult>
+                                  where TCommand : ICommand<TResult>
+                              {
+                                  public Task<TResult> HandleAsync(TCommand command, CancellationToken cancellationToken = default)
+                                      => Task.FromResult<TResult>(default!);
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<MissingCommandHandlerAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies that a void command covered only by an arity-2 open generic main handler still produces LB1008.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task VoidCommandWithOnlyArityTwoOpenGenericHandler_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record {|#0:DeleteUserCommand|}(string Name) : ICommand;
+
+                              public sealed class AuditHandler<TCommand, TResult> : ICommandHandler<TCommand, TResult>
+                                  where TCommand : ICommand<TResult>
+                              {
+                                  public Task<TResult> HandleAsync(TCommand command, CancellationToken cancellationToken = default)
+                                      => Task.FromResult<TResult>(default!);
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<MissingCommandHandlerAnalyzer>(
+            source,
+            DiagnosticDescriptors.MissingCommandHandler,
+            0,
+            "DeleteUserCommand");
+    }
+
+    /// <summary>
     ///     Verifies that a command declared in a referenced assembly with a handler in the main project produces no diagnostic.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>

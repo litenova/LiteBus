@@ -9,7 +9,7 @@ Processors claim work with time-bounded leases, renew leases during long handler
 
 ## What It Does
 
-Lease stores atomically claim due rows with `lease_owner`, `lease_generation`, and `lease_expires_at`. Each claim increments the generation. Heartbeat renewal starts as soon as each envelope is leased, including while it waits for a worker slot, and continues through terminal persistence. PostgreSQL and relational EF Core stores calculate visibility and expiry from the database clock. On failure, processors persist `Failed` with retry visibility computed from `RetryOptions`. When `AttemptCount` reaches `MaxAttempts`, rows move to `DeadLettered`. Operators requeue via `IInboxManager` / `IOutboxManager`. Lease loss during dispatch persists retryable failure instead of leaving row stuck in processing. When the processor cancels a dispatch itself during shutdown or drain, it releases the lease through `ILeaseRenewable.ReleaseLeaseAsync` with a `LeaseReleaseRequest`, so the row returns to `Pending` (or `Failed` when it already carries an error) with its lease cleared, its attempt count decremented, and its visibility unchanged; the release runs under a 5 second budget, logs EventId 3011 at Debug, and falls back to lease expiry with EventId 3012 at Warning when it fails.
+Lease stores atomically claim due rows with `lease_owner`, `lease_generation`, and `lease_expires_at`. Each claim increments the generation. Heartbeat renewal starts as soon as each envelope is leased, including while it waits for a worker slot, and continues through terminal persistence. PostgreSQL and relational EF Core stores calculate visibility and expiry from the database clock. On failure, processors persist `Failed` with retry visibility computed from `RetryOptions`. When `AttemptCount` reaches `MaxAttempts`, rows move to `DeadLettered`. Operators requeue via `IInboxManager` / `IOutboxManager`. Lease loss during dispatch persists retryable failure instead of leaving row stuck in processing. When the processor cancels a dispatch itself during shutdown, it releases the lease through `ILeaseRenewable.ReleaseLeaseAsync` with a `LeaseReleaseRequest`, so the row returns to `Pending` (or `Failed` when it already carries an error) with its lease cleared, its attempt count decremented, and its visibility unchanged; the release runs under a 5 second budget, logs EventId 3011 at Debug, and falls back to lease expiry with EventId 3012 at Warning when it fails. Drain never cancels dispatch: the final pass runs with the uncancelled host token, so in-flight messages complete and persist normally.
 
 ## Permanent Failures
 
@@ -64,7 +64,7 @@ The predicate receives the exception that ended the dispatch; returning `true` d
 
 ### Extension Points
 
-- Custom storage must implement atomic lease, renewal, conditional persist on `lease_owner` plus `lease_generation`, and requeue roles, and should implement `ReleaseLeaseAsync`; without it a shutdown or drain still spends an attempt.
+- Custom storage must implement atomic lease, renewal, conditional persist on `lease_owner` plus `lease_generation`, and requeue roles, and should implement `ReleaseLeaseAsync`; without it a shutdown still spends an attempt.
 - Hook failure policy can force dead letter before max attempts (see processor-hooks capability).
 - Ingress poison handling is separate from processor dead letter (see ingress ack-policy capability).
 
@@ -92,7 +92,8 @@ The predicate receives the exception that ended the dispatch; returning `true` d
 - Heartbeat failure during dispatch to retryable failed outcome, not indefinite processing
 - Queued leased envelopes renew their leases before a worker slot becomes available.
 - A dispatch cancelled by the caller token, including one a dispatcher wrapped in its own exception type, is detected by `MediationExceptionFilters.IsCallerCancellation` and recorded as no outcome: no error recorded and no visibility moved.
-- A dispatch the processor cancels during shutdown or drain is released without spending an attempt when the store implements release; otherwise the lease expires with the attempt counted.
+- A dispatch the processor cancels during shutdown is released without spending an attempt when the store implements release; otherwise the lease expires with the attempt counted.
+- Drain runs one final pass without cancelling dispatch; in-flight messages complete and persist normally instead of releasing.
 
 ## Non-Goals
 

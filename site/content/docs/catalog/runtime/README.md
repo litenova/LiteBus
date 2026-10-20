@@ -1,4 +1,4 @@
-# Runtime Capability Catalog
+# Runtime
 
 Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 
@@ -67,4 +67,4 @@ AddLiteBus(...)
 
 - Runtime module ordering in this axis: [runtime.module-registry](module-registry.md)
 - Architecture context: [Architecture](../../architecture/README.md)
-- Extensibility guidance: [Extensibility](../../extending/README.md)
+- Extensibility guidance: [Extending](../../extending/README.md)

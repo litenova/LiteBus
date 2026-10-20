@@ -257,6 +257,59 @@ public abstract class AmqpTransportIntegrationTests
     }
 
     /// <summary>
+    ///     Verifies that a mandatory publication to a route with no binding fails instead of dropping the message.
+    /// </summary>
+    /// <returns>A task that completes when the returned publication throws.</returns>
+    [SkippableFact]
+    public async Task PublishAsync_WithMandatoryAndNoBinding_ShouldThrow()
+    {
+        var manager = new AmqpConnectionManager(ConnectionOptions);
+        await using (manager.ConfigureAwait(false))
+        {
+            var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
+
+            var act = () => publisher.PublishAsync(
+                new AmqpPublishRequest
+                {
+                    Exchange = string.Empty,
+                    RoutingKey = CreateUniqueQueueName("unroutable"),
+                    Body = Encoding.UTF8.GetBytes("unroutable"),
+                    Mandatory = true,
+                    MessageId = Guid.NewGuid().ToString("D")
+                });
+
+            var result = await act.Should().ThrowAsync<AmqpMessageReturnedException>().ConfigureAwait(false);
+            result.Which.ReplyCode.Should().Be(312);
+        }
+    }
+
+    /// <summary>
+    ///     Verifies that a non-mandatory publication to a route with no binding succeeds and drops the message.
+    /// </summary>
+    /// <returns>A task that completes when the dropped publication succeeds.</returns>
+    [SkippableFact]
+    public async Task PublishAsync_WithMandatoryFalseAndNoBinding_ShouldSucceed()
+    {
+        var manager = new AmqpConnectionManager(ConnectionOptions);
+        await using (manager.ConfigureAwait(false))
+        {
+            var publisher = new AmqpPublisher(manager, new TransportCircuitBreakerRegistry());
+
+            var act = () => publisher.PublishAsync(
+                new AmqpPublishRequest
+                {
+                    Exchange = string.Empty,
+                    RoutingKey = CreateUniqueQueueName("unroutable"),
+                    Body = Encoding.UTF8.GetBytes("unroutable"),
+                    Mandatory = false,
+                    MessageId = Guid.NewGuid().ToString("D")
+                });
+
+            await act.Should().NotThrowAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
     ///     Verifies that publish honours cancellation before the broker accepts the message.
     /// </summary>
     /// <returns>A task that completes when cancellation is observed.</returns>

@@ -21,6 +21,8 @@ Recognized tag reference sources include:
 - `EventRoutingSettings.Tags`
 - Mediator extension calls with `tag` parameter (`SendAsync`, `QueryAsync`, `PublishAsync`, `StreamAsync`) on LiteBus mediator extension types.
 
+Tags set through target-typed `new()` initializers, including the `new(args)` form, are recognized the same way as explicit `new T { ... }` initializers.
+
 ## Bad Example
 
 ```csharp

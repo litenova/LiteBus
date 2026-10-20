@@ -664,7 +664,10 @@ public sealed class PostgreSqlOutboxStore :
                string.Equals(requested.IdempotencyKey, stored.IdempotencyKey, StringComparison.Ordinal) &&
                string.Equals(requested.CorrelationId, stored.CorrelationId, StringComparison.Ordinal) &&
                string.Equals(requested.CausationId, stored.CausationId, StringComparison.Ordinal) &&
-               string.Equals(requested.TenantId, stored.TenantId, StringComparison.Ordinal);
+               string.Equals(
+                   Messaging.Abstractions.DurableMessaging.DurableTenantId.Normalize(requested.TenantId),
+                   Messaging.Abstractions.DurableMessaging.DurableTenantId.Normalize(stored.TenantId),
+                   StringComparison.Ordinal);
     }
 
     /// <inheritdoc />

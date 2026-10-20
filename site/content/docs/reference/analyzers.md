@@ -125,7 +125,9 @@ Open generic shortcuts are not reported: the message type is a type parameter, s
 - **LB1007** fires on **handled** durable types that have neither `[MessageContract]` nor registration discovered through `Contracts.Register<T>()` or `RegisterFromAssembly`.
 - **LB1017** fires on **attributed** durable types that lack explicit registration. Runtime on-demand resolution still works; explicit registration is recommended for predictable discovery.
 
-Both rules treat `RegisterFromAssembly` / `AddFromAssembly` as satisfying explicit registration. LB1017 matches only `IContractWriter` / `IMessageContractRegistry` `Register` invocations, not unrelated `Register<T>()` methods.
+Both rules treat `RegisterFromAssembly` / `AddFromAssembly` as satisfying explicit registration, except scans through the command, event, and query axis builders, which record message and handler types only. LB1017 matches only `IContractWriter` / `IMessageContractRegistry` `Register` invocations, not unrelated `Register<T>()` methods such as the message, command, event, and query axis builders.
+
+Assembly scans satisfy the rules when the argument is `typeof(T)`, `typeof(T).Assembly`, a local initialized to either form, or `Assembly.GetExecutingAssembly()` / `Assembly.GetCallingAssembly()`. Any other shape, such as an `Assembly` parameter, property, or unresolved call result, does not count; hoist the value into a `typeof`-based local at the call site.
 
 ## Inbox Result Commands (LB1004)
 

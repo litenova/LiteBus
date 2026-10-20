@@ -283,6 +283,8 @@ Major release for .NET 10, describing the change from v6.0.2. Adds a completion 
 
 ### Changed
 
+- Dependencies move to their latest patch and minor versions; EF Core and Npgsql stay on 9.x and Roslyn on 4.8.0 for the reasons recorded in `Directory.Packages.props`.
+- `LiteBusTransportTelemetry` exposes the two circuit-breaker counter names as public constants; the emitted names are unchanged.
 - Transport publishers are singletons in all five adapters, so a dispatched envelope no longer opens and closes its own AMQP channel, Azure Service Bus sender link or Kafka producer flush. Consumers are transient in all five, Azure Service Bus included, because each instance holds one subscription. The Kafka producer is flushed once, when the container is disposed.
 - Saga state is compared with the JSON snapshot taken when it was loaded. Reading state and then calling `Complete()` now works, a dispatch that only reads state saves nothing, and a handler that changes state in place without `SetState` is still persisted.
 - The `AfterDispatch` hook runs on the persist token on both the inbox and the outbox, so a shutdown during a saga save no longer leaves an executed command or a published event to run again. With the default `HonorShutdownTokenOnPersist = false`, a hook that never returns delays shutdown instead.
@@ -323,6 +325,29 @@ Major release for .NET 10, describing the change from v6.0.2. Adds a completion 
 
 ### Fixed
 
+- A lease renewal that throws now cancels the running dispatch and reports the lease lost, instead of surfacing only after the handler finished; the lease store receives a cancellable token linked to the heartbeat.
+- Mediation restores the caller ambient execution context before it returns a task or stream, and creates the dispatch scope only when a handler resolves a service, so a stream that is never enumerated holds no container scope.
+- A command implementing `ICommand<TCommandResult>` sent through the non-generic `SendAsync(ICommand)` or `TrySendAsync(ICommand)` runs the result-bearing pipeline, so post-, error- and completion handlers receive the result instead of `null` (#128).
+- SQS sends invalid UTF-8 and characters SQS rejects as base64 so the payload round-trips byte for byte, caller headers can no longer replace mapper-owned attributes, and headers past the ten-attribute limit are packed into `litebus-headers` and expanded on receive.
+- The idempotency completion handler settles only a key this mediation claimed: a denied or failed delivery no longer releases the in-flight claim of another delivery, and a claim answered by a later shortcut is released instead of leaking.
+- Parallel `ContinueAndAggregate` event handling rethrows `OperationCanceledException` when every handler was cancelled, instead of reporting a failure and running error handlers.
+- Stream guards, shortcuts and post-handlers honour the enumerator cancellation token passed through `WithCancellation`.
+- `NoHandlerFoundException` and `MultipleHandlerFoundException` name the runtime message type when the call erased it to `ICommand`, `IQuery` or `IEvent`.
+- A completed saga dispatches a new correlated message with an inactive saga scope instead of suppressing it; only a redelivery of the last applied message is suppressed. `Complete()` on a saga that was never saved creates the row already completed instead of dead-lettering a successful handler.
+- A handler-internal `OperationCanceledException`, such as a dependency timeout, follows the normal failure path with `MaxAttempts` and `IsPermanentFailure`, instead of being recorded as lease loss and retried indefinitely.
+- Inbox transport dispatch throws `InboxDispatchException` naming the message when the route resolver returns an empty route, matching the outbox dispatcher.
+- Strict replay of an identical unscoped message returns `AlreadyAccepted` or `AlreadyEnqueued` on every store instead of throwing `IdempotencyConflictException`, because stored and requested tenants compare normalized.
+- The in-memory stores reject a non-terminal envelope passed to `PersistAsync`, like the relational stores.
+- EF Core batch acceptance re-inserts rows still missing after a concurrent unique violation and rethrows other database errors with the original exception, instead of reporting invented `AlreadyAccepted` outcomes.
+- The EF Core save-changes interceptors fail the save when two strict-idempotency envelopes share a message id, instead of keeping one and reporting both as accepted.
+- The PostgreSQL inbox batch insert is chunked at 1,000 rows like the outbox, so a large batch no longer exceeds the PostgreSQL parameter limit.
+- EF Core lease SQL escapes schema and table identifiers for each provider.
+- An AMQP mandatory publication the broker returns as unroutable fails with `AmqpMessageReturnedException` and releases its circuit-breaker permit, so a routing mistake no longer counts as broker failure and opens the circuit.
+- A cancelled AMQP connection probe releases its circuit-breaker permit instead of leaving the circuit half-open until restart.
+- Cancelled inbox ingress acceptance rethrows before settling the delivery, so stopping a Kafka host no longer commits an offset for a message that was never stored.
+- The durable test host honours its `timeProvider` argument in the messaging and in-memory storage modules.
+- The management drain endpoints enforce the options passed to `AddLiteBusManagementEndpoints`, like the other management endpoints.
+- Analyzers: LB1007 and LB1017 no longer count event or query module registration as durable contract registration and accept contract scans through `Assembly.GetExecutingAssembly()` and locals; LB1003 reports `ITransactionalInbox`, `ITransactionalOutbox` and `ITransactionalOutbox<TContext>`; LB1011 recognises target-typed `new() { Tags = ... }`; LB1008 and LB1009 accept arity-2 open generic main handlers the runtime closes; LB1015 checks the interceptor call on the same axis; LB1013 and LB1016 require the Entity Framework Core `DbContext`.
 - `LiteBus.Analyzers` no longer scans the whole project each time an editor analyzes one file. Visual Studio and language servers analyze an open file on a fresh copy of the compilation and rerun compilation-start and compilation actions each time, so the handler, contract, tag and declaration rules walked every syntax tree per keystroke: 20 to 40 seconds per analyzer on a 3,400-file project. These rules now gather facts from symbol and syntax-node actions and report at compilation end. LB1001, LB1007 through LB1012, LB1017, LB1018, LB1020 and LB1021 report the same diagnostics on build, and no longer appear as live squiggles; see [Build-Only Rules](https://litebus.io/docs/reference/analyzers#build-only-rules).
 - The Azure Service Bus publisher no longer throws `ArgumentNullException` for a `TransportPublishRequest` without a `MessageId`; the identifier is optional on the request and is now copied only when supplied.
 - `MessageRegistry.Handlers` returns a snapshot taken under the registry lock instead of a live view a concurrent registration could tear.
@@ -360,6 +385,8 @@ Major release for .NET 10, describing the change from v6.0.2. Adds a completion 
 
 ### Breaking
 
+- Tenant filters and lease requests mean the same on every store: `null` applies no tenant restriction and an empty string matches unscoped rows only. The EF Core and in-memory stores previously treated an empty string as no restriction.
+- `RecurringCommandHostOptions.Validate` rejects a zero `Interval` or `ErrorBackoff`, which made the loop spin without pause.
 - `PipelineDecision.AnsweredBy` is renamed `DecidedBy` and is set for a guard denial and a validation failure as well as a shortcut answer.
 - `IOutboxDiagnosticsStore` and `IOutboxManager` gain `GetFailureSummaryAsync`; a custom outbox store implements it.
 - A second `AddLiteBus` on one service collection or container builder throws `ModuleCompositionException`; each container hosts one LiteBus composition.
@@ -396,6 +423,8 @@ Major release for .NET 10, describing the change from v6.0.2. Adds a completion 
 
 ### Documentation
 
+- The site renders Mermaid diagrams as SVG at build time with Ondine, publishes this changelog as a page, uses one navigation built from the page tree, and names every page the same way in the navigation, breadcrumb and tab title.
+- Drain is documented as completing in-flight dispatches; only shutdown releases leases without spending an attempt.
 - The metric catalog lists every public instrument, the package table follows the generated inventory and includes the four broker adapters that were missing, and `Test-DocumentationSemantics.ps1` checks the catalog, the package table and both axes' management routes against the source.
 - `MaxInFlightMessages` is documented with the bound each adapter enforces: 1 for AMQP, Kafka, SQS and in-memory, the configured value for Azure Service Bus.
 - `ProcessorOptions.LeaseOwner` is documented as a prefix; the processor appends a session suffix that fences instances sharing a configured owner. The inbox lease requests document that stores with a database clock use it and treat `Now` as the fallback.

@@ -1,4 +1,5 @@
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Abstractions.Exceptions;
 using LiteBus.Messaging;
 using LiteBus.Testing;
 using LiteBus.Transport.Abstractions;
@@ -87,6 +88,47 @@ public sealed class TransportInboxDispatcherTests
         routingStrategy.ContractName.Should().Be("orders.commands.ship");
         routingStrategy.Topic.Should().Be("orders.commands.ship");
         transport.Published.Should().ContainSingle().Which.Route.Should().Be("tenant-west.orders.commands.ship");
+    }
+
+    /// <summary>
+    ///     Verifies an empty resolved route throws a typed dispatch exception before the transport is called.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public async Task DispatchAsync_WithEmptyResolvedRoute_ShouldThrowTypedDispatchException(string? route)
+    {
+        var transport = new TestMessageTransport();
+        var contractRegistry = new MessageContractRegistry();
+        contractRegistry.Register<TestShipCommand>("orders.commands.ship");
+
+        var dispatcher = new TransportInboxDispatcher(
+            transport,
+            contractRegistry,
+            new SystemTextJsonMessageSerializer(),
+            new TransportInboxDispatcherOptions
+            {
+                DefaultDestination = "orders.commands",
+                ResolveRoute = _ => route!
+            });
+
+        var messageId = Guid.NewGuid();
+
+        var action = () => dispatcher.DispatchAsync(new InboxEnvelope
+        {
+            Id = messageId,
+            ContractName = "orders.commands.ship",
+            ContractVersion = 1,
+            Payload = """{"orderId":"42"}""",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Status = InboxStatus.Processing,
+            AttemptCount = 1
+        });
+
+        await action.Should().ThrowAsync<InboxDispatchException>()
+            .WithMessage($"*{messageId:D}*").ConfigureAwait(false);
+        transport.Published.Should().BeEmpty();
     }
 
     /// <summary>

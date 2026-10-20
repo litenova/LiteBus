@@ -1,4 +1,4 @@
-# Dispatch Axis Capability Catalog
+# Dispatch
 
 Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 

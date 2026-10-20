@@ -144,9 +144,16 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
             var loaded = await SagaStoreInvoker.LoadAsync(_sagaStore, stateType, correlation, cancellationToken)
                 .ConfigureAwait(false);
 
-            if (loaded?.LastAppliedMessageId == envelope.MessageId || loaded?.IsCompleted == true)
+            if (loaded?.LastAppliedMessageId == envelope.MessageId)
             {
                 _suppressedDispatches[envelope.MessageId] = 0;
+                _context.Reset();
+                ReleaseDispatchGate(envelope.MessageId);
+                return;
+            }
+
+            if (loaded?.IsCompleted == true)
+            {
                 _context.Reset();
                 ReleaseDispatchGate(envelope.MessageId);
                 return;
@@ -280,7 +287,9 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
     /// <returns>A task that completes when the saga is completed or already completed.</returns>
     /// <remarks>
     ///     Completion is idempotent and can be retried against a newer version. Dirty state is never retried here because
-    ///     the hook cannot safely merge an arbitrary handler-owned state snapshot with a concurrent update.
+    ///     the hook cannot safely merge an arbitrary handler-owned state snapshot with a concurrent update. When
+    ///     <c>Complete()</c> is the first saga interaction, no row exists at version 0; the hook saves the initial
+    ///     snapshot and completes the new row instead of reporting a concurrency conflict.
     /// </remarks>
     private async Task PersistCompletionAsync(CancellationToken cancellationToken)
     {
@@ -320,6 +329,23 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
 
                 if (loaded is null)
                 {
+                    if (_context.Version == 0)
+                    {
+                        var state = _context.GetActiveState();
+                        await SagaStoreInvoker.SaveAsync(
+                                _sagaStore,
+                                stateType,
+                                correlation,
+                                state,
+                                0,
+                                _context.DispatchId,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        var savedSnapshot = await SerializeStateAsync(stateType, state, cancellationToken).ConfigureAwait(false);
+                        _context.RefreshLoadedState(state, 1, savedSnapshot);
+                        continue;
+                    }
+
                     throw new SagaConcurrencyException(correlation);
                 }
 

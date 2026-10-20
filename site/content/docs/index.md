@@ -1,4 +1,4 @@
-# LiteBus Documentation
+# Documentation
 
 LiteBus provides command, query, and event mediation for .NET applications. Handlers run in the caller process through ordered pipelines. The inbox, outbox, and saga modules add durable execution, publication, and correlated state when a message has to survive a restart.
 

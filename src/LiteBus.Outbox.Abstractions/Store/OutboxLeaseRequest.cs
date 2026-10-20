@@ -28,7 +28,8 @@ public sealed record OutboxLeaseRequest
     public required TimeSpan LeaseDuration { get; init; }
 
     /// <summary>
-    ///     Gets the optional tenant identifier used to isolate leased messages.
+    ///     Gets the optional tenant identifier used to isolate leased messages. A <see langword="null" /> value means
+    ///     no tenant restriction; an empty string leases only unscoped rows.
     /// </summary>
     public string? TenantId { get; init; }
 }

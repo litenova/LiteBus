@@ -52,19 +52,30 @@ public sealed class InboxOutboxTestHost : IAsyncDisposable
     {
         var services = new ServiceCollection();
 
-        if (timeProvider is not null)
-        {
-            services.AddSingleton(timeProvider);
-        }
-
         services.AddLiteBus(builder =>
         {
-            builder.AddMessaging(_ =>
+            builder.AddMessaging(messaging =>
             {
+                if (timeProvider is not null)
+                {
+                    messaging.UseTimeProvider(timeProvider);
+                }
             });
 
-            builder.AddInbox(inbox => inbox.UseInMemoryStorage());
-            builder.AddOutbox(outbox => outbox.UseInMemoryStorage());
+            builder.AddInbox(inbox => inbox.UseInMemoryStorage(storage =>
+            {
+                if (timeProvider is not null)
+                {
+                    storage.UseTimeProvider(timeProvider);
+                }
+            }));
+            builder.AddOutbox(outbox => outbox.UseInMemoryStorage(storage =>
+            {
+                if (timeProvider is not null)
+                {
+                    storage.UseTimeProvider(timeProvider);
+                }
+            }));
             configure?.Invoke(builder);
         });
 

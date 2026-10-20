@@ -426,15 +426,23 @@ finally
 
 ### Lease and Retry Simulation
 
-InMemory stores honor processor lease duration through `TimeProvider`. Register a manual time provider and advance it without `Task.Delay`:
+InMemory stores honor processor lease duration through `TimeProvider`. Thread one manual clock through the messaging and storage builders and advance it without `Task.Delay`:
 
 ```csharp
 var timeProvider = new ManualTimeProvider(DateTimeOffset.UtcNow);
-services.AddSingleton<TimeProvider>(timeProvider);
+
+services.AddLiteBus(builder =>
+{
+    builder.AddMessaging(messaging => messaging.UseTimeProvider(timeProvider));
+    builder.AddInbox(inbox => inbox.UseInMemoryStorage(storage => storage.UseTimeProvider(timeProvider)));
+    builder.AddOutbox(outbox => outbox.UseInMemoryStorage(storage => storage.UseTimeProvider(timeProvider)));
+});
 
 // After leasing, expire the lease without waiting:
 timeProvider.Advance(TimeSpan.FromMinutes(2));
 ```
+
+Registering the clock directly with `services.AddSingleton<TimeProvider>(timeProvider)` does not work: module composition registers its own `TimeProvider` binding, so a directly registered clock never reaches writers or lease checks. `InboxOutboxTestHost.Create` applies this builder pattern for its `timeProvider` argument.
 
 See [Testing](README.md) for InMemory processor recipes and quick CI filters. For the complete integration test map (projects, Docker setup, scenario matrices), see [Integration Tests](integration-tests.md).
 

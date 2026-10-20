@@ -89,6 +89,85 @@ public sealed class OrphanHandlerTagAnalyzerRegressionTests
     }
 
     /// <summary>
+    ///     Verifies that a tag set only through target-typed <c>new()</c> satisfies the rule.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task OrphanHandlerTag_ShouldNotReportWhenTagIsSetThroughTargetTypedNew()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+
+                              [HandlerTag("frontend")]
+                              public sealed class TaggedHandler : ICommandHandler<SampleCommand>
+                              {
+                                  public Task HandleAsync(SampleCommand message, CancellationToken cancellationToken = default) => Task.CompletedTask;
+                              }
+
+                              public sealed class Sender
+                              {
+                                  public void Send()
+                                  {
+                                      CommandRoutingSettings routing = new() { Tags = ["frontend"] };
+                                  }
+                              }
+
+                              public sealed record SampleCommand : ICommand;
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<OrphanHandlerTagAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies that a tag set through target-typed <c>new(args)</c> satisfies the rule.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task OrphanHandlerTag_ShouldNotReportWhenTagIsSetThroughTargetTypedNewWithArguments()
+    {
+        const string source = """
+                              #pragma warning disable CS0436
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+
+                              [HandlerTag("frontend")]
+                              public sealed class TaggedHandler : ICommandHandler<SampleCommand>
+                              {
+                                  public Task HandleAsync(SampleCommand message, CancellationToken cancellationToken = default) => Task.CompletedTask;
+                              }
+
+                              public sealed class Sender
+                              {
+                                  public void Send()
+                                  {
+                                      CommandRoutingSettings routing = new("unused") { Tags = ["frontend"] };
+                                  }
+                              }
+
+                              public sealed record SampleCommand : ICommand;
+
+                              namespace LiteBus.Commands.Abstractions
+                              {
+                                  public sealed class CommandRoutingSettings
+                                  {
+                                      public CommandRoutingSettings(string name)
+                                      {
+                                      }
+
+                                      public System.Collections.Generic.IEnumerable<string> Tags { get; init; } = [];
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<OrphanHandlerTagAnalyzer>(source);
+    }
+
+    /// <summary>
     ///     Verifies that each unreferenced tag in a <c>HandlerTags</c> array is reported.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>

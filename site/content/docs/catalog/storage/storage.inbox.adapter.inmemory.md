@@ -70,6 +70,8 @@ No external NuGet dependencies beyond inbox abstractions.
 
 - Contract behavior matches relational stores per `InboxStoreContractTests`.
 - Process restart clears all data (non-durable by design).
+- A null tenant filter leaves query, purge, and lease unrestricted; an empty tenant filter matches only unscoped rows.
+- `PersistAsync` accepts only `Completed`, `Failed`, and `DeadLettered` envelopes and throws `InvalidOperationException` for other statuses, matching the relational stores.
 
 ## Non-Goals
 

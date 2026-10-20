@@ -544,12 +544,18 @@ public sealed class EfCoreOutboxStore :
                 await ReloadEntityAsync(context, entity, token).ConfigureAwait(false);
                 return new OutboxAppendResult(ToEnvelope(entity), OutboxEnqueueOutcome.Enqueued);
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException ex)
             {
                 var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.TenantId, envelope.IdempotencyKey, token).ConfigureAwait(false);
 
                 if (stored is null)
                 {
+                    throw;
+                }
+
+                if (!IsUniqueViolation(ex))
+                {
+                    DetachFailedInsert(context, entity);
                     throw;
                 }
 
@@ -701,22 +707,92 @@ public sealed class EfCoreOutboxStore :
 
                 ApplyPendingResults();
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException ex)
             {
                 foreach (var entity in entities)
                 {
                     DetachFailedInsert(context, entity);
                 }
 
+                var missing = new List<(int Index, OutboxEnvelope Envelope)>();
+
                 foreach (var (index, envelope) in pending)
                 {
                     var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.TenantId, envelope.IdempotencyKey, token)
-                                     .ConfigureAwait(false) ??
-                                 throw new InvalidOperationException(
-                                     "The outbox batch insert failed and the existing message could not be found.");
+                        .ConfigureAwait(false);
 
+                    if (stored is null)
+                    {
+                        missing.Add((index, envelope));
+                        continue;
+                    }
+
+                    ThrowIfStrictConflict(envelope, stored);
                     results[index] = new OutboxAppendResult(ToEnvelope(stored), OutboxEnqueueOutcome.AlreadyEnqueued);
                     RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
+                }
+
+                if (missing.Count == 0)
+                {
+                    if (!IsUniqueViolation(ex))
+                    {
+                        throw;
+                    }
+                }
+                else
+                {
+                    var retryEntities = missing.Select(entry => ToEntity(entry.Envelope)).ToList();
+                    context.OutboxMessages.AddRange(retryEntities);
+
+                    try
+                    {
+                        await SaveChangesAsync(context, token).ConfigureAwait(false);
+
+                        for (var retryIndex = 0; retryIndex < retryEntities.Count; retryIndex++)
+                        {
+                            await ReloadEntityAsync(context, retryEntities[retryIndex], token).ConfigureAwait(false);
+                            var stored = ToEnvelope(retryEntities[retryIndex]);
+                            results[missing[retryIndex].Index] = new OutboxAppendResult(stored, OutboxEnqueueOutcome.Enqueued);
+                            RememberBatchResult(seenIds, seenIdempotencyKeys, missing[retryIndex].Envelope, stored);
+                        }
+                    }
+                    catch (DbUpdateException retryEx)
+                    {
+                        foreach (var retryEntity in retryEntities)
+                        {
+                            DetachFailedInsert(context, retryEntity);
+                        }
+
+                        var stillMissing = 0;
+
+                        foreach (var (index, envelope) in missing)
+                        {
+                            var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.TenantId, envelope.IdempotencyKey, token)
+                                .ConfigureAwait(false);
+
+                            if (stored is null)
+                            {
+                                stillMissing++;
+                                continue;
+                            }
+
+                            ThrowIfStrictConflict(envelope, stored);
+                            results[index] = new OutboxAppendResult(ToEnvelope(stored), OutboxEnqueueOutcome.AlreadyEnqueued);
+                            RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
+                        }
+
+                        if (stillMissing > 0)
+                        {
+                            throw new InvalidOperationException(
+                                "The outbox batch insert failed and the existing message could not be found.",
+                                retryEx);
+                        }
+
+                        if (!IsUniqueViolation(retryEx))
+                        {
+                            throw;
+                        }
+                    }
                 }
 
                 foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
@@ -1237,10 +1313,11 @@ public sealed class EfCoreOutboxStore :
         var failedStatus = OutboxStatus.Failed;
         var publishingStatus = OutboxStatus.Publishing;
         var tenantId = request.TenantId;
+        var normalizedTenantId = tenantId is null ? null : EfCoreIdempotencyResolution.NormalizeTenantId(tenantId);
 
         var candidates = await context.OutboxMessages
             .Where(message =>
-                (tenantId == null || message.TenantId == tenantId) &&
+                (tenantId == null || message.TenantId == normalizedTenantId) &&
                 ((message.Status == pendingStatus || message.Status == failedStatus) && (message.VisibleAfter == null || message.VisibleAfter <= now) ||
                  message.Status == publishingStatus && message.LeaseExpiresAt != null && message.LeaseExpiresAt <= now ||
                  message.Status == publishingStatus && message.LeaseExpiresAt == null && message.CreatedAt < staleCutoff))
@@ -1623,9 +1700,10 @@ public sealed class EfCoreOutboxStore :
             query = query.Where(message => message.CausationId == filter.CausationId);
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.TenantId))
+        if (filter.TenantId is not null)
         {
-            query = query.Where(message => message.TenantId == filter.TenantId);
+            var normalizedTenantId = EfCoreIdempotencyResolution.NormalizeTenantId(filter.TenantId);
+            query = query.Where(message => message.TenantId == normalizedTenantId);
         }
 
         if (filter.CreatedAfter is not null)
@@ -1878,7 +1956,7 @@ public sealed class EfCoreOutboxStore :
             string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) &&
             string.Equals(
                 EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
-                existing.TenantId,
+                EfCoreIdempotencyResolution.NormalizeTenantId(existing.TenantId),
                 StringComparison.Ordinal))
         {
             return;
@@ -1906,11 +1984,36 @@ public sealed class EfCoreOutboxStore :
              !string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) ||
              !string.Equals(
                  EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
-                 existing.TenantId,
+                 EfCoreIdempotencyResolution.NormalizeTenantId(existing.TenantId),
                  StringComparison.Ordinal)))
         {
             throw new IdempotencyConflictException(
                 $"An outbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
         }
+    }
+
+    /// <summary>
+    ///     Determines whether a database update failure was caused by a unique constraint violation.
+    /// </summary>
+    /// <param name="exception">The database update exception.</param>
+    /// <returns><see langword="true" /> when the failure looks like a unique violation; otherwise, <see langword="false" />.</returns>
+    private static bool IsUniqueViolation(DbUpdateException exception)
+    {
+        for (var current = (Exception) exception; current is not null; current = current.InnerException)
+        {
+            var message = current.Message;
+
+            if (message.Contains("unique", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("23505", StringComparison.Ordinal) ||
+                message.Contains("2627", StringComparison.Ordinal) ||
+                message.Contains("2601", StringComparison.Ordinal) ||
+                message.Contains("1062", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

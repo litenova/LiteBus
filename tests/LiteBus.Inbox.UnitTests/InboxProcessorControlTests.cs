@@ -1,4 +1,5 @@
 using LiteBus.Commands;
+using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Dispatch.InProcess;
@@ -251,6 +252,44 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
         }
     }
 
+    /// <summary>
+    ///     Confirms drain lets an in-flight dispatch finish and persist instead of releasing the lease.
+    /// </summary>
+    [Fact]
+    public async Task DrainAsync_with_inflight_dispatch_should_complete_and_persist_row()
+    {
+        var gate = new DrainGate();
+        var provider = BuildGatedProvider(gate);
+        await using (provider.ConfigureAwait(true))
+        {
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var control = provider.GetRequiredService<IInboxProcessorControl>();
+            var store = provider.GetRequiredService<InMemoryInboxStore>();
+            var orderId = Guid.NewGuid();
+
+            var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+            {
+                OrderId = orderId,
+                IdempotencyKey = $"ship:{orderId}"
+            }).ConfigureAwait(false);
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(false);
+            await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10), cts.Token).ConfigureAwait(false);
+
+            var drainTask = control.DrainAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
+            await Task.Delay(TimeSpan.FromMilliseconds(100), CancellationToken.None).ConfigureAwait(false);
+            gate.Release.TrySetResult();
+            await drainTask.ConfigureAwait(false);
+
+            var stored = store.Get(receipt.Id);
+            stored.Status.Should().Be(InboxStatus.Completed);
+            stored.AttemptCount.Should().Be(1);
+
+            await InboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+        }
+    }
+
     private static ServiceProvider BuildProvider(
         InboxTestFixtures.CommandRecorder recorder,
         Action<InboxProcessorHostOptions>? configureHost = null)
@@ -295,6 +334,64 @@ public sealed class InboxProcessorControlTests : LiteBusTestBase
         while (!condition() && DateTimeOffset.UtcNow < deadline)
         {
             await Task.Delay(50).ConfigureAwait(false);
+        }
+    }
+
+    private static ServiceProvider BuildGatedProvider(DrainGate gate)
+    {
+        return new ServiceCollection()
+            .AddSingleton(gate)
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessaging(_ =>
+                {
+                });
+
+                registry.AddCommands(builder =>
+                {
+                    builder.Register<InboxTestFixtures.ShipOrderCommand>();
+                    builder.Register<GatedShipOrderCommandHandler>();
+                });
+
+                registry.AddInbox(inbox =>
+                {
+                    inbox.Contracts.Register<InboxTestFixtures.ShipOrderCommand>("orders.commands.ship");
+
+                    inbox.UseProcessorOptions(new InboxProcessorOptions
+                    {
+                        BatchSize = 10,
+                        LeaseOwner = "test-worker",
+                        Retry = new RetryOptions { UseJitter = false }
+                    });
+
+                    inbox.UseInMemoryStorage();
+                    inbox.UseInProcessDispatch();
+                    inbox.EnableInboxProcessor(host => host.PollInterval = TimeSpan.FromMilliseconds(25));
+                });
+            })
+            .BuildServiceProvider();
+    }
+
+    private sealed class DrainGate
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    private sealed class GatedShipOrderCommandHandler : ICommandHandler<InboxTestFixtures.ShipOrderCommand>
+    {
+        private readonly DrainGate _gate;
+
+        public GatedShipOrderCommandHandler(DrainGate gate)
+        {
+            _gate = gate;
+        }
+
+        public async Task HandleAsync(InboxTestFixtures.ShipOrderCommand message, CancellationToken cancellationToken = default)
+        {
+            _gate.Entered.TrySetResult();
+            await _gate.Release.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
         }
     }
 }

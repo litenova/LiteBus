@@ -1,4 +1,4 @@
-# Hosting Capability Catalog
+# Hosting
 
 Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 

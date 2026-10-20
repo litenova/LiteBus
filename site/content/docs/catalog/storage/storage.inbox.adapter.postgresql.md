@@ -22,6 +22,8 @@
 
 - Table: configurable, defaults to `public.litebus_inbox_messages`.
 - Insert path uses `ON CONFLICT DO NOTHING RETURNING`; returned rows report `Accepted`, while conflict lookups report `AlreadyAccepted`.
+- Batch inserts run in 1,000-row statements so large batches never approach the PostgreSQL parameter cap.
+- A null tenant filter leaves query, purge, and lease unrestricted; an empty tenant filter matches only unscoped rows. Stored and requested tenants compare through `DurableTenantId.Normalize`.
 - Retention delete uses `COALESCE(completed_at, created_at) < @older_than`.
 - Dead-letter replay uses `UPDATE ... SET status = pending, visible_after = NULL, attempt_count = 0`.
 - Status diagnostics uses grouped count query: `SELECT status, COUNT(*) FROM ... GROUP BY status`.
@@ -55,6 +57,7 @@ Schema v1 creates and validates:
 ### `LiteBus.Storage.IntegrationTests` (`PostgreSql/`)
 
 - `PostgreSqlInboxStoreTests` (contract inheritance): append, lease, persist, replay, retention, diagnostics.
+- `PostgreSqlInboxBatchInsertTests`: 4,000-envelope batch stored in input order across chunked statements.
 - `PostgreSqlInboxEndToEndTests`: full processor pass and retry/dead-letter transitions.
 - `PostgreSqlInboxProcessorLeaseStressTests`: parallel workers with one terminal result per message.
 - `PostgreSqlInboxWorkSignalNotifyTests` and `PostgreSqlInboxWorkSignalTests`: LISTEN/NOTIFY wake and reconnect.

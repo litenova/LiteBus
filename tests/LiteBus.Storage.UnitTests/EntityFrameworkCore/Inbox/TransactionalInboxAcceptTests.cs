@@ -126,6 +126,60 @@ public sealed class TransactionalInboxAcceptTests
         }
     }
 
+    /// <summary>
+    ///     Confirms a strict batch with the same message identifier twice fails before anything is staged.
+    /// </summary>
+    [Fact]
+    public async Task AcceptBatchAsync_with_strict_same_id_changed_payload_should_throw_before_staging()
+    {
+        var databaseName = Guid.NewGuid().ToString("N");
+        var interceptor = new LiteBusInboxSaveChangesInterceptor();
+
+        var options = new DbContextOptionsBuilder<TransactionalInboxDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .AddLiteBusInboxInterceptor(interceptor)
+            .Options;
+
+        var context = new TransactionalInboxDbContext(options);
+        await using (context.ConfigureAwait(false))
+        {
+            await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
+            var registry = new MessageContractRegistry();
+            registry.Register<SubmitOrderCommand>("orders.commands.submit");
+
+            var transactionalInbox = new TransactionalInbox<TransactionalInboxDbContext>(
+                interceptor,
+                context,
+                new InboxEnvelopeFactory(registry, new SynchronousMessageSerializer(), TimeProvider.System));
+
+            var messageId = Guid.NewGuid();
+
+            InboxAcceptMetadata StrictMetadata(string key)
+            {
+                return InboxAcceptMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId),
+                    Idempotency = new Idempotency.Keyed(key, IdempotencyConflictMode.Strict)
+                };
+            }
+
+            var action = () => transactionalInbox.AcceptBatchAsync([
+                InboxAcceptItem.From(
+                    new SubmitOrderCommand { OrderId = Guid.NewGuid() },
+                    StrictMetadata("strict-batch-key")),
+                InboxAcceptItem.From(
+                    new SubmitOrderCommand { OrderId = Guid.NewGuid() },
+                    StrictMetadata("strict-batch-key"))
+            ]);
+
+            await action.Should().ThrowAsync<IdempotencyConflictException>().ConfigureAwait(false);
+
+            var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
+            savedCount.Should().Be(0);
+            (await context.InboxMessages.CountAsync().ConfigureAwait(false)).Should().Be(0);
+        }
+    }
+
     private sealed record SubmitOrderCommand
     {
         public Guid OrderId { get; init; }

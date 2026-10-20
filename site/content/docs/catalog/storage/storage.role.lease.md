@@ -16,6 +16,7 @@
 - PostgreSQL claim query uses `FOR UPDATE SKIP LOCKED` with due-time and lease-expiry predicates.
 - Claim update sets `status`, `lease_owner`, `lease_expires_at`, and increments `attempt_count`.
 - Eligible statuses include pending and failed; expired processing/publishing leases are reclaimable.
+- A null lease tenant means no tenant restriction; an empty string leases only unscoped rows, with stored and requested tenants compared through normalized values on every adapter.
 
 ## Concurrency Model
 

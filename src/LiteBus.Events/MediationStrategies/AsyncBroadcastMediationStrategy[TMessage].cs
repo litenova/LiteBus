@@ -106,7 +106,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
             {
                 if (_settings.ThrowIfNoHandlerFound)
                 {
-                    throw new NoHandlerFoundException(typeof(TMessage));
+                    // The runtime type names the failing message; TMessage may be erased to IEvent by the non-generic
+                    // PublishAsync overload.
+                    throw new NoHandlerFoundException(message.GetType());
                 }
 
                 return;
@@ -277,6 +279,12 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     /// </summary>
     /// <param name="tasks">The handler tasks executing concurrently.</param>
     /// <returns>A task that completes when every handler task has finished or faults according to fault mode.</returns>
+    /// <remarks>
+    ///     Cancellation is not a handler fault. When every collected failure is an
+    ///     <see cref="OperationCanceledException" />, one of them is rethrown so the mediation reports
+    ///     <see cref="MediationOutcome.Canceled" /> instead of aggregating a cancellation into a failure, matching the
+    ///     sequential path. Mixed cancellation and faults still aggregate.
+    /// </remarks>
     private async Task AwaitParallelTasksAsync(IReadOnlyList<Task> tasks)
     {
         if (_settings.Execution.FaultMode == HandlerFaultMode.ContinueAndAggregate)
@@ -300,6 +308,11 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
             if (exceptions.Count > 0)
             {
+                if (exceptions.TrueForAll(static exception => exception is OperationCanceledException))
+                {
+                    throw exceptions[0];
+                }
+
                 throw exceptions.Count == 1
                     ? exceptions[0]
                     : new AggregateException(exceptions);

@@ -139,8 +139,11 @@ Turn replay on for a command whose caller needs the same answer twice, such as a
 | Mediation outcome | Effect on the key |
 | --- | --- |
 | `Succeeded` | Marked applied, with the serialized result when `ReplayResult` is set |
-| `Answered` | Left alone. The shortcut answered because the key was already applied, so there is no claim of its own to settle |
-| `Denied`, `Invalid`, `Failed`, `Canceled` | Released, so the retry runs |
+| `Answered` | Released when this mediation claimed the key before a later shortcut answered; left alone when the shortcut answered a repeat without claiming |
+| `Denied`, `Invalid` | Left alone: guards and validators run before the shortcut stage, so no claim exists to settle |
+| `Failed`, `Canceled` | Released, so the retry runs |
+
+Only the mediation that was granted the key settles it. The shortcut records each granted key in execution-context data, and the completion handler completes or releases that recorded key; a mediation that never claimed, because it was denied, invalid, answered as a repeat, or its claim threw a conflict, settles nothing, so it can never delete another delivery's in-flight claim.
 
 Release is what makes a transient failure survivable. Burning the key on a database timeout would make the retry a false repeat, which is the opposite of what idempotency is for.
 

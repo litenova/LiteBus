@@ -7,7 +7,7 @@
 
 ## What It Does
 
-`SagaProcessorHook` implements `IProcessorEnvelopeHook` for saga. On `BeforeDispatchAsync` it resets ambient scope, resolves the saga definition from the message contract, builds a `SagaCorrelation`, loads existing state from `ISagaStore`, and begins an active scope. Completed sagas skip active scope so further correlated messages dispatch without saga mutation.
+`SagaProcessorHook` implements `IProcessorEnvelopeHook` for saga. On `BeforeDispatchAsync` it resets ambient scope, resolves the saga definition from the message contract, builds a `SagaCorrelation`, loads existing state from `ISagaStore`, and begins an active scope. Completed sagas skip active scope so further correlated messages dispatch with an inactive scope and without saga mutation; only a redelivery whose message id matches `LastAppliedMessageId` suppresses dispatch.
 
 On `PrepareDispatchScope` and at the start of `AfterDispatchAsync`, the hook attaches the scope identified by `IProcessorEnvelope.MessageId`. The synchronous prepare phase sets `AsyncLocal` state on the same logical flow that calls the dispatcher. Message IDs also prevent concurrent deliveries for one saga correlation from overwriting each other's state snapshots.
 
@@ -23,7 +23,7 @@ Each save and completion records the inbox message identifier in `last_applied_m
 | --- | --- | --- |
 | `SagaProcessorHook.BeforeDispatchAsync(...)` | `LiteBus.Saga` | Resolve mapping, build correlation, load state, begin scope |
 | `SagaProcessorHook.PrepareDispatchScope(...)` | `LiteBus.Saga` | Attach the message-keyed scope before dispatcher execution |
-| `SagaProcessorHook.ShouldDispatch(...)` | `LiteBus.Saga` | Skip the dispatcher when the message was already applied |
+| `SagaProcessorHook.ShouldDispatch(...)` | `LiteBus.Saga` | Skip the dispatcher only when the message id matches `LastAppliedMessageId`; new messages on completed sagas dispatch with an inactive scope |
 | `SagaProcessorHook.AbandonDispatchScope(...)` | `LiteBus.Saga` | Remove state after canceled or failed dispatch |
 | `SagaProcessorHook.AfterDispatchAsync(...)` | `LiteBus.Saga` | Save dirty state once or complete saga with bounded retry |
 | Registration via `EnableSaga()` | `LiteBus.Saga.InboxIntegration` | Adds hook as `IProcessorEnvelopeHook` singleton |
@@ -53,6 +53,8 @@ Each save and completion records the inbox message identifier in `last_applied_m
 - Dirty-state conflicts propagate without automatic state merge.
 - Completion-only conflicts may retry up to three attempts.
 - `SetState` and `Complete` in the same dispatch throw `InvalidOperationException` before persist.
+- Only a `LastAppliedMessageId` match suppresses dispatch; new messages on a completed saga dispatch with an inactive scope and no saga mutation.
+- `Complete()` with no prior save stores the initial snapshot first, then completes the new row instead of reporting a concurrency conflict.
 - Saga save runs after successful handler dispatch but before inbox terminal persistence.
 - Inbox terminal state and saga rows are separate persistence steps. The applied-message ledger closes the duplicate-application window without claiming cross-store atomicity.
 

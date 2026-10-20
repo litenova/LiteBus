@@ -25,6 +25,10 @@ namespace LiteBus.Commands.Idempotency;
 ///         answer is. Answering would tell the caller the work is done while it might still fail.
 ///     </para>
 ///     <para>
+///         A granted key is recorded in the execution-context data as a <see cref="ClaimedIdempotencyKey" />, so the
+///         completion handler settles exactly the claim this mediation holds and never one another delivery holds.
+///     </para>
+///     <para>
 ///         The registry does not close this shortcut for a command that produces a result, since an untyped shortcut
 ///         cannot carry a value. <see cref="IdempotentCommandShortcut{TCommand, TCommandResult}" /> covers those.
 ///     </para>
@@ -69,6 +73,11 @@ internal sealed class IdempotentCommandShortcut<TCommand> : ICommandShortcut<TCo
         }
 
         var claim = await _store.TryClaimAsync(resolved.Value.Key, cancellationToken).ConfigureAwait(false);
+
+        if (claim.Outcome == IdempotencyClaimOutcome.Granted)
+        {
+            AmbientExecutionContext.GetCurrentOrDefault()?.Data.Set(new ClaimedIdempotencyKey(resolved.Value.Key));
+        }
 
         return claim.Outcome == IdempotencyClaimOutcome.AlreadyCompleted
             ? Shortcut.Answer("the command was already applied")

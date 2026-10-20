@@ -30,6 +30,7 @@ Route resolution prefers the custom resolver, then envelope `Topic`, then contra
 - Default hook failure policy is `CompleteDespiteHookFailure` for transport outbox modules.
 - At-least-once publication: crash after broker ack but before terminal persist can duplicate messages.
 - Downstream consumers must deduplicate (message id, idempotency header, or business keys).
+- A mandatory publication the broker returns as unroutable throws `AmqpMessageReturnedException`, so the envelope stays leased and retries instead of being silently dropped.
 
 ## Non-Goals
 
@@ -76,7 +77,7 @@ services.AddLiteBus(litebus =>
 | `DefaultDestination` | `""` | Exchange name |
 | `ContentType` | `application/json` | Outgoing MIME content type |
 | `Persistent` | `true` | Durable message flag |
-| `Mandatory` | `true` | Fail publish when unroutable |
+| `Mandatory` | `true` | Fail publish with `AmqpMessageReturnedException` when unroutable |
 | `ResolveRoute` | `null` | Route selector after topic fallback |
 | `ValidatePayloadBeforeDispatch` | `false` | Deserialize payload before publish for validation |
 
@@ -122,6 +123,9 @@ Outbox route order is tenant strategy, then `ResolveRoute`, then envelope `Topic
 | `ProcessPendingAsync_ShouldPublishEnvelopeToAmqpQueue` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Amqp/`) |
 | `ProcessPendingAsync_WhenTopicMissing_ShouldUseContractNameAsRoutingKey` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Amqp/`) |
 | `ProcessPendingAsync_ShouldPublishToAmqpAndMarkPostgreSqlEnvelopePublished` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Amqp/`) |
+| `PublishAsync_WithMandatoryAndReturnedMessage_ShouldThrow` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `PublishAsync_WithMandatoryAndNoBinding_ShouldThrow` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
+| `PublishAsync_WithMandatoryFalseAndNoBinding_ShouldSucceed` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
 
 ### Untested
 

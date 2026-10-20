@@ -1,4 +1,4 @@
-# Open Generic Handlers
+# Open Generic Handler Shape
 
 ## Header
 

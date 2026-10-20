@@ -1,4 +1,4 @@
-# Transport Axis Capability Catalog
+# Transport
 
 Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 

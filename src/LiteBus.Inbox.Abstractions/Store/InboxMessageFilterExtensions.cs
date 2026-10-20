@@ -24,6 +24,9 @@ public static class InboxMessageFilterExtensions
     /// </summary>
     /// <param name="filter">The filter to inspect.</param>
     /// <returns><see langword="true" /> when purge or query is scoped to a subset of rows.</returns>
+    /// <remarks>
+    ///     A tenant predicate counts when <see cref="InboxMessageFilter.TenantId" /> is not <see langword="null" />: the empty string narrows matches to unscoped rows, so it is a narrowing predicate.
+    /// </remarks>
     public static bool HasMinimumCriteria(this InboxMessageFilter filter)
     {
         ArgumentNullException.ThrowIfNull(filter);
@@ -58,7 +61,7 @@ public static class InboxMessageFilterExtensions
             return true;
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.TenantId))
+        if (filter.TenantId is not null)
         {
             return true;
         }

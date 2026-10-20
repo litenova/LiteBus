@@ -41,6 +41,7 @@ Raising inbox `DispatcherConcurrency` above one increases concurrent updates to 
 - Handler failure before `AfterDispatchAsync` does not increment stored version for that attempt.
 - Insert uses expected version 0 on first save from hook after new saga scope.
 - Missing rows reject nonzero expected versions, and completed rows reject save or repeated completion.
+- `Complete()` on a never-saved saga saves the initial snapshot before completing, so the row is created already completed instead of reporting a concurrency conflict.
 - In-memory completion uses an atomic compare-and-update operation.
 - Dirty-state conflicts propagate after one failed save attempt.
 - Completion-only conflicts reload and retry up to three attempts, or succeed when the row is already completed.

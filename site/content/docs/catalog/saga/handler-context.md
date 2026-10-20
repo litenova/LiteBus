@@ -9,7 +9,7 @@
 
 `ISagaContext` is the handler-facing surface for saga. When a saga scope is active, handlers call `GetState<TState>()` to read the current snapshot, `SetState(state)` to mark dirty state for post-dispatch save, and `Complete()` to mark the workflow terminal after dispatch succeeds.
 
-`IsActive` is false when the envelope has no correlation, the contract is unmapped, the saga instance is already completed, or the message was already applied (redelivery marker match). Handlers should guard mutations with `IsActive`.
+`IsActive` is false when the envelope has no correlation, the contract is unmapped, the saga instance is already completed, or the message was already applied (redelivery marker match). The handler still runs for a new message on a completed saga; `IsActive` false only disables saga state access, so handlers should guard mutations with `IsActive`.
 
 `SagaExecutionContext` implements `ISagaContext` as a singleton with one scope per durable message ID. The persisted saga key remains `SagaCorrelation`; the message key only isolates active dispatch snapshots in memory. The same singleton instance serves the processor hook and handlers.
 

@@ -124,6 +124,183 @@ public sealed class ContractRegistrationReceiverTests
     }
 
     /// <summary>
+    ///     Verifies that assembly scanning through <c>EventModuleBuilder</c> does not satisfy explicit registration.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task AttributedEventScannedOnlyByEventModuleBuilder_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Reflection;
+                              using LiteBus.Events;
+                              using LiteBus.Events.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+
+                              [MessageContract("orders.order-shipped", 1)]
+                              public sealed record {|#0:OrderShippedEvent|}(int OrderId) : IEvent;
+
+                              public static class ModuleConfiguration
+                              {
+                                  public static void Configure(EventModuleBuilder events)
+                                  {
+                                      events.RegisterFromAssembly(typeof(OrderShippedEvent).Assembly);
+                                  }
+                              }
+
+                              namespace LiteBus.Events
+                              {
+                                  public sealed class EventModuleBuilder
+                                  {
+                                      public EventModuleBuilder Register<T>()
+                                      {
+                                          return this;
+                                      }
+
+                                      public EventModuleBuilder RegisterFromAssembly(Assembly assembly)
+                                      {
+                                          return this;
+                                      }
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<ExplicitMessageContractRegistrationAnalyzer>(
+            source,
+            DiagnosticDescriptors.ExplicitMessageContractRegistration,
+            0,
+            "OrderShippedEvent");
+    }
+
+    /// <summary>
+    ///     Verifies that assembly scanning through <c>QueryModuleBuilder</c> does not satisfy explicit registration.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task AttributedCommandScannedOnlyByQueryModuleBuilder_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Reflection;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Queries;
+
+                              [MessageContract("payments.process-payment", 1)]
+                              public sealed record {|#0:ProcessPaymentCommand|}(int PaymentId) : ICommand;
+
+                              public static class ModuleConfiguration
+                              {
+                                  public static void Configure(QueryModuleBuilder queries)
+                                  {
+                                      queries.RegisterFromAssembly(typeof(ProcessPaymentCommand).Assembly);
+                                  }
+                              }
+
+                              namespace LiteBus.Queries
+                              {
+                                  public sealed class QueryModuleBuilder
+                                  {
+                                      public QueryModuleBuilder Register<T>()
+                                      {
+                                          return this;
+                                      }
+
+                                      public QueryModuleBuilder RegisterFromAssembly(Assembly assembly)
+                                      {
+                                          return this;
+                                      }
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<ExplicitMessageContractRegistrationAnalyzer>(
+            source,
+            DiagnosticDescriptors.ExplicitMessageContractRegistration,
+            0,
+            "ProcessPaymentCommand");
+    }
+
+    /// <summary>
+    ///     Verifies that <c>Register</c> through <c>EventModuleBuilder</c> does not satisfy durable contract registration.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task HandledEventRegisteredOnlyThroughEventModuleBuilder_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Events;
+                              using LiteBus.Events.Abstractions;
+
+                              public sealed record OrderShippedEvent(int OrderId) : IEvent;
+
+                              public sealed class {|#0:OrderShippedEventHandler|} : IEventHandler<OrderShippedEvent>
+                              {
+                                  public Task HandleAsync(OrderShippedEvent @event, CancellationToken cancellationToken = default)
+                                      => Task.CompletedTask;
+                              }
+
+                              public static class ModuleConfiguration
+                              {
+                                  public static void Configure(EventModuleBuilder events)
+                                  {
+                                      events.Register<OrderShippedEvent>();
+                                  }
+                              }
+
+                              namespace LiteBus.Events
+                              {
+                                  public sealed class EventModuleBuilder
+                                  {
+                                      public EventModuleBuilder Register<T>()
+                                      {
+                                          return this;
+                                      }
+
+                                      public EventModuleBuilder RegisterFromAssembly(System.Reflection.Assembly assembly)
+                                      {
+                                          return this;
+                                      }
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<MissingMessageContractRegistrationAnalyzer>(
+            source,
+            DiagnosticDescriptors.MissingMessageContractRegistration,
+            0,
+            "OrderShippedEvent",
+            "OrderShippedEventHandler",
+            "OrderShippedEvent");
+    }
+
+    /// <summary>
+    ///     Verifies that <c>Register</c> on a genuine contract writer satisfies registration for an attributed event.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task AttributedEventRegisteredThroughContractWriter_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using LiteBus.Events.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+
+                              [MessageContract("orders.order-shipped", 1)]
+                              public sealed record OrderShippedEvent(int OrderId) : IEvent;
+
+                              public static class ModuleConfiguration
+                              {
+                                  public static void Configure(MessageContractBuilder contracts)
+                                  {
+                                      contracts.Register<OrderShippedEvent>("orders.order-shipped", 1);
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<ExplicitMessageContractRegistrationAnalyzer>(source);
+    }
+
+    /// <summary>
     ///     Verifies that <c>Register</c> on a message builder does not satisfy durable contract registration.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>

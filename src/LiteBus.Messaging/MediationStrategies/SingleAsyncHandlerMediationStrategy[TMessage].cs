@@ -86,7 +86,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage> : IMessageMedi
                     return;
                 }
 
-                var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
+                var handler = SingleMainHandlerResolver.Resolve(messageDependencies, message.GetType()).Handler.Value;
 
                 await HandlerInvocation.InvokeMainHandlerAsync<TMessage>(
                     handler,

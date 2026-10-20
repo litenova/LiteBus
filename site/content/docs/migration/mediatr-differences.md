@@ -181,4 +181,4 @@ See [Hosted services](../architecture/hosted-services.md) for startup tasks, pro
 
 - [Getting Started](../getting-started/README.md) to run each LiteBus shape in code
 - [The Handler Pipeline](../concepts/handler-pipeline.md) for stage order and decisions
-- [Migration Guides](README.md) for version upgrade procedures
+- [Migration](README.md) for version upgrade procedures

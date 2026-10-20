@@ -671,20 +671,38 @@ public sealed class EfCoreInboxStore :
                     DetachFailedInsert(context, entity);
                 }
 
+                var missing = new List<(int Index, InboxEnvelope Envelope)>(pending.Count);
+
                 foreach (var (index, envelope) in pending)
                 {
                     var stored = await FindExistingEntityAsync(
-                                         context,
-                                         envelope.Id,
-                                         envelope.TenantId,
-                                         envelope.IdempotencyKey,
-                                         token)
-                                     .ConfigureAwait(false) ??
-                                 throw new InvalidOperationException(
-                                     "The inbox batch insert failed and the existing message could not be found.");
+                            context,
+                            envelope.Id,
+                            envelope.TenantId,
+                            envelope.IdempotencyKey,
+                            token)
+                        .ConfigureAwait(false);
+
+                    if (stored is null)
+                    {
+                        missing.Add((index, envelope));
+                        continue;
+                    }
 
                     results[index] = new InboxAppendResult(ToEnvelope(stored), InboxAcceptOutcome.AlreadyAccepted);
                     RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
+                }
+
+                if (missing.Count > 0)
+                {
+                    await ReinsertMissingAsync(
+                            context,
+                            missing,
+                            results,
+                            seenIds,
+                            seenIdempotencyKeys,
+                            token)
+                        .ConfigureAwait(false);
                 }
 
                 foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
@@ -1100,6 +1118,9 @@ public sealed class EfCoreInboxStore :
     {
         var leaseExpiresAt = request.Now.Add(request.LeaseDuration);
         var staleCutoff = request.Now.Add(-request.LeaseDuration);
+        var tenantId = request.TenantId is null
+            ? null
+            : EfCoreIdempotencyResolution.NormalizeTenantId(request.TenantId);
 
         var rows = provider switch
         {
@@ -1117,7 +1138,7 @@ public sealed class EfCoreInboxStore :
                     request.BatchSize,
                     request.LeaseOwner,
                     leaseExpiresAt,
-                    request.TenantId,
+                    tenantId,
                     staleCutoff,
                     cancellationToken)
                 .ConfigureAwait(false),
@@ -1135,7 +1156,7 @@ public sealed class EfCoreInboxStore :
                     request.BatchSize,
                     request.LeaseOwner,
                     leaseExpiresAt,
-                    request.TenantId,
+                    tenantId,
                     staleCutoff,
                     cancellationToken)
                 .ConfigureAwait(false),
@@ -1153,7 +1174,7 @@ public sealed class EfCoreInboxStore :
                     request.BatchSize,
                     request.LeaseOwner,
                     leaseExpiresAt,
-                    request.TenantId,
+                    tenantId,
                     staleCutoff,
                     cancellationToken)
                 .ConfigureAwait(false),
@@ -1206,7 +1227,9 @@ public sealed class EfCoreInboxStore :
         var pendingStatus = InboxStatus.Pending;
         var failedStatus = InboxStatus.Failed;
         var processingStatus = InboxStatus.Processing;
-        var tenantId = request.TenantId;
+        var tenantId = request.TenantId is null
+            ? null
+            : EfCoreIdempotencyResolution.NormalizeTenantId(request.TenantId);
 
         var candidates = await context.InboxMessages
             .Where(message =>
@@ -1389,6 +1412,86 @@ public sealed class EfCoreInboxStore :
         if (context is DbContext dbContext)
         {
             dbContext.Entry(entity).State = EntityState.Detached;
+        }
+    }
+
+    /// <summary>
+    ///     Re-inserts batch envelopes that were rolled back with a failed batch insert.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="missing">The batch positions whose envelopes were not found after the failed insert.</param>
+    /// <param name="results">The batch results receiving one outcome per missing envelope.</param>
+    /// <param name="seenIds">The message identifiers already resolved in the batch.</param>
+    /// <param name="seenIdempotencyScopes">The tenant-scoped idempotency keys already resolved in the batch.</param>
+    /// <param name="cancellationToken">A token that cancels the re-insert.</param>
+    /// <returns>A task that completes when every missing envelope has a batch result.</returns>
+    /// <remarks>
+    ///     A failed <c>SaveChanges</c> rolls back every row of the batch, so envelopes that are still missing are
+    ///     genuinely new and must be inserted again rather than reported as already accepted. When the re-insert also
+    ///     fails, each missing envelope is resolved once more: rows a concurrent writer committed in the meantime
+    ///     resolve as already accepted, and only envelopes that are still missing throw, with the re-insert failure
+    ///     chained so the database error is never masked.
+    /// </remarks>
+    private static async Task ReinsertMissingAsync(
+        IInboxDbContext context,
+        List<(int Index, InboxEnvelope Envelope)> missing,
+        InboxAppendResult[] results,
+        Dictionary<Guid, InboxEnvelope> seenIds,
+        Dictionary<string, InboxEnvelope> seenIdempotencyScopes,
+        CancellationToken cancellationToken)
+    {
+        var retryEntities = missing.Select(entry => ToEntity(entry.Envelope)).ToList();
+        context.InboxMessages.AddRange(retryEntities);
+
+        try
+        {
+            await SaveChangesAsync(context, cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateException retryException)
+        {
+            foreach (var entity in retryEntities)
+            {
+                DetachFailedInsert(context, entity);
+            }
+
+            var stillMissing = new List<Guid>(missing.Count);
+
+            foreach (var (index, envelope) in missing)
+            {
+                var stored = await FindExistingEntityAsync(
+                        context,
+                        envelope.Id,
+                        envelope.TenantId,
+                        envelope.IdempotencyKey,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (stored is null)
+                {
+                    stillMissing.Add(envelope.Id);
+                    continue;
+                }
+
+                results[index] = new InboxAppendResult(ToEnvelope(stored), InboxAcceptOutcome.AlreadyAccepted);
+                RememberBatchResult(seenIds, seenIdempotencyScopes, envelope, results[index].Envelope);
+            }
+
+            if (stillMissing.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    "The inbox batch insert failed and the missing messages could not be inserted.",
+                    retryException);
+            }
+
+            return;
+        }
+
+        for (var retryIndex = 0; retryIndex < missing.Count; retryIndex++)
+        {
+            await ReloadEntityAsync(context, retryEntities[retryIndex], cancellationToken).ConfigureAwait(false);
+            var stored = ToEnvelope(retryEntities[retryIndex]);
+            results[missing[retryIndex].Index] = new InboxAppendResult(stored, InboxAcceptOutcome.Accepted);
+            RememberBatchResult(seenIds, seenIdempotencyScopes, missing[retryIndex].Envelope, stored);
         }
     }
 
@@ -1586,9 +1689,10 @@ public sealed class EfCoreInboxStore :
             query = query.Where(message => message.CausationId == filter.CausationId);
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.TenantId))
+        if (filter.TenantId is not null)
         {
-            query = query.Where(message => message.TenantId == filter.TenantId);
+            var tenantId = EfCoreIdempotencyResolution.NormalizeTenantId(filter.TenantId);
+            query = query.Where(message => message.TenantId == tenantId);
         }
 
         if (filter.CreatedAfter is not null)
@@ -1840,7 +1944,7 @@ public sealed class EfCoreInboxStore :
             string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) &&
             string.Equals(
                 EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
-                existing.TenantId,
+                EfCoreIdempotencyResolution.NormalizeTenantId(existing.TenantId),
                 StringComparison.Ordinal))
         {
             return;
@@ -1867,7 +1971,7 @@ public sealed class EfCoreInboxStore :
              !string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) ||
              !string.Equals(
                  EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
-                 existing.TenantId,
+                 EfCoreIdempotencyResolution.NormalizeTenantId(existing.TenantId),
                  StringComparison.Ordinal)))
         {
             throw new IdempotencyConflictException(

@@ -1402,6 +1402,145 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies strict identical replay of an unscoped envelope returns the existing outcome.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task AddAsync_WithStrictIdenticalUnscopedReplay_ShouldReturnExistingOutcome()
+    {
+        var store = CreateStore();
+        var original = CreatePendingEnvelope(Guid.NewGuid(), BaseTime) with
+        {
+            TenantId = null,
+            IdempotencyConflictMode = IdempotencyConflictMode.Strict
+        };
+
+        var first = await store.Writer.EnqueueAsync(original).ConfigureAwait(false);
+        var replay = await store.Writer.EnqueueAsync(original).ConfigureAwait(false);
+
+        first.Outcome.Should().Be(OutboxEnqueueOutcome.Enqueued);
+        replay.Outcome.Should().Be(OutboxEnqueueOutcome.AlreadyEnqueued);
+        replay.Envelope.Id.Should().Be(first.Envelope.Id);
+        replay.Envelope.Payload.Should().Be(first.Envelope.Payload);
+    }
+
+    /// <summary>
+    ///     Verifies strict identical same-identifier batch replay of unscoped envelopes returns existing outcomes.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task AddBatchAsync_WithStrictIdenticalUnscopedSameId_ShouldReturnExistingOutcome()
+    {
+        var store = CreateStore();
+        var messageId = Guid.NewGuid();
+        var first = CreatePendingEnvelope(messageId, BaseTime) with
+        {
+            TenantId = null,
+            IdempotencyConflictMode = IdempotencyConflictMode.Strict
+        };
+
+        var results = await store.Writer.AddBatchAsync([first, first]).ConfigureAwait(false);
+
+        results.Should().HaveCount(2);
+        results[0].Outcome.Should().Be(OutboxEnqueueOutcome.Enqueued);
+        results[1].Outcome.Should().Be(OutboxEnqueueOutcome.AlreadyEnqueued);
+        results[1].Envelope.Id.Should().Be(messageId);
+    }
+
+    /// <summary>
+    ///     Verifies an empty-string tenant query matches only unscoped rows.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task QueryAsync_WithEmptyTenantFilter_ShouldMatchOnlyUnscopedRows()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var unscopedId = Guid.NewGuid();
+        var scopedId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(unscopedId, now) with { TenantId = null }).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(scopedId, now.AddSeconds(1)) with { TenantId = "tenant-a" }).ConfigureAwait(false);
+
+        var page = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { TenantId = string.Empty },
+            new OutboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
+
+        page.Items.Should().ContainSingle();
+        page.Items[0].Id.Should().Be(unscopedId);
+    }
+
+    /// <summary>
+    ///     Verifies an empty-string tenant purge deletes only unscoped rows.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task PurgeAsync_WithEmptyTenantFilter_ShouldDeleteOnlyUnscopedRows()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var unscopedId = Guid.NewGuid();
+        var scopedId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(unscopedId, now) with { TenantId = null }).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(scopedId, now.AddSeconds(1)) with { TenantId = "tenant-a" }).ConfigureAwait(false);
+
+        var deleted = await store.PurgeStore.PurgeAsync(new OutboxMessageFilter { TenantId = string.Empty }).ConfigureAwait(false);
+
+        deleted.Should().Be(1);
+
+        var remaining = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter(),
+            new OutboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
+
+        remaining.Items.Should().ContainSingle();
+        remaining.Items[0].Id.Should().Be(scopedId);
+    }
+
+    /// <summary>
+    ///     Verifies an empty-string tenant lease claims only unscoped rows.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task LeasePendingAsync_WithEmptyTenantFilter_ShouldLeaseOnlyUnscopedRows()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var unscopedId = Guid.NewGuid();
+        var scopedId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(unscopedId, now) with { TenantId = null }).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(scopedId, now.AddSeconds(1)) with { TenantId = "tenant-a" }).ConfigureAwait(false);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 10,
+            LeaseOwner = "publisher-1",
+            Now = now.AddSeconds(2),
+            LeaseDuration = TimeSpan.FromMinutes(1),
+            TenantId = string.Empty
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle();
+        leased[0].Id.Should().Be(unscopedId);
+    }
+
+    /// <summary>
+    ///     Verifies persisting a non-terminal envelope throws instead of overwriting the row.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task PersistAsync_WithNonTerminalEnvelope_ShouldThrow()
+    {
+        var store = CreateStore();
+        var pending = CreatePendingEnvelope(Guid.NewGuid(), BaseTime);
+
+        var action = () => store.StateWriter.PersistAsync([pending]);
+
+        await action.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
+    }
+
+    /// <summary>
     ///     Holds the outbox store roles exercised by contract tests.
     /// </summary>
     /// <param name="Writer">The writer role.</param>

@@ -57,6 +57,7 @@
 - Query returns `InboxMessagePage` / `OutboxMessagePage` with continuation tokens per store policy.
 - Purge is destructive and not limited to terminal rows unless the filter says so.
 - Purge and retention serve different purposes: retention is scheduled terminal cleanup; purge is operator-driven filtered delete.
+- A null filter tenant means no tenant restriction; an empty string matches only unscoped rows, with stored and requested tenants compared through normalized values on every adapter.
 
 ## Non-Goals
 

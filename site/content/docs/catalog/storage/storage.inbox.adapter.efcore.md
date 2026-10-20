@@ -89,6 +89,9 @@ inbox.UseEntityFrameworkCoreStorage(o =>
 
 - Model configuration must match store expectations (column names, indexes, filtered idempotency index).
 - Auto-commit operations use factory-created contexts; transactional paths use the caller context.
+- A null tenant filter leaves query, purge, and lease unrestricted; an empty tenant filter matches only unscoped rows.
+- Batch inserts that fail after a concurrent commit resolve stored rows as `AlreadyAccepted` and re-insert rolled-back rows; persistent failures surface with the original database error chained.
+- Transactional batch staging rejects strict same-identifier duplicates with changed payloads before anything is staged.
 
 ## Non-Goals
 
@@ -236,6 +239,33 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Behavior**: Accept then inspect staged state
 - **Expected outcome**: Contract and metadata staged
 - **Remarks**: `LiteBus.Storage.UnitTests`
+
+#### `TransactionalInboxAcceptTests.AcceptBatchAsync_with_strict_same_id_changed_payload_should_throw_before_staging`
+
+- **Use case**: Strict batch rejects same-identifier duplicates with changed payloads
+- **Test kind**: Unit
+- **Description**: `ITransactionalInbox` batch with one message identifier twice
+- **Behavior**: Accept batch under strict conflict mode
+- **Expected outcome**: `IdempotencyConflictException` before anything is staged
+- **Remarks**: `LiteBus.Storage.UnitTests`
+
+#### `EfCoreInboxBatchRecoveryTests.AddBatchAsync_WhenConcurrentBatchCommitsOverlap_ShouldInsertMissingRows`
+
+- **Use case**: Batch recovery re-inserts rows rolled back by a concurrent commit
+- **Test kind**: Integration
+- **Description**: Overlapping batch committed between pre-check and insert on SQLite
+- **Behavior**: `AddBatchAsync` with overlapping and new envelopes
+- **Expected outcome**: Overlapping row reports `AlreadyAccepted`; new rows are inserted
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
+
+#### `EfCoreInboxBatchRecoveryTests.AddBatchAsync_WhenSaveChangesFailsWithoutConflict_ShouldSurfaceOriginalError`
+
+- **Use case**: Non-conflict batch failure surfaces the original database error
+- **Test kind**: Integration
+- **Description**: Injected `DbUpdateException` on every save against SQLite
+- **Behavior**: `AddBatchAsync` with new envelopes
+- **Expected outcome**: `InvalidOperationException` with the original failure chained
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `EfCoreInboxStoreMySqlContractTests` (Inherits `InboxStoreContractTests`)
 

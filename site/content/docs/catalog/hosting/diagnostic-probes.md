@@ -54,7 +54,7 @@ A `null` `RunTimeout` derives the budget as the worst-case packing of the probe 
 
 - Descriptor name is the operator-facing probe name.
 - Descriptor implementation type must resolve to `IDiagnosticCheck` from DI.
-- Duplicate probe type registrations are deduplicated by implementation type.
+- Registering the same probe type under the same name more than once keeps only the first registration; registering it under a different name fails composition.
 - `MaxParallelism` and `Timeout` are positive. Probe cancellation is requested when a timeout expires.
 - Caller cancellation propagates; provider failures, missing registrations, and timeouts become isolated unhealthy outcomes.
 
@@ -97,11 +97,20 @@ When no probes are registered and fail-on-empty is true, runner returns degraded
 
 #### `ModuleConfigurationDiagnosticCheckTests.RegisterDiagnosticCheck_SameTypeAndNameTwice_ShouldIgnoreSecondRegistration`
 
-- **Use case**: duplicate probe type deduplication
+- **Use case**: duplicate probe registration with the same name
 - **Test kind**: Unit
-- **Description**: registers same probe type twice with different names
+- **Description**: registers the same probe type twice under the same name
 - **Behavior**: reads diagnostic check descriptors
 - **Expected outcome**: only first registration persists
+- **Remarks**: `tests/LiteBus.Runtime.UnitTests/ModuleConfigurationDiagnosticCheckTests.cs`
+
+#### `ModuleConfigurationDiagnosticCheckTests.RegisterDiagnosticCheck_SameTypeWithDifferentName_ShouldThrowLiteBusConfigurationException`
+
+- **Use case**: duplicate probe type under a different name
+- **Test kind**: Unit
+- **Description**: registers the same probe type under two different names
+- **Behavior**: attempts the conflicting registration at composition
+- **Expected outcome**: composition throws `LiteBusConfigurationException` naming both names
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/ModuleConfigurationDiagnosticCheckTests.cs`
 
 ### Untested Use Cases

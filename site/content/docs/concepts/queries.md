@@ -16,7 +16,7 @@ public sealed record SearchProductsQuery(string SearchTerm) : IStreamQuery<Produ
 
 Every query returns a result. Use `IQuery<TResult>` for one awaitable value and `IStreamQuery<TResult>` for an async stream of values. Pick the stream shape when the result set is large enough that holding it all in memory is wasteful, for real-time feeds, or for server-driven paging.
 
-Two rules define a query. It is handled by exactly one handler, and it has no side effects. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level survives: direct handlers win whenever any survive, and handlers registered for a base type apply only when no direct handler does. The no-side-effects rule is a discipline you keep: when the handler writes, model the operation as a command instead. Name queries for the data they return, such as `GetProductByIdQuery` or `ListOpenOrdersQuery`.
+Two rules define a query. It is handled by exactly one handler, and it has no side effects. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level survives: direct handlers win whenever any survive, and handlers registered for a base type apply only when no direct handler does. Both exceptions name the runtime type of the message, even when the call erased it to `IQuery`. The no-side-effects rule is a discipline you keep: when the handler writes, model the operation as a command instead. Name queries for the data they return, such as `GetProductByIdQuery` or `ListOpenOrdersQuery`.
 
 ## Handle a Query
 
@@ -83,7 +83,7 @@ Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query, QueryMed
 IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query, QueryMediationSettings? queryMediationSettings = null, CancellationToken cancellationToken = default);
 ```
 
-Enumerate a returned stream once and dispose its enumerator when you stop early. The stream holds its dispatch scope until it is enumerated to completion or disposed, so a stream you abandon keeps its scoped handler dependencies alive. Returning the stream straight from an ASP.NET Core action lets the framework serialize each item as it arrives, so the controller never holds the whole result set.
+Enumerate a returned stream once and dispose its enumerator when you stop early. The stream holds its dispatch scope until it is enumerated to completion or disposed, so a stream you abandon keeps its scoped handler dependencies alive. Returning the stream straight from an ASP.NET Core action lets the framework serialize each item as it arrives, so the controller never holds the whole result set. Canceling the enumerator cancels the guard, shortcut, and post-handler stages the stream runs as well as the handler, because the stream links the enumerator token with the mediation token.
 
 ## Filter Which Handlers Run
 

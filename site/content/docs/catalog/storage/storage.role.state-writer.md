@@ -18,6 +18,7 @@
 - Inbox success writes `completed_at`; outbox success writes `published_at`.
 - Retry path sets failed status and next `visible_after`.
 - Dead-letter path sets dead-letter status and dead-letter timestamp where schema supports it.
+- Persist validates statuses up front on every adapter and throws `InvalidOperationException` for non-terminal envelopes instead of overwriting rows.
 
 ## Concurrency Model
 

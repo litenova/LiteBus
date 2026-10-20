@@ -29,7 +29,7 @@
 
 ### Configuration
 
-- Timing values are validated when the module builds, so a negative interval fails at boot.
+- Timing values are validated when the module builds, so a zero or negative interval or error backoff fails at boot.
 - `Enabled = false` logs once and never sends.
 - `IsConcurrencyConflict` defaults to `IsConcurrencyConflictByTypeName`, which matches a type name ending in `ConcurrencyException` in the inner or aggregate chain.
 
@@ -82,6 +82,8 @@
 | `RecurringCommandHostTests.A_result_reporting_more_work_sends_again_without_waiting` | `LiteBus.Mediator.UnitTests` |
 | `RecurringCommandHostTests.The_loop_is_registered_as_a_background_service_on_the_host_manifest` | `LiteBus.Mediator.UnitTests` |
 | `RecurringCommandHostTests.A_negative_interval_is_refused_at_composition` | `LiteBus.Mediator.UnitTests` |
+| `RecurringCommandHostOptionsValidationTests.A_zero_interval_is_refused_at_composition` | `LiteBus.Mediator.UnitTests` |
+| `RecurringCommandHostOptionsValidationTests.A_zero_error_backoff_is_refused_at_composition` | `LiteBus.Mediator.UnitTests` |
 
 ### Untested Use Cases
 

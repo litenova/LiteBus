@@ -1,4 +1,4 @@
-# Mediator Axis Capability Catalog
+# Mediator
 
 Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
@@ -43,6 +44,16 @@ internal sealed class ContractRegistrationCollector
     private readonly INamedTypeSymbol? _commandModuleBuilder;
 
     /// <summary>
+    ///     The <c>EventModuleBuilder</c> symbol, when the compilation references it.
+    /// </summary>
+    private readonly INamedTypeSymbol? _eventModuleBuilder;
+
+    /// <summary>
+    ///     The <c>QueryModuleBuilder</c> symbol, when the compilation references it.
+    /// </summary>
+    private readonly INamedTypeSymbol? _queryModuleBuilder;
+
+    /// <summary>
     ///     The message types registered through <c>Register</c> calls.
     /// </summary>
     private readonly ConcurrentDictionary<ITypeSymbol, byte> _registeredTypes = new(SymbolEqualityComparer.Default);
@@ -63,6 +74,8 @@ internal sealed class ContractRegistrationCollector
         _contractBuilder = compilation.GetTypeByMetadataName("LiteBus.Messaging.Abstractions.MessageContractBuilder");
         _messageModuleBuilder = compilation.GetTypeByMetadataName("LiteBus.Messaging.MessageModuleBuilder");
         _commandModuleBuilder = compilation.GetTypeByMetadataName("LiteBus.Commands.CommandModuleBuilder");
+        _eventModuleBuilder = compilation.GetTypeByMetadataName("LiteBus.Events.EventModuleBuilder");
+        _queryModuleBuilder = compilation.GetTypeByMetadataName("LiteBus.Queries.QueryModuleBuilder");
     }
 
     /// <summary>
@@ -146,8 +159,8 @@ internal sealed class ContractRegistrationCollector
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <remarks>
     ///     <c>Register</c> on a contract writer surface counts, as does <c>Register</c> on any other scan-capable
-    ///     surface. <c>Register</c> on the message and command module builders only records handler and message
-    ///     types and never satisfies durable contract registration.
+    ///     surface. <c>Register</c> on the message, command, event, and query module builders only records handler
+    ///     and message types and never satisfies durable contract registration.
     /// </remarks>
     private void AddRegisteredType(SemanticModel semanticModel, InvocationExpressionSyntax invocation, CancellationToken cancellationToken)
     {
@@ -186,8 +199,9 @@ internal sealed class ContractRegistrationCollector
     /// <param name="invocation">The invocation node.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <remarks>
-    ///     Every assembly scan counts except <c>CommandModuleBuilder.RegisterFromAssembly</c>, which only records
-    ///     message types. <c>MessageModuleBuilder.RegisterFromAssembly</c> applies scanned contracts and counts.
+    ///     Every assembly scan counts except the axis builder scans (<c>CommandModuleBuilder</c>,
+    ///     <c>EventModuleBuilder</c>, and <c>QueryModuleBuilder</c>), which only record message types.
+    ///     <c>MessageModuleBuilder.RegisterFromAssembly</c> applies scanned contracts and counts.
     /// </remarks>
     private void AddRegisteredAssembly(SemanticModel semanticModel, InvocationExpressionSyntax invocation, CancellationToken cancellationToken)
     {
@@ -239,29 +253,112 @@ internal sealed class ContractRegistrationCollector
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The resolved assembly symbol, if any.</returns>
     /// <remarks>
-    ///     Only <c>typeof(T)</c> and <c>typeof(T).Assembly</c> forms resolve. Assembly instances observed at analysis
-    ///     time are never read from disk.
+    ///     <c>typeof(T)</c> and <c>typeof(T).Assembly</c> forms resolve, including through a local initialized to
+    ///     either form, as do <c>Assembly.GetExecutingAssembly()</c> and <c>Assembly.GetCallingAssembly()</c>, which
+    ///     answer the containing assembly. Assembly instances observed at analysis time are never read from disk.
     /// </remarks>
     private static IAssemblySymbol? ResolveAssemblyArgument(
         ExpressionSyntax expression,
         SemanticModel semanticModel,
         CancellationToken cancellationToken)
     {
-        if (expression is TypeOfExpressionSyntax typeOfExpression)
-        {
-            var type = semanticModel.GetTypeInfo(typeOfExpression.Type, cancellationToken).Type;
+        var visited = new HashSet<SyntaxNode>();
+        var current = expression;
 
-            return type?.ContainingAssembly;
+        while (current is not null && visited.Add(current))
+        {
+            if (current is TypeOfExpressionSyntax typeOfExpression)
+            {
+                var type = semanticModel.GetTypeInfo(typeOfExpression.Type, cancellationToken).Type;
+
+                return type?.ContainingAssembly;
+            }
+
+            if (current is MemberAccessExpressionSyntax memberAccess &&
+                memberAccess.Name.Identifier.Text == "Assembly" &&
+                memberAccess.Expression is TypeOfExpressionSyntax nestedTypeOf)
+            {
+                var type = semanticModel.GetTypeInfo(nestedTypeOf.Type, cancellationToken).Type;
+
+                return type?.ContainingAssembly;
+            }
+
+            if (current is InvocationExpressionSyntax assemblyCall &&
+                IsExecutingOrCallingAssemblyCall(assemblyCall, semanticModel, cancellationToken))
+            {
+                return semanticModel.Compilation.Assembly;
+            }
+
+            if (current is IdentifierNameSyntax identifier &&
+                FollowLocalAssemblyInitializer(identifier, semanticModel, cancellationToken) is { } initializer)
+            {
+                current = initializer;
+                continue;
+            }
+
+            return null;
         }
 
-        var memberAccess = expression as MemberAccessExpressionSyntax;
+        return null;
+    }
 
-        if (memberAccess?.Name.Identifier.Text == "Assembly" &&
-            memberAccess.Expression is TypeOfExpressionSyntax typeofExpression)
+    /// <summary>
+    ///     Determines whether the invocation answers the calling compilation's own assembly.
+    /// </summary>
+    /// <param name="invocation">The invocation expression syntax.</param>
+    /// <param name="semanticModel">The semantic model.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns><see langword="true" /> when the call is <c>Assembly.GetExecutingAssembly()</c> or <c>Assembly.GetCallingAssembly()</c>.</returns>
+    private static bool IsExecutingOrCallingAssemblyCall(
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel,
+        CancellationToken cancellationToken)
+    {
+        if (invocation.ArgumentList.Arguments.Count != 0)
         {
-            var type = semanticModel.GetTypeInfo(typeofExpression.Type, cancellationToken).Type;
+            return false;
+        }
 
-            return type?.ContainingAssembly;
+        if (semanticModel.GetSymbolInfo(invocation, cancellationToken).Symbol is not IMethodSymbol method)
+        {
+            return false;
+        }
+
+        if (method.Name is not ("GetExecutingAssembly" or "GetCallingAssembly"))
+        {
+            return false;
+        }
+
+        return method.ContainingType?.Name == "Assembly" &&
+               method.ContainingType?.ContainingNamespace?.ToDisplayString() == "System.Reflection";
+    }
+
+    /// <summary>
+    ///     Follows a local reference to the expression that initializes it.
+    /// </summary>
+    /// <param name="identifier">The local reference syntax.</param>
+    /// <param name="semanticModel">The semantic model.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The initializer expression, when the identifier names an initialized local.</returns>
+    private static ExpressionSyntax? FollowLocalAssemblyInitializer(
+        IdentifierNameSyntax identifier,
+        SemanticModel semanticModel,
+        CancellationToken cancellationToken)
+    {
+        if (semanticModel.GetSymbolInfo(identifier, cancellationToken).Symbol is not ILocalSymbol local)
+        {
+            return null;
+        }
+
+        foreach (var reference in local.DeclaringSyntaxReferences)
+        {
+            if (reference.GetSyntax(cancellationToken) is VariableDeclaratorSyntax
+                {
+                    Initializer.Value: { } initializer
+                })
+            {
+                return initializer;
+            }
         }
 
         return null;
@@ -275,8 +372,8 @@ internal sealed class ContractRegistrationCollector
     /// <remarks>
     ///     <c>Register</c> on a contract writer surface always counts. <c>Register</c> on any other type counts
     ///     when that type also offers an assembly scan, which distinguishes contract registries from unrelated
-    ///     <c>Register</c> methods. The message and command module builders are excluded: their <c>Register</c>
-    ///     only records handler and message types.
+    ///     <c>Register</c> methods. The message, command, event, and query module builders are excluded: their
+    ///     <c>Register</c> only records handler and message types.
     /// </remarks>
     private bool IsContractRegisterMethod(IMethodSymbol method)
     {
@@ -296,7 +393,9 @@ internal sealed class ContractRegistrationCollector
         }
 
         if (MatchesTypeDefinition(method.ContainingType, _messageModuleBuilder) ||
-            MatchesTypeDefinition(method.ContainingType, _commandModuleBuilder))
+            MatchesTypeDefinition(method.ContainingType, _commandModuleBuilder) ||
+            MatchesTypeDefinition(method.ContainingType, _eventModuleBuilder) ||
+            MatchesTypeDefinition(method.ContainingType, _queryModuleBuilder))
         {
             return false;
         }
@@ -383,8 +482,9 @@ internal sealed class ContractRegistrationCollector
     /// <returns><see langword="true" /> when the method scans an assembly.</returns>
     /// <remarks>
     ///     <c>AddFromAssembly</c> counts on contract writer surfaces. <c>RegisterFromAssembly</c> counts on every
-    ///     surface, including <c>MessageModuleBuilder</c> and the <c>IContractWriter</c> scan extension, except
-    ///     <c>CommandModuleBuilder</c>, whose scan only records message types.
+    ///     surface, including <c>MessageModuleBuilder</c> and the <c>IContractWriter</c> scan extension, except the
+    ///     axis builders (<c>CommandModuleBuilder</c>, <c>EventModuleBuilder</c>, and <c>QueryModuleBuilder</c>),
+    ///     whose scans only record message types.
     /// </remarks>
     private bool IsContractRegisterFromAssemblyMethod(IMethodSymbol method)
     {
@@ -403,6 +503,8 @@ internal sealed class ContractRegistrationCollector
             return false;
         }
 
-        return !MatchesTypeDefinition(method.ContainingType, _commandModuleBuilder);
+        return !MatchesTypeDefinition(method.ContainingType, _commandModuleBuilder) &&
+               !MatchesTypeDefinition(method.ContainingType, _eventModuleBuilder) &&
+               !MatchesTypeDefinition(method.ContainingType, _queryModuleBuilder);
     }
 }

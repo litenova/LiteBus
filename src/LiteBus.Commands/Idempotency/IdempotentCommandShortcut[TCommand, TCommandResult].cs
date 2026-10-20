@@ -25,6 +25,10 @@ namespace LiteBus.Commands.Idempotency;
 ///         command is left to run again: LiteBus will not invent an answer, and the alternative of returning
 ///         <see langword="default" /> would hand the caller a zero or a null that looks like a real result.
 ///     </para>
+///     <para>
+///         A granted key is recorded in the execution-context data as a <see cref="ClaimedIdempotencyKey" />, so the
+///         completion handler settles exactly the claim this mediation holds and never one another delivery holds.
+///     </para>
 /// </remarks>
 internal sealed class IdempotentCommandShortcut<TCommand, TCommandResult> : ICommandShortcut<TCommand, TCommandResult>
     where TCommand : ICommand<TCommandResult>
@@ -80,6 +84,11 @@ internal sealed class IdempotentCommandShortcut<TCommand, TCommandResult> : ICom
         }
 
         var claim = await _store.TryClaimAsync(resolved.Value.Key, cancellationToken).ConfigureAwait(false);
+
+        if (claim.Outcome == IdempotencyClaimOutcome.Granted)
+        {
+            AmbientExecutionContext.GetCurrentOrDefault()?.Data.Set(new ClaimedIdempotencyKey(resolved.Value.Key));
+        }
 
         if (claim.Outcome != IdempotencyClaimOutcome.AlreadyCompleted)
         {

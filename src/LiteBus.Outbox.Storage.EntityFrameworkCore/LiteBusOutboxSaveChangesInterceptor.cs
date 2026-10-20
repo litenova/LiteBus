@@ -26,12 +26,11 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 ///         caller's transaction.
 ///     </para>
 ///     <para>
-///         Under <see cref="IdempotencyConflictMode.Strict" />, duplicate <c>(tenant_id, idempotency_key)</c> pairs are
-///         staged without deduplication so the unique index raises <see cref="DbUpdateException" /> on
-///         <c>SaveChanges</c> and aborts the caller unit of work. Under
+///         Under <see cref="IdempotencyConflictMode.Strict" />, duplicate message identifiers and duplicate
+///         <c>(tenant_id, idempotency_key)</c> pairs are staged without deduplication so the tracker or unique index
+///         raises on <c>SaveChanges</c> and aborts the caller unit of work. Under
 ///         <see cref="IdempotencyConflictMode.ReturnExisting" />, <see cref="TransactionalOutbox{TContext}" /> resolves
-///         existing rows before staging and the flush step skips duplicate scoped keys still present in the pending
-///         batch.
+///         existing rows before staging and the flush step skips duplicates still present in the pending batch.
 ///     </para>
 ///     <para>
 ///         Register the interceptor on the application <see cref="DbContext" /> through
@@ -167,8 +166,8 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
     }
 
     /// <summary>
-    ///     Collapses duplicate message identifiers and, for <see cref="IdempotencyConflictMode.ReturnExisting" />, duplicate
-    ///     tenant-scoped idempotency keys within one pending batch.
+    ///     Collapses duplicate message identifiers for <see cref="IdempotencyConflictMode.ReturnExisting" /> and duplicate
+    ///     tenant-scoped idempotency keys within one pending batch, while strict duplicates are preserved for rejection.
     /// </summary>
     /// <param name="pending">The envelopes queued for the current flush.</param>
     /// <returns>The envelopes that should be appended to the change tracker.</returns>
@@ -180,7 +179,7 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
 
         foreach (var envelope in pending)
         {
-            if (!seenIds.Add(envelope.Id))
+            if (!seenIds.Add(envelope.Id) && envelope.IdempotencyConflictMode == IdempotencyConflictMode.ReturnExisting)
             {
                 continue;
             }
@@ -221,6 +220,14 @@ public sealed class LiteBusOutboxSaveChangesInterceptor : SaveChangesInterceptor
     {
         if (trackedIds.Contains(envelope.Id))
         {
+            // A strict envelope must not collapse into another row with its identifier: that would report two accepted
+            // submissions while keeping one. Failing the save aborts the caller's unit of work instead.
+            if (envelope.IdempotencyConflictMode == IdempotencyConflictMode.Strict)
+            {
+                throw new InvalidOperationException(
+                    $"Two outbox envelopes with message id '{envelope.Id}' were staged in one unit of work under strict idempotency.");
+            }
+
             return true;
         }
 

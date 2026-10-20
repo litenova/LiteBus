@@ -329,6 +329,16 @@ public sealed class InMemoryInboxStore :
             return Task.FromResult(PersistResult.Empty);
         }
 
+        foreach (var envelope in envelopes)
+        {
+            if (envelope.Status is not (InboxStatus.Completed or InboxStatus.Failed or InboxStatus.DeadLettered))
+            {
+                throw new InvalidOperationException(
+                    $"Envelope '{envelope.Id}' has unexpected status '{envelope.Status}' in PersistAsync. " +
+                    "Only Completed, Failed, and DeadLettered are valid outcomes.");
+            }
+        }
+
         HashSet<Guid> persistedMessageIds;
 
         lock (_sync)
@@ -520,7 +530,11 @@ public sealed class InMemoryInboxStore :
     /// <returns><see langword="true" /> when the row is visible to the lease request.</returns>
     private static bool MatchesTenantFilter(string? requestedTenantId, string? storedTenantId)
     {
-        return requestedTenantId is null || string.Equals(storedTenantId, requestedTenantId, StringComparison.Ordinal);
+        return requestedTenantId is null ||
+               string.Equals(
+                   DurableTenantId.Normalize(storedTenantId),
+                   DurableTenantId.Normalize(requestedTenantId),
+                   StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -582,9 +596,11 @@ public sealed class InMemoryInboxStore :
             source = source.Where(envelope => envelope.CausationId == filter.CausationId);
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.TenantId))
+        if (filter.TenantId is not null)
         {
-            source = source.Where(envelope => envelope.TenantId == filter.TenantId);
+            var tenantId = DurableTenantId.Normalize(filter.TenantId);
+            source = source.Where(envelope =>
+                string.Equals(DurableTenantId.Normalize(envelope.TenantId), tenantId, StringComparison.Ordinal));
         }
 
         if (filter.CreatedAfter is not null)
@@ -757,7 +773,10 @@ public sealed class InMemoryInboxStore :
             string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) &&
             string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) &&
             string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) &&
-            string.Equals(envelope.TenantId, existing.TenantId, StringComparison.Ordinal))
+            string.Equals(
+                DurableTenantId.Normalize(envelope.TenantId),
+                DurableTenantId.Normalize(existing.TenantId),
+                StringComparison.Ordinal))
         {
             return;
         }

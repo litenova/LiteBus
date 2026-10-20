@@ -115,7 +115,9 @@ internal static class OutboxProcessorEnvelopeHandler
         {
             return null;
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        // A handler-internal cancellation (for example a dependency timeout) arrives as OperationCanceledException
+        // while the processor token is still live; it is a dispatch failure like any other, not a lease loss.
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             var failure = MessageFailure.From(exception, clock.GetUtcNow());
 

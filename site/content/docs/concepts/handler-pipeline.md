@@ -78,7 +78,7 @@ LiteBus also ships pipeline handlers of its own, such as the audit record writer
 
 ## Commands and Queries: The Single-Handler Pipeline
 
-A command or query must resolve to exactly one main handler. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level survives: direct handlers registered for the message win whenever any survive, and indirect handlers registered for a base type are considered only when no direct handler does. One direct handler plus one indirect handler resolves without throwing. The flow for a result-returning message is:
+A command or query must resolve to exactly one main handler. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level survives: direct handlers registered for the message win whenever any survive, and indirect handlers registered for a base type are considered only when no direct handler does. One direct handler plus one indirect handler resolves without throwing. Both exceptions name the runtime type of the message, even when the call erased it to `ICommand` or `IQuery`. The flow for a result-returning message is:
 
 ```text
 decision = RunAsyncPreStages(message) // guards, validators, shortcuts, pre-handlers; stops on the first decision
@@ -124,6 +124,7 @@ When any stage throws a recoverable exception, the main flow stops and error han
 - If no error handler is registered, LiteBus rethrows the original exception with its stack trace preserved through `ExceptionDispatchInfo`.
 - If error handlers run but leave `context.Outcome` as `Unhandled`, LiteBus also rethrows the original exception.
 - A handler recovers by setting `context.Outcome` to `Handled`. For commands and queries that produce a result, it sets `context.HandledResult` to the fallback value the caller receives.
+- A handler that sets `context.Outcome` to `Handled` on a result-bearing message without a usable `context.HandledResult` recovers the message, and the caller receives the default value (`null` for a reference type). Set `HandledResult` to hand the caller a fallback value instead.
 
 An observing handler records the failure and leaves the default outcome unchanged, so the original exception still propagates:
 

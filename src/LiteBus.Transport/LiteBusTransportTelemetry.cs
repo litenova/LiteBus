@@ -86,6 +86,16 @@ public static class LiteBusTransportTelemetry
     public const string CircuitBreakerFailureCountInstrumentName = "litebus.transport.circuit_breaker.failure_count";
 
     /// <summary>
+    ///     Gets the instrument name for the counter incremented when a failure is recorded while the circuit is closed.
+    /// </summary>
+    public const string CircuitBreakerFailureRecordedInstrumentName = "litebus.transport.circuit_breaker.failure_recorded";
+
+    /// <summary>
+    ///     Gets the instrument name for the counter incremented when the circuit opens after reaching the failure threshold.
+    /// </summary>
+    public const string CircuitBreakerOpenedInstrumentName = "litebus.transport.circuit_breaker.opened";
+
+    /// <summary>
     ///     Gets the OpenTelemetry tag name identifying the transport broker adapter on circuit breaker metrics.
     /// </summary>
     public const string BrokerTagName = "litebus.transport.broker";

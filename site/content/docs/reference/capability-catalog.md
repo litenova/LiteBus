@@ -532,7 +532,7 @@ To add a new LiteBus capability:
 
 - [Architecture](../architecture/README.md)
 - [Dependency graph](../architecture/dependency-graph.md)
-- [Extensibility](../extending/README.md)
+- [Extending](../extending/README.md)
 - [Roadmap](../roadmap/README.md)
 - [Glossary](glossary.md)
 - Per-axis catalogs: [analyzers](../catalog/analyzers/README.md), [dispatch](../catalog/dispatch/README.md), [durable-core](../catalog/durable-core/README.md), [hosting](../catalog/hosting/README.md), [ingress](../catalog/ingress/README.md), [mediator](../catalog/mediator/README.md), [runtime](../catalog/runtime/README.md), [saga](../catalog/saga/README.md), [storage](../catalog/storage/README.md), [transport](../catalog/transport/README.md)

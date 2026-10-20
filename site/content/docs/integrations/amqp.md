@@ -98,6 +98,8 @@ For the transport-level acknowledgement mapping (`AcceptAsync` to `basic.ack`, a
 
 Handler exceptions propagate to ingress, which applies `RequeueOnFailure` through `ReturnToQueueAsync` or `DiscardAsync`. Poison failures (unknown contract, oversize body, malformed payload) are never requeued.
 
+With `Mandatory = true` (the default on dispatch options), a publication the broker returns as unroutable fails with `AmqpMessageReturnedException`, so the leased envelope retries instead of being silently dropped. Set `Mandatory = false` to let the broker drop unroutable messages while publication succeeds.
+
 ## Operations
 
 | Symptom | Check | Action |
@@ -111,6 +113,7 @@ Handler exceptions propagate to ingress, which applies `RequeueOnFailure` throug
 | Scenario | Location |
 | --- | --- |
 | Publish/consume round-trip | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
+| Mandatory unroutable publish failure | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
 | Ingress end-to-end | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | PostgreSQL + AMQP reliable chain | `LiteBus.Storage.IntegrationTests` (`PostgreSql/`) |
 

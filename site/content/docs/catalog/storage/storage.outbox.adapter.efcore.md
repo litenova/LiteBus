@@ -82,6 +82,9 @@ outbox.UseEntityFrameworkCoreStorage(o =>
 
 - Schema and table names in options must match `OnModelCreating` configuration.
 - Interceptor pattern requires registration on both LiteBus module and `DbContext` options.
+- A null filter or lease tenant means no tenant restriction; an empty string matches only unscoped rows.
+- Strict batches pre-check known duplicates and throw `IdempotencyConflictException` for conflicting content; only concurrent races reach the database unique index.
+- Batch insert failures reinsert rows still missing after a unique violation and chain the database error when the retry also fails.
 
 ## Non-Goals
 

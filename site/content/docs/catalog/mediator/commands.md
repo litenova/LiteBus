@@ -8,7 +8,7 @@
 
 ## What It Does
 
-`ICommandMediator` sends command messages through `SingleAsyncHandlerMediationStrategy`. Commands resolve one main handler after routing filters are applied: direct handlers win, and an indirect (base-type) handler applies only when no direct handler survives. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level (direct, else indirect) survives.
+`ICommandMediator` sends command messages through `SingleAsyncHandlerMediationStrategy`. Commands resolve one main handler after routing filters are applied: direct handlers win, and an indirect (base-type) handler applies only when no direct handler survives. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level (direct, else indirect) survives. Both exceptions name the runtime message type, even when a non-generic overload erased it to `ICommand`.
 
 Commands support both void (`ICommand`) and result (`ICommand<TResult>`) flows. A guard, a validator, or a shortcut can stop execution before the handler runs, as a refusal, a report that the message is malformed, or an early answer. Post-handlers can observe results, and result post-handlers can replace the returned value through `AmbientExecutionContext.Current.MessageResult`.
 

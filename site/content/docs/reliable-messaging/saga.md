@@ -100,7 +100,7 @@ public sealed class AdvanceOrderSagaCommandHandler : ICommandHandler<AdvanceOrde
 }
 ```
 
-Call `Complete()` when the workflow reaches a terminal business state. The hook marks the saga instance completed after dispatch succeeds. Do not combine `Complete()` with a state change in the same dispatch; persist final state on one message and complete on a later correlated message. Reading state with `GetState` and then calling `Complete()` is allowed. In-place mutations count as a state change: the hook compares the serialized state against the load snapshot, so mutated state is persisted even without `SetState()`.
+Call `Complete()` when the workflow reaches a terminal business state. The hook marks the saga instance completed after dispatch succeeds. Do not combine `Complete()` with a state change in the same dispatch; persist final state on one message and complete on a later correlated message. Reading state with `GetState` and then calling `Complete()` is allowed. In-place mutations count as a state change: the hook compares the serialized state against the load snapshot, so mutated state is persisted even without `SetState()`. When `Complete()` is the first saga interaction for a correlation, the hook saves the initial state snapshot first and then completes the new row, so the saga is created already completed instead of reporting a concurrency conflict.
 
 ## Correlation and Tenancy
 
@@ -128,8 +128,9 @@ Messages without correlation dispatch normally but skip saga scope (`ISagaContex
 | Handler succeeds, `SetState` called | State persisted with optimistic concurrency (`SagaConcurrencyException` on conflict) |
 | Dirty-state `SagaConcurrencyException` after dispatch | Hook propagates the conflict without reloading or replacing the concurrent state; inbox failure policy handles the message |
 | Completion-only `SagaConcurrencyException` after dispatch | Hook reloads and retries against the current version up to three attempts; an already completed saga is treated as success |
+| `Complete()` with no prior save | Hook saves the initial state snapshot, then completes the new row; the saga is created already completed |
 | At-least-once redelivery | The store records only the last applied message ID. When an inbox terminal persist fails after a save, a newer message for the same correlation can advance the row before the failed message retries, and the retry then runs its handler again. Handlers and external side effects must remain idempotent across crashes; see [Idempotency](../concepts/idempotency.md) |
-| Completed saga | Further correlated messages are suppressed and marked completed without running the handler |
+| Completed saga | Further correlated messages dispatch with an inactive saga scope (`IsActive` is false) and no saga mutation; only a redelivery whose message id matches `LastAppliedMessageId` is suppressed without running the handler |
 
 `SagaExecutionContext` registers as a singleton. Each active scope is keyed by the durable message ID, and an instance `AsyncLocal` attaches that scope to the current dispatch flow. `SagaProcessorHook.PrepareDispatchScope` runs synchronously after `BeforeDispatchAsync` so the dispatcher inherits the attached scope. `SagaInboxCommandScopePreHandler` attaches the same message-keyed scope before in-process command handlers. The hook serializes active dispatches for the same tenant, definition, and correlation inside one process. PostgreSQL optimistic concurrency remains the cross-process fence. Failed dispatches call `AbandonDispatchScope` and remove their entries from the singleton context.
 

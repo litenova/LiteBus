@@ -25,6 +25,8 @@
 - Retention delete uses `COALESCE(published_at, created_at) < @older_than`.
 - Dead-letter replay resets row to pending and clears lease and error fields.
 - Status diagnostics uses grouped counts by outbox status.
+- Strict identical replay compares tenants through normalized values, so unscoped null and empty-string tenants match and return `AlreadyEnqueued`.
+- A null filter or lease tenant means no tenant restriction; an empty string matches only unscoped rows.
 
 ## Insert Statement for Other Units of Work
 

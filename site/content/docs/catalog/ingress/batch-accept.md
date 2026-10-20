@@ -25,7 +25,7 @@ ingress.UseOptions(new AmqpInboxIngressOptions
 });
 ```
 
-On batch accept failure, the consumer falls back to per-message accept so one poison delivery does not reject unrelated messages. After a successful store call, each broker delivery is acknowledged separately. A semaphore bounded by `BatchSize` prevents another buffer from growing while the current batch flushes.
+On batch accept failure, the consumer falls back to per-message accept so one poison delivery does not reject unrelated messages. After a successful store call, each broker delivery is acknowledged separately. A semaphore bounded by `BatchSize` prevents another buffer from growing while the current batch flushes. Cancellation skips the fallback: a cancelled batch accept releases admission for the whole batch and rethrows, leaving buffered deliveries unacknowledged.
 
 ## Flush and Fallback Flow
 
@@ -70,6 +70,7 @@ Every ingress adapter exposes the same `Safety` record. AMQP prefetch, SQS recei
 - Shutdown flushes a partial buffer before the transport consumer stops.
 - Broker acknowledgement remains per delivery after batch store success.
 - A failed batch store call falls back to per-message acceptance.
+- A cancelled batch accept releases admission for the whole batch and rethrows without per-message fallback.
 - `BatchSize` must be greater than zero and fails at module composition when invalid.
 
 ## Observability
@@ -87,6 +88,7 @@ Every ingress adapter exposes the same `Safety` record. AMQP prefetch, SQS recei
 | `BatchAccept_WhenBufferFull_ShouldBlockUntilFlushCompletes` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `BatchAccept_WhenOneDeliveryFails_ShouldAcknowledgeSuccessfulDeliveriesOnly` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `BatchAccept_ShouldFlushPartialBatchAfterBatchMaxWait` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
+| `AcceptBatchAsync_WhenBatchAcceptCancelled_ShouldReleaseAdmissionAndRethrow` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `EnableBatchAccept_AtBatchSize_ShouldFlushAllMessages` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | `EnableBatchAccept_BeforeBatchSize_ShouldFlushAfterBatchMaxWait` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 

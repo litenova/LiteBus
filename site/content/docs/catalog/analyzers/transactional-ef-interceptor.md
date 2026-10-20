@@ -14,7 +14,7 @@
 - Invocation matches `EnforceTransactionalSetup()` on:
   - `EfCoreInboxStorageModuleBuilder`, or
   - `EfCoreOutboxStorageModuleBuilder`.
-- No `EnableSaveChangesInterceptor()` invocation is found in the same enclosing callback or method scope.
+- No `EnableSaveChangesInterceptor()` invocation on the same axis (inbox or outbox) is found in the same enclosing callback or method scope.
 
 ## Bad Example
 
@@ -56,4 +56,6 @@ Source: `tests/LiteBus.Analyzers.UnitTests/TransactionalStorageWithoutIntercepto
 | Test method | Verifies |
 | --- | --- |
 | `TransactionalOutboxWithoutInterceptor_ProducesDiagnostic` | Missing interceptor reports `LB1015` |
+| `TransactionalInboxWithOutboxOnlyInterceptor_ProducesDiagnostic` | Other-axis interceptor does not satisfy the rule |
+| `TransactionalOutboxWithInterceptor_ProducesNoDiagnostic` | Same-axis interceptor satisfies the rule |
 | `TransactionalInboxWithInterceptor_ProducesNoDiagnostic` | Interceptor in same scope satisfies the rule |

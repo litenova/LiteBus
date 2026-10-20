@@ -228,6 +228,61 @@ public sealed class ManagementEndpointOperationsTests
         defaultPath.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    /// <summary>
+    ///     Verifies drain routes enforce the options argument when no options are registered in DI.
+    /// </summary>
+    [Fact]
+    public async Task DrainRoutes_WithArgumentOnlyOptions_ShouldEnforceArgumentLimits()
+    {
+        var options = CreateAnonymousOptions();
+        options.DefaultDrainTimeout = TimeSpan.FromSeconds(42);
+        options.MaxDrainTimeout = TimeSpan.FromMinutes(1);
+        var inboxControl = new RecordingInboxProcessorControl();
+        var outboxControl = new RecordingOutboxProcessorControl();
+        using var host = await CreateHostAsync(
+            options,
+            inboxControl: inboxControl,
+            outboxControl: outboxControl,
+            registerOptionsInServices: false).ConfigureAwait(false);
+        using var client = host.GetTestClient();
+
+        using var inboxDrain = await client.PostAsync("/litebus/inbox/processor/drain", null).ConfigureAwait(false);
+        using var outboxDrain = await client.PostAsync("/litebus/outbox/processor/drain", null).ConfigureAwait(false);
+
+        inboxDrain.StatusCode.Should().Be(HttpStatusCode.OK);
+        outboxDrain.StatusCode.Should().Be(HttpStatusCode.OK);
+        inboxControl.LastDrainTimeout.Should().Be(TimeSpan.FromSeconds(42));
+        outboxControl.LastDrainTimeout.Should().Be(TimeSpan.FromSeconds(42));
+    }
+
+    /// <summary>
+    ///     Verifies drain routes prefer the endpoint argument over a differing options instance in DI.
+    /// </summary>
+    [Fact]
+    public async Task DrainRoutes_WithDifferingServiceOptions_ShouldPreferEndpointArgument()
+    {
+        var argumentOptions = CreateAnonymousOptions();
+        argumentOptions.DefaultDrainTimeout = TimeSpan.FromSeconds(17);
+        var serviceOptions = CreateAnonymousOptions();
+        serviceOptions.DefaultDrainTimeout = TimeSpan.FromMinutes(4);
+        var inboxControl = new RecordingInboxProcessorControl();
+        var outboxControl = new RecordingOutboxProcessorControl();
+        using var host = await CreateHostAsync(
+            argumentOptions,
+            inboxControl: inboxControl,
+            outboxControl: outboxControl,
+            serviceOptionsOverride: serviceOptions).ConfigureAwait(false);
+        using var client = host.GetTestClient();
+
+        using var inboxDrain = await client.PostAsync("/litebus/inbox/processor/drain", null).ConfigureAwait(false);
+        using var outboxDrain = await client.PostAsync("/litebus/outbox/processor/drain", null).ConfigureAwait(false);
+
+        inboxDrain.StatusCode.Should().Be(HttpStatusCode.OK);
+        outboxDrain.StatusCode.Should().Be(HttpStatusCode.OK);
+        inboxControl.LastDrainTimeout.Should().Be(TimeSpan.FromSeconds(17));
+        outboxControl.LastDrainTimeout.Should().Be(TimeSpan.FromSeconds(17));
+    }
+
     private static LiteBusManagementOptions CreateAnonymousOptions()
     {
         return new LiteBusManagementOptions
@@ -242,7 +297,9 @@ public sealed class ManagementEndpointOperationsTests
         bool includeInbox = true,
         bool includeOutbox = true,
         IInboxProcessorControl? inboxControl = null,
-        IOutboxProcessorControl? outboxControl = null)
+        IOutboxProcessorControl? outboxControl = null,
+        bool registerOptionsInServices = true,
+        LiteBusManagementOptions? serviceOptionsOverride = null)
     {
         var builder = Host.CreateDefaultBuilder()
             .ConfigureWebHost(webBuilder =>
@@ -251,7 +308,10 @@ public sealed class ManagementEndpointOperationsTests
                 webBuilder.ConfigureServices(services =>
                 {
                     services.AddRouting();
-                    services.AddSingleton(options);
+                    if (registerOptionsInServices)
+                    {
+                        services.AddSingleton(serviceOptionsOverride ?? options);
+                    }
                     services.AddLiteBus(registry =>
                     {
                         registry.AddMessaging(_ =>

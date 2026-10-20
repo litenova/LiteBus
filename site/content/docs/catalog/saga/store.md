@@ -7,7 +7,7 @@
 
 ## What It Does
 
-`ISagaStore` is the durable boundary for saga. `LoadAsync` returns null when no row exists (new saga starts with default state in the hook). `SaveAsync` persists state JSON with expected version for optimistic locking. `CompleteAsync` marks an instance completed without creating phantom rows when version matches.
+`ISagaStore` is the durable boundary for saga. `LoadAsync` returns null when no row exists (new saga starts with default state in the hook). `SaveAsync` persists state JSON with expected version for optimistic locking. `CompleteAsync` marks an instance completed without creating phantom rows when version matches; when `Complete()` is the first saga interaction, the hook saves the initial snapshot through `SaveAsync` first and then completes the new row.
 
 Operational APIs `QueryAsync` and `PurgeAsync` accept `SagaQueryFilter` and `SagaPurgeFilter` for retention jobs and support tooling. Value objects `SagaSaveItem<TState>`, `SagaCompleteItem`, `SagaInstance<TState>`, and `SagaInstanceSummary` model store inputs and query results.
 
@@ -35,7 +35,7 @@ Custom stores implement `ISagaStore` and expose an `ISagaStorageModule` selected
 ## Invariants
 
 - Save and complete throw `SagaConcurrencyException` when stored version does not match expected version.
-- Load of completed instance returns `IsCompleted` true; hook resets scope without activating handlers for mutation.
+- Load of completed instance returns `IsCompleted` true; the hook leaves the scope inactive so the handler still runs but cannot mutate saga state.
 - Query default `Take` is 100 rows.
 
 ## Non-Goals

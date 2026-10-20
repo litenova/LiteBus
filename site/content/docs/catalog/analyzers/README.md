@@ -1,4 +1,4 @@
-# Analyzers Axis Capability Catalog
+# Analyzers
 
 Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 

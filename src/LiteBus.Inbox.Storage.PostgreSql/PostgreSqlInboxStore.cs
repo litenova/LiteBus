@@ -81,6 +81,12 @@ public sealed class PostgreSqlInboxStore :
             .Select(static column => "inbox." + column.Trim().TrimEnd(',')));
 
     /// <summary>
+    ///     Limits each batch insert statement to a bounded row count so callers can enqueue batches of any size
+    ///     without approaching the database parameter cap.
+    /// </summary>
+    private const int InsertBatchSize = 1000;
+
+    /// <summary>
     ///     Limits each cleanup statement so retention work cannot monopolize a PostgreSQL table or transaction.
     /// </summary>
     private const int DeleteBatchSize = 1000;
@@ -394,7 +400,7 @@ public sealed class PostgreSqlInboxStore :
         command.Parameters.AddWithValue("batch_size", request.BatchSize);
         command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
         command.Parameters.AddWithValue("lease_duration", request.LeaseDuration);
-        AddNullableTextParameter(command, "tenant_id", request.TenantId);
+        AddNullableTextParameter(command, "tenant_id", NormalizeTenantFilter(request.TenantId));
 
         return await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
     }
@@ -599,7 +605,10 @@ public sealed class PostgreSqlInboxStore :
                string.Equals(requested.IdempotencyKey, stored.IdempotencyKey, StringComparison.Ordinal) &&
                string.Equals(requested.CorrelationId, stored.CorrelationId, StringComparison.Ordinal) &&
                string.Equals(requested.CausationId, stored.CausationId, StringComparison.Ordinal) &&
-               string.Equals(requested.TenantId, stored.TenantId, StringComparison.Ordinal);
+               string.Equals(
+                   PostgreSqlIdempotencyResolution.NormalizeTenantParameter(requested.TenantId),
+                   PostgreSqlIdempotencyResolution.NormalizeTenantParameter(stored.TenantId),
+                   StringComparison.Ordinal);
     }
 
     /// <inheritdoc />
@@ -631,57 +640,67 @@ public sealed class PostgreSqlInboxStore :
             return [await AddAsync(envelopes[0], cancellationToken).ConfigureAwait(false)];
         }
 
-        var valueClauses = new StringBuilder();
+        // Chunk the insert so one statement never approaches the database parameter cap. Each chunk runs
+        // through the same command factory, so a caller-bound transaction still contains every chunk.
+        List<InboxEnvelope> inserted = [];
 
-        for (var index = 0; index < envelopes.Count; index++)
+        for (var offset = 0; offset < envelopes.Count; offset += InsertBatchSize)
         {
-            if (index > 0)
+            var chunkSize = Math.Min(InsertBatchSize, envelopes.Count - offset);
+            var valueClauses = new StringBuilder();
+
+            for (var index = 0; index < chunkSize; index++)
             {
-                valueClauses.Append(',');
+                if (index > 0)
+                {
+                    valueClauses.Append(',');
+                }
+
+                valueClauses.Append(
+                    CultureInfo.InvariantCulture,
+                    $"(@message_id_{index}, @contract_name_{index}, @contract_version_{index}, @payload_{index}, " +
+                    $"@created_at_{index}, @visible_after_{index}, @attempt_count_{index}, @status_{index}, " +
+                    $"@idempotency_key_{index}, @lease_owner_{index}, @lease_expires_at_{index}, @last_error_{index}, " +
+                    $"@correlation_id_{index}, @causation_id_{index}, @tenant_id_{index}, @trace_context_{index}, " +
+                    $"@lease_generation_{index})");
             }
 
-            valueClauses.Append(
-                CultureInfo.InvariantCulture,
-                $"(@message_id_{index}, @contract_name_{index}, @contract_version_{index}, @payload_{index}, " +
-                $"@created_at_{index}, @visible_after_{index}, @attempt_count_{index}, @status_{index}, " +
-                $"@idempotency_key_{index}, @lease_owner_{index}, @lease_expires_at_{index}, @last_error_{index}, " +
-                $"@correlation_id_{index}, @causation_id_{index}, @tenant_id_{index}, @trace_context_{index}, " +
-                $"@lease_generation_{index})");
+            var sql = $"""
+                       INSERT INTO {_tableName} (
+                           message_id,
+                           contract_name,
+                           contract_version,
+                           payload,
+                           created_at,
+                           visible_after,
+                           attempt_count,
+                           status,
+                           idempotency_key,
+                           lease_owner,
+                           lease_expires_at,
+                           last_error,
+                           correlation_id,
+                           causation_id,
+                           tenant_id,
+                           trace_context,
+                           lease_generation)
+                       VALUES {valueClauses}
+                       ON CONFLICT DO NOTHING
+                       RETURNING
+                           {BatchSelectColumns};
+                       """;
+
+            using var command = CreateCommand(sql);
+
+            for (var index = 0; index < chunkSize; index++)
+            {
+                AddEnvelopeParameters(command, envelopes[offset + index], index);
+            }
+
+            var chunkInserted = await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
+            inserted.AddRange(chunkInserted);
         }
 
-        var sql = $"""
-                   INSERT INTO {_tableName} (
-                       message_id,
-                       contract_name,
-                       contract_version,
-                       payload,
-                       created_at,
-                       visible_after,
-                       attempt_count,
-                       status,
-                       idempotency_key,
-                       lease_owner,
-                       lease_expires_at,
-                       last_error,
-                       correlation_id,
-                       causation_id,
-                       tenant_id,
-                       trace_context,
-                       lease_generation)
-                   VALUES {valueClauses}
-                   ON CONFLICT DO NOTHING
-                   RETURNING
-                       {BatchSelectColumns};
-                   """;
-
-        using var command = CreateCommand(sql);
-
-        for (var index = 0; index < envelopes.Count; index++)
-        {
-            AddEnvelopeParameters(command, envelopes[index], index);
-        }
-
-        var inserted = await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
         var insertedById = inserted.ToDictionary(envelope => envelope.Id);
         var results = new InboxAppendResult[envelopes.Count];
         var assignedInsertedIds = new HashSet<Guid>();
@@ -1452,7 +1471,7 @@ public sealed class PostgreSqlInboxStore :
         AddNullableTextParameter(command, "contract_name", filter.ContractName);
         AddNullableTextParameter(command, "correlation_id", filter.CorrelationId);
         AddNullableTextParameter(command, "causation_id", filter.CausationId);
-        AddNullableTextParameter(command, "tenant_id", filter.TenantId);
+        AddNullableTextParameter(command, "tenant_id", NormalizeTenantFilter(filter.TenantId));
         AddNullableTimestampParameter(command, "created_after", filter.CreatedAfter);
         AddNullableTimestampParameter(command, "created_before", filter.CreatedBefore);
     }
@@ -1508,6 +1527,16 @@ public sealed class PostgreSqlInboxStore :
         {
             throw new ArgumentOutOfRangeException(nameof(pageSize), pageSize, "Page size must be greater than zero.");
         }
+    }
+
+    /// <summary>
+    ///     Normalizes a tenant filter value so blank tenants match unscoped rows while a null filter stays unrestricted.
+    /// </summary>
+    /// <param name="tenantId">The tenant filter supplied by the caller.</param>
+    /// <returns><see langword="null" /> when unrestricted; otherwise the normalized tenant identifier.</returns>
+    private static string? NormalizeTenantFilter(string? tenantId)
+    {
+        return tenantId is null ? null : PostgreSqlIdempotencyResolution.NormalizeTenantParameter(tenantId);
     }
 
     /// <summary>

@@ -255,6 +255,12 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
                 admissionReleased = true;
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // A cancelled batch flush already released admission for the full batch, and a cancelled
+            // admission wait holds no slot, so there is nothing to release on this path.
+            throw;
+        }
         catch
         {
             if (!admissionReleased)
@@ -402,13 +408,18 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     /// <remarks>
     ///     Non-requeue acceptance failures use a broad <see cref="Exception" /> handler because store, contract, and
     ///     serialization faults cannot be enumerated safely at the ingress boundary. Those deliveries are logged and
-    ///     discarded so poison messages do not block the consume loop.
+    ///     discarded so poison messages do not block the consume loop. Cancellation rethrows before settlement so a
+    ///     cancelled acceptance leaves the delivery unacknowledged and the broker redelivers it.
     /// </remarks>
     private async Task AcceptAndAcknowledgeAsync(TransportMessage message, CancellationToken cancellationToken)
     {
         try
         {
             await _handler.AcceptAsync(message, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception exception) when (IngressAckPolicy.ShouldRequeue(exception, _options.RequeueOnFailure))
         {
@@ -471,7 +482,8 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     /// <remarks>
     ///     Batch accept and settlement failures use broad <see cref="Exception" /> handlers because store and broker
     ///     faults cannot be narrowed without losing isolated handling. Failures are logged before per-message fallback
-    ///     acceptance or before settlement continues with the remaining deliveries.
+    ///     acceptance or before settlement continues with the remaining deliveries. Cancellation skips the fallback,
+    ///     releases admission for the whole batch, and rethrows so buffered deliveries stay unacknowledged.
     /// </remarks>
     private async Task AcceptAndAcknowledgeBatchAsync(
         List<TransportMessage> messages,
@@ -480,6 +492,15 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
         try
         {
             await _handler.AcceptBatchAsync(messages, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            for (var index = 0; index < messages.Count; index++)
+            {
+                ReleaseBatchAdmission();
+            }
+
+            throw;
         }
 
 #pragma warning disable CA1031 // Batch accept failures fall back to per-message acceptance for isolated poison handling.

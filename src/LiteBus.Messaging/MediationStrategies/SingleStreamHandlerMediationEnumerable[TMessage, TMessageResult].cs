@@ -200,7 +200,7 @@ internal sealed class SingleStreamHandlerMediationEnumerable<TMessage, TMessageR
                     using (AmbientExecutionContext.CreateScope(executionContext))
                     {
                         var decision = await messageDependencies
-                            .RunAsyncPreStages(message, executionContext.CancellationToken)
+                            .RunAsyncPreStages(message, linkedToken)
                             .ConfigureAwait(false);
 
                         if (decision.StopsPipeline)
@@ -239,7 +239,7 @@ internal sealed class SingleStreamHandlerMediationEnumerable<TMessage, TMessageR
                         }
                         else
                         {
-                            var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
+                            var handler = SingleMainHandlerResolver.Resolve(messageDependencies, message.GetType()).Handler.Value;
 
                             stream = HandlerInvocation.InvokeStreamHandler<TMessage, TMessageResult>(
                                 handler,
@@ -282,7 +282,7 @@ internal sealed class SingleStreamHandlerMediationEnumerable<TMessage, TMessageR
                         await messageDependencies.RunAsyncPostHandlers(
                             message,
                             stream,
-                            executionContext.CancellationToken).ConfigureAwait(false);
+                            linkedToken).ConfigureAwait(false);
 
                         if (executionContext.MessageResult is IAsyncEnumerable<TMessageResult> replacement)
                         {

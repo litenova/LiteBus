@@ -1,4 +1,4 @@
-# Inbox Ingress Capability Catalog
+# Ingress
 
 Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 

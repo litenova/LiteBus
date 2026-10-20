@@ -66,6 +66,8 @@ outbox.UseInMemoryStorage();
 
 - Behavioral parity with contract tests shared across backends.
 - Data lost on process exit.
+- Tenants are stored normalized; a null filter or lease tenant means no restriction while an empty string matches only unscoped rows.
+- Persist validates statuses up front and throws `InvalidOperationException` for non-terminal envelopes, matching relational adapters.
 
 ## Non-Goals
 

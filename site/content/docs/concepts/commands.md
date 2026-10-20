@@ -16,7 +16,7 @@ public sealed record CreateProductCommand(string Name, decimal Price) : ICommand
 
 You pick one of two contracts. Use `ICommand` when the caller only needs success or failure. Use `ICommand<TResult>` when the caller needs a value back, most often the identity of something just created. Model commands as immutable records or classes with `init`-only properties so no step can change them after construction.
 
-Two rules define a command. It is handled by exactly one handler, and it expresses an intent to change something. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level survives: direct handlers win whenever any survive, and handlers registered for a base type apply only when no direct handler does. Name commands as imperatives, such as `CreateProductCommand` or `CancelSubscriptionCommand`.
+Two rules define a command. It is handled by exactly one handler, and it expresses an intent to change something. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level survives: direct handlers win whenever any survive, and handlers registered for a base type apply only when no direct handler does. Both exceptions name the runtime type of the message, even when the non-generic `SendAsync` erased it to `ICommand`. Name commands as imperatives, such as `CreateProductCommand` or `CancelSubscriptionCommand`.
 
 Returning a value from a state-changing command is a deliberate exception to strict CQS. LiteBus allows it because returning a generated id from the same call avoids forcing a follow-up query. Keep the returned value small. A command is not a query.
 
@@ -101,7 +101,7 @@ public sealed class LogPaymentFailure : ICommandErrorHandler<ProcessPaymentComma
 }
 ```
 
-An error-handler runs when any stage throws. By default the outcome stays `MessageErrorOutcome.Unhandled` and LiteBus rethrows the original exception with its stack trace intact. Set `context.Outcome` to `MessageErrorOutcome.Handled` to recover, and for a result-bearing command also set `context.HandledResult` to the fallback value the caller receives.
+An error-handler runs when any stage throws. By default the outcome stays `MessageErrorOutcome.Unhandled` and LiteBus rethrows the original exception with its stack trace intact. Set `context.Outcome` to `MessageErrorOutcome.Handled` to recover, and for a result-bearing command also set `context.HandledResult` to the fallback value the caller receives. A `Handled` outcome without a usable `HandledResult` on a result-bearing command does not recover: LiteBus rethrows the original exception with its stack preserved.
 
 ## Send a Command
 

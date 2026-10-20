@@ -56,7 +56,8 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
 
         context.RegisterSyntaxNodeAction(
             nodeContext => AnalyzeObjectCreation(nodeContext, tagCollector),
-            SyntaxKind.ObjectCreationExpression);
+            SyntaxKind.ObjectCreationExpression,
+            SyntaxKind.ImplicitObjectCreationExpression);
 
         context.RegisterSyntaxNodeAction(
             nodeContext => AnalyzeInvocation(nodeContext, tagCollector),
@@ -94,7 +95,7 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeObjectCreation(SyntaxNodeAnalysisContext context, TagReferenceCollector tags)
     {
         TagReferenceAnalysis.CollectTagsFromObjectCreation(
-            (ObjectCreationExpressionSyntax) context.Node,
+            (BaseObjectCreationExpressionSyntax) context.Node,
             context.SemanticModel,
             tags,
             context.CancellationToken);

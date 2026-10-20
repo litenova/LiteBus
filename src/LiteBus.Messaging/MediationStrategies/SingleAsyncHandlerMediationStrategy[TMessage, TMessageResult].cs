@@ -83,7 +83,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                     return messageResult;
                 }
 
-                var handler = SingleMainHandlerResolver.Resolve<TMessage>(messageDependencies).Handler.Value;
+                var handler = SingleMainHandlerResolver.Resolve(messageDependencies, message.GetType()).Handler.Value;
 
                 messageResult = await HandlerInvocation.InvokeMainHandlerAsync<TMessage, TMessageResult>(
                     handler,
@@ -126,6 +126,10 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
 
                 return handledResult;
             }
+
+            // A handler that claims the fault without a usable result recovers the message, and the caller receives the
+            // default value. A global error handler cannot know a message's result type, so this is how it absorbs a
+            // fault; a handler that has a fallback value supplies it through HandledResult.
         }
         finally
         {

@@ -46,7 +46,7 @@ Each registration gets its own loop and its own options. The loop registers as a
 | `ErrorBackoff` | 5 minutes | Delay after a send throws, instead of `Interval` |
 | `IsConcurrencyConflict` | `IsConcurrencyConflictByTypeName` | Predicate recognizing an optimistic-concurrency conflict; a conflict waits `Interval` instead of `ErrorBackoff`, and `null` treats every exception as a failure |
 
-Timing values are validated when the module builds, so a negative interval fails at boot rather than at the first pass.
+Timing values are validated when the module builds, so a zero or negative interval or error backoff fails at boot rather than at the first pass. Zero would remove pacing between passes: the failure case would log EventId 2103 in a tight loop while a dependency is down, and the success case would send at an unbounded rate.
 
 Stagger `StartupDelay` across loops that share a database, so a host start does not send every recurring command at once.
 

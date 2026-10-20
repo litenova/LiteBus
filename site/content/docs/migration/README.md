@@ -1,4 +1,4 @@
-# Migration Guides
+# Migration
 
 This page indexes version-to-version upgrade guides for LiteBus. Each guide lists breaking changes and the steps to move your code forward. Start with the guide for the version you are leaving.
 

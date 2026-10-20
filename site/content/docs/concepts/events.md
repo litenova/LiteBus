@@ -137,7 +137,7 @@ await eventMediator.PublishAsync(orderConfirmed, settings, cancellationToken);
 | Sequential | Parallel | ContinueAndAggregate | All handlers in the group run; failures aggregate into one exception |
 | Parallel | Parallel | ContinueAndAggregate | All parallel tasks run; failures aggregate |
 
-The mode governs handlers inside one priority group only. Under sequential group execution a later group does not run after an earlier one failed, because the priority difference states that the later group runs after the earlier one. Neither mode cancels sibling work; cancellation stays cooperative through the token you pass to `PublishAsync`.
+The mode governs handlers inside one priority group only. Under sequential group execution a later group does not run after an earlier one failed, because the priority difference states that the later group runs after the earlier one. Neither mode cancels sibling work; cancellation stays cooperative through the token you pass to `PublishAsync`. Under `ContinueAndAggregate`, when every collected failure is cancellation the publish reports `Canceled` by rethrowing `OperationCanceledException` instead of aggregating; mixed cancellation and faults still aggregate into one exception.
 
 ## Select Which Handlers Run
 

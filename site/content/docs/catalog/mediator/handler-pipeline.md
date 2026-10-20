@@ -101,6 +101,7 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 - Post-handler result override uses `executionContext.MessageResult`.
 - Recoverable exceptions route to error handlers with the caller's explicit cancellation token.
 - Error handlers suppress the original exception only by setting their shared context outcome to `Handled`.
+- On a result-bearing message, an error handler that sets `Handled` without a usable `HandledResult` recovers the message and the caller receives the default value (`null` for a reference type). A global error handler cannot know the result type, so this is how it absorbs a fault; a handler with a fallback value sets `HandledResult`.
 - Event broadcast may execute handlers concurrently based on event execution settings.
 - Completion handlers run exactly once per mediation, on every outcome path.
 - Completion handlers cannot change the outcome; the context is read-only.

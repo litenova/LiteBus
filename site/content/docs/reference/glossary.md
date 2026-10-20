@@ -118,5 +118,5 @@ LiteBus keeps domain-specific names instead of one generic "store" verb:
 
 ## Next
 
-- See [Migration Guides](../migration/README.md) for historical version transitions.
+- See [Migration](../migration/README.md) for historical version transitions.
 - See [The Handler Pipeline](../concepts/handler-pipeline.md) for the stages behind the pipeline words.

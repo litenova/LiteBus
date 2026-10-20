@@ -26,6 +26,7 @@ RabbitMQ's default exchange has an empty name and routes directly to the queue n
 | `IAmqpPublisher`, `IAmqpConsumer` | AMQP-specific adapter contracts |
 | `AmqpConnectivityDiagnosticCheck` | Host manifest connectivity probe |
 | `AmqpTransportConfigurationException` | Invalid AMQP configuration error |
+| `AmqpMessageReturnedException` | Mandatory publication returned as unroutable |
 
 ### Options
 
@@ -75,6 +76,8 @@ RabbitMQ's default exchange has an empty name and routes directly to the queue n
 - `TransportMessage` ack delegates map directly to `basic.ack` and `basic.nack`.
 - Circuit breaker and metrics register once per module configuration using broker tag `amqp`.
 - Publisher circuits use the named exchange as their scope. The empty-name default exchange uses its queue routing key.
+- A mandatory publication the broker returns as unroutable throws `AmqpMessageReturnedException` without recording a broker circuit failure; non-mandatory publications still succeed and drop.
+- A cancelled connection attempt releases its circuit breaker permit, so the next attempt past the break duration is admitted as the recovery probe.
 
 ## Non-Goals
 
@@ -120,6 +123,12 @@ RabbitMQ's default exchange has an empty name and routes directly to the queue n
 | `RecordSuccess_after_failures_ShouldCloseCircuit` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
 | `PublishThroughRabbitMq_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | `PublishThroughLavinMq_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
+| `PublishAsync_WithMandatoryAndReturnedMessage_ShouldThrow` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `PublishAsync_WithMandatoryFalse_ShouldSucceed` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `PublishAsync_WithMismatchedReturnMessageId_ShouldSucceed` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `GetConnectionAsync_AfterCancelledHalfOpenProbe_ShouldAdmitNextAttempt` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `PublishAsync_WithMandatoryAndNoBinding_ShouldThrow` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
+| `PublishAsync_WithMandatoryFalseAndNoBinding_ShouldSucceed` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
 
 ### Untested
 

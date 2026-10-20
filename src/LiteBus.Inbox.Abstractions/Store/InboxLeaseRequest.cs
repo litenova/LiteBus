@@ -32,7 +32,7 @@ public sealed record InboxLeaseRequest
     public required TimeSpan LeaseDuration { get; init; }
 
     /// <summary>
-    ///     Gets the optional tenant identifier used to isolate leased messages.
+    ///     Gets the optional tenant identifier used to isolate leased messages. A <see langword="null" /> value leases across all tenants, while the empty string leases only unscoped rows. Stored and requested tenants compare through <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.DurableTenantId" /> normalization.
     /// </summary>
     public string? TenantId { get; init; }
 }

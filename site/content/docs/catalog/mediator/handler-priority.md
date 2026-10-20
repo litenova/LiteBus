@@ -51,7 +51,7 @@ public sealed class ValidateOrderPreHandler : ICommandPreHandler<PlaceOrderComma
 - Default priority is `0` when attribute is absent.
 - Lower priority executes first in sequential group mode.
 - Parallel group mode removes strict cross-priority completion ordering.
-- Both fault modes wait for already-started parallel tasks. `ContinueAndAggregate` runs every handler in the group and combines the failures, while `PropagateFirst` stops the group and surfaces one failure. The mode never carries across priority groups.
+- Both fault modes wait for already-started parallel tasks. `ContinueAndAggregate` runs every handler in the group and combines the failures, while `PropagateFirst` stops the group and surfaces one failure. The mode never carries across priority groups. When every collected failure is cancellation, `ContinueAndAggregate` rethrows `OperationCanceledException` instead of aggregating; mixed cancellation and faults still aggregate.
 
 ## Non-Goals
 

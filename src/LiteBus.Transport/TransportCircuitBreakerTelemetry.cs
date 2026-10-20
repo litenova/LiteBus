@@ -17,13 +17,13 @@ internal static class TransportCircuitBreakerTelemetry
     ///     Gets the counter incremented when a failure is recorded while the circuit is closed.
     /// </summary>
     private static readonly Counter<long> FailureRecordedCounter =
-        Meter.CreateCounter<long>("litebus.transport.circuit_breaker.failure_recorded");
+        Meter.CreateCounter<long>(LiteBusTransportTelemetry.CircuitBreakerFailureRecordedInstrumentName);
 
     /// <summary>
     ///     Gets the counter incremented when the circuit opens after reaching the failure threshold.
     /// </summary>
     private static readonly Counter<long> OpenedCounter =
-        Meter.CreateCounter<long>("litebus.transport.circuit_breaker.opened");
+        Meter.CreateCounter<long>(LiteBusTransportTelemetry.CircuitBreakerOpenedInstrumentName);
 
     /// <summary>
     ///     Records that a failure was observed while the circuit remains closed.
@@ -34,7 +34,7 @@ internal static class TransportCircuitBreakerTelemetry
         FailureRecordedCounter.Add(1);
 
         Activity.Current?.AddEvent(new ActivityEvent(
-            "litebus.transport.circuit_breaker.failure_recorded",
+            LiteBusTransportTelemetry.CircuitBreakerFailureRecordedInstrumentName,
             tags: new ActivityTagsCollection { ["litebus.transport.circuit_breaker.failure_count"] = failureCount }));
     }
 
@@ -44,6 +44,6 @@ internal static class TransportCircuitBreakerTelemetry
     public static void RecordCircuitOpened()
     {
         OpenedCounter.Add(1);
-        Activity.Current?.AddEvent(new ActivityEvent("litebus.transport.circuit_breaker.opened"));
+        Activity.Current?.AddEvent(new ActivityEvent(LiteBusTransportTelemetry.CircuitBreakerOpenedInstrumentName));
     }
 }

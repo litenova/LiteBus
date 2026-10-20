@@ -48,7 +48,7 @@ These types are always treated as poison or configuration errors and discard whe
 - `JsonException`
 - `OperationCanceledException`
 
-Any other exception type requeues when `RequeueOnFailure` is `true`. Cancellation is never requeued.
+Any other exception type requeues when `RequeueOnFailure` is `true`. Cancellation is never requeued. When the ingress token is cancelled, the consumer rethrows `OperationCanceledException` before settlement, so the delivery stays unacknowledged and the broker redelivers it instead of the offset being committed without a store write.
 
 ## Packages
 
@@ -64,6 +64,7 @@ Any other exception type requeues when `RequeueOnFailure` is `true`. Cancellatio
 - Successful accept always attempts ack; ack failure is handled separately (requeue for idempotent retry).
 - Policy applies to authorization callback failures the same as store failures.
 - `RequeueOnFailure = false` drains poison messages instead of infinite requeue loops.
+- A cancelled acceptance is never settled: the consumer rethrows before ack, requeue, or discard.
 
 ## Broker Behavior Notes
 
@@ -106,6 +107,8 @@ Consumer logs and broker telemetry reflect discard vs requeue; `ingress.ack_fail
 | `ShouldRequeue_WhenRequeueOnFailureFalse_ShouldReturnFalseForTransientFailure` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `HandleDeliveryAsync_WhenStorageFull_ShouldDiscardWithoutRequeue` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `HandleDeliveryAsync_WhenAuthorizationRejects_ShouldDiscardWithoutAccept` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
+| `HandleDeliveryAsync_WhenAcceptCancelled_ShouldPropagateWithoutSettling` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
+| `AcceptBatchAsync_WhenBatchAcceptCancelled_ShouldReleaseAdmissionAndRethrow` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `UnknownContract_ShouldNackWithoutRequeueAndSkipStore` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | `InvalidJson_ShouldNackWithoutRequeueAndSkipStore` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | `UnknownContract_ShouldNotWriteToStore` | `LiteBus.Durable.IntegrationTests` (`Ingress/Kafka/`, `Ingress/AzureServiceBus/`, `Ingress/AwsSqs/`) |

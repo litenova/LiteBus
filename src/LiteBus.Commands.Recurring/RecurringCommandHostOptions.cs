@@ -30,7 +30,7 @@ public sealed class RecurringCommandHostOptions
     /// <summary>
     ///     Gets or sets the delay between sends when the previous send reported no more work.
     /// </summary>
-    /// <value>The default is one minute. Must not be negative.</value>
+    /// <value>The default is one minute. Must be positive.</value>
     public TimeSpan Interval { get; set; } = TimeSpan.FromMinutes(1);
 
     /// <summary>
@@ -46,8 +46,8 @@ public sealed class RecurringCommandHostOptions
     ///     Gets or sets the delay applied after a send throws, instead of <see cref="Interval" />.
     /// </summary>
     /// <value>
-    ///     The default is five minutes. A failing dependency is usually still failing one interval later, so backing
-    ///     off further keeps a broken loop from filling the log at the polling rate.
+    ///     The default is five minutes. Must be positive. A failing dependency is usually still failing one interval
+    ///     later, so backing off further keeps a broken loop from filling the log at the polling rate.
     /// </value>
     public TimeSpan ErrorBackoff { get; set; } = TimeSpan.FromMinutes(5);
 
@@ -108,11 +108,14 @@ public sealed class RecurringCommandHostOptions
     /// <summary>
     ///     Validates the timing values before the loop starts.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">A delay is negative.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     <see cref="Interval" /> or <see cref="ErrorBackoff" /> is zero or negative, or
+    ///     <see cref="StartupDelay" /> is negative.
+    /// </exception>
     public void Validate()
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(Interval, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(Interval.Ticks);
         ArgumentOutOfRangeException.ThrowIfLessThan(StartupDelay, TimeSpan.Zero);
-        ArgumentOutOfRangeException.ThrowIfLessThan(ErrorBackoff, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ErrorBackoff.Ticks);
     }
 }

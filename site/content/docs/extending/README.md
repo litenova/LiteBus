@@ -1,4 +1,4 @@
-# Extensibility
+# Extending
 
 LiteBus modules, mediation strategies, and message resolution are extension points: a new module introduces a message type with its own contracts and mediation logic, composed through `ILiteBusBuilder` like the shipped modules. This page builds a Notification module, then shows custom strategies and resolution.
 

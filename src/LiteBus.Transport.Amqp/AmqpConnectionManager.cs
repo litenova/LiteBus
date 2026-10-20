@@ -51,6 +51,7 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     /// <remarks>
     ///     Broker connectivity exceptions are handled explicitly so connection failures increment the circuit breaker.
     ///     The final <see cref="Exception" /> handler records any other non-cancellation failure before rethrowing.
+    ///     Cancelled attempts release the permit so a cancelled half-open probe does not wedge the circuit.
     /// </remarks>
     public async Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default)
     {
@@ -85,6 +86,7 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                _circuitBreaker.ReleasePermit(permit);
                 throw;
             }
             catch (BrokerUnreachableException)

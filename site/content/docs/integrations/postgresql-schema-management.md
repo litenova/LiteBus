@@ -512,7 +512,7 @@ LiteBus will not auto-run destructive changes such as drops, renames, or narrowi
 - [Outbox](../reliable-messaging/outbox.md)
 - [Hosted services](../architecture/hosted-services.md)
 - [Dependency Graph](../architecture/dependency-graph.md)
-- [Migration Guides](../migration/README.md)
+- [Migration](../migration/README.md)
 
 ## Next
 
