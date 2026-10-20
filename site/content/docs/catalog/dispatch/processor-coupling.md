@@ -45,11 +45,12 @@ Hook failure policies differ by dispatcher type. Transport outbox dispatch defau
 ## Public Surface
 
 ```csharp
-inbox.EnableInboxProcessor(options =>
+inbox.UseProcessorOptions(new InboxProcessorOptions
 {
-    options.DispatcherConcurrency = 4;
-    options.LeaseHeartbeatInterval = TimeSpan.FromSeconds(10);
+    DispatcherConcurrency = 4,
+    LeaseHeartbeatInterval = TimeSpan.FromSeconds(10)
 });
+inbox.EnableInboxProcessor();
 ```
 
 ### `IInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)`

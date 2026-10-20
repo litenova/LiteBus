@@ -76,12 +76,15 @@ outbox.UseEntityFrameworkCoreStorage(o =>
 - `IOutboxDbContext` on application `DbContext`
 - `AddDbContextFactory<TContext>(...)` in application composition
 - Application-owned EF migrations
-- Outbox dispatch before processor
+- A registered dispatcher when the processor is enabled
 
 ## Invariants
 
 - Schema and table names in options must match `OnModelCreating` configuration.
 - Interceptor pattern requires registration on both LiteBus module and `DbContext` options.
+- A null filter or lease tenant means no tenant restriction; an empty string matches only unscoped rows.
+- Strict batches pre-check known duplicates and throw `IdempotencyConflictException` for conflicting content; only concurrent races reach the database unique index.
+- Batch insert failures reinsert rows still missing after a unique violation and chain the database error when the retry also fails.
 
 ## Non-Goals
 
@@ -106,7 +109,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 ## Deep Docs
 
 - [Outbox Entity Framework Core storage](../../integrations/outbox-ef-core-storage.md)
-- [Domain events and unit of work](../../concepts/domain-events-and-unit-of-work.md)
+- [Domain events and unit of work](../../reliable-messaging/domain-events-and-unit-of-work.md)
 
 ## Test Coverage
 
@@ -119,7 +122,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Build EF outbox storage module
 - **Behavior**: Resolve all outbox store interfaces
 - **Expected outcome**: Same instance for every role
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreOutboxStorageModuleTests.AddEfCoreOutboxStorage_WithEnforceTransactionalSetupWithoutInterceptor_ShouldThrowOnBuild`
 
@@ -128,7 +131,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Enforce without interceptor
 - **Behavior**: Module build
 - **Expected outcome**: Configuration exception
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreOutboxStoreContractTests` (Inherits `OutboxStoreContractTests`)
 
@@ -137,7 +140,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Full contract against EF in-memory provider
 - **Behavior**: Inherited contract tests
 - **Expected outcome**: Parity with shared contract suite
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreOutboxStorePostgreSqlContractTests` (Inherits `OutboxStoreContractTests`)
 
@@ -146,7 +149,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Migrated PostgreSQL EF store contract tests
 - **Behavior**: Inherited contract tests
 - **Expected outcome**: Parity with shared contract suite
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `EfCoreOutboxStoreSqlServerContractTests` (Inherits `OutboxStoreContractTests`)
 
@@ -155,7 +158,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Migrated SQL Server EF store contract tests
 - **Behavior**: Inherited contract tests
 - **Expected outcome**: Parity with shared contract suite
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `EfCoreOutboxProcessorEndToEndTests.ProcessPendingAsync_ShouldPublishEventThroughEfCoreStore`
 
@@ -164,7 +167,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Enqueue and process via EF store
 - **Behavior**: Processor with in-process dispatcher
 - **Expected outcome**: Event published; row terminal
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `EfCoreOutboxFindExistingTests.EnqueueAsync_when_id_and_idempotency_key_match_different_rows_should_prefer_message_id_row`
 
@@ -173,7 +176,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Two rows with overlapping identifiers
 - **Behavior**: Enqueue resolving existing row
 - **Expected outcome**: Message id match wins over idempotency key
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreOutboxStoreConcurrencyTests.PersistAsync_WhenTwoWorkersPersistSameEnvelopeConcurrently_ShouldApplyExactlyOnce`
 
@@ -182,7 +185,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Two workers persist same leased envelope
 - **Behavior**: Concurrent `PersistAsync`
 - **Expected outcome**: Single terminal update
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `OutboxEntityFrameworkCoreModelTests.GetModelBuilderConfiguration_ShouldMapVersion1Columns`
 
@@ -191,7 +194,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Model extension configuration
 - **Behavior**: Inspect EF model
 - **Expected outcome**: v1 column layout mapped
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `OutboxEntityFrameworkCoreModelTests.GetModelBuilderConfiguration_ShouldMapEntityColumns`
 
@@ -200,7 +203,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Property and column mappings
 - **Behavior**: Model builder extension
 - **Expected outcome**: Topic, payload, scheduling columns mapped
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreOutboxSaveChangesInterceptorIntegrationTests.SaveChangesAsync_ShouldPersistOutboxMessage_WhenTransactionCommits`
 
@@ -209,7 +212,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Enqueue via interceptor and commit
 - **Behavior**: Successful `SaveChanges` and commit
 - **Expected outcome**: Outbox row in database
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `TransactionalOutboxEnqueueTests.EnqueueAsync_should_stage_envelope_with_contract_and_metadata`
 
@@ -218,7 +221,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: `ITransactionalOutbox` before save
 - **Behavior**: Enqueue then inspect staged state
 - **Expected outcome**: Contract and metadata staged
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreOutboxTransactionalIntegrationTests.UseExistingDbContext_ShouldCommitDomainAndOutboxTogether`
 
@@ -227,7 +230,7 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 - **Description**: Shared DbContext transaction
 - **Behavior**: SaveChanges and commit
 - **Expected outcome**: Domain and outbox rows committed
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `EfCoreOutboxStoreMySqlContractTests` (Inherits `OutboxStoreContractTests`)
 

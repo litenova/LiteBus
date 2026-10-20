@@ -36,6 +36,11 @@ public sealed class AmqpReceivedMessage
     public string? RoutingKey { get; init; }
 
     /// <summary>
+    ///     Gets the queue the message was consumed from, when the consumer tracked it.
+    /// </summary>
+    public string? QueueName { get; init; }
+
+    /// <summary>
     ///     Gets the AMQP message identifier from message properties, when present.
     /// </summary>
     public string? MessageId { get; init; }

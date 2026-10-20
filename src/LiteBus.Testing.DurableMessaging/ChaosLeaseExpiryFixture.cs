@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging.Abstractions.Processing;
@@ -88,6 +92,14 @@ public sealed class ChaosLeaseExpiryFixture
             }
 
             return _inner.RenewLeaseAsync(request, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public Task<bool> ReleaseLeaseAsync(
+            LeaseReleaseRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return _inner.ReleaseLeaseAsync(request, cancellationToken);
         }
     }
 }

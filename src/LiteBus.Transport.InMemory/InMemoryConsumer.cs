@@ -1,4 +1,8 @@
+using System;
+using System.Threading;
+using System.Threading.Channels;
 using LiteBus.Transport.Abstractions;
+using System.Threading.Tasks;
 
 namespace LiteBus.Transport.InMemory;
 
@@ -22,6 +26,11 @@ public sealed class InMemoryConsumer : IMessageConsumer
     ///     Serializes start and stop operations on the consume loop.
     /// </summary>
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+
+    /// <summary>
+    ///     Tracks whether asynchronous disposal has started.
+    /// </summary>
+    private int _disposed;
 
     /// <summary>
     ///     Gets the cancellation source used to stop the active consume loop.
@@ -112,6 +121,14 @@ public sealed class InMemoryConsumer : IMessageConsumer
                     {
                         // Expected when cancellation stops the consume loop.
                     }
+                    catch (ChannelClosedException)
+                    {
+                        // Expected when the destination channel completed while a delivery was unsettled.
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Expected when the broker was reset or disposed during shutdown.
+                    }
                 }
             }
             finally
@@ -133,7 +150,18 @@ public sealed class InMemoryConsumer : IMessageConsumer
     {
         if (_consumeTask is { } consumeTask)
         {
-            await consumeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await consumeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (ChannelClosedException)
+            {
+                // The destination channel completed; the session is stopped rather than failed.
+            }
+            catch (ObjectDisposedException)
+            {
+                // The broker was reset or disposed; the session is stopped rather than failed.
+            }
             return;
         }
 
@@ -143,6 +171,11 @@ public sealed class InMemoryConsumer : IMessageConsumer
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         await StopAsync().ConfigureAwait(false);
         _lifecycleGate.Dispose();
     }

@@ -19,7 +19,7 @@ Applications subscribe with `AddLiteBusTransportMetrics()`. AMQP package keeps c
 | `TransportObservableMetricsInitializer` | Startup task that creates gauges |
 | `TransportObservableMetrics` | Gauge producer bound to aggregate publisher breaker state |
 | `TransportBrokerIdentity` | Broker tag identity value |
-| `TransportMetricsRegisteredMarker` | Marker to prevent duplicate registration |
+| `TransportCompositionContext` | Shared compose claim that refuses a second transport module (internal) |
 | `AddLiteBusTransportMetrics()` | OpenTelemetry meter registration extension |
 | `AddLiteBusAmqpMetrics()` | AMQP alias to shared meter |
 | `LiteBusTransportTelemetry` constants | Stable meter, instrument, and tag names |

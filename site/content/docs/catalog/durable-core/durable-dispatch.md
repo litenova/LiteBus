@@ -49,7 +49,7 @@ Register the matching `Add*Transport(...)` once at the root. Each dispatch exten
 ### Extension Points
 
 - Custom dispatchers implement **`IInboxDispatcher`** or **`IOutboxDispatcher`** and register through **`RegisterDispatcher(I*DispatcherModule)`**
-- Wire metadata mapping: **`OutboxTransportEnvelopeMapper`** / inbox transport mappers (shared dispatch packages)
+- Wire metadata mapping: internal **`OutboxTransportEnvelopeMapper`** / **`InboxTransportEnvelopeMapper`** in the shared dispatch packages own header mapping; custom dispatchers map metadata themselves
 
 ## Packages
 
@@ -349,9 +349,9 @@ Register the matching `Add*Transport(...)` once at the root. Each dispatch exten
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| Inbox in-process dispatch to events | No (planned) | N/A |: |: |
-| Webhook/gRPC outbox adapters | No (planned) | N/A |: |: |
-| Multi-dispatcher within one module | No (by design) | N/A |: |: |
+| Inbox in-process dispatch to events | No (planned) | N/A | N/A | N/A |
+| Webhook/gRPC outbox adapters | No (planned) | N/A | N/A | N/A |
+| Multi-dispatcher within one module | No (by design) | N/A | N/A | N/A |
 
 ### Out-of-Scope Use Cases
 

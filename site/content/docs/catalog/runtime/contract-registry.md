@@ -31,7 +31,7 @@
 ## Invariants
 
 - Contract version must be positive.
-- Open generic message types are rejected.
+- Explicit registration rejects open generic message types; assembly scanning skips them.
 - Conflicting type or key mappings fail fast.
 
 ## Non-Goals

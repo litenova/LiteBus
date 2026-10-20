@@ -37,8 +37,8 @@ Without a strategy, inbox dispatch resolves the route in this order:
 
 Without a strategy, outbox dispatch resolves the route in this order:
 
-1. `OutboxEnvelope.Topic` when non-empty.
-2. `TransportOutboxDispatcherOptions.ResolveRoute`.
+1. `TransportOutboxDispatcherOptions.ResolveRoute`.
+2. `OutboxEnvelope.Topic` when non-empty.
 3. `OutboxEnvelope.ContractName`.
 
 For example, a strategy can route `tenant-east` order events to `tenant-east.orders.priority` while every publish still targets the configured `orders` destination.

@@ -1,7 +1,8 @@
 using System;
-using System.Linq;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Audit;
+using LiteBus.Messaging.Registry;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Runtime.Abstractions;
 
@@ -45,8 +46,28 @@ public sealed class QueryModule : IModule, IRequires<MessageModule>
         var moduleBuilder = new QueryModuleBuilder(messageRegistry, contractRegistry);
         _builder(moduleBuilder);
 
+        // AddAuditing on the messaging module selects the axes, so a consumer configures the feature once instead of
+        // repeating the decision here. EnableAuditing stays the primitive, and registering the same handler twice is a
+        // no-op in the registry.
+        if (configuration.TryGetContext<AuditingComposition>(out var auditing) && auditing?.Queries == true)
+        {
+            moduleBuilder.EnableAuditing();
+        }
+
+        if (moduleBuilder.AuditingEnabled)
+        {
+            configuration.RegisterDiagnosticCheck(typeof(AuditTrailDiagnosticCheck), AuditTrailDiagnosticCheck.CheckName);
+        }
+
         RegisterQueryServices(configuration);
-        RegisterNewHandlers(configuration, messageRegistry, startIndex);
+        // Recorded for the composition summary. Only this module knows how many messages belong to its axis, because
+        // the messaging registry does not reference the axis contracts.
+        if (configuration.TryGetContext<LiteBusCompositionSummary>(out var summary) && summary is not null)
+        {
+            summary.RecordAxis("queries", ModuleRegistration.CountAxisMessages<IQuery>(messageRegistry));
+        }
+
+        ModuleRegistration.RegisterNewHandlers(configuration, messageRegistry, startIndex);
     }
 
     /// <summary>
@@ -58,29 +79,5 @@ public sealed class QueryModule : IModule, IRequires<MessageModule>
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IQueryMediator),
             typeof(QueryMediator)));
-    }
-
-    /// <summary>
-    ///     Registers handler types that were discovered during this module's configuration.
-    /// </summary>
-    /// <param name="configuration">The module configuration.</param>
-    /// <param name="messageRegistry">The message registry containing handler information.</param>
-    /// <param name="startIndex">The index from which to start processing new handlers.</param>
-    private static void RegisterNewHandlers(IModuleConfiguration configuration, IMessageRegistry messageRegistry, int startIndex)
-    {
-        var newHandlers = messageRegistry.Handlers.Skip(startIndex);
-
-        foreach (var handlerDescriptor in newHandlers)
-        {
-            var handlerType = handlerDescriptor.HandlerType;
-
-            if (handlerType is { IsClass: true, IsAbstract: false })
-            {
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    handlerType,
-                    handlerType,
-                    InstanceLifetime.Scoped));
-            }
-        }
     }
 }

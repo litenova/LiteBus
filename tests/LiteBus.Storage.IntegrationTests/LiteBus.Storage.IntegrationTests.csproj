@@ -1,5 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+    <PropertyGroup>
+        <!-- Marten is not strong-named. This project is signed like every other, and CS8002 is the only consequence:
+             a signed assembly referencing an unsigned one. It is suppressed here rather than globally so the
+             constraint still applies to every shipped package. -->
+        <NoWarn>$(NoWarn);CS8002</NoWarn>
+    </PropertyGroup>
+
+
     <ItemGroup>
         <PackageReference Include="AwesomeAssertions"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore"/>
@@ -8,6 +16,7 @@
         <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <PackageReference Include="Marten"/>
         <PackageReference Include="Npgsql"/>
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
         <PackageReference Include="Pomelo.EntityFrameworkCore.MySql"/>
@@ -18,6 +27,7 @@
         <PackageReference Include="Testcontainers.MySql"/>
         <PackageReference Include="Testcontainers.PostgreSql"/>
         <PackageReference Include="Testcontainers.RabbitMq"/>
+        <PackageReference Include="Xunit.SkippableFact"/>
         <PackageReference Include="xunit"/>
         <PackageReference Include="xunit.runner.visualstudio">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -40,6 +50,7 @@
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.Amqp\LiteBus.Outbox.Dispatch.Amqp.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.InProcess\LiteBus.Outbox.Dispatch.InProcess.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.EntityFrameworkCore\LiteBus.Outbox.Storage.EntityFrameworkCore.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.Marten\LiteBus.Outbox.Storage.Marten.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.PostgreSql\LiteBus.Outbox.Storage.PostgreSql.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Saga.InboxIntegration\LiteBus.Saga.InboxIntegration.csproj"/>

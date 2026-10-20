@@ -1,8 +1,17 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace LiteBus.Transport.Abstractions;
 
 /// <summary>
 ///     Consumes transport messages from a destination with manual acknowledgement support.
 /// </summary>
+/// <remarks>
+///     Consumers hold single-subscription state for the active consume loop, so each subscription needs its own
+///     instance: transport modules register this interface as transient, and calling
+///     <see cref="StartAsync" /> twice on one instance throws <see cref="InvalidOperationException" />.
+/// </remarks>
 public interface IMessageConsumer : IAsyncDisposable
 {
     /// <summary>

@@ -4,6 +4,7 @@
 - **Name**: Mediation settings
 - **Maturity**: GA
 - **Summary**: Provides per-call routing, execution, and context item settings for command, query, and event mediation.
+- **Guide**: [The handler pipeline](../../concepts/handler-pipeline.md)
 
 ## What It Does
 
@@ -31,7 +32,7 @@ var settings = new EventMediationSettings
     {
         PriorityGroupsConcurrencyMode = ConcurrencyMode.Sequential,
         HandlersWithinSamePriorityConcurrencyMode = ConcurrencyMode.Parallel,
-        ParallelFaultMode = ParallelFaultMode.AggregateAll
+        FaultMode = HandlerFaultMode.ContinueAndAggregate
     }
 };
 
@@ -67,7 +68,7 @@ await eventMediator.PublishAsync(new OrderPlacedEvent(orderId), settings, cancel
 - Default routing accepts all handlers (`Tags` empty and predicate returns true).
 - Items flow into `AmbientExecutionContext.Current.Items` for the mediation call.
 - `ThrowIfNoHandlerFound` only applies to event publish.
-- `AutoRegisterUnregisteredMessageTypes` only applies to event publish requests.
+- `AutoRegisterUnregisteredMessageTypes` only applies to event publish requests. It defaults to `false`, is independent of `ThrowIfNoHandlerFound`, and registers a plain unregistered event type on first publish; it is for plain-object events, not a substitute for assembly registration.
 
 ## Non-Goals
 

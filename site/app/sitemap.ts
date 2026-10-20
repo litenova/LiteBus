@@ -1,9 +1,8 @@
 import type { MetadataRoute } from 'next';
 import { getSource } from '@/lib/source';
-import { siteUrl } from '@/lib/site';
+import { docsBasePath, siteUrl } from '@/lib/site';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const source = await getSource();
   const lastModified = new Date();
 
   const staticRoutes: MetadataRoute.Sitemap = [
@@ -21,11 +20,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
+  const source = await getSource();
+
   const docRoutes: MetadataRoute.Sitemap = source.getPages().map((page) => ({
     url: new URL(page.url, siteUrl).toString(),
     lastModified,
-    changeFrequency: 'weekly',
-    priority: page.url === '/docs' ? 0.9 : 0.7,
+    changeFrequency: 'weekly' as const,
+    priority: page.url === docsBasePath ? 0.9 : 0.7,
   }));
 
   return [...staticRoutes, ...docRoutes];

@@ -1,8 +1,10 @@
+using System;
 using Amazon;
 using Amazon.Runtime;
 using Amazon.SQS;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Transport.Abstractions;
+using LiteBus.Transport.AwsSqs.Exceptions;
 
 namespace LiteBus.Transport.AwsSqs;
 
@@ -30,6 +32,10 @@ public sealed class AwsSqsTransportModule : IModule
     /// <summary>
     ///     Validates SQS credentials, polling, visibility, and retry settings before module composition.
     /// </summary>
+    /// <remarks>
+    ///     Region and service URL are deliberately not required here: when both are unset, the AWS SDK resolves
+    ///     the region from environment variables, the shared configuration file, or instance metadata.
+    /// </remarks>
     /// <param name="options">The transport settings to validate.</param>
     private static void ValidateOptions(AwsSqsTransportOptions options)
     {
@@ -72,6 +78,9 @@ public sealed class AwsSqsTransportModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        // Runs first so a second transport module in the composition is refused with a message naming both modules.
+        TransportMetricsRegistration.RegisterIfNeeded(configuration, "sqs", GetType());
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(AwsSqsTransportOptions),
             _options));
@@ -95,13 +104,24 @@ public sealed class AwsSqsTransportModule : IModule
                     config.RegionEndpoint = RegionEndpoint.GetBySystemName(options.Region);
                 }
 
-                if (!string.IsNullOrWhiteSpace(options.AccessKey) && !string.IsNullOrWhiteSpace(options.SecretKey))
+                try
                 {
-                    var credentials = new BasicAWSCredentials(options.AccessKey, options.SecretKey);
-                    return new AmazonSQSClient(credentials, config);
-                }
+                    if (!string.IsNullOrWhiteSpace(options.AccessKey) && !string.IsNullOrWhiteSpace(options.SecretKey))
+                    {
+                        var credentials = new BasicAWSCredentials(options.AccessKey, options.SecretKey);
+                        return new AmazonSQSClient(credentials, config);
+                    }
 
-                return new AmazonSQSClient(config);
+                    return new AmazonSQSClient(config);
+                }
+                catch (AmazonClientException exception)
+                {
+                    throw new AwsSqsTransportConfigurationException(
+                        "The AWS SQS client could not be created from the configured options. When neither " +
+                        "ServiceUrl nor Region is set, the AWS SDK resolves the region from environment " +
+                        "variables, the shared configuration file, or instance metadata.",
+                        exception);
+                }
             },
             InstanceLifetime.Singleton));
 
@@ -112,13 +132,13 @@ public sealed class AwsSqsTransportModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ITransportPublisher),
-            typeof(SqsPublisher)));
+            typeof(SqsPublisher),
+            InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageConsumer),
             typeof(SqsConsumer)));
 
-        TransportMetricsRegistration.RegisterIfNeeded(configuration, "sqs");
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(AwsSqsConnectivityDiagnosticCheck),

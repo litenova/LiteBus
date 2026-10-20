@@ -137,7 +137,7 @@ public sealed class AwsSqsDispatchFailureIntegrationTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
-                registry.Modules.Register(new AwsSqsTransportModule(transportOptions));
+            registry.Modules.Register(new AwsSqsTransportModule(transportOptions));
             registry.AddMessaging(_ =>
             {
             });

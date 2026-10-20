@@ -21,10 +21,11 @@ else {
 
 New-Item -ItemType Directory -Force -Path $resolvedOutputDirectory | Out-Null
 
+# Test support packages opt in with <IsPackable>true</IsPackable>; tests/Directory.Build.props defaults it to false.
 $testingProjects = @(
-    "tests/LiteBus.Storage.Testing/LiteBus.Storage.Testing.csproj"
-    "tests/LiteBus.Transport.Testing/LiteBus.Transport.Testing.csproj"
-) | ForEach-Object { Get-Item -LiteralPath (Join-Path $repositoryRoot $_) }
+    Get-ChildItem -LiteralPath (Join-Path $repositoryRoot "tests") -Recurse -Filter "*.csproj" -File |
+        Where-Object { (Get-Content -LiteralPath $_.FullName -Raw) -match "<IsPackable>\s*true\s*</IsPackable>" }
+)
 
 $projects = @(
     Get-ChildItem -LiteralPath $sourceRoot -Recurse -Filter "*.csproj" -File

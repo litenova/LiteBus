@@ -9,7 +9,7 @@
 
 ## What It Does
 
-`AddInMemoryTransport()` registers `InMemoryTransportModule` at the root, and `UseInMemoryDispatch` registers `TransportInboxDispatchModule` as its inbox feature bridge. Messages flow through `System.Threading.Channels` to a logical destination name. This path is used heavily in integration tests to simulate remote dispatch and pair with InMemory ingress.
+`AddInMemoryTransport()` registers `InMemoryTransportModule` at the root, and `UseInMemoryDispatch` registers `TransportInboxDispatchModule` as its inbox feature bridge. Messages flow through `System.Threading.Channels` to a logical destination name. Integration tests use this path to simulate remote dispatch and pair it with InMemory ingress.
 
 ## Packages
 

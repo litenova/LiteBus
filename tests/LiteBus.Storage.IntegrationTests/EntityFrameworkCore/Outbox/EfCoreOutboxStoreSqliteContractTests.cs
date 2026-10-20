@@ -1,4 +1,5 @@
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore;
 using LiteBus.Storage.Testing;
 
 namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Outbox;
@@ -35,11 +36,11 @@ public sealed class EfCoreOutboxStoreSqliteContractTests : OutboxStoreContractTe
     /// <inheritdoc />
     protected override OutboxStoreContracts CreateStore()
     {
-        EfCoreSqliteTestInfrastructure.ResetAsync(_fixture.ConnectionString).GetAwaiter().GetResult();
+        EfCoreProviderTestInfrastructure.ResetOutboxTableAsync(EfCoreStorageProvider.Sqlite, _fixture.ConnectionString).GetAwaiter().GetResult();
         var store = new EfCoreOutboxStore(
             _ => Task.FromResult<IOutboxDbContext>(
-                EfCoreSqliteTestInfrastructure.CreateContext(_fixture.ConnectionString)),
-            EfCoreSqliteTestInfrastructure.StoreOptions);
+                EfCoreProviderTestInfrastructure.CreateOutboxContext(EfCoreStorageProvider.Sqlite, _fixture.ConnectionString)),
+            EfCoreProviderTestInfrastructure.OutboxStoreOptions(EfCoreStorageProvider.Sqlite));
 
         return new OutboxStoreContracts(store, store, store, store, store, store, store, store);
     }

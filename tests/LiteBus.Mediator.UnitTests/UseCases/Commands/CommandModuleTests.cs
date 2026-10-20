@@ -46,8 +46,10 @@ public sealed class CommandModuleTests : LiteBusTestBase
         commandResult.CorrelationId.Should().Be(command.CorrelationId);
         command.ExecutedTypes.Should().HaveCount(6);
 
-        command.ExecutedTypes[0].Should().Be<GlobalCommandPreHandler>();
-        command.ExecutedTypes[1].Should().Be<CreateProductCommandHandlerPreHandler>();
+        // The shortcut stage runs before the pre-handler stage, so the shortcut is consulted before the global
+        // pre-handler enriches a message it may be about to skip.
+        command.ExecutedTypes[0].Should().Be<CreateProductCommandShortcut>();
+        command.ExecutedTypes[1].Should().Be<GlobalCommandPreHandler>();
         command.ExecutedTypes[2].Should().Be<CreateProductCommandHandler>();
         command.ExecutedTypes[3].Should().Be<CreateProductCommandHandlerPostHandler1>();
         command.ExecutedTypes[4].Should().Be<CreateProductCommandHandlerPostHandler2>();
@@ -165,7 +167,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task mediating_a_command_that_is_aborted_in_pre_handler_goes_through_correct_handlers()
+    public async Task mediating_a_command_answered_by_a_shortcut_goes_through_correct_handlers()
     {
         // Arrange
         var serviceProvider = new ServiceCollection()
@@ -186,7 +188,7 @@ public sealed class CommandModuleTests : LiteBusTestBase
 
         var command = new CreateProductCommand
         {
-            AbortInPreHandler = true
+            AnswerFromShortcut = true
         };
 
         // Act
@@ -195,10 +197,10 @@ public sealed class CommandModuleTests : LiteBusTestBase
         // Assert
         commandResult.Should().NotBeNull();
         commandResult.CorrelationId.Should().Be(Guid.Empty);
-        command.ExecutedTypes.Should().HaveCount(2);
 
-        command.ExecutedTypes[0].Should().Be<GlobalCommandPreHandler>();
-        command.ExecutedTypes[1].Should().Be<CreateProductCommandHandlerPreHandler>();
+        // An answered command reaches nothing else: not the global pre-handler, not the handler, not a post-handler.
+        // Under the single pre-handler stage of earlier versions the global pre-handler would have run first.
+        command.ExecutedTypes.Should().ContainSingle().Which.Should().Be<CreateProductCommandShortcut>();
     }
 
     [Fact]

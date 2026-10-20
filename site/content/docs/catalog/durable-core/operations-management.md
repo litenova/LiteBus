@@ -1,9 +1,11 @@
 # Operations and Management
 
-- **ID**: `durable-core.operations-management`
-- **Name**: Operations and Management
-- **Maturity**: GA
-- **Summary**: Provides typed inbox and outbox management, retention, processor control, diagnostics, and optional ASP.NET Core routes.
+**ID:** `durable-core.operations-management`
+**Maturity:** GA
+
+## Summary
+
+Provides typed inbox and outbox management, retention, processor control, diagnostics, and optional ASP.NET Core routes.
 
 ## What It Does
 
@@ -21,11 +23,22 @@ Processor controls are separate contracts. `IInboxProcessorControl` and `IOutbox
 | Requeue dead letters | `RequeueDeadLettersAsync` | `RequeueDeadLettersAsync` | Reads and requeues in pages of 200 |
 | Purge | `PurgeAsync` | `PurgeAsync` | Requires confirmation for an unrestricted filter |
 | Status counts | `GetStatusCountsAsync` | `GetStatusCountsAsync` | Groups current rows by durable status |
+| Failure summary | - | `GetFailureSummaryAsync` | One row per failing contract with per-status counts and the latest error |
 | Schema information | `GetSchemaInfoAsync` | `GetSchemaInfoAsync` | Returns logical or physical schema metadata |
 | Retention status | `GetRetentionStatusAsync` | `GetRetentionStatusAsync` | Returns the latest run outcome |
 | Run retention | `RunRetentionPurgeAsync` | `RunRetentionPurgeAsync` | Deletes terminal rows older than the configured retention period |
 
 Query and purge APIs accept `InboxMessageFilter` or `OutboxMessageFilter`. Filters can select identifiers, statuses, contract names, trace fields, tenants, and creation-time bounds. Page requests use opaque keyset cursors returned by the previous page.
+`IOutboxManager.GetFailureSummaryAsync` returns one row per contract name and version that has `Failed` or `DeadLettered` messages, ordered by the latest attempt time. Health probes report unhealthy when any contract has `DeadLetteredCount > 0` or a `FailedCount` whose `LastFailedAt` is recent.
+
+```csharp
+var summary = await outboxManager.GetFailureSummaryAsync(cancellationToken).ConfigureAwait(false);
+var unhealthy = summary.Any(row =>
+    row.DeadLetteredCount > 0 ||
+    (row.FailedCount > 0 && row.LastFailedAt >= DateTimeOffset.UtcNow.AddMinutes(-15)));
+
+return unhealthy ? HealthCheckResult.Unhealthy("Outbox failures.") : HealthCheckResult.Healthy();
+```
 
 ## Processor Control
 
@@ -38,7 +51,7 @@ Pause waits for the active pass before blocking new leases. Resume opens the pro
 
 ## Retention
 
-Inbox retention deletes completed rows. Outbox retention deletes published rows. The corresponding cleanup host options select the retention period and background loop interval. A null or non-positive retention period disables deletion while leaving status inspection available.
+Inbox retention deletes completed rows. Outbox retention deletes published rows. The corresponding cleanup host options select the retention period and background loop interval. A null retention period disables deletion while leaving status inspection available. A zero or negative period fails host validation.
 
 Each manager records the latest retention run timestamp, deleted-row count, and failure message through its retention coordinator. Manual and hosted retention use the same coordinator state.
 
@@ -141,7 +154,7 @@ Management endpoints do not define a separate meter. ASP.NET Core request teleme
 
 ## Deep Docs
 
-- [Operations and Management](../../operations/README.md)
+- [Operations and Management](../../operations/management-endpoints.md)
 - [ASP.NET Core Management Endpoints](../hosting/aspnet-management-endpoints.md)
 - [Diagnostics and Health](../../operations/diagnostics-and-health.md)
 - [Hosted Services](../../architecture/hosted-services.md)

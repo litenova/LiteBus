@@ -4,6 +4,7 @@
 - **Name**: Events
 - **Maturity**: GA
 - **Summary**: Broadcasts in-process events to zero or many handlers with configurable routing and concurrency.
+- **Guide**: [Event module](../../concepts/events.md)
 
 ## What It Does
 
@@ -54,7 +55,7 @@ await eventMediator.PublishAsync(new ProductCreatedEvent(Guid.NewGuid()), cancel
 - Event publish accepts zero handlers unless `ThrowIfNoHandlerFound = true`.
 - Handler ordering is deterministic only in sequential modes.
 - `ArgumentNullException` is thrown for `null` event arguments.
-- Parallel failure behavior follows `ParallelFaultMode` (`PropagateFirst` or `AggregateAll`).
+- Failure behavior follows `HandlerFaultMode` (`PropagateFirst` or `ContinueAndAggregate`), for sequential and parallel execution alike.
 
 ## Non-Goals
 
@@ -85,7 +86,7 @@ Operational alternatives:
 
 ### Untested
 
-- Load-heavy parallel event publish with many priority groups and `AggregateAll`.
+- Load-heavy parallel event publish with many priority groups and `ContinueAndAggregate`.
 - Plain event auto-registration across very large assemblies.
 
 ### Out-of-Scope

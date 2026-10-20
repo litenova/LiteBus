@@ -18,6 +18,7 @@ Applications own state POCOs and completion rules; LiteBus does not generate sta
 | Surface | Package | Role |
 | --- | --- | --- |
 | `SagaModuleBuilder.DefineState<TState>(...)` | `LiteBus.Saga` | Register stable saga definition id to CLR state type |
+| `SagaModuleBuilder.RegisterState<TState>(...)` | `LiteBus.Saga` | Alias of `DefineState` for one stable saga definition id |
 | `SagaModuleBuilder.MapContract(...)` | `LiteBus.Saga` | Map one contract name to definition id |
 | `SagaModuleBuilder.MapState<TState>(...)` | `LiteBus.Saga` | Shortcut for single-contract workflow |
 | `ISagaStateTypeRegistry.RegisterStateType<TState>(...)` | `LiteBus.Saga.Abstractions` | Runtime definition-to-state registration API |

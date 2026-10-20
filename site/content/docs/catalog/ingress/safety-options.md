@@ -56,7 +56,7 @@ Each ingress module calls `Safety.Validate()` during composition. Negative messa
 | `KafkaInboxIngressOptions` | yes | none; the consume loop reads one record at a time | no |
 | `AwsSqsInboxIngressOptions` | yes | `ReceiveBatchSize` | no |
 | `AzureServiceBusInboxIngressOptions` | yes | `PrefetchCount`, `MaxConcurrentCalls` | no |
-| `InMemoryInboxIngressOptions` | yes | none; capacity belongs to the transport module | no |
+| `InMemoryInboxIngressOptions` | yes | none; the adapter runs one handler at a time | no |
 
 ## Public Surface
 

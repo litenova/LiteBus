@@ -46,7 +46,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
 
         if (_isFrozen)
         {
-            throw new LiteBusConfigurationException(
+            throw new ModuleCompositionException(
                 "Cannot register modules after BuildOrder() has been called. " +
                 "Complete all module registration before building the module graph.");
         }
@@ -76,7 +76,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
     /// <param name="stagedModules">The modules staged by the current registration call.</param>
     /// <param name="stagedTypes">The module types staged by the current registration call.</param>
     /// <param name="stagedDependencies">Composite ordering edges staged by the current registration call.</param>
-    /// <exception cref="LiteBusConfigurationException">Thrown when a module type is already registered or staged.</exception>
+    /// <exception cref="ModuleCompositionException">Thrown when a module type is already registered or staged.</exception>
     private void StageModule(
         IModule module,
         List<IModule> stagedModules,
@@ -89,7 +89,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
 
         if (_registeredTypes.Contains(moduleType) || !stagedTypes.Add(moduleType))
         {
-            throw new LiteBusConfigurationException(
+            throw new ModuleCompositionException(
                 $"Module '{moduleType.FullName ?? moduleType.Name}' is already registered. " +
                 "Remove the duplicate registration or consolidate configuration into a single module instance. " +
                 "Type-based module identity permits one module instance of each concrete type.");
@@ -101,7 +101,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
         {
             if (!Enum.IsDefined(composite.BuildOrder))
             {
-                throw new LiteBusConfigurationException(
+                throw new ModuleCompositionException(
                     $"Composite module '{moduleType.FullName ?? moduleType.Name}' returned an invalid build order.");
             }
 
@@ -176,7 +176,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
     /// </summary>
     /// <param name="descriptors">The module descriptors to sort.</param>
     /// <returns>Module descriptors in dependency order (dependencies first).</returns>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="ModuleCompositionException">
     ///     Thrown when circular dependencies are detected or when a dependency is missing.
     /// </exception>
     private static ReadOnlyCollection<ModuleDescriptor> TopologicalSort(
@@ -205,7 +205,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
     /// <param name="visiting">Set of module types currently being processed (for cycle detection).</param>
     /// <param name="visitingPath">Ordered module path currently being processed for cycle diagnostics.</param>
     /// <param name="result">The result list where modules are added in dependency order.</param>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="ModuleCompositionException">
     ///     Thrown when a circular dependency is detected or when a required dependency is missing.
     /// </exception>
     private static void Visit(
@@ -229,7 +229,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
                 .Append(moduleType)
                 .Select(static type => type.Name);
 
-            throw new LiteBusConfigurationException(
+            throw new ModuleCompositionException(
                 $"Circular dependency detected: {string.Join(" -> ", cycle)}. " +
                 "Check your IRequires<T> declarations for cycles.");
         }
@@ -243,7 +243,7 @@ internal sealed class ModuleRegistry : IModuleRegistry
         {
             if (!descriptorsByType.ContainsKey(dependencyType))
             {
-                throw new LiteBusConfigurationException(
+                throw new ModuleCompositionException(
                     $"Module '{moduleType.Name}' requires '{dependencyType.Name}', " +
                     "but it is not registered. Ensure all required modules are added to the module registry.");
             }

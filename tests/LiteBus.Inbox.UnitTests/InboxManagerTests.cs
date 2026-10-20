@@ -1,5 +1,6 @@
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Inbox.Storage.InMemory;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Inbox.UnitTests;
 
@@ -8,6 +9,16 @@ namespace LiteBus.Inbox.UnitTests;
 /// </summary>
 public sealed class InboxManagerTests
 {
+    /// <summary>
+    ///     Builds a failure for a transition under test from error text alone.
+    /// </summary>
+    /// <param name="error">The error text to persist.</param>
+    /// <returns>A failure stamped with the current time.</returns>
+    private static MessageFailure Failure(string error)
+    {
+        return MessageFailure.FromError(error, DateTimeOffset.UtcNow);
+    }
+
     private static readonly DateTimeOffset BaseTime = new(2026, 6, 6, 10, 0, 0, TimeSpan.Zero);
 
     /// <summary>
@@ -120,6 +131,6 @@ public sealed class InboxManagerTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.PersistAsync([leased[0].AsDeadLettered("exhausted")]).ConfigureAwait(false);
+        await store.PersistAsync([leased[0].AsDeadLettered(Failure("exhausted"))]).ConfigureAwait(false);
     }
 }

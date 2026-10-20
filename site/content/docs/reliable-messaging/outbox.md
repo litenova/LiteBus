@@ -1,8 +1,12 @@
 # Outbox
 
-The outbox stores messages for publication after a state change commits, so a message is never published for a change that rolled back and never lost for a change that committed. This page is the contract and registration reference for the neutral outbox core. Read [Reliable Messaging](README.md) first.
+The outbox stores events for publication after a state change commits, so publication is atomic with the committed state change: a rolled-back change publishes nothing, and a committed change keeps its stored event for later publication. This page is the contract and registration reference for the neutral outbox core.
 
-If your command handler must enqueue events in the **same database transaction** as domain persistence, read [Transactional messaging writes](transactional-writes.md) before choosing between `IOutbox` and `ITransactionalOutbox`.
+> **This page is for** developers who publish events that must survive a process crash.
+>
+> **After reading it** you can register contracts, storage, dispatch, and the processor for reliable publication. For the durable overview, start with [Reliable Messaging](README.md).
+
+If your command handler must enqueue events in the same database transaction as domain persistence, read [Transactional messaging writes](transactional-writes.md) before choosing between `IOutbox` and `ITransactionalOutbox`.
 
 ## Core Module
 
@@ -35,12 +39,71 @@ var receipt = await outbox.EnqueueAsync(
             Target = new PublicationTarget.Topic("orders"),
             Trace = new MessageTrace.Correlated(correlationId),
         }),
-    cancellationToken);
+    cancellationToken).ConfigureAwait(false);
 ```
 
 `receipt.Outcome` is `Enqueued` when the store inserted a row and `AlreadyEnqueued` when a duplicate message ID or tenant-scoped idempotency key resolved to an existing row. The receipt confirms storage, not broker publication.
 
+Under `IdempotencyConflictMode.Strict`, an identical replay still returns the existing row; only a conflicting submission whose id, contract, payload, topic, keys, correlation, causation, or tenant differs throws `IdempotencyConflictException`.
+
 Register each stored message type in `IMessageContractRegistry` with a stable name and version, or apply `[MessageContract]` and call `RegisterFromAssembly` during module configuration.
+
+### Item Factories
+
+`OutboxEnqueueItem<TEvent>` carries static factories for common metadata shapes. Each factory starts from `OutboxEnqueueMetadata.Immediate` and sets one concern:
+
+| Factory | Sets |
+| --- | --- |
+| `From(message)` | Default metadata |
+| `From(message, metadata)` | Caller-supplied metadata |
+| `ScheduledAt(message, visibleAfter)` | `MessageVisibility.At`: lease after an absolute UTC timestamp |
+| `ScheduledAfter(message, delay)` | `MessageVisibility.After`: lease after a relative delay |
+| `WithIdempotency(message, key)` | `Idempotency.Keyed`: insert-time deduplication key |
+| `WithIdentity(message, messageId)` | `MessageIdentity.Supplied`: caller-owned message id |
+| `WithTopic(message, topic)` | `PublicationTarget.Topic`: explicit publication topic |
+
+```csharp
+var item = OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.ScheduledAfter(
+    new OrderSubmittedIntegrationEvent { OrderId = orderId },
+    TimeSpan.FromMinutes(30));
+
+var receipt = await outbox.EnqueueAsync(item, cancellationToken).ConfigureAwait(false);
+```
+
+Compose concerns with `with` on the metadata record when one factory is not enough, as the lead example shows.
+
+### Publication Targets
+
+`OutboxEnqueueMetadata.Target` selects how dispatchers resolve the publication destination:
+
+| Variant | Meaning |
+| --- | --- |
+| `PublicationTarget.ContractDefault` | Derive the transport target from the stored contract name and module configuration |
+| `PublicationTarget.Topic(name)` | Explicit topic or channel stored with the envelope |
+| `PublicationTarget.Exchange(name)` | Explicit AMQP exchange name stored with the envelope |
+| `PublicationTarget.Queue(name)` | Explicit AMQP queue name stored with the envelope |
+
+All three explicit variants persist to the envelope topic column at enqueue time; dispatchers resolve the transport destination from that stored hint. `Exchange` and `Queue` name AMQP concepts, so prefer `Topic` on non-AMQP transports. Broker-specific destination mapping lives in the dispatch guides under [Integrations](../integrations/amqp.md).
+
+### Batch Writers
+
+`EnqueueBatchAsync` enqueues heterogeneous events in one store round trip. Build each entry with the untyped `OutboxEnqueueItem`, which carries an explicit runtime type for contract lookup. Receipts return in the same order as the input items.
+
+```csharp
+IReadOnlyList<OutboxEnqueueItem> items =
+[
+    OutboxEnqueueItem.From(
+        new OrderSubmittedIntegrationEvent { OrderId = orderId },
+        typeof(OrderSubmittedIntegrationEvent)),
+    OutboxEnqueueItem.From(
+        new CustomerNotifiedIntegrationEvent { CustomerId = customerId },
+        typeof(CustomerNotifiedIntegrationEvent)),
+];
+
+IReadOnlyList<OutboxReceipt> receipts = await outbox.EnqueueBatchAsync(items, cancellationToken).ConfigureAwait(false);
+```
+
+`ITransactionalOutbox` and `ITransactionalOutbox<TContext>` expose the same `EnqueueBatchAsync` shape; on those paths the batch stages inside the caller transaction and commits atomically with it. See [Transactional messaging writes](transactional-writes.md).
 
 ## Registration (Nested Builder Only)
 
@@ -64,9 +127,69 @@ services.AddLiteBus(builder =>
 });
 ```
 
+## Processor Options
+
+`OutboxProcessorOptions` inherits the shared durable settings. The processor reads them when the processor instance is created.
+
+| Option | Default | Role |
+| --- | --- | --- |
+| `BatchSize` | `20` | Messages leased per processing pass; must be greater than zero |
+| `LeaseDuration` | 1 minute | How long a lease lasts before another worker may reclaim the row |
+| `DispatcherConcurrency` | `1` | Parallel dispatch workers per pass; keep `1` when arrival order matters |
+| `LeaseHeartbeatInterval` | 15 seconds | Lease renewal cadence during dispatch; zero disables renewal |
+| `Retry` | `new RetryOptions()` | Retry policy; see [Retry and Dead Letter](#retry-and-dead-letter) |
+| `LeaseOwner` | Generated | Owner written on leased rows; defaults to machine name, process id, and a random suffix |
+| `TenantId` | `null` | When set, leases only that tenant partition; `null` leases all tenants |
+| `HonorShutdownTokenOnPersist` | `false` | Whether terminal persist observes the shutdown token |
+| `HookFailurePolicy` | Dispatcher default | `null` keeps the dispatcher recommendation; an explicit value overrides it |
+
+`LeaseHeartbeatInterval` must be less than or equal to half of `LeaseDuration`; processor construction throws `ArgumentOutOfRangeException` otherwise. Larger batches reduce store round trips but hold more leases during dispatch. Longer leases tolerate slow handlers but delay recovery after a worker crash. See [Ordering and Concurrency Guarantees](ordering.md) before raising `DispatcherConcurrency`.
+
+## Processor Host Options
+
+`EnableOutboxProcessor` registers the background loop on the generic host. Its options control lifecycle and polling only:
+
+| Option | Default | Role |
+| --- | --- | --- |
+| `Enabled` | `true` | Whether the processor loop runs |
+| `PollInterval` | 1 second | Delay between poll cycles when the previous batch was empty or partial |
+| `StartupDelay` | Zero | Delay after host start before the first poll cycle |
+| `UseAdaptivePolling` | `true` | Skip the poll delay after a full batch |
+
+```csharp
+outbox.EnableOutboxProcessor(host =>
+{
+    host.StartupDelay = TimeSpan.FromSeconds(10);
+    host.UseAdaptivePolling = false;
+    host.PollInterval = TimeSpan.FromSeconds(5);
+});
+```
+
+See [Hosted services](../architecture/hosted-services.md) for how processor loops bind to the generic host.
+
+## Retention Cleanup
+
+Published rows accumulate until deleted. `EnableCleanup` registers a background loop that deletes published rows older than the retention period:
+
+```csharp
+outbox.EnableCleanup(cleanup =>
+{
+    cleanup.Interval = TimeSpan.FromHours(6);
+    cleanup.Retention = TimeSpan.FromDays(7);
+});
+```
+
+| Option | Default | Role |
+| --- | --- | --- |
+| `Enabled` | `true` | Whether the cleanup loop runs |
+| `Interval` | 1 hour | Delay between cleanup passes; must be greater than zero |
+| `Retention` | `null` | How long published rows are kept; `null` disables deletion |
+
+When `Retention` is `null`, the loop exits without deleting rows, so calling `EnableCleanup` without setting `Retention` retains everything. `IOutboxManager.RunRetentionPurgeAsync` runs the same purge on demand and returns the deleted row count; unlike the inbox manager, it throws `OutboxManagementException` when retention is unset. `IOutboxManager.GetRetentionStatusAsync` reports the configured policy and the most recent cleanup outcome.
+
 ## Processing Versus Publishing
 
-Inbox and outbox use asymmetric naming on purpose. Inbox **acceptance** (`AcceptAsync`) only stores a command; **processing** happens later in `PipelinedInboxProcessor`. Outbox **enqueue** (`EnqueueAsync`) only stores an event; **publication** happens later in `PipelinedOutboxProcessor` when a dispatcher calls `IEventMediator` or an external broker. Do not call `PublishAsync` directly for cross-process notifications that must commit with application state.
+Inbox and outbox use asymmetric naming on purpose. Inbox acceptance (`AcceptAsync`) only stores a command, and processing happens later in `PipelinedInboxProcessor`. Outbox enqueue (`EnqueueAsync`) only stores an event, and publication happens later in `PipelinedOutboxProcessor` when a dispatcher calls `IEventMediator` or an external broker. Do not call `PublishAsync` directly for cross-process notifications that must commit with application state.
 
 ## Dispatch (`Use*` Extensions)
 
@@ -81,6 +204,24 @@ Inbox and outbox use asymmetric naming on purpose. Inbox **acceptance** (`Accept
 
 Register exactly one dispatcher per outbox module.
 
+## Tenant Routing and Contract Resolution
+
+Set an `ITenantRoutingStrategy` on the transport dispatcher options to compute the transport route from tenant metadata before topic and route delegate fallbacks. The strategy is a transport concern, so it lives on `TransportOutboxDispatcherOptions` in `LiteBus.Outbox.Dispatch` rather than on the outbox builder:
+
+```csharp
+outbox.UseAmqpDispatch(options => options.TenantRoutingStrategy = new TenantRouteStrategy());
+```
+
+The strategy receives the envelope tenant id, contract name, and topic hint, and its return value becomes the transport publish route. Without a strategy, the dispatcher uses `ResolveRoute` when set, otherwise the envelope topic when present, otherwise the contract name.
+
+Register an `IMessageContractResolver` to select the CLR type used for contract lookup during enqueue instead of the runtime instance type:
+
+```csharp
+outbox.UseContractResolver(new DeclaredTypeMessageContractResolver());
+```
+
+When no resolver is registered, writers use the runtime message instance type for contract lookup.
+
 ## Storage (`Use*` Extensions)
 
 | Extension | Package |
@@ -91,7 +232,7 @@ Register exactly one dispatcher per outbox module.
 
 ### In-Memory Store
 
-Process-local store for unit tests and local development. Thread-safe within one process. Register a dispatcher before `EnableOutboxProcessor()`.
+Process-local store for unit tests and local development. Thread-safe within one process. Register storage and a dispatcher before `EnableOutboxProcessor()`; module build fails when the processor is enabled without a dispatcher.
 
 ### PostgreSQL Store
 
@@ -110,7 +251,6 @@ builder.AddOutbox(outbox =>
     outbox.UsePostgreSqlStorage(pg =>
     {
         pg.UseDataSource(dataSource);
-        pg.EnsureSchemaCreationOnStartup(); // development only
     });
 
     outbox.UseAmqpDispatch(o => o.DefaultDestination = "orders.events");
@@ -119,29 +259,31 @@ builder.AddOutbox(outbox =>
 });
 ```
 
-PostgreSQL outbox schema version **1** stores opaque payload text and includes `lease_generation`. The schema manager requires the complete current shape. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md) for creation and validation.
+`EnsureSchemaCreationOnStartup` defaults to `true`, so a plain `UsePostgreSqlStorage` call creates schema at startup. Migration-owned production deployments must set it to `false` via `UseOptions` and keep `ValidateSchemaCreationOnStartup` (`true`) so startup validates instead of creating. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md) for creation and validation.
+
+PostgreSQL outbox schema version **1** stores opaque payload text and includes `lease_generation`. The schema manager requires the complete current shape.
 
 Pass the same `NpgsqlDataSource` instance to inbox and outbox when both use one database. See [Transactional messaging writes](transactional-writes.md).
 
 ### Transactional Writes (Domain + Outbox)
 
-Default `IOutbox.EnqueueAsync` commits immediately through the singleton store. It does **not** join an open domain transaction.
+Default `IOutbox.EnqueueAsync` commits immediately through the singleton store. It does not join an open domain transaction.
 
 | Situation | API |
 | --- | --- |
 | Ingress, tools, fire-and-forget enqueue | `IOutbox` |
-| Command handler + EF `DbContext` | `ITransactionalOutbox<TContext>`: [Outbox EF Core storage](../integrations/outbox-ef-core-storage.md) |
-| Command handler + PostgreSQL (Marten, Dapper, ADO.NET) | `ITransactionalOutbox`: [Transactional messaging writes](transactional-writes.md) |
+| Command handler plus EF `DbContext` | `ITransactionalOutbox<TContext>`: [Outbox EF Core storage](../integrations/outbox-ef-core-storage.md) |
+| Command handler plus PostgreSQL (Marten, Dapper, ADO.NET) | `ITransactionalOutbox`: [Transactional messaging writes](transactional-writes.md) |
 
-EF registration, interceptor setup, and duplicate-idempotency behavior on the transactional path are documented in [Outbox Entity Framework Core Storage](../integrations/outbox-ef-core-storage.md).
+EF registration, interceptor setup, and duplicate-idempotency behavior on the transactional path live in [Outbox Entity Framework Core Storage](../integrations/outbox-ef-core-storage.md).
 
 ## Delivery Semantics
 
-Outbox publication is **at-least-once**. `PipelinedOutboxProcessor` dispatches through `IOutboxDispatcher` before it persists terminal published state. A crash or `PersistAsync` failure after a successful broker publish leaves the row leased or pending and the processor retries, which can duplicate publication downstream. Consumers must deduplicate or handle retries idempotently (for example with `MessageId`, `IdempotencyKey`, or broker deduplication headers).
+Outbox publication is at-least-once. `PipelinedOutboxProcessor` dispatches through `IOutboxDispatcher` before it persists terminal published state. A crash or `PersistAsync` failure after a successful broker publish leaves the row leased or pending and the processor retries, which can duplicate publication downstream. Consumers must deduplicate or handle retries idempotently (for example with `MessageId`, `IdempotencyKey`, or broker deduplication headers).
 
 LiteBus does not implement a two-phase publish acknowledgment in which a broker acknowledgement token is persisted before terminal state. Treat external side effects as idempotent, or wrap dispatch in a custom `IOutboxDispatcher` that records an outbox-side acknowledgement before returning success.
 
-The integration test `ProcessPendingAsync_WhenPersistSkippedAfterPublish_ShouldRepublishOnRetry` in `LiteBus.Outbox.Dispatch.InMemory.IntegrationTests` demonstrates the crash window: a simulated persist skip after transport publish causes a second publish when the lease is reclaimed.
+A crash between broker publish and terminal persist therefore re-publishes on retry (the `tests/LiteBus.Durable.IntegrationTests/Dispatch/Outbox/InMemory` suite covers this path).
 
 `HonorShutdownTokenOnPersist` on `OutboxProcessorOptions` mirrors the inbox option (default `false` uses `CancellationToken.None` on terminal persist).
 
@@ -165,6 +307,28 @@ The integration test `ProcessPendingAsync_WhenPersistSkippedAfterPublish_ShouldR
 | `IOutboxRetentionStore` | Cleanup services | Delete published messages past retention |
 | `IOutboxDiagnosticsStore` | Operators | Status counts |
 
+## In-Process Dispatch
+
+`UseInProcessDispatch` replays stored events into the local event pipeline instead of a broker.
+
+```csharp
+outbox.UseInProcessDispatch();
+```
+
+A dispatched message with no registered handler fails the attempt by default, so it retries and eventually dead-letters rather than being marked `Published`. An immediate `PublishAsync` treats zero subscribers as a silent no-op, which is defensible when the caller can see there are none. A durable dispatch has no such caller, so the two axes deliberately disagree.
+
+The default fails the attempt when no handler is registered: a durable dispatch with no subscriber would otherwise mark the row `Published` without effect. With `RequireHandler = false`, if the assembly holding the handlers is never scanned by `AddEvents`, every outbox message is leased, dispatched, and marked `Published` without leaving the process, and the backlog reads zero throughout.
+
+```csharp
+// Only when publishing to zero handlers is a state the application deliberately allows.
+outbox.UseInProcessDispatch(dispatch => dispatch.RequireHandler = false);
+```
+
+| Option | Default | Behavior |
+| --- | --- | --- |
+| `RequireHandler` | `true` | A message with no handler fails the dispatch attempt, retries, and dead-letters |
+| `RequireHandler` | `false` | A message with no handler completes and is marked `Published` |
+
 ## Retry and Dead Letter
 
 ```csharp
@@ -183,16 +347,63 @@ outbox.UseProcessorOptions(new OutboxProcessorOptions
 });
 ```
 
+`RetryOptions` defaults apply when no retry policy is set:
+
+| Option | Default | Role |
+| --- | --- | --- |
+| `MaxAttempts` | `5` | Dispatch attempts before the row moves to `DeadLettered`; must be greater than zero |
+| `InitialDelay` | 5 seconds | Delay before the first retry |
+| `MaxDelay` | 5 minutes | Cap on the calculated delay for `Fixed` and `Exponential` backoff |
+| `Backoff` | `Exponential` | `Fixed`, `Exponential`, or `Schedule` |
+| `UseJitter` | `true` | Applies a random +-20% factor to the calculated delay |
+
+With the defaults, the four retry delays before jitter are 5, 10, 20, and 40 seconds: each step doubles `InitialDelay` and the 5 minute cap never binds. Jitter multiplies each delay by a factor between 0.8 and 1.2 and the result stays bounded by `MaxDelay`.
+
 `Retry.MaxAttempts` counts dispatch attempts recorded on the leased envelope. Requeue operations through `IOutboxManager.RequeueAsync` return `RequeueResult { Requested, Requeued }`.
 
-After-dispatch hook failures follow `HookFailurePolicy` on `OutboxProcessorOptions`:
+### Explicit Retry Schedules
+
+`RetryBackoff.Fixed` and `RetryBackoff.Exponential` derive every delay from `InitialDelay` under the `MaxDelay` cap. That cannot express a window that starts inside a minute and still reaches days. Exponential from one minute reaches roughly four hours by the ninth attempt. Stretching the tail to a week also pushes the first few retries hours apart.
+
+`RetryBackoff.Schedule` takes the ladder directly:
+
+```csharp
+Retry = new RetryOptions
+{
+    MaxAttempts = 8,
+    Backoff = RetryBackoff.Schedule,
+    Delays =
+    [
+        TimeSpan.FromMinutes(1),
+        TimeSpan.FromMinutes(5),
+        TimeSpan.FromMinutes(30),
+        TimeSpan.FromHours(2),
+        TimeSpan.FromHours(8),
+        TimeSpan.FromDays(1),
+        TimeSpan.FromDays(3),
+        TimeSpan.FromDays(7)
+    ]
+}
+```
+
+| Rule | Behavior |
+| --- | --- |
+| Attempt past the end of the ladder | Repeats the last entry rather than failing or wrapping |
+| `MaxDelay` | Does not clamp ladder entries; the ladder is the policy |
+| `UseJitter` | Still applies, bounded by the ladder entry rather than by `MaxDelay` |
+| Empty `Delays` with `Backoff = Schedule` | Refused at composition, not at the first failure |
+| `Delays` with any other backoff | Ignored |
+
+`Delays` is validated when the module builds. A misconfigured ladder fails at boot rather than on the first failure.
+
+After-dispatch hook failures follow `HookFailurePolicy` on `OutboxProcessorOptions`. The property defaults to `null`, which keeps the dispatcher recommendation; set an explicit value to override it. Registration order does not matter: a batch-only `UseProcessorOptions` call keeps the transport default.
 
 | Dispatcher | Default `HookFailurePolicy` | Behavior after successful publish |
 | --- | --- | --- |
 | Transport (`UseAmqpDispatch`, `UseInMemoryDispatch`, and siblings) | `CompleteDespiteHookFailure` | Logs the hook error and persists published state without re-publishing |
 | In-process (`UseInProcessDispatch`) | `DeadLetter` | Moves the row to dead letter without re-publishing |
 
-Set `HookFailurePolicy = ProcessorHookFailurePolicy.DeadLetter` on transport dispatchers when hook side effects must block terminal completion. Set `HookFailurePolicy = ProcessorHookFailurePolicy.CompleteDespiteHookFailure` on in-process dispatch when hook persistence should not undo a successful handler publication. Call `UseProcessorOptions` after dispatcher registration to override the dispatcher default.
+Set `HookFailurePolicy = ProcessorHookFailurePolicy.DeadLetter` on transport dispatchers when hook side effects must block terminal completion. Overriding the transport default dead-letters a message the broker already accepted. The message is re-leased after replay and published a second time. Set `HookFailurePolicy = ProcessorHookFailurePolicy.CompleteDespiteHookFailure` on in-process dispatch when hook persistence should not undo a successful handler publication.
 
 Transport dispatchers (`UseAmqpDispatch`, `UseAwsSqsDispatch`, and siblings) accept `ValidatePayloadBeforeDispatch` on their options. When `false` (default), invalid JSON is not deserialized before publish; when `true`, deserialization runs before the transport call so corrupt payloads fail fast without broker side effects.
 
@@ -200,6 +411,7 @@ Batch enqueue serializes items in parallel inside `OutboxEnvelopeFactory.CreateB
 
 ## Next
 
-- Atomic domain + outbox: [Transactional messaging writes](transactional-writes.md)
-- Domain events: [Domain events and unit of work](../concepts/domain-events-and-unit-of-work.md)
+- Registration to processed message: [Durable Messaging Walkthrough](walkthrough.md)
+- Atomic domain plus outbox: [Transactional messaging writes](transactional-writes.md)
+- Domain events: [Domain events and unit of work](domain-events-and-unit-of-work.md)
 - Custom storage: [Custom stores and dispatchers](../extending/custom-stores-and-dispatchers.md)

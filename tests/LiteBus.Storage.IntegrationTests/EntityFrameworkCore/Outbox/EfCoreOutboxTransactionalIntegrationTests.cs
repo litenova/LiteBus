@@ -26,80 +26,83 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
     public EfCoreOutboxTransactionalIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms a rolled-back transaction removes both domain and outbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task UseExistingDbContext_ShouldRollbackDomainAndOutboxTogether()
     {
         var (storeOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(true);
         var orderId = Guid.NewGuid();
         var envelope = CreateEnvelope();
 
-        await using (var context = CreateTransactionalContext(storeOptions, ordersTableName))
+        var context = CreateTransactionalContext(storeOptions, ordersTableName);
+        await using (context.ConfigureAwait(false))
         {
             var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), storeOptions);
             var transactionalStore = store.UseExistingDbContext(context);
 
-             var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(true);
-             await using (transaction.ConfigureAwait(false))
-             {
-            context.Orders.Add(new DomainOrderEntity { OrderId = orderId, Amount = 42m });
-            await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
-            await context.SaveChangesAsync().ConfigureAwait(true);
-            await transaction.RollbackAsync().ConfigureAwait(true);
+            var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(true);
+            await using (transaction.ConfigureAwait(false))
+            {
+                context.Orders.Add(new DomainOrderEntity { OrderId = orderId, Amount = 42m });
+                await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
+                await context.SaveChangesAsync().ConfigureAwait(true);
+                await transaction.RollbackAsync().ConfigureAwait(true);
             }
         }
 
-         var verificationContext = CreateTransactionalContext(storeOptions, ordersTableName);
-         await using (verificationContext.ConfigureAwait(false))
-         {
+        var verificationContext = CreateTransactionalContext(storeOptions, ordersTableName);
+        await using (verificationContext.ConfigureAwait(false))
+        {
 
-        (await verificationContext.Orders.CountAsync(order => order.OrderId == orderId).ConfigureAwait(true)).Should().Be(0);
+            (await verificationContext.Orders.CountAsync(order => order.OrderId == orderId).ConfigureAwait(true)).Should().Be(0);
 
-        (await verificationContext.OutboxMessages.CountAsync(message => message.Id == envelope.Id).ConfigureAwait(true)).Should().Be(0);
+            (await verificationContext.OutboxMessages.CountAsync(message => message.Id == envelope.Id).ConfigureAwait(true)).Should().Be(0);
         }
     }
 
     /// <summary>
     ///     Confirms a committed transaction persists both domain and outbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task UseExistingDbContext_ShouldCommitDomainAndOutboxTogether()
     {
         var (storeOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(true);
         var orderId = Guid.NewGuid();
         var envelope = CreateEnvelope();
 
-        await using (var context = CreateTransactionalContext(storeOptions, ordersTableName))
+        var context = CreateTransactionalContext(storeOptions, ordersTableName);
+        await using (context.ConfigureAwait(false))
         {
             var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), storeOptions);
             var transactionalStore = store.UseExistingDbContext(context);
 
-             var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(true);
-             await using (transaction.ConfigureAwait(false))
-             {
-            context.Orders.Add(new DomainOrderEntity { OrderId = orderId, Amount = 99m });
-            await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
-            await context.SaveChangesAsync().ConfigureAwait(true);
-            await transaction.CommitAsync().ConfigureAwait(true);
+            var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(true);
+            await using (transaction.ConfigureAwait(false))
+            {
+                context.Orders.Add(new DomainOrderEntity { OrderId = orderId, Amount = 99m });
+                await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
+                await context.SaveChangesAsync().ConfigureAwait(true);
+                await transaction.CommitAsync().ConfigureAwait(true);
             }
         }
 
-         var verificationContext = CreateTransactionalContext(storeOptions, ordersTableName);
-         await using (verificationContext.ConfigureAwait(false))
-         {
+        var verificationContext = CreateTransactionalContext(storeOptions, ordersTableName);
+        await using (verificationContext.ConfigureAwait(false))
+        {
 
-        var order = await verificationContext.Orders.SingleOrDefaultAsync(entity => entity.OrderId == orderId).ConfigureAwait(true);
+            var order = await verificationContext.Orders.SingleOrDefaultAsync(entity => entity.OrderId == orderId).ConfigureAwait(true);
 
-        var message = await verificationContext.OutboxMessages.SingleOrDefaultAsync(entity => entity.Id == envelope.Id).ConfigureAwait(true);
+            var message = await verificationContext.OutboxMessages.SingleOrDefaultAsync(entity => entity.Id == envelope.Id).ConfigureAwait(true);
 
-        order.Should().NotBeNull();
-        order!.Amount.Should().Be(99m);
-        message.Should().NotBeNull();
-        message!.ContractName.Should().Be(envelope.ContractName);
+            order.Should().NotBeNull();
+            order!.Amount.Should().Be(99m);
+            message.Should().NotBeNull();
+            message!.ContractName.Should().Be(envelope.ContractName);
         }
     }
 
@@ -113,35 +116,35 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
 
         var storeOptions = new EntityFrameworkCoreOutboxStoreOptions
         {
-            SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
+            SchemaName = EfCoreProviderTestInfrastructure.SchemaName,
             TableName = $"outbox_ef_tx_{suffix}"
         };
 
         var ordersTableName = $"orders_ef_tx_{suffix}";
 
-         var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
-         await using (dataSource.ConfigureAwait(false))
-         {
+        var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+        await using (dataSource.ConfigureAwait(false))
+        {
 
-        await PostgreSqlOutboxSchema.EnsureAsync(
-            dataSource,
-            new PostgreSqlOutboxStoreOptions
+            await PostgreSqlOutboxSchema.EnsureAsync(
+                dataSource,
+                new PostgreSqlOutboxStoreOptions
+                {
+                    SchemaName = storeOptions.SchemaName,
+                    TableName = storeOptions.TableName,
+                    ValidateSchemaCreationOnStartup = false
+                }).ConfigureAwait(false);
+
+
+            var context = CreateTransactionalContext(storeOptions, ordersTableName);
+            await using (context.ConfigureAwait(false))
             {
-                SchemaName = storeOptions.SchemaName,
-                TableName = storeOptions.TableName,
-                ValidateSchemaCreationOnStartup = false
-            }).ConfigureAwait(false);
 
-
-         var context = CreateTransactionalContext(storeOptions, ordersTableName);
-         await using (context.ConfigureAwait(false))
-         {
-
-        var qualifiedOrdersTable = PostgreSqlIdentifier.Qualify(storeOptions.SchemaName, ordersTableName);
+                var qualifiedOrdersTable = PostgreSqlIdentifier.Qualify(storeOptions.SchemaName, ordersTableName);
 
 #pragma warning disable EF1002 // PostgreSqlIdentifier validates and quotes the generated schema and table identifiers.
-        await context.Database.ExecuteSqlRawAsync(
-            $"""
+                await context.Database.ExecuteSqlRawAsync(
+                    $"""
              CREATE TABLE IF NOT EXISTS {qualifiedOrdersTable} (
                  order_id uuid NOT NULL PRIMARY KEY,
                  amount numeric NOT NULL);
@@ -149,8 +152,8 @@ public sealed class EfCoreOutboxTransactionalIntegrationTests : IClassFixture<Po
 #pragma warning restore EF1002
 
 
-        return (storeOptions, ordersTableName);
-        }
+                return (storeOptions, ordersTableName);
+            }
         }
     }
 

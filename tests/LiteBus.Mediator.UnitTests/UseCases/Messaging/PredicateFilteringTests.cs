@@ -85,7 +85,7 @@ public sealed class PredicateFilteringTests : LiteBusTestBase
         };
 
         // ACT
-        await eventMediator.PublishAsync((FilteredEvent)@event, settings).ConfigureAwait(false);
+        await eventMediator.PublishAsync((FilteredEvent) @event, settings).ConfigureAwait(false);
 
         // ASSERT
         var filteredEvent = (FilteredEvent) @event;

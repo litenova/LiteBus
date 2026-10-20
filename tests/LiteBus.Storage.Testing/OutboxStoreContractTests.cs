@@ -1,6 +1,7 @@
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Storage.Testing;
 
@@ -9,6 +10,16 @@ namespace LiteBus.Storage.Testing;
 /// </summary>
 public abstract class OutboxStoreContractTests
 {
+    /// <summary>
+    ///     Builds a failure for a transition under test from error text alone.
+    /// </summary>
+    /// <param name="error">The error text to persist.</param>
+    /// <returns>A failure stamped with the current time.</returns>
+    protected static MessageFailure Failure(string error)
+    {
+        return MessageFailure.FromError(error, DateTimeOffset.UtcNow);
+    }
+
     /// <summary>
     ///     Gets the UTC timestamp used as the baseline for lease and visibility assertions.
     /// </summary>
@@ -21,10 +32,35 @@ public abstract class OutboxStoreContractTests
     protected abstract OutboxStoreContracts CreateStore();
 
     /// <summary>
+    ///     Gets a value indicating whether the store under test orders leases by its own database clock.
+    /// </summary>
+    /// <remarks>
+    ///     Stores with a database clock ignore the request timestamps and evaluate lease expiry against that clock, so
+    ///     expiry tests must wait in real time. Stores without one honor the caller timestamp, so the same tests reclaim
+    ///     with an advanced timestamp and no wait.
+    /// </remarks>
+    protected virtual bool UsesDatabaseClock => true;
+
+    /// <summary>
+    ///     The scheduling margin added past a lease expiry before a reclaim is attempted.
+    /// </summary>
+    private static readonly TimeSpan LeaseExpiryMargin = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
+    ///     Waits for a database clock to pass a lease expiry, plus a scheduling margin.
+    /// </summary>
+    /// <param name="leaseDuration">The lease duration that must elapse on the database clock.</param>
+    /// <returns>A task that represents the asynchronous wait.</returns>
+    private static async Task WaitForDatabaseClockLeaseExpiryAsync(TimeSpan leaseDuration)
+    {
+        await Task.Delay(leaseDuration.Add(LeaseExpiryMargin)).ConfigureAwait(false);
+    }
+
+    /// <summary>
     ///     Verifies logical schema reads honor cancellation even when no database query is required.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task GetSchemaInfoAsync_WhenCancellationIsRequested_ShouldThrow()
     {
         var store = CreateStore();
@@ -40,7 +76,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies invalid lease inputs are rejected before a store can create an unusable lease.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenRequestIsInvalid_ShouldRejectRequest()
     {
         var store = CreateStore();
@@ -66,7 +102,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that cancellation requested before an append prevents any store mutation.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_WhenCancellationIsRequested_ShouldNotStoreMessage()
     {
         var store = CreateStore();
@@ -85,7 +121,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that retry visibility delays subsequent lease attempts.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_ShouldRespectRetryVisibility()
     {
         var store = CreateStore();
@@ -108,7 +144,7 @@ public abstract class OutboxStoreContractTests
         leased[0].Status.Should().Be(OutboxStatus.Publishing);
         leased[0].AttemptCount.Should().Be(1);
 
-        await store.StateWriter.PersistAsync([leased[0].AsFailed("publisher unavailable", visibleAfter)]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsFailed(Failure("publisher unavailable"), visibleAfter)]).ConfigureAwait(false);
 
         await WaitUntilVisibleAsync(visibleAfter).ConfigureAwait(false);
 
@@ -130,7 +166,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that duplicate idempotency keys return the original stored row.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_ShouldReturnExistingMessageForDuplicateIdempotencyKey()
     {
         var store = CreateStore();
@@ -161,7 +197,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that a tenant-scoped lease request does not claim rows owned by another tenant.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenTenantFilterDoesNotMatchStoredTenant_ShouldNotLeaseRow()
     {
         var store = CreateStore();
@@ -187,10 +223,39 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that a tenant-scoped lease request claims a message stored for that tenant.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task LeasePendingAsync_WhenTenantFilterMatchesStoredTenant_ShouldLeaseRow()
+    {
+        var store = CreateStore();
+        var messageId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now) with
+        {
+            TenantId = "tenant-a",
+            IdempotencyKey = "tenant-a-outbox"
+        }).ConfigureAwait(false);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 5,
+            LeaseOwner = "publisher-a",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1),
+            TenantId = "tenant-a"
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle().Which.Id.Should().Be(messageId);
+    }
+
+    /// <summary>
     ///     Verifies that a tenant-scoped message query excludes rows stored for another tenant.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task QueryAsync_WhenTenantFilterDoesNotMatchStoredTenant_ShouldExcludeOtherTenantRows()
     {
         var store = CreateStore();
@@ -220,7 +285,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that duplicate message identifiers return the original stored row.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_ShouldReturnExistingMessageWhenMessageIdAlreadyExists()
     {
         var store = CreateStore();
@@ -241,7 +306,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that optional metadata fields are persisted on append.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_ShouldPersistTopicMetadataAndVisibleAfter()
     {
         var store = CreateStore();
@@ -276,7 +341,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that batch append preserves input order and reports new rows.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddBatchAsync_ShouldReturnResultsInInputOrder()
     {
         var store = CreateStore();
@@ -299,7 +364,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that a repeated message identifier within one batch reports the later slot as an existing row.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddBatchAsync_RepeatedMessageIdWithinBatch_ShouldReportExistingOutcome()
     {
         var store = CreateStore();
@@ -321,7 +386,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that future visibility timestamps prevent leasing.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenVisibleAfterInFuture_ShouldNotLeaseMessage()
     {
         var store = CreateStore();
@@ -348,7 +413,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that leasing orders by creation time and respects batch size.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_ShouldOrderByCreatedAtAndRespectBatchSize()
     {
         var store = CreateStore();
@@ -378,7 +443,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that failed messages record retry visibility and error text.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task MarkFailedAsync_ShouldSetFailedStateAndVisibleAfter()
     {
         var store = CreateStore();
@@ -398,7 +463,7 @@ public abstract class OutboxStoreContractTests
 
         leased.Should().ContainSingle();
 
-        await store.StateWriter.PersistAsync([leased[0].AsFailed("broker down", visibleAfter)]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsFailed(Failure("broker down"), visibleAfter)]).ConfigureAwait(false);
 
         var stored = await store.MessageQuery.QueryAsync(
             new OutboxMessageFilter { MessageId = messageId },
@@ -411,10 +476,81 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that the operational forensics an operator dashboard reads are persisted and read back by every
+    ///     store adapter.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    /// <remarks>
+    ///     These columns existed in the schema and were validated at boot before anything wrote them, so a dead-letter
+    ///     listing that queried them read nulls forever. This test is what stops that from being true again.
+    /// </remarks>
+    [SkippableFact]
+    public async Task PersistAsync_ShouldRecordOperationalFieldsOnDeadLetter()
+    {
+        var store = CreateStore();
+        var messageId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-1",
+            Now = now,
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle();
+        leased[0].LastAttemptedAt.Should().NotBeNull();
+
+        var failure = MessageFailure.From(new TimeoutException("broker down"), now);
+
+        // Left immediately visible so the second lease does not have to wait out a retry window; this test is about
+        // what the columns record, not about visibility scheduling.
+        await store.StateWriter.PersistAsync([leased[0].AsFailed(failure)]).ConfigureAwait(false);
+
+        var afterFailure = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { MessageId = messageId },
+            new OutboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
+
+        afterFailure.Items[0].ErrorType.Should().Be(typeof(TimeoutException).FullName);
+        afterFailure.Items[0].FirstFailedAt.Should().NotBeNull();
+        afterFailure.Items[0].LastLeaseOwner.Should().Be("publisher-1");
+        afterFailure.Items[0].DeadLetteredAt.Should().BeNull();
+
+        var released = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-2",
+            Now = now.AddMinutes(10),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        }).ConfigureAwait(false);
+
+        released.Should().ContainSingle();
+
+        var giveUp = MessageFailure.From(new InvalidOperationException("poison"), now.AddMinutes(10));
+
+        await store.StateWriter.PersistAsync([released[0].AsDeadLettered(giveUp)]).ConfigureAwait(false);
+
+        var afterDeadLetter = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { MessageId = messageId },
+            new OutboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
+
+        afterDeadLetter.Items[0].Status.Should().Be(OutboxStatus.DeadLettered);
+        afterDeadLetter.Items[0].DeadLetteredAt.Should().NotBeNull();
+        afterDeadLetter.Items[0].ErrorType.Should().Be(typeof(InvalidOperationException).FullName);
+        afterDeadLetter.Items[0].LastLeaseOwner.Should().Be("publisher-2");
+
+        // The first failure keeps naming the first failure, not the most recent one.
+        afterDeadLetter.Items[0].FirstFailedAt.Should().Be(afterFailure.Items[0].FirstFailedAt);
+    }
+
+    /// <summary>
     ///     Verifies that dead-lettered messages are not leased again.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task MoveToDeadLetterAsync_ShouldSetDeadLetteredStatus()
     {
         var store = CreateStore();
@@ -431,7 +567,7 @@ public abstract class OutboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered("poison message")]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("poison message"))]).ConfigureAwait(false);
 
         var afterDeadLetter = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
@@ -448,7 +584,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that expired publishing leases can be reclaimed.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_WhenLeaseExpires_ShouldReclaimPublishingMessage()
     {
         var store = CreateStore();
@@ -467,13 +603,23 @@ public abstract class OutboxStoreContractTests
         }).ConfigureAwait(false);
 
         staleLease.Should().ContainSingle();
-        await Task.Delay(leaseDuration.Add(TimeSpan.FromMilliseconds(250))).ConfigureAwait(false);
+
+        DateTimeOffset reclaimNow;
+        if (UsesDatabaseClock)
+        {
+            await WaitForDatabaseClockLeaseExpiryAsync(leaseDuration).ConfigureAwait(false);
+            reclaimNow = DateTimeOffset.UtcNow;
+        }
+        else
+        {
+            reclaimNow = now.Add(leaseDuration).Add(LeaseExpiryMargin);
+        }
 
         var reclaimed = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
             BatchSize = 1,
             LeaseOwner = "publisher",
-            Now = DateTimeOffset.UtcNow,
+            Now = reclaimNow,
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
@@ -492,21 +638,22 @@ public abstract class OutboxStoreContractTests
     /// <summary>
     ///     Verifies that only the active outbox lease owner can renew a lease.
     /// </summary>
-    [Fact]
+    /// <returns>A task that completes when the check finishes.</returns>
+    [SkippableFact]
     public async Task RenewLeaseAsync_ShouldRequireActiveLeaseOwner()
     {
         var store = CreateStore();
         var now = BaseTime;
         var messageId = Guid.NewGuid();
 
-        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now));
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
         var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
         {
             BatchSize = 1,
             LeaseOwner = "publisher-a",
             Now = now,
             LeaseDuration = TimeSpan.FromMinutes(1)
-        });
+        }).ConfigureAwait(false);
 
         leased.Should().ContainSingle();
         var renewed = await store.Lease.RenewLeaseAsync(
@@ -515,21 +662,21 @@ public abstract class OutboxStoreContractTests
                 "publisher-a",
                 leased[0].LeaseGeneration,
                 TimeSpan.FromMinutes(1),
-                now.AddMinutes(2)));
+                now.AddMinutes(2))).ConfigureAwait(false);
         var rejected = await store.Lease.RenewLeaseAsync(
             new LeaseRenewalRequest(
                 messageId,
                 "publisher-b",
                 leased[0].LeaseGeneration,
                 TimeSpan.FromMinutes(2),
-                now.AddMinutes(3)));
+                now.AddMinutes(3))).ConfigureAwait(false);
         var staleGeneration = await store.Lease.RenewLeaseAsync(
             new LeaseRenewalRequest(
                 messageId,
                 "publisher-a",
                 leased[0].LeaseGeneration - 1,
                 TimeSpan.FromMinutes(3),
-                now.AddMinutes(4)));
+                now.AddMinutes(4))).ConfigureAwait(false);
 
         renewed.Should().BeTrue();
         rejected.Should().BeFalse();
@@ -540,7 +687,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that concurrent lease attempts claim disjoint message sets.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task LeasePendingAsync_ConcurrentPublishers_ShouldLeaseDisjointMessages()
     {
         await AssertConcurrentLeasesAreDisjointAsync().ConfigureAwait(false);
@@ -586,7 +733,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that status counts reflect stored messages grouped by status.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task GetStatusCountsAsync_ShouldGroupByStatus()
     {
         var store = CreateStore();
@@ -614,10 +761,169 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies an empty failure summary when no message is failing.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task GetFailureSummaryAsync_WhenNothingIsFailing_ShouldReturnEmpty()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var publishedId = Guid.NewGuid();
+        var pendingId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(publishedId, now)).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now.AddSeconds(1))).ConfigureAwait(false);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-1",
+            Now = now.AddSeconds(2),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle();
+        leased[0].Id.Should().Be(publishedId);
+
+        await store.StateWriter.PersistAsync([leased[0].AsPublished(DateTimeOffset.UtcNow)]).ConfigureAwait(false);
+
+        var summary = await store.Diagnostics.GetFailureSummaryAsync().ConfigureAwait(false);
+
+        summary.Should().BeEmpty();
+    }
+
+    /// <summary>
+    ///     Verifies failure summaries group failing messages by contract with per-status counts.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task GetFailureSummaryAsync_WithFailedAndDeadLetteredContracts_ShouldGroupCountsByContract()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+
+        await FailOneAsync(
+            store,
+            CreatePendingEnvelope(Guid.NewGuid(), now) with
+            {
+                ContractName = "tests.events.orders",
+                TenantId = "failure-orders-1"
+            },
+            now.AddMinutes(1),
+            "orders-error-1",
+            false).ConfigureAwait(false);
+
+        await FailOneAsync(
+            store,
+            CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(1)) with
+            {
+                ContractName = "tests.events.orders",
+                TenantId = "failure-orders-2"
+            },
+            now.AddMinutes(2),
+            "orders-error-2",
+            false).ConfigureAwait(false);
+
+        await SeparateLeaseTimestampsAsync().ConfigureAwait(false);
+
+        await FailOneAsync(
+            store,
+            CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(2)) with
+            {
+                ContractName = "tests.events.payments",
+                ContractVersion = 2,
+                TenantId = "failure-payments-1"
+            },
+            now.AddMinutes(3),
+            "payments-error",
+            true).ConfigureAwait(false);
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(Guid.NewGuid(), now.AddSeconds(3))).ConfigureAwait(false);
+
+        var summary = await store.Diagnostics.GetFailureSummaryAsync().ConfigureAwait(false);
+
+        summary.Should().HaveCount(2);
+
+        var payments = summary[0];
+        payments.ContractName.Should().Be("tests.events.payments");
+        payments.ContractVersion.Should().Be(2);
+        payments.FailedCount.Should().Be(0);
+        payments.DeadLetteredCount.Should().Be(1);
+        payments.LastError.Should().Be("payments-error");
+        payments.LastFailedAt.Should().NotBeNull();
+
+        var orders = summary[1];
+        orders.ContractName.Should().Be("tests.events.orders");
+        orders.ContractVersion.Should().Be(1);
+        orders.FailedCount.Should().Be(2);
+        orders.DeadLetteredCount.Should().Be(0);
+        orders.LastFailedAt.Should().NotBeNull();
+
+        payments.LastFailedAt!.Value.Should().BeAfter(orders.LastFailedAt!.Value);
+    }
+
+    /// <summary>
+    ///     Verifies a failure summary reports the error of the most recently attempted message.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task GetFailureSummaryAsync_WithTwoFailuresForOneContract_ShouldReportMostRecentError()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+
+        await FailOneAsync(
+            store,
+            CreatePendingEnvelope(firstId, now) with
+            {
+                ContractName = "tests.events.flaky",
+                TenantId = "failure-flaky-1"
+            },
+            now.AddMinutes(1),
+            "first-error",
+            false).ConfigureAwait(false);
+
+        await SeparateLeaseTimestampsAsync().ConfigureAwait(false);
+
+        await FailOneAsync(
+            store,
+            CreatePendingEnvelope(secondId, now.AddSeconds(1)) with
+            {
+                ContractName = "tests.events.flaky",
+                TenantId = "failure-flaky-2"
+            },
+            now.AddMinutes(2),
+            "second-error",
+            false).ConfigureAwait(false);
+
+        var summary = await store.Diagnostics.GetFailureSummaryAsync().ConfigureAwait(false);
+
+        summary.Should().ContainSingle();
+
+        var row = summary[0];
+        row.ContractName.Should().Be("tests.events.flaky");
+        row.ContractVersion.Should().Be(1);
+        row.FailedCount.Should().Be(2);
+        row.DeadLetteredCount.Should().Be(0);
+        row.LastError.Should().Be("second-error");
+        row.LastErrorType.Should().BeNull();
+
+        var second = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { MessageId = secondId },
+            new OutboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
+
+        second.Items.Should().ContainSingle();
+        row.LastFailedAt.Should().Be(second.Items[0].LastAttemptedAt);
+    }
+
+    /// <summary>
     ///     Verifies that only one terminal persist succeeds when competing writers use different lease owners.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PersistAsync_WhenCompetingLeaseOwnersPersistConcurrently_ShouldApplyExactlyOnce()
     {
         var store = CreateStore();
@@ -655,7 +961,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that dead-letter replay returns messages to the pending queue.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task RequeueDeadLetterAsync_ShouldReturnMessageToPending()
     {
         var store = CreateStore();
@@ -672,7 +978,7 @@ public abstract class OutboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(1)
         }).ConfigureAwait(false);
 
-        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered("manual replay")]).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("manual replay"))]).ConfigureAwait(false);
 
         await store.DeadLetterStore.RequeueAsync(messageId).ConfigureAwait(false);
 
@@ -693,7 +999,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that an empty batch is a successful no-op for every batch-oriented store role.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task EmptyBatchOperations_ShouldReturnEmptyResults()
     {
         var store = CreateStore();
@@ -713,7 +1019,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies one persist batch can apply multiple rows for every terminal outbox status.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PersistAsync_WithMixedTerminalBatch_ShouldApplyEveryTransition()
     {
         var store = CreateStore();
@@ -737,10 +1043,10 @@ public abstract class OutboxStoreContractTests
         {
             leased[0].AsPublished(now),
             leased[1].AsPublished(now.AddSeconds(1)),
-            leased[2].AsFailed("temporary-1", now.AddMinutes(5)),
-            leased[3].AsFailed("temporary-2", now.AddMinutes(5)),
-            leased[4].AsDeadLettered("poison-1"),
-            leased[5].AsDeadLettered("poison-2")
+            leased[2].AsFailed(Failure("temporary-1"), now.AddMinutes(5)),
+            leased[3].AsFailed(Failure("temporary-2"), now.AddMinutes(5)),
+            leased[4].AsDeadLettered(Failure("poison-1")),
+            leased[5].AsDeadLettered(Failure("poison-2"))
         };
 
         var result = await store.StateWriter.PersistAsync(terminal).ConfigureAwait(false);
@@ -760,7 +1066,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies that batch dead-letter replay reports both requested and updated rows.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task RequeueDeadLetterAsync_WithMultipleIds_ShouldRequeueEveryMatchingRow()
     {
         var store = CreateStore();
@@ -780,7 +1086,7 @@ public abstract class OutboxStoreContractTests
             LeaseDuration = TimeSpan.FromMinutes(5)
         }).ConfigureAwait(false);
         await store.StateWriter.PersistAsync(
-            leased.Select(envelope => envelope.AsDeadLettered("manual replay")).ToArray()).ConfigureAwait(false);
+            leased.Select(envelope => envelope.AsDeadLettered(Failure("manual replay"))).ToArray()).ConfigureAwait(false);
 
         var result = await store.DeadLetterStore.RequeueAsync(
             source.Select(envelope => envelope.Id.ToString("D")).ToArray()).ConfigureAwait(false);
@@ -793,7 +1099,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies every outbox message predicate composes consistently for query and purge operations.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task CompleteFilter_ShouldMatchOnlyTheIntendedMessage()
     {
         var store = CreateStore();
@@ -843,7 +1149,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies batch append resolves a duplicate idempotency key to the original row.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddBatchAsync_ShouldReturnExistingRowForDuplicateIdempotencyKey()
     {
         var store = CreateStore();
@@ -875,7 +1181,7 @@ public abstract class OutboxStoreContractTests
     ///     Verifies strict batch replay rejects changed content for an existing message identifier.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task AddBatchAsync_WithStrictChangedReplay_ShouldThrow()
     {
         var store = CreateStore();
@@ -891,6 +1197,59 @@ public abstract class OutboxStoreContractTests
         ]);
 
         await action.Should().ThrowAsync<IdempotencyConflictException>().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Enqueues one envelope and moves it to a failing state through a lease.
+    /// </summary>
+    /// <param name="store">The store contracts under test.</param>
+    /// <param name="envelope">The pending envelope to enqueue.</param>
+    /// <param name="leaseNow">The lease timestamp honored by stores without a database clock.</param>
+    /// <param name="error">The error text recorded for the failure.</param>
+    /// <param name="deadLetter">Whether the message is dead-lettered instead of left failed.</param>
+    /// <returns>A task that represents the asynchronous seeding.</returns>
+    private static async Task FailOneAsync(
+        OutboxStoreContracts store,
+        OutboxEnvelope envelope,
+        DateTimeOffset leaseNow,
+        string error,
+        bool deadLetter)
+    {
+        await store.Writer.EnqueueAsync(envelope).ConfigureAwait(false);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "publisher-1",
+            Now = leaseNow,
+            LeaseDuration = TimeSpan.FromMinutes(1),
+            TenantId = envelope.TenantId
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle();
+        leased[0].Id.Should().Be(envelope.Id);
+
+        var terminal = deadLetter
+            ? leased[0].AsDeadLettered(Failure(error))
+            : leased[0].AsFailed(Failure(error));
+
+        await store.StateWriter.PersistAsync([terminal]).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Waits past a database clock tick so sequential leases record distinct attempt timestamps.
+    /// </summary>
+    /// <remarks>
+    ///     Stores without a database clock honor the caller timestamp, so no wait is needed. Stores with one stamp the
+    ///     database time, and coarse clocks need a real second boundary between two leases under test.
+    /// </remarks>
+    /// <returns>A task that represents the asynchronous wait.</returns>
+    private async Task SeparateLeaseTimestampsAsync()
+    {
+        if (UsesDatabaseClock)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -962,7 +1321,8 @@ public abstract class OutboxStoreContractTests
     /// <summary>
     ///     Verifies that message queries filter by status and support keyset pagination.
     /// </summary>
-    [Fact]
+    /// <returns>A task that completes when the check finishes.</returns>
+    [SkippableFact]
     public async Task QueryAsync_ShouldFilterAndPageByCreatedAt()
     {
         var store = CreateStore();
@@ -1004,7 +1364,8 @@ public abstract class OutboxStoreContractTests
     /// <summary>
     ///     Verifies that purge deletes only rows that match the supplied filter.
     /// </summary>
-    [Fact]
+    /// <returns>A task that completes when the check finishes.</returns>
+    [SkippableFact]
     public async Task PurgeAsync_ShouldDeleteMatchingRows()
     {
         var store = CreateStore();
@@ -1038,6 +1399,145 @@ public abstract class OutboxStoreContractTests
 
         remaining.Items.Should().ContainSingle();
         remaining.Items[0].Id.Should().Be(publishedId);
+    }
+
+    /// <summary>
+    ///     Verifies strict identical replay of an unscoped envelope returns the existing outcome.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task AddAsync_WithStrictIdenticalUnscopedReplay_ShouldReturnExistingOutcome()
+    {
+        var store = CreateStore();
+        var original = CreatePendingEnvelope(Guid.NewGuid(), BaseTime) with
+        {
+            TenantId = null,
+            IdempotencyConflictMode = IdempotencyConflictMode.Strict
+        };
+
+        var first = await store.Writer.EnqueueAsync(original).ConfigureAwait(false);
+        var replay = await store.Writer.EnqueueAsync(original).ConfigureAwait(false);
+
+        first.Outcome.Should().Be(OutboxEnqueueOutcome.Enqueued);
+        replay.Outcome.Should().Be(OutboxEnqueueOutcome.AlreadyEnqueued);
+        replay.Envelope.Id.Should().Be(first.Envelope.Id);
+        replay.Envelope.Payload.Should().Be(first.Envelope.Payload);
+    }
+
+    /// <summary>
+    ///     Verifies strict identical same-identifier batch replay of unscoped envelopes returns existing outcomes.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task AddBatchAsync_WithStrictIdenticalUnscopedSameId_ShouldReturnExistingOutcome()
+    {
+        var store = CreateStore();
+        var messageId = Guid.NewGuid();
+        var first = CreatePendingEnvelope(messageId, BaseTime) with
+        {
+            TenantId = null,
+            IdempotencyConflictMode = IdempotencyConflictMode.Strict
+        };
+
+        var results = await store.Writer.AddBatchAsync([first, first]).ConfigureAwait(false);
+
+        results.Should().HaveCount(2);
+        results[0].Outcome.Should().Be(OutboxEnqueueOutcome.Enqueued);
+        results[1].Outcome.Should().Be(OutboxEnqueueOutcome.AlreadyEnqueued);
+        results[1].Envelope.Id.Should().Be(messageId);
+    }
+
+    /// <summary>
+    ///     Verifies an empty-string tenant query matches only unscoped rows.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task QueryAsync_WithEmptyTenantFilter_ShouldMatchOnlyUnscopedRows()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var unscopedId = Guid.NewGuid();
+        var scopedId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(unscopedId, now) with { TenantId = null }).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(scopedId, now.AddSeconds(1)) with { TenantId = "tenant-a" }).ConfigureAwait(false);
+
+        var page = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { TenantId = string.Empty },
+            new OutboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
+
+        page.Items.Should().ContainSingle();
+        page.Items[0].Id.Should().Be(unscopedId);
+    }
+
+    /// <summary>
+    ///     Verifies an empty-string tenant purge deletes only unscoped rows.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task PurgeAsync_WithEmptyTenantFilter_ShouldDeleteOnlyUnscopedRows()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var unscopedId = Guid.NewGuid();
+        var scopedId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(unscopedId, now) with { TenantId = null }).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(scopedId, now.AddSeconds(1)) with { TenantId = "tenant-a" }).ConfigureAwait(false);
+
+        var deleted = await store.PurgeStore.PurgeAsync(new OutboxMessageFilter { TenantId = string.Empty }).ConfigureAwait(false);
+
+        deleted.Should().Be(1);
+
+        var remaining = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter(),
+            new OutboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
+
+        remaining.Items.Should().ContainSingle();
+        remaining.Items[0].Id.Should().Be(scopedId);
+    }
+
+    /// <summary>
+    ///     Verifies an empty-string tenant lease claims only unscoped rows.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task LeasePendingAsync_WithEmptyTenantFilter_ShouldLeaseOnlyUnscopedRows()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var unscopedId = Guid.NewGuid();
+        var scopedId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(unscopedId, now) with { TenantId = null }).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(scopedId, now.AddSeconds(1)) with { TenantId = "tenant-a" }).ConfigureAwait(false);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 10,
+            LeaseOwner = "publisher-1",
+            Now = now.AddSeconds(2),
+            LeaseDuration = TimeSpan.FromMinutes(1),
+            TenantId = string.Empty
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle();
+        leased[0].Id.Should().Be(unscopedId);
+    }
+
+    /// <summary>
+    ///     Verifies persisting a non-terminal envelope throws instead of overwriting the row.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task PersistAsync_WithNonTerminalEnvelope_ShouldThrow()
+    {
+        var store = CreateStore();
+        var pending = CreatePendingEnvelope(Guid.NewGuid(), BaseTime);
+
+        var action = () => store.StateWriter.PersistAsync([pending]);
+
+        await action.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
     }
 
     /// <summary>

@@ -50,7 +50,7 @@ Defer inbox execution and outbox publication until an absolute time or relative 
 
 | Package | Role |
 | --- | --- |
-| `LiteBus.Messaging.Abstractions` | `MessageVisibility` |
+| `LiteBus.DurableMessaging.Abstractions` | `MessageVisibility` |
 | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | Metadata records |
 | `LiteBus.Inbox.Ingress` | Header parsing on ingress |
 | `LiteBus.Transport.Abstractions` | `TransportHeaders.VisibleAfter`, `VisibleAfterDelay` |

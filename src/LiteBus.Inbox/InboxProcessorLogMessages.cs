@@ -36,6 +36,15 @@ internal static class InboxProcessorLogMessages
             "Inbox lease-loss persistence was skipped for message {MessageId} because the active lease was lost.");
 
     /// <summary>
+    ///     The delegate that writes a failed lease-loss persistence event.
+    /// </summary>
+    private static readonly Action<ILogger, Guid, Exception?> LeaseLossPersistFailedMessage =
+        LoggerMessage.Define<Guid>(
+            LogLevel.Error,
+            new EventId(1008, nameof(LeaseLossPersistFailed)),
+            "Inbox lease-loss persistence failed for message {MessageId}. Continuing the pass with remaining messages.");
+
+    /// <summary>
     ///     The delegate that writes a tolerated post-dispatch hook failure event.
     /// </summary>
     private static readonly Action<ILogger, Guid, Exception> AfterDispatchCompletedMessage =
@@ -104,6 +113,17 @@ internal static class InboxProcessorLogMessages
     }
 
     /// <summary>
+    ///     Logs a lease-loss persistence failure that does not abort the processor pass.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="messageId">The message whose retry outcome could not be persisted.</param>
+    /// <param name="exception">The persistence exception.</param>
+    public static void LeaseLossPersistFailed(ILogger logger, Guid messageId, Exception exception)
+    {
+        LeaseLossPersistFailedMessage(logger, messageId, exception);
+    }
+
+    /// <summary>
     ///     Logs a post-dispatch hook failure that does not prevent completion.
     /// </summary>
     /// <param name="logger">The logger receiving the event.</param>
@@ -160,5 +180,25 @@ internal static class InboxProcessorLogMessages
             failedCount,
             deadLetteredCount,
             null);
+    }
+
+    /// <summary>
+    ///     The delegate that writes the event for an application failure classifier that threw.
+    /// </summary>
+    private static readonly Action<ILogger, Guid, Exception> PermanentFailureClassifierFailedMessage =
+        LoggerMessage.Define<Guid>(
+            LogLevel.Warning,
+            new EventId(1009, nameof(PermanentFailureClassifierFailed)),
+            "The permanent-failure classifier threw for message {MessageId}; the failure follows the retry schedule.");
+
+    /// <summary>
+    ///     Logs that <c>RetryOptions.IsPermanentFailure</c> threw, so the failure was treated as retryable.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="messageId">The identifier of the message whose failure was being classified.</param>
+    /// <param name="exception">The exception the classifier threw.</param>
+    public static void PermanentFailureClassifierFailed(ILogger logger, Guid messageId, Exception exception)
+    {
+        PermanentFailureClassifierFailedMessage(logger, messageId, exception);
     }
 }

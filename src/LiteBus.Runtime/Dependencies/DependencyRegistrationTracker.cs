@@ -13,6 +13,11 @@ namespace LiteBus.Runtime.Dependencies;
 internal sealed class DependencyRegistrationTracker : IEnumerable<DependencyDescriptor>
 {
     /// <summary>
+    ///     Tracks service types registered as collection items so a later single binding for the same type fails.
+    /// </summary>
+    private readonly HashSet<Type> _collectionServiceTypes = [];
+
+    /// <summary>
     ///     Tracks the first descriptor registered for each service type so conflicting module registrations fail early.
     /// </summary>
     private readonly Dictionary<Type, DependencyDescriptor> _descriptorsByServiceType = [];
@@ -44,9 +49,9 @@ internal sealed class DependencyRegistrationTracker : IEnumerable<DependencyDesc
     ///     <see langword="true" /> when the descriptor is newly tracked and should be translated into the container;
     ///     <see langword="false" /> when an equal descriptor was already tracked.
     /// </returns>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="ModuleCompositionException">
     ///     Thrown when another module already registered <see cref="DependencyDescriptor.DependencyType" /> with a
-    ///     different binding.
+    ///     different binding, or when a single binding and a collection registration target the same service type.
     /// </exception>
     public bool TryTrack(DependencyDescriptor descriptor, bool enforceSingleRegistration)
     {
@@ -60,14 +65,34 @@ internal sealed class DependencyRegistrationTracker : IEnumerable<DependencyDesc
                 return false;
             }
 
-            throw new LiteBusConfigurationException(
+            throw new ModuleCompositionException(
                 $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' is already registered. " +
                 "Each LiteBus module may register a given service type only once. Remove the duplicate registration or consolidate modules.");
         }
 
         if (enforceSingleRegistration)
         {
+            if (_collectionServiceTypes.Contains(descriptor.DependencyType))
+            {
+                throw new ModuleCompositionException(
+                    $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' is already registered as a collection. " +
+                    "Each LiteBus module may register a given service type either as a single binding or as collection items, not both. " +
+                    "Remove the duplicate registration or consolidate modules.");
+            }
+
             _descriptorsByServiceType[descriptor.DependencyType] = descriptor;
+        }
+        else
+        {
+            if (_descriptorsByServiceType.ContainsKey(descriptor.DependencyType))
+            {
+                throw new ModuleCompositionException(
+                    $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' is already registered as a single binding. " +
+                    "Each LiteBus module may register a given service type either as a single binding or as collection items, not both. " +
+                    "Remove the duplicate registration or consolidate modules.");
+            }
+
+            _collectionServiceTypes.Add(descriptor.DependencyType);
         }
 
         if (!_registeredDescriptors.Add(descriptor))

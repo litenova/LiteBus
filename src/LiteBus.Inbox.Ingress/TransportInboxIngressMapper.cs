@@ -102,7 +102,7 @@ internal static class TransportInboxIngressMapper
             }
         }
 
-        var brokerDeliveryId = TryGetBrokerDeliveryId(message);
+        var brokerDeliveryId = TryGetBrokerDeliveryId(message, mappingOptions);
 
         if (string.IsNullOrWhiteSpace(brokerDeliveryId))
         {
@@ -139,7 +139,7 @@ internal static class TransportInboxIngressMapper
             }
         }
 
-        var brokerDeliveryId = TryGetBrokerDeliveryId(message);
+        var brokerDeliveryId = TryGetBrokerDeliveryId(message, mappingOptions);
 
         if (string.IsNullOrWhiteSpace(brokerDeliveryId))
         {
@@ -248,10 +248,16 @@ internal static class TransportInboxIngressMapper
     ///     Gets the broker delivery identifier used for ingress identity and idempotency.
     /// </summary>
     /// <param name="message">The received transport delivery.</param>
+    /// <param name="mappingOptions">The ingress mapping policy that controls whether application headers are trusted.</param>
     /// <returns>The broker delivery id, or <see langword="null" /> when none is available.</returns>
-    private static string? TryGetBrokerDeliveryId(TransportMessage message)
+    private static string? TryGetBrokerDeliveryId(TransportMessage message, TransportInboxIngressMappingOptions mappingOptions)
     {
-        var rawValue = TransportHeaderValues.GetString(message.Headers, TransportHeaders.MessageId) ?? message.MessageId;
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(mappingOptions);
+
+        string? rawValue = mappingOptions.TrustApplicationHeaders
+            ? TransportHeaderValues.GetString(message.Headers, TransportHeaders.MessageId) ?? message.MessageId
+            : message.MessageId;
 
         return string.IsNullOrWhiteSpace(rawValue) ? null : rawValue;
     }
@@ -293,8 +299,8 @@ internal static class TransportInboxIngressMapper
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));
         Span<byte> guidBytes = stackalloc byte[16];
         hash.AsSpan(0, 16).CopyTo(guidBytes);
-        guidBytes[6] = (byte)((guidBytes[6] & 0x0F) | 0x50);
-        guidBytes[8] = (byte)((guidBytes[8] & 0x3F) | 0x80);
+        guidBytes[6] = (byte) ((guidBytes[6] & 0x0F) | 0x50);
+        guidBytes[8] = (byte) ((guidBytes[8] & 0x3F) | 0x80);
         return new Guid(guidBytes);
     }
 

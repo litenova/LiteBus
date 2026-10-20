@@ -1,3 +1,5 @@
+using System;
+
 namespace LiteBus.Inbox.Ingress.Amqp;
 
 /// <summary>

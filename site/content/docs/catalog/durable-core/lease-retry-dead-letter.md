@@ -9,16 +9,34 @@ Processors claim work with time-bounded leases, renew leases during long handler
 
 ## What It Does
 
-Lease stores atomically claim due rows with `lease_owner`, `lease_generation`, and `lease_expires_at`. Each claim increments the generation. Heartbeat renewal starts as soon as each envelope is leased, including while it waits for a worker slot, and continues through terminal persistence. PostgreSQL and relational EF Core stores calculate visibility and expiry from the database clock. On failure, processors persist `Failed` with retry visibility computed from `RetryOptions`. When `AttemptCount` reaches `MaxAttempts`, rows move to `DeadLettered`. Operators requeue via `IInboxManager` / `IOutboxManager`. Lease loss during dispatch persists retryable failure instead of leaving row stuck in processing.
+Lease stores atomically claim due rows with `lease_owner`, `lease_generation`, and `lease_expires_at`. Each claim increments the generation. Heartbeat renewal starts as soon as each envelope is leased, including while it waits for a worker slot, and continues through terminal persistence. PostgreSQL and relational EF Core stores calculate visibility and expiry from the database clock. On failure, processors persist `Failed` with retry visibility computed from `RetryOptions`. When `AttemptCount` reaches `MaxAttempts`, rows move to `DeadLettered`. Operators requeue via `IInboxManager` / `IOutboxManager`. Lease loss during dispatch persists retryable failure instead of leaving row stuck in processing. When the processor cancels a dispatch itself during shutdown, it releases the lease through `ILeaseRenewable.ReleaseLeaseAsync` with a `LeaseReleaseRequest`, so the row returns to `Pending` (or `Failed` when it already carries an error) with its lease cleared, its attempt count decremented, and its visibility unchanged; the release runs under a 5 second budget, logs EventId 3011 at Debug, and falls back to lease expiry with EventId 3012 at Warning when it fails. Drain never cancels dispatch: the final pass runs with the uncancelled host token, so in-flight messages complete and persist normally.
+
+## Permanent Failures
+
+Processors dead-letter a message on its first failure when the exception can never succeed on retry. The built-in non-retryable set covers a missing handler (`NoHandlerFoundException`), multiple handlers (`MultipleHandlerFoundException`), a guard denial (`LiteBusMessageDeniedException`), and a validation failure (`LiteBusMessageInvalidException`), checked through `MediationExceptionFilters.IsRetryableDispatchException` including inner exceptions. Applications mark their own exception types as permanent with `RetryOptions.IsPermanentFailure`, which runs in addition to the built-in set and dead-letters on the matching attempt regardless of `MaxAttempts`.
+
+```csharp
+builder.UseProcessorOptions(new OutboxProcessorOptions
+{
+    Retry = new RetryOptions
+    {
+        IsPermanentFailure = exception => exception is UseCaseUnprocessableException
+    }
+});
+```
+
+The predicate receives the exception that ended the dispatch; returning `true` dead-letters the message on that attempt. It is not called for a cancellation the processor treats as a shutdown. A predicate that throws is treated as `false`, so a faulty classifier keeps the retry schedule instead of losing the message. The same `Retry` property exists on `InboxProcessorOptions`, and both processors share this behavior.
 
 ## Public Surface
 
 ### Consumer Contracts
 
 - **`ProcessorOptions`**: Shared base for inbox/outbox processor options including lease and retry settings.
-- **`RetryOptions`**: `MaxAttempts`, initial delay, backoff strategy, multiplier, and jitter.
+- **`RetryOptions`**: `MaxAttempts`, initial delay, backoff strategy (`Fixed`, `Exponential`, or `Schedule` with an explicit `Delays` ladder), multiplier, jitter, and an optional `IsPermanentFailure` classifier that dead-letters matching failures on first failure.
 - **`IInboxLeaseStore` / `IOutboxLeaseStore`**: Atomic claim of due pending or failed-visible rows.
 - **`LeaseRenewalRequest`**: Heartbeat input carrying envelope id, lease owner, fencing generation, extension duration, and an in-memory expiry fallback.
+- **`LeaseReleaseRequest`**: Release input carrying message id, lease owner, and fencing generation for a dispatch the processor cancelled.
+- **`ILeaseRenewable.ReleaseLeaseAsync`**: Returns a cancelled lease to the queue without charging the attempt the lease consumed; the default implementation returns `false`.
 - **`IInboxManager` / `IOutboxManager`**: Operator requeue and dead-letter query APIs.
 - **`RequeueResult`**: Reports requested vs successfully requeued counts for partial requeue scenarios.
 
@@ -26,6 +44,7 @@ Lease stores atomically claim due rows with `lease_owner`, `lease_generation`, a
 
 - **`LeasePendingAsync`**: Claim a batch with a new `lease_owner`, increment `lease_generation` and attempt count, and set `lease_expires_at`.
 - **Heartbeat renewal**: Extend `lease_expires_at` while dispatch runs; failure cancels dispatch and schedules retry.
+- **Lease release**: Return a dispatch the processor cancelled to `Pending` (or `Failed` when it already carries an error) with the attempt count decremented; failure falls back to lease expiry with the attempt counted.
 - **Failure persist**: Set `Failed` with `visible_after` from backoff calculation.
 - **Dead letter persist**: Transition to `DeadLettered` when attempts exhausted.
 - **`RequeueAsync` / `RequeueDeadLettersAsync`**: Operator moves dead-lettered rows to `Pending`.
@@ -40,12 +59,12 @@ Lease stores atomically claim due rows with `lease_owner`, `lease_generation`, a
 
 - **`LeaseDuration`**: Claim TTL; stale processing rows become reclaimable after expiry.
 - **`LeaseHeartbeatInterval`**: Renewal cadence; must be `<= LeaseDuration / 2`.
-- **`Retry`**: `MaxAttempts`, delay, fixed or exponential backoff, optional jitter.
+- **`Retry`**: `MaxAttempts`, delay, fixed, exponential, or explicit-schedule backoff, optional jitter.
 - **`LeaseOwner`**: Optional operator label with an opaque random session suffix per processor instance. The suffix fences stale sessions that reuse the same configured label.
 
 ### Extension Points
 
-- Custom storage must implement atomic lease, renewal, conditional persist on `lease_owner` plus `lease_generation`, and requeue roles.
+- Custom storage must implement atomic lease, renewal, conditional persist on `lease_owner` plus `lease_generation`, and requeue roles, and should implement `ReleaseLeaseAsync`; without it a shutdown still spends an attempt.
 - Hook failure policy can force dead letter before max attempts (see processor-hooks capability).
 - Ingress poison handling is separate from processor dead letter (see ingress ack-policy capability).
 
@@ -72,6 +91,9 @@ Lease stores atomically claim due rows with `lease_owner`, `lease_generation`, a
 - Requeue only moves rows from dead-letter state (partial requeue reported in `RequeueResult`)
 - Heartbeat failure during dispatch to retryable failed outcome, not indefinite processing
 - Queued leased envelopes renew their leases before a worker slot becomes available.
+- A dispatch cancelled by the caller token, including one a dispatcher wrapped in its own exception type, is detected by `MediationExceptionFilters.IsCallerCancellation` and recorded as no outcome: no error recorded and no visibility moved.
+- A dispatch the processor cancels during shutdown is released without spending an attempt when the store implements release; otherwise the lease expires with the attempt counted.
+- Drain runs one final pass without cancelling dispatch; in-flight messages complete and persist normally instead of releasing.
 
 ## Non-Goals
 

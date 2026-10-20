@@ -134,7 +134,7 @@ public sealed class KafkaDispatchFailureIntegrationTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
-                registry.Modules.Register(new KafkaTransportModule(transportOptions));
+            registry.Modules.Register(new KafkaTransportModule(transportOptions));
             registry.AddMessaging(_ =>
             {
             });

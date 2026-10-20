@@ -1,3 +1,5 @@
+using System;
+
 namespace LiteBus.Transport.AwsSqs;
 
 /// <summary>
@@ -8,11 +10,22 @@ public sealed record AwsSqsTransportOptions
     /// <summary>
     ///     Gets the optional AWS region system name such as <c>us-east-1</c>.
     /// </summary>
+    /// <remarks>
+    ///     When both <see cref="Region" /> and <see cref="ServiceUrl" /> are <see langword="null" />, the AWS SDK
+    ///     resolves the region from environment variables, the shared configuration file, or instance metadata.
+    ///     A failure to resolve a region surfaces as
+    ///     <see cref="Exceptions.AwsSqsTransportConfigurationException" /> without recording a circuit-breaker
+    ///     failure.
+    /// </remarks>
     public string? Region { get; init; }
 
     /// <summary>
     ///     Gets the optional service URL used for LocalStack or custom endpoints.
     /// </summary>
+    /// <remarks>
+    ///     When set, the service URL takes precedence over <see cref="Region" /> and no AWS region resolution
+    ///     is required.
+    /// </remarks>
     public string? ServiceUrl { get; init; }
 
     /// <summary>
@@ -42,6 +55,10 @@ public sealed record AwsSqsTransportOptions
     /// <summary>
     ///     Gets the default visibility timeout in seconds applied to received messages.
     /// </summary>
+    /// <remarks>
+    ///     While a handler runs, visibility is extended once per half timeout so a long handler keeps its
+    ///     receipt handle alive.
+    /// </remarks>
     public int VisibilityTimeoutSeconds { get; init; } = 30;
 
     /// <summary>

@@ -16,7 +16,7 @@ public sealed class InboxAcceptItemTests
     {
         var item = InboxAcceptItem.From(new object(), typeof(string));
 
-        item.MessageType.Should().Be(typeof(string));
+        item.MessageType.Should().Be<string>();
         item.Metadata.Should().BeEquivalentTo(InboxAcceptMetadata.Immediate);
     }
 

@@ -49,7 +49,7 @@ Writers persist optional idempotency keys with envelopes. On duplicate `(tenant_
 
 | Package | Role |
 | --- | --- |
-| `LiteBus.Messaging.Abstractions` | `Idempotency`, `MessageIdentity`, `IdempotencyConflictMode` |
+| `LiteBus.DurableMessaging.Abstractions` | `Idempotency`, `MessageIdentity`, `IdempotencyConflictMode` |
 | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | Metadata on accept and enqueue items |
 | `LiteBus.Inbox.Ingress` | Broker-scoped ingress keys |
 | All storage packages | Unique constraints and upsert behavior |
@@ -66,7 +66,7 @@ Writers persist optional idempotency keys with envelopes. On duplicate `(tenant_
 - Null or whitespace tenant normalizes to empty string
 - Completed inbox rows remain deduplicated on repeat accept with same key
 - Idempotency keys live in inbox and outbox metadata
-- Transactional EF: duplicate key fails entire `SaveChanges` (no silent dedup)
+- Transactional EF in `Strict` mode: duplicate key fails entire `SaveChanges` (no silent dedup; `ReturnExisting` resolves the duplicate before staging instead)
 
 ## Non-Goals
 
@@ -120,8 +120,7 @@ No dedicated idempotency meter. Duplicate accepts are success paths, not errors.
 - `LiteBus.Outbox.UnitTests`
 - `LiteBus.Enterprise.UnitTests`
 - `LiteBus.Durable.IntegrationTests`
-- `LiteBus.Storage.IntegrationTests`
-- `LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests`
+- `LiteBus.Storage.IntegrationTests` (`EntityFrameworkCore/`, `PostgreSql/`)
 
 ### Covered Use Cases
 
@@ -222,7 +221,7 @@ No dedicated idempotency meter. Duplicate accepts are success paths, not errors.
 - **Description**: EF Core transactional inbox with conflicting duplicate
 - **Behavior**: **`SaveChangesAsync`** after duplicate keyed accept in same transaction
 - **Expected outcome**: Transaction fails; silent dedup not applied
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests` (`EntityFrameworkCore/Inbox/`)
 
 #### `InboxAcceptOutcomeTests.AcceptAsync_WhenStrictIdempotencyConflicts_ShouldThrow`
 
@@ -255,9 +254,9 @@ No dedicated idempotency meter. Duplicate accepts are success paths, not errors.
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| Handler-level idempotency store | No (planned) | N/A |: |: |
+| Handler-level idempotency store | No (planned) | N/A | N/A | N/A |
 | Automatic mediator idempotency middleware | No | Planned capability | Unit | Medium |
-| Client HTTP Idempotency-Key header mapping | Yes | Application-owned; no framework test |: | Low |
+| Client HTTP Idempotency-Key header mapping | Yes | Application-owned; no framework test | N/A | Low |
 
 ### Out-of-Scope Use Cases
 

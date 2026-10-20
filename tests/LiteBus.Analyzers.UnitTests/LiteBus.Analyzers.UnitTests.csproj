@@ -1,37 +1,35 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-        <TargetFrameworks></TargetFrameworks>
+        <!-- Single-targeted on purpose: the plural property overrides the inherited TargetFrameworks, and
+             SetTargetFramework on the analyzer ProjectReference below keeps netstandard2.0 restorable. -->
+        <TargetFrameworks>net10.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
-        <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
         <SignAssembly>false</SignAssembly>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.8.0"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.8.0"/>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.5.1"/>
-        <PackageReference Include="NuGet.Versioning" Version="6.14.0"/>
-        <PackageReference Include="coverlet.collector" Version="10.0.1">
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-            <PrivateAssets>all</PrivateAssets>
-        </PackageReference>
-        <PackageReference Include="xunit" Version="2.9.3"/>
-        <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <PackageReference Include="NuGet.Versioning"/>
+        <PackageReference Include="xunit"/>
+        <PackageReference Include="xunit.runner.visualstudio">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\LiteBus.Analyzers\LiteBus.Analyzers.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Analyzers\LiteBus.Analyzers.csproj"
+                          SetTargetFramework="TargetFramework=netstandard2.0"/>
+        <ProjectReference Include="..\..\src\LiteBus.Analyzers\LiteBus.Analyzers.csproj"
+                          SetTargetFramework="TargetFramework=netstandard2.0"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>

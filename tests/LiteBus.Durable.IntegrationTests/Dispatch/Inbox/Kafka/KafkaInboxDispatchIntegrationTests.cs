@@ -81,7 +81,7 @@ public sealed class KafkaInboxDispatchIntegrationTests : LiteBusTestBase
             body.Should().Contain(workItemId.ToString());
             headers[TransportHeaders.MessageId].Should().Be(receipt.Id.ToString("D"));
             headers[TransportHeaders.ContractName].Should().Be(ContractName);
-            headers[TransportHeaders.ContractVersion].Should().Be(ContractVersion.ToString());
+            headers[TransportHeaders.ContractVersion].Should().Be(ContractVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
             headers[TransportHeaders.CorrelationId].Should().Be("corr-kafka-dispatch");
             headers[TransportHeaders.CausationId].Should().Be("cause-kafka-dispatch");
             headers[TransportHeaders.TenantId].Should().Be("tenant-kafka");

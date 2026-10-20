@@ -17,10 +17,13 @@ internal static class LiteBusSymbols
         "LiteBus.Events.Abstractions.IEventMediator",
         "LiteBus.Queries.Abstractions.IQueryMediator",
         "LiteBus.Inbox.Abstractions.IInbox",
+        "LiteBus.Inbox.Abstractions.ITransactionalInbox",
         "LiteBus.Inbox.Abstractions.ITransactionalInbox`1",
         "LiteBus.Inbox.Abstractions.IInboxStore",
         "LiteBus.Inbox.Abstractions.ITransactionalInboxStore",
         "LiteBus.Outbox.Abstractions.IOutbox",
+        "LiteBus.Outbox.Abstractions.ITransactionalOutbox",
+        "LiteBus.Outbox.Abstractions.ITransactionalOutbox`1",
         "LiteBus.Outbox.Abstractions.IOutboxStore",
         "LiteBus.Outbox.Abstractions.ITransactionalOutboxStore",
         "LiteBus.Transport.Abstractions.ITransportPublisher"

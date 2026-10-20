@@ -6,9 +6,12 @@ namespace LiteBus.Storage.UnitTests.InMemory.Inbox;
 public sealed class InboxStoreContractTests : LiteBus.Storage.Testing.InboxStoreContractTests
 {
     /// <inheritdoc />
-    protected override InboxStoreRoles CreateStore()
+    protected override bool UsesDatabaseClock => false;
+
+    /// <inheritdoc />
+    protected override InboxStoreContractRoles CreateStore()
     {
         var store = new InMemoryInboxStore();
-        return new InboxStoreRoles(store, store, store, store, store, store, store, store);
+        return new InboxStoreContractRoles(store, store, store, store, store, store, store, store);
     }
 }

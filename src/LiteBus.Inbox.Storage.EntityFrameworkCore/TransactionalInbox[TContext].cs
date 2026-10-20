@@ -20,7 +20,10 @@ namespace LiteBus.Inbox.Storage.EntityFrameworkCore;
 ///         <see cref="IdempotencyConflictMode.ReturnExisting" /> resolves tracked, pending, and persisted rows by message
 ///         identifier or tenant-scoped idempotency key before staging. <see cref="IdempotencyConflictMode.Strict" />
 ///         always stages the new envelope so duplicate scoped keys surface as <see cref="DbUpdateException" /> on
-///         <c>SaveChanges</c> and roll back the caller unit of work.
+///         <c>SaveChanges</c> and roll back the caller unit of work. Strict batch entries that reuse a message
+///         identifier already staged in the same batch are compared before staging: identical submissions resolve to
+///         the staged envelope, while changed submissions throw <see cref="IdempotencyConflictException" /> before
+///         anything is staged.
 ///     </para>
 /// </remarks>
 /// <typeparam name="TContext">The application database context type bound to the current scope.</typeparam>
@@ -114,6 +117,12 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
                     staged[index] = new InboxAppendResult(existing, InboxAcceptOutcome.AlreadyAccepted);
                     continue;
                 }
+            }
+            else if (FindStagedBatchDuplicate(pending, envelope) is { } duplicate)
+            {
+                ThrowIfStrictConflict(envelope, duplicate);
+                staged[index] = new InboxAppendResult(duplicate, InboxAcceptOutcome.AlreadyAccepted);
+                continue;
             }
 
             staged[index] = new InboxAppendResult(envelope, InboxAcceptOutcome.Accepted);
@@ -231,6 +240,49 @@ public sealed class TransactionalInbox<TContext> : ITransactionalInbox<TContext>
             !string.IsNullOrWhiteSpace(envelope.IdempotencyKey) &&
             string.Equals(candidate.IdempotencyKey, envelope.IdempotencyKey, StringComparison.Ordinal) &&
             EfCoreIdempotencyResolution.NormalizeTenantId(candidate.TenantId) == normalizedTenantId);
+    }
+
+    /// <summary>
+    ///     Finds an envelope already staged for the current batch with the same message identifier.
+    /// </summary>
+    /// <param name="pending">The new envelopes staged earlier in the current batch.</param>
+    /// <param name="envelope">The envelope being staged.</param>
+    /// <returns>The staged batch envelope with the same identifier, or <see langword="null" /> when none exists.</returns>
+    /// <remarks>
+    ///     The save-changes flush collapses duplicate identifiers, so strict same-identifier batch entries are
+    ///     compared here instead of relying on the database to reject them.
+    /// </remarks>
+    private static InboxEnvelope? FindStagedBatchDuplicate(
+        IReadOnlyList<InboxEnvelope> pending,
+        InboxEnvelope envelope)
+    {
+        return pending.FirstOrDefault(candidate => candidate.Id == envelope.Id);
+    }
+
+    /// <summary>
+    ///     Throws when a strict batch duplicate carries a changed submission for the same message identifier.
+    /// </summary>
+    /// <param name="envelope">The envelope attempted for staging.</param>
+    /// <param name="existing">The envelope already staged in the batch.</param>
+    private static void ThrowIfStrictConflict(InboxEnvelope envelope, InboxEnvelope existing)
+    {
+        if (envelope.Id == existing.Id &&
+            string.Equals(envelope.ContractName, existing.ContractName, StringComparison.Ordinal) &&
+            envelope.ContractVersion == existing.ContractVersion &&
+            string.Equals(envelope.Payload, existing.Payload, StringComparison.Ordinal) &&
+            string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) &&
+            string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) &&
+            string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) &&
+            string.Equals(
+                EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
+                EfCoreIdempotencyResolution.NormalizeTenantId(existing.TenantId),
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        throw new IdempotencyConflictException(
+            $"An inbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
     }
 
     /// <summary>

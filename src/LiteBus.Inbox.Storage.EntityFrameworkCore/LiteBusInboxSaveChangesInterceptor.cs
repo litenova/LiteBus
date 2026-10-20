@@ -180,7 +180,7 @@ public sealed class LiteBusInboxSaveChangesInterceptor : SaveChangesInterceptor
 
         foreach (var envelope in pending)
         {
-            if (!seenIds.Add(envelope.Id))
+            if (!seenIds.Add(envelope.Id) && envelope.IdempotencyConflictMode == IdempotencyConflictMode.ReturnExisting)
             {
                 continue;
             }
@@ -221,6 +221,14 @@ public sealed class LiteBusInboxSaveChangesInterceptor : SaveChangesInterceptor
     {
         if (trackedIds.Contains(envelope.Id))
         {
+            // A strict envelope must not collapse into another row with its identifier: that would report two accepted
+            // submissions while keeping one. Failing the save aborts the caller's unit of work instead.
+            if (envelope.IdempotencyConflictMode == IdempotencyConflictMode.Strict)
+            {
+                throw new InvalidOperationException(
+                    $"Two inbox envelopes with message id '{envelope.Id}' were staged in one unit of work under strict idempotency.");
+            }
+
             return true;
         }
 

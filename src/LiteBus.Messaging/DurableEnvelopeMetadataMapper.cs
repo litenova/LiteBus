@@ -18,7 +18,7 @@ internal static class DurableEnvelopeMetadataMapper
         return identity switch
         {
             MessageIdentity.Supplied supplied => supplied.Value,
-            _                                 => Guid.NewGuid()
+            _ => Guid.NewGuid()
         };
     }
 
@@ -46,12 +46,12 @@ internal static class DurableEnvelopeMetadataMapper
     /// </summary>
     /// <param name="idempotency">The idempotency metadata supplied by the caller.</param>
     /// <returns>The idempotency key to persist, or <see langword="null" /> when duplicate detection is not requested.</returns>
-    internal static string? ResolveIdempotencyKey(Idempotency idempotency)
+    internal static string? ResolveIdempotencyKey(Abstractions.DurableMessaging.Idempotency idempotency)
     {
         return idempotency switch
         {
-            Idempotency.Keyed keyed when !string.IsNullOrWhiteSpace(keyed.Key) => keyed.Key,
-            _                                                                  => null
+            Abstractions.DurableMessaging.Idempotency.Keyed keyed when !string.IsNullOrWhiteSpace(keyed.Key) => keyed.Key,
+            _ => null
         };
     }
 
@@ -60,12 +60,12 @@ internal static class DurableEnvelopeMetadataMapper
     /// </summary>
     /// <param name="idempotency">The idempotency metadata supplied by the caller.</param>
     /// <returns>The conflict mode applied by writers and stores for the attempt.</returns>
-    internal static IdempotencyConflictMode ResolveIdempotencyConflictMode(Idempotency idempotency)
+    internal static IdempotencyConflictMode ResolveIdempotencyConflictMode(Abstractions.DurableMessaging.Idempotency idempotency)
     {
         return idempotency switch
         {
-            Idempotency.Keyed keyed => keyed.ConflictMode,
-            _                       => IdempotencyConflictMode.ReturnExisting
+            Abstractions.DurableMessaging.Idempotency.Keyed keyed => keyed.ConflictMode,
+            _ => IdempotencyConflictMode.ReturnExisting
         };
     }
 
@@ -81,7 +81,7 @@ internal static class DurableEnvelopeMetadataMapper
         return trace switch
         {
             MessageTrace.Correlated correlated => (correlated.CorrelationId, null, null),
-            MessageTrace.Workflow workflow     => (workflow.CorrelationId, workflow.CausationId, null),
+            MessageTrace.Workflow workflow => (workflow.CorrelationId, workflow.CausationId, null),
             MessageTrace.Distributed distributed => (
                 distributed.CorrelationId,
                 distributed.CausationId,
@@ -100,7 +100,7 @@ internal static class DurableEnvelopeMetadataMapper
         return tenant switch
         {
             TenantScope.Isolated isolated when !string.IsNullOrWhiteSpace(isolated.TenantId) => isolated.TenantId,
-            _                                                                                => null
+            _ => null
         };
     }
 

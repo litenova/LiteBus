@@ -1,4 +1,5 @@
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore;
 using LiteBus.Storage.Testing;
 
 namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Outbox;
@@ -21,13 +22,14 @@ public sealed class EfCoreOutboxStoreMySqlContractTests : OutboxStoreContractTes
     public EfCoreOutboxStoreMySqlContractTests(MySqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, MySqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that MySQL leasing uses the database clock.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public Task LeasePendingAsync_WhenCallerClockIsSkewed_ShouldUseDatabaseClock()
     {
         return AssertDatabaseClockIgnoresCallerSkewAsync();
@@ -36,11 +38,11 @@ public sealed class EfCoreOutboxStoreMySqlContractTests : OutboxStoreContractTes
     /// <inheritdoc />
     protected override OutboxStoreContracts CreateStore()
     {
-        EfCoreMySqlTestInfrastructure.ResetAsync(_fixture.ConnectionString).GetAwaiter().GetResult();
+        EfCoreProviderTestInfrastructure.ResetOutboxTableAsync(EfCoreStorageProvider.MySql, _fixture.ConnectionString).GetAwaiter().GetResult();
         var store = new EfCoreOutboxStore(
             _ => Task.FromResult<IOutboxDbContext>(
-                EfCoreMySqlTestInfrastructure.CreateContext(_fixture.ConnectionString)),
-            EfCoreMySqlTestInfrastructure.StoreOptions);
+                EfCoreProviderTestInfrastructure.CreateOutboxContext(EfCoreStorageProvider.MySql, _fixture.ConnectionString)),
+            EfCoreProviderTestInfrastructure.OutboxStoreOptions(EfCoreStorageProvider.MySql));
 
         return new OutboxStoreContracts(store, store, store, store, store, store, store, store);
     }

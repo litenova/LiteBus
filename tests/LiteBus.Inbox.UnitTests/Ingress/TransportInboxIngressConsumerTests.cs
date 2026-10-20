@@ -451,6 +451,42 @@ public sealed class TransportInboxIngressConsumerTests
     /// <param name="consumer">The ingress consumer under test.</param>
     /// <param name="message">The synthetic delivery.</param>
     /// <returns>A task that completes when the delivery is handled.</returns>
+    /// <summary>
+    ///     Verifies a delivery after dispose ends like shutdown without recreating the admission gate.
+    /// </summary>
+    /// <returns>A task that completes when the shutdown-equivalent assertion succeeds.</returns>
+    [Fact]
+    public async Task HandleDeliveryAsync_AfterDispose_ShouldEndLikeShutdown()
+    {
+        var consumer = CreateConsumer(
+            true,
+            options: new TransportInboxIngressOptions
+            {
+                Safety = new TransportInboxIngressSafetyOptions
+                {
+                    BatchSize = 2,
+                    EnableBatchAccept = true,
+                    RequireStableIdentity = false
+                }
+            });
+
+        consumer.Dispose();
+
+        var act = () => InvokeHandleDeliveryAsync(
+            consumer,
+            CreateValidMessage(
+                () => Task.CompletedTask,
+                (_, _) => Task.CompletedTask));
+
+        await act.Should().ThrowAsync<OperationCanceledException>().ConfigureAwait(false);
+
+        var admissionField = typeof(TransportInboxIngressConsumer).GetField(
+                                 "_batchAdmission",
+                                 BindingFlags.NonPublic | BindingFlags.Instance) ??
+                             throw new InvalidOperationException("_batchAdmission not found.");
+        admissionField.GetValue(consumer).Should().BeNull();
+    }
+
     private static Task InvokeHandleDeliveryAsync(TransportInboxIngressConsumer consumer, TransportMessage message)
     {
         var method = typeof(TransportInboxIngressConsumer).GetMethod(

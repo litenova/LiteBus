@@ -12,7 +12,7 @@ public sealed class ProblematicQueryPostHandler : IQueryPostHandler<ProblematicQ
 
         if (message.ThrowExceptionInType == GetType())
         {
-            throw new Exception();
+            throw new InvalidOperationException("Simulated handler failure.");
         }
 
         return Task.CompletedTask;

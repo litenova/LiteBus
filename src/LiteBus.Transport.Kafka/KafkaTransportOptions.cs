@@ -1,3 +1,5 @@
+using System;
+
 namespace LiteBus.Transport.Kafka;
 
 /// <summary>
@@ -27,6 +29,22 @@ public sealed record KafkaTransportOptions
     ///     When <see langword="null" />, the Confluent producer default applies.
     /// </value>
     public int? MessageTimeoutMs { get; init; }
+
+    /// <summary>
+    ///     Gets the optional maximum number of send retries applied to the Kafka producer.
+    /// </summary>
+    /// <value>
+    ///     When <see langword="null" />, the Confluent producer default applies.
+    /// </value>
+    public int? MessageSendMaxRetries { get; init; }
+
+    /// <summary>
+    ///     Gets the optional socket timeout in milliseconds passed to the Kafka producer.
+    /// </summary>
+    /// <value>
+    ///     When <see langword="null" />, the Confluent producer default applies.
+    /// </value>
+    public int? SocketTimeoutMs { get; init; }
 
     /// <summary>
     ///     Gets the maximum duration of the cluster description request used by the connectivity diagnostic.

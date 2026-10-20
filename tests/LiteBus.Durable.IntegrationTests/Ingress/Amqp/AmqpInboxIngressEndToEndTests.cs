@@ -26,7 +26,7 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
     ///     Verifies the RabbitMQ ingress, processor, and transport dispatch flow.
     /// </summary>
     /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PublishThroughRabbitMq_ShouldAcceptProcessAndDispatchCommand()
     {
         var fixture = new RabbitMqBrokerFixture();
@@ -34,6 +34,9 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
 
         try
         {
+            DockerTestGate.EnsureBrokerAvailable(fixture.IsAvailable, "RabbitMQ");
+            Skip.IfNot(fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
+
             await RunEndToEndAsync(fixture.ConnectionOptions).ConfigureAwait(false);
         }
         finally
@@ -46,7 +49,7 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
     ///     Verifies the LavinMQ ingress, processor, and transport dispatch flow.
     /// </summary>
     /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PublishThroughLavinMq_ShouldAcceptProcessAndDispatchCommand()
     {
         var fixture = new LavinMqBrokerFixture();
@@ -54,6 +57,9 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
 
         try
         {
+            DockerTestGate.EnsureBrokerAvailable(fixture.IsAvailable, "LavinMQ");
+            Skip.IfNot(fixture.IsAvailable, LavinMqBrokerFixture.DockerRequiredMessage);
+
             await RunEndToEndAsync(fixture.ConnectionOptions).ConfigureAwait(false);
         }
         finally
@@ -143,6 +149,7 @@ public sealed class AmqpInboxIngressEndToEndTests : LiteBusTestBase
                     Exchange = string.Empty,
                     RoutingKey = ingressQueue,
                     Body = payload,
+                    MessageId = messageId.ToString("D"),
                     Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
                     {
                         [TransportHeaders.MessageId] = messageId.ToString("D"),

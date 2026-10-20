@@ -37,7 +37,8 @@ public sealed class HandlerDescriptorBuilder : IHandlerDescriptorBuilder
                 MessageResultType = messageResultType,
                 Priority = priority,
                 Tags = tags,
-                HandlerType = type
+                HandlerType = type,
+                ContractType = @interface
             };
         }
     }

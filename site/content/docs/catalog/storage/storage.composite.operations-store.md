@@ -178,7 +178,7 @@ Management HTTP exposes human-readable schema info; purge returns affected count
 - **Expected outcome**: Matching rows deleted
 - **Remarks**: Purge slice
 
-#### `InboxRetentionStoreContractTests` in `LiteBus.Inbox.Storage.InMemory.UnitTests`
+#### `InboxRetentionStoreContractTests` in `LiteBus.Storage.UnitTests`
 
 - **Use case**: InMemory inbox retention contract on operations store
 - **Test kind**: Contract
@@ -187,7 +187,7 @@ Management HTTP exposes human-readable schema info; purge returns affected count
 - **Expected outcome**: Same outcomes as abstract contract
 - **Remarks**: InMemory operations composite
 
-#### `OutboxRetentionStoreContractTests` in `LiteBus.Outbox.Storage.InMemory.UnitTests`
+#### `OutboxRetentionStoreContractTests` in `LiteBus.Storage.UnitTests`
 
 - **Use case**: InMemory outbox retention contract on operations store
 - **Test kind**: Contract

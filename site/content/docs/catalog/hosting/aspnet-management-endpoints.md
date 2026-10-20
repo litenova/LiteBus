@@ -74,7 +74,7 @@ When an inbox or outbox manager is absent, the entire matching route group retur
 
 ## Requires
 
-- `LiteBus.Extensions.Microsoft.DependencyInjection`
+- `hosting.add-lite-bus-microsoft-di` or `hosting.add-lite-bus-autofac`
 - `IInboxManager` for inbox routes
 - `IOutboxManager` for outbox routes
 - `IInboxProcessorControl` or `IOutboxProcessorControl` for processor routes
@@ -93,6 +93,7 @@ Management routes do not define a separate meter. Use `LiteBus.Inbox` and `LiteB
 - Storage adapters remain behind manager interfaces.
 - Destructive operations retain confirmation and authorization guards.
 - Drain timeout query values must be positive; missing or non-positive values use `DefaultDrainTimeout`, and values above `MaxDrainTimeout` are rejected.
+- Drain routes enforce the `LiteBusManagementOptions` instance passed to `AddLiteBusManagementEndpoints`, not a separately registered instance.
 - Query page sizes cannot exceed `MaxPageSize`.
 - Requeue and purge identifier lists cannot exceed `MaxBulkMessageIds`.
 - Route prefix trimming never creates consecutive slashes.
@@ -121,6 +122,8 @@ Management routes do not define a separate meter. Use `LiteBus.Inbox` and `LiteB
 | `ManagementEndpointPostgreSqlIntegrationTests.Health_IncludesRegisteredDiagnosticProbe` | Manifest probes execute through a hosted HTTP request |
 | `ManagementEndpointOperationsTests.ManagementRoutes_WithBothAxes_ShouldReturnSuccessfulResponses` | Inbox and outbox query, counts, schema, retention, and dead-letter routes bind to managers |
 | `ManagementEndpointOperationsTests.ProcessorRoutes_WithRegisteredControls_ShouldInvokeBothAxes` | State, pause, resume, and drain routes invoke matching controls and forward timeout values |
+| `ManagementEndpointOperationsTests.DrainRoutes_WithArgumentOnlyOptions_ShouldEnforceArgumentLimits` | Drain routes enforce the endpoint argument without a DI-registered options instance |
+| `ManagementEndpointOperationsTests.DrainRoutes_WithDifferingServiceOptions_ShouldPreferEndpointArgument` | Drain routes prefer the endpoint argument over a differing DI-registered options instance |
 | `ManagementEndpointOperationsTests.InboxRoutes_WhenInboxIsNotConfigured_ShouldReturnNotFound` | An absent axis uses its route-group fallback without affecting the configured axis |
 | `ManagementEndpointOperationsTests.AddLiteBusManagementEndpoints_WithCustomPrefix_ShouldMapOnlyCustomPath` | Slash-delimited custom prefixes replace the default route path |
 
@@ -137,6 +140,6 @@ Management routes do not define a separate meter. Use `LiteBus.Inbox` and `LiteB
 
 ## Deep Docs
 
-- [Operations and Management](../../operations/README.md)
+- [Operations and Management](../../operations/management-endpoints.md)
 - [Hosted Services](../../architecture/hosted-services.md)
 - [Diagnostics and Health](../../operations/diagnostics-and-health.md)

@@ -72,7 +72,7 @@ public sealed class InboxDispatchTransportIntegrationTests : LiteBusTestBase
                     .Should().Be(ContractName);
 
                 InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.ContractVersion)
-                    .Should().Be(ContractVersion.ToString());
+                    .Should().Be(ContractVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
                 InMemoryTransportTestInfrastructure.GetHeader(message, TransportHeaders.CorrelationId)
                     .Should().Be("corr-dispatch");

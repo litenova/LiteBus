@@ -86,12 +86,25 @@ public sealed record EventExecutionSettings
     public ConcurrencyMode HandlersWithinSamePriorityConcurrencyMode { get; init; } = ConcurrencyMode.Sequential;
 
     /// <summary>
-    ///     Gets or initializes how parallel handler failures are surfaced to callers.
+    ///     Gets or initializes how a failing handler affects the siblings broadcast alongside it.
     /// </summary>
     /// <value>
-    ///     A <see cref="ParallelFaultMode" /> value that controls whether one failure is propagated after sibling
-    ///     tasks settle or all failures are aggregated. Cancellation remains cooperative through the caller token.
-    ///     The default is <see cref="ParallelFaultMode.PropagateFirst" />.
+    ///     A <see cref="HandlerFaultMode" /> value that controls whether one failure stops the remaining handlers in
+    ///     its priority group or every handler runs and the failures are aggregated. Cancellation remains cooperative
+    ///     through the caller token. The default is <see cref="HandlerFaultMode.PropagateFirst" />.
     /// </value>
-    public ParallelFaultMode ParallelFaultMode { get; init; } = ParallelFaultMode.PropagateFirst;
+    /// <remarks>
+    ///     <para>
+    ///         The mode applies to sequential and parallel execution alike, so fault isolation no longer costs a move
+    ///         to <see cref="ConcurrencyMode.Parallel" />. That matters when handlers share a non-thread-safe resource
+    ///         such as an ORM session: those handlers must stay sequential, and stopping the broadcast at the first
+    ///         failure would silently drop the subscribers behind it.
+    ///     </para>
+    ///     <para>
+    ///         It governs handlers inside one priority group only. A later priority group never runs after an earlier
+    ///         one failed under <see cref="ConcurrencyMode.Sequential" /> group execution, because the priority
+    ///         difference is the statement that the later group depends on the earlier one having run.
+    ///     </para>
+    /// </remarks>
+    public HandlerFaultMode FaultMode { get; init; } = HandlerFaultMode.PropagateFirst;
 }

@@ -1,5 +1,6 @@
 using LiteBus.Storage.Testing;
 using LiteBus.Inbox.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore;
 
 namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Inbox;
 
@@ -21,22 +22,23 @@ public sealed class EfCoreInboxStoreSqlServerContractTests : InboxStoreContractT
     public EfCoreInboxStoreSqlServerContractTests(SqlServerFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, SqlServerFixture.DockerRequiredMessage);
     }
 
     /// <inheritdoc />
-    protected override InboxStoreRoles CreateStore()
+    protected override InboxStoreContractRoles CreateStore()
     {
-        EfCoreSqlServerTestInfrastructure.ResetInboxTableAsync(_fixture.ConnectionString)
+        EfCoreProviderTestInfrastructure.ResetInboxTableAsync(EfCoreStorageProvider.SqlServer, _fixture.ConnectionString)
             .GetAwaiter()
             .GetResult();
 
-        var options = EfCoreSqlServerTestInfrastructure.InboxStoreOptions;
+        var options = EfCoreProviderTestInfrastructure.InboxStoreOptions(EfCoreStorageProvider.SqlServer);
 
         var store = new EfCoreInboxStore(
             _ => Task.FromResult<IInboxDbContext>(
-                EfCoreSqlServerTestInfrastructure.CreateInboxContext(_fixture.ConnectionString)),
+                EfCoreProviderTestInfrastructure.CreateInboxContext(EfCoreStorageProvider.SqlServer, _fixture.ConnectionString)),
             options);
 
-        return new InboxStoreRoles(store, store, store, store, store, store, store, store);
+        return new InboxStoreContractRoles(store, store, store, store, store, store, store, store);
     }
 }

@@ -72,6 +72,17 @@ public interface IOutboxManager
     Task<IReadOnlyDictionary<OutboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     Returns one failure summary row per contract name and version that has failing messages.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels the query.</param>
+    /// <returns>
+    ///     One row per contract name and version with at least one <see cref="OutboxStatus.Failed" /> or
+    ///     <see cref="OutboxStatus.DeadLettered" /> message, ordered by <see cref="OutboxFailureSummary.LastFailedAt" />
+    ///     descending and then by contract name; an empty list when nothing is failing.
+    /// </returns>
+    Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     Returns schema version metadata for the configured outbox store.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the lookup.</param>
@@ -89,6 +100,7 @@ public interface IOutboxManager
     ///     Deletes published outbox messages older than the configured retention period immediately.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the purge operation.</param>
-    /// <returns>The number of rows deleted.</returns>
+    /// <returns>The number of rows deleted; 0 when no rows were eligible.</returns>
+    /// <exception cref="OutboxManagementException">Thrown when retention is null or non-positive.</exception>
     Task<int> RunRetentionPurgeAsync(CancellationToken cancellationToken = default);
 }

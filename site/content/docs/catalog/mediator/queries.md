@@ -4,6 +4,7 @@
 - **Name**: Queries
 - **Maturity**: GA
 - **Summary**: Executes read models through one main handler, including single-result and stream query paths.
+- **Guide**: [Query module](../../concepts/queries.md)
 
 ## What It Does
 
@@ -37,6 +38,8 @@ var dto = await queryMediator.QueryAsync(new GetProductQuery(id), cancellationTo
 | `IStreamQueryHandler<TQuery, TResult>` | Main handler for stream query |
 | `IQueryPreHandler<TQuery>` / `IQueryValidator<TQuery>` | Pre stage |
 | `IQueryPostHandler<TQuery>` / `IQueryPostHandler<TQuery, TResult>` | Post stage |
+| `IStreamQueryPostHandler<TQuery, TResult>` | Post stage for stream queries |
+| `IQueryRefusalMapper<TQuery, TResult>` / `IStreamQueryRefusalMapper<TQuery, TResult>` | Refusal mappers for single-result and stream queries |
 | `IQueryErrorHandler<TQuery>` / `IQueryErrorHandler<TQuery, TResult>` | Error stage |
 | `QueryMediatorExtensions.QueryAsync(..., string tag, ...)` | Single-tag query routing sugar |
 | `QueryMediatorExtensions.StreamAsync(..., string tag, ...)` | Single-tag stream routing sugar |
@@ -55,9 +58,9 @@ var dto = await queryMediator.QueryAsync(new GetProductQuery(id), cancellationTo
 
 ## Invariants
 
-- Exactly one main query handler must resolve after routing filters.
+- One main query handler must resolve after routing filters, at the winning level (direct, else indirect).
 - `QueryAsync` and `StreamAsync` throw `ArgumentNullException` for `null` query arguments.
-- Aborted stream queries can return an empty stream when pre-stage aborts.
+- A shortcut that stops a stream query yields the stream it answered with, which may be an empty sequence; post-handlers do not run.
 - Query handlers are intended for side-effect free reads.
 
 ## Non-Goals

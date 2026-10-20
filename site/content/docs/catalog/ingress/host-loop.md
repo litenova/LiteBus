@@ -50,7 +50,7 @@ flowchart TD
 
 ## Requires
 
-- `hosting.manifest-background-services` (generic host orchestrator)
+- `hosting.background-services` (generic host orchestrator)
 - `ingress.transport-consumer`
 
 ## Invariants
@@ -65,7 +65,7 @@ flowchart TD
 | Broker adapter | `DisableIngressConsumer()` | Host options customization |
 | --- | --- | --- |
 | AMQP | yes | `HostOptions` property |
-| Kafka | yes | `ConfigureHost(...)` API |
+| Kafka | yes | `HostOptions` property and `ConfigureHost(...)` |
 | AWS SQS | yes | `HostOptions` property |
 | Azure Service Bus | yes | `HostOptions` property |
 | InMemory | yes | `HostOptions` property |

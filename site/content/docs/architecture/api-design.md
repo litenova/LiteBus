@@ -21,7 +21,7 @@ This page defines the current LiteBus public API model: named types, CLR shapes,
 | `*Options` | Module, host, processor, or adapter configuration | `ProcessorOptions`, `PostgreSqlInboxStoreOptions` |
 | `*HostOptions` | Background-service lifecycle | `InboxProcessorHostOptions` |
 | `*Filter` | Query or purge predicates | `InboxMessageFilter` |
-| `*Binding` | Framework adapter input at the HTTP or host edge | `InboxQueryBinding`, `OutboxPurgeBinding` |
+| `*Binding` | Framework adapter input at the HTTP or host edge | `InboxMessageQueryBinding`, `OutboxMessagePurgeBinding` |
 | (no suffix) | Small, shared value objects | `SagaCorrelation`, `MessageIdentity` |
 
 ### Mediation vs Durable Writers
@@ -40,7 +40,7 @@ Public types use a consistent CLR kind per role.
 | `record` (non-sealed) | Rare bases (`ProcessorOptions`, `PostgreSqlSchemaStoreOptions`) | New public APIs unless inheritance is required |
 | `sealed class` | `*HostOptions` with `get`/`set`; modules, mediators, stores; optional thin construction namespaces (`OutboxEnqueue`); exceptions | New immutable value objects |
 | `readonly struct` / `readonly record struct` | Internal perf helpers and store keys only | Public contracts |
-| `interface` | `*.Abstractions` contracts |: |
+| `interface` | `*.Abstractions` contracts | Concrete implementations |
 
 **`*HostOptions` stay `sealed class`:** host and processor lifecycle bags remain mutable after instantiation (`ProcessorHostOptions`, `InboxCleanupHostOptions`, and similar).
 
@@ -193,7 +193,7 @@ await outbox.EnqueueAsync(
     cancellationToken);
 ```
 
-Feature guides ([Inbox](../reliable-messaging/inbox.md), [Outbox](../reliable-messaging/outbox.md), [Transactional messaging writes](../reliable-messaging/transactional-writes.md)) show end-to-end usage. Historical names and package mappings remain in the [Migration Guide](../migration/v6.md).
+Feature guides ([Inbox](../reliable-messaging/inbox.md), [Outbox](../reliable-messaging/outbox.md), [Transactional messaging writes](../reliable-messaging/transactional-writes.md)) show end-to-end usage. Historical names and package mappings remain in the [v6 Migration Guide](../migration/v6.md).
 
 ## Ergonomics
 
@@ -206,7 +206,7 @@ Feature guides ([Inbox](../reliable-messaging/inbox.md), [Outbox](../reliable-me
 
 Error handlers use `HandleErrorAsync(MessageErrorContext<TMessage, TResult>, CancellationToken)`. The typed context shares `Outcome` and `HandledResult` with the mediation pipeline, so observing a failure leaves it unhandled while recovery is an explicit state transition. Cancellation is always the token supplied to the mediation call; error handlers do not depend on ambient token lookup.
 
-Related durable surfaces include `ILeaseRenewable.RenewLeaseAsync(LeaseRenewalRequest, ...)` on inbox and outbox lease stores; `ISagaStore.SaveAsync(SagaSaveItem<TState>, ...)`, `SagaCompleteItem`, `SagaSaveItem.From`, `SagaCorrelation.SagaDefinitionId`, and tenant-scoped saga primary keys. See [Saga](../reliable-messaging/saga.md).
+Related durable surfaces include `ILeaseRenewable.RenewLeaseAsync(LeaseRenewalRequest, ...)` and `ILeaseRenewable.ReleaseLeaseAsync(LeaseReleaseRequest, ...)` on inbox and outbox lease stores; `ISagaStore.SaveAsync(SagaSaveItem<TState>, ...)`, `SagaCompleteItem`, `SagaSaveItem.From`, `SagaCorrelation.SagaDefinitionId`, and tenant-scoped saga primary keys. See [Saga](../reliable-messaging/saga.md).
 
 Track broader roadmap items in [Roadmap](../roadmap/README.md).
 
@@ -214,10 +214,11 @@ Track broader roadmap items in [Roadmap](../roadmap/README.md).
 
 - Dependency role rules (see [Dependency graph](dependency-graph.md))
 - Module registration and hosted-service manifest (see [Hosted services](hosted-services.md))
+- Mediation contract naming, stage rules, and vocabulary (see [Mediation Layer Design Rules](mediation-design.md))
 - Mediation pipeline behavior (see [The handler pipeline](../concepts/handler-pipeline.md))
 
 ## Next
 
 - [Architecture](README.md): storage accept/process paths and dependency roles
 - [Inbox](../reliable-messaging/inbox.md) / [Outbox](../reliable-messaging/outbox.md): feature guides for durable messaging
-- [Migration Guide](../migration/v6.md): historical API and database transitions
+- [v6 Migration Guide](../migration/v6.md): historical API and database transitions

@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
@@ -40,6 +44,12 @@ public sealed class TestOutboxStore :
     }
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        return _inner.GetFailureSummaryAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
     {
         return _inner.GetSchemaInfoAsync(cancellationToken);
@@ -74,6 +84,14 @@ public sealed class TestOutboxStore :
         CancellationToken cancellationToken = default)
     {
         return _inner.RenewLeaseAsync(request, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return _inner.ReleaseLeaseAsync(request, cancellationToken);
     }
 
     /// <inheritdoc />

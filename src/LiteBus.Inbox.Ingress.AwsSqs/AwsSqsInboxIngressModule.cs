@@ -40,18 +40,17 @@ public sealed class AwsSqsInboxIngressModule :
         var moduleBuilder = _moduleBuilder;
 
         var options = moduleBuilder.Options ??
-                      throw new LiteBusConfigurationException(
+                      throw new DurableStorageConfigurationException(
                           $"{nameof(AwsSqsInboxIngressOptions)} must be configured before registering AWS SQS inbox ingress.");
 
         if (string.IsNullOrWhiteSpace(options.Destination))
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 $"{nameof(AwsSqsInboxIngressOptions.Destination)} must be configured before registering AWS SQS inbox ingress.");
         }
 
         options.Safety.Validate();
-        ArgumentOutOfRangeException.ThrowIfLessThan(options.ReceiveBatchSize, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(options.ReceiveBatchSize, 10);
+        IngressAdapterOptionsValidator.ValidateReceiveBatchSize(options.ReceiveBatchSize);
 
         var ingressOptions = new TransportInboxIngressOptions
         {

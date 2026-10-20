@@ -117,9 +117,9 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
     {
         return method switch
         {
-            "POST"   => client.PostAsync(path, null),
+            "POST" => client.PostAsync(path, null),
             "DELETE" => client.DeleteAsync(path),
-            _        => throw new ArgumentOutOfRangeException(nameof(method), method, "Unsupported HTTP method.")
+            _ => throw new ArgumentOutOfRangeException(nameof(method), method, "Unsupported HTTP method.")
         };
     }
 
@@ -225,7 +225,7 @@ public sealed class ManagementEndpointAuthorizationIntegrationTests
             Claim[] claims = AuthenticationType switch
             {
                 "operator" => [new Claim(ClaimTypes.Role, "operator")],
-                _          => []
+                _ => []
             };
 
             var identity = new ClaimsIdentity(claims, SchemeName);

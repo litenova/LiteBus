@@ -3,16 +3,10 @@ using Testcontainers.RabbitMq;
 namespace LiteBus.Transport.IntegrationTests.Amqp;
 
 /// <summary>
-///     Shared RabbitMQ container for integration tests. Initialization fails when Docker is unavailable.
+///     Shared RabbitMQ container for integration tests. Only container-runtime failures map to the Docker-required outcome.
 /// </summary>
 public sealed class RabbitMqFixture : IAsyncLifetime
 {
-    /// <summary>
-    ///     Message shown when integration tests fail because Docker is not available.
-    /// </summary>
-    public const string DockerRequiredMessage =
-        "AMQP integration tests require Docker. Start Docker Desktop (or the Docker daemon) and run the tests again.";
-
     private RabbitMqContainer? _container;
 
     /// <summary>
@@ -20,22 +14,31 @@ public sealed class RabbitMqFixture : IAsyncLifetime
     /// </summary>
     public AmqpConnectionOptions ConnectionOptions { get; private set; } = null!;
 
+    /// <summary>
+    ///     Gets a value indicating whether the RabbitMQ container started successfully.
+    /// </summary>
+    public bool IsAvailable { get; private set; }
+
     /// <inheritdoc />
     public async Task InitializeAsync()
     {
         try
         {
-            _container = new RabbitMqBuilder("rabbitmq:4-management")
-                .WithUsername("guest")
-                .WithPassword("guest")
-                .Build();
+            await DockerTestGate.RunAsync(async () =>
+            {
+                _container = new RabbitMqBuilder("rabbitmq:4-management")
+                    .WithUsername("guest")
+                    .WithPassword("guest")
+                    .Build();
 
-            await _container.StartAsync().ConfigureAwait(false);
-            ConnectionOptions = CreateConnectionOptions(_container);
+                await _container.StartAsync().ConfigureAwait(false);
+                ConnectionOptions = CreateConnectionOptions(_container);
+                IsAvailable = true;
+            }).ConfigureAwait(false);
         }
-        catch (Exception exception)
+        catch (InvalidOperationException) when (!DockerTestGate.IsStrictTransportMode)
         {
-            throw new InvalidOperationException(DockerRequiredMessage, exception);
+            IsAvailable = false;
         }
     }
 

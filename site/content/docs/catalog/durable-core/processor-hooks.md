@@ -43,7 +43,7 @@ Inbox defaults to `DeadLetter`. In-process outbox dispatch also defaults to `Dea
 | --- | --- | --- |
 | `IProcessorEnvelopeHook` | `LiteBus.DurableMessaging.Abstractions` | Axis-neutral lifecycle contract |
 | `IProcessorEnvelope` | `LiteBus.DurableMessaging.Abstractions` | Read-only message ID, contract, trace, and tenant metadata |
-| `ProcessorHookFailurePolicy` | `LiteBus.Messaging.Abstractions` | Post-dispatch failure policy |
+| `ProcessorHookFailurePolicy` | `LiteBus.DurableMessaging.Abstractions` | Post-dispatch failure policy |
 | `InboxProcessorOptions.HookFailurePolicy` | `LiteBus.Inbox.Abstractions` | Inbox policy selection |
 | `OutboxProcessorOptions.HookFailurePolicy` | `LiteBus.Outbox.Abstractions` | Outbox policy selection |
 
@@ -74,6 +74,11 @@ registry.AddInbox(inbox =>
 | `LiteBus.Saga` | Saga hook and execution context |
 | `LiteBus.Saga.InboxIntegration` | Inbox builder and command mediation attachment |
 
+## Requires
+
+- `runtime.module-configuration` (module registration)
+- Inbox or outbox processor with hook invocation
+
 ## Invariants
 
 - Hooks run once per leased envelope, not once per processor pass.
@@ -89,6 +94,7 @@ registry.AddInbox(inbox =>
 - Hook execution on direct mediator calls outside durable processors.
 - Automatic ordering beyond dependency-injection registration order.
 - A workflow engine built from arbitrary processor hooks.
+- Saga integration on the outbox processor; saga hooks run on the inbox processor only.
 
 ## Observability
 
@@ -114,6 +120,7 @@ Hooks use processor logs, counters, and activities. There is no hook-specific me
 ## Deep Docs
 
 - [Saga](../../reliable-messaging/saga.md)
+- [Saga Processor Hook](../saga/processor-hook.md)
 - [Inbox](../../reliable-messaging/inbox.md)
 - [Outbox](../../reliable-messaging/outbox.md)
 - [Architecture](../../architecture/README.md)

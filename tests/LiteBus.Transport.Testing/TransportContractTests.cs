@@ -28,7 +28,7 @@ public abstract class TransportContractTests
     ///     Verifies that payload bytes and LiteBus headers survive a publish and consume round trip.
     /// </summary>
     /// <returns>A task that completes when the delivery is accepted.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PublishAsync_ThenConsume_PreservesPayloadAndHeaders()
     {
         var context = await CreateContextAsync("roundtrip").ConfigureAwait(false);
@@ -70,7 +70,7 @@ public abstract class TransportContractTests
     ///     Verifies that returning a delivery to the queue causes another delivery before it is accepted.
     /// </summary>
     /// <returns>A task that completes after the redelivered message is accepted.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ReturnToQueueAsync_ThenConsume_RedeliversMessage()
     {
         var context = await CreateContextAsync("redelivery").ConfigureAwait(false);
@@ -114,7 +114,7 @@ public abstract class TransportContractTests
     ///     Verifies that a publisher observes a cancellation requested before publication begins.
     /// </summary>
     /// <returns>A task that completes when cancellation is observed.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task PublishAsync_WhenCancellationRequested_ThrowsOperationCanceledException()
     {
         var context = await CreateContextAsync("cancellation").ConfigureAwait(false);

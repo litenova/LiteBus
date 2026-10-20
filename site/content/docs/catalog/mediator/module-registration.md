@@ -4,6 +4,7 @@
 - **Name**: Module registration
 - **Maturity**: GA
 - **Summary**: Registers messaging, command, query, and event features with explicit dependencies and assembly scanning.
+- **Guide**: [Getting started](../../getting-started/README.md)
 
 ## What It Does
 

@@ -16,12 +16,13 @@ public abstract class InboxRetentionStoreContractTests
     ///     Creates a fresh store instance for one retention test.
     /// </summary>
     /// <returns>The writer, lease, state, retention, and diagnostics roles backed by the same store instance.</returns>
-    protected abstract InboxStoreRoles CreateStore();
+    protected abstract InboxRetentionStoreContractRoles CreateStore();
 
     /// <summary>
     ///     Verifies that completed rows older than the retention cutoff are deleted.
     /// </summary>
-    [Fact]
+    /// <returns>A task that completes when the check finishes.</returns>
+    [SkippableFact]
     public async Task DeleteCompletedOlderThanAsync_ShouldRemoveEligibleRows()
     {
         var roles = CreateStore();
@@ -63,7 +64,8 @@ public abstract class InboxRetentionStoreContractTests
     /// <summary>
     ///     Verifies that retention uses <c>completed_at</c> when set instead of falling back to <c>created_at</c>.
     /// </summary>
-    [Fact]
+    /// <returns>A task that completes when the check finishes.</returns>
+    [SkippableFact]
     public async Task DeleteCompletedOlderThanAsync_WhenCompletedAtIsRecentButCreatedAtIsOld_ShouldRetainRow()
     {
         var roles = CreateStore();
@@ -95,7 +97,8 @@ public abstract class InboxRetentionStoreContractTests
     /// <summary>
     ///     Verifies that no rows are deleted when the cutoff is earlier than every completed row.
     /// </summary>
-    [Fact]
+    /// <returns>A task that completes when the check finishes.</returns>
+    [SkippableFact]
     public async Task DeleteCompletedOlderThanAsync_WhenCutoffIsBeforeAllRows_ShouldDeleteNothing()
     {
         var roles = CreateStore();
@@ -151,7 +154,7 @@ public abstract class InboxRetentionStoreContractTests
     /// <param name="StateWriter">The state writer role used by the processor.</param>
     /// <param name="RetentionStore">The retention role used by cleanup.</param>
     /// <param name="DiagnosticsStore">The diagnostics role used by operators.</param>
-    public sealed record InboxStoreRoles(
+    public sealed record InboxRetentionStoreContractRoles(
         IInboxStore Writer,
         IInboxLeaseStore LeaseStore,
         IInboxStateWriter StateWriter,

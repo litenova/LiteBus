@@ -1,12 +1,16 @@
-# Saga (Extension Tier)
+# Saga
 
-**Maturity: Extension**
+LiteBus saga support keeps correlated state across inbox command dispatches, so a multi-step workflow can track progress while the inbox delivers each command at least once. This page shows how to register sagas, write handlers, and handle failures.
 
-LiteBus saga support provides **correlated state persistence around inbox command dispatch**. It is a process-manager pattern: handlers mutate durable state keyed by `CorrelationId` while the inbox processor delivers commands at-least-once.
+**Production tier: Extension**
 
-Saga is **not** a full workflow engine. There is no built-in scheduler, timeout framework, compensation DSL, or outbox-driven choreography.
+> **This page is for** developers who track a multi-step workflow across inbox commands.
+>
+> **After reading it** you can register saga state, write handlers with `ISagaContext`, and predict failure behavior. For the durable overview, start with [Reliable Messaging](README.md).
 
-## What It Is
+Saga is not a full workflow engine. There is no built-in scheduler, timeout framework, compensation language, or outbox-driven choreography.
+
+## Saga Hook and State Model
 
 - A processor hook (`SagaProcessorHook`) that loads saga state before dispatch and saves or completes it after successful dispatch.
 - Handler access through injected `ISagaContext` (`GetState`, `SetState`, `Complete`).
@@ -14,16 +18,16 @@ Saga is **not** a full workflow engine. There is no built-in scheduler, timeout 
 - Explicit in-memory store for development or PostgreSQL persistence for production.
 - Per-dispatch scope on the singleton `SagaExecutionContext`, with an in-process correlation gate and durable optimistic concurrency across hosts.
 
-## What It Is Not
+## Excluded Workflow Features
 
 | Not included | Use instead |
 | --- | --- |
-| Dedicated saga handler type | `ICommandHandler<TCommand>` + `ISagaContext` |
+| Dedicated saga handler type | `ICommandHandler<TCommand>` plus `ISagaContext` |
 | Outbox or event-driven saga | Inbox commands only |
 | EF Core saga storage | PostgreSQL or custom `ISagaStore` |
-| Saga scheduler / timeouts | Application timers or external orchestration |
+| Saga scheduler and timeouts | Application timers or external orchestration |
 | Built-in compensation framework | Handler logic and idempotent side effects |
-| Transactional saga + inbox in one connection | Application-level two-phase workflow or future transactional store adapter |
+| Transactional saga plus inbox in one connection | Application-level two-phase workflow or future transactional store adapter |
 
 ## Packages to Install
 
@@ -63,7 +67,7 @@ builder.AddInbox(inbox =>
 });
 ```
 
-Single-contract workflows may use `MapState<TState>(contractName)`, which registers the definition identifier and state type with the same name.
+Single-contract workflows may use `MapState<TState>(contractName)`, which registers the definition identifier and state type with the same name. `RegisterState<TState>(id)` is an alias of `DefineState<TState>(id)`; both register one saga state type for one stable definition identifier.
 
 Register command handlers normally through `AddCommands`. Saga handlers are standard `ICommandHandler<TCommand>` implementations.
 
@@ -76,7 +80,10 @@ public sealed class AdvanceOrderSagaCommandHandler : ICommandHandler<AdvanceOrde
 {
     private readonly ISagaContext _sagaContext;
 
-    public AdvanceOrderSagaCommandHandler(ISagaContext sagaContext) => _sagaContext = sagaContext;
+    public AdvanceOrderSagaCommandHandler(ISagaContext sagaContext)
+    {
+        _sagaContext = sagaContext;
+    }
 
     public Task HandleAsync(AdvanceOrderSagaCommand command, CancellationToken cancellationToken = default)
     {
@@ -93,7 +100,7 @@ public sealed class AdvanceOrderSagaCommandHandler : ICommandHandler<AdvanceOrde
 }
 ```
 
-Call `Complete()` when the workflow reaches a terminal business state. The hook marks the saga instance completed after dispatch succeeds. Do not call `Complete()` and `SetState()` in the same dispatch; persist final state on one message and complete on a later correlated message.
+Call `Complete()` when the workflow reaches a terminal business state. The hook marks the saga instance completed after dispatch succeeds. Do not combine `Complete()` with a state change in the same dispatch; persist final state on one message and complete on a later correlated message. Reading state with `GetState` and then calling `Complete()` is allowed. In-place mutations count as a state change: the hook compares the serialized state against the load snapshot, so mutated state is persisted even without `SetState()`. When `Complete()` is the first saga interaction for a correlation, the hook saves the initial state snapshot first and then completes the new row, so the saga is created already completed instead of reporting a concurrency conflict.
 
 ## Correlation and Tenancy
 
@@ -107,7 +114,8 @@ await inbox.AcceptAsync(
         {
             Trace = new MessageTrace.Correlated(correlationId),
             Tenant = new TenantScope.Isolated(tenantId)
-        }));
+        }),
+    cancellationToken).ConfigureAwait(false);
 ```
 
 Messages without correlation dispatch normally but skip saga scope (`ISagaContext.IsActive` is false). `TenantId` on the envelope participates in the saga primary key when present. The PostgreSQL store writes a missing or whitespace tenant identifier as an empty string. An omitted tenant predicate on `SagaQueryFilter` or `SagaPurgeFilter` includes every tenant.
@@ -116,28 +124,52 @@ Messages without correlation dispatch normally but skip saga scope (`ISagaContex
 
 | Scenario | Behavior |
 | --- | --- |
-| Handler throws | Dispatch fails; saga state is **not** saved for that attempt |
+| Handler throws | Dispatch fails; saga state is not saved for that attempt |
 | Handler succeeds, `SetState` called | State persisted with optimistic concurrency (`SagaConcurrencyException` on conflict) |
 | Dirty-state `SagaConcurrencyException` after dispatch | Hook propagates the conflict without reloading or replacing the concurrent state; inbox failure policy handles the message |
 | Completion-only `SagaConcurrencyException` after dispatch | Hook reloads and retries against the current version up to three attempts; an already completed saga is treated as success |
-| At-least-once redelivery | The store records the last applied message ID, but handlers and external side effects must remain **idempotent** across crashes |
-| Completed saga | Further correlated messages dispatch without active saga scope |
+| `Complete()` with no prior save | Hook saves the initial state snapshot, then completes the new row; the saga is created already completed |
+| At-least-once redelivery | The store records only the last applied message ID. When an inbox terminal persist fails after a save, a newer message for the same correlation can advance the row before the failed message retries, and the retry then runs its handler again. Handlers and external side effects must remain idempotent across crashes; see [Idempotency](../concepts/idempotency.md) |
+| Completed saga | Further correlated messages dispatch with an inactive saga scope (`IsActive` is false) and no saga mutation; only a redelivery whose message id matches `LastAppliedMessageId` is suppressed without running the handler |
 
 `SagaExecutionContext` registers as a singleton. Each active scope is keyed by the durable message ID, and an instance `AsyncLocal` attaches that scope to the current dispatch flow. `SagaProcessorHook.PrepareDispatchScope` runs synchronously after `BeforeDispatchAsync` so the dispatcher inherits the attached scope. `SagaInboxCommandScopePreHandler` attaches the same message-keyed scope before in-process command handlers. The hook serializes active dispatches for the same tenant, definition, and correlation inside one process. PostgreSQL optimistic concurrency remains the cross-process fence. Failed dispatches call `AbandonDispatchScope` and remove their entries from the singleton context.
 
 Correlation serialization is not message ordering. Inbox acquisition is FIFO-like by `created_at`, but equal timestamps, retries, and multiple workers prevent a strict FIFO guarantee. Enqueue a causally dependent saga step only after its prerequisite is durable, or make the handler reject and retry an early step safely.
 
+## Evolving State Shape
+
+Saga state JSON carries no schema version. Renaming the state class or a property is silent: unknown members are ignored and missing members take defaults, so an older row can deserialize into a state object that looks valid and has lost fields. Changing a property type breaks deserialization with a typed `MessageSerializationException` instead. Keep a `Version` property inside the state class that the handler checks and upgrades:
+
+```csharp
+public sealed class OrderSagaState
+{
+    public int Version { get; set; } = 2;
+    public int Step { get; set; }
+}
+```
+
+```csharp
+var state = _sagaContext.GetState<OrderSagaState>();
+
+if (state.Version < 2)
+{
+    // Rows written before Version existed deserialize with Version 0; map retired fields here.
+    state.Version = 2;
+    _sagaContext.SetState(state);
+}
+```
+
 ## Durability Model
 
-Saga persistence is **separate** from inbox terminal state:
+Saga persistence is separate from inbox terminal state:
 
 1. Handler runs during inbox dispatch.
 2. On success, `SagaProcessorHook.AfterDispatchAsync` saves saga state or marks completion.
-3. Inbox terminal persistence (completed/failed) runs after hooks succeed.
+3. Inbox terminal persistence (completed or failed) runs after hooks succeed.
 
-Inbox and saga rows are **not** committed in one database transaction unless the application coordinates that explicitly. A process crash after saga save but before inbox completion can leave saga state advanced while the inbox message retries. Design handlers for at-least-once delivery: reload state, guard with business keys, and make side effects idempotent.
+Inbox and saga rows are not committed in one database transaction unless the application coordinates that explicitly. A process crash after saga save but before inbox completion can leave saga state advanced while the inbox message retries. Design handlers for at-least-once delivery: reload state, guard with business keys, and make side effects idempotent.
 
-**Cross-store transaction boundary:** A single ambient transaction spanning inbox terminal update and saga save requires a store-level seam (`ITransactionalInbox` + saga store participation). The current API does not provide that seam because saga and inbox stores use separate connections by default and EF/PostgreSQL transactional writers target message rows only. Use application-level coordination or accept at-least-once semantics with idempotent handlers. See [Roadmap](../roadmap/README.md).
+A single ambient transaction spanning inbox terminal update and saga save requires a store-level seam (`ITransactionalInbox` plus saga store participation). The current API does not provide that seam because saga and inbox stores use separate connections by default and EF and PostgreSQL transactional writers target message rows only. Use application-level coordination or accept at-least-once semantics with idempotent handlers. See [Roadmap](../roadmap/README.md).
 
 ## Store API
 
@@ -145,9 +177,11 @@ Inbox and saga rows are **not** committed in one database transaction unless the
 | --- | --- |
 | `SagaSaveItem<TState>.From(...)` | Optimistic save with `ExpectedVersion` |
 | `SagaCompleteItem.From(...)` | Completion with version check (no phantom rows) |
-| `SagaQueryFilter` / `SagaPurgeFilter` | Operational query and retention on `ISagaStore` |
+| `SagaQueryFilter` and `SagaPurgeFilter` | Operational query and retention on `ISagaStore` |
 
 PostgreSQL saga schema version **1** includes `last_applied_message_id` on the tenant-scoped row identified by (`correlation_id`, `saga_type`, `tenant_id`). Schema bootstrap uses `PostgreSqlSchemaManager`, the same validation path as inbox and outbox.
+
+`ISagaStore.LoadAsync` returns a `SagaInstance<TState>` with `Correlation`, `State`, `Version`, `IsCompleted`, and `LastAppliedMessageId`; `QueryAsync` returns lightweight `SagaInstanceSummary` rows with `Correlation`, `Version`, `IsCompleted`, `CreatedAt`, and `UpdatedAt`. `SagaQueryFilter` takes optional `SagaDefinitionId`, `CorrelationId`, `TenantId`, and `IsCompleted` predicates plus `Take` (default `100`). `SagaPurgeFilter` adds `CompletedBefore`: purge only completed rows older than that timestamp. A purge with no predicates and no `Take` limit is rejected. Concurrent saves throw `SagaConcurrencyException`, which carries the conflicting `Correlation`.
 
 ## Options Reference
 
@@ -160,6 +194,31 @@ PostgreSQL saga schema version **1** includes `last_applied_message_id` on the t
 | `SagaModuleBuilder.UsePostgreSqlStorage(...)` | `LiteBus.Saga.Storage.PostgreSql` | Explicit durable storage selection |
 | `PostgreSqlSagaStoreOptions` | `LiteBus.Saga.Storage.PostgreSql` | `SchemaName`, `TableName`, schema startup flags |
 
+`PostgreSqlSagaStoreOptions` defaults:
+
+| Option | Default | Role |
+| --- | --- | --- |
+| `SchemaName` | `public` | Schema that contains the saga table |
+| `TableName` | `litebus_saga_instances` | Saga instances table name |
+| `EnsureSchemaCreationOnStartup` | `true` | Create schema during host startup |
+| `ValidateSchemaCreationOnStartup` | `false` | Validate schema during host startup |
+
+Note the asymmetry with inbox and outbox PostgreSQL stores, where validation defaults to `true`. On saga, startup validation is opt-in. The saga PostgreSQL builder exposes `UseDataSource`, `UseConnectionString`, `UseOptions`, and `DisableSchemaInitialization`; there is no `EnsureSchemaCreationOnStartup()` builder method, so migration-owned deployments set the flag through `UseOptions`:
+
+```csharp
+saga.UsePostgreSqlStorage(pg =>
+{
+    pg.UseDataSource(dataSource);
+    pg.UseOptions(new PostgreSqlSagaStoreOptions
+    {
+        EnsureSchemaCreationOnStartup = false,
+        ValidateSchemaCreationOnStartup = true
+    });
+});
+```
+
+Apply the canonical create script from `PostgreSqlSagaSchema` in the migration, and call `PostgreSqlSagaSchema.ValidateAsync` from deploy checks when startup validation stays disabled.
+
 Inbox processor options (`BatchSize`, `LeaseDuration`, and similar) apply unchanged. See [Inbox](inbox.md).
 
 ## Limits
@@ -170,12 +229,23 @@ Inbox processor options (`BatchSize`, `LeaseDuration`, and similar) apply unchan
 | Storage | Exactly one explicit selection: InMemory, PostgreSQL, or a custom `ISagaStorageModule` |
 | Handler API | `ISagaContext` injection only |
 | Orchestration | Application-owned multi-step logic in handlers |
-| Outbox / events | Not integrated with saga hook |
-| Transactional inbox + saga persist | Separate connections; at-least-once with idempotent handlers (see Durability model) |
+| Outbox and events | Not integrated with saga hook |
+| Transactional inbox plus saga persist | Separate connections; at-least-once with idempotent handlers (see Durability model) |
 
 ## Operations
 
-Monitor inbox processor metrics and saga row growth when using PostgreSQL storage. Use `ISagaStore.QueryAsync` and `PurgeAsync` for retention jobs.
+Monitor inbox processor metrics and saga row growth when using PostgreSQL storage. Use `ISagaStore.QueryAsync` and `PurgeAsync` for retention jobs. Scope a purge with a predicate or bound it with `SagaPurgeFilter.Take`, which deletes the oldest matches first; a purge with no predicates and no limit is rejected.
+
+```csharp
+var removed = await sagaStore.PurgeAsync(
+    new SagaPurgeFilter
+    {
+        IsCompleted = true,
+        CompletedBefore = DateTimeOffset.UtcNow - TimeSpan.FromDays(90),
+        Take = 1000
+    },
+    cancellationToken).ConfigureAwait(false);
+```
 
 For dirty-state optimistic concurrency failures, retry the inbox message or reconcile state manually. Completion-only conflicts retry inside the hook up to three attempts.
 
@@ -183,13 +253,13 @@ For dirty-state optimistic concurrency failures, retry the inbox message or reco
 
 | Test | Proves |
 | --- | --- |
-| [`SagaProcessorHookTests`](https://github.com/litenova/LiteBus/blob/main/tests/LiteBus.Storage.UnitTests/Saga/SagaProcessorHookTests.cs) | InMemory load/save around dispatch |
-| [`InMemorySagaStoreTests`](https://github.com/litenova/LiteBus/blob/main/tests/LiteBus.Storage.UnitTests/Saga/InMemorySagaStoreTests.cs) | Version conflicts, atomic completion, typed keys, timestamps, query, and purge behavior |
-| [`PostgreSqlSagaInboxEndToEndTests`](https://github.com/litenova/LiteBus/blob/main/tests/LiteBus.Storage.IntegrationTests/PostgreSql/PostgreSqlSagaInboxEndToEndTests.cs) | PostgreSQL persistence and tenant-scoped correlation after `EnableSaga` |
-| [`PostgreSqlSagaStoreOperationsTests`](https://github.com/litenova/LiteBus/blob/main/tests/LiteBus.Storage.IntegrationTests/PostgreSql/PostgreSqlSagaStoreOperationsTests.cs) | PostgreSQL tenant isolation, query, purge, and concurrent completion behavior |
-| [`PostgreSqlSagaOrchestrationDepthTests`](https://github.com/litenova/LiteBus/blob/main/tests/LiteBus.Storage.IntegrationTests/PostgreSql/PostgreSqlSagaOrchestrationDepthTests.cs) | Multi-step workflow, compensation, concurrency |
+| `tests/LiteBus.Storage.UnitTests/Saga/SagaProcessorHookTests.cs` | InMemory load and save around dispatch |
+| `tests/LiteBus.Storage.UnitTests/Saga/InMemorySagaStoreTests.cs` | Version conflicts, atomic completion, typed keys, timestamps, query, and purge behavior |
+| `tests/LiteBus.Storage.IntegrationTests/PostgreSql/PostgreSqlSagaInboxEndToEndTests.cs` | PostgreSQL persistence and tenant-scoped correlation after `EnableSaga` |
+| `tests/LiteBus.Storage.IntegrationTests/PostgreSql/PostgreSqlSagaStoreOperationsTests.cs` | PostgreSQL tenant isolation, query, purge, and concurrent completion behavior |
+| `tests/LiteBus.Storage.IntegrationTests/PostgreSql/PostgreSqlSagaOrchestrationDepthTests.cs` | Multi-step workflow, compensation, concurrency |
 
-## See Also
+## Next
 
 - [Cookbook: Inbox saga with PostgreSQL](../getting-started/cookbook.md)
 - [Architecture](../architecture/README.md): `IProcessorEnvelopeHook` orchestration model

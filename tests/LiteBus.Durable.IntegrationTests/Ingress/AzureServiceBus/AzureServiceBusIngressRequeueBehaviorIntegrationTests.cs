@@ -46,35 +46,35 @@ public sealed class AzureServiceBusIngressRequeueBehaviorIntegrationTests : Lite
     [SkippableFact]
     public async Task RequeueEnabled_WithTransientStoreFailure_ShouldEventuallyAccept()
     {
-        var ingressQueue = _fixture.ResolveQueue("ingress-requeue-on");
-         var provider = BuildProvider(ingressQueue);
-         await using (provider.ConfigureAwait(false))
-         {
-        using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
-        await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token).ConfigureAwait(false);
-
-        try
+        var ingressQueue = ServiceBusEmulatorFixture.ResolveQueue("ingress-requeue-on");
+        var provider = BuildProvider(ingressQueue);
+        await using (provider.ConfigureAwait(false))
         {
-            var publisher = provider.GetRequiredService<ITransportPublisher>();
-            var messageId = Guid.NewGuid();
+            using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(3), runCts.Token).ConfigureAwait(false);
 
-            await publisher.PublishAsync(new TransportPublishRequest
+            try
             {
-                Destination = ingressQueue,
-                Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
-                MessageId = messageId.ToString("D"),
-                Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
-            }).ConfigureAwait(false);
+                var publisher = provider.GetRequiredService<ITransportPublisher>();
+                var messageId = Guid.NewGuid();
 
-            await PollingWait.UntilAsync(
-                () => provider.GetRequiredService<InMemoryInboxStore>().Count == 1,
-                TimeSpan.FromSeconds(45)).ConfigureAwait(false);
-        }
-        finally
-        {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
-        }
+                await publisher.PublishAsync(new TransportPublishRequest
+                {
+                    Destination = ingressQueue,
+                    Body = JsonSerializer.SerializeToUtf8Bytes(new ShipOrderCommand { OrderId = Guid.NewGuid() }),
+                    MessageId = messageId.ToString("D"),
+                    Headers = TransportTestHeaders.Create(messageId, ContractName, 1)
+                }).ConfigureAwait(false);
+
+                await PollingWait.UntilAsync(
+                    () => provider.GetRequiredService<InMemoryInboxStore>().Count == 1,
+                    TimeSpan.FromSeconds(45)).ConfigureAwait(false);
+            }
+            finally
+            {
+                await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 
@@ -89,7 +89,7 @@ public sealed class AzureServiceBusIngressRequeueBehaviorIntegrationTests : Lite
 
         services.AddLiteBus(registry =>
         {
-                registry.Modules.Register(new AzureServiceBusTransportModule(_fixture.TransportOptions));
+            registry.Modules.Register(new AzureServiceBusTransportModule(_fixture.TransportOptions));
             registry.AddMessaging(_ =>
             {
             });

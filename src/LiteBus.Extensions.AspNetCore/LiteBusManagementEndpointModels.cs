@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using ProcessorState = LiteBus.Inbox.Abstractions.ProcessorState;
 

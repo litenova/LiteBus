@@ -7,7 +7,6 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Messaging.Processing;
-using LiteBus.DurableMessaging.Abstractions.Processing;
 using Microsoft.Extensions.Logging;
 
 namespace LiteBus.Inbox;
@@ -100,6 +99,11 @@ internal static class InboxProcessorEnvelopeHandler
     ///     The post-transition envelope when dispatch finished with a terminal outcome for this attempt; otherwise
     ///     <see langword="null" /> when dispatch was canceled.
     /// </returns>
+    /// <remarks>
+    ///     Dispatch failures use a broad <see cref="Exception" /> handler because handler, mediator, and hook faults
+    ///     surface as unrelated exception types at the processor boundary. Failures are mapped to retry or dead-letter
+    ///     transitions through the configured retry policy instead of enumerating dispatch exception types.
+    /// </remarks>
     private static async Task<InboxEnvelope?> DispatchAsync(
         InboxEnvelope envelope,
         IInboxDispatcher dispatcher,
@@ -119,12 +123,16 @@ internal static class InboxProcessorEnvelopeHandler
         messageActivity?.SetTag("litebus.message_id", envelope.Id);
         var dispatchCompleted = false;
 
+        // One adapter serves every hook phase of this dispatch. Each phase used to build its own, so a single
+        // envelope allocated five of an object whose only job is to project a record behind an interface.
+        var hookEnvelope = new InboxProcessorEnvelopeAdapter(envelope);
+
         try
         {
-            await InboxProcessorHookRunner.RunBeforeDispatchAsync(hooks, envelope, cancellationToken).ConfigureAwait(false);
-            InboxProcessorHookRunner.RunPrepareDispatchScope(hooks, envelope);
+            await ProcessorHookRunner.RunBeforeDispatchAsync(hooks, hookEnvelope, cancellationToken).ConfigureAwait(false);
+            ProcessorHookRunner.RunPrepareDispatchScope(hooks, hookEnvelope);
 
-            if (!InboxProcessorHookRunner.ShouldDispatch(hooks, envelope))
+            if (!ProcessorHookRunner.ShouldDispatch(hooks, hookEnvelope))
             {
                 dispatchCompleted = true;
                 return envelope.AsCompleted();
@@ -138,15 +146,19 @@ internal static class InboxProcessorEnvelopeHandler
             dispatchCompleted = true;
             return completed;
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        // A cancelled dispatch leaves the row untouched: no attempt consumed, no error recorded, no visibility moved.
+        // The filter also sees a cancellation a dispatcher wrapped in its own exception type.
+        catch (Exception exception) when (MediationExceptionFilters.IsCallerCancellation(exception, cancellationToken))
         {
             return null;
         }
 
-        // Handler, mediator, and hook failures surface as unrelated exception types; map them to retry or dead-letter transitions.
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        // A handler-internal cancellation (for example a dependency timeout) arrives as OperationCanceledException
+        // while the processor token is still live; it is a dispatch failure like any other, not a lease loss.
+#pragma warning disable CA1031 // Handler, mediator, and hook failures surface as unrelated exception types; map them to retry or dead-letter transitions.
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            var error = MessageProcessorDiagnostics.FormatError(exception);
+            var failure = MessageFailure.From(exception, clock.GetUtcNow());
 
             InboxProcessorLogMessages.DispatchFailed(
                 logger,
@@ -154,21 +166,59 @@ internal static class InboxProcessorEnvelopeHandler
                 envelope.AttemptCount,
                 exception);
 
-            if (envelope.AttemptCount >= options.Retry.MaxAttempts)
+            // A refusal or a missing handler produces the same outcome on every attempt, so spending the retry
+            // schedule on it only delays the dead-letter entry an operator is waiting to see.
+            if (envelope.AttemptCount >= options.Retry.MaxAttempts
+                || !MediationExceptionFilters.IsRetryableDispatchException(exception)
+                || IsPermanent(options.Retry, exception, envelope.Id, logger))
             {
-                return envelope.AsDeadLettered(error);
+                return envelope.AsDeadLettered(failure);
             }
 
             var visibleAfter = clock.GetUtcNow().Add(options.Retry.CalculateDelay(envelope.AttemptCount));
-            return envelope.AsFailed(error, visibleAfter);
+            return envelope.AsFailed(failure, visibleAfter);
         }
+#pragma warning restore CA1031
         finally
         {
             if (!dispatchCompleted)
             {
-                InboxProcessorHookRunner.RunAbandonDispatchScopes(hooks, envelope);
+                ProcessorHookRunner.RunAbandonDispatchScopes(hooks, hookEnvelope);
             }
         }
+    }
+
+    /// <summary>
+    ///     Determines whether an application-supplied classifier marks a dispatch failure as permanent.
+    /// </summary>
+    /// <param name="retry">The retry settings carrying the application classifier.</param>
+    /// <param name="exception">The exception that ended the dispatch.</param>
+    /// <param name="messageId">The identifier of the message whose failure is classified.</param>
+    /// <param name="logger">Records a classifier that throws.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the classifier recognizes the failure as permanent; otherwise
+    ///     <see langword="false" />.
+    /// </returns>
+    private static bool IsPermanent(RetryOptions retry, Exception exception, Guid messageId, ILogger logger)
+    {
+        var classifier = retry.IsPermanentFailure;
+
+        if (classifier is null)
+        {
+            return false;
+        }
+
+#pragma warning disable CA1031 // A throwing classifier is treated as non-permanent so a faulty predicate cannot lose a message.
+        try
+        {
+            return classifier(exception);
+        }
+        catch (Exception classifierException)
+        {
+            InboxProcessorLogMessages.PermanentFailureClassifierFailed(logger, messageId, classifierException);
+            return false;
+        }
+#pragma warning restore CA1031
     }
 
     /// <summary>

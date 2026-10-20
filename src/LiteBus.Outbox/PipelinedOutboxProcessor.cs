@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Messaging.Processing;
-using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -19,16 +18,18 @@ namespace LiteBus.Outbox;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Each pass writes leased messages to a bounded channel consumed by
-///         <see cref="ProcessorOptions.DispatcherConcurrency" /> workers. Lease heartbeat renewal runs while
-///         publication is in progress so slow dispatchers retain ownership until they finish.
+///         Each pass leases one batch and runs one worker per message, limited to
+///         <see cref="ProcessorOptions.DispatcherConcurrency" /> concurrent dispatches by a pass-owned
+///         <see cref="SemaphoreSlim" /> and awaited together with <c>Task.WhenAll</c>. Lease heartbeat renewal runs
+///         while publication is in progress so slow dispatchers retain ownership until they finish.
 ///     </para>
 ///     <para>
 ///         Successful publication runs <c>AfterDispatch</c> hooks while the lease is still held, then persists terminal
 ///         state. Hook failures follow <see cref="ProcessorOptions.HookFailurePolicy" />: transport dispatchers default
 ///         to completing publication despite hook failure; in-process dispatch defaults to dead-lettering without
-///         re-publishing. Shutdown leaves in-flight messages in <c>Publishing</c> until the lease expires unless the
-///         host drains the processor loop first.
+///         re-publishing. A dispatch cancelled by shutdown releases its lease without spending an attempt when the
+///         store implements release; drain never cancels dispatch, so a drained pass completes and persists in-flight
+///         messages normally.
 ///     </para>
 /// </remarks>
 public sealed class PipelinedOutboxProcessor : IOutboxProcessor

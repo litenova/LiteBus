@@ -4,6 +4,7 @@
 - **Name**: Generic messages and handlers
 - **Maturity**: GA
 - **Summary**: Supports generic command/query/event message shapes with closed handlers resolved per concrete type.
+- **Guide**: [Generic messages and handlers](../../concepts/generic-messages-and-handlers.md)
 
 ## What It Does
 

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
@@ -40,14 +41,14 @@ public sealed class OutboxHostingTests : LiteBusTestBase
     {
         var dispatcher = new OutboxTestInfrastructure.RecordingOutboxDispatcherHolder();
 
-         var provider = BuildProvider(dispatcher, hostOptions => hostOptions.Enabled = false);
-         await using (provider.ConfigureAwait(true))
-         {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(true);
-        await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
+        var provider = BuildProvider(dispatcher, hostOptions => hostOptions.Enabled = false);
+        await using (provider.ConfigureAwait(true))
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(true);
+            await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
 
-        dispatcher.Instance!.DispatchedMessages.Should().BeEmpty();
+            dispatcher.Instance!.DispatchedMessages.Should().BeEmpty();
         }
     }
 
@@ -61,24 +62,24 @@ public sealed class OutboxHostingTests : LiteBusTestBase
             options => options.PollInterval = TimeSpan.FromMilliseconds(50));
         await using (provider.ConfigureAwait(true))
         {
-        var outbox = provider.GetRequiredService<IOutbox>();
+            var outbox = provider.GetRequiredService<IOutbox>();
 
-        var orderId = Guid.NewGuid();
+            var orderId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
-            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId },
-            Guid.NewGuid())).ConfigureAwait(true);
+            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId },
+                Guid.NewGuid())).ConfigureAwait(true);
 
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(true);
-        await Task.Delay(TimeSpan.FromMilliseconds(300)).ConfigureAwait(true);
-        await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(true);
+            await Task.Delay(TimeSpan.FromMilliseconds(300)).ConfigureAwait(true);
+            await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
 
-        dispatcher.Instance!.DispatchedMessages
-            .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
-            .Should()
-            .ContainSingle(submitted => submitted.OrderId == orderId);
+            dispatcher.Instance!.DispatchedMessages
+                .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
+                .Should()
+                .ContainSingle(submitted => submitted.OrderId == orderId);
         }
     }
 
@@ -141,30 +142,29 @@ public sealed class OutboxHostingTests : LiteBusTestBase
                 options.StartupDelay = TimeSpan.FromMilliseconds(300);
                 options.PollInterval = TimeSpan.FromMilliseconds(50);
             });
-        await using (provider.ConfigureAwait(true))
+        await using (provider.ConfigureAwait(false))
         {
-        var outbox = provider.GetRequiredService<IOutbox>();
+            var outbox = provider.GetRequiredService<IOutbox>();
 
-        var orderId = Guid.NewGuid();
+            var orderId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
-            new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId },
-            Guid.NewGuid())).ConfigureAwait(true);
+            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = orderId },
+                Guid.NewGuid())).ConfigureAwait(false);
 
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(true);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var elapsed = Stopwatch.StartNew();
+            await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(false);
+            await WaitUntilAsync(() => dispatcher.Instance?.DispatchedMessages.Count == 1, TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            elapsed.Stop();
+            await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(100)).ConfigureAwait(true);
-        dispatcher.Instance!.DispatchedMessages.Should().BeEmpty();
-
-        await Task.Delay(TimeSpan.FromMilliseconds(350)).ConfigureAwait(true);
-        await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
-
-        dispatcher.Instance.DispatchedMessages
-            .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
-            .Should()
-            .ContainSingle(submitted => submitted.OrderId == orderId);
+            dispatcher.Instance!.DispatchedMessages
+                .OfType<OutboxTests.OrderSubmittedIntegrationEvent>()
+                .Should()
+                .ContainSingle(submitted => submitted.OrderId == orderId);
+            elapsed.Elapsed.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(250));
         }
     }
 
@@ -193,22 +193,22 @@ public sealed class OutboxHostingTests : LiteBusTestBase
             });
         await using (provider.ConfigureAwait(true))
         {
-        var outbox = provider.GetRequiredService<IOutbox>();
+            var outbox = provider.GetRequiredService<IOutbox>();
 
-        for (var i = 0; i < 4; i++)
-        {
-            await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
-                new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-                Guid.NewGuid())).ConfigureAwait(true);
+            for (var i = 0; i < 4; i++)
+            {
+                await outbox.EnqueueAsync(OutboxWriterTestFactory.ItemWithId(
+                    new OutboxTests.OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                    Guid.NewGuid())).ConfigureAwait(true);
 
-        }
+            }
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(true);
-        await WaitUntilAsync(() => dispatcher.Instance!.DispatchedMessages.Count == 4, TimeSpan.FromSeconds(10)).ConfigureAwait(true);
-        await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            await OutboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(true);
+            await WaitUntilAsync(() => dispatcher.Instance!.DispatchedMessages.Count == 4, TimeSpan.FromSeconds(10)).ConfigureAwait(true);
+            await OutboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
 
-        dispatcher.Instance!.DispatchedMessages.Should().HaveCount(4);
+            dispatcher.Instance!.DispatchedMessages.Should().HaveCount(4);
         }
     }
 

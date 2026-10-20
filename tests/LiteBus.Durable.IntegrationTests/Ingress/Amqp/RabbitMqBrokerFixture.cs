@@ -32,22 +32,25 @@ public sealed class RabbitMqBrokerFixture : IAsyncLifetime
     {
         try
         {
-            _container = new RabbitMqBuilder("rabbitmq:4-management")
-                .WithUsername("guest")
-                .WithPassword("guest")
-                .Build();
-
-            await _container.StartAsync().ConfigureAwait(false);
-
-            ConnectionOptions = new AmqpConnectionOptions
+            await DockerTestGate.RunAsync(async () =>
             {
-                Uri = new Uri(_container.GetConnectionString()),
-                ClientProvidedName = "LiteBus.Durable.IntegrationTests.Ingress.Amqp.RabbitMQ"
-            };
+                _container = new RabbitMqBuilder("rabbitmq:4-management")
+                    .WithUsername("guest")
+                    .WithPassword("guest")
+                    .Build();
 
-            IsAvailable = true;
+                await _container.StartAsync().ConfigureAwait(false);
+
+                ConnectionOptions = new AmqpConnectionOptions
+                {
+                    Uri = new Uri(_container.GetConnectionString()),
+                    ClientProvidedName = "LiteBus.Durable.IntegrationTests.Ingress.Amqp.RabbitMQ"
+                };
+
+                IsAvailable = true;
+            }).ConfigureAwait(false);
         }
-        catch
+        catch (InvalidOperationException) when (!DockerTestGate.IsStrictTransportMode)
         {
             IsAvailable = false;
         }
@@ -81,31 +84,41 @@ public sealed class LavinMqBrokerFixture : IAsyncLifetime
     /// </summary>
     public AmqpConnectionOptions ConnectionOptions { get; private set; } = null!;
 
+    /// <summary>
+    ///     Gets a value indicating whether the LavinMQ container started successfully.
+    /// </summary>
+    public bool IsAvailable { get; private set; }
+
     /// <inheritdoc />
     public async Task InitializeAsync()
     {
         try
         {
-            _container = new ContainerBuilder("cloudamqp/lavinmq")
-                .WithPortBinding(5672, true)
-                .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
-                .Build();
-
-            await _container.StartAsync().ConfigureAwait(false);
-
-            ConnectionOptions = new AmqpConnectionOptions
+            await DockerTestGate.RunAsync(async () =>
             {
-                HostName = _container.Hostname,
-                Port = _container.GetMappedPublicPort(5672),
-                UserName = "guest",
-                Password = "guest",
-                VirtualHost = "/",
-                ClientProvidedName = "LiteBus.Durable.IntegrationTests.Ingress.Amqp.LavinMQ"
-            };
+                _container = new ContainerBuilder("cloudamqp/lavinmq")
+                    .WithPortBinding(5672, true)
+                    .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
+                    .Build();
+
+                await _container.StartAsync().ConfigureAwait(false);
+
+                ConnectionOptions = new AmqpConnectionOptions
+                {
+                    HostName = _container.Hostname,
+                    Port = _container.GetMappedPublicPort(5672),
+                    UserName = "guest",
+                    Password = "guest",
+                    VirtualHost = "/",
+                    ClientProvidedName = "LiteBus.Durable.IntegrationTests.Ingress.Amqp.LavinMQ"
+                };
+
+                IsAvailable = true;
+            }).ConfigureAwait(false);
         }
-        catch (Exception exception)
+        catch (InvalidOperationException) when (!DockerTestGate.IsStrictTransportMode)
         {
-            throw new InvalidOperationException(DockerRequiredMessage, exception);
+            IsAvailable = false;
         }
     }
 

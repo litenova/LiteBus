@@ -33,9 +33,10 @@ flowchart TD
 | --- | --- |
 | `TransportInboxIngressHandler.AcceptAsync(TransportMessage, CancellationToken)` | Single delivery accept |
 | `TransportInboxIngressHandler.AcceptBatchAsync(IReadOnlyList<TransportMessage>, CancellationToken)` | Batch store round trip |
-| `AmqpInboxIngressHandler.AcceptAsync(TransportMessage, CancellationToken)` | AMQP-shaped manual or test accept (delegates to inner handler) |
+| `AmqpInboxIngressHandler.AcceptAsync(AmqpReceivedMessage, CancellationToken)` | AMQP-shaped manual or test accept (delegates to inner handler) |
+| `AmqpInboxIngressHandler.AcceptBatchAsync(IReadOnlyList<AmqpReceivedMessage>, CancellationToken)` | AMQP-shaped batch accept (delegates to inner handler) |
 | `TransportInboxIngressMapper` | Internal; maps wire headers to `InboxAcceptMetadata` |
-| `TransportInboxIngressMappingOptions` | `RequireStableIdentity`, `TrustApplicationHeaders` mapping policy |
+| `TransportInboxIngressMappingOptions` | Internal; `RequireStableIdentity`, `TrustApplicationHeaders` mapping policy |
 
 ## Validation Behavior
 
@@ -57,7 +58,7 @@ flowchart TD
 
 - `ingress.header-mapping`
 - `ingress.safety-options`
-- `durable-core.inbox.accept`
+- `durable-core.inbox-acceptance`
 - `runtime.contract-registry`
 - `runtime.message-serialization` ( `IMessageSerializer` )
 

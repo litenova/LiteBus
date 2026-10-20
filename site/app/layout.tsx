@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { RootProvider } from 'fumadocs-ui/provider/next';
+import { JetBrains_Mono, Source_Sans_3 } from 'next/font/google';
 import './globals.css';
 import {
   authorName,
@@ -11,6 +11,32 @@ import {
   siteTitle,
   siteUrl,
 } from '@/lib/site';
+
+/**
+ * The text face for the whole site: a humanist sans designed for running text, narrower than a UI face, so justified
+ * paragraphs keep even word spacing.
+ */
+const sourceSans = Source_Sans_3({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+  weight: ['400', '500', '600', '700'],
+});
+
+const jetBrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  display: 'swap',
+  weight: ['400', '500', '600', '700'],
+});
+
+/**
+ * Theme bootstrap: runs before first paint and restores the stored light theme.
+ *
+ * The server always renders `data-theme="dark"`; this script switches to light only when the
+ * visitor chose light before. The site never reads `prefers-color-scheme`.
+ */
+const themeScript = `try{if(localStorage.getItem('litebus-theme')==='light'){document.documentElement.setAttribute('data-theme','light');var m=document.querySelector('meta[name="theme-color"]');if(m){m.setAttribute('content','#f8f8f8')}}}catch(e){}`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -70,19 +96,29 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  colorScheme: 'light dark',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fdbf00' },
-    { media: '(prefers-color-scheme: dark)', color: '#241f2b' },
-  ],
+  colorScheme: 'dark light',
+  themeColor: '#16181d',
 };
 
+/**
+ * Root layout for every page.
+ *
+ * Renders `<html>` dark by default with the Source Sans 3 and JetBrains Mono font variables, plus the
+ * theme bootstrap script in `<head>`. Pages compose the window themselves from `SiteHeader`, a
+ * `.grow` element, `SiteFooter`, and `StatusBar`.
+ */
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="flex min-h-screen flex-col">
-        <RootProvider>{children}</RootProvider>
-      </body>
+    <html
+      lang="en"
+      data-theme="dark"
+      suppressHydrationWarning
+      className={`${sourceSans.variable} ${jetBrainsMono.variable}`}
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body>{children}</body>
     </html>
   );
 }

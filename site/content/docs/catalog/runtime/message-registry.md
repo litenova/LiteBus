@@ -66,4 +66,4 @@ No dedicated telemetry.
 
 ### Out-of-Scope Use Cases
 
-- Open-generic handlers with multiple type parameters.
+- Open-generic handlers with more than two type parameters.

@@ -40,7 +40,7 @@ public sealed class OutboxObservableMetricsTests
             nameof(OutboxStatus.DeadLettered)));
         measurements.Should().Contain(new MetricMeasurement(
             LiteBusOutboxTelemetry.ProcessorStateInstrumentName,
-            (int)ProcessorState.Draining,
+            (int) ProcessorState.Draining,
             null));
         diagnosticsStore.QueryCount.Should().Be(1);
 
@@ -163,6 +163,12 @@ public sealed class OutboxObservableMetricsTests
             return Task.FromResult(_counts);
         }
 
+        public Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<OutboxFailureSummary>>([]);
+        }
+
         public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult(StoreSchemaInfo.ForLogicalStore("outbox", 1));
@@ -187,6 +193,12 @@ public sealed class OutboxObservableMetricsTests
         {
             QueryStarted.TrySetResult();
             return _result.Task.WaitAsync(cancellationToken);
+        }
+
+        public Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<OutboxFailureSummary>>([]);
         }
 
         public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)

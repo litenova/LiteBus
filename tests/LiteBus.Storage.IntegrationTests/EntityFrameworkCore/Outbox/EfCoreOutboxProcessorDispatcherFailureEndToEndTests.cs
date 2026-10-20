@@ -16,32 +16,33 @@ public sealed class EfCoreOutboxProcessorDispatcherFailureEndToEndTests : LiteBu
     public EfCoreOutboxProcessorDispatcherFailureEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenDispatcherFails_ShouldMarkFailedWithVisibleAfter()
     {
         var clock = new ManualTimeProvider(EfCoreOutboxE2eSupport.BaseTime);
         var storeOptions = EfCoreOutboxE2eSupport.CreateStoreOptions(TableName);
         await EfCoreOutboxE2eSupport.EnsureOutboxTableAsync(_fixture.ConnectionString, storeOptions).ConfigureAwait(false);
 
-         var provider = EfCoreOutboxE2eSupport.BuildProvider<DispatcherFailureOutboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new OutboxE2eComposition             {                 Clock = clock,                 UseFailingDispatcher = true,                 MaxAttempts = 5,                 InitialDelay = TimeSpan.FromMinutes(2),                 LeaseOwner = "efcore-outbox-dispatcher-failure"             });
-         await using (provider.ConfigureAwait(true))
-         {
+        var provider = EfCoreOutboxE2eSupport.BuildProvider<DispatcherFailureOutboxDbContext>(_fixture.ConnectionString, storeOptions, new OutboxE2eComposition { Clock = clock, UseFailingDispatcher = true, MaxAttempts = 5, InitialDelay = TimeSpan.FromMinutes(2), LeaseOwner = "efcore-outbox-dispatcher-failure" });
+        await using (provider.ConfigureAwait(true))
+        {
 
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var messageId = Guid.NewGuid();
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
-            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            messageId)).ConfigureAwait(false);
+            await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
+                new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                messageId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        var row = await EfCoreOutboxTableReaders.ReadOutboxAsync(_fixture.ConnectionString, storeOptions, messageId).ConfigureAwait(false);
-        row!.Status.Should().Be(OutboxStatus.Failed);
-        row.VisibleAfter.Should().Be(EfCoreOutboxE2eSupport.BaseTime.AddMinutes(2));
+            var row = await EfCoreOutboxTableReaders.ReadOutboxAsync(_fixture.ConnectionString, storeOptions, messageId).ConfigureAwait(false);
+            row!.Status.Should().Be(OutboxStatus.Failed);
+            row.VisibleAfter.Should().Be(EfCoreOutboxE2eSupport.BaseTime.AddMinutes(2));
         }
     }
 

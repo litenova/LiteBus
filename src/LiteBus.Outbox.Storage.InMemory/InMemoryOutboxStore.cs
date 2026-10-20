@@ -163,6 +163,25 @@ public sealed class InMemoryOutboxStore :
     }
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
+        {
+            var summaries = _envelopes.Values
+                .Where(envelope => envelope.Status is OutboxStatus.Failed or OutboxStatus.DeadLettered)
+                .GroupBy(envelope => (envelope.ContractName, envelope.ContractVersion))
+                .Select(BuildFailureSummary)
+                .OrderByDescending(summary => summary.LastFailedAt)
+                .ThenBy(summary => summary.ContractName)
+                .ToArray();
+
+            return Task.FromResult<IReadOnlyList<OutboxFailureSummary>>(summaries);
+        }
+    }
+
+    /// <inheritdoc />
     public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -248,6 +267,30 @@ public sealed class InMemoryOutboxStore :
     }
 
     /// <inheritdoc />
+    public Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
+        {
+            if (!_envelopes.TryGetValue(request.MessageId, out var envelope) ||
+                envelope.Status != OutboxStatus.Publishing ||
+                !string.Equals(envelope.LeaseOwner, request.LeaseOwner, StringComparison.Ordinal) ||
+                envelope.LeaseGeneration != request.LeaseGeneration)
+            {
+                return Task.FromResult(false);
+            }
+
+            _envelopes[request.MessageId] = envelope.AsReleased();
+            return Task.FromResult(true);
+        }
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
         OutboxLeaseRequest request,
         CancellationToken cancellationToken = default)
@@ -274,7 +317,9 @@ public sealed class InMemoryOutboxStore :
                 .Where(envelope => IsAvailable(envelope, now, staleCutoff))
                 .OrderBy(envelope => envelope.CreatedAt)
                 .Take(request.BatchSize)
-                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt))
+                // The relational stores stamp last_attempted_at in the lease statement itself, so the
+                // in-memory store stamps it here to keep the three adapters answering the same question.
+                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt) with { LastAttemptedAt = now })
                 .ToArray();
 
             foreach (var envelope in leased)
@@ -295,6 +340,16 @@ public sealed class InMemoryOutboxStore :
         if (envelopes.Count == 0)
         {
             return Task.FromResult(PersistResult.Empty);
+        }
+
+        foreach (var envelope in envelopes)
+        {
+            if (envelope.Status is not OutboxStatus.Published and not OutboxStatus.Failed and not OutboxStatus.DeadLettered)
+            {
+                throw new InvalidOperationException(
+                    $"Envelope '{envelope.Id}' has unexpected status '{envelope.Status}' in PersistAsync. " +
+                    "Only Published, Failed, and DeadLettered are valid outcomes.");
+            }
         }
 
         HashSet<Guid> persistedMessageIds;
@@ -455,6 +510,31 @@ public sealed class InMemoryOutboxStore :
     }
 
     /// <summary>
+    ///     Builds one failure summary row from the failing envelopes that share a contract.
+    /// </summary>
+    /// <param name="group">The failing envelopes grouped by contract name and version.</param>
+    /// <returns>The summary row for the contract.</returns>
+    private static OutboxFailureSummary BuildFailureSummary(
+        IGrouping<(string ContractName, int ContractVersion), OutboxEnvelope> group)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+
+        var envelopes = group.ToList();
+        var latest = envelopes.MaxBy(envelope => envelope.LastAttemptedAt);
+
+        return new OutboxFailureSummary
+        {
+            ContractName = group.Key.ContractName,
+            ContractVersion = group.Key.ContractVersion,
+            FailedCount = envelopes.Count(envelope => envelope.Status == OutboxStatus.Failed),
+            DeadLetteredCount = envelopes.Count(envelope => envelope.Status == OutboxStatus.DeadLettered),
+            LastError = latest?.LastError,
+            LastErrorType = latest?.ErrorType,
+            LastFailedAt = latest?.LastAttemptedAt
+        };
+    }
+
+    /// <summary>
     ///     Requeues one dead-lettered envelope when it is currently in the dead-letter state.
     /// </summary>
     /// <param name="messageId">The message identifier.</param>
@@ -493,7 +573,11 @@ public sealed class InMemoryOutboxStore :
     /// <returns><see langword="true" /> when the row is visible to the lease request.</returns>
     private static bool MatchesTenantFilter(string? requestedTenantId, string? storedTenantId)
     {
-        return requestedTenantId is null || string.Equals(storedTenantId, requestedTenantId, StringComparison.Ordinal);
+        return requestedTenantId is null ||
+               string.Equals(
+                   DurableTenantId.Normalize(storedTenantId),
+                   DurableTenantId.Normalize(requestedTenantId),
+                   StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -558,9 +642,10 @@ public sealed class InMemoryOutboxStore :
             source = source.Where(envelope => envelope.CausationId == filter.CausationId);
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.TenantId))
+        if (filter.TenantId is not null)
         {
-            source = source.Where(envelope => envelope.TenantId == filter.TenantId);
+            var normalizedTenantId = DurableTenantId.Normalize(filter.TenantId);
+            source = source.Where(envelope => DurableTenantId.Normalize(envelope.TenantId) == normalizedTenantId);
         }
 
         if (filter.CreatedAfter is not null)
@@ -666,14 +751,15 @@ public sealed class InMemoryOutboxStore :
                 $"The in-memory outbox store reached its capacity of {_options.Capacity} messages.");
         }
 
-        _envelopes[envelope.Id] = envelope;
+        var normalized = envelope with { TenantId = DurableTenantId.Normalize(envelope.TenantId) };
+        _envelopes[envelope.Id] = normalized;
 
         if (!string.IsNullOrWhiteSpace(envelope.IdempotencyKey))
         {
             _idempotencyIndex[CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey)] = envelope.Id;
         }
 
-        return new OutboxAppendResult(envelope, OutboxEnqueueOutcome.Enqueued);
+        return new OutboxAppendResult(normalized, OutboxEnqueueOutcome.Enqueued);
     }
 
     /// <summary>
@@ -744,7 +830,10 @@ public sealed class InMemoryOutboxStore :
             string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) &&
             string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) &&
             string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) &&
-            string.Equals(envelope.TenantId, existing.TenantId, StringComparison.Ordinal))
+            string.Equals(
+                DurableTenantId.Normalize(envelope.TenantId),
+                DurableTenantId.Normalize(existing.TenantId),
+                StringComparison.Ordinal))
         {
             return;
         }

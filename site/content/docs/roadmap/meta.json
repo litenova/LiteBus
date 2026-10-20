@@ -1,4 +1,11 @@
 {
-  "title": "Roadmap",
-  "pages": ["...", "reliability"]
+    "title":  "Roadmap",
+    "pages":  [
+                  "README",
+                  "reliability",
+                  "---Design Notes---",
+                  "integrator-feedback",
+                  "storage-deduplication"
+              ]
 }
+

@@ -4,6 +4,7 @@ using LiteBus.Storage.PostgreSql;
 using LiteBus.Inbox;
 using LiteBus.Outbox;
 using LiteBus.Messaging;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Storage.IntegrationTests.PostgreSql;
 
@@ -17,12 +18,13 @@ public sealed class PostgreSqlInboxStoreBatchMarkFailedTests : IClassFixture<Pos
     public PostgreSqlInboxStoreBatchMarkFailedTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms batch <see cref="IInboxStateWriter.PersistAsync" /> accepts all-null visible-after timestamps.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task PersistAsync_batch_with_null_visible_after_should_persist_failed_status()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -46,8 +48,8 @@ public sealed class PostgreSqlInboxStoreBatchMarkFailedTests : IClassFixture<Pos
 
         await store.PersistAsync(
         [
-            leased.Single(envelope => envelope.Id == firstId).AsFailed("e1"),
-            leased.Single(envelope => envelope.Id == secondId).AsFailed("e2")
+            leased.Single(envelope => envelope.Id == firstId).AsFailed(MessageFailure.FromError("e1", DateTimeOffset.UtcNow)),
+            leased.Single(envelope => envelope.Id == secondId).AsFailed(MessageFailure.FromError("e2", DateTimeOffset.UtcNow))
         ]).ConfigureAwait(false);
 
         var firstRow = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, firstId).ConfigureAwait(false);

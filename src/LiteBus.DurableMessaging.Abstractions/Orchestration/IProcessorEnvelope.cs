@@ -1,4 +1,6 @@
-namespace LiteBus.DurableMessaging.Abstractions.Processing;
+using System;
+
+namespace LiteBus.Messaging.Abstractions.Processing;
 
 /// <summary>
 ///     Axis-neutral read-only view of a leased processor envelope used by orchestration hooks.

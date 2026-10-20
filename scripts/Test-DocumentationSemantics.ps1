@@ -197,20 +197,224 @@ if (-not $implementedAnalyzerIds.SetEquals($documentedAnalyzerIds)) {
         -Message "Analyzer inventory does not match compiled diagnostic IDs. Code: $($implementedAnalyzerIds -join ', '). Docs: $($documentedAnalyzerIds -join ', ')."
 }
 
-if (-not $reservedAnalyzerIds.SetEquals([string[]] @('LB1002'))) {
+if (-not $reservedAnalyzerIds.SetEquals([string[]] @('LB1002', 'LB1006'))) {
     Add-Violation `
         -Path $analyzerDocumentationPath `
         -Line 1 `
-        -Message "Reserved analyzer inventory must contain only LB1002. Found: $($reservedAnalyzerIds -join ', ')."
+        -Message "Reserved analyzer inventory must contain exactly LB1002 and LB1006, the IDs that were reserved and never shipped. Found: $($reservedAnalyzerIds -join ', ')."
 }
 
-# Keep the documented inbox management route table aligned with the endpoint mapper. Outbox mirrors inbox by contract.
+# docs/CONTEXT.md lists the analyzer inventory in one line; it must name the same IDs as DiagnosticIds.
+$contextPath = Join-Path $repositoryRoot 'docs/CONTEXT.md'
+$contextInventoryLine = [regex]::Split([IO.File]::ReadAllText($contextPath), '?
+') |
+    Where-Object { $_.StartsWith('`LB1001` DuplicateCommandHandler', [StringComparison]::Ordinal) } |
+    Select-Object -First 1
+
+if ($null -eq $contextInventoryLine) {
+    Add-Violation -Path $contextPath -Line 1 -Message 'docs/CONTEXT.md has no analyzer inventory line starting with `LB1001` DuplicateCommandHandler.'
+}
+else {
+    $listedPart = $contextInventoryLine.Split('(')[0]
+    $contextAnalyzerIds = New-OrdinalSet
+
+    foreach ($match in [regex]::Matches($listedPart, '`(?<id>LB\d{4})`')) {
+        [void] $contextAnalyzerIds.Add($match.Groups['id'].Value)
+    }
+
+    if (-not $implementedAnalyzerIds.SetEquals($contextAnalyzerIds)) {
+        Add-Violation `
+            -Path $contextPath `
+            -Line 1 `
+            -Message "docs/CONTEXT.md analyzer inventory does not match compiled diagnostic IDs. Code: $($implementedAnalyzerIds -join ', '). Docs: $($contextAnalyzerIds -join ', ')."
+    }
+}
+
+# Keep the dependency-graph package table aligned with the generated package inventory.
+$dependencyGraphPath = Join-Path $documentationRoot 'architecture/dependency-graph.md'
+$packageInventoryDocPath = Join-Path $documentationRoot 'architecture/generated-package-inventory.md'
+
+function Get-PackageTableRows {
+    param(
+        [Parameter(Mandatory)]
+        [string] $Path,
+        [Parameter(Mandatory)]
+        [string] $SectionHeading,
+        [string] $EndHeading = $null
+    )
+
+    $rows = [Collections.Generic.List[string]]::new()
+    $inSection = $false
+
+    foreach ($line in [regex]::Split([IO.File]::ReadAllText($Path), '\r?\n')) {
+        if (-not $inSection) {
+            if ($line.StartsWith($SectionHeading, [StringComparison]::Ordinal)) {
+                $inSection = $true
+            }
+
+            continue
+        }
+
+        if (-not [string]::IsNullOrEmpty($EndHeading) -and $line.StartsWith($EndHeading, [StringComparison]::Ordinal)) {
+            break
+        }
+
+        if ($line.StartsWith('| `LiteBus', [StringComparison]::Ordinal)) {
+            $rows.Add($line)
+        }
+    }
+
+    return ,$rows
+}
+
+function Get-ReferenceSet {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string] $Cell
+    )
+
+    $set = New-OrdinalSet
+
+    if ([string]::Equals($Cell.Trim(), 'none', [StringComparison]::OrdinalIgnoreCase)) {
+        return ,$set
+    }
+
+    foreach ($entry in $Cell.Trim() -split ',') {
+        $value = $entry.Trim().Trim('`')
+
+        if ($value.Length -gt 0) {
+            [void] $set.Add($value)
+        }
+    }
+
+    return ,$set
+}
+
+$inventoryByPackage = @{}
+$inventoryOrder = [Collections.Generic.List[string]]::new()
+
+foreach ($row in (Get-PackageTableRows -Path $packageInventoryDocPath -SectionHeading '# Generated Package Inventory')) {
+    $cells = $row -split '\|'
+    $package = $cells[1].Trim().Trim('`')
+    $inventoryByPackage[$package] = @((Get-ReferenceSet -Cell $cells[2]), (Get-ReferenceSet -Cell $cells[3]))
+    $inventoryOrder.Add($package)
+}
+
+$graphByPackage = @{}
+
+foreach ($row in (Get-PackageTableRows -Path $dependencyGraphPath -SectionHeading '## Package Table' -EndHeading '## Dependency Rules')) {
+    $cells = $row -split '\|'
+
+    if ($cells.Count -lt 6) {
+        continue
+    }
+
+    $package = $cells[1].Trim().Trim('`')
+
+    if ($package.Contains('*')) {
+        continue
+    }
+
+    $graphByPackage[$package] = @((Get-ReferenceSet -Cell $cells[3]), (Get-ReferenceSet -Cell $cells[4]))
+}
+
+$inventoryPackages = New-OrdinalSet
+$graphPackages = New-OrdinalSet
+
+foreach ($package in $inventoryByPackage.Keys) {
+    [void] $inventoryPackages.Add($package)
+}
+
+foreach ($package in $graphByPackage.Keys) {
+    [void] $graphPackages.Add($package)
+}
+
+if (-not $inventoryPackages.SetEquals($graphPackages)) {
+    $missing = @($inventoryPackages | Where-Object { -not $graphPackages.Contains($_) })
+    $extra = @($graphPackages | Where-Object { -not $inventoryPackages.Contains($_) })
+    Add-Violation `
+        -Path $dependencyGraphPath `
+        -Line 1 `
+        -Message "Package table does not match the generated package inventory. Missing: $($missing -join ', '). Extra: $($extra -join ', ')."
+}
+
+foreach ($package in $inventoryOrder) {
+    if (-not $graphByPackage.ContainsKey($package)) {
+        continue
+    }
+
+    if (-not $inventoryByPackage[$package][0].SetEquals($graphByPackage[$package][0])) {
+        Add-Violation `
+            -Path $dependencyGraphPath `
+            -Line 1 `
+            -Message "Package '$package' project references do not match the generated package inventory. Code: $($inventoryByPackage[$package][0] -join ', '). Docs: $($graphByPackage[$package][0] -join ', ')."
+    }
+
+    if (-not $inventoryByPackage[$package][1].SetEquals($graphByPackage[$package][1])) {
+        Add-Violation `
+            -Path $dependencyGraphPath `
+            -Line 1 `
+            -Message "Package '$package' package references do not match the generated package inventory. Code: $($inventoryByPackage[$package][1] -join ', '). Docs: $($graphByPackage[$package][1] -join ', ')."
+    }
+}
+
+# Keep the architecture metric catalog aligned with the public telemetry constants.
+$telemetrySources = @(
+    'src/LiteBus.Messaging/LiteBusMediationTelemetry.cs',
+    'src/LiteBus.Inbox/LiteBusInboxTelemetry.cs',
+    'src/LiteBus.Outbox/LiteBusOutboxTelemetry.cs',
+    'src/LiteBus.Inbox.Ingress/LiteBusInboxIngressTelemetry.cs',
+    'src/LiteBus.Transport/LiteBusTransportTelemetry.cs'
+)
+
+$implementedInstruments = New-OrdinalSet
+
+foreach ($relativePath in $telemetrySources) {
+    $source = [IO.File]::ReadAllText((Join-Path $repositoryRoot $relativePath))
+
+    foreach ($match in [regex]::Matches($source, 'public const string (?<name>\w+InstrumentName)\s*=\s*"(?<value>[^"]+)"')) {
+        [void] $implementedInstruments.Add($match.Groups['value'].Value)
+    }
+}
+
+$architectureDocPath = Join-Path $documentationRoot 'architecture/README.md'
+$inMetricCatalog = $false
+$documentedInstruments = New-OrdinalSet
+
+foreach ($line in [regex]::Split([IO.File]::ReadAllText($architectureDocPath), '\r?\n')) {
+    if (-not $inMetricCatalog) {
+        if ($line.StartsWith('### OpenTelemetry Metric Catalog', [StringComparison]::Ordinal)) {
+            $inMetricCatalog = $true
+        }
+
+        continue
+    }
+
+    if ($line.StartsWith('## ', [StringComparison]::Ordinal)) {
+        break
+    }
+
+    if ($line -match '^\| `[^`]+` \| `(?<instrument>[^`]+)` \| `[^`]+` \|') {
+        [void] $documentedInstruments.Add($Matches['instrument'])
+    }
+}
+
+if (-not $implementedInstruments.SetEquals($documentedInstruments)) {
+    Add-Violation `
+        -Path $architectureDocPath `
+        -Line 1 `
+        -Message "Metric catalog does not match the public telemetry instruments. Code: $($implementedInstruments -join ', '). Docs: $($documentedInstruments -join ', ')."
+}
+
+# Keep the documented management route table aligned with the endpoint mapper.
+# Both axis route bodies and the health route are read from source, so no route is hard-coded.
 $managementSourcePath = Join-Path $repositoryRoot 'src/LiteBus.Extensions.AspNetCore/LiteBusManagementEndpointExtensions.cs'
 $managementDocumentationPath = Join-Path $documentationRoot 'catalog/hosting/aspnet-management-endpoints.md'
 $managementSource = [IO.File]::ReadAllText($managementSourcePath)
 $inboxBlockMatch = [regex]::Match(
     $managementSource,
-    '(?s)private static void MapInboxManagementEndpoints\(.*?\)\s*\{(?<body>.*?)(?=\n\s*/// <summary>\s*\n\s*///\s+Maps outbox management routes)')
+    '(?s)private static void MapInboxManagementEndpoints\(.*?\)\s*\{(?<body>.*?)\r?\n    \}')
 
 if (-not $inboxBlockMatch.Success) {
     throw 'Could not locate MapInboxManagementEndpoints for route validation.'
@@ -226,7 +430,42 @@ foreach ($match in [regex]::Matches(
     [void] $implementedRoutes.Add("$method /litebus/inbox$route")
 }
 
-[void] $implementedRoutes.Add('GET /litebus/health')
+$outboxBlockMatch = [regex]::Match(
+    $managementSource,
+    '(?s)private static void MapOutboxManagementEndpoints\(.*?\)\s*\{(?<body>.*?)\r?\n    \}')
+
+if (-not $outboxBlockMatch.Success) {
+    throw 'Could not locate MapOutboxManagementEndpoints for route validation.'
+}
+
+$implementedOutboxRoutes = New-OrdinalSet
+
+foreach ($match in [regex]::Matches(
+    $outboxBlockMatch.Groups['body'].Value,
+    '\.Map(?<method>Get|Post|Delete)\("(?<route>[^"]+)"')) {
+    $method = $match.Groups['method'].Value.ToUpperInvariant()
+    $route = $match.Groups['route'].Value -replace ':[^}]+', ''
+    [void] $implementedOutboxRoutes.Add("$method /litebus/outbox$route")
+}
+
+$managementOptionsPath = Join-Path $repositoryRoot 'src/LiteBus.Extensions.AspNetCore/LiteBusManagementOptions.cs'
+$optionsSource = [IO.File]::ReadAllText($managementOptionsPath)
+$prefixMatch = [regex]::Match($optionsSource, 'public string RoutePrefix \{ get; set; \} = "(?<prefix>[^"]+)"')
+
+if (-not $prefixMatch.Success) {
+    throw 'Could not locate the default management route prefix for route validation.'
+}
+
+$healthRouteMatch = [regex]::Match($managementSource, 'endpoints\.MapGet\(\s*BuildManagementRoute\(prefix,\s*"health"\)')
+
+if (-not $healthRouteMatch.Success) {
+    Add-Violation `
+        -Path $managementSourcePath `
+        -Line 1 `
+        -Message 'Health route mapping was not found in the endpoint mapper.'
+}
+
+[void] $implementedRoutes.Add("GET /$($prefixMatch.Groups['prefix'].Value)/health")
 $documentedRoutes = New-OrdinalSet
 
 foreach ($line in [regex]::Split([IO.File]::ReadAllText($managementDocumentationPath), '\r?\n')) {
@@ -240,6 +479,23 @@ if (-not $implementedRoutes.SetEquals($documentedRoutes)) {
         -Path $managementDocumentationPath `
         -Line 1 `
         -Message "Management route table does not match endpoint mappings. Code: $($implementedRoutes -join ', '). Docs: $($documentedRoutes -join ', ')."
+}
+
+$expectedOutboxRoutes = New-OrdinalSet
+
+foreach ($route in $implementedRoutes) {
+    if ($route.StartsWith('GET /litebus/health', [StringComparison]::Ordinal)) {
+        continue
+    }
+
+    [void] $expectedOutboxRoutes.Add($route.Replace('/litebus/inbox', '/litebus/outbox'))
+}
+
+if (-not $implementedOutboxRoutes.SetEquals($expectedOutboxRoutes)) {
+    Add-Violation `
+        -Path $managementSourcePath `
+        -Line 1 `
+        -Message "Outbox management routes do not mirror inbox routes. Inbox: $($expectedOutboxRoutes -join ', '). Outbox: $($implementedOutboxRoutes -join ', ')."
 }
 
 # Source-linked snippets are copied from compiled projects, then checked byte-for-byte after common indentation removal.

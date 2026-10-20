@@ -1,4 +1,6 @@
-# Saga Capability Catalog
+# Saga
+
+Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 
 LiteBus saga support is an Extension tier feature. It adds correlated state persistence around inbox command dispatch through `IProcessorEnvelopeHook` and `ISagaContext`.
 
@@ -51,7 +53,6 @@ services.AddLiteBus(builder =>
 
 | ID | Page |
 | --- | --- |
-| `saga.processor-envelope-hooks` | [processor-envelope-hooks](processor-envelope-hooks.md) |
 | `saga.processor-hook` | [processor-hook](processor-hook.md) |
 | `saga.handler-context` | [handler-context](handler-context.md) |
 | `saga.state-registration` | [state-registration](state-registration.md) |
@@ -79,9 +80,8 @@ services.AddLiteBus(builder =>
 | Single transaction for inbox terminal plus saga save | Not implemented |
 | Built-in scheduler, timeout orchestration, compensation DSL | Not implemented |
 | EF Core saga store adapter | Not implemented |
-| Saga-specific metrics and activity source | Not implemented |
 | Automatic correlation id generation | Not implemented |
-| Saga metrics and tracing | Use inbox processor signals; there are no saga-specific instruments |
+| Saga metrics and tracing | Not implemented; use inbox processor signals, there are no saga-specific instruments |
 
 ## Deep Docs
 

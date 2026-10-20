@@ -1,4 +1,6 @@
-# Hosting Capability Catalog
+# Hosting
+
+Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 
 LiteBus hosting capabilities define how modules become running workloads. Runtime modules register service dependencies and host manifest entries during composition. Host adapters map the manifest to Generic Host lifecycles, ASP.NET Core endpoints, and OpenTelemetry registration.
 
@@ -23,13 +25,12 @@ Manifest entry contracts:
 
 Startup tasks run first. Background loops start only after startup tasks complete. Any startup task failure fails host startup.
 
-## Capabilities (16)
+## Capabilities (15)
 
 | ID | Name | Maturity | Package(s) |
 | --- | --- | --- | --- |
 | [hosting.add-lite-bus-microsoft-di](add-lite-bus-microsoft-di.md) | AddLiteBus for Microsoft DI | GA | `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` |
 | [hosting.add-lite-bus-autofac](add-lite-bus-autofac.md) | AddLiteBus for Autofac | GA | `LiteBus.Runtime.Extensions.Autofac` |
-| [hosting.module-registry](module-registry.md) | Module registry and build order | GA | `LiteBus.Runtime` |
 | [hosting.host-manifest](host-manifest.md) | LiteBus host manifest snapshot | GA | `LiteBus.Runtime.Abstractions` |
 | [hosting.startup-tasks](startup-tasks.md) | One-shot startup tasks | GA | `LiteBus.Runtime.Abstractions` |
 | [hosting.background-services](background-services.md) | Long-running background services | GA | `LiteBus.Runtime.Abstractions` |

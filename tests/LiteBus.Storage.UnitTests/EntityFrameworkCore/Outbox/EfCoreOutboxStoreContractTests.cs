@@ -91,6 +91,9 @@ public sealed class EfCoreOutboxStoreContractTests : OutboxStoreContractTests, I
     }
 
     /// <inheritdoc />
+    protected override bool UsesDatabaseClock => false;
+
+    /// <inheritdoc />
     protected override OutboxStoreContracts CreateStore()
     {
         var context = CreateContext();

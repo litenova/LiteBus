@@ -22,31 +22,41 @@ public sealed class LavinMqFixture : IAsyncLifetime
     /// </summary>
     public AmqpConnectionOptions ConnectionOptions { get; private set; } = null!;
 
+    /// <summary>
+    ///     Gets a value indicating whether the LavinMQ container started successfully.
+    /// </summary>
+    public bool IsAvailable { get; private set; }
+
     /// <inheritdoc />
     public async Task InitializeAsync()
     {
         try
         {
-            _container = new ContainerBuilder("cloudamqp/lavinmq")
-                .WithPortBinding(5672, true)
-                .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
-                .Build();
-
-            await _container.StartAsync().ConfigureAwait(false);
-
-            ConnectionOptions = new AmqpConnectionOptions
+            await DockerTestGate.RunAsync(async () =>
             {
-                HostName = _container.Hostname,
-                Port = _container.GetMappedPublicPort(5672),
-                UserName = "guest",
-                Password = "guest",
-                VirtualHost = "/",
-                ClientProvidedName = "LiteBus.Durable.IntegrationTests.Dispatch.Outbox.Amqp.LavinMQ"
-            };
+                _container = new ContainerBuilder("cloudamqp/lavinmq")
+                    .WithPortBinding(5672, true)
+                    .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
+                    .Build();
+
+                await _container.StartAsync().ConfigureAwait(false);
+
+                ConnectionOptions = new AmqpConnectionOptions
+                {
+                    HostName = _container.Hostname,
+                    Port = _container.GetMappedPublicPort(5672),
+                    UserName = "guest",
+                    Password = "guest",
+                    VirtualHost = "/",
+                    ClientProvidedName = "LiteBus.Durable.IntegrationTests.Dispatch.Outbox.Amqp.LavinMQ"
+                };
+
+                IsAvailable = true;
+            }).ConfigureAwait(false);
         }
-        catch (Exception exception)
+        catch (InvalidOperationException) when (!DockerTestGate.IsStrictTransportMode)
         {
-            throw new InvalidOperationException(DockerRequiredMessage, exception);
+            IsAvailable = false;
         }
     }
 

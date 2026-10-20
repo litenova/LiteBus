@@ -5,7 +5,7 @@ This page is the reference for LiteBus integration tests: which projects exist, 
 For handler-level and in-memory processor recipes, see [Testing LiteBus](application-testing.md). For durable messaging setup snippets, see [Testing](README.md).
 
 > [!NOTE]
-> Project counts, trait names, and container images reflect the repository at the time this page was written. When in doubt, inspect `tests/` and `.github/workflows/build-and-test.yml`.
+> Project counts, trait names, and container images reflect the repository at the time this page was written. When in doubt, inspect `tests/` and `.github/workflows/ci.yml`.
 
 ## How Integration Tests Are Organized
 
@@ -44,7 +44,7 @@ flowchart TB
 | Project | Path | Layer tested | Docker | Primary fixture |
 |---------|------|--------------|:------:|-----------------|
 | `LiteBus.Durable.IntegrationTests` | `tests/LiteBus.Durable.IntegrationTests/` | Broker ingress and dispatch (all brokers) | Per scenario | `KafkaBrokerFixture`, `LocalStackSqsFixture`, `ServiceBusEmulatorFixture`, RabbitMQ/LavinMQ fixtures |
-| `LiteBus.Storage.IntegrationTests` | `tests/LiteBus.Storage.IntegrationTests/` | PostgreSQL inbox/outbox/saga storage, EF Core stores, schema, hosting | Yes | `PostgreSqlFixture`, `SqlServerFixture` |
+| `LiteBus.Storage.IntegrationTests` | `tests/LiteBus.Storage.IntegrationTests/` | PostgreSQL inbox/outbox/saga storage, EF Core stores, schema, hosting | Yes | `PostgreSqlFixture`, `SqlServerFixture`, `MySqlFixture` |
 | `LiteBus.Transport.IntegrationTests` | `tests/LiteBus.Transport.IntegrationTests/` | AMQP publish/consume/ack/nack wire behavior | Yes | `RabbitMqFixture`, `LavinMqFixture` |
 | `LiteBus.Extensions.IntegrationTests` | `tests/LiteBus.Extensions.IntegrationTests/` | Management HTTP endpoints, health checks, OpenTelemetry | Partial | `PostgreSqlFixture` for AspNetCore; InMemory inbox for health |
 
@@ -98,6 +98,7 @@ All Docker-backed fixtures use [Testcontainers for .NET](https://dotnet.testcont
 |-----------|----------------|---------|
 | PostgreSQL | `postgres:16-alpine` via `Testcontainers.PostgreSql` | PostgreSQL storage, EF Core, AspNetCore management, AMQP+PG combos |
 | SQL Server | `Testcontainers.MsSql` | EF Core inbox/outbox on SQL Server |
+| MySQL | `mysql:8.4` via `Testcontainers.MySql` | EF Core inbox/outbox contract tests |
 | RabbitMQ | `rabbitmq:4-management` via `Testcontainers.RabbitMq` | AMQP transport, ingress, dispatch, PG reliable messaging |
 | LavinMQ | `cloudamqp/lavinmq` via generic `ContainerBuilder` | Second AMQP broker for compatibility |
 | Kafka (Redpanda) | `docker.redpanda.com/redpandadata/redpanda:v24.3.7` via `Testcontainers.Redpanda` (default); Confluent via `Testcontainers.Kafka` when `LITEBUS_KAFKA_TEST_BROKER=confluent` | Kafka ingress, dispatch, outbox |
@@ -119,11 +120,11 @@ Projects differ in how they handle a missing Docker daemon:
 
 | Behavior | Projects | Mechanism |
 |----------|----------|-----------|
-| **Fail fast** with clear message | `Storage.IntegrationTests`, `Transport.IntegrationTests`, `Durable.IntegrationTests` (AMQP) | Fixture `InitializeAsync` throws `InvalidOperationException` with `DockerRequiredMessage` |
-| **Skip tests** | Durable transport (Kafka/AWS/Azure emulator) | `DockerTestGate` + `[SkippableFact]` + `Skip.IfNot(_fixture.IsAvailable)` (Azure emulator) |
+| **Skip with message** | `Storage.IntegrationTests` (PostgreSQL, MySQL), `Transport.IntegrationTests`, `Durable.IntegrationTests` (AMQP, Kafka, AWS, Azure emulator) | Fixture records `IsAvailable = false`; tests skip through `Skip.IfNot` with the fixture or `DockerTestGate` message. Durable broker tests throw instead when CI strict transport mode (`LITEBUS_CI_STRICT_TRANSPORT=true`) is enabled |
+| **Throw after retries** | `Storage.IntegrationTests` (SQL Server) | Fixture throws `InvalidOperationException` after its container start retry loop |
 | **No Docker needed** | `TransportFast` cases in `LiteBus.Durable.IntegrationTests`, health checks, OpenTelemetry | Always runs |
 
-CI (`.github/workflows/build-and-test.yml`) runs unit tests without Docker (`FullyQualifiedName!~IntegrationTests`), then durable transport in three filtered batches (`TransportFast`, `TransportDocker`, `TransportAzure`), then remaining integration tests (`FullyQualifiedName~IntegrationTests` excluding those categories and the opt-in `TransportLiveAzure` category).
+CI (`.github/workflows/ci.yml`) runs the suites as parallel shards, each on its own runner: unit tests without Docker (`FullyQualifiedName!~IntegrationTests`), the durable transport categories (`TransportFast`, `TransportDocker` for the durable and wire suites, `TransportAzure`), and the remaining integration tests (`FullyQualifiedName~IntegrationTests` excluding those categories and the opt-in `TransportLiveAzure` category), split by project, with PostgreSQL storage in its own shard and one shard for matching tests outside the integration projects. A coverage job merges every shard and enforces the 90 percent line gate.
 
 ### Environment Variable Overrides (Local Troubleshooting)
 
@@ -132,6 +133,7 @@ Fixtures can bypass Testcontainers when a connection string is already available
 | Variable | Bypasses |
 |----------|----------|
 | `LITEBUS_TEST_POSTGRES_CONNECTION_STRING` | PostgreSQL Testcontainers in `Storage.IntegrationTests`, `Extensions.IntegrationTests`, and AMQP+PG cases in `Durable.IntegrationTests` |
+| `LITEBUS_TEST_MYSQL_CONNECTION_STRING` | MySQL Testcontainers in `Storage.IntegrationTests` EF Core contract tests |
 | `LITEBUS_TEST_AZURE_SERVICEBUS_CONNECTION_STRING` + `LITEBUS_TEST_AZURE_SERVICEBUS_QUEUE` | Optional **live** Azure namespace tests only (`AzureServiceBusOptionalIntegrationTests`) |
 
 Emulator-based Azure tests still require Docker; the env vars do not replace the emulator fixture.
@@ -142,7 +144,7 @@ Most inbox/outbox integration tests follow the same pipeline:
 
 1. Build `ServiceCollection` through `AddLiteBus(builder => ...)`.
 2. Register contracts, storage (`UseInMemoryStorage` or PostgreSQL/EF), and dispatch/ingress adapter.
-3. **Ingress path:** publish to broker to wait for consumer to assert store/handler state.
+3. **Ingress path:** publish to the broker, then wait for the consumer before asserting store and handler state.
 4. **Dispatch path:** `IInbox.AcceptAsync` or `IOutbox.EnqueueAsync` to `ProcessPendingAsync` to assert broker message or handler side effect.
 5. Assert on **observable outcomes** (row status, headers on wire, handler invocation), not on internal types.
 
@@ -188,9 +190,9 @@ dotnet test LiteBus.slnx --filter "Category=TransportDocker&FullyQualifiedName~K
 | InMemory | None | N/A | Uses `UseInMemoryStorage` + in-memory transport modules |
 | Kafka | `KafkaBrokerFixture` | `KafkaBrokerCollection` | Default Redpanda image; process-wide host via `KafkaBrokerSharedLifecycle`; per-test consumer group via `KafkaIngressTestSupport.CreateConnection`; override with `LITEBUS_KAFKA_TEST_IMAGE` or `LITEBUS_KAFKA_TEST_BROKER` |
 | AWS SQS | `LocalStackSqsFixture` | `LocalStackSqsCollection` | Creates per-scenario queues via `CreateQueueAsync(prefix)` |
-| Azure | `ServiceBusEmulatorFixture` | `ServiceBusEmulatorCollection` | Pre-declared queues in `Azure/servicebus-emulator-config.json`; `IsAvailable` gates skips |
+| Azure | `ServiceBusEmulatorFixture` | `ServiceBusEmulatorCollection` | Pre-declared queues in `LiteBus.Transport.IntegrationTesting/Azure/servicebus-emulator-config.json`; `IsAvailable` gates skips |
 
-Pre-declared Azure emulator queues: `litebus-ingress`, `litebus-dispatch`, `litebus-outbox`, `litebus-fail`. `ResolveQueue(prefix)` maps scenario names to those queues.
+Pre-declared Azure emulator queues: `litebus-ingress`, `litebus-dispatch`, `litebus-outbox`, `litebus-fail`.
 
 ### Shared Test Messages
 
@@ -326,7 +328,7 @@ PostgreSQL is the **reference durable store** for inbox, outbox, saga, schema ma
 | **Transactional outbox** | `PostgreSqlOutboxTransactionalIntegrationTests` | Domain + outbox commit/rollback on shared connection (`UseExistingConnection`) |
 | **Transactional writers** | `PostgreSqlInboxTransactionalIntegrationTests`, `PostgreSqlTransactionalWritersIntegrationTests` | `ITransactionalInbox` / `ITransactionalOutbox`: manual `CreateTransactionalStore`, combined inbox+outbox rollback, ambient `IPostgreSqlTransactionProvider`: see [Transactional messaging writes](../reliable-messaging/transactional-writes.md) |
 | **Hosting / manifest** | `PostgreSqlInboxHostingIntegrationTests` | `IBackgroundService` processor loop, LISTEN/NOTIFY wake, retention cleanup |
-| **Work signals** | `PostgreSqlInboxWorkSignalNotifyTests`, `PostgreSqlOutboxWorkSignalNotifyTests`, `*WorkSignalTests` | Notify wake vs poll; reconnection after listener break (some quarantined) |
+| **Work signals** | `PostgreSqlInboxWorkSignalNotifyTests`, `PostgreSqlOutboxWorkSignalNotifyTests`, `*WorkSignalTests` | Notify wake vs poll; reconnection after listener break |
 | **Lease stress** | `PostgreSqlInboxProcessorLeaseStressTests` | Parallel workers to single terminal state per message |
 | **Process recovery** | `PostgreSqlProcessCrashIntegrationTests` | Child worker process termination during handler dispatch; lease-expiry recovery by a replacement processor |
 | **Persist results** | `PostgreSqlInboxStorePersistResultTests`, `PostgreSqlInboxStoreBatchMarkFailedTests` | Batch completion timestamps, lease-lost reporting |
@@ -340,14 +342,6 @@ PostgreSQL is the **reference durable store** for inbox, outbox, saga, schema ma
 
 `PostgreSqlReliableMessagingEndToEndTests` and `PostgreSqlInboxIngressEndToEndTests` spin up `RabbitMqBrokerFixture` inside the test alongside the shared PostgreSQL fixture. That pattern tests **storage + broker** together without pulling the full durable transport matrix project.
 
-### Quarantined Tests
-
-Some work-signal reconnection tests carry `[Trait("Category", "Quarantine")]` due to timing sensitivity. Exclude them in routine runs if needed:
-
-```bash
-dotnet test tests/LiteBus.Storage.IntegrationTests --filter "Category!=Quarantine"
-```
-
 ---
 
 ## Entity Framework Core Storage Integration Tests
@@ -355,13 +349,13 @@ dotnet test tests/LiteBus.Storage.IntegrationTests --filter "Category!=Quarantin
 **Project:** `tests/LiteBus.Storage.IntegrationTests/`
 **Folders:** `EntityFrameworkCore/Inbox/`, `EntityFrameworkCore/Outbox/`
 
-Both use the same fixture pattern as PostgreSQL storage (Testcontainers PostgreSQL and SQL Server). Tests use dedicated `IntegrationInboxDbContext` / `IntegrationOutboxDbContext` types and EF interceptors where transactional behavior matters.
+Both use the same fixture pattern as PostgreSQL storage (Testcontainers PostgreSQL, SQL Server, and MySQL; SQLite contract tests run without a container). Tests use dedicated `IntegrationInboxDbContext` / `IntegrationOutboxDbContext` types and EF interceptors where transactional behavior matters.
 
 ### Inbox EF Core Scenarios
 
 | Test class | Scenarios |
 |------------|-----------|
-| `EfCoreInboxStorePostgreSqlContractTests`, `EfCoreInboxStoreSqlServerContractTests` | Full inbox store contract on EF Core |
+| `EfCoreInboxStorePostgreSqlContractTests`, `EfCoreInboxStoreSqlServerContractTests`, `EfCoreInboxStoreMySqlContractTests`, `EfCoreInboxStoreSqliteContractTests` | Full inbox store contract on EF Core |
 | `EfCoreInboxProcessorEndToEndTests` | Processor happy path through EF store |
 | `EfCoreInboxProcessorHandlerFailureEndToEndTests` | Handler failure to retry visibility |
 | `EfCoreInboxProcessorDeadLetterEndToEndTests` | Max attempts to dead-letter |
@@ -375,7 +369,7 @@ Both use the same fixture pattern as PostgreSQL storage (Testcontainers PostgreS
 
 | Test class | Scenarios |
 |------------|-----------|
-| `EfCoreOutboxStorePostgreSqlContractTests`, `EfCoreOutboxStoreSqlServerContractTests` | Full outbox store contract |
+| `EfCoreOutboxStorePostgreSqlContractTests`, `EfCoreOutboxStoreSqlServerContractTests`, `EfCoreOutboxStoreMySqlContractTests`, `EfCoreOutboxStoreSqliteContractTests` | Full outbox store contract |
 | `EfCoreOutboxProcessorEndToEndTests` | Processor publishes through EF store |
 | `EfCoreOutboxProcessorDispatcherFailureEndToEndTests` | Dispatcher failure to retry |
 | `EfCoreOutboxProcessorDeadLetterEndToEndTests` | Max attempts to dead-letter |
@@ -403,7 +397,7 @@ AMQP coverage spans two projects: low-level wire protocol in `LiteBus.Transport.
 | `RabbitMqAmqpTransportIntegrationTests`, `LavinMqAmqpTransportIntegrationTests` | Broker-specific smoke paths |
 | `AmqpHeaderValuesTests` | Header parsing helpers (no container) |
 
-### `LiteBus.Durable.IntegrationTests`: AMQP Ingress (`Ingress/AMQP/`)
+### `LiteBus.Durable.IntegrationTests`: AMQP Ingress (`Ingress/Amqp/`)
 
 **Fixtures:** `RabbitMqBrokerFixture`, `LavinMqBrokerFixture`
 **Storage:** InMemory inbox (fast ingress focus)
@@ -415,7 +409,7 @@ AMQP coverage spans two projects: low-level wire protocol in `LiteBus.Transport.
 | `AmqpInboxIngressBatchIntegrationTests` | Batch accept at `Safety.BatchSize` and `Safety.BatchMaxWait` |
 | `AmqpIngressRequeueBehaviorIntegrationTests` | Requeue enabled (transient store failure via `FlakyInbox`) |
 
-### `LiteBus.Durable.IntegrationTests`: AMQP Inbox Dispatch (`Dispatch/Inbox/AMQP/`)
+### `LiteBus.Durable.IntegrationTests`: AMQP Inbox Dispatch (`Dispatch/Inbox/Amqp/`)
 
 | Test class | Scenarios |
 |------------|-----------|
@@ -423,7 +417,7 @@ AMQP coverage spans two projects: low-level wire protocol in `LiteBus.Transport.
 | `RabbitMqInboxDispatchIntegrationTests`, `LavinMqInboxDispatchIntegrationTests` | Broker-specific dispatch |
 | `PostgreSqlAmqpInboxDispatchIntegrationTests` | PostgreSQL store + AMQP dispatch; envelope marked completed in DB |
 
-### `LiteBus.Durable.IntegrationTests`: AMQP Outbox Dispatch (`Dispatch/Outbox/AMQP/`)
+### `LiteBus.Durable.IntegrationTests`: AMQP Outbox Dispatch (`Dispatch/Outbox/Amqp/`)
 
 | Test class | Scenarios |
 |------------|-----------|
@@ -498,6 +492,38 @@ Direct PostgreSQL and EF Core PostgreSQL suites also pass a caller timestamp ten
 | `InboxRetentionStoreContractTests` / `OutboxRetentionStoreContractTests` | Retention-specific roles |
 
 When adding a custom inbox or outbox store, reference `LiteBus.Storage.Testing` and inherit these suites in your test project before writing provider-specific tests.
+
+---
+
+## Coverage Gate
+
+Pull request and release workflows collect every test batch with the repository run settings and require at least 90 percent merged source-line coverage.
+
+`coverlet.runsettings` is the single collector configuration for local, pull request, and release runs. It emits JSON for the repository gate and Cobertura for Codecov and human-readable reports. The collector excludes test, sample, benchmark, and test-support assemblies.
+
+`scripts/Test-CoverageThreshold.ps1` merges executable line identities by source document and line number across every JSON report. It also merges branch identities and reports branch coverage. The required threshold is 90 percent for lines under `src/`. A line covered by any unit, transport, or integration batch counts once. A line present but uncovered in every batch also counts once. This avoids both duplicate counting and the false pass produced by averaging per-process percentages.
+
+CI writes isolated reports under `artifacts/coverage/` for these batches:
+
+- unit tests;
+- fast transport integration tests;
+- Docker-backed durable and wire transport tests;
+- Azure Service Bus emulator tests;
+- the remaining integration suite.
+
+After all batches finish, CI runs:
+
+```powershell
+./scripts/Test-CoverageThreshold.ps1 -Root artifacts/coverage -LineThreshold 90
+```
+
+For the same full-suite check locally, with Docker available, run:
+
+```powershell
+./scripts/run-coverage.ps1 -ResultsDirectory ./coverage -SkipReport -EnforceThreshold
+```
+
+Do not combine reports produced from different source revisions or build states. Source line identities can move between builds and make such a merge invalid.
 
 ---
 

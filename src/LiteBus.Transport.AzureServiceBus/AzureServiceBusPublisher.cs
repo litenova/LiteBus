@@ -1,4 +1,7 @@
+using System;
 using System.Collections.Concurrent;
+using System.Threading;
+using System.Threading.Tasks;
 using Azure.Messaging.ServiceBus;
 using LiteBus.Transport.Abstractions;
 
@@ -26,6 +29,11 @@ public sealed class AzureServiceBusPublisher : ITransportPublisher, IDisposable,
         new(StringComparer.Ordinal);
 
     /// <summary>
+    ///     Tracks whether disposal has started.
+    /// </summary>
+    private int _disposed;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="AzureServiceBusPublisher" /> class.
     /// </summary>
     /// <param name="client">The shared Service Bus client used to create senders.</param>
@@ -43,14 +51,43 @@ public sealed class AzureServiceBusPublisher : ITransportPublisher, IDisposable,
     /// <summary>
     ///     Releases cached senders using the synchronous disposal path required by dependency injection scopes.
     /// </summary>
+    /// <remarks>
+    ///     Dispose runs once at container disposal because the publisher is registered as a singleton, so a sender
+    ///     close failure, timeout, or cancellation must not fail host shutdown. The asynchronous close is bounded
+    ///     with a timeout and close errors are not propagated.
+    /// </remarks>
     public void Dispose()
     {
-        DisposeAsync().AsTask().ConfigureAwait(false).GetAwaiter().GetResult();
+        try
+        {
+            DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+        }
+        catch (TimeoutException)
+        {
+            // Bounded teardown: a slow broker close must not block container disposal.
+        }
+        catch (ServiceBusException)
+        {
+            // A sender close failure must not fail container disposal.
+        }
+        catch (ObjectDisposedException)
+        {
+            // A prior disposal already released the cached senders.
+        }
+        catch (OperationCanceledException)
+        {
+            // A cancellation during shutdown must not fail container disposal.
+        }
     }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         foreach (var sender in _senders.Values)
         {
             await sender.DisposeAsync().ConfigureAwait(false);

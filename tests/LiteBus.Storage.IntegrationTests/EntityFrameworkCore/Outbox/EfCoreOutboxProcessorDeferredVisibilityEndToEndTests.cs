@@ -17,9 +17,10 @@ public sealed class EfCoreOutboxProcessorDeferredVisibilityEndToEndTests : LiteB
     public EfCoreOutboxProcessorDeferredVisibilityEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_WithVisibleAfter_ShouldDeferPublishingUntilDue()
     {
         var storeOptions = EfCoreOutboxE2eSupport.CreateStoreOptions(TableName);

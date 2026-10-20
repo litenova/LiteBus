@@ -6,7 +6,7 @@ Polymorphic dispatch lets one handler process a whole family of related messages
 
 Polymorphic dispatch uses C# contravariance (`in` keyword) in handler interfaces. It lets you write common, cross-cutting logic once and apply it to an entire family of commands, queries, or events.
 
-**Important**: This feature applies to **pre-handlers, post-handlers, and error handlers**. It does not apply to main handlers, as they are resolved to the most specific message type so each message has a single, definitive handler.
+**Important**: This feature applies to pipeline handlers, and to main handlers as a fallback. Commands and queries resolve a direct handler first and use an indirect (base-type) handler only when no direct handler survives filtering; events run direct and indirect main handlers together.
 
 ## How It Works
 
@@ -82,8 +82,8 @@ This behavior is enabled by the contravariant type parameter (`in TMessage`) on 
 
 ```csharp
 // The 'in' keyword allows a handler for a base type to accept a derived type.
-public interface IAsyncMessagePreHandler<in TMessage> { ... }
-public interface IAsyncMessagePostHandler<in TMessage> { ... }
+public interface IMessagePreHandler<in TMessage> { ... }
+public interface IMessagePostHandler<in TMessage, in TMessageResult> { ... }
 ```
 
 When LiteBus resolves handlers, its `ActualTypeOrFirstAssignableTypeMessageResolveStrategy` finds handlers for both the concrete message type and any of its base types or implemented interfaces.
@@ -109,11 +109,11 @@ Indirect pipeline handlers (pre, post, and error) still link from every assignab
 
 1.  **Define Clear Base Contracts**: The base message interface or class should define the common data needed by the polymorphic handler.
 2.  **Use for Cross-Cutting Concerns**: Polymorphic dispatch is ideal for logic that applies uniformly across a set of related messages, such as security, logging, or validation.
-3.  **Remember the Scope**: This feature is for pre-handlers, post-handlers, and error handlers. Each concrete command, query, or event must still have its own specific main handler.
+3.  **Remember the Scope**: Pipeline handlers registered for a base type run alongside message-specific ones. A base-type main handler covers a command or query that has no direct handler of its own, and joins every broadcast of a matching event.
 
 ## Polymorphic Dispatch vs. Open Generic Handlers
 
-Both features let you write "write once, apply many" handlers, but they solve fundamentally different problems. Understanding when to use each, or both together, is key to a clean architecture.
+Both features let one handler class cover many messages, but they solve fundamentally different problems. Understanding when to use each, or both together, is key to a clean architecture.
 
 ### Comparison Table
 
@@ -244,3 +244,5 @@ When `CreateProductCommand` is sent, the pipeline executes:
 See [Open Generic Handlers](open-generic-handlers.md) for the full open generics documentation.
 
 ## Next
+
+Read [Open Generic Handlers](open-generic-handlers.md) for behavior that applies to every message, and [The Handler Pipeline](handler-pipeline.md) for the stages indirect handlers join.

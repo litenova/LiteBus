@@ -3,6 +3,7 @@
     <ItemGroup>
         <PackageReference Include="AwesomeAssertions"/>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
+        <PackageReference Include="Microsoft.Extensions.Logging"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk"/>
         <PackageReference Include="xunit"/>
         <PackageReference Include="xunit.runner.visualstudio">
@@ -14,12 +15,14 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands.Extensions.Microsoft.DependencyInjection\LiteBus.Commands.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Commands.Recurring\LiteBus.Commands.Recurring.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Events.Extensions.Microsoft.DependencyInjection\LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus\LiteBus.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Queries.Extensions.Microsoft.DependencyInjection\LiteBus.Queries.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Testing.Mediation\LiteBus.Testing.Mediation.csproj"/>
     </ItemGroup>
 
 </Project>

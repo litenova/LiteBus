@@ -18,12 +18,13 @@ Module builders register message types in `IMessageContractRegistry` with explic
 - **`IMessageContractRegistry`**: Runtime singleton for contract resolution and compose-time registration. Implements `IContractWriter` (module builders) and `IContractReader` (dispatchers, envelope factories).
 - **`IContractWriter` / `IContractReader`**: Split views of the registry for configuration vs runtime lookup.
 - **`[MessageContract("name", version)]`**: Declares stable contract identity on message types for assembly scan and runtime on-demand resolution.
-- **`MessageContractDescriptor`**: Resolved name, version, and CLR type returned from `GetContract(Type)`.
+- **`MessageContract`**: Resolved name, version, and CLR type returned from `GetContract(Type)`.
 - **`MessageContractNotRegisteredException`**: Thrown when accept/enqueue or factory paths cannot resolve a registered contract for the message type.
 
 ### Invocation
 
-- **`GetContract(Type messageType)`**: Runtime lookup used by envelope factories and dispatchers. Uses explicit registration first, then `[MessageContract]` on the type.
+- **`GetContract(Type messageType)`**: Runtime lookup used by envelope factories and dispatchers. Resolves explicit registrations only and throws `MessageContractNotRegisteredException` for unregistered types.
+- **`TryGetContract(Type messageType)`**: Non-throwing lookup that falls back to `[MessageContract]` on the type when no explicit registration exists.
 - **`Register<TMessage>(string name, int version = 1)`**: Compose-time registration on inbox or outbox module builder `Contracts` surface.
 - **`RegisterFromAssembly(Assembly assembly)`**: Batch registration of attributed types from an assembly.
 

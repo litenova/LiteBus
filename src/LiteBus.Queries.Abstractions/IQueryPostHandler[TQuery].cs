@@ -12,4 +12,4 @@ namespace LiteBus.Queries.Abstractions;
 ///     only to the specified query type. Multiple type-specific post-handlers can be registered for each query type
 ///     and will execute in sequence after the query handler has processed the query.
 /// </remarks>
-public interface IQueryPostHandler<in TQuery> : IAsyncMessagePostHandler<TQuery> where TQuery : IQuery;
+public interface IQueryPostHandler<in TQuery> : IMessagePostHandler<TQuery, object> where TQuery : IQuery;

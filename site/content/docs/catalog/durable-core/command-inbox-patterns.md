@@ -83,7 +83,7 @@ Command-inbox patterns use the same inbox processor and ingress instrumentation 
 ### `litebus.inbox.queue.depth`
 
 - **Kind**: Observable gauge (`LiteBusInboxTelemetry.QueueDepthInstrumentName`)
-- **When emitted**: Periodic observation after accepted commands commit to store
+- **When emitted**: Periodic scrape (10-second cache) via `IInboxDiagnosticsStore.GetStatusCountsAsync`
 - **Tags/dimensions**: `litebus.inbox.status` (`LiteBusInboxTelemetry.QueueStatusAttributeName`)
 - **How to enable**: `AddLiteBusInboxMetrics()` from `LiteBus.Inbox.Extensions.OpenTelemetry`
 - **Operational note**: Pending command depth rising while succeeded rate is flat indicates processor or dispatch bottleneck

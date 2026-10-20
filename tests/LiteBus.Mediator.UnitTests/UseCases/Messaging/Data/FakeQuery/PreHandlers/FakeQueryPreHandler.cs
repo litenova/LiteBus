@@ -1,6 +1,6 @@
 using LiteBus.Queries.Abstractions;
 
-namespace LiteBus.Mediator.UnitTests.UseCases.Messaging.Data.FakeQuery.PreHandlers;
+namespace LiteBus.Mediator.UnitTests.UseCases.Messaging.Data.FakeQuery.PreStageHandlers;
 
 public sealed class FakeQueryPreHandler : IQueryPreHandler<Messages.FakeQuery>
 {

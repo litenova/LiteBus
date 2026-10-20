@@ -29,6 +29,11 @@ public sealed class SqlServerFixture : IAsyncLifetime
     /// </summary>
     public string ConnectionString { get; private set; } = string.Empty;
 
+    /// <summary>
+    ///     Gets a value indicating whether the fixture connected to SQL Server successfully.
+    /// </summary>
+    public bool IsAvailable { get; private set; }
+
     /// <inheritdoc />
     public async Task InitializeAsync()
     {
@@ -37,6 +42,7 @@ public sealed class SqlServerFixture : IAsyncLifetime
         if (!string.IsNullOrWhiteSpace(connectionString))
         {
             ConnectionString = connectionString;
+            IsAvailable = true;
             return;
         }
 
@@ -51,6 +57,7 @@ public sealed class SqlServerFixture : IAsyncLifetime
 
                 await _container.StartAsync().ConfigureAwait(false);
                 ConnectionString = _container.GetConnectionString();
+                IsAvailable = true;
                 return;
             }
             catch (Exception exception)
@@ -70,7 +77,14 @@ public sealed class SqlServerFixture : IAsyncLifetime
             }
         }
 
-        throw new InvalidOperationException(DockerRequiredMessage, lastException);
+        // Retry on any start failure, but only call it a missing Docker when the runtime itself is unavailable.
+        if (DockerAvailability.IsDockerUnavailable(lastException))
+        {
+            IsAvailable = false;
+            return;
+        }
+
+        throw new InvalidOperationException($"SQL Server container failed to start after {MaxAttempts} attempts.", lastException);
     }
 
     /// <inheritdoc />

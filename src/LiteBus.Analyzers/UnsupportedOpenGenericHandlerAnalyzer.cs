@@ -47,9 +47,15 @@ public sealed class UnsupportedOpenGenericHandlerAnalyzer : DiagnosticAnalyzer
             ? handlerType
             : handlerType.OriginalDefinition;
 
+        var location = LiteBusSymbols.GetDiagnosticLocation(
+            context.Compilation,
+            handlerType.Locations.FirstOrDefault(candidate => candidate.IsInSource) ??
+            handlerType.Locations.FirstOrDefault() ??
+            Location.None);
+
         context.ReportDiagnostic(Diagnostic.Create(
             DiagnosticDescriptors.UnsupportedOpenGenericHandler,
-            handlerType.Locations.FirstOrDefault() ?? Location.None,
+            location,
             openDefinition.Name,
             openDefinition.TypeParameters.Length));
     }

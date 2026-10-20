@@ -68,14 +68,14 @@ The PostgreSQL saga store does not emit dedicated meters.
 
 ### Covered Use Cases
 
-#### `PostgreSqlSagaSchemaTests.EnsureAsync_ShouldCreateSagaSchema`
+#### `PostgreSqlSagaSchemaTests.EnsureAsync_ShouldCreateSagaTableReadableThroughTableReaders`
 
 - **Use case**: Schema ensure creates tables required by `PostgreSqlSagaStore`.
-- **Test kind**: Unit
-- **Description**: `PostgreSqlSagaSchema.EnsureAsync` then `ValidateAsync` on live container.
+- **Test kind**: Integration
+- **Description**: `PostgreSqlSagaSchema.EnsureAsync` on a live container, then reads the created table through `PostgreSqlTableReaders`; a second case asserts `ValidateAsync` fails on a drifted schema.
 - **Behavior**: Embedded v1 DDL applied to unique table name.
-- **Expected outcome**: Validate succeeds without exception.
-- **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
+- **Expected outcome**: The table has the expected columns, and a drifted schema fails validation.
+- **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
 
 #### `PostgreSqlSagaInboxEndToEndTests.ProcessPendingAsync_with_EnableSaga_should_persist_state_in_postgresql`
 

@@ -5,7 +5,7 @@ using LiteBus.Inbox.Dispatch.InProcess;
 using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -87,7 +87,8 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
             new SystemTextJsonMessageSerializer(),
             TimeProvider.System);
 
-        var act = async () => await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
+        var act = async () => await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+        {
             OrderId = Guid.NewGuid(),
             IdempotencyKey = "missing-contract"
         }).ConfigureAwait(true);
@@ -99,29 +100,30 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_ShouldProcessMultipleCommandsInSinglePass()
     {
         var recorder = new InboxTestFixtures.CommandRecorder();
-         var provider = BuildProcessorProvider(recorder, 10);
-         await using (provider.ConfigureAwait(true))
-         {
-        var store = provider.GetRequiredService<InMemoryInboxStore>();
-
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-
-        for (var i = 0; i < 3; i++)
+        var provider = BuildProcessorProvider(recorder, 10);
+        await using (provider.ConfigureAwait(true))
         {
-            var orderId = Guid.NewGuid();
+            var store = provider.GetRequiredService<InMemoryInboxStore>();
 
-            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
-                OrderId = orderId,
-                IdempotencyKey = $"ship:{orderId}"
-            }).ConfigureAwait(true);
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        }
+            for (var i = 0; i < 3; i++)
+            {
+                var orderId = Guid.NewGuid();
 
-        var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
-        pass.LeasedCount.Should().Be(3);
-        recorder.Commands.Should().HaveCount(3);
-        store.GetAll().Should().OnlyContain(envelope => envelope.Status == InboxStatus.Completed);
+                await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+                {
+                    OrderId = orderId,
+                    IdempotencyKey = $"ship:{orderId}"
+                }).ConfigureAwait(true);
+
+            }
+
+            var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
+            pass.LeasedCount.Should().Be(3);
+            recorder.Commands.Should().HaveCount(3);
+            store.GetAll().Should().OnlyContain(envelope => envelope.Status == InboxStatus.Completed);
         }
     }
 
@@ -129,32 +131,33 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_ShouldRespectBatchSize()
     {
         var recorder = new InboxTestFixtures.CommandRecorder();
-         var provider = BuildProcessorProvider(recorder, 2);
-         await using (provider.ConfigureAwait(true))
-         {
-        var store = provider.GetRequiredService<InMemoryInboxStore>();
-
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-
-        for (var i = 0; i < 5; i++)
+        var provider = BuildProcessorProvider(recorder, 2);
+        await using (provider.ConfigureAwait(true))
         {
-            var orderId = Guid.NewGuid();
+            var store = provider.GetRequiredService<InMemoryInboxStore>();
 
-            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
-                OrderId = orderId,
-                IdempotencyKey = $"ship:{orderId}"
-            }).ConfigureAwait(true);
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        }
+            for (var i = 0; i < 5; i++)
+            {
+                var orderId = Guid.NewGuid();
 
-        var firstPass = await processor.ProcessPendingAsync().ConfigureAwait(true);
-        firstPass.LeasedCount.Should().Be(2);
-        recorder.Commands.Should().HaveCount(2);
+                await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+                {
+                    OrderId = orderId,
+                    IdempotencyKey = $"ship:{orderId}"
+                }).ConfigureAwait(true);
 
-        var secondPass = await processor.ProcessPendingAsync().ConfigureAwait(true);
-        secondPass.LeasedCount.Should().Be(2);
-        recorder.Commands.Should().HaveCount(4);
+            }
+
+            var firstPass = await processor.ProcessPendingAsync().ConfigureAwait(true);
+            firstPass.LeasedCount.Should().Be(2);
+            recorder.Commands.Should().HaveCount(2);
+
+            var secondPass = await processor.ProcessPendingAsync().ConfigureAwait(true);
+            secondPass.LeasedCount.Should().Be(2);
+            recorder.Commands.Should().HaveCount(4);
         }
     }
 
@@ -163,30 +166,30 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     {
         var clock = new ManualTimeProvider(BaseTime);
         var recorder = new InboxTestFixtures.CommandRecorder();
-         var provider = BuildProcessorProvider(recorder, 10, clock);
-         await using (provider.ConfigureAwait(true))
-         {
-        var store = provider.GetRequiredService<InMemoryInboxStore>();
+        var provider = BuildProcessorProvider(recorder, 10, clock);
+        await using (provider.ConfigureAwait(true))
+        {
+            var store = provider.GetRequiredService<InMemoryInboxStore>();
 
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        await scheduler.AcceptAsync(InboxWriterTestFactory.Item(
-            new InboxTestFixtures.ShipOrderCommand
-            {
-                OrderId = Guid.NewGuid(),
-                IdempotencyKey = "future"
-            },
-            InboxAcceptMetadata.Immediate with
-            {
-                Visibility = new MessageVisibility.At(BaseTime.AddMinutes(30))
-            })).ConfigureAwait(true);
+            await scheduler.AcceptAsync(InboxWriterTestFactory.Item(
+                new InboxTestFixtures.ShipOrderCommand
+                {
+                    OrderId = Guid.NewGuid(),
+                    IdempotencyKey = "future"
+                },
+                InboxAcceptMetadata.Immediate with
+                {
+                    Visibility = new MessageVisibility.At(BaseTime.AddMinutes(30))
+                })).ConfigureAwait(true);
 
 
-        var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
-        pass.LeasedCount.Should().Be(0);
-        recorder.Commands.Should().BeEmpty();
-        store.GetAll().Single().Status.Should().Be(InboxStatus.Pending);
+            var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
+            pass.LeasedCount.Should().Be(0);
+            recorder.Commands.Should().BeEmpty();
+            store.GetAll().Single().Status.Should().Be(InboxStatus.Pending);
         }
     }
 
@@ -195,31 +198,31 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     {
         var clock = new ManualTimeProvider(BaseTime);
         var recorder = new InboxTestFixtures.CommandRecorder();
-         var provider = BuildProcessorProvider(recorder, 10, clock);
-         await using (provider.ConfigureAwait(true))
-         {
-        var store = provider.GetRequiredService<InMemoryInboxStore>();
+        var provider = BuildProcessorProvider(recorder, 10, clock);
+        await using (provider.ConfigureAwait(true))
+        {
+            var store = provider.GetRequiredService<InMemoryInboxStore>();
 
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        await scheduler.AcceptAsync(InboxWriterTestFactory.Item(
-            new InboxTestFixtures.ShipOrderCommand
-            {
-                OrderId = Guid.NewGuid(),
-                IdempotencyKey = "due-later"
-            },
-            InboxAcceptMetadata.Immediate with
-            {
-                Visibility = new MessageVisibility.At(BaseTime.AddMinutes(5))
-            })).ConfigureAwait(true);
+            await scheduler.AcceptAsync(InboxWriterTestFactory.Item(
+                new InboxTestFixtures.ShipOrderCommand
+                {
+                    OrderId = Guid.NewGuid(),
+                    IdempotencyKey = "due-later"
+                },
+                InboxAcceptMetadata.Immediate with
+                {
+                    Visibility = new MessageVisibility.At(BaseTime.AddMinutes(5))
+                })).ConfigureAwait(true);
 
 
-        clock.Advance(TimeSpan.FromMinutes(5));
+            clock.Advance(TimeSpan.FromMinutes(5));
 
-        var pass = await processor.ProcessPendingAsync().ConfigureAwait(false);
-        pass.LeasedCount.Should().Be(1);
-        recorder.Commands.Should().ContainSingle();
+            var pass = await processor.ProcessPendingAsync().ConfigureAwait(false);
+            pass.LeasedCount.Should().Be(1);
+            recorder.Commands.Should().ContainSingle();
         }
     }
 
@@ -252,15 +255,15 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
             true);
         await using (provider.ConfigureAwait(true))
         {
-        var store = provider.GetRequiredService<InMemoryInboxStore>();
+            var store = provider.GetRequiredService<InMemoryInboxStore>();
 
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.FaultyCommand()).ConfigureAwait(false);
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.FaultyCommand()).ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        store.Get(receipt.Id).VisibleAfter.Should().Be(BaseTime.AddSeconds(30));
+            store.Get(receipt.Id).VisibleAfter.Should().Be(BaseTime.AddSeconds(30));
         }
     }
 
@@ -294,15 +297,15 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
             true);
         await using (provider.ConfigureAwait(true))
         {
-        var store = provider.GetRequiredService<InMemoryInboxStore>();
+            var store = provider.GetRequiredService<InMemoryInboxStore>();
 
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.FaultyCommand()).ConfigureAwait(false);
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.FaultyCommand()).ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        store.Get(receipt.Id).VisibleAfter.Should().Be(BaseTime.AddSeconds(10));
+            store.Get(receipt.Id).VisibleAfter.Should().Be(BaseTime.AddSeconds(10));
         }
     }
 
@@ -311,67 +314,68 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     {
         var clock = new ManualTimeProvider(BaseTime);
         var recorder = new InboxTestFixtures.CommandRecorder();
-         var provider = BuildProcessorProvider(recorder, 10, clock);
-         await using (provider.ConfigureAwait(true))
-         {
-        var store = provider.GetRequiredService<InMemoryInboxStore>();
-
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-
-        var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
-            OrderId = Guid.NewGuid(),
-            IdempotencyKey = "lease-expiry"
-        });
-
-        await store.LeasePendingAsync(new InboxLeaseRequest
+        var provider = BuildProcessorProvider(recorder, 10, clock);
+        await using (provider.ConfigureAwait(true))
         {
-            BatchSize = 1,
-            LeaseOwner = "stale-worker",
-            Now = BaseTime,
-            LeaseDuration = TimeSpan.FromSeconds(30)
-        }).ConfigureAwait(true);
+            var store = provider.GetRequiredService<InMemoryInboxStore>();
+
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
+
+            var receipt = await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+            {
+                OrderId = Guid.NewGuid(),
+                IdempotencyKey = "lease-expiry"
+            });
+
+            await store.LeasePendingAsync(new InboxLeaseRequest
+            {
+                BatchSize = 1,
+                LeaseOwner = "stale-worker",
+                Now = BaseTime,
+                LeaseDuration = TimeSpan.FromSeconds(30)
+            }).ConfigureAwait(true);
 
 
-        store.Get(receipt.Id).Status.Should().Be(InboxStatus.Processing);
+            store.Get(receipt.Id).Status.Should().Be(InboxStatus.Processing);
 
-        clock.Advance(TimeSpan.FromMinutes(1));
+            clock.Advance(TimeSpan.FromMinutes(1));
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        recorder.Commands.Should().ContainSingle();
-        store.Get(receipt.Id).Status.Should().Be(InboxStatus.Completed);
-        store.Get(receipt.Id).AttemptCount.Should().Be(2);
+            recorder.Commands.Should().ContainSingle();
+            store.Get(receipt.Id).Status.Should().Be(InboxStatus.Completed);
+            store.Get(receipt.Id).AttemptCount.Should().Be(2);
         }
     }
 
     [Fact]
     public async Task ProcessPendingAsync_WhenContractNameUnknown_ShouldMarkFailed()
     {
-         var provider = BuildProcessorProvider(new InboxTestFixtures.CommandRecorder(), 10);
-         await using (provider.ConfigureAwait(true))
-         {
-        var store = provider.GetRequiredService<InMemoryInboxStore>();
-
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-        var commandId = Guid.NewGuid();
-
-        await store.AddAsync(new InboxEnvelope
+        var provider = BuildProcessorProvider(new InboxTestFixtures.CommandRecorder(), 10);
+        await using (provider.ConfigureAwait(true))
         {
-            Id = commandId,
-            ContractName = "unknown.contract",
-            ContractVersion = 99,
-            Payload = "{}",
-            CreatedAt = BaseTime,
-            AttemptCount = 0,
-            Status = InboxStatus.Pending
-        }).ConfigureAwait(true);
+            var store = provider.GetRequiredService<InMemoryInboxStore>();
+
+            var processor = provider.GetRequiredService<IInboxProcessor>();
+            var commandId = Guid.NewGuid();
+
+            await store.AddAsync(new InboxEnvelope
+            {
+                Id = commandId,
+                ContractName = "unknown.contract",
+                ContractVersion = 99,
+                Payload = "{}",
+                CreatedAt = BaseTime,
+                AttemptCount = 0,
+                Status = InboxStatus.Pending
+            }).ConfigureAwait(true);
 
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        store.Get(commandId).Status.Should().Be(InboxStatus.Failed);
-        store.Get(commandId).LastError.Should().Contain(nameof(MessageContractNotRegisteredException));
+            store.Get(commandId).Status.Should().Be(InboxStatus.Failed);
+            store.Get(commandId).LastError.Should().Contain(nameof(MessageContractNotRegisteredException));
         }
     }
 
@@ -411,31 +415,32 @@ public sealed class InboxProcessorEdgeCaseTests : LiteBusTestBase
     public async Task ProcessPendingAsync_WhenCancellationRequested_ShouldPropagateOperationCanceledException()
     {
         var recorder = new InboxTestFixtures.CommandRecorder();
-         var provider = BuildProcessorProvider(recorder, 10);
-         await using (provider.ConfigureAwait(true))
-         {
-        var store = provider.GetRequiredService<InMemoryInboxStore>();
-
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-
-        for (var i = 0; i < 3; i++)
+        var provider = BuildProcessorProvider(recorder, 10);
+        await using (provider.ConfigureAwait(true))
         {
-            var orderId = Guid.NewGuid();
+            var store = provider.GetRequiredService<InMemoryInboxStore>();
 
-            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
-                OrderId = orderId,
-                IdempotencyKey = $"ship:{orderId}"
-            }).ConfigureAwait(true);
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        }
+            for (var i = 0; i < 3; i++)
+            {
+                var orderId = Guid.NewGuid();
 
-        using var cts = new CancellationTokenSource();
-        cts.Cancel();
+                await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+                {
+                    OrderId = orderId,
+                    IdempotencyKey = $"ship:{orderId}"
+                }).ConfigureAwait(true);
 
-        var act = async () => await processor.ProcessPendingAsync(cts.Token).ConfigureAwait(false);
+            }
 
-        await act.Should().ThrowAsync<OperationCanceledException>();
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            var act = async () => await processor.ProcessPendingAsync(cts.Token).ConfigureAwait(false);
+
+            await act.Should().ThrowAsync<OperationCanceledException>();
         }
     }
 

@@ -28,7 +28,7 @@ public abstract class AmqpInboxDispatcherIntegrationTests : LiteBusTestBase
     ///     Verifies that processing a leased inbox envelope publishes the payload and headers to AMQP.
     /// </summary>
     /// <returns>A task that completes when the publish assertion succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_ShouldPublishLeasedEnvelopeToAmqpQueue()
     {
         var exchangeName = $"litebus.inbox.dispatch.{Guid.NewGuid():N}";

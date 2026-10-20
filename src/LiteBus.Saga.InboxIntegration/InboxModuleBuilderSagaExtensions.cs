@@ -1,3 +1,4 @@
+using System;
 using LiteBus.Inbox.Abstractions;
 
 namespace LiteBus.Saga.InboxIntegration;

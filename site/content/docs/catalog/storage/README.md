@@ -1,10 +1,12 @@
-# Storage Axis Capability Catalog
+# Storage
+
+Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 
 The storage axis covers durable persistence for inbox and outbox flows. Technology-adapter packages own shared PostgreSQL and EF Core primitives, while feature bridges implement storage roles for each durable axis.
 
 ## Axis Role
 
-- **Technology adapters**: shared storage infrastructure (`LiteBus.Storage.PostgreSql`, plus EF Core shared utilities outside this catalog).
+- **Technology adapters**: shared storage infrastructure (`LiteBus.Storage.PostgreSql`, plus EF Core shared utilities in `storage.efcore.shared-infra`).
 - **Feature bridges**: axis adapters (`LiteBus.Inbox.Storage.*`, `LiteBus.Outbox.Storage.*`).
 - **Primary responsibility**: accept and enqueue writes, processor leasing, state transitions, dead-letter replay, retention cleanup, diagnostics counts, and schema lifecycle for PostgreSQL adapters.
 
@@ -39,12 +41,21 @@ The storage axis covers durable persistence for inbox and outbox flows. Technolo
 | [storage.postgresql.shared-infra](storage.postgresql.shared-infra.md) | Shared PostgreSQL technology primitives |
 | [storage.postgresql.schema-management](storage.postgresql.schema-management.md) | Ensure, validate, and drift checks |
 | [storage.postgresql.work-signal](storage.postgresql.work-signal.md) | LISTEN/NOTIFY wake-up path |
+| [storage.inbox.adapter.efcore](storage.inbox.adapter.efcore.md) | EF Core inbox adapter surface |
+| [storage.outbox.adapter.efcore](storage.outbox.adapter.efcore.md) | EF Core outbox adapter surface |
+| [storage.inbox.adapter.inmemory](storage.inbox.adapter.inmemory.md) | InMemory inbox adapter surface |
+| [storage.outbox.adapter.inmemory](storage.outbox.adapter.inmemory.md) | InMemory outbox adapter surface |
+| [storage.efcore.shared-infra](storage.efcore.shared-infra.md) | Shared EF Core lease, model, and operation helpers |
+| [storage.efcore.schema-ownership](storage.efcore.schema-ownership.md) | Application-owned EF migrations and model configuration |
 | [storage.composite.processing-store](storage.composite.processing-store.md) | Composite lease/state role contracts |
+| [storage.composite.operations-store](storage.composite.operations-store.md) | Dead-letter, retention, diagnostics, query, and purge composite roles |
 | [storage.role.append](storage.role.append.md) | Append semantics and idempotency |
 | [storage.role.lease](storage.role.lease.md) | Lease claim semantics and concurrency |
 | [storage.role.state-writer](storage.role.state-writer.md) | Terminal state persistence |
 | [storage.role.dead-letter](storage.role.dead-letter.md) | Manual replay path |
 | [storage.role.retention](storage.role.retention.md) | Retention cutoff and deletes |
+| [storage.role.diagnostics](storage.role.diagnostics.md) | Status counts and schema metadata for operators and probes |
+| [storage.role.query-purge](storage.role.query-purge.md) | Filtered message queries and destructive purge |
 | [storage.transactional.writes](storage.transactional.writes.md) | Transaction-scoped inbox/outbox writes |
 
 ## Test Projects
@@ -56,7 +67,7 @@ The storage axis covers durable persistence for inbox and outbox flows. Technolo
 
 ## Related Main Documentation
 
-These adapters are documented in main docs and are intentionally out of this PostgreSQL-only catalog scope:
+These topics are also documented in main docs:
 
 - [Inbox EntityFrameworkCore Storage](../../integrations/inbox-ef-core-storage.md)
 - [Outbox EntityFrameworkCore Storage](../../integrations/outbox-ef-core-storage.md)

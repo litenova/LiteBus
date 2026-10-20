@@ -31,12 +31,13 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
     public PostgreSqlSagaInboxEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms saga state persists in PostgreSQL after inbox dispatch completes.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_with_EnableSaga_should_persist_state_in_postgresql()
     {
         var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -50,7 +51,8 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
 
         await PostgreSqlSagaSchema.EnsureAsync(_fixture.DataSource, sagaOptions).ConfigureAwait(false);
 
-        await using var provider = BuildProvider(inboxOptions, sagaOptions);
+        var provider = BuildProvider(inboxOptions, sagaOptions);
+        await using var configuredProvider = provider.ConfigureAwait(false);
         var inbox = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
         var sagaStore = provider.GetRequiredService<ISagaStore>();
@@ -71,7 +73,7 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
     /// <summary>
     ///     Confirms host startup creates the saga schema before the inbox processor begins polling.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task HostedProcessor_StartAsync_ShouldInitializeSagaSchemaBeforeProcessing()
     {
         var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -81,7 +83,8 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
             TableName = $"saga_{Guid.NewGuid():N}"
         };
 
-        await using var provider = BuildProvider(inboxOptions, sagaOptions, enableProcessor: true);
+        var provider = BuildProvider(inboxOptions, sagaOptions, enableProcessor: true);
+        await using var configuredProvider = provider.ConfigureAwait(false);
         var hostedService = provider.GetRequiredService<IHostedService>();
 
         await hostedService.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -122,7 +125,7 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
     /// <summary>
     ///     Confirms tenant metadata from inbox accepts persists separate saga rows for one correlation identifier.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WithTenantScopedAccepts_ShouldPersistSeparateSagaRows()
     {
         var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -136,7 +139,8 @@ public sealed class PostgreSqlSagaInboxEndToEndTests : LiteBusTestBase, IClassFi
 
         await PostgreSqlSagaSchema.EnsureAsync(_fixture.DataSource, sagaOptions).ConfigureAwait(false);
 
-        await using var provider = BuildProvider(inboxOptions, sagaOptions);
+        var provider = BuildProvider(inboxOptions, sagaOptions);
+        await using var configuredProvider = provider.ConfigureAwait(false);
         var inbox = provider.GetRequiredService<IInbox>();
         var processor = provider.GetRequiredService<IInboxProcessor>();
         var sagaStore = provider.GetRequiredService<ISagaStore>();

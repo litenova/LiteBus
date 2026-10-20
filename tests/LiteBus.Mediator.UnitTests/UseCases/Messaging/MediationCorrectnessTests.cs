@@ -157,6 +157,48 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
     }
 
     [Fact]
+    public async Task Send_CommandWithResult_WhenErrorHandlerSetsHandledWithoutResult_ShouldReturnDefault()
+    {
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
+        {
+            registry.AddMessaging(_ => { });
+            registry.AddCommands(builder =>
+            {
+                builder.Register<FailingResultCommandHandler>();
+                builder.Register<HandledWithoutResultCommandErrorHandler>();
+            });
+        }).BuildServiceProvider();
+
+        var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
+
+        // The handler absorbed the fault without a fallback value, so the caller receives the default result.
+        var result = await commandMediator.SendAsync(new FailingResultCommand()).ConfigureAwait(false);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Send_CommandWithResult_WhenErrorHandlerSetsHandledWithWronglyTypedResult_ShouldReturnDefault()
+    {
+        var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
+        {
+            registry.AddMessaging(_ => { });
+            registry.AddCommands(builder =>
+            {
+                builder.Register<FailingResultCommandHandler>();
+                builder.Register<HandledWithWronglyTypedResultCommandErrorHandler>();
+            });
+        }).BuildServiceProvider();
+
+        var commandMediator = serviceProvider.GetRequiredService<ICommandMediator>();
+
+        // The handler absorbed the fault without a fallback value, so the caller receives the default result.
+        var result = await commandMediator.SendAsync(new FailingResultCommand()).ConfigureAwait(false);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Send_Command_WhenCancelled_ShouldNotInvokeErrorHandler()
     {
         var serviceProvider = new ServiceCollection().AddLiteBus(registry =>
@@ -476,6 +518,29 @@ public sealed class MediationCorrectnessTests : LiteBusTestBase
         {
             context.Outcome = MessageErrorOutcome.Handled;
             context.HandledResult = "fallback";
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class HandledWithoutResultCommandErrorHandler : ICommandErrorHandler<FailingResultCommand, string>
+    {
+        public Task HandleErrorAsync(
+            MessageErrorContext<FailingResultCommand, string> context,
+            CancellationToken cancellationToken = default)
+        {
+            context.Outcome = MessageErrorOutcome.Handled;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class HandledWithWronglyTypedResultCommandErrorHandler : ICommandErrorHandler
+    {
+        public Task HandleErrorAsync(
+            MessageErrorContext<ICommand, object> context,
+            CancellationToken cancellationToken = default)
+        {
+            context.Outcome = MessageErrorOutcome.Handled;
+            context.HandledResult = 42;
             return Task.CompletedTask;
         }
     }

@@ -17,8 +17,8 @@
 It reports when a dependency type in constructor parameters, method parameters, fields, or properties matches or implements one of the impure APIs:
 
 - `ICommandMediator`, `IEventMediator`, `IQueryMediator`
-- `IInbox`, `ITransactionalInbox<T>`, `IInboxStore`, `ITransactionalInboxStore`
-- `IOutbox`, `IOutboxStore`, `ITransactionalOutboxStore`
+- `IInbox`, `ITransactionalInbox`, `ITransactionalInbox<T>`, `IInboxStore`, `ITransactionalInboxStore`
+- `IOutbox`, `ITransactionalOutbox`, `ITransactionalOutbox<T>`, `IOutboxStore`, `ITransactionalOutboxStore`
 - `ITransportPublisher`
 
 The analyzer reports each impure dependency metadata type once per handler.
@@ -83,6 +83,9 @@ Source: `tests/LiteBus.Analyzers.UnitTests/QueryHandlerImpurityAnalyzerTests.cs`
 | `QueryHandlerWithCommandMediator_ProducesDiagnostic` | `ICommandMediator` dependency reports `LB1003` |
 | `QueryHandlerWithInbox_ProducesDiagnostic` | `IInbox` dependency reports `LB1003` |
 | `QueryHandlerWithTransactionalInbox_ProducesDiagnostic` | `IInboxStore` dependency reports `LB1003` |
+| `QueryHandlerWithTransactionalInboxWriter_ProducesDiagnostic` | `ITransactionalInbox` dependency reports `LB1003` |
+| `QueryHandlerWithTransactionalOutboxWriter_ProducesDiagnostic` | `ITransactionalOutbox` dependency reports `LB1003` |
+| `QueryHandlerWithGenericTransactionalOutboxWriter_ProducesDiagnostic` | `ITransactionalOutbox<T>` dependency reports `LB1003` |
 | `StreamQueryHandlerWithCommandMediator_ProducesDiagnostic` | Stream query handlers are covered |
 | `QueryHandlerWithImpureField_ProducesDiagnostic` | Field dependency on `IEventMediator` reports `LB1003` |
 | `QueryHandlerWithMessageTransport_ProducesDiagnostic` | `ITransportPublisher` dependency reports `LB1003` |

@@ -20,8 +20,8 @@ When handlers call `ReturnToQueueAsync`, the adapter seeks to the consumed offse
 | `KafkaTransportModule` | Registers Kafka publisher and consumer |
 | `KafkaPublisher.PublishAsync` | Produces one Kafka record |
 | `KafkaConsumer.StartAsync` | Runs consume loop with manual commit |
-| `KafkaMessageMapper` | Maps `TransportPublishRequest` and consumed records |
-| `KafkaSeekBackoff` | Tracks per-offset retry delay |
+| `KafkaMessageMapper` | Maps `TransportPublishRequest` and consumed records (internal) |
+| `KafkaSeekBackoff` | Tracks per-offset retry delay (internal) |
 | `KafkaConnectivityDiagnosticCheck` | Describes the cluster for host readiness |
 | `LiteBusTransportKafkaTelemetry.MeterName` | Reserved Kafka meter name |
 
@@ -33,6 +33,8 @@ When handlers call `ReturnToQueueAsync`, the adapter seeks to the consumed offse
 | `ClientId` | `null` | Producer and consumer client id |
 | `ConsumerGroupId` | `litebus-transport` | Kafka consumer group |
 | `MessageTimeoutMs` | `null` | Producer message timeout |
+| `MessageSendMaxRetries` | `null` | Producer send retries before the Confluent default applies |
+| `SocketTimeoutMs` | `null` | Producer socket timeout before the Confluent default applies |
 | `ConnectivityCheckTimeout` | `5s` | Cluster description request timeout |
 | `SeekFailureBackoffInitial` | `250ms` | Initial seek retry delay |
 | `SeekFailureBackoffMax` | `30s` | Max seek retry delay |

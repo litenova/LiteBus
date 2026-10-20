@@ -1,3 +1,4 @@
+using System;
 using LiteBus.Runtime.Abstractions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;

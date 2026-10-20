@@ -24,7 +24,7 @@ bus.AddInbox(inbox => inbox.UseAmqpIngress(ingress =>
         RequeueOnFailure = true,
         Safety = new TransportInboxIngressSafetyOptions
         {
-            MaxInFlightMessages = 8,
+            MaxInFlightMessages = 1,
             EnableBatchAccept = true,
             BatchSize = 5
         }

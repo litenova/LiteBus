@@ -65,6 +65,74 @@ public sealed class ExplicitMessageContractRegistrationAnalyzerTests
     }
 
     /// <summary>
+    ///     Verifies a contract scan through <c>Assembly.GetExecutingAssembly()</c> satisfies the explicit registration rule.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task AttributedMessageCoveredByExecutingAssemblyScan_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Reflection;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+
+                              [MessageContract("payments.process-payment", 1)]
+                              public sealed record ProcessPaymentCommand(int PaymentId) : ICommand;
+
+                              public static class ModuleConfiguration
+                              {
+                                  public static void Configure(ContractsRegistry contracts)
+                                  {
+                                      contracts.RegisterFromAssembly(Assembly.GetExecutingAssembly());
+                                  }
+                              }
+
+                              public sealed class ContractsRegistry
+                              {
+                                  public void RegisterFromAssembly(Assembly assembly)
+                                  {
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<ExplicitMessageContractRegistrationAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies a contract scan through a local holding <c>typeof(T).Assembly</c> satisfies the explicit registration rule.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task AttributedMessageCoveredByLocalAssemblyVariable_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+
+                              [MessageContract("payments.process-payment", 1)]
+                              public sealed record ProcessPaymentCommand(int PaymentId) : ICommand;
+
+                              public static class ModuleConfiguration
+                              {
+                                  public static void Configure(ContractsRegistry contracts)
+                                  {
+                                      var assembly = typeof(ProcessPaymentCommand).Assembly;
+                                      contracts.RegisterFromAssembly(assembly);
+                                  }
+                              }
+
+                              public sealed class ContractsRegistry
+                              {
+                                  public void RegisterFromAssembly(System.Reflection.Assembly assembly)
+                                  {
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<ExplicitMessageContractRegistrationAnalyzer>(source);
+    }
+
+    /// <summary>
     ///     Verifies <c>RegisterFromAssembly</c> satisfies the explicit registration rule for attributed types.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>

@@ -9,6 +9,26 @@
 
 Runtime serialization converts CLR message objects to payload strings and back. `MessageModule` registers `IMessageSerializer` to `SystemTextJsonMessageSerializer`, which uses `System.Text.Json` web defaults and wraps JSON conversion failures in `MessageSerializationException`.
 
+## Stating the Wire Format
+
+The default is `JsonSerializerDefaults.Web`, which is camel case. The serializer decides the wire format of every persisted message, so it is a compose-time decision like `UseTimeProvider` and is stated on `MessageModuleBuilder`:
+
+```csharp
+var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
+liteBus.AddMessaging(messaging => messaging
+    .UseSerializerInstance(new SystemTextJsonMessageSerializer(options)));
+```
+
+| Member | Use when |
+| --- | --- |
+| `UseSerializerInstance(IMessageSerializer)` | The serializer is configured rather than injected, which is the common case |
+| `UseSerializer<TMessageSerializer>(InstanceLifetime)` | The serializer has dependencies and should be constructed by the container |
+
+Replacing the registration after `AddLiteBus` still works, but it is a decision no composition check can see and no startup check can miss. Forgetting it renames every property of every durable message on the wire, every consumer breaks, and nothing fails at boot. Applications whose published payloads are read by other systems should state the format here rather than inherit it.
+
+Existing rows are not rewritten. Changing the serializer of a system with messages already in the outbox changes how new rows are written and how every row is read, so drain the backlog before changing it, or keep a serializer that reads both shapes.
+
 ## Public Surface
 
 | API | Role |
@@ -40,7 +60,7 @@ Runtime serialization converts CLR message objects to payload strings and back. 
 
 ## Observability
 
-No serializer-specific meter or activity contract exists in runtime core. Call sites log serialization exceptions with contract context.
+No serializer-specific meter or activity contract exists in runtime core. Failures surface as `MessageSerializationException`, which carries the message type or contract name, the contract version, and the operation that failed.
 
 ## Test Coverage
 

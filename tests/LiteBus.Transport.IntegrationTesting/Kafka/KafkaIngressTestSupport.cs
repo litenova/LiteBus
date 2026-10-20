@@ -148,7 +148,7 @@ public static class KafkaIngressTestSupport
     /// <summary>
     ///     Runs <see cref="TransportInboxIngressConsumer" /> for ingress-only integration tests.
     /// </summary>
-    private sealed class IngressConsumerSession
+    private sealed class IngressConsumerSession : IDisposable
     {
         /// <summary>
         ///     The cancellation source used to stop the ingress loop.
@@ -159,6 +159,15 @@ public static class KafkaIngressTestSupport
         ///     The background task executing the ingress consumer loop.
         /// </summary>
         private Task? _executionTask;
+
+        /// <summary>
+        ///     Releases the cancellation source used to stop the ingress loop.
+        /// </summary>
+        public void Dispose()
+        {
+            _stoppingCts.Dispose();
+            GC.SuppressFinalize(this);
+        }
 
         /// <summary>
         ///     Starts the ingress consumer loop from the registered service provider.
@@ -207,7 +216,7 @@ public static class KafkaIngressTestSupport
     /// <summary>
     ///     Tracks ingress and inbox processor loops for end-to-end Kafka tests.
     /// </summary>
-    private sealed class EndToEndSession
+    private sealed class EndToEndSession : IDisposable
     {
         /// <summary>
         ///     The cancellation source used to stop background loops.
@@ -218,6 +227,15 @@ public static class KafkaIngressTestSupport
         ///     The background task executing the ingress consumer loop.
         /// </summary>
         private readonly Task _ingressTask;
+
+        /// <summary>
+        ///     Releases the cancellation source used to stop background loops.
+        /// </summary>
+        public void Dispose()
+        {
+            _stoppingCts.Dispose();
+            GC.SuppressFinalize(this);
+        }
 
         /// <summary>
         ///     The background task executing the inbox processor loop.

@@ -33,6 +33,11 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
     private readonly ILeaseRenewable _leaseStore;
 
     /// <summary>
+    ///     The time a lease release may take after the processor cancelled a dispatch during shutdown.
+    /// </summary>
+    private static readonly TimeSpan LeaseReleaseBudget = TimeSpan.FromSeconds(5);
+
+    /// <summary>
     ///     Gets the logger used for lease, pass, and dispatch diagnostics.
     /// </summary>
     private readonly ILogger _logger;
@@ -181,6 +186,11 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
 
                             if (updated is null)
                             {
+                                if (cancellationToken.IsCancellationRequested)
+                                {
+                                    await ReleaseCancelledLeaseAsync(heartbeatContext).ConfigureAwait(false);
+                                }
+
                                 return true;
                             }
 
@@ -232,6 +242,37 @@ internal sealed class PipelinedMessageProcessor<TEnvelope, TOptions>
             _operations.RecordPersistFailed();
         }
 #pragma warning restore CA1031
+    }
+
+    /// <summary>
+    ///     Returns a leased message whose dispatch the processor cancelled, so the cancellation does not spend an attempt.
+    /// </summary>
+    /// <param name="heartbeatContext">The lease inputs of the cancelled envelope.</param>
+    /// <returns>A task that completes when the release finished, failed, or timed out.</returns>
+    /// <remarks>
+    ///     The pass token is already cancelled when this runs, so the release uses its own short budget. A release that
+    ///     fails or times out is logged and otherwise ignored: the lease then expires and the row is reclaimed with the
+    ///     attempt counted, which is the outcome a crash would have produced.
+    /// </remarks>
+    private async Task ReleaseCancelledLeaseAsync(LeaseHeartbeatContext heartbeatContext)
+    {
+        using var releaseBudget = new CancellationTokenSource(LeaseReleaseBudget);
+
+        try
+        {
+            var released = await _leaseStore.ReleaseLeaseAsync(
+                    new LeaseReleaseRequest(heartbeatContext.MessageId, heartbeatContext.LeaseOwner, heartbeatContext.LeaseGeneration),
+                    releaseBudget.Token)
+                .ConfigureAwait(false);
+
+            MessageProcessorLogMessages.LeaseReleased(_logger, _operations.ProcessorName, heartbeatContext.MessageId, released);
+        }
+#pragma warning disable CA1031 // A release is best effort during shutdown; lease expiry is the fallback for any failure.
+        catch (Exception exception)
+#pragma warning restore CA1031
+        {
+            MessageProcessorLogMessages.LeaseReleaseFailed(_logger, _operations.ProcessorName, heartbeatContext.MessageId, exception);
+        }
     }
 
     /// <summary>

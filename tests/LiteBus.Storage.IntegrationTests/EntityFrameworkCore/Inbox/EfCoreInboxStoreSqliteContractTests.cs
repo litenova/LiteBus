@@ -1,4 +1,5 @@
 using LiteBus.Inbox.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore;
 using LiteBus.Storage.Testing;
 
 namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Inbox;
@@ -33,14 +34,14 @@ public sealed class EfCoreInboxStoreSqliteContractTests : InboxStoreContractTest
     }
 
     /// <inheritdoc />
-    protected override InboxStoreRoles CreateStore()
+    protected override InboxStoreContractRoles CreateStore()
     {
-        EfCoreSqliteTestInfrastructure.ResetAsync(_fixture.ConnectionString).GetAwaiter().GetResult();
+        EfCoreProviderTestInfrastructure.ResetInboxTableAsync(EfCoreStorageProvider.Sqlite, _fixture.ConnectionString).GetAwaiter().GetResult();
         var store = new EfCoreInboxStore(
             _ => Task.FromResult<IInboxDbContext>(
-                EfCoreSqliteTestInfrastructure.CreateContext(_fixture.ConnectionString)),
-            EfCoreSqliteTestInfrastructure.StoreOptions);
+                EfCoreProviderTestInfrastructure.CreateInboxContext(EfCoreStorageProvider.Sqlite, _fixture.ConnectionString)),
+            EfCoreProviderTestInfrastructure.InboxStoreOptions(EfCoreStorageProvider.Sqlite));
 
-        return new InboxStoreRoles(store, store, store, store, store, store, store, store);
+        return new InboxStoreContractRoles(store, store, store, store, store, store, store, store);
     }
 }

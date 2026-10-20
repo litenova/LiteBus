@@ -13,6 +13,18 @@
 
 `DiagnosticCheckRunner.RunAsync(...)` aggregates status and handles zero-probe policy (`failHealthWhenNoProbes`). Probes run concurrently with a bounded semaphore, and each probe has a timeout. A missing registration, timeout, or probe exception becomes an unhealthy outcome for that probe while sibling probes continue.
 
+## Run Budget
+
+`DiagnosticCheckRunOptions` carries three limits:
+
+| Option | Default | Role |
+| --- | --- | --- |
+| `MaxParallelism` | `4` | Probes that may execute concurrently |
+| `Timeout` | 5 seconds | Maximum time allowed for one probe |
+| `RunTimeout` | `null` | Maximum time allowed for the whole run |
+
+A `null` `RunTimeout` derives the budget as the worst-case packing of the probe count over `MaxParallelism` lanes at `Timeout` per probe. An explicit `RunTimeout` cancels the run when it expires and reports unfinished probes as unhealthy. After a computed budget expires, the runner allows a 1-second grace period before reporting over-budget probes, since the computed budget already equals the worst case of the in-flight per-probe timeouts.
+
 ## Public Surface
 
 ### Consumer Contracts
@@ -42,7 +54,7 @@
 
 - Descriptor name is the operator-facing probe name.
 - Descriptor implementation type must resolve to `IDiagnosticCheck` from DI.
-- Duplicate probe type registrations are deduplicated by implementation type.
+- Registering the same probe type under the same name more than once keeps only the first registration; registering it under a different name fails composition.
 - `MaxParallelism` and `Timeout` are positive. Probe cancellation is requested when a timeout expires.
 - Caller cancellation propagates; provider failures, missing registrations, and timeouts become isolated unhealthy outcomes.
 
@@ -85,11 +97,20 @@ When no probes are registered and fail-on-empty is true, runner returns degraded
 
 #### `ModuleConfigurationDiagnosticCheckTests.RegisterDiagnosticCheck_SameTypeAndNameTwice_ShouldIgnoreSecondRegistration`
 
-- **Use case**: duplicate probe type deduplication
+- **Use case**: duplicate probe registration with the same name
 - **Test kind**: Unit
-- **Description**: registers same probe type twice with different names
+- **Description**: registers the same probe type twice under the same name
 - **Behavior**: reads diagnostic check descriptors
 - **Expected outcome**: only first registration persists
+- **Remarks**: `tests/LiteBus.Runtime.UnitTests/ModuleConfigurationDiagnosticCheckTests.cs`
+
+#### `ModuleConfigurationDiagnosticCheckTests.RegisterDiagnosticCheck_SameTypeWithDifferentName_ShouldThrowLiteBusConfigurationException`
+
+- **Use case**: duplicate probe type under a different name
+- **Test kind**: Unit
+- **Description**: registers the same probe type under two different names
+- **Behavior**: attempts the conflicting registration at composition
+- **Expected outcome**: composition throws `LiteBusConfigurationException` naming both names
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/ModuleConfigurationDiagnosticCheckTests.cs`
 
 ### Untested Use Cases

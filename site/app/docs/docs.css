@@ -1,0 +1,159 @@
+/* Documentation pages in the Editor design: explorer, article, outline, pager, and
+   the mobile drawer. Shared tokens, header, editor chrome, code, footer, and
+   status bar live in app/globals.css; this file holds only docs rules. */
+
+.docs { display: grid; grid-template-columns: 260px minmax(0, 1fr) 240px; }
+.docs > .status { grid-column: 1 / -1; }
+
+/* Explorer navigation. */
+.explorer { background: var(--side); border-right: var(--bw) solid var(--frame); padding: 14px 0 24px; font-size: 13.5px; min-width: 0; }
+.explorer:focus { outline: none; }
+/* Drawer search: hidden on desktop, where the header holds the search box. */
+.explorer .search { display: none; }
+.xws { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 18px 14px; margin-bottom: 8px; border-bottom: var(--bw) solid var(--line-soft); }
+.xws b { font-size: 13px; font-weight: 600; color: var(--fg); white-space: nowrap; }
+/*
+ * Navigation sections: every group, top-level or inside a folder, is one .xsec with the same rhythm. Sections are
+ * separated by one fixed gap, and every heading has the same space above (the gap) and below (its bottom padding).
+ */
+.xhead { margin: 0; padding: 0 18px 6px; font-family: var(--mono); font-size: 11px; font-weight: 400; line-height: 16px; letter-spacing: .06em; color: var(--faint); text-transform: uppercase; }
+.xsec + .xsec { margin-top: 18px; }
+.xkids .xsec + .xsec { margin-top: 10px; }
+.xkids .xhead { padding-left: 34px; }
+.xrow { position: relative; display: flex; align-items: flex-start; gap: 6px; min-height: 28px; padding: 4px 18px 4px 14px; line-height: 20px; color: var(--dim); cursor: pointer; transition: background-color .1s, color .1s; }
+.xrow:hover { background: var(--hover); color: var(--fg); text-decoration: none; }
+.xrow a { color: inherit; }
+.xrow a:hover { text-decoration: none; }
+summary.xrow { list-style: none; }
+summary.xrow::-webkit-details-marker { display: none; }
+summary.xrow::marker { content: ""; }
+.xrow .chev { width: 14px; height: 20px; flex: none; display: inline-flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; color: var(--faint); transition: transform .16s var(--ease); }
+details[open] > summary.xrow .chev { transform: rotate(90deg); }
+.xglyph { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.xrow.xsub { padding-left: 42px; }
+.xrow.cur { background: var(--acc-soft); color: var(--fg); }
+.xrow.cur::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 2px; border-radius: 2px; background: var(--acc); }
+.xkids { position: relative; }
+.xkids::before { content: ""; position: absolute; left: 27px; top: 0; bottom: 0; width: var(--bw); background: var(--line); }
+
+/* Article column. */
+.doc { min-width: 0; }
+/*
+ * One width for everything in the article: text, code, tables and diagrams all fill the article column, so every page
+ * has the same edges. The site grid caps the column, so lines stay bounded on wide screens.
+ */
+.prose { padding: 44px 48px 72px; }
+.prose > * { min-width: 0; }
+.prose h1 { font-size: 40px; font-weight: 700; letter-spacing: -.03em; }
+.prose > p:first-of-type, .prose p.intro { margin-top: 16px; font-size: 17px; line-height: 1.65; color: var(--dim); }
+.prose h2 { font-size: 22px; font-weight: 650; margin: 48px 0 12px; }
+.prose h2 a.anchor { color: var(--faint); font-family: var(--mono); font-weight: 400; font-size: 16px; margin-left: 8px; opacity: 0; transition: opacity .12s; }
+.prose h2:hover a.anchor, .prose h2 a.anchor:focus-visible { opacity: 1; }
+.prose p { margin-top: 12px; }
+/*
+ * Running text is justified for an even right edge across pages, and hyphenation keeps word spacing even. Table cells,
+ * code and headings stay left-aligned.
+ */
+.prose > p, .prose li, .prose blockquote p, .prose dd { text-align: justify; hyphens: auto; -webkit-hyphens: auto; text-wrap: pretty; }
+.prose :not(pre) > code { font-family: var(--mono); font-size: .86em; color: var(--fg); background: var(--raised); border: var(--bw) solid var(--line-soft); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
+.prose blockquote { margin: 16px 0 0; padding: 2px 0 2px 16px; border-left: 2px solid var(--line); color: var(--dim); }
+.prose blockquote p { margin-top: 8px; }
+.callout.warn { border-left-color: var(--warn); }
+.prose ul, .prose ol { margin: 12px 0 0; padding-left: 24px; }
+.prose li { margin-top: 6px; }
+.prose li::marker { color: var(--faint); }
+.prose li > ul, .prose li > ol { margin-top: 6px; }
+.prose h3 { font-size: 18px; font-weight: 650; margin: 32px 0 8px; }
+.prose h4 { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
+.prose hr { margin: 32px 0 0; border: 0; border-top: var(--bw) solid var(--line); }
+.prose img { display: block; max-width: 100%; margin-top: 16px; border: var(--bw) solid var(--line); border-radius: 6px; }
+.prose details { margin-top: 16px; border: var(--bw) solid var(--line); border-radius: 6px; padding: 12px 16px; background: var(--side); }
+.prose details summary { cursor: pointer; font-weight: 600; }
+.prose dl { margin: 12px 0 0; }
+.prose dt { margin-top: 12px; font-weight: 600; }
+.prose dd { margin: 4px 0 0 16px; color: var(--dim); }
+
+/* Tables. */
+.tbl { margin-top: 16px; overflow-x: auto; border: var(--bw) solid var(--line); border-radius: 6px; }
+.tbl table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tbl th { text-align: left; font-weight: 500; font-size: 12.5px; color: var(--dim); background: var(--side); padding: 9px 14px; border-bottom: var(--bw) solid var(--line); }
+.tbl td { padding: 10px 14px; border-bottom: var(--bw) solid var(--line-soft); vertical-align: top; overflow-wrap: break-word; }
+/* Identifiers in a cell stay whole; a table too wide for the article scrolls instead of splitting a type name. */
+.tbl td code, .tbl th code { overflow-wrap: normal; white-space: nowrap; }
+
+/* Diagrams: Mermaid fences compiled to SVG by Ondine at build time, coloured from the site tokens in both themes. */
+.ondine-diagram { margin-top: 16px; padding: 20px; overflow-x: auto; border: var(--bw) solid var(--line); border-radius: 6px; background: var(--side); }
+.ondine-diagram svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+.ondine {
+  --ondine-bg: var(--side);
+  --ondine-fg: var(--fg);
+  --ondine-line: var(--dim);
+  --ondine-border: var(--line);
+  --ondine-surface: var(--raised);
+  --ondine-accent: var(--acc);
+  --ondine-font: var(--sans);
+  --ondine-stroke: 1.5px;
+  --ondine-radius: 4px;
+}
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl tbody tr { transition: background-color .1s; }
+.tbl tbody tr:hover { background: var(--sx-line); }
+
+/* Code blocks. */
+.block { margin-top: 16px; border: var(--bw) solid var(--line); border-radius: 6px; background: var(--bg); overflow: hidden; }
+.block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 32px; padding: 0 8px 0 14px; border-bottom: var(--bw) solid var(--line-soft); background: var(--side); font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+.block-head span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.block .copy { opacity: 0; }
+.block:hover .copy, .block .copy:focus-visible { opacity: 1; }
+.block pre.code { max-width: 100%; }
+
+/* Previous and next page. */
+.pager { margin-top: 56px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.pager a { display: block; padding: 14px 16px; border: var(--bw) solid var(--line); border-radius: 6px; color: var(--fg); transition: border-color .12s, background-color .12s; }
+.pager a:hover { border-color: var(--acc); background: var(--acc-soft); text-decoration: none; }
+.pager a + a { text-align: right; }
+.pager-gap + a { text-align: right; }
+.pager small { display: block; font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+
+/* Outline. */
+.outline { border-left: var(--bw) solid var(--frame); padding: 22px 0 24px; font-size: 13px; min-width: 0; }
+.outline .sticky { position: sticky; top: 74px; }
+.outline .xhead { padding: 0 20px 6px; }
+.outline a { display: block; padding: 4px 20px; color: var(--dim); border-left: 2px solid transparent; margin-left: -1px; line-height: 1.45; transition: color .12s, border-color .12s; }
+.outline a:hover { color: var(--fg); text-decoration: none; }
+.outline a.cur { color: var(--fg); border-left-color: var(--acc); }
+.outline .edit { margin-top: 20px; font-size: 12.5px; color: var(--acc); }
+
+/* Mobile chrome, shown below 860px. */
+.menurow, .scrim, .xclose { display: none; }
+
+@media (max-width: 1180px) {
+  .docs { grid-template-columns: 240px minmax(0, 1fr); }
+  .outline { display: none; }
+}
+
+@media (max-width: 860px) {
+  .docs { grid-template-columns: minmax(0, 1fr); }
+  .doc .ed-tabs, .doc .crumbs { display: none; }
+  .menurow { position: sticky; top: 52px; z-index: 4; display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px; border-bottom: var(--bw) solid var(--line); background: var(--side); font-family: var(--mono); font-size: 12px; color: var(--dim); }
+  .menubtn { flex: none; display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 10px; border: var(--bw) solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 13.5px; font-weight: 500; cursor: pointer; transition: border-color .12s, background-color .12s; }
+  .menubtn:hover { border-color: var(--acc); }
+  .burger { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+  .menurow .path { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .menurow .path b { color: var(--faint); font-weight: 400; }
+  .menurow .ver { margin-left: auto; flex: none; }
+  .explorer { position: fixed; z-index: 61; top: 0; bottom: 0; left: 0; width: min(320px, 86vw); overflow-y: auto; padding-top: 16px; border-right: var(--bw) solid var(--frame); transform: translateX(-104%); transition: transform .24s var(--ease); }
+  .explorer.open { transform: none; }
+  .explorer .search { display: flex; width: auto; margin: 0 12px 12px; }
+  .scrim { display: block; position: fixed; inset: 0; z-index: 60; background: rgb(0 0 0 / .45); border: 0; padding: 0; opacity: 0; pointer-events: none; transition: opacity .24s; }
+  .scrim.on { opacity: 1; pointer-events: auto; }
+  .xclose { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-left: auto; border: var(--bw) solid var(--line); border-radius: 6px; background: transparent; padding: 0; font: inherit; color: var(--dim); font-size: 13px; cursor: pointer; }
+  .xclose:hover { color: var(--fg); border-color: var(--dim); }
+  .xws .ver { margin-left: 0; }
+}
+
+@media (max-width: 640px) {
+  .prose { padding: 28px 20px 56px; }
+  .prose h1 { font-size: 32px; }
+  .menurow .parent { display: none; }
+}

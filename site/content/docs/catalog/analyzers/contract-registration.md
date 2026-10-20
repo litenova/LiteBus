@@ -25,6 +25,8 @@ Reports for attributed durable message types when all of the following are true:
 - Type is durable (`ICommand`, `ICommand<TResult>`, or `IEvent`).
 - Type is not explicitly registered by `Register` or assembly scanning (`RegisterFromAssembly` or `AddFromAssembly`).
 
+Only contract surfaces satisfy either rule: `Register` on the message, command, event, or query axis builders records message and handler types and does not count, and `RegisterFromAssembly` counts everywhere except on the command, event, and query axis builders. Assembly scans count when the argument is `typeof(T)`, `typeof(T).Assembly`, a local initialized to either form, or `Assembly.GetExecutingAssembly()` / `Assembly.GetCallingAssembly()`; any other shape does not count.
+
 ## Bad Example
 
 ```csharp
@@ -56,7 +58,7 @@ public sealed record ProcessPaymentCommand(int PaymentId) : ICommand;
 
 public static class ModuleConfiguration
 {
-    public static void Configure(ContractsRegistry contracts)
+    public static void Configure(IContractWriter contracts)
     {
         contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
     }
@@ -87,7 +89,11 @@ Source: `tests/LiteBus.Analyzers.UnitTests/MissingMessageContractRegistrationAna
 | `MessageRegisteredThroughContractsRegister_ProducesNoDiagnostic` | `Register<T>` satisfies `LB1007` |
 | `HandledEventWithoutContractRegistration_ProducesDiagnostic` | Event handlers are included in `LB1007` |
 | `HandledMessageCoveredByRegisterFromAssembly_ProducesNoDiagnostic` | `RegisterFromAssembly` satisfies `LB1007` |
+| `HandledMessageCoveredByExecutingAssemblyScan_ProducesNoDiagnostic` | `Assembly.GetExecutingAssembly()` scan satisfies `LB1007` |
+| `HandledMessageCoveredByLocalAssemblyVariable_ProducesNoDiagnostic` | Scan through a `typeof(T).Assembly` local satisfies `LB1007` |
 | `QueryHandler_ProducesNoDiagnostic` | Query handlers are excluded from `LB1007` |
 | `AttributedMessageWithoutExplicitRegistration_ProducesDiagnostic` | Attributed durable type without registration reports `LB1017` |
 | `AttributedMessageWithExplicitRegister_ProducesNoDiagnostic` | Explicit `Register<T>` satisfies `LB1017` |
 | `AttributedMessageCoveredByRegisterFromAssembly_ProducesNoDiagnostic` | `RegisterFromAssembly` satisfies `LB1017` |
+| `AttributedMessageCoveredByExecutingAssemblyScan_ProducesNoDiagnostic` | `Assembly.GetExecutingAssembly()` scan satisfies `LB1017` |
+| `AttributedMessageCoveredByLocalAssemblyVariable_ProducesNoDiagnostic` | Scan through a `typeof(T).Assembly` local satisfies `LB1017` |

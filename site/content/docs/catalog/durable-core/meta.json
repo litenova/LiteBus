@@ -1,0 +1,27 @@
+{
+    "title":  "Durable Core",
+    "pages":  [
+                  "README",
+                  "command-inbox-patterns",
+                  "domain-events-unit-of-work",
+                  "durable-dispatch",
+                  "durable-storage",
+                  "envelope-lifecycle",
+                  "idempotency",
+                  "inbox-acceptance",
+                  "inbox-ingress",
+                  "inbox-processor",
+                  "lease-retry-dead-letter",
+                  "message-contracts",
+                  "operations-management",
+                  "outbox-enqueue",
+                  "outbox-processor",
+                  "payload-encryption",
+                  "processor-hooks",
+                  "reliable-messaging-semantics",
+                  "scheduling-metadata",
+                  "tenant-scoping",
+                  "transactional-writes"
+              ]
+}
+

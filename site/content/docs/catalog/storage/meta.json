@@ -1,0 +1,28 @@
+{
+    "title":  "Storage",
+    "pages":  [
+                  "README",
+                  "storage.composite.operations-store",
+                  "storage.composite.processing-store",
+                  "storage.efcore.schema-ownership",
+                  "storage.efcore.shared-infra",
+                  "storage.inbox.adapter.efcore",
+                  "storage.inbox.adapter.inmemory",
+                  "storage.inbox.adapter.postgresql",
+                  "storage.outbox.adapter.efcore",
+                  "storage.outbox.adapter.inmemory",
+                  "storage.outbox.adapter.postgresql",
+                  "storage.postgresql.schema-management",
+                  "storage.postgresql.shared-infra",
+                  "storage.postgresql.work-signal",
+                  "storage.role.append",
+                  "storage.role.dead-letter",
+                  "storage.role.diagnostics",
+                  "storage.role.lease",
+                  "storage.role.query-purge",
+                  "storage.role.retention",
+                  "storage.role.state-writer",
+                  "storage.transactional.writes"
+              ]
+}
+

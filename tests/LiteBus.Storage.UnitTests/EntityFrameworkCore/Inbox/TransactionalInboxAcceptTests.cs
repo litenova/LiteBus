@@ -28,61 +28,61 @@ public sealed class TransactionalInboxAcceptTests
             .AddLiteBusInboxInterceptor(interceptor)
             .Options;
 
-         var context = new TransactionalInboxDbContext(options);
-         await using (context.ConfigureAwait(false))
-         {
-        await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
-        var registry = new MessageContractRegistry();
-        registry.Register<SubmitOrderCommand>("orders.commands.submit", 2);
+        var context = new TransactionalInboxDbContext(options);
+        await using (context.ConfigureAwait(false))
+        {
+            await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
+            var registry = new MessageContractRegistry();
+            registry.Register<SubmitOrderCommand>("orders.commands.submit", 2);
 
-        var serializer = new SynchronousMessageSerializer();
+            var serializer = new SynchronousMessageSerializer();
 
-        var transactionalInbox = new TransactionalInbox<TransactionalInboxDbContext>(
-            interceptor,
-            context,
-            new InboxEnvelopeFactory(registry, serializer, TimeProvider.System));
+            var transactionalInbox = new TransactionalInbox<TransactionalInboxDbContext>(
+                interceptor,
+                context,
+                new InboxEnvelopeFactory(registry, serializer, TimeProvider.System));
 
-        var orderId = Guid.NewGuid();
-        var messageId = Guid.NewGuid();
+            var orderId = Guid.NewGuid();
+            var messageId = Guid.NewGuid();
 
-        var receipt = await transactionalInbox.AcceptAsync(
-            new InboxAcceptItem<SubmitOrderCommand>
-            {
-                Message = new SubmitOrderCommand { OrderId = orderId },
-                Metadata = InboxAcceptMetadata.Immediate with
+            var receipt = await transactionalInbox.AcceptAsync(
+                new InboxAcceptItem<SubmitOrderCommand>
                 {
-                    Identity = new MessageIdentity.Supplied(messageId),
-                    Idempotency = new Idempotency.Keyed("idem-1"),
-                    Trace = new MessageTrace.Distributed(
-                        "corr-1",
-                        "cause-1",
-                        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
-                    Tenant = new TenantScope.Isolated("tenant-1")
-                }
-            }).ConfigureAwait(false);
+                    Message = new SubmitOrderCommand { OrderId = orderId },
+                    Metadata = InboxAcceptMetadata.Immediate with
+                    {
+                        Identity = new MessageIdentity.Supplied(messageId),
+                        Idempotency = new Idempotency.Keyed("idem-1"),
+                        Trace = new MessageTrace.Distributed(
+                            "corr-1",
+                            "cause-1",
+                            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
+                        Tenant = new TenantScope.Isolated("tenant-1")
+                    }
+                }).ConfigureAwait(false);
 
-        receipt.Contract.Name.Should().Be("orders.commands.submit");
-        receipt.Contract.Version.Should().Be(2);
+            receipt.Contract.Name.Should().Be("orders.commands.submit");
+            receipt.Contract.Version.Should().Be(2);
 
-        receipt.Trace.Should().Be(new MessageTrace.Distributed(
-            "corr-1",
-            "cause-1",
-            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"));
+            receipt.Trace.Should().Be(new MessageTrace.Distributed(
+                "corr-1",
+                "cause-1",
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"));
 
-        var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
-        savedCount.Should().Be(1);
+            var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
+            savedCount.Should().Be(1);
 
-        var stored = await context.InboxMessages.SingleAsync().ConfigureAwait(false);
-        stored.Id.Should().Be(receipt.Id);
-        stored.ContractName.Should().Be("orders.commands.submit");
-        stored.ContractVersion.Should().Be(2);
-        stored.CorrelationId.Should().Be("corr-1");
-        stored.CausationId.Should().Be("cause-1");
-        stored.TenantId.Should().Be("tenant-1");
-        stored.IdempotencyKey.Should().Be("idem-1");
-        stored.TraceContext.Should().Be("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
-        stored.Payload.Should().Contain(orderId.ToString("D"));
-        stored.Status.Should().Be(InboxStatus.Pending);
+            var stored = await context.InboxMessages.SingleAsync().ConfigureAwait(false);
+            stored.Id.Should().Be(receipt.Id);
+            stored.ContractName.Should().Be("orders.commands.submit");
+            stored.ContractVersion.Should().Be(2);
+            stored.CorrelationId.Should().Be("corr-1");
+            stored.CausationId.Should().Be("cause-1");
+            stored.TenantId.Should().Be("tenant-1");
+            stored.IdempotencyKey.Should().Be("idem-1");
+            stored.TraceContext.Should().Be("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
+            stored.Payload.Should().Contain(orderId.ToString("D"));
+            stored.Status.Should().Be(InboxStatus.Pending);
         }
     }
 
@@ -100,29 +100,83 @@ public sealed class TransactionalInboxAcceptTests
             .AddLiteBusInboxInterceptor(interceptor)
             .Options;
 
-         var context = new TransactionalInboxDbContext(options);
-         await using (context.ConfigureAwait(false))
-         {
-        await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
-        var registry = new MessageContractRegistry();
-        registry.Register<SubmitOrderCommand>("orders.commands.submit");
-        var serializer = new SynchronousMessageSerializer();
-        IInboxPayloadProtector protector = new PrefixPayloadProtector("tx-inbox:");
-
-        var transactionalInbox = new TransactionalInbox<TransactionalInboxDbContext>(
-            interceptor,
-            context,
-            new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector));
-
-        await transactionalInbox.AcceptAsync(new InboxAcceptItem<SubmitOrderCommand>
+        var context = new TransactionalInboxDbContext(options);
+        await using (context.ConfigureAwait(false))
         {
-            Message = new SubmitOrderCommand { OrderId = Guid.NewGuid() }
-        }).ConfigureAwait(false);
+            await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
+            var registry = new MessageContractRegistry();
+            registry.Register<SubmitOrderCommand>("orders.commands.submit");
+            var serializer = new SynchronousMessageSerializer();
+            IInboxPayloadProtector protector = new PrefixPayloadProtector("tx-inbox:");
 
-        await context.SaveChangesAsync().ConfigureAwait(false);
+            var transactionalInbox = new TransactionalInbox<TransactionalInboxDbContext>(
+                interceptor,
+                context,
+                new InboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector));
 
-        var stored = await context.InboxMessages.SingleAsync().ConfigureAwait(false);
-        stored.Payload.Should().StartWith("tx-inbox:");
+            await transactionalInbox.AcceptAsync(new InboxAcceptItem<SubmitOrderCommand>
+            {
+                Message = new SubmitOrderCommand { OrderId = Guid.NewGuid() }
+            }).ConfigureAwait(false);
+
+            await context.SaveChangesAsync().ConfigureAwait(false);
+
+            var stored = await context.InboxMessages.SingleAsync().ConfigureAwait(false);
+            stored.Payload.Should().StartWith("tx-inbox:");
+        }
+    }
+
+    /// <summary>
+    ///     Confirms a strict batch with the same message identifier twice fails before anything is staged.
+    /// </summary>
+    [Fact]
+    public async Task AcceptBatchAsync_with_strict_same_id_changed_payload_should_throw_before_staging()
+    {
+        var databaseName = Guid.NewGuid().ToString("N");
+        var interceptor = new LiteBusInboxSaveChangesInterceptor();
+
+        var options = new DbContextOptionsBuilder<TransactionalInboxDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .AddLiteBusInboxInterceptor(interceptor)
+            .Options;
+
+        var context = new TransactionalInboxDbContext(options);
+        await using (context.ConfigureAwait(false))
+        {
+            await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
+            var registry = new MessageContractRegistry();
+            registry.Register<SubmitOrderCommand>("orders.commands.submit");
+
+            var transactionalInbox = new TransactionalInbox<TransactionalInboxDbContext>(
+                interceptor,
+                context,
+                new InboxEnvelopeFactory(registry, new SynchronousMessageSerializer(), TimeProvider.System));
+
+            var messageId = Guid.NewGuid();
+
+            InboxAcceptMetadata StrictMetadata(string key)
+            {
+                return InboxAcceptMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId),
+                    Idempotency = new Idempotency.Keyed(key, IdempotencyConflictMode.Strict)
+                };
+            }
+
+            var action = () => transactionalInbox.AcceptBatchAsync([
+                InboxAcceptItem.From(
+                    new SubmitOrderCommand { OrderId = Guid.NewGuid() },
+                    StrictMetadata("strict-batch-key")),
+                InboxAcceptItem.From(
+                    new SubmitOrderCommand { OrderId = Guid.NewGuid() },
+                    StrictMetadata("strict-batch-key"))
+            ]);
+
+            await action.Should().ThrowAsync<IdempotencyConflictException>().ConfigureAwait(false);
+
+            var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
+            savedCount.Should().Be(0);
+            (await context.InboxMessages.CountAsync().ConfigureAwait(false)).Should().Be(0);
         }
     }
 

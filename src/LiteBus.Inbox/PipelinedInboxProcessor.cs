@@ -6,7 +6,6 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Messaging.Processing;
-using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -19,15 +18,19 @@ namespace LiteBus.Inbox;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Each pass writes leased envelopes to a bounded channel consumed by
-///         <see cref="ProcessorOptions.DispatcherConcurrency" /> workers. Lease heartbeat renewal runs while
-///         dispatch is in progress so slow handlers retain ownership until they finish.
+///         Each pass leases one batch and runs one worker per envelope, limited to
+///         <see cref="ProcessorOptions.DispatcherConcurrency" /> concurrent dispatches by a pass-owned
+///         <see cref="SemaphoreSlim" /> and awaited together with <c>Task.WhenAll</c>. Lease heartbeat renewal runs
+///         while dispatch is in progress so slow handlers retain ownership until they finish.
 ///     </para>
 ///     <para>
 ///         Successful dispatch runs <c>AfterDispatch</c> hooks while the lease is still held, then persists terminal
-///         state. Hook failures dead-letter the message without re-running the handler. Lease heartbeat loss persists a
-///         retryable <c>Failed</c> outcome instead of leaving the row in <c>Processing</c>. Shutdown cancellation
-///         still leaves in-flight envelopes in <c>Processing</c> until the lease expires unless the host drains first.
+///         state. Hook failures dead-letter the message without re-running the handler. When lease renewal fails, a
+///         dispatcher that observes heartbeat cancellation leaves the row untouched with no outcome persisted and no
+///         release attempted, so the pass under-reports that envelope; only a dispatcher that ignores the heartbeat
+///         cancellation and returns normally persists a retryable <c>Failed</c> outcome. A dispatch cancelled by
+///         shutdown releases its lease without spending an attempt when the store implements release; drain never
+///         cancels dispatch, so a drained pass completes and persists in-flight envelopes normally.
 ///     </para>
 /// </remarks>
 public sealed class PipelinedInboxProcessor : IInboxProcessor

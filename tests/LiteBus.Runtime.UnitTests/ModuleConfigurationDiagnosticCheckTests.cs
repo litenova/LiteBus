@@ -57,7 +57,7 @@ public sealed class ModuleConfigurationDiagnosticCheckTests
         var manifest = services.BuildServiceProvider().GetRequiredService<LiteBusHostManifest>();
 
         manifest.DiagnosticChecks.Should().ContainSingle();
-        manifest.DiagnosticChecks[0].ImplementationType.Should().Be(typeof(SampleDiagnosticCheck));
+        manifest.DiagnosticChecks[0].ImplementationType.Should().Be<SampleDiagnosticCheck>();
         manifest.DiagnosticChecks[0].Name.Should().Be("litebus.sample");
     }
 

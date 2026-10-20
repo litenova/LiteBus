@@ -22,7 +22,7 @@ Manual mode bypasses orchestrator ordering guarantees unless callers enforce sta
 
 ### Bridge Helper
 
-- `GetHostedServiceForBackgroundService<TBackgroundService>()` can produce a host adapter wrapper for one background service in Microsoft DI test flows.
+- `GetHostedServiceForBackgroundService<TBackgroundService>(this IServiceProvider serviceProvider)` needs the Microsoft hosting bridge. It produces a host adapter wrapper for one background service in Microsoft DI test flows and has no Autofac equivalent.
 
 ## Packages
 
@@ -32,7 +32,7 @@ Manual mode bypasses orchestrator ordering guarantees unless callers enforce sta
 
 ## Requires
 
-- `hosting.add-lite-bus-microsoft-di` or `hosting.add-lite-bus-autofac`
+- `hosting.add-lite-bus-microsoft-di` or `hosting.add-lite-bus-autofac` (`GetHostedServiceForBackgroundService<T>()` needs the Microsoft bridge)
 
 ## Invariants
 

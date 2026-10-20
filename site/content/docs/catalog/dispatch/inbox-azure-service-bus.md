@@ -27,7 +27,7 @@ The extension registers `TransportInboxDispatchModule` with `AzureServiceBusTran
 
 ## Invariants
 
-- One Azure Service Bus transport module per process.
+- One Azure Service Bus transport module per composition.
 - Publish path uses Service Bus message properties for LiteBus headers.
 - Consumer reconnect uses exponential backoff in `AzureServiceBusConsumer` (transport layer).
 

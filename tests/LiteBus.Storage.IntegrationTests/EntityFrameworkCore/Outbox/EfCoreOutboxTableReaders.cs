@@ -13,19 +13,19 @@ internal static class EfCoreOutboxTableReaders
         Guid messageId,
         CancellationToken cancellationToken = default)
     {
-         var dataSource = NpgsqlDataSource.Create(connectionString);
-         await using (dataSource.ConfigureAwait(false))
-         {
-        var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
+        var dataSource = NpgsqlDataSource.Create(connectionString);
+        await using (dataSource.ConfigureAwait(false))
+        {
+            var tableName = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
 
-         var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
+            var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+            await using (connection.ConfigureAwait(false))
+            {
+                var command = connection.CreateCommand();
+                await using (command.ConfigureAwait(false))
+                {
 
-        command.CommandText = $"""
+                    command.CommandText = $"""
                                SELECT
                                    message_id,
                                    contract_name,
@@ -46,39 +46,39 @@ internal static class EfCoreOutboxTableReaders
                                WHERE message_id = @message_id;
                                """;
 
-        command.Parameters.AddWithValue("message_id", messageId);
+                    command.Parameters.AddWithValue("message_id", messageId);
 
-         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-         await using (reader.ConfigureAwait(false))
-         {
+                    var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                    await using (reader.ConfigureAwait(false))
+                    {
 
-        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            return null;
+                        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                        {
+                            return null;
 
-        }
+                        }
 
-        return new OutboxEnvelope
-        {
-            Id = reader.GetGuid(0),
-            ContractName = reader.GetString(1),
-            ContractVersion = reader.GetInt32(2),
-            Payload = reader.GetString(3),
-            Topic = ReadNullableString(reader, 4),
-            CreatedAt = reader.GetFieldValue<DateTimeOffset>(5),
-            VisibleAfter = ReadNullableDateTimeOffset(reader, 6),
-            Status = (OutboxStatus) reader.GetInt32(7),
-            AttemptCount = reader.GetInt32(8),
-            LeaseOwner = ReadNullableString(reader, 9),
-            LeaseExpiresAt = ReadNullableDateTimeOffset(reader, 10),
-            LastError = ReadNullableString(reader, 11),
-            CorrelationId = ReadNullableString(reader, 12),
-            CausationId = ReadNullableString(reader, 13),
-            TenantId = ReadNullableString(reader, 14)
-        };
-        }
-        }
-        }
+                        return new OutboxEnvelope
+                        {
+                            Id = reader.GetGuid(0),
+                            ContractName = reader.GetString(1),
+                            ContractVersion = reader.GetInt32(2),
+                            Payload = reader.GetString(3),
+                            Topic = ReadNullableString(reader, 4),
+                            CreatedAt = reader.GetFieldValue<DateTimeOffset>(5),
+                            VisibleAfter = ReadNullableDateTimeOffset(reader, 6),
+                            Status = (OutboxStatus) reader.GetInt32(7),
+                            AttemptCount = reader.GetInt32(8),
+                            LeaseOwner = ReadNullableString(reader, 9),
+                            LeaseExpiresAt = ReadNullableDateTimeOffset(reader, 10),
+                            LastError = ReadNullableString(reader, 11),
+                            CorrelationId = ReadNullableString(reader, 12),
+                            CausationId = ReadNullableString(reader, 13),
+                            TenantId = ReadNullableString(reader, 14)
+                        };
+                    }
+                }
+            }
         }
     }
 

@@ -14,7 +14,7 @@ This roadmap item tracks a **deep dedup**: collapse the shared lease, persist, b
 
 | Symptom | Impact |
 | --- | --- |
-| ~85% duplicated SQL/EF logic between inbox and outbox stores | Bug fixes and correctness changes (for example atomic `PersistAsync`) must land twice |
+| Duplicated SQL/EF logic between inbox and outbox stores | Bug fixes and correctness changes (for example atomic `PersistAsync`) must land twice |
 | Partial helper extraction only | `PostgreSqlBatchIdempotencyLookup` and `EfCoreBulkUpdateCapabilities` reduce duplication but do not unify the store orchestration |
 | Duplicate orchestration remains above the line-reduction target | Reviewers cannot apply one storage correctness fix to both axes |
 | Contract tests pass per adapter | Correctness is proven, but implementation drift risk grows with each broker or provider addition |
@@ -123,7 +123,7 @@ PostgreSQL and EF paths share **orchestration** (lease batch, persist with owner
 1. Extract `RelationalEfCoreMessageStore<TEntity, TEnvelope>` using existing `EfCoreBulkUpdateCapabilities` and lease SQL components.
 2. Thin `EfCoreInboxStore` / `EfCoreOutboxStore`.
 3. Extend concurrent persist contract tests to both axes after refactor.
-4. Add the **MySQL Pomelo concurrent lease contract** recorded in [Integration Tests](../testing/integration-tests.md) if the Pomelo test container is available.
+4. Extend the MySQL store contract suites (`EfCoreInboxStoreMySqlContractTests`, `EfCoreOutboxStoreMySqlContractTests`, which run against `mysql:8.4` or `LITEBUS_TEST_MYSQL_CONNECTION_STRING`) with concurrent persist coverage after the refactor.
 
 **Estimate:** one PR; depends on Phase 1 patterns.
 
@@ -178,7 +178,7 @@ Prioritize this work when:
 | Target release | Unscheduled |
 | Matrix impact | Consolidates the duplicate relational store paths covered by [Integration Tests](../testing/integration-tests.md) |
 
-## See Also
+## Next
 
 - [Roadmap](README.md): future work index
 - [Custom stores and dispatchers](../extending/custom-stores-and-dispatchers.md): adapter author guide

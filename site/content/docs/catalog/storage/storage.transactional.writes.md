@@ -10,7 +10,7 @@
 | `ITransactionalInboxStore` | `AddAsync`, `AddBatchAsync` |
 | `ITransactionalOutboxStore` | `AddAsync`, `AddBatchAsync` |
 | PostgreSQL ambient provider | `IPostgreSqlTransactionProvider.TryGetCurrent(...)` |
-| PostgreSQL manual binding | `UseExistingConnection(...)` / `CreateTransactionalStore(...)` style APIs on stores |
+| PostgreSQL manual binding | `UseExistingConnection(...)` on the stores and `CreateTransactionalStore(...)` on the store registrations |
 | EF Core transactional path | `ITransactionalInbox<TContext>`, `ITransactionalOutbox<TContext>`, save-changes interceptors |
 
 ## SQL Behavior
@@ -18,6 +18,7 @@
 - PostgreSQL transactional stores execute append SQL on caller-supplied connection and transaction.
 - EF transactional path stages envelopes until `SaveChanges`, then writes inside current `DbContext` transaction.
 - Rollback drops both domain and messaging writes for the same transaction scope.
+- Strict transactional batches pre-check known duplicates and throw `IdempotencyConflictException` for conflicting content; the interceptor preserves strict duplicate identifiers for tracker or database rejection instead of collapsing them.
 
 ## Concurrency Model
 

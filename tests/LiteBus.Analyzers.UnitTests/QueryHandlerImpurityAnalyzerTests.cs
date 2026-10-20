@@ -135,6 +135,112 @@ public sealed class QueryHandlerImpurityAnalyzerTests
     }
 
     /// <summary>
+    ///     Verifies that a query handler depending on <c>ITransactionalInbox</c> produces LB1003.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task QueryHandlerWithTransactionalInboxWriter_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Inbox.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+
+                              public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
+                              {
+                                  public GetUserQueryHandler(ITransactionalInbox {|#0:inbox|})
+                                  {
+                                  }
+
+                                  public Task<string> HandleAsync(GetUserQuery query, CancellationToken cancellationToken = default)
+                                      => Task.FromResult("user");
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<QueryHandlerImpurityAnalyzer>(
+            source,
+            DiagnosticDescriptors.QueryHandlerImpurity,
+            0,
+            "GetUserQueryHandler",
+            "LiteBus.Inbox.Abstractions.ITransactionalInbox");
+    }
+
+    /// <summary>
+    ///     Verifies that a query handler depending on <c>ITransactionalOutbox</c> produces LB1003.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task QueryHandlerWithTransactionalOutboxWriter_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Outbox.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+
+                              public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
+                              {
+                                  public GetUserQueryHandler(ITransactionalOutbox {|#0:outbox|})
+                                  {
+                                  }
+
+                                  public Task<string> HandleAsync(GetUserQuery query, CancellationToken cancellationToken = default)
+                                      => Task.FromResult("user");
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<QueryHandlerImpurityAnalyzer>(
+            source,
+            DiagnosticDescriptors.QueryHandlerImpurity,
+            0,
+            "GetUserQueryHandler",
+            "LiteBus.Outbox.Abstractions.ITransactionalOutbox");
+    }
+
+    /// <summary>
+    ///     Verifies that a query handler depending on <c>ITransactionalOutbox&lt;TContext&gt;</c> produces LB1003.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task QueryHandlerWithGenericTransactionalOutboxWriter_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Outbox.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed class AppDbContext
+                              {
+                              }
+
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+
+                              public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
+                              {
+                                  public GetUserQueryHandler(ITransactionalOutbox<AppDbContext> {|#0:outbox|})
+                                  {
+                                  }
+
+                                  public Task<string> HandleAsync(GetUserQuery query, CancellationToken cancellationToken = default)
+                                      => Task.FromResult("user");
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<QueryHandlerImpurityAnalyzer>(
+            source,
+            DiagnosticDescriptors.QueryHandlerImpurity,
+            0,
+            "GetUserQueryHandler",
+            "LiteBus.Outbox.Abstractions.ITransactionalOutbox`1");
+    }
+
+    /// <summary>
     ///     Verifies that a query handler depending on <c>ITransportPublisher</c> produces LB1003.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>

@@ -34,11 +34,14 @@ These abstractions isolate dispatch and ingress from broker SDK APIs.
 | `Route` | `string?` | Broker route key or topic hint |
 | `Body` | `ReadOnlyMemory<byte>` | Payload bytes |
 | `Headers` | `IReadOnlyDictionary<string, object?>?` | Application headers |
-| `ContentType` | `string?` | Content type hint |
-| `Persistent` | `bool` | Publish durability hint |
-| `Mandatory` | `bool` | Mandatory delivery hint |
+| `ContentType` | `string` | Content type hint, default `application/json` |
+| `ContentEncoding` | `string?` | Content encoding hint |
+| `Persistent` | `bool` | Publish durability hint, default `true` |
+| `Mandatory` | `bool` | Mandatory delivery hint, default `true` |
 | `MessageId` | `string?` | Message id property |
 | `CorrelationId` | `string?` | Correlation id property |
+| `MessageGroupId` | `string?` | FIFO message group identifier for brokers with ordered groups |
+| `DeduplicationKey` | `string?` | Deduplication key for brokers with content-based deduplication |
 
 ### Consumer Options Model
 
@@ -46,15 +49,28 @@ These abstractions isolate dispatch and ingress from broker SDK APIs.
 | --- | --- | --- |
 | `Destination` | `string` | Queue, topic, or destination name |
 | `SubscriptionName` | `string?` | Named subscription for topic-based brokers |
-| `MaxInFlightMessages` | `int` | Provider-neutral cap on concurrent LiteBus handler calls, default 32 |
+| `MaxInFlightMessages` | `int` | Requested cap on concurrent LiteBus handler calls, default 32; enforced as 1 except on Azure Service Bus, where the lower of this and `MaxConcurrentCalls` applies |
 | `PrefetchCount` | `int` | Native RabbitMQ or Azure Service Bus prefetch, default 0 |
 | `ReceiveBatchSize` | `int` | Messages requested per SQS receive call, default 1 and valid from 1 through 10 |
 | `MaxConcurrentCalls` | `int?` | Native Azure Service Bus callback concurrency |
-| `DeclareDestination` | `bool` | Declare destination before consume |
-| `DurableDestination` | `bool` | Durable destination declaration |
-| `DestinationArguments` | `IReadOnlyDictionary<string, object?>?` | Broker-specific destination args |
+| `DeclareDestination` | `bool` | Declare destination before consume (default `true`; honored by AMQP only) |
+| `DurableDestination` | `bool` | Durable destination declaration (default `true`; honored by AMQP only) |
+| `Exclusive` | `bool` | Exclusive subscription for this connection (default `false`; honored by AMQP only) |
+| `ConsumerTag` | `string?` | Client-assigned consumer tag (default `null`, meaning the broker assigns one; honored by AMQP only) |
+| `DestinationArguments` | `IReadOnlyDictionary<string, object?>?` | Broker-specific destination args (honored by AMQP only) |
 
-`MaxInFlightMessages` has one meaning across every adapter: no more than that number of LiteBus delivery handlers execute concurrently for one subscription. Native broker controls remain separate because they regulate different resources. RabbitMQ prefetch limits unacknowledged deliveries, Azure prefetch fills a local cache while `MaxConcurrentCalls` controls processor callbacks, and SQS `ReceiveBatchSize` sets `ReceiveMessageRequest.MaxNumberOfMessages`.
+`MaxInFlightMessages` requests a cap on concurrent LiteBus delivery handlers for one subscription. The AMQP, Kafka, AWS SQS, and in-memory adapters enforce a bound of 1 and run one handler at a time, so raising `MaxInFlightMessages` alone does not parallelize them; the Azure Service Bus adapter enforces the lower of `MaxInFlightMessages` and `MaxConcurrentCalls`, and `MaxConcurrentCalls` defaults to the SDK value of 1, so both must be set to run handlers concurrently. Native broker controls remain separate because they regulate different resources. RabbitMQ prefetch limits unacknowledged deliveries, Azure prefetch fills a local cache while `MaxConcurrentCalls` controls processor callbacks, and SQS `ReceiveBatchSize` sets `ReceiveMessageRequest.MaxNumberOfMessages`.
+
+Which adapter honors which option:
+
+| Option | AMQP | Kafka | AWS SQS | Azure Service Bus | InMemory |
+| --- | --- | --- | --- | --- | --- |
+| `Destination` | Queue | Topic | Queue URL | Queue or topic | Destination name |
+| `SubscriptionName` | Ignored | Ignored | Ignored | Topic subscription | Ignored |
+| `PrefetchCount` | Consumer prefetch | Ignored | Ignored | Processor prefetch | Ignored |
+| `ReceiveBatchSize` | Ignored | Ignored | Messages per receive (1-10) | Ignored | Ignored |
+| `MaxConcurrentCalls` | Ignored | Ignored | Ignored | Processor callback concurrency | Ignored |
+| `DeclareDestination`, `DurableDestination`, `Exclusive`, `ConsumerTag`, `DestinationArguments` | Queue declare and consume flags | Ignored | Ignored | Ignored | Ignored |
 
 The in-memory adapter separately bounds queued and in-flight deliveries with `InMemoryTransportOptions.DestinationCapacity`. This is publisher backpressure, not consumer callback concurrency. A full destination waits asynchronously with `BoundedChannelFullMode.Wait`, and publish cancellation stops that capacity wait without dropping an admitted delivery.
 

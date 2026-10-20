@@ -7,8 +7,8 @@
 
 | Composite | Extended interfaces | Methods involved |
 | --- | --- | --- |
-| `IInboxProcessingStore` | `IInboxLeaseStore`, `IInboxStateWriter` | `LeasePendingAsync`, `RenewLeaseAsync`, `PersistAsync` |
-| `IOutboxProcessingStore` | `IOutboxLeaseStore`, `IOutboxStateWriter` | `LeasePendingAsync`, `RenewLeaseAsync`, `PersistAsync` |
+| `IInboxProcessingStore` | `IInboxLeaseStore`, `IInboxStateWriter` | `LeasePendingAsync`, `RenewLeaseAsync`, `ReleaseLeaseAsync`, `PersistAsync` |
+| `IOutboxProcessingStore` | `IOutboxLeaseStore`, `IOutboxStateWriter` | `LeasePendingAsync`, `RenewLeaseAsync`, `ReleaseLeaseAsync`, `PersistAsync` |
 
 Acceptance methods (`AddAsync`, `AddBatchAsync`) remain on append interfaces and are not part of processing composites.
 

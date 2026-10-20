@@ -32,7 +32,6 @@
         <ProjectReference Include="..\..\src\LiteBus.Storage.EntityFrameworkCore\LiteBus.Storage.EntityFrameworkCore.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Storage.PostgreSql\LiteBus.Storage.PostgreSql.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Testing\LiteBus.Testing.csproj"/>
-        <ProjectReference Include="..\LiteBus.Storage.IntegrationTests\LiteBus.Storage.IntegrationTests.csproj"/>
         <ProjectReference Include="..\LiteBus.Storage.Testing\LiteBus.Storage.Testing.csproj"/>
     </ItemGroup>
 

@@ -58,10 +58,16 @@ internal static class ModuleConfigurationAnalysis
     /// <param name="enforceTransactionalInvocation">The transactional enforcement invocation.</param>
     /// <param name="semanticModel">The semantic model.</param>
     /// <returns><see langword="true" /> when the interceptor is enabled in the same scope.</returns>
+    /// <remarks>
+    ///     The interceptor counts only on the same storage axis (inbox or outbox) as the enforcement call. Each
+    ///     builder enforces its own flag at <c>Build()</c> time, so an outbox interceptor never satisfies inbox
+    ///     enforcement in a shared configuration scope, and a same-named user method never satisfies it either.
+    /// </remarks>
     internal static bool HasSaveChangesInterceptorInScope(
         InvocationExpressionSyntax enforceTransactionalInvocation,
         SemanticModel semanticModel)
     {
+        var axis = GetEnforcementAxis(enforceTransactionalInvocation, semanticModel);
         var scope = GetConfigurationScope(enforceTransactionalInvocation);
 
         foreach (var invocation in scope.DescendantNodes().OfType<InvocationExpressionSyntax>())
@@ -73,13 +79,63 @@ internal static class ModuleConfigurationAnalysis
 
             var method = semanticModel.GetSymbolInfo(invocation).Symbol as IMethodSymbol;
 
-            if (method?.Name == "EnableSaveChangesInterceptor")
+            if (method is not null &&
+                method.Name == "EnableSaveChangesInterceptor" &&
+                IsSameAxisInterceptor(method, axis))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /// <summary>
+    ///     Gets the storage axis enforced by a transactional setup invocation.
+    /// </summary>
+    /// <param name="invocation">The transactional enforcement invocation.</param>
+    /// <param name="semanticModel">The semantic model.</param>
+    /// <returns>The enforced axis, or <see langword="null" /> when the receiver type is unknown.</returns>
+    private static string? GetEnforcementAxis(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    {
+        var method = semanticModel.GetSymbolInfo(invocation).Symbol as IMethodSymbol;
+        var containingType = method?.ContainingType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+        return containingType switch
+        {
+            "global::LiteBus.Inbox.Storage.EntityFrameworkCore.EfCoreInboxStorageModuleBuilder" or
+            "LiteBus.Inbox.Storage.EntityFrameworkCore.EfCoreInboxStorageModuleBuilder" => "inbox",
+            "global::LiteBus.Outbox.Storage.EntityFrameworkCore.EfCoreOutboxStorageModuleBuilder" or
+            "LiteBus.Outbox.Storage.EntityFrameworkCore.EfCoreOutboxStorageModuleBuilder" => "outbox",
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    ///     Determines whether the interceptor method runs on the same storage axis as the enforcement call.
+    /// </summary>
+    /// <param name="method">The interceptor candidate method symbol.</param>
+    /// <param name="axis">The enforced axis, or <see langword="null" /> when the receiver type is unknown.</param>
+    /// <returns><see langword="true" /> when the interceptor satisfies the enforcement; otherwise, <see langword="false" />.</returns>
+    private static bool IsSameAxisInterceptor(IMethodSymbol method, string? axis)
+    {
+        if (axis is null)
+        {
+            return true;
+        }
+
+        var containingType = method.ContainingType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+        return axis switch
+        {
+            "inbox" => containingType is
+                "global::LiteBus.Inbox.Storage.EntityFrameworkCore.EfCoreInboxStorageModuleBuilder" or
+                "LiteBus.Inbox.Storage.EntityFrameworkCore.EfCoreInboxStorageModuleBuilder",
+            "outbox" => containingType is
+                "global::LiteBus.Outbox.Storage.EntityFrameworkCore.EfCoreOutboxStorageModuleBuilder" or
+                "LiteBus.Outbox.Storage.EntityFrameworkCore.EfCoreOutboxStorageModuleBuilder",
+            _ => true,
+        };
     }
 
     /// <summary>
@@ -189,24 +245,14 @@ internal static class ModuleConfigurationAnalysis
             return true;
         }
 
-        if (method is { IsExtensionMethod: true, Parameters.Length: > 0 })
+        // ReducedFrom carries the original signature including the "this" parameter. It has to be preferred over the
+        // reduced symbol, whose Parameters[0] is the first ordinary parameter and therefore matches the builder only
+        // for extensions that take nothing else. An optional configuration argument is enough to break that.
+        var declaredMethod = method.ReducedFrom ?? method;
+
+        if (declaredMethod is { IsExtensionMethod: true, Parameters.Length: > 0 })
         {
-            var firstParameterType = method.Parameters[0].Type;
-
-            if (inboxBuilder is not null &&
-                SymbolEqualityComparer.Default.Equals(firstParameterType, inboxBuilder))
-            {
-                return true;
-            }
-
-            return IsNamedModuleBuilder(firstParameterType, "InboxModuleBuilder", "LiteBus.Inbox.Abstractions");
-        }
-
-        var reducedFrom = method.ReducedFrom;
-
-        if (reducedFrom is { IsExtensionMethod: true, Parameters.Length: > 0 })
-        {
-            var firstParameterType = reducedFrom.Parameters[0].Type;
+            var firstParameterType = declaredMethod.Parameters[0].Type;
 
             if (inboxBuilder is not null &&
                 SymbolEqualityComparer.Default.Equals(firstParameterType, inboxBuilder))
@@ -247,24 +293,14 @@ internal static class ModuleConfigurationAnalysis
             return true;
         }
 
-        if (method is { IsExtensionMethod: true, Parameters.Length: > 0 })
+        // ReducedFrom carries the original signature including the "this" parameter. It has to be preferred over the
+        // reduced symbol, whose Parameters[0] is the first ordinary parameter and therefore matches the builder only
+        // for extensions that take nothing else. An optional configuration argument is enough to break that.
+        var declaredMethod = method.ReducedFrom ?? method;
+
+        if (declaredMethod is { IsExtensionMethod: true, Parameters.Length: > 0 })
         {
-            var firstParameterType = method.Parameters[0].Type;
-
-            if (outboxBuilder is not null &&
-                SymbolEqualityComparer.Default.Equals(firstParameterType, outboxBuilder))
-            {
-                return true;
-            }
-
-            return IsNamedModuleBuilder(firstParameterType, "OutboxModuleBuilder", "LiteBus.Outbox.Abstractions");
-        }
-
-        var reducedFrom = method.ReducedFrom;
-
-        if (reducedFrom is { IsExtensionMethod: true, Parameters.Length: > 0 })
-        {
-            var firstParameterType = reducedFrom.Parameters[0].Type;
+            var firstParameterType = declaredMethod.Parameters[0].Type;
 
             if (outboxBuilder is not null &&
                 SymbolEqualityComparer.Default.Equals(firstParameterType, outboxBuilder))

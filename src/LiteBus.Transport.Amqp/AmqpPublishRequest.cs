@@ -46,6 +46,11 @@ public sealed class AmqpPublishRequest
     /// <summary>
     ///     Gets a value indicating whether the broker must route the message to at least one queue.
     /// </summary>
+    /// <remarks>
+    ///     When <see langword="true" />, a publication the broker returns as unroutable fails with
+    ///     <see cref="Exceptions.AmqpMessageReturnedException" />. When <see langword="false" />, the broker
+    ///     silently drops unroutable messages and publication succeeds.
+    /// </remarks>
     public bool Mandatory { get; init; } = true;
 
     /// <summary>

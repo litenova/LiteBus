@@ -7,7 +7,7 @@
 
 ## What It Does
 
-Strategies implementing `IMessageMediationStrategy<TMessage,TResult>` control pre, main, post, and error handler execution. Runtime ships single-main-handler strategies for `Task`, `Task<T>`, and `IAsyncEnumerable<T>`.
+Strategies implementing `IMessageMediationStrategy<TMessage,TResult>` control pre, main, post, error, and completion handler execution. In the shipped execution strategies, the completion stage runs in a `finally`, so each one reports an outcome even when the pipeline aborts, fails, or is cancelled. The decision-evaluation strategy runs decision stages only and never fires completion. Runtime ships single-main-handler strategies for `Task`, `Task<T>`, and `IAsyncEnumerable<T>`.
 
 ## Public Surface
 
@@ -17,7 +17,7 @@ Strategies implementing `IMessageMediationStrategy<TMessage,TResult>` control pr
 | `SingleAsyncHandlerMediationStrategy<TMessage>` | Task strategy |
 | `SingleAsyncHandlerMediationStrategy<TMessage,TResult>` | Task result strategy |
 | `SingleStreamHandlerMediationStrategy<TMessage,TResult>` | Stream strategy |
-| `SingleMainHandlerResolver.Resolve<TMessage>(...)` | Enforces single-main-handler rule |
+| `SingleMainHandlerResolver` (internal) | Enforces single-main-handler rule |
 
 ## Packages
 

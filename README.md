@@ -5,7 +5,7 @@
 <h1 align="center">LiteBus</h1>
 
 <p align="center">
-  <a href="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml"><img src="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml/badge.svg" alt="Build and test status"></a>
+  <a href="https://github.com/litenova/LiteBus/actions/workflows/ci.yml"><img src="https://github.com/litenova/LiteBus/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="https://app.codecov.io/gh/litenova/LiteBus"><img src="https://codecov.io/gh/litenova/LiteBus/branch/main/graph/badge.svg" alt="Test coverage"></a>
   <a href="https://litebus.io/docs"><img src="https://img.shields.io/badge/Documentation-Available-0A66C2?logo=gitbook" alt="Documentation"></a>
   <a href="https://www.nuget.org/packages/LiteBus"><img src="https://img.shields.io/nuget/v/LiteBus.svg" alt="NuGet version"></a>
@@ -16,13 +16,13 @@
 
 LiteBus provides command, query, and event mediation for .NET 10 applications using CQS and DDD. Durable modules add inbox, outbox, saga, storage, dispatch, ingress, hosting, and operational APIs without requiring unrelated broker or database SDKs.
 
-LiteBus is open source under the MIT license, free for commercial use, and will remain free.
-Find all API and architecture documentation at https://litebus.io/docs.
+LiteBus is open source under the MIT license, free for commercial use, and will remain free. Find all API and architecture documentation at https://litebus.io/docs, which documents the latest stable release. The v7 pre-release is described in [Changelog.md](Changelog.md) and documented under [site/content/docs](site/content/docs) on the `v7` branch; it is served at https://litebus.io/v7/docs once that branch merges to main.
 
 ## What LiteBus Includes
 
 - Separate command, query, and event contracts, mediators, handlers, and pipelines.
-- Handler priorities, filters, pre-handlers, post-handlers, and error handlers.
+- Declarative per-message metadata and an audit trail recorded at the mediation boundary, including refusals and cancellations.
+- Handler priorities, filters, pre-handlers, gates that refuse or answer early, post-handlers, error handlers, and completion handlers that observe every outcome.
 - Durable inbox processing for commands and transactional outbox processing for events.
 - Saga state with correlation, tenancy, optimistic concurrency, and duplicate dispatch suppression.
 - Opt-in PostgreSQL, Entity Framework Core, in-memory, AMQP, Kafka, AWS SQS, and Azure Service Bus adapters.

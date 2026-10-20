@@ -2,6 +2,8 @@
 
 **Production tier: GA**
 
+This page defines the delivery guarantees. [Ordering and Concurrency Guarantees](ordering.md) defines the concurrency properties, and [Message States](../operations/message-states.md) defines the operator states and alerts.
+
 Deep reference for delivery guarantees, idempotency, and broker behavior in LiteBus. For registration and package layout, start with [Reliable Messaging](README.md). For atomic domain and inbox/outbox writes, see [Transactional Messaging Writes](transactional-writes.md).
 
 ## At-Least-Once
@@ -30,7 +32,7 @@ Accept is durable once the store transaction commits. Execution is at-least-once
 | Enqueue | `IOutbox.EnqueueAsync` | Row in store (often same UoW as domain change) |
 | Publish | Processor + `IOutboxDispatcher` | Terminal Published/Failed/DeadLettered |
 
-Transactional outbox: enqueue in the same database transaction as domain entities. EF uses the save-changes interceptor; PostgreSQL uses `ITransactionalOutbox` with ambient provider or manual bind. See [Transactional messaging writes](transactional-writes.md) and [Domain events and unit of work](../concepts/domain-events-and-unit-of-work.md).
+Transactional outbox: enqueue in the same database transaction as domain entities. EF uses the save-changes interceptor; PostgreSQL uses `ITransactionalOutbox` with ambient provider or manual bind. See [Transactional messaging writes](transactional-writes.md) and [Domain events and unit of work](domain-events-and-unit-of-work.md).
 
 ## Lease Recovery
 
@@ -39,7 +41,7 @@ Processors lease batches with `lease_owner` and `lease_expires_at`. Heartbeat re
 * Another worker may lease the same row
 * Terminal persist uses conditional update (`lease_owner` match) to avoid overwriting a newer attempt
 
-PostgreSQL and EF Core stores use atomic conditional persist.
+PostgreSQL and EF Core stores use atomic conditional persist. When the processor cancels a dispatch itself during shutdown, it releases the lease through `ILeaseRenewable.ReleaseLeaseAsync`, returning the row to `Pending` (or `Failed` when it already carries an error) with the attempt count decremented instead of spending an attempt; the InMemory, PostgreSQL, and EF Core inbox and outbox stores implement it. Drain never cancels dispatch: the final pass runs with the uncancelled host token, so in-flight messages complete and persist normally.
 
 ## Drain Before Stop
 
@@ -81,7 +83,7 @@ PostgreSQL inbox, outbox, and saga tables use schema version **1**. The create s
 | --- | --- |
 | Contract store semantics | `LiteBus.Storage.Testing` |
 | Concurrent lease / persist | PostgreSQL + EF integration tests |
-| Ingress requeue | Broker integration tests under `LiteBus.Composition.UnitTests` |
+| Ingress requeue | Broker ingress requeue scenarios in `tests/LiteBus.Durable.IntegrationTests/Ingress/` |
 
 ## Related Docs
 

@@ -254,6 +254,30 @@ public sealed class InMemoryInboxStore :
     }
 
     /// <inheritdoc />
+    public Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
+        {
+            if (!_envelopes.TryGetValue(request.MessageId, out var envelope) ||
+                envelope.Status != InboxStatus.Processing ||
+                !string.Equals(envelope.LeaseOwner, request.LeaseOwner, StringComparison.Ordinal) ||
+                envelope.LeaseGeneration != request.LeaseGeneration)
+            {
+                return Task.FromResult(false);
+            }
+
+            _envelopes[request.MessageId] = envelope.AsReleased();
+            return Task.FromResult(true);
+        }
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
         InboxLeaseRequest request,
         CancellationToken cancellationToken = default)
@@ -261,14 +285,14 @@ public sealed class InMemoryInboxStore :
         ArgumentNullException.ThrowIfNull(request);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.BatchSize, 0);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
-        ArgumentOutOfRangeException.ThrowIfLessThan(request.LeaseDuration, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.LeaseDuration, TimeSpan.Zero);
         cancellationToken.ThrowIfCancellationRequested();
 
         var now = ResolveLeaseClock(request);
 
-        var leaseDuration = request.LeaseDuration > TimeSpan.Zero
-            ? request.LeaseDuration
-            : _options.DefaultLeaseDuration;
+        var leaseDuration = request.LeaseDuration;
+        // Zero is rejected above, so the request value is always the effective lease.
+
 
         lock (_sync)
         {
@@ -280,7 +304,9 @@ public sealed class InMemoryInboxStore :
                 .Where(envelope => IsAvailable(envelope, now, staleCutoff))
                 .OrderBy(envelope => envelope.CreatedAt)
                 .Take(request.BatchSize)
-                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt))
+                // The relational stores stamp last_attempted_at in the lease statement itself, so the
+                // in-memory store stamps it here to keep the three adapters answering the same question.
+                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt) with { LastAttemptedAt = now })
                 .ToArray();
 
             foreach (var envelope in leased)
@@ -301,6 +327,16 @@ public sealed class InMemoryInboxStore :
         if (envelopes.Count == 0)
         {
             return Task.FromResult(PersistResult.Empty);
+        }
+
+        foreach (var envelope in envelopes)
+        {
+            if (envelope.Status is not (InboxStatus.Completed or InboxStatus.Failed or InboxStatus.DeadLettered))
+            {
+                throw new InvalidOperationException(
+                    $"Envelope '{envelope.Id}' has unexpected status '{envelope.Status}' in PersistAsync. " +
+                    "Only Completed, Failed, and DeadLettered are valid outcomes.");
+            }
         }
 
         HashSet<Guid> persistedMessageIds;
@@ -494,7 +530,11 @@ public sealed class InMemoryInboxStore :
     /// <returns><see langword="true" /> when the row is visible to the lease request.</returns>
     private static bool MatchesTenantFilter(string? requestedTenantId, string? storedTenantId)
     {
-        return requestedTenantId is null || string.Equals(storedTenantId, requestedTenantId, StringComparison.Ordinal);
+        return requestedTenantId is null ||
+               string.Equals(
+                   DurableTenantId.Normalize(storedTenantId),
+                   DurableTenantId.Normalize(requestedTenantId),
+                   StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -556,9 +596,11 @@ public sealed class InMemoryInboxStore :
             source = source.Where(envelope => envelope.CausationId == filter.CausationId);
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.TenantId))
+        if (filter.TenantId is not null)
         {
-            source = source.Where(envelope => envelope.TenantId == filter.TenantId);
+            var tenantId = DurableTenantId.Normalize(filter.TenantId);
+            source = source.Where(envelope =>
+                string.Equals(DurableTenantId.Normalize(envelope.TenantId), tenantId, StringComparison.Ordinal));
         }
 
         if (filter.CreatedAfter is not null)
@@ -731,7 +773,10 @@ public sealed class InMemoryInboxStore :
             string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) &&
             string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) &&
             string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) &&
-            string.Equals(envelope.TenantId, existing.TenantId, StringComparison.Ordinal))
+            string.Equals(
+                DurableTenantId.Normalize(envelope.TenantId),
+                DurableTenantId.Normalize(existing.TenantId),
+                StringComparison.Ordinal))
         {
             return;
         }

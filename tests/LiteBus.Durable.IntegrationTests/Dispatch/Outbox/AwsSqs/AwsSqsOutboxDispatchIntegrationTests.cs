@@ -20,6 +20,8 @@ namespace LiteBus.Durable.IntegrationTests.Dispatch.Outbox.AwsSqs;
 [Trait("Category", TransportTestTraits.Docker)]
 public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     /// <summary>
     ///     The shared LocalStack SQS fixture.
     /// </summary>
@@ -45,45 +47,45 @@ public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
         var messageId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-         var provider = BuildProvider(queueUrl);
-         await using (provider.ConfigureAwait(false))
-         {
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-
-        await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+        var provider = BuildProvider(queueUrl);
+        await using (provider.ConfigureAwait(false))
         {
-            Message = new OrderSubmittedIntegrationEvent { OrderId = orderId },
-            Metadata = OutboxEnqueueMetadata.Immediate with
+            var store = provider.GetRequiredService<InMemoryOutboxStore>();
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+
+            await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
             {
-                Identity = new MessageIdentity.Supplied(messageId),
-                Trace = new MessageTrace.Workflow("corr-sqs-outbox", "cause-sqs-outbox"),
-                Tenant = new TenantScope.Isolated("tenant-sqs-east"),
-                Target = new PublicationTarget.Topic(queueUrl)
-            }
-        }).ConfigureAwait(false);
+                Message = new OrderSubmittedIntegrationEvent { OrderId = orderId },
+                Metadata = OutboxEnqueueMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId),
+                    Trace = new MessageTrace.Workflow("corr-sqs-outbox", "cause-sqs-outbox"),
+                    Tenant = new TenantScope.Isolated("tenant-sqs-east"),
+                    Target = new PublicationTarget.Topic(queueUrl)
+                }
+            }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
+            store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
 
-        var (body, headers) = await SqsTransportTestInfrastructure.ReceiveOneAsync(
-            _fixture.SqsClient,
-            queueUrl,
-            TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+            var (body, headers) = await SqsTransportTestInfrastructure.ReceiveOneAsync(
+                _fixture.SqsClient,
+                queueUrl,
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
-        var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
-            body,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
+                body,
+                JsonOptions);
 
-        payload!.OrderId.Should().Be(orderId);
-        headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));
-        headers[TransportHeaders.ContractName].Should().Be("orders.order-submitted");
-        headers[TransportHeaders.ContractVersion].Should().Be("1");
-        headers[TransportHeaders.CorrelationId].Should().Be("corr-sqs-outbox");
-        headers[TransportHeaders.CausationId].Should().Be("cause-sqs-outbox");
-        headers[TransportHeaders.TenantId].Should().Be("tenant-sqs-east");
+            payload!.OrderId.Should().Be(orderId);
+            headers[TransportHeaders.MessageId].Should().Be(messageId.ToString("D"));
+            headers[TransportHeaders.ContractName].Should().Be("orders.order-submitted");
+            headers[TransportHeaders.ContractVersion].Should().Be("1");
+            headers[TransportHeaders.CorrelationId].Should().Be("corr-sqs-outbox");
+            headers[TransportHeaders.CausationId].Should().Be("cause-sqs-outbox");
+            headers[TransportHeaders.TenantId].Should().Be("tenant-sqs-east");
         }
     }
 
@@ -98,32 +100,32 @@ public sealed class AwsSqsOutboxDispatchIntegrationTests : LiteBusTestBase
         var queueUrl = await _fixture.CreateQueueAsync("outbox-route").ConfigureAwait(false);
         var messageId = Guid.NewGuid();
 
-         var provider = BuildProvider(queueUrl);
-         await using (provider.ConfigureAwait(false))
-         {
-        var store = provider.GetRequiredService<InMemoryOutboxStore>();
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-
-        await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
+        var provider = BuildProvider(queueUrl);
+        await using (provider.ConfigureAwait(false))
         {
-            Message = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            Metadata = OutboxEnqueueMetadata.Immediate with
+            var store = provider.GetRequiredService<InMemoryOutboxStore>();
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+
+            await outbox.EnqueueAsync(new OutboxEnqueueItem<OrderSubmittedIntegrationEvent>
             {
-                Identity = new MessageIdentity.Supplied(messageId)
-            }
-        }).ConfigureAwait(false);
+                Message = new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                Metadata = OutboxEnqueueMetadata.Immediate with
+                {
+                    Identity = new MessageIdentity.Supplied(messageId)
+                }
+            }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
+            store.Get(messageId).Status.Should().Be(OutboxStatus.Published);
 
-        var (_, headers) = await SqsTransportTestInfrastructure.ReceiveOneAsync(
-            _fixture.SqsClient,
-            queueUrl,
-            TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+            var (_, headers) = await SqsTransportTestInfrastructure.ReceiveOneAsync(
+                _fixture.SqsClient,
+                queueUrl,
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
-        headers[TransportHeaders.ContractName].Should().Be(contractRoute);
+            headers[TransportHeaders.ContractName].Should().Be(contractRoute);
         }
     }
 

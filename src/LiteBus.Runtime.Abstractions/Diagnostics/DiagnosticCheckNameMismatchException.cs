@@ -13,15 +13,13 @@ public sealed class DiagnosticCheckNameMismatchException : Exception
     /// <param name="implementationType">The diagnostic check implementation type.</param>
     /// <param name="descriptorName">The probe name recorded in the host manifest.</param>
     /// <param name="checkName">The probe name reported by the check instance.</param>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="implementationType" />, <paramref name="descriptorName" />, or
+    ///     <paramref name="checkName" /> is <see langword="null" />.
+    /// </exception>
     public DiagnosticCheckNameMismatchException(Type implementationType, string descriptorName, string checkName)
-        : base(
-            $"Diagnostic check '{implementationType.FullName ?? implementationType.Name}' reported probe name '{checkName}', " +
-            $"but the host manifest registered '{descriptorName}'. Align IDiagnosticCheck.Name with RegisterDiagnosticCheck.")
+        : base(BuildMessage(implementationType, descriptorName, checkName))
     {
-        ArgumentNullException.ThrowIfNull(implementationType);
-        ArgumentNullException.ThrowIfNull(descriptorName);
-        ArgumentNullException.ThrowIfNull(checkName);
-
         ImplementationType = implementationType;
         DescriptorName = descriptorName;
         CheckName = checkName;
@@ -41,4 +39,25 @@ public sealed class DiagnosticCheckNameMismatchException : Exception
     ///     Gets the probe name reported by the check instance.
     /// </summary>
     public string CheckName { get; }
+
+    /// <summary>
+    ///     Builds the exception message for the mismatched probe names.
+    /// </summary>
+    /// <param name="implementationType">The diagnostic check implementation type.</param>
+    /// <param name="descriptorName">The probe name recorded in the host manifest.</param>
+    /// <param name="checkName">The probe name reported by the check instance.</param>
+    /// <returns>The exception message naming the expected and reported probe names.</returns>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="implementationType" />, <paramref name="descriptorName" />, or
+    ///     <paramref name="checkName" /> is <see langword="null" />.
+    /// </exception>
+    private static string BuildMessage(Type implementationType, string descriptorName, string checkName)
+    {
+        ArgumentNullException.ThrowIfNull(implementationType);
+        ArgumentNullException.ThrowIfNull(descriptorName);
+        ArgumentNullException.ThrowIfNull(checkName);
+
+        return $"Diagnostic check '{implementationType.FullName ?? implementationType.Name}' reported probe name '{checkName}', " +
+            $"but the host manifest registered '{descriptorName}'. Align IDiagnosticCheck.Name with RegisterDiagnosticCheck.";
+    }
 }

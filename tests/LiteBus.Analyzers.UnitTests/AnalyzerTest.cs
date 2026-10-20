@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Events.Abstractions;
 using LiteBus.Inbox.Abstractions;
@@ -89,6 +90,61 @@ internal static class AnalyzerTest
                     .WithLocation(markupLocation)
                     .WithArguments(arguments));
         }
+
+        return test.RunAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    ///     Verifies analyzer behavior under an <c>.editorconfig</c>, for rules whose required inputs are configured.
+    /// </summary>
+    /// <typeparam name="TAnalyzer">The analyzer type under test.</typeparam>
+    /// <param name="source">The source under test.</param>
+    /// <param name="editorConfig">The <c>.editorconfig</c> content applied to the compilation.</param>
+    /// <param name="expectedDiagnostics">The expected diagnostics, empty when none are expected.</param>
+    /// <returns>A task that completes when verification finishes.</returns>
+    internal static Task VerifyWithEditorConfigAsync<TAnalyzer>(
+        string source,
+        string editorConfig,
+        params (DiagnosticDescriptor Descriptor, int MarkupLocation, object[] Arguments)[] expectedDiagnostics)
+        where TAnalyzer : DiagnosticAnalyzer, new()
+    {
+        var test = CreateTest<TAnalyzer>();
+        test.TestCode = source;
+        test.TestState.AnalyzerConfigFiles.Add(("/.editorconfig", editorConfig));
+
+        foreach (var (descriptor, markupLocation, arguments) in expectedDiagnostics)
+        {
+            test.ExpectedDiagnostics.Add(
+                new DiagnosticResult(descriptor)
+                    .WithLocation(markupLocation)
+                    .WithArguments(arguments));
+        }
+
+        return test.RunAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    ///     Verifies a configured rule reports a diagnostic that carries no source location.
+    /// </summary>
+    /// <typeparam name="TAnalyzer">The analyzer type under test.</typeparam>
+    /// <param name="source">The source under test.</param>
+    /// <param name="editorConfig">The <c>.editorconfig</c> content applied to the compilation.</param>
+    /// <param name="expectedDiagnostic">The expected diagnostic descriptor.</param>
+    /// <param name="arguments">The expected diagnostic message arguments.</param>
+    /// <returns>A task that completes when verification finishes.</returns>
+    internal static Task VerifyUnlocatedWithEditorConfigAsync<TAnalyzer>(
+        string source,
+        string editorConfig,
+        DiagnosticDescriptor expectedDiagnostic,
+        params object[] arguments)
+        where TAnalyzer : DiagnosticAnalyzer, new()
+    {
+        var test = CreateTest<TAnalyzer>();
+        test.TestCode = source;
+        test.TestState.AnalyzerConfigFiles.Add(("/.editorconfig", editorConfig));
+
+        test.ExpectedDiagnostics.Add(
+            new DiagnosticResult(expectedDiagnostic).WithArguments(arguments));
 
         return test.RunAsync(CancellationToken.None);
     }
@@ -223,4 +279,86 @@ internal static class AnalyzerTest
         return MetadataReference.CreateFromImage(stream.ToArray());
     }
 
+    /// <summary>
+    ///     Verifies the diagnostics an analyzer reports over a compilation of several source files.
+    /// </summary>
+    /// <typeparam name="TAnalyzer">The analyzer type under test.</typeparam>
+    /// <param name="sources">The source files, each of which may carry <c>{|#n:...|}</c> markup locations.</param>
+    /// <param name="expectedDiagnostics">The expected diagnostics, empty when the compilation must be clean.</param>
+    /// <returns>A task that completes when verification finishes.</returns>
+    internal static Task VerifyMultiFileAsync<TAnalyzer>(
+        IReadOnlyList<string> sources,
+        params (DiagnosticDescriptor Descriptor, int MarkupLocation, object[] Arguments)[] expectedDiagnostics)
+        where TAnalyzer : DiagnosticAnalyzer, new()
+    {
+        var test = CreateTest<TAnalyzer>();
+
+        for (var index = 0; index < sources.Count; index++)
+        {
+            test.TestState.Sources.Add(($"/0/Test{index}.cs", sources[index]));
+        }
+
+        foreach (var (descriptor, markupLocation, arguments) in expectedDiagnostics)
+        {
+            test.ExpectedDiagnostics.Add(
+                new DiagnosticResult(descriptor)
+                    .WithLocation(markupLocation)
+                    .WithArguments(arguments));
+        }
+
+        return test.RunAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    ///     Creates a compilation of plain source files with the LiteBus contract assemblies referenced.
+    /// </summary>
+    /// <param name="sources">The source files, without markup.</param>
+    /// <returns>The compilation.</returns>
+    internal static async Task<CSharpCompilation> CreateCompilationAsync(IReadOnlyList<string> sources)
+    {
+        var references = await Net10ReferenceAssemblies
+            .ResolveAsync(LanguageNames.CSharp, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var liteBusReferences = new[]
+            {
+                typeof(ICommand), typeof(IEvent), typeof(IQuery<>), typeof(IInbox), typeof(IOutbox),
+                typeof(HandlerPriorityAttribute), typeof(MessageContractAttribute), typeof(ITransportPublisher)
+            }
+            .Select(type => type.Assembly.Location)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(location => (MetadataReference) MetadataReference.CreateFromFile(location));
+
+        return CSharpCompilation.Create(
+            "LiteBusAnalyzerCompilation",
+            sources.Select((source, index) => CSharpSyntaxTree.ParseText(source, path: $"/0/Test{index}.cs")),
+            references.Concat(liteBusReferences),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+    }
+
+    /// <summary>
+    ///     Runs analyzers the way a host analyzes one open file, and returns what they report for that file.
+    /// </summary>
+    /// <param name="compilation">The compilation the file belongs to.</param>
+    /// <param name="fileIndex">The index of the file in the compilation's syntax trees.</param>
+    /// <param name="analyzers">The analyzers to run.</param>
+    /// <returns>The diagnostics reported by semantic analysis of that one file.</returns>
+    /// <remarks>
+    ///     This is the per-file path Visual Studio and language servers take. Compilation-end actions do not run on it,
+    ///     so a rule that reports at compilation end must produce nothing here.
+    /// </remarks>
+    internal static async Task<ImmutableArray<Diagnostic>> GetPerFileDiagnosticsAsync(
+        Compilation compilation,
+        int fileIndex,
+        params DiagnosticAnalyzer[] analyzers)
+    {
+        var analyzerArray = analyzers.ToImmutableArray();
+        var withAnalyzers = compilation.WithAnalyzers(analyzerArray);
+        var semanticModel = compilation.GetSemanticModel(compilation.SyntaxTrees.ElementAt(fileIndex));
+        var result = await withAnalyzers
+            .GetAnalysisResultAsync(semanticModel, null, analyzerArray, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        return result.GetAllDiagnostics();
+    }
 }

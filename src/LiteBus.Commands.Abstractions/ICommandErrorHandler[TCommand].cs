@@ -1,4 +1,4 @@
-﻿using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Commands.Abstractions;
 
@@ -13,4 +13,4 @@ namespace LiteBus.Commands.Abstractions;
 ///     This allows for implementing specialized error handling strategies for different command types,
 ///     such as custom recovery logic or specific error reporting for critical commands.
 /// </remarks>
-public interface ICommandErrorHandler<TCommand> : IAsyncMessageErrorHandler<TCommand, object> where TCommand : ICommand;
+public interface ICommandErrorHandler<TCommand> : IMessageErrorHandler<TCommand, object> where TCommand : ICommand;

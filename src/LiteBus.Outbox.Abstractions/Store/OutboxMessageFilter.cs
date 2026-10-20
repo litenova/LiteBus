@@ -52,7 +52,8 @@ public sealed record OutboxMessageFilter
     public string? CausationId { get; init; }
 
     /// <summary>
-    ///     Gets the tenant identifier that must match when set.
+    ///     Gets the tenant identifier that must match when set. A <see langword="null" /> value means no tenant
+    ///     restriction; an empty string matches only unscoped rows.
     /// </summary>
     public string? TenantId { get; init; }
 

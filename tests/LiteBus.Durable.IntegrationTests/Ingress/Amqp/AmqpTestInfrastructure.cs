@@ -17,21 +17,21 @@ internal static class AmqpTestInfrastructure
     /// <returns>A task that completes when the queue exists.</returns>
     public static async Task DeclareQueueAsync(AmqpConnectionOptions connectionOptions, string queueName)
     {
-         var manager = new AmqpConnectionManager(connectionOptions);
-         await using (manager.ConfigureAwait(false))
-         {
-         var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
-         await using (channel.ConfigureAwait(false))
-         {
+        var manager = new AmqpConnectionManager(connectionOptions);
+        await using (manager.ConfigureAwait(false))
+        {
+            var channel = await manager.CreateChannelAsync().ConfigureAwait(false);
+            await using (channel.ConfigureAwait(false))
+            {
 
-        await channel.QueueDeclareAsync(
-            queueName,
-            true,
-            false,
-            false,
-            null).ConfigureAwait(false);
+                await channel.QueueDeclareAsync(
+                    queueName,
+                    true,
+                    false,
+                    false,
+                    null).ConfigureAwait(false);
 
-        }
+            }
         }
     }
 
@@ -49,35 +49,35 @@ internal static class AmqpTestInfrastructure
     {
         var uri = ResolveConnectionUri(connectionOptions);
         var factory = new ConnectionFactory { Uri = uri };
-         var connection = await factory.CreateConnectionAsync().ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var channel = await connection.CreateChannelAsync().ConfigureAwait(false);
-         await using (channel.ConfigureAwait(false))
-         {
-
-        var deadline = DateTime.UtcNow + timeout;
-
-        while (DateTime.UtcNow < deadline)
+        var connection = await factory.CreateConnectionAsync().ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
         {
-            var result = await channel.BasicGetAsync(queue, true).ConfigureAwait(false);
-
-            if (result is not null)
+            var channel = await connection.CreateChannelAsync().ConfigureAwait(false);
+            await using (channel.ConfigureAwait(false))
             {
-                var body = Encoding.UTF8.GetString(result.Body.ToArray());
 
-                IReadOnlyDictionary<string, object?> headers = result.BasicProperties.Headers is null
-                    ? new Dictionary<string, object?>()
-                    : new Dictionary<string, object?>(result.BasicProperties.Headers);
+                var deadline = DateTime.UtcNow + timeout;
 
-                return (body, headers);
+                while (DateTime.UtcNow < deadline)
+                {
+                    var result = await channel.BasicGetAsync(queue, true).ConfigureAwait(false);
+
+                    if (result is not null)
+                    {
+                        var body = Encoding.UTF8.GetString(result.Body.ToArray());
+
+                        IReadOnlyDictionary<string, object?> headers = result.BasicProperties.Headers is null
+                            ? new Dictionary<string, object?>()
+                            : new Dictionary<string, object?>(result.BasicProperties.Headers);
+
+                        return (body, headers);
+                    }
+
+                    await Task.Delay(100).ConfigureAwait(false);
+                }
+
+                throw new TimeoutException($"No message received on queue '{queue}' within {timeout}.");
             }
-
-            await Task.Delay(100).ConfigureAwait(false);
-        }
-
-        throw new TimeoutException($"No message received on queue '{queue}' within {timeout}.");
-        }
         }
     }
 

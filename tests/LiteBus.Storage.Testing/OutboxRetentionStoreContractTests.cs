@@ -22,7 +22,7 @@ public abstract class OutboxRetentionStoreContractTests
     ///     Verifies that published rows older than the retention cutoff are deleted.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task DeletePublishedOlderThanAsync_ShouldRemoveEligibleRows()
     {
         var store = CreateStore();
@@ -65,7 +65,7 @@ public abstract class OutboxRetentionStoreContractTests
     ///     Verifies that retention uses <c>published_at</c> when set instead of falling back to <c>created_at</c>.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task DeletePublishedOlderThanAsync_WhenPublishedAtIsRecentButCreatedAtIsOld_ShouldRetainRow()
     {
         var store = CreateStore();
@@ -98,7 +98,7 @@ public abstract class OutboxRetentionStoreContractTests
     ///     Verifies that no rows are deleted when the cutoff is earlier than every published row.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task DeletePublishedOlderThanAsync_WhenCutoffIsBeforeAllRows_ShouldDeleteNothing()
     {
         var store = CreateStore();

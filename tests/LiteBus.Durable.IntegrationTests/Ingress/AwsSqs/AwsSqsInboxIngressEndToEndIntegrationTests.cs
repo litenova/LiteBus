@@ -154,6 +154,7 @@ public sealed class AwsSqsInboxIngressEndToEndIntegrationTests : LiteBusTestBase
                     {
                         ingress.UseOptions(new AwsSqsInboxIngressOptions
                         {
+                            Safety = new TransportInboxIngressSafetyOptions { TrustApplicationHeaders = true },
                             Destination = ingressQueueUrl,
                             ReceiveBatchSize = 1
                         });

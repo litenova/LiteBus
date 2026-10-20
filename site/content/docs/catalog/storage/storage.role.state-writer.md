@@ -18,6 +18,7 @@
 - Inbox success writes `completed_at`; outbox success writes `published_at`.
 - Retry path sets failed status and next `visible_after`.
 - Dead-letter path sets dead-letter status and dead-letter timestamp where schema supports it.
+- Persist validates statuses up front on every adapter and throws `InvalidOperationException` for non-terminal envelopes instead of overwriting rows.
 
 ## Concurrency Model
 
@@ -32,9 +33,9 @@
 
 ## Observability
 
-- State outcomes drive processor counters:
-  - inbox: `succeeded`, `failed`, `dead_lettered`, `persist_skipped`, `persist_rejected`
-  - outbox: `published`, `failed`, `dead_lettered`, `persist_skipped`, `persist_rejected`
+- State outcomes drive processor counters (outcome counters are internal; `persist_skipped` and `persist_rejected` are public constants):
+  - inbox: `litebus.inbox.processor.succeeded`, `litebus.inbox.processor.failed`, `litebus.inbox.processor.dead_lettered`, `litebus.inbox.processor.persist_skipped`, `litebus.inbox.processor.persist_rejected`
+  - outbox: `litebus.outbox.processor.published`, `litebus.outbox.processor.failed`, `litebus.outbox.processor.dead_lettered`, `litebus.outbox.processor.persist_skipped`, `litebus.outbox.processor.persist_rejected`
 - Queue-depth gauges reflect status movement between active and terminal states.
 
 ## Test Coverage

@@ -1,5 +1,6 @@
 using LiteBus.Storage.Testing;
 using LiteBus.Inbox.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore;
 
 namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Inbox;
 
@@ -20,32 +21,33 @@ public sealed class EfCoreInboxStorePostgreSqlContractTests : InboxStoreContract
     public EfCoreInboxStorePostgreSqlContractTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that Entity Framework PostgreSQL leasing ignores a skewed caller clock.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public Task LeasePendingAsync_WhenCallerClockIsSkewed_ShouldUseDatabaseClock()
     {
         return AssertDatabaseClockIgnoresCallerSkewAsync();
     }
 
     /// <inheritdoc />
-    protected override InboxStoreRoles CreateStore()
+    protected override InboxStoreContractRoles CreateStore()
     {
-        EfCorePostgreSqlTestInfrastructure.ResetInboxTableAsync(_fixture.ConnectionString)
+        EfCoreProviderTestInfrastructure.ResetInboxTableAsync(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString)
             .GetAwaiter()
             .GetResult();
 
-        var options = EfCorePostgreSqlTestInfrastructure.InboxStoreOptions;
+        var options = EfCoreProviderTestInfrastructure.InboxStoreOptions(EfCoreStorageProvider.PostgreSql);
 
         var store = new EfCoreInboxStore(
             _ => Task.FromResult<IInboxDbContext>(
-                EfCorePostgreSqlTestInfrastructure.CreateInboxContext(_fixture.ConnectionString)),
+                EfCoreProviderTestInfrastructure.CreateInboxContext(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString)),
             options);
 
-        return new InboxStoreRoles(store, store, store, store, store, store, store, store);
+        return new InboxStoreContractRoles(store, store, store, store, store, store, store, store);
     }
 }

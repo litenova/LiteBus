@@ -35,7 +35,7 @@ Typical call sites: command post-handlers draining domain events, application se
 
 - **`AddOutbox()`** with **`Use*Storage()`** registered inside the same outbox module builder (required before first enqueue).
 - **`Contracts.Register<TEvent>(name, version)`** or **`RegisterFromAssembly`** for each stored event type.
-- Default **`IOutbox`** registers as singleton against the non-transactional store.
+- Default **`IOutbox`** registers transient against the singleton non-transactional store.
 
 ### Configuration
 
@@ -114,7 +114,7 @@ No dedicated enqueue counter. Writer failures surface as store or contract-resol
 ## Deep Docs
 
 - [Outbox](../../reliable-messaging/outbox.md)
-- [Domain events and unit of work](../../concepts/domain-events-and-unit-of-work.md)
+- [Domain events and unit of work](../../reliable-messaging/domain-events-and-unit-of-work.md)
 
 ## Test Coverage
 

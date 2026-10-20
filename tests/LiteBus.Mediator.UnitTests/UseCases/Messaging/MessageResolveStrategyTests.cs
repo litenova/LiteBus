@@ -18,7 +18,7 @@ public sealed class MessageResolveStrategyTests
         var descriptor = strategy.Find(typeof(LeafEvent), registry);
 
         descriptor.Should().NotBeNull();
-        descriptor.MessageType.Should().Be(typeof(MidEvent));
+        descriptor.MessageType.Should().Be<MidEvent>();
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public sealed class MessageResolveStrategyTests
     {
     }
 
-    private class LeafEvent : MidEvent
+    private sealed class LeafEvent : MidEvent
     {
     }
 

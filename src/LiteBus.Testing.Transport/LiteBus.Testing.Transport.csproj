@@ -3,7 +3,6 @@
     <PropertyGroup>
         <Description>Controllable transport publisher doubles for LiteBus tests.</Description>
         <PackageTags>$(PackageTags);testing;transport</PackageTags>
-        <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
     <ItemGroup>

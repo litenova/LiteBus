@@ -4,6 +4,7 @@
 - **Name**: Handler filtering
 - **Maturity**: GA
 - **Summary**: Selects participating handlers per mediation call using tags and descriptor predicates.
+- **Guide**: [Handler filtering](../../concepts/handler-filtering.md)
 
 ## What It Does
 
@@ -35,7 +36,10 @@ await commandMediator.SendAsync(new ApproveOrderCommand(orderId), settings, canc
 | `QueryRoutingSettings.Tags` | Tag filter for query mediation |
 | `QueryRoutingSettings.HandlerPredicate` | Predicate filter for query mediation |
 | `EventRoutingSettings.Tags` | Tag filter for event mediation |
-| `EventRoutingSettings.HandlerPredicate` | Predicate filter for event mediation |
+| `EventRoutingSettings.HandlerPredicate` | Predicate filter for event mediation, typed as the `EventHandlerFilter` delegate |
+| `EventHandlerFilter` | Named predicate delegate over `IHandlerDescriptor` for event routing (command and query routing use `Func<IHandlerDescriptor, bool>`) |
+| `IHandlerDescriptor.RegistrationSequence` | Stable tiebreak after priority, assigned at registration |
+| `IHandlerDescriptor.ContractType` | Closed contract the dispatch was discovered from, which names multi-contract registrations in diagnostics |
 | `[HandlerTag("...")]` | Single static handler tag |
 | `[HandlerTags("...", "...")]` | Multi-tag static handler label |
 

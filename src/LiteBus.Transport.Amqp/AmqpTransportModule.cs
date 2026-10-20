@@ -70,6 +70,9 @@ public sealed class AmqpTransportModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        // Runs first so a second transport module in the composition is refused with a message naming both modules.
+        TransportMetricsRegistration.RegisterIfNeeded(configuration, "amqp", GetType());
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(AmqpConnectionOptions),
             _options));
@@ -92,7 +95,8 @@ public sealed class AmqpTransportModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ITransportPublisher),
-            typeof(AmqpPublisher)));
+            typeof(AmqpPublisher),
+            InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageConsumer),
@@ -106,7 +110,6 @@ public sealed class AmqpTransportModule : IModule
             typeof(IAmqpConsumer),
             typeof(AmqpConsumer)));
 
-        TransportMetricsRegistration.RegisterIfNeeded(configuration, "amqp");
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(AmqpConnectivityDiagnosticCheck),

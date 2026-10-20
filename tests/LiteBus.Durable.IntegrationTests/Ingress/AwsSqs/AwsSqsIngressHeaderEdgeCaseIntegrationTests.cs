@@ -99,32 +99,32 @@ public sealed class AwsSqsIngressHeaderEdgeCaseIntegrationTests : LiteBusTestBas
         int expectedStoreCount)
     {
         var ingressQueueUrl = await _fixture.CreateQueueAsync("ingress-header-edge").ConfigureAwait(false);
-         var provider = BuildProvider(ingressQueueUrl);
-         await using (provider.ConfigureAwait(false))
-         {
-        using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
-        await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
-
-        try
+        var provider = BuildProvider(ingressQueueUrl);
+        await using (provider.ConfigureAwait(false))
         {
-            var publisher = provider.GetRequiredService<ITransportPublisher>();
+            using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(2), runCts.Token).ConfigureAwait(false);
 
-            await publisher.PublishAsync(new TransportPublishRequest
+            try
             {
-                Destination = ingressQueueUrl,
-                Body = Encoding.UTF8.GetBytes(body),
-                Headers = headers
-            }).ConfigureAwait(false);
+                var publisher = provider.GetRequiredService<ITransportPublisher>();
 
-            await PollingWait.UntilAsync(
-                () => provider.GetRequiredService<InMemoryInboxStore>().Count == expectedStoreCount,
-                TimeSpan.FromSeconds(15)).ConfigureAwait(false);
-        }
-        finally
-        {
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
-        }
+                await publisher.PublishAsync(new TransportPublishRequest
+                {
+                    Destination = ingressQueueUrl,
+                    Body = Encoding.UTF8.GetBytes(body),
+                    Headers = headers
+                }).ConfigureAwait(false);
+
+                await PollingWait.UntilAsync(
+                    () => provider.GetRequiredService<InMemoryInboxStore>().Count == expectedStoreCount,
+                    TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+            }
+            finally
+            {
+                await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 

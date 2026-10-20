@@ -173,6 +173,13 @@ internal sealed class OutboxManager : IOutboxManager
     }
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return _operationsStore.GetFailureSummaryAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
     {
         return _operationsStore.GetSchemaInfoAsync(cancellationToken);
@@ -192,7 +199,7 @@ internal sealed class OutboxManager : IOutboxManager
 
         if (_cleanupHostOptions.Retention is null || _cleanupHostOptions.Retention <= TimeSpan.Zero)
         {
-            return 0;
+            throw new OutboxManagementException("Retention purge rejected: OutboxCleanupHostOptions.Retention must be configured with a positive retention period.");
         }
 
         var runAt = _timeProvider.GetUtcNow();

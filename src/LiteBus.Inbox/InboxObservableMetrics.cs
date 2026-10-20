@@ -140,7 +140,7 @@ internal sealed class InboxObservableMetrics : IDisposable
             yield break;
         }
 
-        yield return new Measurement<int>((int)control.State);
+        yield return new Measurement<int>((int) control.State);
     }
 
     /// <summary>
@@ -204,6 +204,7 @@ internal sealed class InboxObservableMetrics : IDisposable
 
             lock (_cacheLock)
             {
+                _cachedCounts = EmptyStatusCounts;
                 _cacheExpiresAt = DateTimeOffset.UtcNow.Add(CacheDuration);
             }
         }

@@ -62,7 +62,7 @@ public sealed class MessageContractBuilder : IContractWriter
     {
         ArgumentNullException.ThrowIfNull(assembly);
 
-        foreach (var type in assembly.GetTypes())
+        foreach (var type in AssemblyTypeScanner.GetLoadableTypes(assembly))
         {
             if (type is not { IsAbstract: false } || type.ContainsGenericParameters)
             {

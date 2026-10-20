@@ -38,7 +38,7 @@ The adapter also registers an `IServiceProvider` wrapper so factory registration
 
 ## Requires
 
-- `hosting.module-registry`
+- `runtime.module-registry`
 - `hosting.host-manifest`
 - `hosting.autofac-hosting-bridge`
 

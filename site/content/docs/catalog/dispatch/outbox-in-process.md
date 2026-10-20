@@ -30,8 +30,8 @@ Use this path when integration events should fan out to local handlers only (sam
 
 ## Invariants
 
-- Event types must be registered with `Contracts.Register` and have handlers when using POCO events.
-- Dispatch wraps non-`LiteBusDispatchException` failures in `LiteBusDispatchException` with contract context.
+- Dispatched event types must be registered with `Contracts.Register`; with the default `RequireHandler = true`, dispatch fails when no handler is registered for the event.
+- Dispatch rethrows `OperationCanceledException` when the caller token is cancelled instead of wrapping it; it wraps other non-`LiteBusDispatchException` failures in `LiteBusDispatchException` with contract context, adding registration guidance only for `MessageContractNotRegisteredException` and `NoHandlerFoundException`.
 - Default hook failure policy is `DeadLetter` (stricter than transport outbox dispatch).
 - At-least-once local publication: handlers must tolerate duplicate event delivery.
 
@@ -70,7 +70,7 @@ services.AddLiteBus(litebus =>
 | Flow | Resolve contract to unprotect to deserialize to build `EventMediationSettings` to publish |
 | `IEvent` path | `IEventMediator.PublishAsync(IEvent, settings, token)` |
 | POCO path | Cached closed-generic `PublishAsync<TEvent>` delegate per contract type |
-| Errors | Rethrows `LiteBusDispatchException`; wraps other exceptions with contract context |
+| Errors | Rethrows `LiteBusDispatchException` and caller cancellation; wraps other exceptions with contract context, with registration guidance only for `MessageContractNotRegisteredException` and `NoHandlerFoundException` |
 
 Optional constructor dependency: `IOutboxPayloadProtector`.
 
@@ -98,7 +98,7 @@ Register outbox processor metrics through `AddLiteBusOutboxMetrics()`.
 
 - [Outbox.md](../../reliable-messaging/outbox.md)
 - [Event-Module.md](../../concepts/events.md)
-- [Domain-Events-and-Unit-of-Work.md](../../concepts/domain-events-and-unit-of-work.md)
+- [Domain-Events-and-Unit-of-Work.md](../../reliable-messaging/domain-events-and-unit-of-work.md)
 
 ## Test Coverage
 

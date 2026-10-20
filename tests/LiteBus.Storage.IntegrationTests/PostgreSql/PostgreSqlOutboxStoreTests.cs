@@ -24,13 +24,14 @@ public sealed class PostgreSqlOutboxStoreTests : ContractTests, IClassFixture<Po
     public PostgreSqlOutboxStoreTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that direct PostgreSQL leasing ignores a skewed caller clock.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public Task LeasePendingAsync_WhenCallerClockIsSkewed_ShouldUseDatabaseClock()
     {
         return AssertDatabaseClockIgnoresCallerSkewAsync();

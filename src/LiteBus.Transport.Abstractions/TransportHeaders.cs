@@ -64,4 +64,14 @@ public static class TransportHeaders
     /// </summary>
     public const string ContentEncoding = "litebus-content-encoding";
 
+    /// <summary>
+    ///     Gets the header name for the route within the destination such as an AMQP routing key.
+    /// </summary>
+    public const string Route = "litebus-route";
+
+    /// <summary>
+    ///     Gets the header name for the MIME content type of the message body.
+    /// </summary>
+    public const string ContentType = "content-type";
+
 }

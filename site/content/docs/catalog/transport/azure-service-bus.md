@@ -89,7 +89,7 @@ Beta tier note: adapter behavior is validated in durable integration tests, with
 - `AzureServiceBusQueueDiagnosticTarget` peeks a queue.
 - `AzureServiceBusSubscriptionDiagnosticTarget` peeks a topic subscription.
 - The peek does not lock or settle messages. Grant entity listen permission. Missing target configuration reports degraded.
-- See the current [`PeekMessagesAsync` contract](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusreceiver.peekmessagesasync?view=azure-dotnet).
+- See the [`PeekMessagesAsync` contract](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusreceiver.peekmessagesasync?view=azure-dotnet).
 
 ## Test Coverage
 

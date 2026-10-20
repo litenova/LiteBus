@@ -39,37 +39,37 @@ public sealed class AzureServiceBusOptionalIntegrationTests : LiteBusTestBase
         Skip.If(string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(queueName));
 
         var transportOptions = new AzureServiceBusTransportOptions { ConnectionString = connectionString! };
-         var provider = BuildProvider(transportOptions, queueName!);
-         await using (provider.ConfigureAwait(false))
-         {
-
-        var inbox = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-
-        var workItemId = Guid.NewGuid();
-
-        await inbox.AcceptAsync(new InboxAcceptItem<RemoteWorkCommand>
+        var provider = BuildProvider(transportOptions, queueName!);
+        await using (provider.ConfigureAwait(false))
         {
-            Message = new RemoteWorkCommand
+
+            var inbox = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
+
+            var workItemId = Guid.NewGuid();
+
+            await inbox.AcceptAsync(new InboxAcceptItem<RemoteWorkCommand>
             {
-                WorkItemId = workItemId,
-                IdempotencyKey = $"work:{workItemId}"
+                Message = new RemoteWorkCommand
+                {
+                    WorkItemId = workItemId,
+                    IdempotencyKey = $"work:{workItemId}"
+                }
+            }).ConfigureAwait(false);
+
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
+
+            var client = new ServiceBusClient(connectionString!);
+            await using (client.ConfigureAwait(false))
+            {
+                var receiver = client.CreateReceiver(queueName!);
+                await using (receiver.ConfigureAwait(false))
+                {
+                    var received = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                    received.Should().NotBeNull();
+                    received!.Body.ToString().Should().Contain(workItemId.ToString());
+                }
             }
-        }).ConfigureAwait(false);
-
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
-
-         var client = new ServiceBusClient(connectionString!);
-         await using (client.ConfigureAwait(false))
-         {
-         var receiver = client.CreateReceiver(queueName!);
-         await using (receiver.ConfigureAwait(false))
-         {
-        var received = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
-        received.Should().NotBeNull();
-        received!.Body.ToString().Should().Contain(workItemId.ToString());
-        }
-        }
         }
     }
 

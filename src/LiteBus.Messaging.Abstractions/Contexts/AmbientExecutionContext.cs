@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -62,8 +63,9 @@ public static class AmbientExecutionContext
     /// <returns>A disposable scope that restores the previous context when disposed.</returns>
     /// <example>
     ///     <code>
-    /// // Create a new execution context
-    /// var executionContext = new ExecutionContext(CancellationToken.None);
+    /// // The mediator creates the context for each mediation. Outside the pipeline, reuse the
+    /// // current context, or implement IExecutionContext (for example a test double) and scope it.
+    /// IExecutionContext executionContext = AmbientExecutionContext.Current;
     /// 
     /// // Use the context within a scope
     /// using (AmbientExecutionContext.CreateScope(executionContext))
@@ -88,6 +90,7 @@ public static class AmbientExecutionContext
     ///     This method exists for test isolation. Production code should prefer disposing an
     ///     <see cref="ExecutionContextScope" /> created by <see cref="CreateScope" />.
     /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static void ResetForTesting()
     {
         ExecutionContextLocal.Value = null;

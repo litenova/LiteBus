@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Hosting;
+using LiteBus.Runtime.Extensions.Microsoft.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -21,19 +23,7 @@ internal static class OutboxTestInfrastructure
     {
         ArgumentNullException.ThrowIfNull(provider);
 
-        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
-        var processorIndex = manifest.BackgroundServices.ToList().IndexOf(typeof(OutboxProcessorBackgroundService));
-
-        if (processorIndex < 0)
-        {
-            throw new InvalidOperationException(
-                "Outbox processor background service is not registered in the LiteBus host manifest.");
-        }
-
-        var hostedServices = provider.GetServices<IHostedService>().ToList();
-        var backgroundServiceOffset = manifest.StartupTasks.Count > 0 ? 1 : 0;
-
-        return hostedServices[backgroundServiceOffset + processorIndex];
+        return provider.GetHostedServiceForBackgroundService<OutboxProcessorBackgroundService>();
     }
 
     /// <summary>

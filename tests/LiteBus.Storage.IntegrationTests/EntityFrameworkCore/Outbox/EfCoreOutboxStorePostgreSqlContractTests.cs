@@ -1,5 +1,6 @@
 using LiteBus.Storage.Testing;
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore;
 
 namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Outbox;
 
@@ -21,13 +22,14 @@ public sealed class EfCoreOutboxStorePostgreSqlContractTests : OutboxStoreContra
     public EfCoreOutboxStorePostgreSqlContractTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that Entity Framework PostgreSQL leasing ignores a skewed caller clock.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [SkippableFact]
     public Task LeasePendingAsync_WhenCallerClockIsSkewed_ShouldUseDatabaseClock()
     {
         return AssertDatabaseClockIgnoresCallerSkewAsync();
@@ -36,15 +38,15 @@ public sealed class EfCoreOutboxStorePostgreSqlContractTests : OutboxStoreContra
     /// <inheritdoc />
     protected override OutboxStoreContracts CreateStore()
     {
-        EfCorePostgreSqlTestInfrastructure.ResetOutboxTableAsync(_fixture.ConnectionString)
+        EfCoreProviderTestInfrastructure.ResetOutboxTableAsync(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString)
             .GetAwaiter()
             .GetResult();
 
-        var options = EfCorePostgreSqlTestInfrastructure.OutboxStoreOptions;
+        var options = EfCoreProviderTestInfrastructure.OutboxStoreOptions(EfCoreStorageProvider.PostgreSql);
 
         var store = new EfCoreOutboxStore(
             _ => Task.FromResult<IOutboxDbContext>(
-                EfCorePostgreSqlTestInfrastructure.CreateOutboxContext(_fixture.ConnectionString)),
+                EfCoreProviderTestInfrastructure.CreateOutboxContext(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString)),
             options);
 
         return new OutboxStoreContracts(store, store, store, store, store, store, store, store);

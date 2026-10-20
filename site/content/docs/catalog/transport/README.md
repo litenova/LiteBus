@@ -1,4 +1,6 @@
-# Transport Axis Capability Catalog
+# Transport
+
+Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 
 LiteBus transport is the broker-facing publish and consume axis. Dispatch and ingress call transport contracts (`ITransportPublisher`, `IMessageConsumer`) but own durable storage, leasing, and processor policy.
 
