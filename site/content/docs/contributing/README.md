@@ -54,7 +54,7 @@ Update `Changelog.md` in the version's cumulative `## v7.0.0` section as work la
 
 ## Pull Request Expectations
 
-Follow existing naming, project layout, and module patterns. Keep your change scoped to the task. Build the solution and fix documentation analyzer warnings before you submit. Run the test suite; when you cannot run Docker, say so in the pull request and rely on CI for the PostgreSQL integration tests.
+Follow existing naming, project layout, and module patterns. Keep your change scoped to the task. Build the solution and fix documentation analyzer warnings before you submit. Run the test suite; when you cannot run Docker, CI runs the PostgreSQL integration tests.
 
 ## Next
 
