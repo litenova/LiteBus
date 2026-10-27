@@ -185,9 +185,69 @@ const FEATURES: readonly Feature[] = [
       </span>
     ),
     title: 'Compile-Time Checks',
-    text: '20 analyzer rules catch missing handlers, duplicate handlers and contract gaps.',
+    text: 'Roslyn analyzers catch missing handlers, duplicate handlers and contract gaps at build time.',
     href: '/docs/reference/analyzers',
     link: 'Analyzers',
+  },
+  {
+    symbol: (
+      <>
+        <span className="tk-ifc">ICommandMediator</span>
+        <span className="tk-pun">.</span>
+        <span className="tk-fn">TrySendAsync</span>
+      </>
+    ),
+    title: 'Decisions as Values',
+    text: 'Guards deny, validators reject and shortcuts answer; TrySendAsync returns the refusal instead of throwing.',
+    href: '/docs/concepts/handler-pipeline',
+    link: 'Refusals',
+  },
+  {
+    symbol: (
+      <>
+        <span className="tk-pun">[</span>
+        <span className="tk-cls">Audited</span>
+        <span className="tk-pun">]</span>
+      </>
+    ),
+    title: 'Auditing',
+    text: 'Declare what a message audits; LiteBus writes one record per ending, denials and failures included.',
+    href: '/docs/concepts/auditing',
+    link: 'Auditing',
+  },
+  {
+    symbol: (
+      <>
+        <span className="tk-pun">[</span>
+        <span className="tk-cls">Authorized</span>
+        <span className="tk-pun">]</span>
+      </>
+    ),
+    title: 'Declared Metadata',
+    text: 'Authorization, audit and your own declarations on the message, enforced at startup and by analyzers.',
+    href: '/docs/concepts/message-definitions',
+    link: 'Message definitions',
+  },
+  {
+    symbol: <span className="tk-cls">Idempotency-Key</span>,
+    title: 'Idempotency',
+    text: 'Keyed commands run once and replay their result, with PostgreSQL and Marten stores and an ASP.NET Core filter.',
+    href: '/docs/concepts/idempotency',
+    link: 'Idempotency',
+  },
+  {
+    symbol: <span className="tk-ifc">IUnitOfWork</span>,
+    title: 'Unit of Work and Domain Events',
+    text: 'Commit at a fixed point after the handler, with collected domain events staged into the outbox first.',
+    href: '/docs/reliable-messaging/domain-events-and-unit-of-work',
+    link: 'Unit of work',
+  },
+  {
+    symbol: <span className="tk-fn">AddLiteBusManagementEndpoints</span>,
+    title: 'Operations',
+    text: 'Requeue, purge and drain over HTTP, health checks per probe, and OpenTelemetry traces and metrics.',
+    href: '/docs/operations',
+    link: 'Operations',
   },
 ];
 
@@ -252,10 +312,10 @@ export default async function HomePage() {
                 <b>v{latestRelease}</b>
                 <i>See what changed {'->'}</i>
               </a>
-              <h1>Commands, Queries and Events for .NET</h1>
+              <h1>Message Mediation and Durable Messaging for .NET</h1>
               <p className="lead">
-                LiteBus sends commands, runs queries and publishes events through a handler pipeline in your
-                process. When a message has to survive a restart, add the durable inbox and outbox.
+                Commands, queries and events through one handler pipeline, with an opt-in durable inbox, outbox
+                and sagas.
               </p>
               <div className="actions">
                 <Link className="btn" href="/docs/getting-started">
@@ -285,11 +345,7 @@ export default async function HomePage() {
                 </div>
                 <div>
                   <dt>License</dt>
-                  <dd>MIT, open source</dd>
-                </div>
-                <div>
-                  <dt>Commercial use</dt>
-                  <dd>Free</dd>
+                  <dd>MIT</dd>
                 </div>
               </dl>
             </div>
@@ -338,6 +394,32 @@ export default async function HomePage() {
                   </Link>
                 ))}
               </div>
+            </div>
+          </section>
+
+          <section className="sec mediatr" aria-labelledby="mediatr-heading">
+            <div className="in">
+              <p className="kicker">{'// MediatR Comparison'}</p>
+              <h2 id="mediatr-heading">An MIT-Licensed Alternative to MediatR</h2>
+              <p className="sub">
+                MediatR 13.0.0 and later ships under a commercial license. LiteBus is MIT licensed, with separate
+                contracts for commands, queries and events and the durable modules built in.
+              </p>
+              <Link className="next" href="/docs/migration/mediatr-differences">
+                <span className="pr" aria-hidden="true">
+                  {'>'}
+                </span>
+                <span>
+                  <b>Compare LiteBus and MediatR</b>
+                  <span className="d">The message model, the pipeline, and moving an existing application.</span>
+                </span>
+                <span className="go">
+                  <kbd>Enter</kbd>
+                  <span className="arrow" aria-hidden="true">
+                    {'->'}
+                  </span>
+                </span>
+              </Link>
             </div>
           </section>
         </main>

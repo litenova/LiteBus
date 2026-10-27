@@ -10,7 +10,7 @@
 .chip b { color: var(--fg); font-weight: 500; }
 .chip i { font-style: normal; color: var(--acc); }
 .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--acc); animation: e-pulse 2.4s var(--ease) infinite; flex: none; }
-.hero h1 { font-size: clamp(38px, 5.2vw, 60px); font-weight: 700; letter-spacing: -.035em; line-height: 1.05; margin-top: 24px; max-width: 15ch; }
+.hero h1 { font-size: clamp(38px, 5.2vw, 60px); font-weight: 700; letter-spacing: -.035em; line-height: 1.05; margin-top: 24px; max-width: 22ch; }
 .lead { margin-top: 20px; font-size: 18px; line-height: 1.6; color: var(--dim); max-width: 58ch; }
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
 .install { display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 6px 0 14px; border: var(--bw) solid var(--line); border-radius: 6px; background: var(--side); font-family: var(--mono); font-size: 13.5px; color: var(--fg); min-width: 0; max-width: 100%; }
@@ -24,6 +24,10 @@
 .facts div:first-child { padding-left: 0; border-left: 0; }
 .facts dt { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
 .facts dd { margin: 3px 0 0; font-size: 15px; font-weight: 500; color: var(--fg); }
+
+/* MediatR comparison: the same section rhythm as the others, one paragraph and a link. */
+.mediatr .sub { max-width: 72ch; }
+.mediatr .next { margin-top: 28px; }
 
 /* -------------------------------------------------------------- sections */
 .sec { padding: 80px 0; border-top: var(--bw) solid var(--line-soft); }

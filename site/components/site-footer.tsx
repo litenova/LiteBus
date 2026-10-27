@@ -12,7 +12,7 @@ export function SiteFooter() {
     <footer className="foot">
       <div className="in">
         <span>
-          LiteBus is MIT licensed, open source, free for commercial use, and will remain free.{' '}
+          LiteBus is MIT licensed.{' '}
           <a href={companyUrl}>Built by {companyName}</a>.
         </span>
         <nav aria-label="Footer">

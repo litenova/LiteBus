@@ -242,7 +242,7 @@ function preamble(): string[] {
   return [
     '# LiteBus',
     '',
-    '> LiteBus is a mediator and durable messaging library for .NET 10, MIT licensed, open source, free for commercial use, and will remain free. It',
+    '> LiteBus is a mediator and durable messaging library for .NET 10, MIT licensed. It',
     '> provides separate command, query, and event contracts, each with its own mediator, handlers, and pipeline, and',
     '> adds opt-in inbox, outbox, saga, storage, transport, ingress, hosting, and observability modules that persist',
     '> and carry those messages between processes.',
