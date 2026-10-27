@@ -35,9 +35,9 @@
 | **Ambient context (AsyncLocal)** | `AmbientExecutionContext` with `AmbientExecutionContext.ExecutionContextScope`, and `AmbientAuditScope` layered on top of `IExecutionContext.Items`. |
 | **Envelope / Unit of work** | `InboxEnvelope`, `OutboxEnvelope` are immutable records with transition methods (`AsLeased`, `AsCompleted`/`AsPublished`, `AsFailed`, `AsDeadLettered`, `AsRequeued`, `AsReleased`). |
 | **Lease / fencing token** | `LeaseOwner` + monotonic `LeaseGeneration` + `LeaseExpiresAt` on envelopes; `ILeaseRenewable.RenewLeaseAsync` heartbeats, `ReleaseLeaseAsync` returns a cancelled dispatch to the queue with its attempt refunded. |
-| **Discriminated union via sealed record hierarchies** | `MessageIdentity`, `Idempotency`, `MessageVisibility`, `MessageTrace`, `TenantScope`, `PublicationTarget`, `AuditDeclaration`, `AzureServiceBusDiagnosticTarget`. |
+| **Discriminated union via sealed record hierarchies** | `MessageIdentity`, `Idempotency`, `MessageVisibility`, `MessageTrace`, `TenantScope`, `PublicationTarget`, `AuditDeclaration`, `AuthorizationDeclaration`, `AzureServiceBusDiagnosticTarget`. |
 | **Result objects instead of exceptions** | `Verdict`, `Validity`, `Shortcut`, `Shortcut<T>`, `Refusal`, `PipelineDecision`, `MediationOutcome`, `PersistResult`, `ProcessorPassResult`. |
-| **Roslyn analyzers** | 20 diagnostic rules (`LB1001`-`LB1022`) that enforce composition invariants at compile time. |
+| **Roslyn analyzers** | 22 diagnostic rules (`LB1001`-`LB1024`; `LB1002` and `LB1006` are reserved and never shipped) that enforce composition invariants at compile time. |
 
 ### 1.2 Key interfaces and their primary implementations
 
@@ -50,17 +50,21 @@
 | `IMessageRegistry` (= `IMessageWriter` + `IMessageReader`) | `MessageRegistry` (internal) | Thread-safe (lock-protected). Discovers handler descriptors from CLR types, links handlers to messages, binds `IMessageDefinition` metadata, closes open generic handlers. |
 | `IMessageContractRegistry` (= `IContractWriter` + `IContractReader`) | `MessageContractRegistry` (internal) | Lock-protected bidirectional map: CLR type <-> (`Name`, `Version`). Also honours `[MessageContract]` on-demand. |
 | `IMessageSerializer` | `SystemTextJsonMessageSerializer` | `JsonSerializerDefaults.Web` by default; wraps `JsonException`/`NotSupportedException` in `MessageSerializationException`. |
-| `IExecutionContext` | `ExecutionContext` (internal) | Carries `CancellationToken`, `Items`, `Data`, `Tags`, `MessageResult`, `PostHandlersSuppressed`. |
+| `IExecutionContext` | `ExecutionContext` (internal) | Carries `CancellationToken`, `HandledAt`, `Items`, `Data`, `Tags`, `MessageResult`, `PostHandlersSuppressed`. |
 | `IProducesResult<out TMessageResult>` | marker on `ICommand<T>` / `IQuery<T>` / `IStreamQuery<T>` | States a message's result type so the registry can bind the second parameter of an arity-2 open generic handler without referencing the axis packages. |
-| `IIdempotencyStore` | none shipped (application supplied); `InMemoryIdempotencyStore` in `LiteBus.Testing.Mediation` for tests | Remembers applied idempotency keys. See 4.9. |
+| `IIdempotencyStore` | `PostgreSqlIdempotencyStore` (`LiteBus.Commands.Storage.PostgreSql`), `MartenIdempotencyStore` (`LiteBus.Commands.Storage.Marten`); `InMemoryIdempotencyStore` in `LiteBus.Testing.Mediation` for tests | Remembers applied idempotency keys with fingerprints, in-flight answers and claim-timeout takeover. See 4.9. |
 | `IdempotencyKeyResolver` | itself (singleton) | Resolves `"{Scope ?? messageType.Name}:{key}"` from a message's `IdempotencyDeclaration`. |
-| `IMessageDependencies` | `MessageDependencies` (internal) | Filters descriptors by handler predicate and tag intersection, orders by `Priority` then `RegistrationSequence`, wraps each in a `LazyHandler`. Precomputes a bitmask of occupied pre-stages. Members: `MainHandlers`/`IndirectMainHandlers` (`ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor>`), `PreStageHandlers`/`IndirectPreStageHandlers` (`ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor>`), `PostHandlers`/`IndirectPostHandlers` (`IMessagePostHandler`, `IPostHandlerDescriptor`), `ErrorHandlers`/`IndirectErrorHandlers` (`IMessageErrorHandler`, `IErrorHandlerDescriptor`), `RefusalMappers`/`IndirectRefusalMappers` (`IMessageRefusalMapper`, `IRefusalMapperDescriptor`), merged priority-ordered `CompletionHandlers` (`IMessageCompletionHandler`, `ICompletionHandlerDescriptor`; no indirect split), and `bool HasPreStageHandlers(PreStage stage)` with a default implementation. |
+| `IMessageDependencies` | `MessageDependencies` (internal) | Filters descriptors by handler predicate and tag intersection, orders by `Priority` then `RegistrationSequence`, wraps each in a `LazyHandler`. Precomputes a bitmask of occupied pre-stages. Members: `MainHandlers`/`IndirectMainHandlers` (`ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor>`), `PreStageHandlers`/`IndirectPreStageHandlers` (`ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor>`), `PostHandlers`/`IndirectPostHandlers` (`IMessagePostHandler`, `IPostHandlerDescriptor`), `ErrorHandlers`/`IndirectErrorHandlers` (`IMessageErrorHandler`, `IErrorHandlerDescriptor`), `RefusalMappers`/`IndirectRefusalMappers` (`IMessageRefusalMapper`, `IRefusalMapperDescriptor`), merged priority-ordered `CompletionHandlers` (`IMessageCompletionHandler`, `ICompletionHandlerDescriptor`; no indirect split), `FaultRefusalClassifiers` (`IReadOnlyList<IFaultRefusalClassifier>`, resolved lazily from the dispatch scope, empty by default), and `bool HasPreStageHandlers(PreStage stage)` with a default implementation. |
 | `IAuditScope` | `AmbientAuditScope` (internal, singleton instance) | Stores `AuditScopeState` under execution-context item key `__LiteBus.Audit.Scope`. |
 | `IAuditRecordWriter` | `AuditRecordWriter` (internal, scoped) | Builds `AuditRecord` from the message's `AuditedDeclaration` + `IAuditScope` + `IAuditOutcomeMapper` + `TimeProvider`. |
 | `IAuditOutcomeMapper` | `DefaultAuditOutcomeMapper` | Maps `MediationOutcome` to `AuditOutcome` with no application knowledge. |
 | `IAuditTrail` | none shipped (application supplied) | Registered through `MessageModuleBuilder.UseAuditTrail`. |
 | `IMessageContractResolver` | `DeclaredTypeMessageContractResolver` (optional) | Default (unregistered) behaviour uses the runtime instance type. |
 | `IHandleContextData` | `HandleContextData` | Type-keyed store reached through `IExecutionContext.Data`; one instance per mediation, lock-guarded. |
+| `IUnitOfWork` | application supplied; `MartenUnitOfWork` (`LiteBus.Commands.Storage.Marten`) commits the scoped Marten session | `CommitAsync` runs once per mediation that ended `Succeeded`, from a completion handler at `HandlerPriorities.UnitOfWork`. Registered with `UseUnitOfWork<T>` on the command and query builders. |
+| `IDomainEventCollector` | `DomainEventCollector` (internal, in `LiteBus.Outbox`) | Scoped per mediation; `Collect` records a domain event and `Drain` returns every collected event destructively. Drained into `ITransactionalOutbox` by the staging completion handler registered with `OutboxModuleBuilder.StageCollectedEvents()`. |
+| `IFaultRefusalClassifier` | application supplied; `PostgreSqlConstraintRefusalClassifier` (`LiteBus.Storage.PostgreSql`) maps unique (23505) and exclusion (23P01) violations on configured constraints to denials | Singleton collection item registered with `MessageModuleBuilder.UseFaultRefusalClassifier`; first match wins, cancellation is never classified, and nothing changes when none is registered. |
+| `DeclarationGuard<TMessage, TValue>` / `AuthorizationGuard<TMessage>` | abstract base classes, subclassed by the application | Look the declaration up for the runtime message type through `IMessageMetadataAccessor`; a recorded exemption allows, an undeclared message is denied with code `declaration.missing` unless `DecideUndeclaredAsync` is overridden. `AuthorizationGuard` seals the decision so an exempt message allows and an authorized one delegates to `AuthorizeAsync(policy, message, ct)`. |
 
 #### Semantic facades
 
@@ -81,7 +85,7 @@
 | `IMessageDispatchScopeFactory` | `MicrosoftMessageDispatchScopeFactory`, `AutofacMessageDispatchScopeFactory`, `RootMessageDispatchScopeFactory` |
 | `IStartupTask` | `PostgreSqlInboxSchemaInitializer`, `PostgreSqlOutboxSchemaInitializer`, `PostgreSqlSagaSchemaInitializer`, `InboxObservableMetricsInitializer`, `OutboxObservableMetricsInitializer`, `TransportObservableMetricsInitializer` |
 | `IBackgroundService` | `InboxProcessorBackgroundService`, `OutboxProcessorBackgroundService`, `InboxCleanupBackgroundService`, `OutboxCleanupBackgroundService`, `TransportInboxIngressConsumer`, `RecurringCommandBackgroundService<TCommand>`; the processor services wrap the internal `ProcessorBackgroundService<TProcessor>` loop; driven by `LiteBusHostOrchestrator` (a `BackgroundService`) |
-| `IDiagnosticCheck` | `AuditTrailDiagnosticCheck`, `IdempotencyStoreDiagnosticCheck`, `PostgreSqlInboxSchemaDiagnosticCheck`, `PostgreSqlOutboxSchemaDiagnosticCheck`, `AmqpConnectivityDiagnosticCheck`, `KafkaConnectivityDiagnosticCheck`, `AwsSqsConnectivityDiagnosticCheck`, `AzureServiceBusConnectivityDiagnosticCheck` |
+| `IDiagnosticCheck` | `AuditTrailDiagnosticCheck`, `IdempotencyStoreDiagnosticCheck`, `PostgreSqlInboxSchemaDiagnosticCheck`, `PostgreSqlOutboxSchemaDiagnosticCheck`, `PostgreSqlIdempotencySchemaDiagnosticCheck` (`idempotency.postgresql.schema`), `PostgreSqlRecurringLeaseSchemaDiagnosticCheck` (`recurring.postgresql.schema`), `AmqpConnectivityDiagnosticCheck`, `KafkaConnectivityDiagnosticCheck`, `AwsSqsConnectivityDiagnosticCheck`, `AzureServiceBusConnectivityDiagnosticCheck` |
 
 #### Durable messaging
 
@@ -107,6 +111,7 @@
 | `IProcessorEnvelopeHook` | `SagaProcessorHook` |
 | `ISagaStore` | `InMemorySagaStore`, `PostgreSqlSagaStore` |
 | `ISagaContext` | `SagaExecutionContext` |
+| `IRecurringCommandLease` | `PostgreSqlRecurringCommandLease` (`LiteBus.Commands.Recurring.Storage.PostgreSql`), a renewable lease row in `litebus_recurring_leases` | `TryAcquireAsync(leaseName, ct)` returns a releasing `IAsyncDisposable` handle or null; acquired before each recurring pass when `RecurringCommandHostOptions.RequireLease` is set. |
 
 #### Transport
 
@@ -133,17 +138,17 @@ IMessageMediator.Mediate
   |     |- RunAsyncPreStages
   |     |     1. PreStage.Guard      -> IMessageGuard<T>.DecideAsync      -> Verdict   (StopAtFirst)
   |     |     2. PreStage.Validator  -> IMessageValidator<T>.ValidateAsync -> Validity  (CollectFailures: all run)
-  |     |     3. PreStage.Shortcut   -> IMessageShortcut<T>[,R].TryAnswerAsync -> Shortcut (StopAtFirst)
+  |     |     3. PreStage.Shortcut   -> IMessageShortcut<T>[,R].TryAnswerAsync -> Shortcut (StopAtFirst: first answer or denial)
   |     |     4. PreStage.PreHandler -> IMessagePreHandler<T>.PreHandleAsync  (cannot stop)
   |     |     Within each stage: indirect (base-type) handlers run BEFORE direct handlers.
   |     |- if decision.StopsPipeline
-  |     |     - refusal (Denied/Invalid): try IMessageRefusalMapper<T,R> -> value; else throw
+  |     |     - refusal (Denied/Invalid, from a guard, a validator, or a Shortcut.Deny): try IMessageRefusalMapper<T,R> -> value; else throw
   |     |       LiteBusMessageDeniedException / LiteBusMessageInvalidException
   |     |     - answered: PipelineDecision.ResolveResult<R>(messageType)
-  |     |- main handler (exactly one for command/query; all for events grouped by priority)
+  |     |- main handler (exactly one for command/query; all for events grouped by priority; invoked through the closed contract on its descriptor with the mediation token)
   |     |- RunAsyncPostHandlers (direct then indirect; stops if IExecutionContext.SuppressPostHandlers was called)
-  |     |- on catch: RunAsyncErrorHandlers (indirect then direct), rethrow unless MessageErrorOutcome.Handled
-  |     |- finally: RunAsyncCompletionHandlers (one priority-ordered pass) with CancellationToken.None
+  |     |- on catch: classify with IFaultRefusalClassifier entries first (a recognized fault ends as that refusal); else RunAsyncErrorHandlers (indirect then direct), rethrow unless MessageErrorOutcome.Handled
+  |     |- finally: RunAsyncCompletionHandlers (one priority-ordered pass) with CancellationToken.None; a fault escaping completion is classified the same way
   |- executionScope.Dispose() before returning         (caller ambient context restored)
   |- MediationScopeRetention.RetainUntilPipelineCompletes(result, resourceScope)
 ```
@@ -158,7 +163,8 @@ Rules baked into the code:
 * `MediationExceptionFilters.IsRefusal(Exception)` returns true for `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException`.
 * `MediationExceptionFilters.IsCallerCancellation(Exception, CancellationToken)` returns true when the token is cancelled and the exception or one of its inner exceptions is an `OperationCanceledException`; cancellation from any other token returns false.
 * `MessageContextExtensions.RunAsyncDecisionStages(messageDependencies, message, cancellationToken)` runs guards then validators in fixed order and stops there; it skips shortcut (claims keys) and pre-handler (does work). It is a prefix of the fixed order rather than an arbitrary subset, so a shortcut never answers ahead of a guard.
-* `MessageContextExtensions.ResolveRefusalResult<TMessageResult>(messageDependencies, message, decision)` (carries `[RequiresUnreferencedCode]`) throws `ArgumentException` when `!decision.IsRefusal`; it selects the direct then indirect mapper whose `MessageResultType` is assignable to `TMessageResult`, throws `PipelineContractException` when two mappers apply at the same level, and throws `decision.CreateRefusalException` when no mapper applies.
+* `MessageContextExtensions.ResolveRefusalResult<TMessageResult>(messageDependencies, message, decision)` (carries `[RequiresUnreferencedCode]`) throws `ArgumentException` when `!decision.IsRefusal`; it selects the direct then indirect mapper whose `MessageResultType` is assignable to `TMessageResult`, throws `PipelineContractException` when two mappers apply at the same level, and throws `decision.CreateRefusalException` when no mapper applies. A second overload takes a `Refusal` plus the causing exception for a classified fault.
+* `MediationExceptionFilters.TryClassifyRefusal(classifiers, exception, out refusal)` consults the registered `IFaultRefusalClassifier` entries in order with first match winning; it never offers a cancellation or an exception that already carries a refusal. A fault from any stage, the completion stage included, that a classifier recognizes ends the mediation as that refusal: error handlers do not run, completion handlers observe the refusal outcome, `TrySendAsync` returns it as a value, and refusal mappers apply.
 * Completion handlers always run, on every path, and are never cancelled. A completion handler that throws while the mediation had already failed has its exception collected into `exception.Data[MediationExceptionData.SuppressedCompletionFaults]` (`"LiteBus.SuppressedCompletionFaults"`) instead of replacing the original fault.
 
 ### 1.4 Lifecycle and thread safety
@@ -175,8 +181,11 @@ Rules baked into the code:
 | `IMessageMediator`, `ICommandMediator`, `IQueryMediator`, `IEventMediator` | **Transient** | Stateless; safe to resolve anywhere. |
 | Every discovered handler type | **Scoped** (registered as itself) | One instance per dispatch scope. |
 | `IMessageDispatchScopeFactory` | **Singleton** | Yes. |
-| `IExecutionContext` | **Scoped** (factory over the ambient context) | Resolves the context of the mediation in flight; `AmbientExecutionContext` remains for code outside DI. |
-| In-memory / PostgreSQL stores | **Singleton instance** | Yes (in-memory uses locks/concurrent collections; PostgreSQL is stateless over `NpgsqlDataSource` and container-owned through `PostgreSqlDataSourceOwner<TModule>`, so a `UseConnectionString` data source is disposed with the provider). |
+| `IExecutionContext` | **Scoped** (factory over the ambient context) | Resolves the context of the mediation in flight; `AmbientExecutionContext` remains for code outside DI. `HandledAt` is read once from the messaging `TimeProvider` when the mediation starts. |
+| `IUnitOfWork` | **Scoped** (self plus first-wins interface mapping) | Registered only when `UseUnitOfWork<T>` was called; each axis commits its own implementation. |
+| `IDomainEventCollector` | **Scoped** | Registered only when `OutboxModuleBuilder.StageCollectedEvents()` was called; one collector per mediation. |
+| `IFaultRefusalClassifier` entries | **Singleton** collection items | Must be stateless and thread-safe; consulted in registration order on fault paths only. |
+| In-memory / PostgreSQL stores | **Singleton instance** | Yes (in-memory uses locks/concurrent collections; PostgreSQL is stateless over `NpgsqlDataSource` and container-owned through `PostgreSqlDataSourceOwner<TModule>`, so a `UseConnectionString` data source is disposed with the provider). The PostgreSQL idempotency store and the Marten idempotency store are Singletons; the recurring PostgreSQL lease is a Singleton. |
 | EF Core stores | **Singleton** over `IDbContextFactory<TContext>` | Each operation creates its own `DbContext`. |
 | `ITransactionalInbox` / `ITransactionalOutbox` (+ generic) | **Scoped** | Bound to the caller's unit of work. |
 | Processor options records (`InboxProcessorOptions`, `OutboxProcessorOptions`, host/cleanup options) | **Singleton instances** captured from the builder | Treat as immutable after composition. |
@@ -197,7 +206,10 @@ Rules baked into the code:
 | `LiteBus.Messaging.Abstractions` | Handler contracts, pipeline value types, contracts, metadata, audit contracts, exceptions. |
 | `LiteBus.Messaging` | Registry, mediator, mediation strategies, pipeline runner, audit writer, serializer, shared durable processor machinery. |
 | `LiteBus.Commands[.Abstractions]`, `LiteBus.Queries[.Abstractions]`, `LiteBus.Events[.Abstractions]` | Semantic axes. |
-| `LiteBus.Commands.Recurring` | Recurring commands: a hosted loop sending one command on a fixed interval (`AddRecurring`, `RecurringCommandBackgroundService<TCommand>`). |
+| `LiteBus.Commands.Recurring` | Recurring commands: a hosted loop sending one command on a fixed interval (`AddRecurring`, `RecurringCommandBackgroundService<TCommand>`), with opt-in single-flight through `IRecurringCommandLease` (`RequireLease`/`LeaseName`). |
+| `LiteBus.Commands.Storage.PostgreSql` | PostgreSQL `IIdempotencyStore` for the command axis (`commands.UsePostgreSqlIdempotencyStore(...)`), with a versioned schema and the `idempotency.postgresql.schema` probe. |
+| `LiteBus.Commands.Recurring.Storage.PostgreSql` | PostgreSQL `IRecurringCommandLease` backed by a renewable lease row in `litebus_recurring_leases` (`commands.UsePostgreSqlRecurringLease(...)`), with the `recurring.postgresql.schema` probe. |
+| `LiteBus.Commands.Storage.Marten` | Marten command-axis storage: `MartenUnitOfWork` (scoped session commit), `MartenIdempotencyStore` (fingerprint claims as Marten documents), and `MartenAuditTrail` (success records staged in the handler session, other outcomes out of band). |
 | `LiteBus.{Commands,Queries,Events,Messaging}.Extensions.{Microsoft.DependencyInjection,Autofac}` | Empty reference-only install shells; one NuGet ID per semantic module. |
 | `LiteBus.Runtime.Abstractions`, `LiteBus.Runtime` | Modules, dependency descriptors, diagnostics, hosting manifest. |
 | `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | `AddLiteBus(this IServiceCollection, ...)`. |
@@ -212,11 +224,11 @@ Rules baked into the code:
 | `LiteBus.Transport.Abstractions`, `LiteBus.Transport`, `LiteBus.Transport.{InMemory,Amqp,Kafka,AwsSqs,AzureServiceBus}` | Broker-neutral transport plus adapters. |
 | `LiteBus.Storage.PostgreSql`, `LiteBus.Storage.EntityFrameworkCore` | Shared relational helpers (schema bootstrap, lease SQL, provider detection). |
 | `LiteBus.Saga[.Abstractions]`, `LiteBus.Saga.InboxIntegration`, `LiteBus.Saga.Storage.PostgreSql` | Saga orchestration. |
-| `LiteBus.Extensions.AspNetCore` | Operator management HTTP endpoints. |
+| `LiteBus.Extensions.AspNetCore` | Operator management HTTP endpoints, plus the idempotency-key endpoint filter (`WithIdempotencyKey`, `IdempotencyKeyGuard`, `MediationResult.ToHttpResult`). |
 | `LiteBus.Extensions.Diagnostics.HealthChecks` | `IHealthChecksBuilder.AddLiteBus(...)`. |
 | `LiteBus.Messaging.Extensions.OpenTelemetry`, `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, `LiteBus.Transport.Extensions.OpenTelemetry`, `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | OTel registration helpers. |
 | `LiteBus.Testing`, `LiteBus.Testing.Mediation`, `LiteBus.Testing.Hosting`, `LiteBus.Testing.Transport`, `LiteBus.Testing.DurableMessaging` | Test doubles and fixtures. |
-| `LiteBus.Analyzers` | Roslyn analyzers `LB1001`-`LB1022`. |
+| `LiteBus.Analyzers` | Roslyn analyzers `LB1001`-`LB1024` (`LB1002` and `LB1006` reserved, never shipped). |
 
 ---
 
@@ -324,18 +336,19 @@ var commandMediator = container.Resolve<ICommandMediator>();
 | `IAuditTrail` | only if `UseAuditTrail`/`UseAuditTrailInstance` was called | Lifetime passed to `UseAuditTrail<T>` (Scoped by default) / Singleton for an instance |
 | `IAuditActorResolver` | only when a `UseAuditActorResolver*` builder call was made | Lifetime passed to `UseAuditActorResolver` (Scoped by default) / Singleton for an instance; a missing resolver is not a composition failure |
 | `IAuditRecordWriter` | `AuditRecordWriter` factory | Scoped |
-| `IdempotencyKeyResolver` | Singleton instance over the registry metadata; the `IIdempotencyStore` itself is application-supplied and is not registered here | Singleton (instance) |
+| `IdempotencyKeyResolver` | Singleton instance over the registry metadata; the `IIdempotencyStore` itself is registered by the command storage packages or the application, not here | Singleton (instance) |
+| `IFaultRefusalClassifier` collection items | one `RegisterCollection`/`ForCollection` entry per `UseFaultRefusalClassifier` call | Singleton each; nothing is registered when the list is empty |
 | `IMessageMediator` | `MessageMediator` | Transient |
 | `LiteBusCompositionSummary` | Singleton instance shared via module context, filled in by a composition validation after every module has built | Singleton (instance) |
 | every newly discovered handler type | itself | Scoped |
 
-**`CommandModule`**: `ICommandMediator` -> `CommandMediator` (Transient); every handler type discovered in this module as Scoped; registers `AuditTrailDiagnosticCheck` (`litebus.audit.trail`) when `EnableAuditing()` was called.
+**`CommandModule`**: `ICommandMediator` -> `CommandMediator` (Transient); every handler type discovered in this module as Scoped; registers `AuditTrailDiagnosticCheck` (`litebus.audit.trail`) when `EnableAuditing()` was called; registers the `TUnitOfWork` type as itself plus a first-wins `IUnitOfWork` mapping (both Scoped) when `UseUnitOfWork<T>` was called; child modules registered through `RegisterChildModule` (the PostgreSQL idempotency store, the Marten idempotency store, the PostgreSQL recurring lease) build after the parent.
 
-**`QueryModule`**: same shape with `IQueryMediator` -> `QueryMediator`.
+**`QueryModule`**: same shape with `IQueryMediator` -> `QueryMediator`, including the `UseUnitOfWork<T>` registration; a different unit-of-work type per axis is allowed.
 
 **`EventModule`**: `IEventMediator` -> `EventMediator` (Transient) + handlers; registers `AuditTrailDiagnosticCheck` (`litebus.audit.trail`) when `EnableAuditing()` was called, including via `AddAuditing` selecting the events axis (`AuditingComposition.Events == true`, which calls `EnableAuditing()` for the caller).
 
-**`RecurringCommandModule<TCommand>`**: `Build` validates the host options (`ArgumentOutOfRangeException` on bad timing), registers the `RecurringCommandDeclaration<TCommand>` instance (Singleton), registers `RecurringCommandBackgroundService<TCommand>` as its own Transient type, and calls `configuration.RegisterBackgroundService(typeof(RecurringCommandBackgroundService<TCommand>))` so the loop runs on the host.
+**`RecurringCommandModule<TCommand>`**: `Build` validates the host options (`ArgumentOutOfRangeException` on bad timing, `ArgumentException` on a blank `LeaseName`), registers the `RecurringCommandDeclaration<TCommand>` instance (Singleton), registers `RecurringCommandBackgroundService<TCommand>` as its own Transient type, calls `configuration.RegisterBackgroundService(typeof(RecurringCommandBackgroundService<TCommand>))` so the loop runs on the host, and when `RequireLease` is set registers a composition validation that throws `LiteBusConfigurationException` when no `IRecurringCommandLease` is registered.
 
 **`InboxModule`** (composite, `ParentFirst`; children are storage, then dispatcher, then ingress, then feature bridges such as saga):
 
@@ -344,7 +357,8 @@ var commandMediator = container.Resolve<ICommandMediator>();
 | `IMessageContractRegistry`, `IContractReader` | the shared contract registry (idempotent re-registration) |
 | `InboxProcessorOptions` | instance from the builder |
 | `IInboxPayloadProtector` | only when `UsePayloadEncryption` was called |
-| `IInboxEnvelopeFactory` -> `InboxEnvelopeFactory` | Transient |
+| `IInboxEnvelopeFactory` -> `InboxEnvelopeFactory` | Transient; takes an optional `InboxEnvelopeOptions` carrying the ambient-trace opt-in |
+| `InboxEnvelopeOptions` | Singleton instance, only when `UseAmbientTrace()` was called |
 | `IInbox` -> `Inbox` | Transient |
 | `InboxCleanupHostOptions`, `InboxRetentionCoordinator` | instances |
 | `IInboxManager` -> `InboxManager` | Transient |
@@ -356,7 +370,7 @@ var commandMediator = container.Resolve<ICommandMediator>();
 
 `Build` throws `DurableStorageConfigurationException` when storage is missing, or when the processor is enabled without a dispatcher.
 
-**`OutboxModule`**: mirrors the inbox with `OutboxProcessorOptions`, `IOutboxPayloadProtector`, `IOutboxEnvelopeFactory`, `IOutbox`, `OutboxCleanupHostOptions`, `OutboxRetentionCoordinator`, `IOutboxManager`, `IOutboxProcessor`, `OutboxProcessorControl`, `OutboxProcessorHostOptions`, `OutboxProcessorBackgroundService`, `OutboxCleanupBackgroundService`, `OutboxObservableMetrics` + initializer, plus the supplied `IMessageContractResolver` as a Singleton instance when `OutboxModuleBuilder.UseContractResolver()` was called.
+**`OutboxModule`**: mirrors the inbox with `OutboxProcessorOptions`, `IOutboxPayloadProtector`, `IOutboxEnvelopeFactory`, `IOutbox`, `OutboxCleanupHostOptions`, `OutboxRetentionCoordinator`, `IOutboxManager`, `IOutboxProcessor`, `OutboxProcessorControl`, `OutboxProcessorHostOptions`, `OutboxProcessorBackgroundService`, `OutboxCleanupBackgroundService`, `OutboxObservableMetrics` + initializer, plus the supplied `IMessageContractResolver` as a Singleton instance when `OutboxModuleBuilder.UseContractResolver()` was called, plus one `OutboxEnqueueOptions` Singleton built from the `UseAmbientTrace` and `EnablePerHandlerDelivery` flags. `StageCollectedEvents()` registers the scoped `IDomainEventCollector` and an open-generic completion handler at `HandlerPriorities.Persistence` that drains the collector into `ITransactionalOutbox` when the mediation succeeded.
 
 ### 2.5 Direct instantiation without a DI container
 
@@ -691,7 +705,7 @@ Statics: `From(object, InboxAcceptMetadata?)`, `From(object, Type, InboxAcceptMe
 | `Message` | `TMessage` | none | **Yes** (`required`) | Typed message instance. |
 | `Metadata` | `InboxAcceptMetadata` | `InboxAcceptMetadata.Immediate` | No | Durable annotations. |
 
-Statics: `From(TMessage, InboxAcceptMetadata?)`, `ScheduledAt(TMessage, DateTimeOffset)`, `ScheduledAfter(TMessage, TimeSpan)`, `WithIdempotency(TMessage, string)`, `WithIdentity(TMessage, Guid)`, `WithCorrelation(TMessage, string)`, `WithTrace(TMessage, MessageTrace)`, `WithTenant(TMessage, string)`.
+Statics: `From(TMessage, InboxAcceptMetadata?)`, `FromAmbient(TMessage)`, `ScheduledAt(TMessage, DateTimeOffset)`, `ScheduledAfter(TMessage, TimeSpan)`, `WithIdempotency(TMessage, string)`, `WithIdentity(TMessage, Guid)`, `WithCorrelation(TMessage, string)`, `WithTrace(TMessage, MessageTrace)`, `WithTenant(TMessage, string)`. `FromAmbient` stamps `Trace` from `MessageTrace.FromAmbient()` over `Immediate` metadata; outside a mediation the item equals `From(message)`.
 
 #### `OutboxEnqueueItem` (sealed record, untyped)
 
@@ -710,7 +724,7 @@ Statics: `From(object)`, `From(object, Type)`, `From(object, Type, OutboxEnqueue
 | `Message` | `TEvent` | none | **Yes** (`required`) | Typed event. |
 | `Metadata` | `OutboxEnqueueMetadata` | `OutboxEnqueueMetadata.Immediate` | No | Durable annotations. |
 
-Statics: `From(TEvent)`, `From(TEvent, OutboxEnqueueMetadata)`, `ScheduledAt`, `ScheduledAfter`, `WithIdempotency`, `WithIdentity`, `WithTopic(TEvent, string)`.
+Statics: `From(TEvent)`, `From(TEvent, OutboxEnqueueMetadata)`, `FromAmbient(TEvent)`, `ScheduledAt`, `ScheduledAfter`, `WithIdempotency`, `WithIdentity`, `WithTopic(TEvent, string)`. `FromAmbient` stamps `Trace` from `MessageTrace.FromAmbient()` over `Immediate` metadata; outside a mediation the item equals `From(message)`.
 
 #### `InboxReceipt` / `InboxReceipt<TMessage>` (sealed records)
 
@@ -783,6 +797,7 @@ Identical to `InboxEnvelope` except for these members:
 | Property Name | Data Type | Default Value | Required? | Description & Impact |
 | --- | --- | --- | --- | --- |
 | `Topic` | `string?` | `null` | No | `topic`; explicit publication destination, used when no `ITenantRoutingStrategy` and no `ResolveRoute` delegate is configured. Route precedence is tenant strategy, then `ResolveRoute`, then `Topic`, then the contract name. Indexed where not null. |
+| `Handler` | `string?` | `null` | No | `handler`; full name of the single event handler this envelope is addressed to when per-handler delivery wrote it, or null for a broadcast envelope published to every subscribed handler. Participates in strict idempotency comparison on all three stores. |
 | `Status` | `OutboxStatus` | none | **Yes** (`required`) | `Pending` / `Publishing` / `Published` / `Failed` / `DeadLettered`. |
 | `PublishedAt` | `DateTimeOffset?` | `null` | No | `published_at`; retention cutoff column. |
 
@@ -906,7 +921,36 @@ Identical members; `TableName` defaults to `"litebus_outbox_messages"`.
 | `ValidateSchemaCreationOnStartup` | `bool` | `false` | No | **Off by default**, unlike the inbox and outbox options. |
 | `MetadataSchemaName`, `MetadataTableName`, `Logger`, `ValidateIndexesOnStartup` | inherited | see base | No | Schema metadata settings. |
 
-#### `IPostgreSqlStoreTableOptions` (interface implemented by the three PostgreSQL option records)
+#### `PostgreSqlIdempotencyStoreOptions` (sealed record : `PostgreSqlSchemaStoreOptions`, `IPostgreSqlStoreTableOptions`)
+
+| Property Name | Data Type | Default Value | Required? | Description & Impact |
+| --- | --- | --- | --- | --- |
+| `SchemaName` | `string` | `"public"` | No | Schema containing the idempotency keys table. |
+| `TableName` | `string` | `"litebus_idempotency_keys"` | No | Idempotency keys table. |
+| `ClaimTimeout` | `TimeSpan` | `5 minutes` | No | How long an unsettled claim blocks its key before a new caller takes it over, measured on the database clock. Keep it longer than the slowest mediation claiming through the store. |
+| `EnsureSchemaCreationOnStartup` | `bool` | `true` | No | Startup task creates the schema. |
+| `ValidateSchemaCreationOnStartup` | `bool` | `false` | No | **Off by default**, like the saga options. |
+| `MetadataSchemaName`, `MetadataTableName`, `Logger`, `ValidateIndexesOnStartup` | inherited | see base | No | Schema metadata settings. |
+
+#### `PostgreSqlRecurringLeaseOptions` (sealed record : `PostgreSqlSchemaStoreOptions`, `IPostgreSqlStoreTableOptions`)
+
+| Property Name | Data Type | Default Value | Required? | Description & Impact |
+| --- | --- | --- | --- | --- |
+| `SchemaName` | `string` | `"public"` | No | Schema containing the recurring leases table. |
+| `TableName` | `string` | `"litebus_recurring_leases"` | No | Recurring leases table. |
+| `LeaseDuration` | `TimeSpan` | `30 seconds` | No | How long one acquisition holds the lease before it must be renewed, measured on the database clock. Must be positive. Bounds how long a crashed holder blocks the loop. |
+| `RenewInterval` | `TimeSpan?` | `null` (meaning one third of `LeaseDuration`) | No | How often a held lease is renewed while its handle is alive. `EffectiveRenewInterval` resolves the value the loop uses. `Validate()` rejects a zero or negative duration or effective interval. |
+| `EnsureSchemaCreationOnStartup` | `bool` | `true` | No | Startup task creates the schema. |
+| `ValidateSchemaCreationOnStartup` | `bool` | `false` | No | **Off by default**, like the saga options. |
+| `MetadataSchemaName`, `MetadataTableName`, `Logger`, `ValidateIndexesOnStartup` | inherited | see base | No | Schema metadata settings. |
+
+#### `MartenIdempotencyStoreOptions` (sealed class, from `LiteBus.Commands.Storage.Marten`)
+
+| Property Name | Data Type | Default Value | Required? | Description & Impact |
+| --- | --- | --- | --- | --- |
+| `ClaimTimeout` | `TimeSpan` | `5 minutes` | No | How long an unsettled claim blocks its key before another claimant takes it over. Must be positive; `Validate()` rejects zero or negative. Settable so the `UseMartenIdempotencyStore` configure action can assign it. |
+
+#### `IPostgreSqlStoreTableOptions` (interface implemented by the five PostgreSQL option records)
 
 | Member | Data Type | Description & Impact |
 | --- | --- | --- |
@@ -1311,7 +1355,9 @@ Both attributes implement `IMessageDeclarationSource` with `DeclarationType => t
 | `Action` | `string` | constructor | **Yes** | Non-blank; `ArgumentException` otherwise. |
 | `Category` | `string?` | `null` | No | Grouping. |
 | `TargetKind` | `string?` | `null` | No | Resource kind. |
-| `ReasonRequired` | `bool` | `false` | No | Enforced at write time. |
+| `ReasonRequired` | `bool` | `false` | No | Enforced at write time against the final resolved reason. |
+| `TargetSelector` | `Func<object, string?>?` | `null` | No | Projection from the message to the target id, set through `WithTargetFrom<TMessage>`; used only when `IAuditScope` did not supply the target. A null or blank result means no target. |
+| `ReasonSelector` | `Func<object, string?>?` | `null` | No | Projection from the message to the reason, set through `WithReasonFrom<TMessage>`; used only when `IAuditScope` and the pipeline decision reason are both silent. A null or blank result means no reason. |
 | `IsAudited` | `bool` (override) | `true` | - | Discriminates from `AuditExemptDeclaration`. |
 
 #### `AuditExemptDeclaration` (sealed record : `AuditDeclaration`)
@@ -1334,8 +1380,8 @@ Factories: `AuditDeclaration.Audited(string action)` and `AuditDeclaration.Exemp
 | `Duration` | `TimeSpan` | `TimeSpan.Zero` | No | Mediation duration from the completion context. |
 | `Category` | `string?` | `null` | No | From the declaration. |
 | `TargetKind` | `string?` | `null` | No | From the declaration. |
-| `TargetId` | `string?` | `null` | No | From `IAuditScope.WithTarget`. |
-| `Reason` | `string?` | `null` | No | `IAuditScope.Reason` when set, otherwise the pipeline decision reason. |
+| `TargetId` | `string?` | `null` | No | From `IAuditScope.WithTarget`, otherwise the declaration `TargetSelector` when one is declared and yields a value. |
+| `Reason` | `string?` | `null` | No | `IAuditScope.Reason` when set, otherwise the pipeline decision reason, otherwise the declaration `ReasonSelector` when one is declared and yields a value. |
 | `FailureCode` | `string?` | `null` | No | From `IAuditOutcomeMapper.MapFailureCode`; the refusal's own `Code` for a `Denied` or `Invalid` outcome, otherwise the exception type name, and `null` for an uncoded refusal. A shortcut's code is excluded, because an answered mediation is a success. |
 | `MessageType` | `string?` | `null` | No | `messageType.FullName`. |
 | `CorrelationId` | `string?` | `null` | No | Read from execution-context item `__LiteBus.Trace.CorrelationId`. |
@@ -1362,6 +1408,36 @@ AuditActor.User(account.Id.ToString()) with { DisplayName = account.Email };
 ```
 
 `Kind` stays a string rather than an enumeration. The set of things that can act belongs to the application, and an application with a closed set keeps that set closed at the point it constructs the actor: a switch over its own union returning an `AuditActor` keeps the type system where it earns its place and leaves the record shape open, which is the shape a SIEM schema expects.
+
+#### `AuthorizedAttribute` (sealed, `AttributeTargets.Class | AttributeTargets.Struct`, `Inherited = false`)
+
+| Property Name | Data Type | Default Value | Required? | Description & Impact |
+| --- | --- | --- | --- | --- |
+| `Policy` | `string` | constructor argument | **Yes** | Application policy the message requires authorization under, for example `vaults.open`. Blank is rejected when the declaration is created. |
+
+#### `AuthorizationExemptAttribute` (sealed, `AttributeTargets.Class | AttributeTargets.Struct`, `Inherited = false`)
+
+| Property Name | Data Type | Default Value | Required? | Description & Impact |
+| --- | --- | --- | --- | --- |
+| `Rationale` | `string` | constructor argument | **Yes** | Non-blank; `ArgumentException` otherwise. Recorded reason the message needs no authorization. |
+
+Both attributes implement `IMessageDeclarationSource` with `DeclarationType => typeof(AuthorizationDeclaration)`. `AuthorizationExemptAttribute` also implements `IMessageDeclarationExemptionSource`, so it records the same `DeclarationExemption` that `[DeclarationExempt(typeof(AuthorizationDeclaration), rationale)]` records.
+
+#### `AuthorizedDeclaration` (sealed record : `AuthorizationDeclaration`)
+
+| Property Name | Data Type | Default Value | Required? | Description & Impact |
+| --- | --- | --- | --- | --- |
+| `Policy` | `string` | constructor | **Yes** | Non-blank; `ArgumentException` otherwise. |
+| `RequiresAuthorization` | `bool` (override) | `true` | - | Discriminates from `AuthorizationExemptDeclaration`. |
+
+#### `AuthorizationExemptDeclaration` (sealed record : `AuthorizationDeclaration`)
+
+| Property Name | Data Type | Default Value | Required? | Description & Impact |
+| --- | --- | --- | --- | --- |
+| `Rationale` | `string` | constructor | **Yes** | Non-blank. |
+| `RequiresAuthorization` | `bool` (override) | `false` | - | - |
+
+Factories: `AuthorizationDeclaration.Authorized(string policy)` and `AuthorizationDeclaration.Exempt(string rationale)`. The base constructor is `internal`, so the hierarchy is closed to these two positions. `IAuthorizationDefinition<TMessage>` is the keyed definition shape (`AuthorizationDeclaration Authorization { get; }`), and `IMessageDeclarations.Authorized(policy)` / `AuthorizationExempt(rationale)` are the `Describe` helpers; `AuthorizationExempt` records both the declaration and the exemption, exactly as `NotAudited` does. LiteBus carries the position and never evaluates the policy; an application guard reads it through `IMessageMetadataAccessor`, and `RequireDeclaration<AuthorizationDeclaration>()` plus `LB1020` enforce that every message states one.
 
 ### 3.12 Contracts, metadata and payload protection
 
@@ -1420,6 +1496,8 @@ AuditActor.User(account.Id.ToString()) with { DisplayName = account.Email };
 | `UseAuditOutcomeMapper` | `(IAuditOutcomeMapper) -> MessageModuleBuilder` | Overrides `DefaultAuditOutcomeMapper`. |
 | `UseAuditOutcomeMapper<T>` | `() -> MessageModuleBuilder`, `T : IAuditOutcomeMapper, new()` | Constructs and registers the mapper. |
 | `AddAuditing` | `(Action<AuditingBuilder>) -> MessageModuleBuilder` | Configures the whole auditing feature in one call, including axis selection. **The path to take**; the per-axis primitives above are what it composes. |
+| `UseFaultRefusalClassifier<TClassifier>` | `() -> MessageModuleBuilder`, `TClassifier : class, IFaultRefusalClassifier` | Registers a container-constructed classifier as a Singleton collection item; several allowed, first match wins. |
+| `UseFaultRefusalClassifierInstance` | `(IFaultRefusalClassifier) -> MessageModuleBuilder` | Pre-created classifier, necessarily a **Singleton**; the overload for a configured classifier such as one built over a constraint map. |
 | `RequireDeclaration<TValue>` | `() -> MessageModuleBuilder` | Every message must state a position on `TValue`. Unscoped, so it applies to commands, queries and events alike. That is usually too wide. |
 | `RequireDeclaration<TValue, TScope>` | `() -> MessageModuleBuilder` | Only messages assignable to `TScope` must declare. **The form to reach for.** |
 | `RequireDeclaration<TValue>` | `(Func<Type, bool> scope, string scopeDescription) -> MessageModuleBuilder` | Predicate scope, with a description used in the failure message. |
@@ -1439,6 +1517,11 @@ AuditActor.User(account.Id.ToString()) with { DisplayName = account.Email };
 | `Contracts` | `IContractWriter` for durable command/query contracts. |
 | `EnableAuditing()` | Registers `CommandAuditCompletionHandler` / `QueryAuditCompletionHandler` (priority `HandlerPriorities.Observability`) and the `litebus.audit.trail` diagnostic probe. On every axis the `AddAuditing` selection on the messaging module implies the same call at build time. |
 | `EnableIdempotency()` | Commands only. Registers `IdempotentCommandShortcut<>` and `IdempotentCommandShortcut<,>`, `IdempotencyCompletionHandler` (priority `HandlerPriorities.Persistence`), and the `litebus.idempotency.store` probe. |
+| `UseUnitOfWork<TUnitOfWork>()` | Both axes. Registers `TUnitOfWork` (`class, IUnitOfWork`) as itself plus a first-wins `IUnitOfWork` mapping (both Scoped) and a completion handler at `HandlerPriorities.UnitOfWork` that calls `CommitAsync` only when the mediation completed successfully. A second call on one builder throws `LiteBusConfigurationException`. |
+| `UsePostgreSqlIdempotencyStore(...)` | Commands only, from `LiteBus.Commands.Storage.PostgreSql`. Registers the PostgreSQL `IIdempotencyStore` child module: `UseDataSource` / `UseConnectionString` (one required), `UseOptions(PostgreSqlIdempotencyStoreOptions)`, `DisableSchemaInitialization()`. |
+| `UseMartenUnitOfWork()` | Commands only, from `LiteBus.Commands.Storage.Marten`. Delegates to `UseUnitOfWork<MartenUnitOfWork>`; query mediations reuse the same session by calling the query `UseUnitOfWork` hook with `MartenUnitOfWork` directly. |
+| `UseMartenIdempotencyStore(...)` | Commands only, from `LiteBus.Commands.Storage.Marten`. Registers the Marten `IIdempotencyStore` child module with an optional `Action<MartenIdempotencyStoreOptions>` configure action. |
+| `UsePostgreSqlRecurringLease(...)` | Commands only, from `LiteBus.Commands.Recurring.Storage.PostgreSql`. Registers the PostgreSQL `IRecurringCommandLease` child module: `UseDataSource` / `UseConnectionString` (one required), `UseOptions(PostgreSqlRecurringLeaseOptions)`, `DisableSchemaInitialization()`. |
 | `Register<T>()` / `Register(Type)` | Validates that the type is a command/query construct, otherwise throws `LiteBusNotSupportedException`. |
 | `RegisterFromAssembly(Assembly)` | Registers every concrete, non-abstract command/query construct found. |
 | `RegisterChildModule(IModule)` | Commands only. Declares a child module owned by `CommandModule`, which is the seam feature packages compose through. |
@@ -1465,6 +1548,8 @@ A **query construct** mirrors that list with `IQueryHandler<,>`, `IQueryPreHandl
 | `StartupDelay` | `TimeSpan` | `TimeSpan.Zero` | No | Delay after host start before the first send; stagger across loops sharing a database. Must not be negative. |
 | `ErrorBackoff` | `TimeSpan` | `5 minutes` | No | Delay after a send throws, used instead of `Interval`. Must be positive. |
 | `IsConcurrencyConflict` | `Func<Exception, bool>?` | `IsConcurrencyConflictByTypeName` | No | A send classified as a conflict is logged at Information and followed by `Interval` rather than `ErrorBackoff`. Set to `null` to treat every exception as a failure. |
+| `RequireLease` | `bool` | `false` | No | When true, each pass acquires the named `IRecurringCommandLease` before sending; a pass that cannot acquire it is skipped at Debug (EventId 2105) and the loop waits `Interval`. Composition fails when no lease is registered. One lease covers the whole `HasMoreWork` busy period. |
+| `LeaseName` | `string?` | `null` (meaning the command type full name) | No | The lease name acquired before each pass. Loops sharing a name single-flight against each other. A blank value throws `ArgumentException` from `Validate()`. |
 
 `IsConcurrencyConflictByTypeName(Exception)` returns `true` when the exception, an inner exception, or an `AggregateException` inner exception has a type name ending in `ConcurrencyException`, which recognizes EF Core `DbUpdateConcurrencyException` and Marten `ConcurrencyException` without persistence references. `Validate()` throws `ArgumentOutOfRangeException` when `Interval` or `ErrorBackoff` is zero or negative, or `StartupDelay` is negative; it is called by both the module `Build` and the background service at startup.
 
@@ -1489,13 +1574,14 @@ A **query construct** mirrors that list with `IQueryHandler<,>`, `IQueryPreHandl
 | `RegisterIngress(IInboxIngressModule)` | fluent | - | Exactly one; a second call throws. |
 | `RegisterSaga(IModule)` | fluent | - | Adds a feature-bridge child module; used by `EnableSaga`. |
 | `UsePayloadEncryption(IPayloadEncryptor)` | fluent | - | Registers `IInboxPayloadProtector`. |
+| `UseAmbientTrace()` | fluent | off | Stamps accepted envelopes that carry no explicit trace with `MessageTrace.FromAmbient()`; reported by `IsAmbientTraceEnabled`. |
 | `AddDiagnosticCheck<TCheck>(string name)` | fluent, `TCheck : IDiagnosticCheck` | - | Adds a consumer-owned probe (Singleton) to the host manifest. |
 | `CollectSubModules()` | `IReadOnlyList<IModule>` | - | Order: storage, dispatcher, ingress, feature bridges. |
 | `ApplyContracts(IMessageContractRegistry)` | `void` | - | Replays deferred contract registrations. |
 
 #### `OutboxModuleBuilder`
 
-Same shape minus ingress, saga and `IsPayloadEncryptionConfigured`, with `EnableOutboxProcessor` and `IsOutboxProcessorEnabled`, plus `UseContractResolver(IMessageContractResolver)` (outbox only): registers the resolver instance as the `IMessageContractResolver` the outbox envelope factory consults during enqueue, so the declared parameter type can drive contract selection instead of the runtime instance type. When none is registered writers use the runtime message instance type. `LiteBus.Messaging.DeclaredTypeMessageContractResolver` is the shipped implementation and returns the declared type. `ProcessorOptions` returns the stored options `with { HookFailurePolicy = dispatcherModule.DefaultHookFailurePolicy }` when `HookFailurePolicy` is unset and a dispatcher is registered, independent of registration order and of whether `UseProcessorOptions` was called; a caller-set value wins. Transport dispatch modules report `CompleteDespiteHookFailure`; the in-process dispatcher inherits the `DeadLetter` default. The recommendation lives on `IOutboxDispatcherModule : IModule` as a default interface member (`DeadLetter`); only `TransportOutboxDispatchModule<TTransportModule>` overrides it, to `CompleteDespiteHookFailure`. `IOutboxStorageModule : IModule` is a memberless marker for `RegisterStorage`. Overriding the transport default with `DeadLetter` dead-letters a message the broker already accepted, so after replay the message is re-leased and published a second time.
+Same shape minus ingress, saga and `IsPayloadEncryptionConfigured`, with `EnableOutboxProcessor` and `IsOutboxProcessorEnabled`, plus `UseContractResolver(IMessageContractResolver)` (outbox only): registers the resolver instance as the `IMessageContractResolver` the outbox envelope factory consults during enqueue, so the declared parameter type can drive contract selection instead of the runtime instance type. When none is registered writers use the runtime message instance type. `UseAmbientTrace()` stamps enqueued envelopes that carry no explicit trace with `MessageTrace.FromAmbient()`. `EnablePerHandlerDelivery()` writes one envelope per subscribed main handler of an event, recorded on `OutboxEnvelope.Handler`. `StageCollectedEvents()` registers the scoped `IDomainEventCollector` plus the staging completion handler at `HandlerPriorities.Persistence`. `LiteBus.Messaging.DeclaredTypeMessageContractResolver` is the shipped implementation and returns the declared type. `ProcessorOptions` returns the stored options `with { HookFailurePolicy = dispatcherModule.DefaultHookFailurePolicy }` when `HookFailurePolicy` is unset and a dispatcher is registered, independent of registration order and of whether `UseProcessorOptions` was called; a caller-set value wins. Transport dispatch modules report `CompleteDespiteHookFailure`; the in-process dispatcher inherits the `DeadLetter` default. The recommendation lives on `IOutboxDispatcherModule : IModule` as a default interface member (`DeadLetter`); only `TransportOutboxDispatchModule<TTransportModule>` overrides it, to `CompleteDespiteHookFailure`. `IOutboxStorageModule : IModule` is a memberless marker for `RegisterStorage`. Overriding the transport default with `DeadLetter` dead-letters a message the broker already accepted, so after replay the message is re-leased and published a second time.
 
 #### Storage builders
 
@@ -1719,6 +1805,8 @@ When the non-generic `SendAsync(ICommand)` or `TrySendAsync(ICommand)` receives 
 
 `NoHandlerFoundException` and `MultipleHandlerFoundException` name the runtime message type, not the compile-time type the call erased to `ICommand`, `IQuery` or `IEvent`.
 
+**Unit of work.** `CommandModuleBuilder.UseUnitOfWork<TUnitOfWork>()` (`TUnitOfWork : class, IUnitOfWork`) commits the application unit of work once per mediation that ended `Succeeded`, from a completion handler at `HandlerPriorities.UnitOfWork`; a denied, invalid, shortcut-answered, faulted or cancelled mediation commits nothing, and a shortcut answer does not commit even though `MediationResult.IsSuccess` reports it as a success. The application supplies the commit through `IUnitOfWork.CommitAsync(CancellationToken)`; LiteBus never opens a transaction. The completion stage is not cancellable, so the token is `CancellationToken.None`. A throwing commit propagates to the caller after a success. Query mediations commit through the same `UseUnitOfWork` hook on `QueryModuleBuilder`, and each axis commits its own implementation when the two name different types.
+
 #### Recurring commands - `LiteBus.Commands.Recurring`
 
 ```csharp
@@ -1733,13 +1821,15 @@ registry.AddCommands(commands => commands
         }));
 ```
 
-This is a poll loop, not a scheduler: no cron expression, no wall-clock alignment, no missed-run catch-up, and no notion of a run that was due while the host was down. LiteBus has no leader election, so the loop runs concurrently on every host instance; that suits a command that drains work by leasing rows, where the store arbitrates between instances, and it does not suit a command that assumes it is the only one running. Each registration gets its own loop and its own options, and `AddRecurring` registers `TCommand` with the parent command builder, so calling only this method is enough for the loop to send. A `TCommand` implementing more than one `ICommand<>` contract fails composition with `LiteBusConfigurationException`, because a recurring command must declare at most one result type.
+This is a poll loop, not a scheduler: no cron expression, no wall-clock alignment, no missed-run catch-up, and no notion of a run that was due while the host was down. By default the loop runs concurrently on every host instance; that suits a command that drains work by leasing rows, where the store arbitrates between instances, and it does not suit a command that assumes it is the only one running. Each registration gets its own loop and its own options, and `AddRecurring` registers `TCommand` with the parent command builder, so calling only this method is enough for the loop to send. A `TCommand` implementing more than one `ICommand<>` contract fails composition with `LiteBusConfigurationException`, because a recurring command must declare at most one result type.
 
 `RecurringCommandDeclaration<TCommand>` (`where TCommand : notnull`) is the registered intent: constructor `(Func<TCommand> commandFactory, RecurringCommandHostOptions hostOptions)` (both throw `ArgumentNullException` when null), get-only `Func<TCommand> CommandFactory` called once per pass so a timestamp or fresh identifier is new each time, and get-only `RecurringCommandHostOptions HostOptions`. It is registered as a singleton so each loop resolves its own factory and options. `RecurringCommandModule<TCommand>` (`IModule`, `IRequires<CommandModule>`, constructor `(RecurringCommandDeclaration<TCommand> declaration)`) is composed as a child of `CommandModule` inside `AddCommands`, so the loop cannot be registered without the axis that mediates it; its `Build` validates the host options, registers the declaration as a singleton instance and the background service as its own transient type, and calls `RegisterBackgroundService`.
 
 `RecurringCommandBackgroundService<TCommand>` (`IBackgroundService`) takes `(RecurringCommandDeclaration<TCommand> declaration, IMessageDispatchScopeFactory scopeFactory, TimeProvider timeProvider, ILogger<RecurringCommandBackgroundService<TCommand>>? logger = null)`; the first three throw `ArgumentNullException` when null, a null logger becomes `NullLogger.Instance`, and all delays use the injected `TimeProvider`. `ExecuteAsync` validates the options, returns after logging when `Enabled` is false, resolves `ICommandMediator` once from a scope (throwing `LiteBusDependencyResolutionException` naming `ICommandMediator` when missing), waits `StartupDelay`, then loops: a pass reporting more work resends immediately, an `OperationCanceledException` under shutdown returns, a conflict-classified exception logs at Information and waits `Interval`, and any other exception logs at Error and waits `ErrorBackoff`. An exception never escapes the loop. Each pass builds a fresh command from the factory and opens its own dispatch scope through the mediator; the result-bearing `ICommand<>` contract is tested before the plain `ICommand` cast (a result would otherwise be thrown away), and a `TCommand` implementing neither throws `InvalidOperationException` naming the type.
 
 A result implementing `IRecurringWorkReport` (`bool HasMoreWork { get; }`) tells the loop to send again immediately instead of waiting out `Interval`, which clears a backlog in one busy period rather than one batch per interval. Commands with no result, or a result not implementing it, wait the full interval. The usual implementation reports true when the batch came back full.
+
+**Single-flight across replicas.** `RecurringCommandHostOptions.RequireLease` (default false) takes a named lease before each pass through `IRecurringCommandLease.TryAcquireAsync(leaseName, ct)`, which returns a releasing `IAsyncDisposable` handle or null when another instance holds the name; `LeaseName` (default null, meaning the command type full name) names the lease, and loops sharing a name single-flight against each other. A pass that cannot acquire the lease is skipped at Debug (EventId 2105 `LeaseSkipped`) and the loop waits `Interval`. One lease covers the whole busy period: immediate re-sends reuse the acquired lease, which is released before the loop waits and on shutdown unwind; a release failure is treated as a pass failure (logged, then `ErrorBackoff`) and never escapes the loop. Composition fails when `RequireLease` is set and no lease is registered, and the loop throws `LiteBusDependencyResolutionException` at startup in the same case. `LiteBus.Commands.Recurring.Storage.PostgreSql` ships `PostgreSqlRecurringCommandLease` over a renewable lease row in `litebus_recurring_leases`, registered with `commands.UsePostgreSqlRecurringLease(...)` and configured by `PostgreSqlRecurringLeaseOptions` (`LeaseDuration` 30 seconds by default, `RenewInterval` one third of it by default, both on the database clock, holder renewed in the background while the pass runs, no connection held between statements so the lease works behind a transaction-mode PgBouncer). The schema is versioned (component `recurring`, version 1) and created at host startup, with the `recurring.postgresql.schema` probe; renewal logs EventId 2110 once when the lease is stolen and 2111 when renewal fails. A custom lease registers through a child module on `CommandModuleBuilder` so composition can see it.
 
 ### 4.2 Queries and stream queries
 
@@ -1864,11 +1954,13 @@ await eventMediator.PublishAsync(new OrderPlaced(id, total), new EventMediationS
 
 **Edge cases.** With `ThrowIfNoHandlerFound = false` (the default) an event with no handlers completes silently. `AutoRegisterUnregisteredMessageTypes = true` lets an event type that was never registered be added to the registry during the publish; without it, the mediator throws `NoHandlerFoundException` for an unknown type. `IEventHandler<in TEvent>` only constrains `TEvent : notnull`, so plain POCO events work, and the guard, validator, shortcut, pre-handler, post-handler, error-handler and completion-handler roles constrain `TEvent : notnull` too, so an unmarked event passes through every pipeline stage like a marked one.
 
+**One class for several events.** `IMessageHandler` is a memberless marker, so one class may implement several closed handler contracts such as `IEventHandler<OrderRefundSucceeded>` and `IEventHandler<OrderRefundSettled>`; each registration carries its own closed contract on its descriptor and the mediator calls each through the contract it names with the mediation cancellation token. A handler whose descriptor message type equals the strategy message type takes the typed fast path; any other is dispatched through its descriptor contract (open contracts closed over the runtime type).
+
 ### 4.4 Pipeline stage semantics
 
 #### Main handlers - `IMessageHandler`
 
-The messaging-level contracts form a synchronous core with async shells. Non-generic `IMessageHandler` declares `object Handle(object message)`; `IMessageHandler<in TMessage, out TMessageResult> : IMessageHandler` declares `TMessageResult Handle(TMessage message)` with a default `object`-`Handle` that casts to `TMessage`. `IAsyncMessageHandler<in TMessage> : IMessageHandler<TMessage, Task>` declares `Task HandleAsync(TMessage message, CancellationToken cancellationToken = default)`, `IAsyncMessageHandler<in TMessage, TMessageResult> : IMessageHandler<TMessage, Task<TMessageResult>>` declares `Task<TMessageResult> HandleAsync(...)`, and `IStreamMessageHandler<in TMessage, out TMessageResult> : IMessageHandler<TMessage, IAsyncEnumerable<TMessageResult>>` (`where TMessage : notnull`) declares `IAsyncEnumerable<TMessageResult> StreamAsync(TMessage message, CancellationToken cancellationToken = default)`; each default `Handle` bridges to its async member through `AmbientExecutionContext.Current.CancellationToken`. Axis handler contracts (`ICommandHandler<>`, `IQueryHandler<,>`, `IEventHandler<>` and the rest) derive from these, so a command handler is an async message handler the pipeline invokes through the closed contract recorded in its descriptor.
+Non-generic `IMessageHandler` is a memberless marker, the base of every closed main handler contract. `IMessageHandler<in TMessage, out TMessageResult> : IMessageHandler` declares `TMessageResult Handle(TMessage message)`; `IAsyncMessageHandler<in TMessage> : IMessageHandler<TMessage, Task>` declares `Task HandleAsync(TMessage message, CancellationToken cancellationToken = default)`, `IAsyncMessageHandler<in TMessage, TMessageResult> : IMessageHandler<TMessage, Task<TMessageResult>>` declares `Task<TMessageResult> HandleAsync(...)`, and `IStreamMessageHandler<in TMessage, out TMessageResult> : IMessageHandler<TMessage, IAsyncEnumerable<TMessageResult>>` (`where TMessage : notnull`) declares `IAsyncEnumerable<TMessageResult> StreamAsync(TMessage message, CancellationToken cancellationToken = default)`. Axis handler contracts (`ICommandHandler<>`, `IQueryHandler<,>`, `IEventHandler<>` and the rest) derive from these. The mediator invokes each main handler through the closed contract recorded on its descriptor with the mediation cancellation token: a handler whose descriptor message type equals the strategy message type takes the typed fast path, and any other is dispatched through its descriptor contract with open contracts closed over the runtime type, so one class implementing several closed handler contracts has each registration called through the contract it names.
 
 #### Guards - `IMessageGuard<in TMessage>` (`PreStage.Guard`)
 
@@ -1885,6 +1977,8 @@ public sealed class RequireSecondApproverGuard : ICommandGuard<ProcessPaymentCom
 ```
 
 `Verdict` is a readonly struct: `Verdict.Allow` (the `default`), `Verdict.Deny(string reason, string? code = null)` (reason must be non-blank or `ArgumentException`), `IsDenied`, `Reason`, `Code`, value equality and `==`/`!=`. A denial stops at the first guard, reports `MediationOutcome.Denied`, does **not** reach error handlers, and reaches completion handlers. The stopping decision records the denying guard on `PipelineDecision.DecidedBy`, and without a refusal mapper it reaches the caller as `LiteBusMessageDeniedException.DeniedBy` and in the exception message.
+
+`DeclarationGuard<TMessage, TValue> : IMessageGuard<TMessage>` (`TValue : class`) is the abstract base for a guard enforcing one declared metadata value: constructed with an `IMessageMetadataAccessor`, its public `DecideAsync(message, ct)` reads the runtime message type (so an open generic guard closed over a base type enforces the concrete message declaration), passes a declared value to the abstract `DecideAsync(declaration, message, ct)`, allows a recorded exemption without calling it, and otherwise calls the virtual `DecideUndeclaredAsync`, which denies with code `UndeclaredCode` (`declaration.missing`) and reason `The message '{Message}' declares no '{ValueType}'.` unless overridden. `AuthorizationGuard<TMessage> : DeclarationGuard<TMessage, AuthorizationDeclaration>` seals the decision so an exempt message allows and an authorized one delegates to the abstract `AuthorizeAsync(policy, message, ct)`; LiteBus carries the policy and never evaluates it.
 
 #### Validators - `IMessageValidator<in TMessage>` (`PreStage.Validator`)
 
@@ -1942,11 +2036,11 @@ public sealed class CachedTotalShortcut : IQueryShortcut<GetCartTotalQuery, Mone
 }
 ```
 
-`Shortcut`: `None` (the `default`), `Answer(string? reason = null, string? code = null)`, `IsAnswered`, `Reason`, `Code`. `Shortcut<TMessageResult>`: `None`, `Answer(TMessageResult result, string? reason = null, string? code = null)`, `IsAnswered`, `Result`, `Reason`, `Code`. `Code` means the same thing on all three decision shapes and on `Verdict`: something a later stage can switch on, where `Reason` is prose written for a person. It reaches `MessageCompletionContext.Code`, the audit record, and the mediation telemetry tag. Both are readonly structs with value equality. The first answering shortcut stops the stage, reports `MediationOutcome.Answered`, and (for the untyped contract on a result-producing message) raises `PipelineContractException` because the untyped answer cannot carry a value.
+`Shortcut`: `None` (the `default`), `Answer(string? reason = null, string? code = null)`, `Deny(string reason, string? code = null)` (reason must be non-blank or `ArgumentException`), `IsAnswered`, `IsDenied`, `Reason`, `Code`. `Shortcut<TMessageResult>`: `None`, `Answer(TMessageResult result, string? reason = null, string? code = null)`, `Deny(string reason, string? code = null)` carrying no result, `IsAnswered`, `IsDenied`, `Result`, `Reason`, `Code`. `Code` means the same thing on all three decision shapes and on `Verdict`: something a later stage can switch on, where `Reason` is prose written for a person. It reaches `MessageCompletionContext.Code`, the audit record, and the mediation telemetry tag. Both are readonly structs with value equality covering `IsDenied`. The first answering shortcut stops the stage, reports `MediationOutcome.Answered`, and (for the untyped contract on a result-producing message) raises `PipelineContractException` because the untyped answer cannot carry a value. A denying shortcut ends the mediation exactly as a guard denial does: `TrySendAsync` returns `Denied`, `SendAsync` throws `LiteBusMessageDeniedException` naming the shortcut in `DeniedBy`, completion handlers and the audit record observe the denial, error handlers do not run, and refusal mappers apply. Denying is reserved for a refusal that can only be decided at the shortcut stage, such as an idempotency claim; anything a guard could decide belongs to a guard.
 
 #### Pipeline decisions - `PipelineDecision`
 
-`PipelineDecision` is the readonly struct the stage runner converts `Verdict`, `Validity` and `Shortcut` into so every strategy acts on one shape. Members: `Continue` (the default), `StopsPipeline`, `Outcome` (`Denied`, `Invalid` or `Answered`), `HasResult`, `Result` (`object?`), `Reason`, `Code`, `Failures` (never null), `DecidedBy` (`Type?`), `IsRefusal` (`Denied` or `Invalid`), `ToRefusal()`, `CreateRefusalException(Type)` and `ResolveResult<TMessageResult>(Type)`, which throws `PipelineContractException` when the decision carries no result or the result type mismatches. The `Denied`/`Invalid`/`Answered` factories are internal. Only a shortcut answer carries a result, because a refusal does not owe the caller the value the main handler would have produced; the value a refused caller receives comes from a refusal mapper when one is registered, and otherwise the refusal reaches the caller as an exception.
+`PipelineDecision` is the readonly struct the stage runner converts `Verdict`, `Validity` and `Shortcut` into so every strategy acts on one shape. Members: `Continue` (the default), `StopsPipeline`, `Outcome` (`Denied`, `Invalid` or `Answered`), `HasResult`, `Result` (`object?`), `Reason`, `Code`, `Failures` (never null), `DecidedBy` (`Type?`, set for a guard denial, a shortcut denial and a validation failure as well as a shortcut answer), `IsRefusal` (`Denied` or `Invalid`, from a guard, a shortcut denial, or a validator), `ToRefusal()`, `CreateRefusalException(Type)` and `ResolveResult<TMessageResult>(Type)`, which throws `PipelineContractException` when the decision carries no result or the result type mismatches. The `Denied`/`Invalid`/`Answered` factories are internal. Only a shortcut answer carries a result, because a refusal does not owe the caller the value the main handler would have produced; the value a refused caller receives comes from a refusal mapper when one is registered, and otherwise the refusal reaches the caller as an exception.
 
 #### Pre-handlers - `IMessagePreHandler<in TMessage>` (`PreStage.PreHandler`)
 
@@ -1976,6 +2070,8 @@ public sealed class TranslateConflicts : ICommandErrorHandler<PlaceOrderCommand,
 ```
 
 `MessageErrorContext` members: `Message` (required), `Exception` (required), `MessageResult`, `Outcome` (`MessageErrorOutcome`, default `Unhandled`), `HandledResult`, and `AsTyped<TMessage, TMessageResult>()`. Indirect error handlers run first, then direct ones; all of them see the same mutable context. If `Outcome` is still `Unhandled` after every handler, the captured exception is rethrown with its original stack trace via `ExceptionDispatchInfo`. When there are **no** error handlers at all, the exception is rethrown immediately. The non-generic `IMessageErrorHandler` declares `Task HandleErrorAsync(MessageErrorContext context, CancellationToken cancellationToken)` with no default value on the token; `IMessageErrorHandler<TMessage, TMessageResult>` supplies it through a default implementation that adapts to the typed context, and `IMessageErrorHandler<TMessage>` is `IMessageErrorHandler<TMessage, object>` for a message producing no result.
+
+A fault the registered `IFaultRefusalClassifier` entries recognize never reaches error handlers: it is classified first through `MediationExceptionFilters.TryClassifyRefusal` and ends the mediation as that refusal instead of a fault. Faults raised by error handlers themselves propagate unclassified, as do configuration errors, which callers never offer.
 
 #### Completion handlers - `IMessageCompletionHandler<TMessage>` and `<TMessage, TMessageResult>`
 
@@ -2008,7 +2104,9 @@ public sealed class PaymentRefusalMapper : ICommandRefusalMapper<ProcessPaymentC
 }
 ```
 
-`Refusal` is a readonly struct: `Refusal.Denied(reason, code = null)`, `Refusal.Invalid(reason, code = null)`, `Outcome` (`Denied` or `Invalid`), `Reason`, `Code`, `IsDenied`, `ToString()`. Selection picks the single mapper whose `MessageResultType` is assignable to the caller's expected result type, preferring direct registrations over indirect ones. Two candidates at the same level throw `PipelineContractException`. With no mapper, the pipeline throws `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException`. For a void command a refusal always throws (there is no value to map).
+`Refusal` is a readonly struct: `Refusal.Denied(reason, code = null)`, `Refusal.Invalid(reason, code = null)`, `Outcome` (`Denied` or `Invalid`), `Reason`, `Code`, `IsDenied`, `CreateException(messageType, cause = null)` mapping the outcome to the denial or invalid exception with the cause as inner, `ToString()`. Selection picks the single mapper whose `MessageResultType` is assignable to the caller's expected result type, preferring direct registrations over indirect ones. Two candidates at the same level throw `PipelineContractException`. With no mapper, the pipeline throws `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException`. For a void command a refusal always throws (there is no value to map).
+
+**Turning faults into refusals.** `IFaultRefusalClassifier.TryClassify(exception, out refusal)` recognizes a fault a stage raised and names the refusal the mediation ends as instead, including a commit fault raised in the completion stage; `PostgreSqlConstraintRefusalClassifier` maps unique (23505) and exclusion (23P01) violations on configured constraints (ordinal comparison, found anywhere in the inner chain) to `Refusal.Denied` with the mapped code, constructed from an `IReadOnlyDictionary<string, string>` or its nested `Options` record. Register with `MessageModuleBuilder.UseFaultRefusalClassifier<T>()` or `UseFaultRefusalClassifierInstance`; classifiers are Singleton collection items consulted in registration order with first match winning, must be stateless pure predicates, and are never offered a cancellation or an already-carried refusal. A classified fault skips error handlers, runs completion with the refusal outcome (a classified invalid refusal carries no validator failures on the `Try*` value and one synthesized member-less failure on the thrown exception), is audited as a denial or invalid outcome rather than a failure, and reaches a registered refusal mapper; a classified completion fault supersedes the earlier ending for the caller while handlers that already ran keep their observation. `EvaluateAsync` maps a classified decision-stage fault to the denied or invalid decision the message would end as when sent.
 
 ### 4.5 Handler discovery, tags, priorities and open generics
 
@@ -2114,6 +2212,8 @@ public sealed class LogAnyCommand<TCommand> : ICommandPreHandler<TCommand>
 liteBus.AddCommands(commands => commands.Register(typeof(LogAnyCommand<>)));
 ```
 
+**Running once per message.** When two descriptors are closures of one generic handler definition over the same contract definition, only the direct one is linked to a message: an indirect closure is skipped when a direct one exists and removed when a direct one arrives later, so an open generic registration runs once per message whatever the registration order. A distinct handler type over a base type still runs indirectly before direct ones. A handler type that still covers one message stage twice (a class implementing both a base and a concrete contract) is reported on `LiteBusCompositionSummary.DuplicateStageCoverages`.
+
 **Runtime dispatch.** Handlers registered under a closed contract carry a pre-bound `PipelineDispatch`. Handlers registered under an open contract get a dispatch bound lazily and cached in a `ConcurrentDictionary` keyed by the closed contract type (`PipelineHandlerInvoker.ResolveRuntimeDispatch`). A contract the pipeline cannot dispatch throws `PipelineContractException`. `PipelineDispatch.For(Type)` and `PipelineDispatch.StageFor(Type)` are public but `EditorBrowsable(Never)`; only `For` carries `[RequiresUnreferencedCode]`, so trimming needs care there. `For` returns null rather than throwing for a non-generic, open, or unknown contract; `StageFor` reads `Guard`, `Validator` or `Shortcut` off the contract and returns the `PreStage.PreHandler` fallback for anything else.
 
 ### 4.6 Execution context
@@ -2122,6 +2222,7 @@ liteBus.AddCommands(commands => commands.Register(typeof(LogAnyCommand<>)));
 public interface IExecutionContext
 {
     CancellationToken CancellationToken { get; }
+    DateTimeOffset HandledAt { get; }
     IDictionary<string, object> Items { get; }
     IHandleContextData Data { get; }
     IReadOnlyCollection<string> Tags { get; }
@@ -2130,6 +2231,8 @@ public interface IExecutionContext
     void SuppressPostHandlers();
 }
 ```
+
+`HandledAt` is the instant the mediation started, read once from the messaging module `TimeProvider` when the context was created; every stage of one mediation observes the same instant, and a nested mediation reads its own.
 
 `IExecutionContext` is registered as a scoped dependency, so a handler declares it as a constructor parameter instead of reaching for the ambient static:
 
@@ -2268,7 +2371,7 @@ internal sealed class PlaceOrderCommandDefinition : IMessageDefinition<PlaceOrde
 }
 ```
 
-`IMessageDeclarations` members: `Declare<TValue>(TValue)`, `Audited(action, category, targetKind, reasonRequired)`, `NotAudited(rationale)` and `Exempt<TValue>(rationale)`. `NotAudited` records both halves, the `AuditExemptDeclaration` the record writer reads and the exemption every requirement reads. Declaring the same value type twice in one `Describe` raises `MessageDeclarationException` naming the definition and the message, because the second would silently replace the first; a `Describe` that declares nothing raises the same, because it is indistinguishable from a definition nobody finished. Anything `Describe` throws is unwrapped from the reflective invocation, so a configuration error reads as one rather than as a `TargetInvocationException`.
+`IMessageDeclarations` members: `Declare<TValue>(TValue)`, `Audited(action, category, targetKind, reasonRequired)`, `NotAudited(rationale)`, `Authorized(policy)`, `AuthorizationExempt(rationale)` and `Exempt<TValue>(rationale)`. `NotAudited` records both halves, the `AuditExemptDeclaration` the record writer reads and the exemption every requirement reads, and `AuthorizationExempt` does the same for `AuthorizationDeclaration`. Declaring the same value type twice in one `Describe` raises `MessageDeclarationException` naming the definition and the message, because the second would silently replace the first; a `Describe` that declares nothing raises the same, because it is indistinguishable from a definition nobody finished. Anything `Describe` throws is unwrapped from the reflective invocation, so a configuration error reads as one rather than as a `TargetInvocationException`.
 
 **Source 2b - definition classes** implementing closed `IMessageDefinition<TMessage, TValue>`. This types one declaration against the compiler and is the better choice when a message declares exactly one thing, which is why `IAuditDefinition<TMessage>` and `IIdempotencyDefinition<TMessage>` are built on it. Past one declaration it stops paying, because the second and every later value has to be written as an explicit interface implementation naming the message type and the value type again:
 
@@ -2385,9 +2488,9 @@ var matrix = catalog
 
 **Exemptions.** `[DeclarationExempt(typeof(TValue), "rationale")]` (full name `DeclarationExemptAttribute`, `[AttributeUsage(Class | Struct, AllowMultiple = true, Inherited = false)]`, constructor `(Type declarationType, string rationale)` with a non-blank rationale, members `DeclarationType`, `Rationale` and `CreateExemption()`) is repeatable and every instance is aggregated by `MessageDescriptor` into one `DeclarationExemptions` metadata value (`Values`, `Covers<TValue>()`, `Covers(Type)`, `TryGet(Type, out DeclarationExemption)`). `DeclarationExemptions` offers constructors `(IEnumerable<DeclarationExemption> exemptions)` (null-checked entries, first wins per declaration type) and `(Type declarationType, string rationale)`. It implements `IMessageDeclarationExemptionSource` (whose single member is `DeclarationExemption CreateExemption()`) rather than `IMessageDeclarationSource`, because the latter maps one attribute to one value and lets the last win, and several exemptions have to collapse into one set. A definition may contribute `DeclarationExemptions` directly, replacing the attribute set rather than adding to it.
 
-There is one mechanism, not two. `[DeclarationExempt(typeof(AuditDeclaration), "rationale")]` exempts a message from auditing and satisfies `RequireDeclaration<AuditDeclaration>()`; `[AuditExempt("rationale")]` is the shorthand for exactly that and records the same exemption, so every exemption a message carries reads from one place whichever spelling wrote it. `[AuditExempt]` additionally produces the `AuditExemptDeclaration` the record writer reads, because auditing is the one declaration whose two positions are both modelled as values.
+There is one mechanism, not two. `[DeclarationExempt(typeof(AuditDeclaration), "rationale")]` exempts a message from auditing and satisfies `RequireDeclaration<AuditDeclaration>()`; `[AuditExempt("rationale")]` is the shorthand for exactly that and records the same exemption, so every exemption a message carries reads from one place whichever spelling wrote it. `[AuditExempt]` additionally produces the `AuditExemptDeclaration` the record writer reads, because auditing is one of the two declarations whose positions are both modelled as values; `[AuthorizationExempt("rationale")]` mirrors it for `AuthorizationDeclaration`.
 
-**Making an attribute analyzable.** `[MessageDeclaration(typeof(TValue))]` (full name `MessageDeclarationAttribute`, `[AttributeUsage(AttributeTargets.Class, Inherited = false)]` on the attribute class, constructor `(Type declarationType)`, `Type DeclarationType { get; }`) states which value that attribute declares. It exists because `IMessageDeclarationSource.DeclarationType` is a runtime property an analyzer cannot execute, and `LB1020` needs a static answer. Registration throws `PipelineContractException` when the annotation and the property name different types. LiteBus annotates `[Audited]` and `[AuditExempt]` with `typeof(AuditDeclaration)`. Definition classes need no annotation; their declaration is the second type argument of `IMessageDefinition<TMessage, TValue>`.
+**Making an attribute analyzable.** `[MessageDeclaration(typeof(TValue))]` (full name `MessageDeclarationAttribute`, `[AttributeUsage(AttributeTargets.Class, Inherited = false)]` on the attribute class, constructor `(Type declarationType)`, `Type DeclarationType { get; }`) states which value that attribute declares. It exists because `IMessageDeclarationSource.DeclarationType` is a runtime property an analyzer cannot execute, and `LB1020` needs a static answer. Registration throws `PipelineContractException` when the annotation and the property name different types. LiteBus annotates `[Audited]` and `[AuditExempt]` with `typeof(AuditDeclaration)` and `[Authorized]` and `[AuthorizationExempt]` with `typeof(AuthorizationDeclaration)`. Definition classes need no annotation; their declaration is the second type argument of `IMessageDefinition<TMessage, TValue>`.
 
 **Reading declarations from application code.** Resolve `IMessageMetadataAccessor` (singleton, `MessageMetadataAccessor` over `IMessageReader`). It is the supported surface; reaching for `IMessageRegistry.Find(...)!.Metadata` makes the descriptor shape part of the application.
 
@@ -2540,7 +2643,7 @@ Analyzer `LB1018` ("Message states no audit position", **disabled by default**) 
 | `IMessageDefinition<TMessage, TValue>`, including `IAuditDefinition<TMessage>` | The contract's type arguments |
 | `IMessageDefinition<TMessage>.Describe(IMessageDeclarations)` | The calls in the method body |
 
-The keyed contract names its value type, so the interface settles it. The `Describe` shape names nothing in the contract, so the body has to be read: `Declare<TValue>` and `Exempt<TValue>` are matched on the type argument, and `Audited(...)` and `NotAudited(...)` both count as declaring `AuditDeclaration`, because both state an audit position and the rule asks whether the message answered rather than which answer it gave. Coverage still walks base types and interfaces, so a definition written for a marker covers the family either way.
+The keyed contract names its value type, so the interface settles it. The `Describe` shape names nothing in the contract, so the body has to be read: `Declare<TValue>` and `Exempt<TValue>` are matched on the type argument, `Audited(...)` and `NotAudited(...)` both count as declaring `AuditDeclaration`, and `Authorized(...)` and `AuthorizationExempt(...)` both count as declaring `AuthorizationDeclaration`, because each pair states a position and the rule asks whether the message answered rather than which answer it gave. Coverage still walks base types and interfaces, so a definition written for a marker covers the family either way.
 
 Three cases are unreadable and are treated as declared: a definition in a referenced assembly, an implementation the pass cannot locate, and a body that hands the collector to another method. That resolves in favour of the build deliberately. A false negative leaves a rule the composition check still enforces at startup, while a false positive is a build that cannot be made to pass without turning the rule off, which is the worse failure for an analyzer that is opt-in in the first place.
 
@@ -2567,6 +2670,8 @@ public sealed class PlaceOrderCommandHandler : ICommandHandler<PlaceOrderCommand
 ```
 
 `IAuditScope` exposes `Actor`, `TargetId`, `Reason` and `Properties`, plus the pushers `WithActor`, `WithTarget`, `WithReason` and `WithProperty`. All throw `ArgumentException` on a blank argument, `ArgumentNullException` on a null actor, and `NoExecutionContextException` when called outside a mediation (the scope needs the ambient execution context to store state).
+
+**Declaring what the message already knows.** `AuditedDeclaration.WithTargetFrom<TMessage>(targetSelector)` and `WithReasonFrom<TMessage>(reasonSelector)` read the target and reason off the message, so a definition declares them once instead of every handler supplying them: `Declare<AuditDeclaration>(AuditDeclaration.Audited(...).WithTargetFrom<T>(...))`. Target precedence is scope, then selector; reason precedence is scope, then the pipeline decision reason, then selector, so a denial record explains the denial. Selectors run lazily only when earlier sources are silent; a null or blank selector result means no value, `ReasonRequired` applies to the final resolved reason, and a selector that throws fails the record write the way a throwing actor resolver does. Attributes cannot carry delegates, so selectors need a definition.
 
 **Outcome mapping.** `DefaultAuditOutcomeMapper.MapByOutcome`:
 
@@ -2642,7 +2747,7 @@ Three guarantees make it work: `UnitOfWork` is above `ReservedCeiling` so it run
 
 ### 4.9 In-process idempotency
 
-**Types:** `IdempotencyDeclaration`, `IIdempotencyDefinition<TMessage>`, `IIdempotencyStore`, `IdempotencyClaim`, `IdempotencyClaimOutcome`, `SuppliedIdempotencyKey`, `IdempotencyConfigurationException` (all `LiteBus.Messaging.Abstractions`); `IdempotencyKeyResolver`, `ResolvedIdempotencyKey`, `IdempotencyStoreDiagnosticCheck` (`LiteBus.Messaging.Idempotency`); `IdempotentCommandShortcut<TCommand>`, `IdempotentCommandShortcut<TCommand, TCommandResult>`, `IdempotencyCompletionHandler`, `ClaimedIdempotencyKey` (`LiteBus.Commands.Idempotency`, internal); `InMemoryIdempotencyStore` (`LiteBus.Testing.Mediation`).
+**Types:** `IdempotencyDeclaration`, `IIdempotencyDefinition<TMessage>`, `IIdempotencyStore`, `IdempotencyClaim`, `IdempotencyClaimOutcome`, `SuppliedIdempotencyKey`, `ClaimedIdempotencyKey`, `IdempotencyRefusalCodes`, `IdempotencyConfigurationException` (all `LiteBus.Messaging.Abstractions`); `IdempotencyKeyResolver`, `ResolvedIdempotencyKey`, `IdempotencyStoreDiagnosticCheck` (`LiteBus.Messaging.Idempotency`); `IdempotentCommandShortcut<TCommand>`, `IdempotentCommandShortcut<TCommand, TCommandResult>`, `IdempotencyCompletionHandler` (`LiteBus.Commands.Idempotency`, internal); `PostgreSqlIdempotencyStore` (`LiteBus.Commands.Storage.PostgreSql`); `MartenIdempotencyStore`, `MartenIdempotencyStoreOptions`, `MartenIdempotencyRecord` (`LiteBus.Commands.Storage.Marten`); `InMemoryIdempotencyStore` (`LiteBus.Testing.Mediation`).
 
 Distinct from durable-messaging idempotency (`Idempotency`, `IdempotencyConflictMode` in `DurableMessaging`), which dedupes inbox and outbox envelopes. This dedupes an in-process command mediation.
 
@@ -2660,6 +2765,7 @@ public sealed class ApplyPaymentCommandDefinition : IIdempotencyDefinition<Apply
 | Member | Meaning |
 | --- | --- |
 | `KeySelector` (`Func<object, string>?`) | Pure projection from the message, or `null` when the declaration was created by `KeyedByContext` and the key is supplied through the execution context instead. Runs once per mediation; cannot resolve services. |
+| `FingerprintSelector` (`Func<object, string>?`) | Content fingerprint projection, or `null` when the declaration carries no fingerprint and any repeat of the key replays. Set through `WithFingerprint<TMessage>(fingerprintSelector)`. |
 | `Scope` | Key prefix; defaults to the message type name. Effective key is `"{Scope ?? messageType.Name}:{key}"`. |
 | `ReplayResult` | Whether a repeat replays the recorded result. Requires a serializable result. |
 
@@ -2667,24 +2773,24 @@ The record also has a public `IdempotencyDeclaration(Func<object, string> keySel
 
 When the key cannot be projected from the message because deriving it needs services, declare `IdempotencyDeclaration.KeyedByContext()` and let a guard supply the key: guards run before shortcuts, so a guard can verify the message and hand the key forward with `context.Data.Set(new SuppliedIdempotencyKey(key))` before the idempotency shortcut asks for it. `SuppliedIdempotencyKey` rejects a blank value with `ArgumentException`. The key is read once and reused by both the shortcut that claims it and the completion handler that settles it, so the derivation runs once per mediation. A message declared this way that reaches the shortcut with no key in context raises `IdempotencyConfigurationException` naming the message type, because a generated fallback would make every delivery look distinct and the declaration would appear to work while doing nothing.
 
-**Enabling.** `CommandModuleBuilder.EnableIdempotency()` registers both shortcut arities plus `IdempotencyCompletionHandler`, and the `litebus.idempotency.store` probe (`component`, `storeRegistered`, `storeType`; `Unhealthy` with no store). All three ignore a command that declares nothing, so one call covers the axis. `IdempotencyKeyResolver` (constructed with `IMessageMetadataAccessor`) is registered as a singleton by `AddMessaging`; the store is application-supplied. Its `Resolve(object message, IExecutionContext? executionContext = null)` returns `null` when the message declares nothing, otherwise a `ResolvedIdempotencyKey(string Key, IdempotencyDeclaration Declaration)` readonly record struct carrying the scoped key; the context defaults to the ambient context of the mediation in flight.
+**Enabling.** `CommandModuleBuilder.EnableIdempotency()` registers both shortcut arities plus `IdempotencyCompletionHandler`, and the `litebus.idempotency.store` probe (`component`, `storeRegistered`, `storeType`; `Unhealthy` with no store). All three ignore a command that declares nothing, so one call covers the axis. `IdempotencyKeyResolver` (constructed with `IMessageMetadataAccessor`) is registered as a singleton by `AddMessaging`; the store is registered by the command storage packages or the application. Its `Resolve(object message, IExecutionContext? executionContext = null)` returns `null` when the message declares nothing, otherwise a `ResolvedIdempotencyKey(string Key, IdempotencyDeclaration Declaration, string? Fingerprint)` readonly record struct carrying the scoped key and the selected fingerprint; the context defaults to the ambient context of the mediation in flight.
 
 **Store contract.**
 
 ```csharp
 public interface IIdempotencyStore
 {
-    Task<IdempotencyClaim> TryClaimAsync(string key, CancellationToken cancellationToken = default);
+    Task<IdempotencyClaim> TryClaimAsync(string key, string? fingerprint, CancellationToken cancellationToken = default);
     Task CompleteAsync(string key, string? payload, CancellationToken cancellationToken = default);
     Task ReleaseAsync(string key, CancellationToken cancellationToken = default);
 }
 ```
 
-`IdempotencyClaim` is `(IdempotencyClaimOutcome Outcome, string? Payload)` with factories `Granted` and `AlreadyCompleted(payload)`. Two outcomes only: a delivery still in flight is not a state the pipeline can act on, so a store either waits for the other transaction (which a primary-key insert does for free) or throws its own conflict exception.
+`IdempotencyClaim` is `(IdempotencyClaimOutcome Outcome, string? Payload)` with factories `Granted`, `InFlight`, `FingerprintMismatch`, and `AlreadyCompleted(payload)`. Four outcomes: `Granted` runs, `AlreadyCompleted` replays, `InFlight` denies a delivery whose key is still held, and `FingerprintMismatch` denies a repeat with different content; both denials travel the refusal path with `IdempotencyRefusalCodes` codes (`idempotency.in-flight`, `idempotency.fingerprint-mismatch`), so `TrySendAsync` returns `Denied` and `SendAsync` throws `LiteBusMessageDeniedException` with that `Code`. An unsettled claim older than the store claim timeout is taken over and granted. Fingerprints compare only on applied keys: a mismatch needs both fingerprints non-null and different, while either side null replays.
 
 Two correctness rules, both documented on the contract: claim by insert and treat a primary-key violation as the refusal (read-then-write loses the race), and claim through the same unit of work the handler writes through so the key and the change commit together.
 
-**Per-outcome effect**, applied by `IdempotencyCompletionHandler` at `HandlerPriorities.Persistence`, which is inside the reserved window and therefore before an application's commit at `HandlerPriorities.UnitOfWork`. Only the claim the same mediation was granted is settled: the shortcut records each granted key in the execution-context data as a `ClaimedIdempotencyKey`, and without that record the handler returns, so a denial, a validation failure, a repeat answered from the store, and a claim that threw a conflict all settle nothing and cannot delete another delivery's in-flight claim.
+**Per-outcome effect**, applied by `IdempotencyCompletionHandler` at `HandlerPriorities.Persistence`, which is inside the reserved window and therefore before an application's commit at `HandlerPriorities.UnitOfWork`. Only the claim the same mediation was granted is settled: the shortcut records each granted key in the execution-context data as a `ClaimedIdempotencyKey`, and without that record the handler returns, so a denial, a validation failure, a repeat answered from the store, and a claim denied as in-flight or mismatched all settle nothing and cannot delete another delivery's in-flight claim.
 
 | `MediationOutcome` | Effect |
 | --- | --- |
@@ -2696,7 +2802,9 @@ Two correctness rules, both documented on the contract: claim by insert and trea
 
 **Shortcut closing.** The registry does not close an untyped open generic shortcut for a message that declares a result, since an untyped shortcut cannot carry a value. A closed registration of that pair is still a configuration error; an open generic says "every message I fit" and is skipped instead, which is what lets one shipped shortcut cover the void commands in an axis.
 
-`InMemoryIdempotencyStore` ships from the testing package deliberately: it forgets on restart and is per-process, so it cannot make a claim about the system.
+**Shipped stores.** `PostgreSqlIdempotencyStore(NpgsqlDataSource, PostgreSqlIdempotencyStoreOptions? = null)` claims by insert with fingerprints, answers a held key `InFlight` instead of granting it, and takes over an unsettled claim older than `ClaimTimeout` (five minutes by default, measured on the database clock) with an optimistic `claimed_at` check; `CompleteAsync` preserves the stored fingerprint and `ReleaseAsync` removes only unsettled rows. Registered with `commands.UsePostgreSqlIdempotencyStore(...)` as a command child module with a versioned schema (component `idempotency`, version 1, `fingerprint` column, `completed_at` retention index), a startup initializer, and the `idempotency.postgresql.schema` probe. Each call uses its own auto-commit connection, so the claim is not atomic with the handler change. `MartenIdempotencyStore(IDocumentStore, MartenIdempotencyStoreOptions? = null, TimeProvider? = null)` keeps claims as `MartenIdempotencyRecord` documents (`Id`, `Fingerprint`, `IsCompleted`, `Payload`, `ClaimedAt`, `CompletedAt`) in its own serializable sessions with the same four outcomes and takeover semantics; registered with `commands.UseMartenIdempotencyStore(...)`. `InMemoryIdempotencyStore(TimeProvider? = null, TimeSpan? claimTimeout = null)` implements the same semantics with a `TimeProvider`-driven `ClaimTimeout` (five minutes by default) and ships from the testing package deliberately: it forgets on restart and is per-process, so it cannot make a claim about the system.
+
+**Keying a durable envelope by the command key.** `Idempotency.FromCommandKey(string? suffix = null, IdempotencyConflictMode conflictMode = ReturnExisting)` returns a `Keyed` idempotency value from the `ClaimedIdempotencyKey` the in-flight command was granted, so a retried command enqueues the same rows; a suffix keys several envelopes distinctly (`{key}:{suffix}`). A blank suffix throws `ArgumentException` before any ambient read; outside a keyed command mediation it throws `InvalidOperationException`. `ClaimedIdempotencyKey(string Value)` is public in `LiteBus.Messaging.Abstractions` so other code can read the granted key.
 
 ### 4.10 Message contracts and serialization
 
@@ -2880,7 +2988,9 @@ if (receipt.Outcome == InboxAcceptOutcome.AlreadyAccepted)
 
 `InboxAcceptItem.From` has three overloads: `(object message, InboxAcceptMetadata?)` leaves `MessageType` null so each entry uses its runtime type for contract lookup, `(object message, Type messageType, InboxAcceptMetadata?)` sets an explicit lookup type for heterogeneous batches, and `From<TMessage>(InboxAcceptItem<TMessage>)` converts a typed item, stamping `MessageType` from `item.Message.GetType()`. Under `IdempotencyConflictMode.Strict` an identical resubmission (same id, contract name and version, payload, idempotency key, correlation and causation ids, normalized tenant) returns the stored receipt instead of throwing; only a differing duplicate throws `IdempotencyConflictException`.
 
-**Envelope creation** (`InboxEnvelopeFactory`), in order: validate the instance is assignable to the declared type (`ArgumentException` otherwise) -> `InboxCommandMessageGuard.EnsureVoidCommand` (throws `InvalidOperationException` for an `ICommand<TResult>`; analyzer `LB1004` catches it at compile time) -> resolve the contract -> stamp `CreatedAt` from `TimeProvider` -> resolve the message id -> resolve the tenant id -> serialize -> optionally encrypt with a `PayloadProtectionContext` -> project trace columns -> build the `Pending` envelope with `AttemptCount = 0`. `IInboxEnvelopeFactory` exposes `CreateAsync(InboxAcceptItem item, CancellationToken)` and `CreateBatchAsync(IReadOnlyList<InboxAcceptItem> items, CancellationToken)`, the latter returning envelopes in input order; it is the one creation path shared by `IInbox`, `ITransactionalInbox`, and EF Core staging. `InboxEnvelopeFactory` takes `(IContractReader contractRegistry, IMessageSerializer messageSerializer, TimeProvider clock, IInboxPayloadProtector? payloadProtector = null, IMessageContractResolver? contractTypeResolver = null)`; without a resolver the runtime message type drives contract lookup, and the protection context carries `Axis = "inbox"`.
+`InboxAcceptItem<TMessage>.FromAmbient(message)` stamps the trace of the message being handled onto the accepted command through `MessageTrace.FromAmbient()`: `Distributed` when an ambient trace context is present alongside correlation and causation, else `Workflow` when correlation and causation are known, else `Correlated` when only correlation is known, else `None`. Correlation is the ambient correlation id or the incoming message id when absent; causation is the incoming message id or the ambient causation id when no message id is stored. It is an explicit opt-in; nothing reads ambient trace unless it is called, and tenant stays `Unscoped`. `InboxModuleBuilder.UseAmbientTrace()` applies the same stamping inside the envelope factory to every accepted envelope whose item trace is `MessageTrace.None`; an explicit trace always wins, and outside a mediation the envelope stays untraced.
+
+**Envelope creation** (`InboxEnvelopeFactory`), in order: validate the instance is assignable to the declared type (`ArgumentException` otherwise) -> `InboxCommandMessageGuard.EnsureVoidCommand` (throws `InvalidOperationException` for an `ICommand<TResult>`; analyzer `LB1004` catches it at compile time) -> resolve the contract -> stamp `CreatedAt` from `TimeProvider` -> resolve the message id -> resolve the tenant id -> serialize -> optionally encrypt with a `PayloadProtectionContext` -> project trace columns -> build the `Pending` envelope with `AttemptCount = 0`. `IInboxEnvelopeFactory` exposes `CreateAsync(InboxAcceptItem item, CancellationToken)` and `CreateBatchAsync(IReadOnlyList<InboxAcceptItem> items, CancellationToken)`, the latter returning envelopes in input order; it is the one creation path shared by `IInbox`, `ITransactionalInbox`, and EF Core staging. `InboxEnvelopeFactory` takes `(IContractReader contractRegistry, IMessageSerializer messageSerializer, TimeProvider clock, IInboxPayloadProtector? payloadProtector = null, IMessageContractResolver? contractTypeResolver = null, InboxEnvelopeOptions? envelopeOptions = null)`; without a resolver the runtime message type drives contract lookup, the protection context carries `Axis = "inbox"`, and the options carry the `UseAmbientTrace` flag (a missing instance behaves as disabled).
 
 Public `InboxAcceptanceService` (namespace `LiteBus.Inbox.Abstractions`) is the shared acceptance pipeline used by writer and transactional writer implementations: constructed with an `IInboxEnvelopeFactory`, its `AcceptAsync<TMessage>`, `AcceptAsync`, and `AcceptBatchAsync` take persistence delegates that persist or stage the created envelopes and return receipts; a batch whose result count mismatches the input count throws `InvalidOperationException`.
 
@@ -2953,9 +3063,15 @@ await _outbox.EnqueueAsync(
     cancellationToken);
 ```
 
-**Envelope creation** (`OutboxEnvelopeFactory`), in order: validate the instance is assignable to the declared type (`ArgumentException` otherwise) -> resolve the contract through the optional `IMessageContractResolver` (runtime type when omitted) -> stamp `CreatedAt` from `TimeProvider` -> resolve the message id -> resolve the tenant id -> serialize -> encrypt with a `PayloadProtectionContext` carrying `Axis = "outbox"` -> project trace columns -> build the `Pending` envelope with `AttemptCount = 0`. `Topic`/`Exchange`/`Queue` targets persist their `Name` when non-blank, otherwise null; `ContractDefault` always persists null.
+**Envelope creation** (`OutboxEnvelopeFactory`), in order: validate the instance is assignable to the declared type (`ArgumentException` otherwise) -> resolve the contract through the optional `IMessageContractResolver` (runtime type when omitted) -> stamp `CreatedAt` from `TimeProvider` -> resolve the message id -> resolve the tenant id -> serialize -> encrypt with a `PayloadProtectionContext` carrying `Axis = "outbox"` -> project trace columns -> build the `Pending` envelope with `AttemptCount = 0`. `Topic`/`Exchange`/`Queue` targets persist their `Name` when non-blank, otherwise null; `ContractDefault` always persists null. The factory takes optional `IMessageReader?` and `OutboxEnqueueOptions?` constructor parameters; direct constructions omitting the options behave as if both flags were false.
 
-Public `OutboxWriterCore` (namespace `LiteBus.Outbox.Abstractions`) is the shared enqueue pipeline used by writer and transactional writer implementations: constructed with an `IOutboxEnvelopeFactory`, its `EnqueueAsync<TEvent>`, `EnqueueAsync`, and `EnqueueBatchAsync` take persistence delegates that persist or stage the created envelopes and return receipts; a batch whose result count mismatches the input count throws `InvalidOperationException`.
+Public `OutboxWriterCore` (namespace `LiteBus.Outbox.Abstractions`) is the shared enqueue pipeline used by writer and transactional writer implementations: constructed with an `IOutboxEnvelopeFactory`, its `EnqueueAsync<TEvent>`, `EnqueueAsync`, and `EnqueueBatchAsync` take persistence delegates that persist or stage the created envelopes and return receipts; a batch whose result count mismatches the input count throws `InvalidOperationException`. Writers expand every item through `IOutboxEnvelopeFactory.CreateManyAsync` (default interface methods returning the single `CreateAsync` envelope, so custom factories inherit broadcast behavior); `CreateBatchAsync` overrides apply only to direct factory calls. A single enqueue returns the first per-handler receipt in handler-name order; batch receipts flatten one per envelope in item order.
+
+`OutboxEnqueueItem<TEvent>.FromAmbient(message)` stamps the trace of the message being handled onto the enqueued event through `MessageTrace.FromAmbient()`, with the same variant precedence as the inbox twin; it is an explicit opt-in and tenant stays `Unscoped`. `OutboxModuleBuilder.UseAmbientTrace()` applies the same stamping inside the envelope factory to every enqueued envelope whose item trace is `MessageTrace.None`.
+
+**Per-handler delivery.** `OutboxModuleBuilder.EnablePerHandlerDelivery()` writes one envelope per subscribed main handler of an event, ordered by handler full name and recorded on `OutboxEnvelope.Handler` (null means broadcast), and the in-process dispatcher publishes each envelope to that handler alone through a main-handler-only predicate, so a failing reaction retries, dead-letters and is replayed on its own while the others publish; pre, post, error and completion observers still run on a targeted dispatch. Direct plus indirect main handlers count, deduplicated by full name; zero subscribed main handlers at enqueue throws `NoHandlerFoundException`, and a handler removed before dispatch falls back to the dispatch `RequireHandler` option. Supplied identity derives deterministic per-handler ids (SHA-256 of `{id}:{handler}`, first 16 bytes) and keyed idempotency derives `{key}:{handler}` preserving the conflict mode, so a retried enqueue resolves to the same rows. A handler added after the enqueue does not receive events already enqueued.
+
+**Domain event staging.** `OutboxModuleBuilder.StageCollectedEvents()` registers the scoped `IDomainEventCollector` and an open-generic completion handler at `HandlerPriorities.Persistence` that drains the collector into `ITransactionalOutbox` when the mediation succeeded, before the unit-of-work commit at `HandlerPriorities.UnitOfWork`. A handler records consequences with `Collect` instead of publishing inline; an empty drain never touches the outbox, and collected events without a registered outbox throw `InvalidOperationException` naming `StageCollectedEvents`. Staged envelopes stamp ambient trace when the outbox opted into it.
 
 **Marten transactional outbox.** `LiteBus.Outbox.Storage.Marten` provides `MartenTransactionalOutbox`, an `ITransactionalOutbox` that queues the schema-owned outbox insert on the current Marten `IDocumentSession` with `QueueSqlCommand`, so documents and outbox rows commit together in one `SaveChangesAsync`. The application registers Marten itself with `AddMarten` against the same database as the outbox; LiteBus does not register Marten. Registration:
 
@@ -3270,7 +3386,7 @@ inbox.UseInMemoryStorage(store => store
     .UseTimeProvider(new ManualTimeProvider(DateTimeOffset.UnixEpoch)));
 ```
 
-`Capacity` defaults to 0, which accepts without a limit; a positive capacity rejects new commands once reached unless the submission is idempotent. `DefaultLeaseDuration` defaults to one minute and is validated positive at construction. The outbox store substitutes it when a lease request supplies `TimeSpan.Zero` and throws `ArgumentOutOfRangeException` for a negative duration; the inbox store never applies it and throws for a zero or negative duration. `RenewLeaseAsync` on both stores throws for a zero or negative duration. The module registers one store instance under every inbox role interface plus the concrete `InMemoryInboxStore`, the `TimeProvider` when `UseTimeProvider` set one, and `IInboxWorkSignal` = `InboxPollingWorkSignal`. Idempotency is indexed by a composite scope key built from the normalized tenant id and the idempotency key (`DurableIdempotencyScope.CreateScopeKey`, separated by U+001F; `DurableTenantId.Normalize` maps null/blank to the empty string). `ReleaseLeaseAsync` returns the row to `Pending` (or `Failed` when it carries an error) with the lease cleared, the attempt count decremented and visibility unchanged, and returns false when the owner or generation no longer matches. `PersistAsync` rejects a non-terminal envelope with `InvalidOperationException`. Both stores construct with optional parameters (null options become `new()`, a null clock becomes `TimeProvider.System`) and expose lock-guarded test helpers: `Count`, `Get(Guid messageId)` (dictionary indexer semantics, throwing `KeyNotFoundException` when absent), `GetAll()`, `GetAll(status)`, `GetAll(string contractName)` and `GetAll(status, contractName)` (blank contract names throw), and `Clear()` which removes every envelope and idempotency-index entry. Under `IdempotencyConflictMode.Strict` a resubmission identical in id, contract name and version, payload, idempotency key, correlation and causation ids, and normalized tenant (plus topic on the outbox) returns the existing row; only a differing duplicate throws `IdempotencyConflictException`. The outbox variant is symmetric.
+`Capacity` defaults to 0, which accepts without a limit; a positive capacity rejects new commands once reached unless the submission is idempotent. `DefaultLeaseDuration` defaults to one minute and is validated positive at construction. The outbox store substitutes it when a lease request supplies `TimeSpan.Zero` and throws `ArgumentOutOfRangeException` for a negative duration; the inbox store never applies it and throws for a zero or negative duration. `RenewLeaseAsync` on both stores throws for a zero or negative duration. The module registers one store instance under every inbox role interface plus the concrete `InMemoryInboxStore`, the `TimeProvider` when `UseTimeProvider` set one, and `IInboxWorkSignal` = `InboxPollingWorkSignal`. Idempotency is indexed by a composite scope key built from the normalized tenant id and the idempotency key (`DurableIdempotencyScope.CreateScopeKey`, separated by U+001F; `DurableTenantId.Normalize` maps null/blank to the empty string). `ReleaseLeaseAsync` returns the row to `Pending` (or `Failed` when it carries an error) with the lease cleared, the attempt count decremented and visibility unchanged, and returns false when the owner or generation no longer matches. `PersistAsync` rejects a non-terminal envelope with `InvalidOperationException`. Both stores construct with optional parameters (null options become `new()`, a null clock becomes `TimeProvider.System`) and expose lock-guarded test helpers: `Count`, `Get(Guid messageId)` (dictionary indexer semantics, throwing `KeyNotFoundException` when absent), `GetAll()`, `GetAll(status)`, `GetAll(string contractName)` and `GetAll(status, contractName)` (blank contract names throw), and `Clear()` which removes every envelope and idempotency-index entry. Under `IdempotencyConflictMode.Strict` a resubmission identical in id, contract name and version, payload, idempotency key, correlation and causation ids, and normalized tenant (plus topic and handler on the outbox) returns the existing row; only a differing duplicate throws `IdempotencyConflictException`. The outbox variant is symmetric.
 
 #### PostgreSQL
 
@@ -3294,7 +3410,7 @@ With `EnableAmbientTransactionProvider`, a scoped `PostgreSqlTransactionalInboxP
 
 `PostgreSqlInboxStore` constructs as `(NpgsqlDataSource dataSource, PostgreSqlInboxStoreOptions? options = null)` and `UseExistingConnection(NpgsqlConnection connection, NpgsqlTransaction transaction)` returns an `ITransactionalInboxStore` bound to that pair, throwing `ArgumentException` when the transaction does not belong to the connection and `InvalidOperationException` when the connection is not open. `PostgreSqlInboxStoreRegistration` (`NpgsqlDataSource`, `PostgreSqlInboxStoreOptions`) exposes `DataSource` and `Options` and creates the same bound writer through `CreateTransactionalStore(connection, transaction)`. `PostgreSqlInboxSchema` is the static schema API (`CurrentSchemaVersion = 1`, `SqlFiles`, `GetCreateScript`, idempotent `EnsureAsync`, `ValidateAsync` throwing `PostgreSqlSchemaDriftException` on drift) behind three ownership models (migration-owned recommended, explicit bootstrap, opt-in host bootstrap), with copy-paste migration paths in `PostgreSqlInboxSchemaSqlPaths` (`V1Create`, `V1EnsureIndexes`, `{{TokenName}}` placeholders). A batch containing any `Strict` item falls back to per-item `AddAsync` instead of the bulk path. Lease SQL compares visibility and expiry against `CURRENT_TIMESTAMP`, so leasing runs on the database clock. `GetSchemaInfoAsync` reports `CurrentSchemaVersion` as the recorded version when no version row exists yet.
 
-`LiteBus.Outbox.Storage.PostgreSql` mirrors the inbox adapter: `PostgreSqlOutboxStore(NpgsqlDataSource, PostgreSqlOutboxStoreOptions? = null)` with the same `UseExistingConnection` binding rules, `PostgreSqlOutboxStoreRegistration` with `DataSource`, `Options` and `CreateTransactionalStore`, and `PostgreSqlOutboxSchema` (`CurrentSchemaVersion = 1`, `SqlFiles`, `GetCreateScript`, `EnsureAsync`, drift-throwing `ValidateAsync`) with the same three ownership models and `PostgreSqlOutboxSchemaSqlPaths` (`V1Create`, `V1EnsureIndexes`). `PostgreSqlOutboxNotifyChannel.ChannelName` is `litebus_outbox_work`, the LISTEN/NOTIFY channel the insert trigger signals and `PostgreSqlOutboxWorkSignal` (`IOutboxWorkSignal`, `IDisposable`, constructed over the data source) listens on with polling-delay fallback through `WaitForWorkOrDelayAsync`. `PostgreSqlTransactionalOutboxParticipant` (`PostgreSqlOutboxStoreRegistration`, `IOutboxStore`, `IPostgreSqlTransactionProvider?`, `TransactionalWriteMode`) resolves the ambient-transaction-bound store in `ResolveStore()`, falling back to the singleton store only under `AllowImmediateCommit` and throwing `InvalidOperationException` under `RequireActiveTransaction` with no ambient transaction. Module build throws `OutboxPostgreSqlStorageConfigurationException` when no data source was configured and when `EnableAmbientTransactionProvider()` is combined with `UseMartenTransactionalOutbox()`. `CreateInsertStatement(OutboxEnvelope, options?)` returns the schema-owned `PostgreSqlOutboxInsertStatement` (required `Sql` with Npgsql `$1..$n` placeholders ending `ON CONFLICT DO NOTHING` and no `RETURNING`, `Values` with `DBNull.Value` for absent values, `FormatSql(char placeholder)` rewriting markers to one placeholder char keeping casts); callers must resolve idempotency before queueing.
+`LiteBus.Outbox.Storage.PostgreSql` mirrors the inbox adapter: `PostgreSqlOutboxStore(NpgsqlDataSource, PostgreSqlOutboxStoreOptions? = null)` with the same `UseExistingConnection` binding rules, `PostgreSqlOutboxStoreRegistration` with `DataSource`, `Options` and `CreateTransactionalStore`, and `PostgreSqlOutboxSchema` (`CurrentSchemaVersion = 2`, `SqlFiles` of `V2Create`/`V1EnsureIndexes`/`V2Upgrade`, `GetCreateScript` rendering version 2, `EnsureAsync` upgrading a version 1 table automatically, drift-throwing `ValidateAsync`) with the same three ownership models and `PostgreSqlOutboxSchemaSqlPaths` (`V1Create`, `V1EnsureIndexes`, `V2Create`, `V2Upgrade`). Version 2 adds the nullable `handler` column for per-handler delivery; `EnsureAsync` applies `outbox/v2/upgrade.sql` (`ADD COLUMN IF NOT EXISTS handler`) when the inferred version is below current and re-infers before the drift check, while migration-owned deployments run the upgrade script by hand before validate-only startup and new tables are created from `outbox/v2/create.sql`. `PostgreSqlOutboxNotifyChannel.ChannelName` is `litebus_outbox_work`, the LISTEN/NOTIFY channel the insert trigger signals and `PostgreSqlOutboxWorkSignal` (`IOutboxWorkSignal`, `IDisposable`, constructed over the data source) listens on with polling-delay fallback through `WaitForWorkOrDelayAsync`. `PostgreSqlTransactionalOutboxParticipant` (`PostgreSqlOutboxStoreRegistration`, `IOutboxStore`, `IPostgreSqlTransactionProvider?`, `TransactionalWriteMode`) resolves the ambient-transaction-bound store in `ResolveStore()`, falling back to the singleton store only under `AllowImmediateCommit` and throwing `InvalidOperationException` under `RequireActiveTransaction` with no ambient transaction. Module build throws `OutboxPostgreSqlStorageConfigurationException` when no data source was configured and when `EnableAmbientTransactionProvider()` is combined with `UseMartenTransactionalOutbox()`. `CreateInsertStatement(OutboxEnvelope, options?)` returns the schema-owned `PostgreSqlOutboxInsertStatement` (required `Sql` with Npgsql `$1..$n` placeholders ending `ON CONFLICT DO NOTHING` and no `RETURNING`, `Values` with `DBNull.Value` for absent values, `FormatSql(char placeholder)` rewriting markers to one placeholder char keeping casts); callers must resolve idempotency before queueing.
 
 `LiteBus.Storage.PostgreSql` holds the shared helpers. `IPostgreSqlSchemaLogger.Log(PostgreSqlSchemaLogLevel level, string message, Exception? exception = null)` is assigned through `PostgreSqlSchemaStoreOptions.Logger`; schema operations run silently when null, and applications bridge it to `ILogger<T>` without adding logging package references (`NullPostgreSqlSchemaLogger.Instance` is the shared no-op). `IPostgreSqlTransactionProvider.TryGetCurrent(out NpgsqlConnection? connection, out NpgsqlTransaction? transaction)` supplies the ambient pair; applications register a scoped implementation and activate it at unit-of-work start. `PostgreSqlDataSourceFactory.CreateFromConnectionString(string connectionString)` throws `ArgumentException` when blank and is reserved for tests, samples and small services; applications already on Npgsql 7+ pooling pass a shared `NpgsqlDataSource` instead. `PostgreSqlIdentifier.Qualify(schemaName, tableName)` returns `"schema"."table"` and `Quote(identifier)` doubles embedded quotes, throwing on blank values or embedded NUL; `IndexName` and `UnquotedIndexName` replace every character that is not a letter, digit or `_` with `_` and truncate names over 60 chars to 48 chars plus `_` plus an 8-hex `StableHash` (a process-invariant FNV-1a 32-bit hash, throwing on blank). `PostgreSqlSchemaSqlFile` is a `(RelativePath, Purpose)` record whose content also ships under `sql/...` in the NuGet package; `PostgreSqlSchemaSqlPaths.Files` holds 6 entries of which only `MetadataCreate` is for migration pipelines, the rest runtime-internal. `PostgreSqlTableReference` (`SchemaName`, `TableName`, both validated non-blank) exposes `QualifiedName`, `QuotedQualifiedName`, and `ForStore` / `ForMetadata` / `Create` factories. `PostgreSqlWorkSignal` (`NpgsqlDataSource`, channel name; `IAsyncDisposable`, `IDisposable`) LISTENs on a dedicated connection: `pollInterval <= 0` waits indefinitely, a disposed signal falls back to `Task.Delay`, a broken listener reconnects after 1 s, and disposal is idempotent without disposing the semaphores so a draining waiter never sees `ObjectDisposedException`.
 
@@ -3334,7 +3450,7 @@ liteBus.AddOutbox(outbox =>
 
 The module registers `EfCoreInboxStore` / `EfCoreOutboxStore` as Singletons over `IDbContextFactory<TContext>` and projects them onto every role interface plus `ITransactionalInboxStore` / `ITransactionalOutboxStore`, and registers `IInboxWorkSignal` / `IOutboxWorkSignal` = the polling signal. `EnableSaveChangesInterceptor()` additionally registers the scoped `ITransactionalInbox<TContext>` / `ITransactionalOutbox<TContext>`.
 
-`GetModelBuilderConfiguration` maps snake_case columns (`message_id`, `contract_name`, `contract_version`, `payload`, `created_at`, `visible_after`, `attempt_count`, `status`, `idempotency_key`, `lease_owner`, `lease_generation`, `lease_expires_at`, `last_error`, `correlation_id`, `causation_id`, `tenant_id`, `trace_context`, `completed_at` / `published_at`, `last_attempted_at`, `first_failed_at`, `dead_lettered_at`, `last_lease_owner`, `error_type`, plus `topic` on the outbox) and creates: a filtered unique index on `(tenant_id, idempotency_key)` where `idempotency_key IS NOT NULL`, a composite index on `(status, visible_after, lease_expires_at, created_at)`, a `created_at` index (`IX_LiteBus_Inbox_CreatedAt` / `IX_LiteBus_Outbox_CreatedAt`), and for the outbox a filtered `topic` index. `ToTable` omits the schema for MySQL and SQLite.
+`GetModelBuilderConfiguration` maps snake_case columns (`message_id`, `contract_name`, `contract_version`, `payload`, `created_at`, `visible_after`, `attempt_count`, `status`, `idempotency_key`, `lease_owner`, `lease_generation`, `lease_expires_at`, `last_error`, `correlation_id`, `causation_id`, `tenant_id`, `trace_context`, `completed_at` / `published_at`, `last_attempted_at`, `first_failed_at`, `dead_lettered_at`, `last_lease_owner`, `error_type`, plus `topic` and `handler` on the outbox) and creates: a filtered unique index on `(tenant_id, idempotency_key)` where `idempotency_key IS NOT NULL`, a composite index on `(status, visible_after, lease_expires_at, created_at)`, a `created_at` index (`IX_LiteBus_Inbox_CreatedAt` / `IX_LiteBus_Outbox_CreatedAt`), and for the outbox a filtered `topic` index. `ToTable` omits the schema for MySQL and SQLite.
 
 Provider support (`EfCoreStorageProvider`, `EfCoreRelationalProviderNames`, `EfCoreRelationalTableQualifier`): PostgreSQL (`"schema"."table"`), SQL Server (`[schema].[table]`), MySQL (backtick table only), SQLite (quoted table only), and the EF in-memory provider. Raw lease SQL lives in `EfCorePostgreSqlLeaseSql`, `EfCoreSqlServerLeaseSql` and `EfCoreMySqlLeaseSql`; an unsupported provider throws `EfCoreStorageNotSupportedException`.
 
@@ -3358,6 +3474,40 @@ liteBus.AddOutbox(outbox =>
 ```
 
 Package `LiteBus.Outbox.Storage.Marten` registers a scoped `ITransactionalOutbox` (`MartenTransactionalOutbox`) backed by the current Marten `IDocumentSession`, so documents and outbox rows commit in the same `SaveChangesAsync`. `UseMartenTransactionalOutbox(this PostgreSqlOutboxModuleBuilder)` sets the factory that resolves the scoped `IDocumentSession` plus `IOutboxEnvelopeFactory` and `PostgreSqlOutboxStoreRegistration`; `MartenTransactionalOutbox` constructs as `(IDocumentSession session, IOutboxEnvelopeFactory envelopeFactory, PostgreSqlOutboxStoreRegistration registration)` and builds its committed-row lookup store from the registration data source and options. The application registers Marten itself with `AddMarten` against the same database; LiteBus does not register Marten. Each envelope is queued on the session with `QueueSqlCommand` using the schema-owned insert from `PostgreSqlOutboxSchema.CreateInsertStatement(envelope, options)`, which targets the current schema version and the same columns `PostgreSqlOutboxStore` writes; the row is written only when the session saves, and disposing the session without saving stores nothing. `PostgreSqlOutboxInsertStatement` carries `Sql` (Npgsql `$1` through `$n` placeholders), `Values` (`DBNull.Value` for absent values), and `FormatSql(placeholder)` to rewrite markers for the executing unit of work (`?` for Marten). The statement ends with `ON CONFLICT DO NOTHING` and has no `RETURNING` clause, so idempotency is resolved before queueing: one committed-row lookup on a separate connection plus in-session tracking by message id and tenant-scoped idempotency key resolve `ReturnExisting` and `Strict` duplicates against earlier items, a `Strict` submission that differs throws `IdempotencyConflictException`, and a concurrent insert that wins the race is absorbed by the conflict clause (the receipt still says `Enqueued`). Cannot be combined with `EnableAmbientTransactionProvider`: module build throws because both register `ITransactionalOutbox`.
+
+#### Commands PostgreSQL idempotency store
+
+```csharp
+liteBus.AddCommands(commands => commands
+    .EnableIdempotency()
+    .UsePostgreSqlIdempotencyStore(pg => pg
+        .UseConnectionString(connectionString)
+        .UseOptions(new PostgreSqlIdempotencyStoreOptions { ClaimTimeout = TimeSpan.FromMinutes(10) })));
+```
+
+Package `LiteBus.Commands.Storage.PostgreSql` registers `PostgreSqlIdempotencyStore` as the Singleton `IIdempotencyStore` through a command child module (`PostgreSqlIdempotencyModule`, `IRequires<CommandModule>`), with `PostgreSqlIdempotencyStoreRegistration` (data source plus options), the `PostgreSqlIdempotencySchemaInitializer` startup task (unless disabled), and the `idempotency.postgresql.schema` probe. The builder offers `UseDataSource` (not owned) / `UseConnectionString` (owned through a container-owned `PostgreSqlDataSourceOwner`), `UseOptions`, and `DisableSchemaInitialization()`; omitting the data source throws `DurableStorageConfigurationException`. `PostgreSqlIdempotencySchema` is the static schema API (`CurrentSchemaVersion = 1`, `ComponentName = "idempotency"`, `SqlFiles`, `GetCreateScript`, idempotent `EnsureAsync`, `ValidateAsync`) with canonical paths in `PostgreSqlIdempotencySchemaSqlPaths` (`V1Create`, `V1EnsureIndexes`); version 1 holds the keys table with the `fingerprint` column and a `completed_at` retention index.
+
+#### Commands recurring PostgreSQL lease
+
+```csharp
+liteBus.AddCommands(commands => commands
+    .AddRecurring(() => new SendDueRemindersCommand(), host => host.RequireLease = true)
+    .UsePostgreSqlRecurringLease(pg => pg.UseConnectionString(connectionString)));
+```
+
+Package `LiteBus.Commands.Recurring.Storage.PostgreSql` registers `PostgreSqlRecurringCommandLease(NpgsqlDataSource, PostgreSqlRecurringLeaseOptions? = null, ILogger? = null)` as the Singleton `IRecurringCommandLease` through a command child module, with the registration, the schema initializer startup task, and the `recurring.postgresql.schema` probe. Acquisition inserts or takes over a lease row keyed by name with `expires_at` on the database clock; the holder renews in the background every `EffectiveRenewInterval` (ownership-checked, so a stolen handle releases nothing and a dropped table stops renewal without resurrecting the row), and dispose deletes the row ownership-checked. A missing data source throws `DurableStorageConfigurationException`. `PostgreSqlRecurringLeaseSchema` (`CurrentSchemaVersion = 1`, `ComponentName = "recurring"`, `SqlFiles`, `GetCreateScript`, `EnsureAsync`, `ValidateAsync`) with `PostgreSqlRecurringLeaseSchemaSqlPaths` (`V1Create`, `V1EnsureIndexes`) owns the `litebus_recurring_leases` table and its `expires_at` index.
+
+#### Commands Marten
+
+```csharp
+liteBus.AddCommands(commands => commands
+    .EnableIdempotency()
+    .UseMartenUnitOfWork()
+    .UseMartenIdempotencyStore(options => options.ClaimTimeout = TimeSpan.FromMinutes(10)));
+```
+
+Package `LiteBus.Commands.Storage.Marten` brings the command axis to Marten. `MartenUnitOfWork(IDocumentSession)` commits the scoped session; `UseMartenUnitOfWork()` delegates to the command `UseUnitOfWork` hook, and query mediations reuse the same session by calling the query `UseUnitOfWork` hook with `MartenUnitOfWork` directly (the package ships no query extension so a command storage package does not pull the query axis). `MartenIdempotencyStore(IDocumentStore, MartenIdempotencyStoreOptions? = null, TimeProvider? = null)` keeps `MartenIdempotencyRecord` documents in its own serializable sessions with the same four claim outcomes and takeover semantics as the PostgreSQL store; lost races retry inside the store on SQL states 23505, 40001 and 40P01. `MartenAuditTrail(IDocumentSession, IDocumentStore)` stages each successful audit record in the handler session so it commits with the change, while denial and failure records are written out of band so a rolled-back session cannot lose them. `MartenAuditRecord` is the public flattened audit document (`Id`, `Action`, actor fields, `Outcome`, `OccurredAt`, `Duration`, `Category`, `TargetKind`, `TargetId`, `Reason`, `FailureCode`, `MessageType`, `CorrelationId`, `TenantId`, `Properties`). The application registers Marten itself with `AddMarten`; LiteBus does not register Marten, runs no schema initializer, and reports no probe, because Marten owns its schema.
+
 ### 4.20 Modules, ordering and the host manifest
 
 ```csharp
@@ -3413,12 +3563,13 @@ every IActingAccountCommand; 2 composition checks
 | `MessageCount` | Total registered messages. |
 | `MessageCountsByAxis` | Counts per axis name. An axis the host does not compose is absent rather than zero, so the summary says what was wired rather than what was not. |
 | `OpenGenericHandlers` | Each `OpenGenericClosure(HandlerName, MessageCount)`. A count of zero means the handler fits nothing and never runs. |
+| `DuplicateStageCoverages` | Each `DuplicateStageCoverage(HandlerType, MessageType, DirectContractType, IndirectContractType)`: one handler type covering one message pre-stage, post, error, or completion entries twice, once directly and once through a base type. Empty when every stage holds at most one entry per handler type. `ToString()` appends one `; duplicate stage coverage {Handler} on {Message} (direct {Direct}, indirect {Indirect})` segment per entry, ordered by handler then message name. |
 | `RequiredDeclarations` | Each policy as `"{ValueType} of {scope}"`. |
 | `AuditingEnabled`, `AuditTrail`, `AuditActorResolverRegistered` | The audit configuration, with the trail's lifetime. |
 | `AuditRecordWriter` | The replacement record writer type and lifetime, or `null` when the built-in writer is in use; appended to the startup line when set. |
 | `CompositionChecks` | How many application `ValidateComposition` checks run. |
 
-The open generic line is what earns it. Adding one file to a scanned assembly inserts a pipeline stage into every message it fits, and nothing in the composition code shows it; a count that changes when the set changes is what makes it reviewable.
+The open generic line is what earns it. Adding one file to a scanned assembly inserts a pipeline stage into every message it fits, and nothing in the composition code shows it; a count that changes when the set changes is what makes it reviewable. The duplicate-coverage line earns it the same way: the pipeline still runs both entries, and the summary makes the double run visible instead of silent.
 
 `LiteBusHostManifest` (`StartupTasks`, `BackgroundServices`, `DiagnosticChecks`) is built by `LiteBusHostManifest.FromConfiguration(...)` and registered as a Singleton. `LiteBusHostOrchestrator` runs every `IStartupTask.RunAsync` sequentially during `StartAsync`, then starts all `IBackgroundService.ExecuteAsync` loops in `ExecuteAsync`; an expected shutdown cancellation is swallowed, while any other exception calls `IHostApplicationLifetime.StopApplication()` and rethrows.
 
@@ -3465,6 +3616,8 @@ Aggregation: all `Healthy` -> `Healthy`; any `Unhealthy` -> `Unhealthy`; otherwi
 | `litebus.idempotency.store` | `IdempotencyStoreDiagnosticCheck` | `Unhealthy` when idempotency is enabled but no `IIdempotencyStore` is registered; otherwise `Healthy` with `component`, `storeRegistered`, `storeType`. |
 | `inbox.postgresql.schema` | `PostgreSqlInboxSchemaDiagnosticCheck` | Expected vs recorded inbox schema version. `Healthy` data keys: `component`, `expectedVersion`, `schemaName`, `tableName`; drift adds `actualVersion`. |
 | `outbox.postgresql.schema` | `PostgreSqlOutboxSchemaDiagnosticCheck` | Expected vs recorded outbox schema version. Same data keys as the inbox schema probe. |
+| `idempotency.postgresql.schema` | `PostgreSqlIdempotencySchemaDiagnosticCheck` | Expected vs recorded idempotency keys schema version. Same data keys as the inbox schema probe. |
+| `recurring.postgresql.schema` | `PostgreSqlRecurringLeaseSchemaDiagnosticCheck` | Expected vs recorded recurring leases schema version. Same data keys as the inbox schema probe. |
 | `transport.amqp.connectivity` | `AmqpConnectivityDiagnosticCheck` | Broker connection reachability. |
 | `transport.kafka.connectivity` | `KafkaConnectivityDiagnosticCheck` | Cluster describe within `ConnectivityCheckTimeout`. |
 | `transport.sqs.connectivity` | `AwsSqsConnectivityDiagnosticCheck` | `Degraded` ("SQS connectivity is not configured; set ConnectivityCheckQueueUrl.") when `ConnectivityCheckQueueUrl` is blank; otherwise reads the `QueueArn` attribute (`Healthy` "SQS queue attributes are available." / `Unhealthy` "SQS queue attributes are unavailable."). SDK exception text never surfaces. |
@@ -3511,6 +3664,8 @@ Query-string binding types, all `public sealed class` with `[FromQuery]` init pr
 Failures map to RFC 7807 problems via `Results.Problem` with `instance` set to the request path and `extensions["traceId"]` set to the trace identifier: `ArgumentException` to 400 `urn:litebus:management:invalid-request` ("Invalid management request"), `InboxManagementException`/`OutboxManagementException` to 400 `urn:litebus:management:safety-rejection` ("Management request rejected"), anything else to 500 `urn:litebus:management:operation-failed` ("Management operation failed"); a request-aborted `OperationCanceledException` is rethrown, never mapped. Boundary failures are logged through `ILoggerFactory.CreateLogger("LiteBus.Management")` with the trace identifier, request method, path, and exception: invalid input `EventId 4001` (Warning), operator-safety rejection `EventId 4002` (Warning), unexpected failure `EventId 5001` (Error). Every route gets `RequireAuthorization()` (or `RequireAuthorization(policy)`) unless `AllowAnonymousManagement` is set.
 
 Option validation at map time throws `ArgumentException` / `ArgumentOutOfRangeException` for a blank `RoutePrefix`, non-positive `MaxPageSize`, `MaxBulkMessageIds`, `DefaultDrainTimeout`, `MaxDrainTimeout`, or diagnostic limits, and when `DefaultDrainTimeout > MaxDrainTimeout`.
+
+**Idempotency-key endpoints.** `WithIdempotencyKey<TBuilder>(this TBuilder builder, Action<IdempotencyKeyFilterOptions>? configure = null)` (`TBuilder : IEndpointConventionBuilder`, so route groups work) registers an endpoint filter that reads the idempotency key request header into `HttpContext.Items`: `IdempotencyKeyFilterOptions` carries `HeaderName` (default `Idempotency-Key`), `RequireHeader` (default true; a missing or blank header short-circuits with a 400 `urn:litebus:idempotency:missing-key` problem), and `MaxKeyLength` (default 255; a longer key short-circuits with a 400 `urn:litebus:idempotency:key-too-long` problem). The first value wins when several arrive, and values are trimmed. `CommandMediationSettings.WithIdempotencyKey(settings, context)` carries the validated key from the filter into the mediation settings items; `IdempotencyKeyGuard : ICommandGuard<ICommand>` (constructed with the `IExecutionContext`) hands it to the idempotency shortcut as a `SuppliedIdempotencyKey`, setting it only when no stage supplied one so a command-specific guard keeps precedence. `MediationResult.ToHttpResult(result, httpContext, onSuccess)` and `MediationResult<T>.ToHttpResult(result, httpContext, onSuccess)` answer a success through `onSuccess` (the recorded result for an idempotent replay) and map refusals to problems: an in-flight key to 409 `urn:litebus:idempotency:in-flight`, a fingerprint mismatch to 422 `urn:litebus:idempotency:fingerprint-mismatch`, any other denial to 403 with the pipeline reason, and an invalid command to 400 with the collected reason.
 
 ### 4.23 OpenTelemetry
 
@@ -3591,13 +3746,17 @@ One span per mediation, named `mediate {MessageType}`, tagged with `litebus.mess
 | `LiteBus.Testing.Mediation` | `TestEventMediator` | Records `Events`, `Clear()`. |
 | `LiteBus.Testing.Mediation` | `MediationHarness` / `MediationHarness<TMessage>` | Runs the shipped pipeline over hand-supplied handler instances, with no host and no container. `For<TMessage>()`, `With(handler)`, `With(params object[])`, `WithTags(params string[])`, `RunAsync(message)`, `RunAsync<TResult>(message)`, `EvaluateAsync(message)` (returns `Task<MediationDecision>` via `DecisionEvaluationMediationStrategy`, guards and validators only, not a `MediationHarnessResult`). Handler instances are keyed by concrete type in a dictionary, so a second instance of the same type replaces the first; the registry discovers every contract the concrete type implements exactly as in a host. `RunAsync`/`RunAsync<TResult>` always run the single-handler strategies (`SingleAsyncHandlerMediationStrategy`, never the event broadcast). |
 | `LiteBus.Testing.Mediation` | `MediationHarnessResult` | `Outcome` (`MediationOutcome`), `StagesRun` (`IReadOnlyList<PreStage>`) and `MainHandlerRan` (`bool`) are `required`; `Reason`/`Code` default to null, `Failures` (`IReadOnlyList<ValidationFailure>`) defaults to `[]`, `Value` is `object?` defaulting to null; plus `IsSuccess` / `IsDenied` / `IsInvalid`. |
-| `LiteBus.Testing.Mediation` | `InMemoryIdempotencyStore` | `IIdempotencyStore` double with `AppliedKeys` (`IReadOnlyCollection<string>`, a snapshot via `.ToList()`; both dictionaries use `StringComparer.Ordinal` over `ConcurrentDictionary` instances). `TryClaimAsync` returns `AlreadyCompleted(payload)` only for an applied key and `Granted` otherwise (an in-flight but unsettled claim still grants); `CompleteAsync` moves the key to applied with its payload while `ReleaseAsync` only drops the unsettled claim and never un-applies; all three reject a blank key via `ArgumentException.ThrowIfNullOrWhiteSpace`. Ships from the testing package on purpose: it forgets on restart and is per-process, so it cannot make a claim about the system. |
+| `LiteBus.Testing.Mediation` | `InMemoryIdempotencyStore` | `IIdempotencyStore` double with `AppliedKeys` (`IReadOnlyCollection<string>`, a snapshot via `.ToList()`; ordinal comparison, lock-guarded) and `ClaimTimeout` (default five minutes, `TimeProvider`-driven; ctor `(TimeProvider? timeProvider = null, TimeSpan? claimTimeout = null)`). `TryClaimAsync` returns `Granted` for a new key or a takeover past `ClaimTimeout`, `AlreadyCompleted(payload)` for an applied key with a matching or absent fingerprint, `InFlight` for a held key, and `FingerprintMismatch` when both fingerprints are set and differ; `CompleteAsync` moves the key to applied with its payload while `ReleaseAsync` only drops the unsettled claim and never un-applies; all three reject a blank key via `ArgumentException.ThrowIfNullOrWhiteSpace`. Ships from the testing package on purpose: it forgets on restart and is per-process, so it cannot make a claim about the system. |
 | `LiteBus.Testing.Transport` | `TestMessageTransport` | `ITransportPublisher` double with `Published`, `NextPublishException` (single-shot, cleared when thrown), `IsDisconnected`. `PublishAsync` throws `InvalidOperationException` ("Test transport is disconnected.") when `IsDisconnected` is true, checked before the single-shot exception. `Clear()` drains recorded publications and additionally resets `NextPublishException` to null and `IsDisconnected` to false. |
 | `LiteBus.Testing.Hosting` | `LiteBusHostedServiceExtensions` | `StartLiteBusHostedServicesAsync`, `StopLiteBusHostedServicesAsync` (reverse order), `GetInboxProcessorHostedService`, `AssertBackgroundServices(provider, params Type[])` (compares the manifest list against the expected types order-insensitively by full name, returns the resolved `LiteBusHostManifest` on match, throws `InvalidOperationException` on mismatch). |
-| `LiteBus.Testing.DurableMessaging` | `InboxOutboxStoreServiceCollectionExtensions` | `AddInboxStoreRoles<TStore>(store)` / `AddOutboxStoreRoles<TStore>(store)` register one instance under all ten role interfaces. |
+| `LiteBus.Testing.DurableMessaging` | `InboxOutboxStoreServiceCollectionExtensions` | `AddInboxStoreRoles<TStore>(store)` / `AddOutboxStoreRoles<TStore>(store)` register one instance under all ten role interfaces; `AddTestTransactionalOutbox(store)` / `AddTestTransactionalOutbox()` bind one shared `TestOutboxStore` to every outbox role and register the production `StoreBoundTransactionalOutbox` as scoped `ITransactionalOutbox` (immediate-commit semantics). |
+| `LiteBus.Testing.DurableMessaging` | `ProcessorDrainResult` | Sealed record aggregating a drain: `Passes` (including the final idle pass), `LeasedCount`, `SucceededCount`, `FailedCount`, `DeadLetteredCount`, `ElapsedTime` (all `get; init;`). |
+| `LiteBus.Testing.DurableMessaging` | `ProcessorPassHelpers.DrainInboxAsync` / `DrainOutboxAsync` | `(IServiceProvider provider, int maxPasses = 100, CancellationToken = default)` loop passes until one pass leases nothing and return a `ProcessorDrainResult`; throw `InvalidOperationException` when `maxPasses` is exhausted with work still leased. Rows hidden behind retry backoff need a manual clock advance plus another drain. |
+| `LiteBus.Testing.DurableMessaging` | `ScriptedOutboxDispatcher` | `IOutboxDispatcher` decorator `(IOutboxDispatcher? inner = null)` with per-contract failure scripts: `FailNext(contractName, error, times = 1)`, `FailAlways(contractName, error)`, `GetAttemptCount(contractName)`, `ClearContract(contractName)`, `Clear()`, plus `AttemptedEnvelopes` and `DispatchedEnvelopes` recordings. A cancelled token throws without consuming the script, recording, or delegating. |
+| `LiteBus.Testing.DurableMessaging` | `StoreSchemaContract` / `StoreSchemaExpectation` | `StoreSchemaExpectation` pins `Component`, `ExpectedVersion`, `RecordedVersion` (all required) with optional `SchemaName`/`TableName` pins (null skips the name check). `StoreSchemaContract.GetDifferences(actual, expected)` returns one entry per difference; `AssertCompatible` throws `InvalidOperationException` listing every difference; `AssertCompatibleAsync` overloads read the schema from an `IOutboxDiagnosticsStore` or `IInboxDiagnosticsStore`. |
 | `LiteBus.Testing.DurableMessaging` | `InboxOutboxTestHost` | `public sealed class InboxOutboxTestHost : IAsyncDisposable` (namespace `LiteBus.Testing`). `Create(Action<ILiteBusBuilder>? = null, Action<IServiceCollection>? = null, TimeProvider? = null)` builds in-memory inbox+outbox storage (the clock is applied to messaging and both stores); `Services` root provider; `GetInbox()`/`GetOutbox()` writers. |
 | `LiteBus.Testing.DurableMessaging` | `ProcessorPassHelpers` | `RunInboxPassAsync(IServiceProvider provider, CancellationToken = default)` resolves `IInboxProcessor` and runs one processing pass; `RunOutboxPassAsync` resolves `IOutboxProcessor` and runs one publishing pass. Both return `Task<ProcessorPassResult>`. |
-| `LiteBus.Testing.DurableMessaging` | `TestOutboxStore` | `public sealed class TestOutboxStore : IOutboxStore, IOutboxProcessingStore, IOutboxOperationsStore` (namespace `LiteBus.Testing`, default ctor) delegating every role to a default `InMemoryOutboxStore`, plus `Get(Guid)` and `Clear()`. |
+| `LiteBus.Testing.DurableMessaging` | `TestOutboxStore` | `public sealed class TestOutboxStore : IOutboxStore, IOutboxProcessingStore, IOutboxOperationsStore, ITransactionalOutboxStore` (namespace `LiteBus.Testing`, default ctor) delegating every role to a default `InMemoryOutboxStore`, plus `Get(Guid)` and `Clear()`. |
 | `LiteBus.Testing.DurableMessaging` | `TestInboxStore` | `public sealed class TestInboxStore : IInboxStore, IInboxProcessingStore, IInboxOperationsStore` (namespace `LiteBus.Testing`) with ctor `(InMemoryInboxStoreOptions? options = null, TimeProvider? timeProvider = null)` over a backing `InMemoryInboxStore`, plus `Get(Guid)` and `Clear()`. |
 | `LiteBus.Testing.DurableMessaging` | `ChaosLeaseExpiryFixture` | `CreateLeaseStore()` returns an `IInboxLeaseStore` whose `RenewLeaseAsync` fails for one target message id, simulating mid-dispatch lease loss. |
 
@@ -3655,9 +3814,11 @@ Ship `LiteBus.Analyzers` as an analyzer package reference. Rules with the `Compi
 | `LB1017` | Explicit message contract registration recommended | `LiteBus.Contracts` | Warning | Yes (CompilationEnd) | `[MessageContract]` present but no explicit registration. |
 | `LB1018` | Message states no audit position | `LiteBus.Auditing` | Warning | **No** (opt in with `dotnet_diagnostic.LB1018.severity = warning`; CompilationEnd) | None of `[Audited]`, `[AuditExempt]`, an `IAuditDefinition`, or an `IMessageDefinition<TMessage>.Describe` body calling `Audited` or `NotAudited`. |
 | `LB1019` | Untyped shortcut on a message that produces a result | `LiteBus.Handlers` | Warning | Yes | Untyped shortcut contract used for a result-producing message; answering would throw `PipelineContractException`. |
-| `LB1020` | Message states no position on a required declaration | `LiteBus.Declarations` | Warning | **No** (opt in with `dotnet_diagnostic.LB1020.severity = warning`; CompilationEnd) | The message declares none of the value types named in `litebus_required_declarations` through any of the four shapes, and records no exemption. Generalizes `LB1018`. |
+| `LB1020` | Message states no position on a required declaration | `LiteBus.Declarations` | Warning | **No** (opt in with `dotnet_diagnostic.LB1020.severity = warning`; CompilationEnd) | The message declares none of the value types named in `litebus_required_declarations` through any of the four shapes, and records no exemption. Generalizes `LB1018`. The `Describe` body reading recognizes `Declare<TValue>`/`Exempt<TValue>` on the type argument, `Audited`/`NotAudited` as declaring `AuditDeclaration`, and `Authorized`/`AuthorizationExempt` as declaring `AuthorizationDeclaration`. |
 | `LB1021` | Required declaration type not found | `LiteBus.Declarations` | Warning | Yes (CompilationEnd) | A name in `litebus_required_declarations` does not resolve; reported rather than skipped, because skipping would silently disable the requirement. |
 | `LB1022` | Handler priority is inside the range reserved by LiteBus | `LiteBus.Handlers` | Warning | Yes | `[HandlerPriority]` falls inside the range LiteBus reserves for its own handlers (`ReservedFloor` to `ReservedCeiling`), so the handler orders against LiteBus stages rather than against sibling application handlers. |
+| `LB1023` | Nested mediation in command handler | `LiteBus.Handlers` | Warning | **No** (opt in with `dotnet_diagnostic.LB1023.severity = warning`) | A command handler sends or publishes through a mediator inside its handle method, nesting a second unit of work; stage follow-up work through the domain event collector or the transactional outbox instead. `IQueryMediator` reads and `EvaluateAsync` guard checks are never reported, and `IMessageMediator.Mediate` of a query counts as a read. |
+| `LB1024` | External side effect in command handler | `LiteBus.Handlers` | Warning | **No** (opt in with `dotnet_diagnostic.LB1024.severity = warning`) | A command handler injects an external side-effect type through its own constructor. The default forbidden types are `HttpClient` and `IHttpClientFactory` (subclasses and interface matches count); set `litebus.LB1024.forbidden_types` in `.editorconfig` to a comma-separated list of metadata names to replace them. |
 
 `LB1003` analyzes classes implementing `IQueryHandler<,>` or `IStreamQueryHandler<,>`, inspecting constructor parameters, declared-method parameters, fields and declared properties across the type hierarchy (base-type ordinary-method parameters and properties are not inspected, only the declared type's), reporting each impure dependency once. `LB1018` and `LB1020` share `DeclarableKinds = [Command, Query, StreamQuery]`, so only commands and (stream) queries are reported and events are never flagged for a missing audit position or required declaration.
 
@@ -3672,7 +3833,7 @@ The analyzer package is held on Roslyn 4.x (`Microsoft.CodeAnalysis.CSharp` 4.8.
 | `AmbiguousMessageResolveException` | same | Two equally specific assignable descriptors. Carries `MessageType`, `ResolveStrategyType`, `Candidates`. |
 | `MessageDescriptorNotFoundException` | same | Descriptor still missing after on-the-spot registration. Carries `MessageType`, `ResolveStrategyType`, `RegisterPlainMessagesOnSpot`, `RegisteredMessageCount`. |
 | `UnsupportedOpenGenericHandlerException` | same | Open generic handler whose arity is neither one, nor two bound by a typed handler contract. Carries `HandlerType`, `GenericParameterCount`. |
-| `LiteBusMessageDeniedException` | same | A guard denied and no refusal mapper applied. Carries `MessageType?`, `Reason?`, `Code?`, `DeniedBy` (the guard type, named in the message). |
+| `LiteBusMessageDeniedException` | same | A guard denied, a shortcut denied, or a classifier recognized a fault, and no refusal mapper applied. Carries `MessageType?`, `Reason?`, `Code?`, `DeniedBy` (the guard or shortcut type, named in the message). |
 | `LiteBusMessageInvalidException` | same | Validators reported failures and no refusal mapper applied. Carries `MessageType?`, `Failures`, `RejectedBy` (the validator type, named in the message). |
 | `NoExecutionContextException` | same | Ambient execution context accessed outside a mediation. |
 | `HandleContextDataNotFoundException` | same | `IExecutionContext.Data.Get<T>()` asked for a slot no stage stored. Carries `DataType` and `Key` (null for an unkeyed read). Use `TryGet<T>` where the value is optional. |
@@ -3727,7 +3888,7 @@ The analyzer package is held on Roslyn 4.x (`Microsoft.CodeAnalysis.CSharp` 4.8.
 | --- | --- | --- |
 | `Succeeded` | `0` | The main handler and all post-handlers ran without raising. |
 | `Answered` | `1` | A shortcut answered the message, so the main handler never ran. |
-| `Denied` | `2` | A guard refused the message; the main handler never ran. |
+| `Denied` | `2` | A guard or a shortcut refused the message; the main handler never ran. |
 | `Failed` | `3` | The pipeline raised an exception other than cancellation or a refusal. |
 | `Canceled` | `4` | The mediation cancellation token fired. |
 | `Invalid` | `5` | A validator reported the message malformed; the main handler never ran. |
@@ -3738,7 +3899,7 @@ The analyzer package is held on Roslyn 4.x (`Microsoft.CodeAnalysis.CSharp` 4.8.
 | --- | --- | --- |
 | `Guard` | `0` | May the message proceed. Stops at the first denial. |
 | `Validator` | `1` | Is the message well-formed. Every validator runs; failures are collected. |
-| `Shortcut` | `2` | Is the answer already known. Stops at the first answer. |
+| `Shortcut` | `2` | Is the answer already known. Stops at the first answer or denial. |
 | `PreHandler` | `3` | Prepare the message. Cannot stop the pipeline by returning. |
 
 #### `MessageErrorOutcome` (`LiteBus.Messaging.Abstractions`)
@@ -3775,8 +3936,10 @@ The mode governs handlers inside one priority group and never carries across gro
 | --- | --- | --- |
 | `Granted` | `0` | The key was not held, and the caller now holds it. The message runs. |
 | `AlreadyCompleted` | `1` | The key was applied by an earlier delivery. The message is answered without running. |
+| `InFlight` | `2` | The key is held by a delivery that has not settled yet. The message is denied with code `idempotency.in-flight`. |
+| `FingerprintMismatch` | `3` | The key was applied carrying different content. The message is denied with code `idempotency.fingerprint-mismatch`. |
 
-There are two answers, not three: a delivery still in flight is not a state the pipeline can act on, so a store facing a concurrent claim either waits for the other transaction to settle or throws its own conflict exception for the caller to retry.
+An unsettled claim older than the store claim timeout is taken over and granted. Fingerprints compare only on applied keys: both non-null and different mismatches, while either side null replays.
 
 #### `ConcurrencyMode` (`LiteBus.Events.Abstractions`)
 
@@ -3982,6 +4145,31 @@ Internal: persisted error text is truncated to 1024 characters.
 
 The `Name` property returns `CheckName`.
 
+#### `IdempotencyRefusalCodes` (`LiteBus.Messaging.Abstractions`)
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `InFlight` | `string` | `idempotency.in-flight` |
+| `FingerprintMismatch` | `string` | `idempotency.fingerprint-mismatch` |
+
+#### `DeclarationGuard<TMessage, TValue>.UndeclaredCode` (`LiteBus.Messaging.Abstractions`)
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `UndeclaredCode` | `string` | `declaration.missing` |
+
+#### `PostgreSqlIdempotencySchemaDiagnosticCheck` (`LiteBus.Commands.Storage.PostgreSql`)
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `CheckName` | `string` | `idempotency.postgresql.schema` |
+
+#### `PostgreSqlRecurringLeaseSchemaDiagnosticCheck` (`LiteBus.Commands.Recurring.Storage.PostgreSql`)
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `CheckName` | `string` | `recurring.postgresql.schema` |
+
 #### `TransportHeaders` (`LiteBus.Transport.Abstractions`)
 
 | Constant | Type | Value |
@@ -4157,6 +4345,8 @@ Repository-relative paths to the canonical SQL files shipped in `LiteBus.Outbox.
 | --- | --- | --- |
 | `V1Create` | `string` | `src/LiteBus.Outbox.Storage.PostgreSql/Sql/outbox/v1/create.sql` |
 | `V1EnsureIndexes` | `string` | `src/LiteBus.Outbox.Storage.PostgreSql/Sql/outbox/v1/ensure_indexes.sql` |
+| `V2Create` | `string` | `src/LiteBus.Outbox.Storage.PostgreSql/Sql/outbox/v2/create.sql` |
+| `V2Upgrade` | `string` | `src/LiteBus.Outbox.Storage.PostgreSql/Sql/outbox/v2/upgrade.sql` |
 
 #### `PostgreSqlSagaSchemaSqlPaths` (`LiteBus.Saga.Storage.PostgreSql`)
 
@@ -4166,6 +4356,24 @@ Repository-relative paths to the canonical SQL files shipped in `LiteBus.Saga.St
 | --- | --- | --- |
 | `V1Create` | `string` | `src/LiteBus.Saga.Storage.PostgreSql/Sql/saga/v1/create.sql` |
 | `V1EnsureIndexes` | `string` | `src/LiteBus.Saga.Storage.PostgreSql/Sql/saga/v1/ensure_indexes.sql` |
+
+#### `PostgreSqlIdempotencySchemaSqlPaths` (`LiteBus.Commands.Storage.PostgreSql`)
+
+Repository-relative paths to the canonical SQL files shipped in `LiteBus.Commands.Storage.PostgreSql`, rooted at `src/LiteBus.Commands.Storage.PostgreSql/Sql/`.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `V1Create` | `string` | `src/LiteBus.Commands.Storage.PostgreSql/Sql/idempotency/v1/create.sql` |
+| `V1EnsureIndexes` | `string` | `src/LiteBus.Commands.Storage.PostgreSql/Sql/idempotency/v1/ensure_indexes.sql` |
+
+#### `PostgreSqlRecurringLeaseSchemaSqlPaths` (`LiteBus.Commands.Recurring.Storage.PostgreSql`)
+
+Repository-relative paths to the canonical SQL files shipped in `LiteBus.Commands.Recurring.Storage.PostgreSql`, rooted at `src/LiteBus.Commands.Recurring.Storage.PostgreSql/Sql/`.
+
+| Constant | Type | Value |
+| --- | --- | --- |
+| `V1Create` | `string` | `src/LiteBus.Commands.Recurring.Storage.PostgreSql/Sql/recurring/v1/create.sql` |
+| `V1EnsureIndexes` | `string` | `src/LiteBus.Commands.Recurring.Storage.PostgreSql/Sql/recurring/v1/ensure_indexes.sql` |
 
 #### Default-value constants
 
@@ -4180,7 +4388,7 @@ Repository-relative paths to the canonical SQL files shipped in `LiteBus.Saga.St
 
 #### Analyzer diagnostic ids (`LiteBus.Analyzers.DiagnosticIds`, internal)
 
-`LB1001` DuplicateCommandHandler, `LB1003` QueryHandlerImpurity, `LB1004` CommandWithResultScheduledToInbox, `LB1005` UnsupportedOpenGenericHandler, `LB1007` MissingMessageContractRegistration, `LB1008` MissingCommandHandler, `LB1009` MissingQueryHandler, `LB1010` DuplicateQueryHandler, `LB1011` OrphanHandlerTag, `LB1012` DuplicateHandlerAcrossAssemblies, `LB1013` TransactionalOutboxWithoutDbContext, `LB1014` ProcessorEnabledWithoutDispatcher, `LB1015` TransactionalStorageWithoutInterceptor, `LB1016` TransactionalInboxWithoutDbContext, `LB1017` ExplicitMessageContractRegistration, `LB1018` MissingAuditDeclaration, `LB1019` UntypedShortcutOnResultMessage, `LB1020` MissingDeclaration, `LB1021` UnresolvedRequiredDeclaration, `LB1022` ReservedHandlerPriority. (`LB1002` and `LB1006` are reserved, never shipped.)
+`LB1001` DuplicateCommandHandler, `LB1003` QueryHandlerImpurity, `LB1004` CommandWithResultScheduledToInbox, `LB1005` UnsupportedOpenGenericHandler, `LB1007` MissingMessageContractRegistration, `LB1008` MissingCommandHandler, `LB1009` MissingQueryHandler, `LB1010` DuplicateQueryHandler, `LB1011` OrphanHandlerTag, `LB1012` DuplicateHandlerAcrossAssemblies, `LB1013` TransactionalOutboxWithoutDbContext, `LB1014` ProcessorEnabledWithoutDispatcher, `LB1015` TransactionalStorageWithoutInterceptor, `LB1016` TransactionalInboxWithoutDbContext, `LB1017` ExplicitMessageContractRegistration, `LB1018` MissingAuditDeclaration, `LB1019` UntypedShortcutOnResultMessage, `LB1020` MissingDeclaration, `LB1021` UnresolvedRequiredDeclaration, `LB1022` ReservedHandlerPriority, `LB1023` NestedMediationInCommandHandler, `LB1024` ExternalSideEffectInCommandHandler. (`LB1002` and `LB1006` are reserved, never shipped.)
 
 #### Log event ids
 
@@ -4210,6 +4418,9 @@ Repository-relative paths to the canonical SQL files shipped in `LiteBus.Saga.St
 | `2102` | `LoopDisabled` | Information | recurring command loop: the loop is disabled and will not run |
 | `2103` | `PassFailed` | Error | recurring command loop: one pass failed and the loop continues after the error backoff |
 | `2104` | `PassConflicted` | Information | recurring command loop: one pass lost a concurrency race and the loop continues at its normal interval |
+| `2105` | `LeaseSkipped` | Debug | recurring command loop: one pass was skipped because another instance holds the lease, and the loop continues at its normal interval |
+| `2110` | `LeaseRenewalStolen` | Warning | PostgreSQL recurring lease: renewal found the lease taken by another holder, logged once; renewal stopped and the row left alone |
+| `2111` | `LeaseRenewalFailed` | Warning | PostgreSQL recurring lease: renewal threw; renewal stopped and the lease expires on the database clock |
 | `3001` | `LeasedBatch` | Debug | shared processor |
 | `3002` | `LeaseRenewalFailed` | Warning | shared processor |
 | `3002` | `IngressRestarting` | Warning | transport inbox ingress |
@@ -4231,13 +4442,15 @@ Event ids are unique within a component, not across components: `2101`, `3002`, 
 | `"application/json"` | default `ContentType` on `TransportPublishRequest`, `TransportInboxDispatcherOptions`, `TransportOutboxDispatcherOptions` |
 | `"litebus"` | default `LiteBusManagementOptions.RoutePrefix`, default health-check name |
 | `"litebus.probes"` | synthetic probe name emitted when the manifest has no probes and `FailHealthWhenNoProbes` is true |
-| `"litebus_inbox_messages"`, `"litebus_outbox_messages"`, `"litebus_saga_instances"`, `"litebus_schema_versions"` | default table names |
+| `"litebus_inbox_messages"`, `"litebus_outbox_messages"`, `"litebus_saga_instances"`, `"litebus_schema_versions"`, `"litebus_idempotency_keys"`, `"litebus_recurring_leases"` | default table names |
 | `"public"` | default schema and metadata-schema name |
 | `"litebus-transport"` | default `KafkaTransportOptions.ConsumerGroupId` |
 | `"localhost"`, `"/"`, `"guest"` | AMQP default host, virtual host, user and password |
 | `U+001F` | separator inside `DurableIdempotencyScope.CreateScopeKey` |
 | `IX_LiteBus_Inbox_CreatedAt`, `IX_LiteBus_Outbox_CreatedAt` | EF Core `created_at` index names |
 | `"litebus-headers"` | SQS message attribute holding non-reserved headers packed as JSON when attributes would exceed ten; expanded on receive |
+| `"urn:litebus:idempotency:missing-key"`, `"urn:litebus:idempotency:key-too-long"`, `"urn:litebus:idempotency:in-flight"`, `"urn:litebus:idempotency:fingerprint-mismatch"` | problem types returned by the ASP.NET Core idempotency-key filter and `MediationResult.ToHttpResult` |
+| `"Idempotency-Key"` | default `IdempotencyKeyFilterOptions.HeaderName` |
 
 ---
 
