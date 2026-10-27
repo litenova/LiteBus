@@ -11,6 +11,7 @@
                   "execution-context",
                   "message-definitions",
                   "auditing",
+                  "authorization-declarations",
                   "idempotency",
                   "polymorphic-dispatch",
                   "open-generic-handlers",

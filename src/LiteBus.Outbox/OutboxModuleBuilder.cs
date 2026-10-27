@@ -61,6 +61,21 @@ public sealed class OutboxModuleBuilder
     private IOutboxStorageModule? _storageModule;
 
     /// <summary>
+    ///     Whether <see cref="StageCollectedEvents" /> was called.
+    /// </summary>
+    private bool _stageCollectedEvents;
+
+    /// <summary>
+    ///     Whether <see cref="UseAmbientTrace" /> was called.
+    /// </summary>
+    private bool _useAmbientTrace;
+
+    /// <summary>
+    ///     Whether <see cref="EnablePerHandlerDelivery" /> was called.
+    /// </summary>
+    private bool _perHandlerDelivery;
+
+    /// <summary>
     ///     Gets the deferred contract writer. Registrations are applied to the shared
     ///     <see cref="IMessageContractRegistry" /> when the module builds.
     /// </summary>
@@ -238,6 +253,93 @@ public sealed class OutboxModuleBuilder
     internal IPayloadEncryptor? CollectPayloadEncryptor()
     {
         return _payloadEncryptor;
+    }
+
+    /// <summary>
+    ///     Registers the default scoped domain event collector and stages collected events into the transactional outbox when a mediation completes successfully.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Handlers record consequences through <see cref="IDomainEventCollector" /> instead of publishing them
+    ///         inline. A completion handler at <see cref="HandlerPriorities.Persistence" /> drains the collector into
+    ///         <see cref="ITransactionalOutbox" /> on <see cref="MediationOutcome.Succeeded" /> only, ordered before an
+    ///         application's commit at <see cref="HandlerPriorities.UnitOfWork" />, so the staged rows join the unit of
+    ///         work that produced them. A failed mediation stages nothing.
+    ///     </para>
+    ///     <para>
+    ///         The application must register a scoped <see cref="ITransactionalOutbox" />; the staging handler resolves
+    ///         it lazily and only when the drain is non-empty, so mediations that collect nothing never touch it. When
+    ///         <see cref="UseAmbientTrace" /> is also enabled, staged envelopes stamp
+    ///         <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.MessageTrace.FromAmbient" />.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder StageCollectedEvents()
+    {
+        _stageCollectedEvents = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     Stamps trace metadata from the ambient execution context onto enqueued envelopes whose items carry none.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         When an item's trace is
+    ///         <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.MessageTrace.None" />, the envelope factory
+    ///         stores <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.MessageTrace.FromAmbient" /> instead.
+    ///         An explicit item trace always wins over the ambient value, and outside a mediation the ambient read
+    ///         yields none, so the envelope is identical to one enqueued without this option.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder UseAmbientTrace()
+    {
+        _useAmbientTrace = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     Writes one envelope per subscribed main handler of each enqueued event, so every reaction gets its own retry, dead letter, and replay.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Each envelope records the full name of the handler it is addressed to, and in-process dispatch publishes
+    ///         each envelope to that handler alone. Enqueueing an event with no subscribed main handler throws
+    ///         <see cref="NoHandlerFoundException" />, matching the default in-process dispatch rule that treats an
+    ///         unhandled durable message as a failure.
+    ///     </para>
+    ///     <para>
+    ///         The trade-off is storage: one row per handler instead of one row per event. A handler added after enqueue
+    ///         does not receive already-enqueued events, and a handler removed before dispatch leaves its envelopes with
+    ///         no matching subscriber, which the dispatch <c>RequireHandler</c> option then decides. Use this only with
+    ///         in-process dispatch: broker dispatchers publish the full event per envelope, so per-handler envelopes
+    ///         would duplicate broker publication.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder EnablePerHandlerDelivery()
+    {
+        _perHandlerDelivery = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="StageCollectedEvents" /> was called.
+    /// </summary>
+    internal bool IsCollectedEventStagingEnabled => _stageCollectedEvents;
+
+    /// <summary>
+    ///     Collects the enqueue options built from the ambient trace and per-handler delivery flags.
+    /// </summary>
+    /// <returns>The enqueue options the module registers.</returns>
+    internal OutboxEnqueueOptions CollectEnqueueOptions()
+    {
+        return new OutboxEnqueueOptions
+        {
+            UseAmbientTrace = _useAmbientTrace,
+            PerHandlerDelivery = _perHandlerDelivery
+        };
     }
 
     /// <summary>

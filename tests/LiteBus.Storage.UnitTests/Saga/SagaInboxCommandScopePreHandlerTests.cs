@@ -118,6 +118,8 @@ public sealed class SagaInboxCommandScopePreHandlerTests
 
         public CancellationToken CancellationToken => CancellationToken.None;
 
+        public DateTimeOffset HandledAt { get; } = DateTimeOffset.UtcNow;
+
         public IDictionary<string, object> Items => _items;
 
         public IHandleContextData Data { get; } = new HandleContextData();

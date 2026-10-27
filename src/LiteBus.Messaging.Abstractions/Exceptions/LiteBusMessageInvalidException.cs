@@ -46,6 +46,27 @@ public sealed class LiteBusMessageInvalidException : Exception
     }
 
     /// <summary>
+    ///     Initializes a new instance of the <see cref="LiteBusMessageInvalidException" /> class for a fault a
+    ///     classifier recognized as invalid input, keeping the fault as the inner exception.
+    /// </summary>
+    /// <param name="messageType">The type of the message that was rejected.</param>
+    /// <param name="reason">What is wrong with the message, written for a person.</param>
+    /// <param name="code">A machine-readable code for the failure, when the classifier supplies one.</param>
+    /// <param name="innerException">The fault the classifier recognized.</param>
+    /// <remarks>
+    ///     The reason and code are carried as the single <see cref="ValidationFailure" /> on
+    ///     <see cref="Failures" />, because a classified fault reports one thing wrong with the message as a whole
+    ///     rather than the per-member failures a validator collects.
+    /// </remarks>
+    public LiteBusMessageInvalidException(Type messageType, string reason, string? code, Exception innerException)
+        : base(BuildMessage(messageType, [new ValidationFailure(reason, code: code)], null), innerException)
+    {
+        MessageType = messageType;
+        Failures = [new ValidationFailure(reason, code: code)];
+        RejectedBy = null;
+    }
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="LiteBusMessageInvalidException" /> class with a default message.
     /// </summary>
     public LiteBusMessageInvalidException()

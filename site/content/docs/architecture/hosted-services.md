@@ -111,7 +111,7 @@ registry.AddCommands(commands => commands
 
 `CommandModuleBuilder.AddRecurring` from `LiteBus.Commands.Recurring` registers `RecurringCommandBackgroundService<TCommand>` through the manifest, one per registered command type. Each pass opens its own dispatch scope and sends one command. A pass that throws is logged and the loop continues after `ErrorBackoff`, which defaults to five minutes. A pass classified as an optimistic-concurrency conflict by `RecurringCommandHostOptions.IsConcurrencyConflict` is logged at Information (EventId 2104) and waits `Interval`, which defaults to one minute. A result that implements `IRecurringWorkReport` with `HasMoreWork` set to true skips the interval so a backlog clears without idle waits.
 
-The loop runs on every host instance because LiteBus has no leader election. Use it for a command that drains work by leasing rows. Use inbox or outbox processors for work that must be claimed exactly once. See [Recurring Commands](../integrations/recurring-commands.md).
+The loop runs on every host instance unless the command sets `RequireLease`, which takes a named lease before each pass and skips the pass when another instance holds it; `LiteBus.Commands.Recurring.Storage.PostgreSql` supplies a PostgreSQL advisory-lock lease. Use inbox or outbox processors for work that must be claimed exactly once per message. See [Recurring Commands](../integrations/recurring-commands.md).
 
 ## Run Without the Generic Host
 

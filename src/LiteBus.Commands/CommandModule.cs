@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
@@ -94,7 +95,7 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
                 IdempotencyStoreDiagnosticCheck.CheckName);
         }
 
-        RegisterCommandServices(configuration);
+        RegisterCommandServices(configuration, moduleBuilder.UnitOfWorkType);
         // Recorded for the composition summary. Only this module knows how many messages belong to its axis, because
         // the messaging registry does not reference the axis contracts.
         if (configuration.TryGetContext<LiteBusCompositionSummary>(out var summary) && summary is not null)
@@ -109,10 +110,34 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
     ///     Registers command-specific services with the dependency registry.
     /// </summary>
     /// <param name="configuration">The module configuration.</param>
-    private static void RegisterCommandServices(IModuleConfiguration configuration)
+    /// <param name="unitOfWorkType">The unit of work implementation type registered through the builder, or <see langword="null" /> when the application commits its own way.</param>
+    private static void RegisterCommandServices(IModuleConfiguration configuration, Type? unitOfWorkType)
     {
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ICommandMediator),
             typeof(CommandMediator)));
+
+        if (unitOfWorkType is null)
+        {
+            return;
+        }
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            unitOfWorkType,
+            unitOfWorkType,
+            InstanceLifetime.Scoped));
+
+        // The completion handler takes the concrete type, so each axis commits its own even when commands and queries
+        // name different implementations. The shared interface resolves to the first module's registration instead of
+        // failing composition with a conflicting binding.
+        if (configuration.DependencyRegistry.Any(static descriptor => descriptor.DependencyType == typeof(IUnitOfWork)))
+        {
+            return;
+        }
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IUnitOfWork),
+            unitOfWorkType,
+            InstanceLifetime.Scoped));
     }
 }

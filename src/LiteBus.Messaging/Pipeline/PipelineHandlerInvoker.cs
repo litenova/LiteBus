@@ -179,7 +179,7 @@ internal static class PipelineHandlerInvoker
     ///     An open generic handler exposes exactly one type parameter, which the registry enforces, so every open
     ///     argument on the contract is closed by the type arguments of the runtime message type.
     /// </remarks>
-    private static Type CloseOverRuntimeMessage(Type openContract, Type runtimeMessageType)
+    internal static Type CloseOverRuntimeMessage(Type openContract, Type runtimeMessageType)
     {
         if (!openContract.ContainsGenericParameters)
         {

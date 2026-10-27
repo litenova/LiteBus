@@ -267,6 +267,55 @@ internal sealed class UndeclaredPaymentCommandHandler : ICommandHandler<Undeclar
 }
 
 /// <summary>
+///     Records the completion context of every command in the denial tests, so a denial observed as anything but
+///     <see cref="MediationOutcome.Denied" /> would be visible.
+/// </summary>
+internal sealed class IdempotencyDenialCompletionProbe : ICommandCompletionHandler
+{
+    /// <summary>
+    ///     The recorder shared with the test.
+    /// </summary>
+    private readonly CompletionRecorder _recorder;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="IdempotencyDenialCompletionProbe" /> class.
+    /// </summary>
+    /// <param name="recorder">The recorder shared with the test.</param>
+    public IdempotencyDenialCompletionProbe(CompletionRecorder recorder)
+    {
+        _recorder = recorder;
+    }
+
+    /// <inheritdoc />
+    public Task HandleCompletionAsync(
+        MessageCompletionContext<ICommand> context,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        _recorder.Observed.Enqueue(("idempotency", context.AsUntyped()));
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+///     Declares the audit position of <see cref="ApplyPaymentCommand" />, registered only by the denial tests.
+/// </summary>
+internal sealed class ApplyPaymentAuditDefinition : IAuditDefinition<ApplyPaymentCommand>
+{
+    /// <inheritdoc />
+    public AuditDeclaration Audit => AuditDeclaration.Audited("payments.apply-payment");
+}
+
+/// <summary>
+///     Declares the audit position of <see cref="RepeatablePaymentCommand" />, registered only by the denial tests.
+/// </summary>
+internal sealed class RepeatablePaymentAuditDefinition : IAuditDefinition<RepeatablePaymentCommand>
+{
+    /// <inheritdoc />
+    public AuditDeclaration Audit => AuditDeclaration.Audited("payments.repeatable-payment");
+}
+
+/// <summary>
 ///     A store that reports every key as already applied but records no payload.
 /// </summary>
 /// <remarks>
@@ -276,7 +325,7 @@ internal sealed class UndeclaredPaymentCommandHandler : ICommandHandler<Undeclar
 public sealed class ForgetfulIdempotencyStore : IIdempotencyStore
 {
     /// <inheritdoc />
-    public Task<IdempotencyClaim> TryClaimAsync(string key, CancellationToken cancellationToken = default)
+    public Task<IdempotencyClaim> TryClaimAsync(string key, string? fingerprint, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(IdempotencyClaim.AlreadyCompleted());
     }

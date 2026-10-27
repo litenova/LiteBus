@@ -43,6 +43,8 @@ public sealed class AmbientExecutionContextTests
     {
         public CancellationToken CancellationToken => CancellationToken.None;
 
+        public DateTimeOffset HandledAt { get; } = DateTimeOffset.UtcNow;
+
         public IDictionary<string, object> Items { get; } = new Dictionary<string, object>();
 
         public IHandleContextData Data { get; } = new HandleContextData();

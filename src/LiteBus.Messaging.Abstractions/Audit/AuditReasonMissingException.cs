@@ -16,7 +16,8 @@ namespace LiteBus.Messaging.Abstractions;
 ///         the commit at <see cref="HandlerPriorities.UnitOfWork" />, so the work the handler did is rolled back. That
 ///         is the point of <see cref="AuditedDeclaration.ReasonRequired" />: an action whose justification has to be
 ///         recorded is an action that must not stand without one. Set the flag only where that trade is the one you
-///         want, and call <see cref="IAuditScope.WithReason" /> on every path the handler can return through.
+///         want, and supply a reason on every path the handler can return through, either by calling
+///         <see cref="IAuditScope.WithReason" /> or by declaring a reason selector on the message.
 ///     </para>
 /// </remarks>
 public sealed class AuditReasonMissingException : Exception
@@ -56,6 +57,7 @@ public sealed class AuditReasonMissingException : Exception
 
         return $"The action '{action}' declares that a reason is required, but the handler for '{messageType.Name}' "
                + "supplied none, so the mediation is failed rather than recorded without its justification. Call "
-               + "IAuditScope.WithReason before the handler returns, or drop ReasonRequired from the declaration.";
+               + "IAuditScope.WithReason before the handler returns, declare a reason selector on the message, or drop "
+               + "ReasonRequired from the declaration.";
     }
 }

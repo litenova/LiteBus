@@ -1044,6 +1044,47 @@
           "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[7.0.0, )"
         }
       },
+      "litebus.commands.recurring": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands": "[7.0.0, )",
+          "LiteBus.Commands.Abstractions": "[7.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.13, )"
+        }
+      },
+      "litebus.commands.recurring.storage.postgresql": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands": "[7.0.0, )",
+          "LiteBus.Commands.Recurring": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.Storage.PostgreSql": "[7.0.0, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.13, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
+      "litebus.commands.storage.marten": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands": "[7.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "Marten": "[9.51.0, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
+      "litebus.commands.storage.postgresql": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands": "[7.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.Storage.PostgreSql": "[7.0.0, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
       "litebus.durablemessaging.abstractions": {
         "type": "Project",
         "dependencies": {

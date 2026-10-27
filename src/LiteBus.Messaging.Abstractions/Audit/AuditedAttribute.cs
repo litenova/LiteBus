@@ -16,6 +16,11 @@ namespace LiteBus.Messaging.Abstractions;
 ///         Pair with <see cref="AuditExemptAttribute" /> so that every message states its position explicitly, rather
 ///         than an unaudited message being indistinguishable from one nobody considered.
 ///     </para>
+///     <para>
+///         Attributes cannot carry delegates, so a target or reason selector needs an
+///         <c>IAuditDefinition&lt;TMessage&gt;</c> rather than this attribute. A definition wins when both are present,
+///         so moving one message from the attribute to a definition changes nothing else about its record.
+///     </para>
 /// </remarks>
 /// <example>
 ///     <code><![CDATA[

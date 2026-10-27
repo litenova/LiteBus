@@ -25,6 +25,7 @@ public sealed class OutboxEntityFrameworkCoreModelTests
             "contract_version",
             "payload",
             "topic",
+            "handler",
             "created_at",
             "visible_after",
             "status",

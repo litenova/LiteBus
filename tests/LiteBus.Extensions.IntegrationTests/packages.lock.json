@@ -599,7 +599,9 @@
       "litebus.extensions.aspnetcore": {
         "type": "Project",
         "dependencies": {
+          "LiteBus.Commands.Abstractions": "[7.0.0, )",
           "LiteBus.Inbox.Abstractions": "[7.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
           "LiteBus.Outbox.Abstractions": "[7.0.0, )",
           "LiteBus.Runtime.Abstractions": "[7.0.0, )"
         }

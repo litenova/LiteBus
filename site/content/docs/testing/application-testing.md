@@ -330,7 +330,7 @@ Testing support is split so a mediator test does not pull in durable storage or 
 | `LiteBus.Testing` | `ManualTimeProvider`, `LiteBusTestBase` |
 | `LiteBus.Testing.Mediation` | `TestCommandMediator`, `TestQueryMediator`, `TestEventMediator` |
 | `LiteBus.Testing.Transport` | `TestMessageTransport` |
-| `LiteBus.Testing.DurableMessaging` | `TestInboxStore`, `TestOutboxStore`, `InboxOutboxTestHost`, store-role and processor-pass helpers |
+| `LiteBus.Testing.DurableMessaging` | `TestInboxStore`, `TestOutboxStore`, `InboxOutboxTestHost`, store-role and processor-pass helpers, test transactional outbox, `ScriptedOutboxDispatcher`, `StoreSchemaContract` |
 | `LiteBus.Testing.Hosting` | Generic Host start, stop, manifest, and background-service helpers |
 
 The durable-messaging package can bind every inbox or outbox store role to one shared instance:
@@ -380,6 +380,79 @@ Assert.Equal(InboxStatus.Completed, envelope.Status);
 ```
 
 `ChaosLeaseExpiryFixture` wraps an `InMemoryInboxStore` and returns a lease store from `CreateLeaseStore` that reports renewal failure for one target message, which simulates a lease lost mid-dispatch. It proves the stale-lease path, not production lease timing.
+
+### Testing the Outbox Without a Database
+
+`AddTestTransactionalOutbox` binds one shared `TestOutboxStore` to every outbox role and registers an in-memory `ITransactionalOutbox`, so application tests enqueue through the transactional API and drive the processor without a database. Call it after `AddLiteBus` so the test roles win over module registrations, resolve the transactional outbox from a scope, then run `DrainOutboxAsync` to publish everything pending in one call without polling waits:
+
+```csharp
+var store = new TestOutboxStore();
+var scripted = new ScriptedOutboxDispatcher();
+
+var provider = new ServiceCollection()
+    .AddLiteBus(builder =>
+    {
+        builder.AddMessaging(_ => { });
+        builder.AddOutbox(outbox =>
+        {
+            outbox.Contracts.Register<OrderPlaced>("orders.placed");
+            outbox.Contracts.Register<PaymentTaken>("payments.taken");
+            outbox.UseProcessorOptions(new OutboxProcessorOptions
+            {
+                Retry = new RetryOptions { MaxAttempts = 3, InitialDelay = TimeSpan.Zero, UseJitter = false }
+            });
+            outbox.UseInMemoryStorage();
+            outbox.RegisterDispatcher(new FixedOutboxDispatchModule(scripted));
+        });
+    })
+    .AddTestTransactionalOutbox(store)
+    .BuildServiceProvider();
+
+using var scope = provider.CreateScope();
+var outbox = scope.ServiceProvider.GetRequiredService<ITransactionalOutbox>();
+
+scripted.FailAlways("orders.placed", new InvalidOperationException("broker unreachable"));
+
+var orderReceipt = await outbox.EnqueueAsync(new OrderPlaced(orderId));
+var paymentReceipt = await outbox.EnqueueAsync(new PaymentTaken(orderId));
+
+var drain = await ProcessorPassHelpers.DrainOutboxAsync(provider);
+
+Assert.Equal(OutboxStatus.DeadLettered, store.Get(orderReceipt.Id).Status);
+Assert.Equal(3, scripted.GetAttemptCount("orders.placed"));
+Assert.Equal(OutboxStatus.Published, store.Get(paymentReceipt.Id).Status);
+```
+
+`ScriptedOutboxDispatcher` fails scripted contract names while the rest dispatch normally: `FailNext` fails the next N dispatches of one contract, `FailAlways` fails every dispatch until cleared, `GetAttemptCount` reports per-contract attempts, and `AttemptedEnvelopes` and `DispatchedEnvelopes` record what the processor tried. Without an inner dispatcher, unscripted dispatches succeed and are recorded; pass an inner dispatcher to decorate a real transport and prove retry, backoff, and dead-letter transitions against it. A canceled dispatch throws `OperationCanceledException` without consuming a script or touching inner.
+
+A fixed test dispatcher module is application-owned glue, written once per test project:
+
+```csharp
+internal sealed class FixedOutboxDispatchModule : IOutboxDispatcherModule
+{
+    private readonly IOutboxDispatcher _dispatcher;
+
+    public FixedOutboxDispatchModule(IOutboxDispatcher dispatcher)
+    {
+        _dispatcher = dispatcher;
+    }
+
+    public void Build(IModuleConfiguration configuration)
+    {
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(typeof(IOutboxDispatcher), _dispatcher));
+    }
+}
+```
+
+`StoreSchemaContract.AssertCompatible` pins the schema identity a diagnostics store reports and throws one `InvalidOperationException` listing every difference instead of a bare version comparison:
+
+```csharp
+StoreSchemaContract.AssertCompatible(
+    await store.GetSchemaInfoAsync(),
+    new StoreSchemaExpectation { Component = "outbox", ExpectedVersion = 1, RecordedVersion = 1 });
+```
+
+Three limits apply. The in-memory transactional outbox writes immediately because there is no transaction to enlist in, so it proves enqueue and processor behavior, not rollback. A drain stops when a pass leases nothing, so rows hidden behind a retry backoff need a manual clock advance plus another drain; a drain that still leases after `maxPasses` throws `InvalidOperationException`. The schema assertion checks component, version, and pinned schema and table names only, because `StoreSchemaInfo` exposes no column list. Inbox twins exist: `DrainInboxAsync` and the `IInboxDiagnosticsStore` overload of `AssertCompatibleAsync`.
 
 ### Transport Publisher Double
 

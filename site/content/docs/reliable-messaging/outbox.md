@@ -44,7 +44,7 @@ var receipt = await outbox.EnqueueAsync(
 
 `receipt.Outcome` is `Enqueued` when the store inserted a row and `AlreadyEnqueued` when a duplicate message ID or tenant-scoped idempotency key resolved to an existing row. The receipt confirms storage, not broker publication.
 
-Under `IdempotencyConflictMode.Strict`, an identical replay still returns the existing row; only a conflicting submission whose id, contract, payload, topic, keys, correlation, causation, or tenant differs throws `IdempotencyConflictException`.
+Under `IdempotencyConflictMode.Strict`, an identical replay still returns the existing row; only a conflicting submission whose id, contract, payload, topic, handler, keys, correlation, causation, or tenant differs throws `IdempotencyConflictException`.
 
 Register each stored message type in `IMessageContractRegistry` with a stable name and version, or apply `[MessageContract]` and call `RegisterFromAssembly` during module configuration.
 
@@ -61,6 +61,7 @@ Register each stored message type in `IMessageContractRegistry` with a stable na
 | `WithIdempotency(message, key)` | `Idempotency.Keyed`: insert-time deduplication key |
 | `WithIdentity(message, messageId)` | `MessageIdentity.Supplied`: caller-owned message id |
 | `WithTopic(message, topic)` | `PublicationTarget.Topic`: explicit publication topic |
+| `FromAmbient(message)` | Ambient trace: `Workflow` or `Distributed` stamped from the ambient execution context |
 
 ```csharp
 var item = OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.ScheduledAfter(
@@ -71,6 +72,33 @@ var receipt = await outbox.EnqueueAsync(item, cancellationToken).ConfigureAwait(
 ```
 
 Compose concerns with `with` on the metadata record when one factory is not enough, as the lead example shows.
+
+### Propagating Trace from the Incoming Message
+
+When a handler runs inside a mediation that replayed a stored envelope, `FromAmbient` stamps the new event with the incoming trace instead of leaving it untraced: the causation id becomes the incoming message id, the correlation id carries over (or falls back to the incoming message id when the incoming envelope had none), and an ambient distributed trace context is preserved.
+
+```csharp
+var item = OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.FromAmbient(
+    new OrderSubmittedIntegrationEvent { OrderId = orderId });
+
+var receipt = await outbox.EnqueueAsync(item, cancellationToken).ConfigureAwait(false);
+```
+
+This is explicit and opt-in: nothing reads ambient state unless the caller calls `FromAmbient`. Outside a mediation the item is identical to `From(message)`, with `Trace` set to `MessageTrace.None`. Only trace metadata is propagated; tenant, visibility, and identity keep their `Immediate` defaults. `InboxAcceptItem<TMessage>.FromAmbient` is the inbox twin for handlers that accept a follow-up command.
+
+### Ambient Trace Option
+
+`UseAmbientTrace` applies `FromAmbient` semantics to every enqueue whose item trace is `MessageTrace.None`, so handlers that enqueue inside a mediation propagate trace without calling `FromAmbient` on each item.
+
+```csharp
+builder.AddOutbox(outbox =>
+{
+    outbox.UseInMemoryStorage();
+    outbox.UseAmbientTrace();
+});
+```
+
+An explicit item trace always wins over the ambient value: the option only fills in `None`. Outside a mediation the ambient read yields none, so the envelope is identical to one enqueued without the option. Collected domain events staged through `StageCollectedEvents` stamp ambient trace under the same option.
 
 ### Publication Targets
 
@@ -261,7 +289,7 @@ builder.AddOutbox(outbox =>
 
 `EnsureSchemaCreationOnStartup` defaults to `true`, so a plain `UsePostgreSqlStorage` call creates schema at startup. Migration-owned production deployments must set it to `false` via `UseOptions` and keep `ValidateSchemaCreationOnStartup` (`true`) so startup validates instead of creating. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md) for creation and validation.
 
-PostgreSQL outbox schema version **1** stores opaque payload text and includes `lease_generation`. The schema manager requires the complete current shape.
+PostgreSQL outbox schema version **1** stores opaque payload text and includes `lease_generation` and the nullable `handler` target used by per-handler delivery. The schema manager requires the complete current shape.
 
 Pass the same `NpgsqlDataSource` instance to inbox and outbox when both use one database. See [Transactional messaging writes](transactional-writes.md).
 
@@ -274,6 +302,24 @@ Default `IOutbox.EnqueueAsync` commits immediately through the singleton store. 
 | Ingress, tools, fire-and-forget enqueue | `IOutbox` |
 | Command handler plus EF `DbContext` | `ITransactionalOutbox<TContext>`: [Outbox EF Core storage](../integrations/outbox-ef-core-storage.md) |
 | Command handler plus PostgreSQL (Marten, Dapper, ADO.NET) | `ITransactionalOutbox`: [Transactional messaging writes](transactional-writes.md) |
+
+### Domain Event Staging
+
+`StageCollectedEvents` registers the default scoped `IDomainEventCollector` and a completion handler that drains the collector into `ITransactionalOutbox` when a mediation completes successfully, ordered at `HandlerPriorities.Persistence` before the application's commit at `HandlerPriorities.UnitOfWork`, so staged rows join the unit of work that produced them.
+
+```csharp
+builder.AddOutbox(outbox =>
+{
+    outbox.Contracts.Register<OrderPlacedIntegrationEvent>("orders.events.placed", 1);
+    outbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
+    outbox.StageCollectedEvents();
+});
+
+// In the command handler, after the aggregate change:
+collector.Collect(new OrderPlacedIntegrationEvent { OrderId = order.Id });
+```
+
+Staging runs only on `MediationOutcome.Succeeded`: a failed mediation stages nothing. The staging handler resolves `ITransactionalOutbox` lazily and only when the drain is non-empty, so mediations that collect nothing never touch it. The application must register a scoped non-generic `ITransactionalOutbox` (the ambient PostgreSQL provider or the Marten writer); collecting events without one fails staging with a descriptive error. Entity Framework Core registers only the generic `ITransactionalOutbox<TContext>`, so Entity Framework applications must also register a non-generic writer bound to their context to use staging. When `UseAmbientTrace` is also enabled, staged envelopes stamp ambient trace. See [Domain events and unit of work](domain-events-and-unit-of-work.md) for the aggregate and transaction-boundary pattern.
 
 EF registration, interceptor setup, and duplicate-idempotency behavior on the transactional path live in [Outbox Entity Framework Core Storage](../integrations/outbox-ef-core-storage.md).
 
@@ -328,6 +374,23 @@ outbox.UseInProcessDispatch(dispatch => dispatch.RequireHandler = false);
 | --- | --- | --- |
 | `RequireHandler` | `true` | A message with no handler fails the dispatch attempt, retries, and dead-letters |
 | `RequireHandler` | `false` | A message with no handler completes and is marked `Published` |
+
+### Per-Handler Delivery
+
+`EnablePerHandlerDelivery` writes one envelope per subscribed main handler of each enqueued event instead of one envelope per event, so each reaction gets its own retry, dead letter, and replay: a failing reaction retries alone while the healthy reactions publish.
+
+```csharp
+builder.AddOutbox(outbox =>
+{
+    outbox.UseInMemoryStorage();
+    outbox.UseInProcessDispatch();
+    outbox.EnablePerHandlerDelivery();
+});
+```
+
+Each envelope records the full name of the handler it is addressed to in the `Handler` column, and dispatch publishes each envelope to that main handler alone while pipeline observers (pre-stage, post, error, and completion stages) still run on every targeted dispatch. Enqueueing an event with no subscribed main handler throws `NoHandlerFoundException`, matching the default `RequireHandler` rule. A caller idempotency key is derived per handler as `{key}:{handler}`, and a caller-supplied message identifier derives deterministic per-handler identifiers, so a retried enqueue resolves to the same rows. The returned receipt describes the first per-handler envelope in handler-name order; batch receipts flatten one per envelope in item order.
+
+The trade-off is storage: one row per handler instead of one row per event. A handler added after enqueue does not receive already-enqueued events, and a handler removed before dispatch leaves its envelopes with no matching subscriber, which `RequireHandler` then decides. Use per-handler delivery only with in-process dispatch: broker dispatchers publish the full event per envelope, so per-handler envelopes would duplicate broker publication.
 
 ## Retry and Dead Letter
 
@@ -407,7 +470,7 @@ Set `HookFailurePolicy = ProcessorHookFailurePolicy.DeadLetter` on transport dis
 
 Transport dispatchers (`UseAmqpDispatch`, `UseAwsSqsDispatch`, and siblings) accept `ValidatePayloadBeforeDispatch` on their options. When `false` (default), invalid JSON is not deserialized before publish; when `true`, deserialization runs before the transport call so corrupt payloads fail fast without broker side effects.
 
-Batch enqueue serializes items in parallel inside `OutboxEnvelopeFactory.CreateBatchAsync`.
+Batch enqueue expands items through `IOutboxEnvelopeFactory.CreateManyAsync` in parallel and persists the flattened envelopes in one batch.
 
 ## Next
 

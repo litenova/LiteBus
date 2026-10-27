@@ -1,5 +1,7 @@
 using System;
+using System.Linq;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Commands.Recurring;
 
@@ -38,6 +40,14 @@ public sealed class RecurringCommandModule<TCommand> : IModule, IRequires<Comman
 
         _declaration.HostOptions.Validate();
 
+        if (_declaration.HostOptions.RequireLease)
+        {
+            // The lease registers through a sibling child module that may build after this one, so the check is
+            // deferred until every module has built. It still fails at composition time: a loop that silently ran on
+            // every instance after asking for single-flight would be worse than a boot failure.
+            configuration.RegisterCompositionValidation(() => ThrowIfLeaseMissing(configuration));
+        }
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(RecurringCommandDeclaration<TCommand>),
             _declaration));
@@ -47,5 +57,27 @@ public sealed class RecurringCommandModule<TCommand> : IModule, IRequires<Comman
             typeof(RecurringCommandBackgroundService<TCommand>)));
 
         configuration.RegisterBackgroundService(typeof(RecurringCommandBackgroundService<TCommand>));
+    }
+
+    /// <summary>
+    ///     Throws when the loop requires single-flight but no lease implementation was registered.
+    /// </summary>
+    /// <param name="configuration">The module configuration holding the completed dependency registry.</param>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     No <see cref="IRecurringCommandLease" /> registration is present.
+    /// </exception>
+    private static void ThrowIfLeaseMissing(IModuleConfiguration configuration)
+    {
+        var leaseRegistered = configuration.DependencyRegistry
+            .Any(static descriptor => descriptor.DependencyType == typeof(IRecurringCommandLease));
+
+        if (!leaseRegistered)
+        {
+            throw new LiteBusConfigurationException(
+                $"The recurring command '{typeof(TCommand).FullName}' requires a lease "
+                + "(RecurringCommandHostOptions.RequireLease is true) but no IRecurringCommandLease is registered. "
+                + "Register one through CommandModuleBuilder.RegisterChildModule, for example with "
+                + "UsePostgreSqlRecurringLease from LiteBus.Commands.Recurring.Storage.PostgreSql.");
+        }
     }
 }

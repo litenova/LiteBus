@@ -11,12 +11,15 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Commands.Extensions.Autofac` | `LiteBus.Commands`, `LiteBus.Runtime.Extensions.Autofac` | none |
 | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection` | `LiteBus.Commands`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | none |
 | `LiteBus.Commands.Recurring` | `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Commands.Recurring.Storage.PostgreSql` | `LiteBus.Commands`, `LiteBus.Commands.Recurring`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Microsoft.Extensions.Logging.Abstractions`, `Npgsql` |
+| `LiteBus.Commands.Storage.Marten` | `LiteBus.Commands`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Marten`, `Npgsql` |
+| `LiteBus.Commands.Storage.PostgreSql` | `LiteBus.Commands`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
 | `LiteBus.DurableMessaging.Abstractions` | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Events` | `LiteBus.Events.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Events.Abstractions` | `LiteBus.Messaging.Abstractions` | none |
 | `LiteBus.Events.Extensions.Autofac` | `LiteBus.Events`, `LiteBus.Runtime.Extensions.Autofac` | none |
 | `LiteBus.Events.Extensions.Microsoft.DependencyInjection` | `LiteBus.Events`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | none |
-| `LiteBus.Extensions.AspNetCore` | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Extensions.AspNetCore` | `LiteBus.Commands.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Extensions.Diagnostics.HealthChecks` | `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Diagnostics.HealthChecks` |
 | `LiteBus.Extensions.Microsoft.DependencyInjection` | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection`, `LiteBus.Events.Extensions.Microsoft.DependencyInjection`, `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection`, `LiteBus.Queries.Extensions.Microsoft.DependencyInjection` | none |
 | `LiteBus.Inbox` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |

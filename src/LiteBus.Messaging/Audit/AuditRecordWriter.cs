@@ -17,7 +17,8 @@ namespace LiteBus.Messaging.Audit;
 ///     <para>
 ///         It reads the constant half of the record from the message's <see cref="AuditDeclaration" />, resolved once at
 ///         registration from an attribute or a definition. It reads the variable half from <see cref="IAuditScope" />,
-///         which the handler populated while it ran.
+///         which the handler populated while it ran, falling back to the declaration's selectors where the scope is
+///         silent and the value can be read off the message itself.
 ///     </para>
 /// </remarks>
 internal sealed class AuditRecordWriter : IAuditRecordWriter
@@ -92,7 +93,7 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
 
         var scope = AmbientAuditScope.Find();
         var outcome = _outcomeMapper.Map(context);
-        var reason = scope?.Reason ?? context.Reason;
+        var reason = scope?.Reason ?? context.Reason ?? ResolveSelector(declaration.ReasonSelector, context.Message);
 
         if (declaration.ReasonRequired && outcome == AuditOutcome.Succeeded && string.IsNullOrWhiteSpace(reason))
         {
@@ -108,7 +109,7 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
             Duration = context.Duration,
             Category = declaration.Category,
             TargetKind = declaration.TargetKind,
-            TargetId = scope?.TargetId,
+            TargetId = scope?.TargetId ?? ResolveSelector(declaration.TargetSelector, context.Message),
             Reason = reason,
             FailureCode = _outcomeMapper.MapFailureCode(context),
             MessageType = messageType.FullName,
@@ -137,6 +138,30 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
     private AuditActor? ResolveActor(MessageCompletionContext context, AuditScopeState? scope)
     {
         return scope?.Actor ?? _actorResolver?.Resolve(context);
+    }
+
+    /// <summary>
+    ///     Reads a declared value off the message, treating a missing or blank result as no value.
+    /// </summary>
+    /// <param name="selector">The declared projection, or <see langword="null" /> when the message declares none.</param>
+    /// <param name="message">The message the selector reads.</param>
+    /// <returns>The selected value, or <see langword="null" /> when the message carries none.</returns>
+    /// <remarks>
+    ///     A selector that throws is not caught here, for the same reason a throwing
+    ///     <see cref="IAuditActorResolver" /> is not: a projection bug that silently produces evidence without its
+    ///     target or justification is worse than a failed mediation. The scope and, for the reason, the pipeline
+    ///     decision are consulted first, so the selector runs only when both are silent, and its exception fails the
+    ///     record write the way any other writer failure does.
+    /// </remarks>
+    private static string? ResolveSelector(Func<object, string?>? selector, object message)
+    {
+        if (selector is null)
+        {
+            return null;
+        }
+
+        var selected = selector(message);
+        return string.IsNullOrWhiteSpace(selected) ? null : selected;
     }
 
     /// <summary>

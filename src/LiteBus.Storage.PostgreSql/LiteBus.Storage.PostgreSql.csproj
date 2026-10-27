@@ -15,6 +15,8 @@
     </ItemGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="LiteBus.Commands.Recurring.Storage.PostgreSql, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Commands.Storage.PostgreSql, PublicKey=$(LiteBusPublicKey)"/>
         <InternalsVisibleTo Include="LiteBus.Inbox.Storage.PostgreSql, PublicKey=$(LiteBusPublicKey)"/>
         <InternalsVisibleTo Include="LiteBus.Outbox.Storage.PostgreSql, PublicKey=$(LiteBusPublicKey)"/>
         <InternalsVisibleTo Include="LiteBus.Saga.Storage.PostgreSql, PublicKey=$(LiteBusPublicKey)"/>

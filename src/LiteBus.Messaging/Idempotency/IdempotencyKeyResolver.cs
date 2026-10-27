@@ -39,7 +39,10 @@ public sealed class IdempotencyKeyResolver
     ///     <see cref="IdempotencyDeclaration.KeyedByContext" />. Defaults to the ambient context of the mediation in
     ///     flight, which is what every shipped stage relies on; pass one explicitly only in a test.
     /// </param>
-    /// <returns>The declaration and its resolved key, or <see langword="null" /> when the message declares none.</returns>
+    /// <returns>
+    ///     The declaration with its resolved key and fingerprint, or <see langword="null" /> when the message declares
+    ///     none. The fingerprint is <see langword="null" /> when the declaration selects none.
+    /// </returns>
     /// <exception cref="IdempotencyConfigurationException">
     ///     The selector produced a blank key, or the message declares a context-supplied key and no stage supplied one.
     /// </exception>
@@ -70,7 +73,9 @@ public sealed class IdempotencyKeyResolver
                 + "field the message always carries.");
         }
 
-        return new ResolvedIdempotencyKey($"{declaration.Scope ?? messageType.Name}:{key}", declaration);
+        var fingerprint = declaration.FingerprintSelector?.Invoke(message);
+
+        return new ResolvedIdempotencyKey($"{declaration.Scope ?? messageType.Name}:{key}", declaration, fingerprint);
     }
 
     /// <summary>

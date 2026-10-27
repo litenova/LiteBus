@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -26,37 +25,108 @@ namespace LiteBus.Testing.Mediation;
 ///         It is also not transactional. A real store claims the key through the same unit of work that applies the
 ///         change, so a crash between the two cannot leave a key claimed for work that never happened.
 ///     </para>
+///     <para>
+///         It does answer like a durable store: a key held by an unsettled claim reports
+///         <see cref="IdempotencyClaimOutcome.InFlight" /> until the claim is older than <see cref="ClaimTimeout" />,
+///         when the new caller takes it over, and an applied key whose stored fingerprint differs from the incoming one
+///         reports <see cref="IdempotencyClaimOutcome.FingerprintMismatch" />. Pass a controlled
+///         <see cref="TimeProvider" /> to drive the takeover deterministically.
+///     </para>
 /// </remarks>
 public sealed class InMemoryIdempotencyStore : IIdempotencyStore
 {
     /// <summary>
-    ///     The applied keys and the payloads recorded for them.
+    ///     One key's remembered state: the fingerprint it was claimed with, when it was claimed, and what settled it.
     /// </summary>
-    private readonly ConcurrentDictionary<string, string?> _applied = new(StringComparer.Ordinal);
+    /// <param name="Fingerprint">The fingerprint the claiming delivery sent, or <see langword="null" /> when none.</param>
+    /// <param name="ClaimedAt">When the current claim was taken.</param>
+    /// <param name="IsCompleted">Whether the key was marked applied.</param>
+    /// <param name="Payload">The serialized result recorded for replay, or <see langword="null" /> when none.</param>
+    private sealed record ClaimEntry(string? Fingerprint, DateTimeOffset ClaimedAt, bool IsCompleted, string? Payload);
 
     /// <summary>
-    ///     The keys claimed by a mediation that has not settled yet.
+    ///     Guards <see cref="_entries" />, so a claim is checked and recorded atomically.
     /// </summary>
-    private readonly ConcurrentDictionary<string, byte> _claimed = new(StringComparer.Ordinal);
+    private readonly object _entriesLock = new();
+
+    /// <summary>
+    ///     The remembered keys and their state.
+    /// </summary>
+    private readonly Dictionary<string, ClaimEntry> _entries = new(StringComparer.Ordinal);
+
+    /// <summary>
+    ///     Supplies the clock claims are aged against.
+    /// </summary>
+    private readonly TimeProvider _timeProvider;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="InMemoryIdempotencyStore" /> class.
+    /// </summary>
+    /// <param name="timeProvider">Supplies the clock claims are aged against. Defaults to the system clock.</param>
+    /// <param name="claimTimeout">
+    ///     How long an unsettled claim blocks its key before a new caller takes it over. Defaults to five minutes.
+    /// </param>
+    public InMemoryIdempotencyStore(TimeProvider? timeProvider = null, TimeSpan? claimTimeout = null)
+    {
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        ClaimTimeout = claimTimeout ?? TimeSpan.FromMinutes(5);
+    }
+
+    /// <summary>
+    ///     Gets how long an unsettled claim blocks its key before a new caller takes it over.
+    /// </summary>
+    public TimeSpan ClaimTimeout { get; }
 
     /// <summary>
     ///     Gets the keys recorded as applied.
     /// </summary>
-    public IReadOnlyCollection<string> AppliedKeys => _applied.Keys.ToList();
+    public IReadOnlyCollection<string> AppliedKeys
+    {
+        get
+        {
+            lock (_entriesLock)
+            {
+                return _entries
+                    .Where(entry => entry.Value.IsCompleted)
+                    .Select(entry => entry.Key)
+                    .ToList();
+            }
+        }
+    }
 
     /// <inheritdoc />
-    public Task<IdempotencyClaim> TryClaimAsync(string key, CancellationToken cancellationToken = default)
+    public Task<IdempotencyClaim> TryClaimAsync(string key, string? fingerprint, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
-        if (_applied.TryGetValue(key, out var payload))
+        lock (_entriesLock)
         {
-            return Task.FromResult(IdempotencyClaim.AlreadyCompleted(payload));
-        }
+            if (!_entries.TryGetValue(key, out var existing))
+            {
+                _entries[key] = new ClaimEntry(fingerprint, _timeProvider.GetUtcNow(), IsCompleted: false, Payload: null);
+                return Task.FromResult(IdempotencyClaim.Granted);
+            }
 
-        // TryAdd is the atomic claim, which is what a primary-key insert gives a real store.
-        _claimed.TryAdd(key, 0);
-        return Task.FromResult(IdempotencyClaim.Granted);
+            if (existing.IsCompleted)
+            {
+                if (existing.Fingerprint is not null
+                    && fingerprint is not null
+                    && !string.Equals(existing.Fingerprint, fingerprint, StringComparison.Ordinal))
+                {
+                    return Task.FromResult(IdempotencyClaim.FingerprintMismatch);
+                }
+
+                return Task.FromResult(IdempotencyClaim.AlreadyCompleted(existing.Payload));
+            }
+
+            if (_timeProvider.GetUtcNow() - existing.ClaimedAt > ClaimTimeout)
+            {
+                _entries[key] = existing with { Fingerprint = fingerprint, ClaimedAt = _timeProvider.GetUtcNow() };
+                return Task.FromResult(IdempotencyClaim.Granted);
+            }
+
+            return Task.FromResult(IdempotencyClaim.InFlight);
+        }
     }
 
     /// <inheritdoc />
@@ -64,8 +134,15 @@ public sealed class InMemoryIdempotencyStore : IIdempotencyStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
-        _applied[key] = payload;
-        _claimed.TryRemove(key, out _);
+        lock (_entriesLock)
+        {
+            _entries.TryGetValue(key, out var existing);
+            _entries[key] = new ClaimEntry(
+                existing?.Fingerprint,
+                existing?.ClaimedAt ?? _timeProvider.GetUtcNow(),
+                IsCompleted: true,
+                payload);
+        }
 
         return Task.CompletedTask;
     }
@@ -75,7 +152,16 @@ public sealed class InMemoryIdempotencyStore : IIdempotencyStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
-        _claimed.TryRemove(key, out _);
+        lock (_entriesLock)
+        {
+            // Only an unsettled claim is removed. A completed record is never deleted here, so a release racing a
+            // completion cannot turn an applied key back into a claimable one.
+            if (_entries.TryGetValue(key, out var existing) && !existing.IsCompleted)
+            {
+                _entries.Remove(key);
+            }
+        }
+
         return Task.CompletedTask;
     }
 }

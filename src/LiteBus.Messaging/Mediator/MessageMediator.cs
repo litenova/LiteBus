@@ -44,15 +44,25 @@ internal sealed class MessageMediator : IMessageMediator
     private readonly IMessageDispatchScopeFactory _dispatchScopeFactory;
 
     /// <summary>
+    ///     The clock each mediation's handled instant is read from.
+    /// </summary>
+    private readonly TimeProvider _timeProvider;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="MessageMediator" /> class.
     /// </summary>
     /// <param name="messageReader">The reader containing message handler information.</param>
     /// <param name="messageWriter">The writer used for on-the-spot message registration.</param>
     /// <param name="dispatchScopeFactory">The factory that creates per-mediation dependency injection scopes.</param>
+    /// <param name="timeProvider">
+    ///     The clock each mediation's handled instant is read from. The container supplies the one the messaging
+    ///     module registered; a harness that builds the mediator by hand gets <see cref="TimeProvider.System" />.
+    /// </param>
     public MessageMediator(
         IMessageReader messageReader,
         IMessageWriter messageWriter,
-        IMessageDispatchScopeFactory dispatchScopeFactory)
+        IMessageDispatchScopeFactory dispatchScopeFactory,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(messageReader);
         _messageReader = messageReader;
@@ -60,6 +70,7 @@ internal sealed class MessageMediator : IMessageMediator
         _messageWriter = messageWriter;
         ArgumentNullException.ThrowIfNull(dispatchScopeFactory);
         _dispatchScopeFactory = dispatchScopeFactory;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -92,7 +103,7 @@ internal sealed class MessageMediator : IMessageMediator
         ArgumentNullException.ThrowIfNull(request);
 
         // Create a new execution context for the current scope.
-        var executionContext = new ExecutionContext(request.Tags, request.Items, cancellationToken);
+        var executionContext = new ExecutionContext(request.Tags, request.Items, _timeProvider, cancellationToken);
 
         // Retain only the dispatch scope until asynchronous mediation results complete. The ambient scope must not leak
         // into the caller after this method returns.

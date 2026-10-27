@@ -104,4 +104,14 @@ internal static class DiagnosticIds
     ///     A handler priority falls inside the range LiteBus reserves for the handlers it ships.
     /// </summary>
     internal const string ReservedHandlerPriority = "LB1022";
+
+    /// <summary>
+    ///     A command handler sends or publishes another message through a mediator inside its handle method.
+    /// </summary>
+    internal const string NestedMediationInCommandHandler = "LB1023";
+
+    /// <summary>
+    ///     A command handler injects an external side-effect type through its constructor.
+    /// </summary>
+    internal const string ExternalSideEffectInCommandHandler = "LB1024";
 }

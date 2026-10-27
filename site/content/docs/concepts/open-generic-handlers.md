@@ -104,6 +104,14 @@ CreateProductCommand
 
 No changes are needed to existing commands or handlers. Use `[HandlerPriority]` to order an open generic handler relative to message-specific handlers in the same stage; see [Handler Priority](handler-priority.md).
 
+## Running Once per Message
+
+One open generic registration runs once per mediated message, whatever the registration order.
+
+An open generic is closed over every registered message that fits its constraint, and a base interface such as `ICommand` becomes a registered message as soon as any handler names it. `Guard<T> where T : ICommand` can therefore be closed both as `Guard<ICommand>`, which would apply to every command indirectly, and as `Guard<PlaceOrder>`. When both closures of one generic handler definition reach a message through the same contract, the direct closure wins and the indirect one is dropped for that message.
+
+A different handler type that names the base interface is a separate registration and still runs: a class implementing `IMessageGuard<ICommand>` runs for every command, indirect before direct. A class that implements both `IMessageGuard<ICommand>` and `IMessageGuard<PlaceOrder>` runs twice for `PlaceOrder`, once per contract; the composition summary reports every such handler type, so the double run shows up at startup instead of in production data. See [Getting Started](../getting-started/README.md).
+
 ## Constraints Are Respected
 
 Open generic handlers honor all standard C# generic constraints. A handler constrained to `where T : ICommand` does not apply to events or queries:

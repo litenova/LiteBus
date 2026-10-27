@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 
@@ -25,6 +26,17 @@ public interface IExecutionContext
     ///     pipeline makes, so it belongs to a guard and reports <see cref="MediationOutcome.Denied" />.
     /// </remarks>
     CancellationToken CancellationToken { get; }
+
+    /// <summary>
+    ///     Gets the instant the mediation started, read once from the configured <see cref="TimeProvider" /> when this
+    ///     context was created.
+    /// </summary>
+    /// <remarks>
+    ///     Every stage of one mediation observes the same instant, so a timestamp written by a guard and a duration
+    ///     measured by a post-handler share one clock reading. A nested mediation creates its own context and reads its
+    ///     own instant.
+    /// </remarks>
+    DateTimeOffset HandledAt { get; }
 
     /// <summary>
     ///     Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.

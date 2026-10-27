@@ -19,6 +19,10 @@ namespace LiteBus.Messaging.MediationStrategies;
 ///         handler executes, and the completion stage does not fire. An evaluation is not a mediation and produces no
 ///         audit record; the message it is asking about produces one when it is actually sent.
 ///     </para>
+///     <para>
+///         A fault a decision stage raises propagates, unless a refusal classifier recognizes it, in which case the
+///         evaluation reports the refusal the message would end as when actually sent.
+///     </para>
 /// </remarks>
 public sealed class DecisionEvaluationMediationStrategy<TMessage>
     : IMessageMediationStrategy<TMessage, Task<MediationDecision>>
@@ -35,9 +39,30 @@ public sealed class DecisionEvaluationMediationStrategy<TMessage>
 
         using (AmbientExecutionContext.CreateScope(executionContext))
         {
-            var decision = await messageDependencies
-                .RunAsyncDecisionStages(message, executionContext.CancellationToken)
-                .ConfigureAwait(false);
+            PipelineDecision decision;
+
+            try
+            {
+                decision = await messageDependencies
+                    .RunAsyncDecisionStages(message, executionContext.CancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception fault) when (MediationExceptionFilters.IsRecoverableMediationException(fault))
+            {
+                // A guard that raises a recognized fault refuses the message the same way through Evaluate as through
+                // Send: the caller asking "may I" gets the refusal rather than the fault.
+                if (MediationExceptionFilters.TryClassifyRefusal(
+                        messageDependencies.FaultRefusalClassifiers,
+                        fault,
+                        out var refusal))
+                {
+                    return refusal.Outcome == MediationOutcome.Invalid
+                        ? MediationDecision.Invalid(refusal.Reason, refusal.Code, [])
+                        : MediationDecision.Denied(refusal.Reason, refusal.Code);
+                }
+
+                throw;
+            }
 
             return decision.Outcome switch
             {

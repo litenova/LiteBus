@@ -47,6 +47,26 @@ public sealed class UpdateInventoryProjection : IEventHandler<OrderShipped>
 
 A handler reacts to an event with one responsibility. Both handlers above run when `OrderShipped` is published. Keep each handler focused and add a handler rather than growing one. Keep handlers idempotent: events stored through the outbox can arrive more than once. Avoid deep chains where a handler publishes another event that publishes another; model multi-step workflows explicitly instead.
 
+### One Handler for Several Events
+
+One class can implement several closed handler contracts when one reaction answers more than one event:
+
+```csharp
+public sealed class ReleaseRefundedInventory
+    : IEventHandler<OrderRefundSucceeded>, IEventHandler<OrderRefundSettledOutsideProcessor>
+{
+    public Task HandleAsync(OrderRefundSucceeded @event, CancellationToken cancellationToken = default)
+        => ReleaseAsync(@event.OrderId, cancellationToken);
+
+    public Task HandleAsync(OrderRefundSettledOutsideProcessor @event, CancellationToken cancellationToken = default)
+        => ReleaseAsync(@event.OrderId, cancellationToken);
+
+    private Task ReleaseAsync(Guid orderId, CancellationToken cancellationToken) => ...;
+}
+```
+
+Registration records one main handler per closed contract, and the mediator calls each through the contract its registration names, including when the event is published as `IEvent` or through a base-typed reference. The class needs no untyped entry point: `IMessageHandler` is a memberless marker.
+
 ## Publish an Event
 
 ```csharp

@@ -99,6 +99,7 @@ internal static class EfCorePostgreSqlLeaseSql
                 {alias}.contract_version,
                 {alias}.payload,
                 {alias}.topic,
+                {alias}.handler,
                 {alias}.created_at,
                 {alias}.visible_after,
                 {alias}.status,

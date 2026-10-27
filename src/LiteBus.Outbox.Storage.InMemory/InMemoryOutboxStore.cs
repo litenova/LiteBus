@@ -827,6 +827,7 @@ public sealed class InMemoryOutboxStore :
             string.Equals(envelope.ContractName, existing.ContractName, StringComparison.Ordinal) &&
             string.Equals(envelope.Payload, existing.Payload, StringComparison.Ordinal) &&
             string.Equals(envelope.Topic, existing.Topic, StringComparison.Ordinal) &&
+            string.Equals(envelope.Handler, existing.Handler, StringComparison.Ordinal) &&
             string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) &&
             string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) &&
             string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) &&

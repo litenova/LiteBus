@@ -22,15 +22,15 @@ namespace LiteBus.Messaging;
 public static class MessageContextExtensions
 {
     /// <summary>
-    ///     Runs the three stages that precede the main handler, in the order the framework fixes: guards, then
-    ///     shortcuts, then pre-handlers.
+    ///     Runs the stages that precede the main handler, in the order the framework fixes: guards, then validators,
+    ///     then shortcuts, then pre-handlers.
     /// </summary>
     /// <param name="messageDependencies">The message dependencies encapsulating pre-handlers.</param>
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token passed to each invocation.</param>
     /// <returns>
-    ///     The decision from the first guard or shortcut that ended the mediation, or <see cref="PipelineDecision.Continue" /> when
-    ///     every stage let it proceed. Nothing after a decision runs.
+    ///     The decision from the first guard, validator, or shortcut that ended the mediation, or
+    ///     <see cref="PipelineDecision.Continue" /> when every stage let it proceed. Nothing after a decision runs.
     /// </returns>
     /// <remarks>
     ///     The stage order is not configurable and priority cannot reorder it. That is what makes "a shortcut never
@@ -204,9 +204,9 @@ public static class MessageContextExtensions
     /// <typeparam name="TMessageResult">The type of result the message produces.</typeparam>
     /// <param name="messageDependencies">The message dependencies encapsulating the registered refusal mappers.</param>
     /// <param name="message">The message that was refused.</param>
-    /// <param name="decision">The refusal produced by a guard or the validator stage.</param>
+    /// <param name="decision">The refusal produced by a guard, a shortcut, or the validator stage.</param>
     /// <returns>The result the caller receives in place of the one the main handler would have produced.</returns>
-    /// <exception cref="LiteBusMessageDeniedException">A guard denied and no mapper covers the message.</exception>
+    /// <exception cref="LiteBusMessageDeniedException">A guard or a shortcut denied and no mapper covers the message.</exception>
     /// <exception cref="LiteBusMessageInvalidException">
     ///     The validator stage reported failures and no mapper covers the message.
     /// </exception>
@@ -234,8 +234,9 @@ public static class MessageContextExtensions
         ArgumentNullException.ThrowIfNull(messageDependencies);
         ArgumentNullException.ThrowIfNull(message);
 
-        // A shortcut carries the result it answered with, so routing one through a mapper would replace a value the
-        // caller was already owed. Checked here rather than deeper, where it would surface as a puzzling cast.
+        // An answering shortcut carries the result it answered with, so routing one through a mapper would replace
+        // a value the caller was already owed. A denying shortcut reaches here as a refusal like a guard denial.
+        // Checked here rather than deeper, where it would surface as a puzzling cast.
         if (!decision.IsRefusal)
         {
             throw new ArgumentException(
@@ -258,6 +259,58 @@ public static class MessageContextExtensions
             mapper.Value.Descriptor,
             message,
             decision.ToRefusal());
+
+        return (TMessageResult) mapped!;
+    }
+
+    /// <summary>
+    ///     Turns a classified refusal into the result the caller receives, or raises when no mapper covers the message.
+    /// </summary>
+    /// <typeparam name="TMessageResult">The type of result the message produces.</typeparam>
+    /// <param name="messageDependencies">The message dependencies encapsulating the registered refusal mappers.</param>
+    /// <param name="message">The message that was refused.</param>
+    /// <param name="refusal">The refusal a classifier returned for a fault a stage raised.</param>
+    /// <param name="cause">The fault the classifier recognized, kept as the inner exception when no mapper applies.</param>
+    /// <returns>The result the caller receives in place of the one the main handler would have produced.</returns>
+    /// <exception cref="LiteBusMessageDeniedException">A denial was classified and no mapper covers the message.</exception>
+    /// <exception cref="LiteBusMessageInvalidException">
+    ///     An invalid refusal was classified and no mapper covers the message.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="messageDependencies" /> or <paramref name="message" /> is <see langword="null" />.
+    /// </exception>
+    /// <exception cref="PipelineContractException">
+    ///     More than one mapper is registered at the same level of specificity, so which one applies would depend on
+    ///     assembly scanning order.
+    /// </exception>
+    /// <remarks>
+    ///     A mapper registered for the concrete message type wins over one registered for a base type or interface,
+    ///     matching how the rest of the pipeline resolves direct against indirect registrations. That is what lets an
+    ///     application register one mapper for a whole axis and override it for a single message.
+    /// </remarks>
+    [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
+    public static TMessageResult ResolveRefusalResult<TMessageResult>(
+        this IMessageDependencies messageDependencies,
+        object message,
+        Refusal refusal,
+        Exception? cause = null)
+    {
+        ArgumentNullException.ThrowIfNull(messageDependencies);
+        ArgumentNullException.ThrowIfNull(message);
+
+        var mapper = SelectRefusalMapper<TMessageResult>(messageDependencies.RefusalMappers, message)
+                     ?? SelectRefusalMapper<TMessageResult>(messageDependencies.IndirectRefusalMappers, message);
+
+        if (mapper is null)
+        {
+            throw refusal.CreateException(message.GetType(), cause);
+        }
+
+        var mapped = PipelineHandlerInvoker.InvokeRefusalMapper(
+            mapper.Value.Handler.Value,
+            mapper.Value.Descriptor,
+            message,
+            refusal);
 
         return (TMessageResult) mapped!;
     }
@@ -489,10 +542,19 @@ public static class MessageContextExtensions
     /// <param name="duration">How long the mediation took.</param>
     /// <returns>A task that completes once every completion handler has run.</returns>
     /// <remarks>
-    ///     A post-handler may have replaced what the caller receives through
-    ///     <see cref="IExecutionContext.MessageResult" />, and the completion stage should see what the caller actually
-    ///     got. That is resolved here rather than at each call site: getting it wrong reports the handler's own value to
-    ///     an audit trail while the caller received a different one.
+    ///     <para>
+    ///         A post-handler may have replaced what the caller receives through
+    ///         <see cref="IExecutionContext.MessageResult" />, and the completion stage should see what the caller actually
+    ///         got. That is resolved here rather than at each call site: getting it wrong reports the handler's own value to
+    ///         an audit trail while the caller received a different one.
+    ///     </para>
+    ///     <para>
+    ///         A fault that escapes the completion stage is offered to the registered refusal classifiers before it
+    ///         supersedes the mediation ending. A recognized fault, such as a duplicate key raised by a unit-of-work
+    ///         commit, reaches the caller as the refusal exception instead of the raw fault, and a <c>Try</c> call
+    ///         reports it as a value. Handlers that already ran keep the outcome they observed; only what the caller
+    ///         receives changes. With no classifier registered the fault propagates exactly as before.
+    ///     </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">
     ///     Thrown when <paramref name="messageDependencies" />, <paramref name="message" /> or
@@ -534,7 +596,28 @@ public static class MessageContextExtensions
 
         using (AmbientExecutionContext.CreateScope(executionContext))
         {
-            await messageDependencies.RunAsyncCompletionHandlers(context).ConfigureAwait(false);
+            try
+            {
+                await messageDependencies.RunAsyncCompletionHandlers(context).ConfigureAwait(false);
+            }
+#pragma warning disable CA1031 // A fault escaping the completion stage is classified before it supersedes the mediation ending.
+            catch (Exception completionFault)
+#pragma warning restore CA1031
+            {
+                // Cancellation and an already-refused ending are never classified, so the only thing offered here is
+                // a genuine fault from a completion handler on a mediation no exception had ended yet.
+                if (!MediationExceptionFilters.TryClassifyRefusal(
+                        messageDependencies.FaultRefusalClassifiers,
+                        completionFault,
+                        out var refusal))
+                {
+                    throw;
+                }
+
+                MediationEndingCapture.Record(executionContext, refusal);
+
+                throw refusal.CreateException(message.GetType(), completionFault);
+            }
         }
     }
 

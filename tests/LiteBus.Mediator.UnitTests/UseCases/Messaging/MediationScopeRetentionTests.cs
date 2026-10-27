@@ -271,7 +271,7 @@ public sealed class MediationScopeRetentionTests : LiteBusTestBase
             IMessageDependencies messageDependencies,
             IExecutionContext executionContext)
         {
-            var handler = SingleMainHandlerResolver.Resolve(messageDependencies, message.GetType()).Handler.Value;
+            var handler = SingleMainHandlerResolver.Resolve(messageDependencies, message.GetType());
             return HandlerInvocation.InvokeMainHandlerAsync<TMessage, TMessageResult>(
                 handler,
                 message,

@@ -4,7 +4,7 @@ The execution context is the shared state for a single mediation call. It lets p
 
 ## What the Execution Context Is
 
-The context holds metadata about the current mediation: a cancellation token, a string-keyed `Items` bag, a type-keyed `Data` store, the mediation tags, and the result slot. It is created when a message enters a mediator and lives until that mediation completes.
+The context holds metadata about the current mediation: a cancellation token, a string-keyed `Items` bag, a type-keyed `Data` store, the mediation tags, the handled instant, and the result slot. It is created when a message enters a mediator and lives until that mediation completes.
 
 LiteBus stores it in an `AsyncLocal<IExecutionContext>`, so it stays ambient and flows correctly across `async`/`await` boundaries within one logical call.
 
@@ -178,6 +178,23 @@ public class AuditPostHandler : ICommandPostHandler<CreateProductCommand>
         return Task.CompletedTask;
     }
 }
+```
+
+### Handled At
+
+`HandledAt` is the instant the mediation started, read once from the `TimeProvider` the messaging module uses when the context is created. Every stage of one mediation observes the same instant, so a timestamp written by a guard and a duration measured by a post-handler share one clock reading, and advancing the clock mid-mediation does not move it. A nested mediation creates its own context and reads its own instant.
+
+```csharp
+var started = AmbientExecutionContext.Current.HandledAt;
+```
+
+The default clock is `TimeProvider.System`. Register a test clock with `UseTimeProvider` to pin the instant:
+
+```csharp
+registry.AddMessaging(messaging =>
+{
+    messaging.UseTimeProvider(fakeClock);
+});
 ```
 
 ### Suppressing Post-Handlers

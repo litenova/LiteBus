@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -13,17 +14,28 @@ internal sealed class ExecutionContext : IExecutionContext
     /// </summary>
     /// <param name="tags">The tags associated with the execution context.</param>
     /// <param name="items">The key/value collection for sharing data within the execution context.</param>
+    /// <param name="timeProvider">The time provider the handled instant is read from, once.</param>
     /// <param name="cancellationToken">The cancellation token associated with the execution context.</param>
-    public ExecutionContext(IEnumerable<string> tags, IDictionary<string, object> items, CancellationToken cancellationToken)
+    public ExecutionContext(
+        IEnumerable<string> tags,
+        IDictionary<string, object> items,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
         CancellationToken = cancellationToken;
         Tags = tags.ToList();
         Items = new Dictionary<string, object>(items);
         Data = new HandleContextData();
+        HandledAt = timeProvider.GetUtcNow();
     }
 
     /// <inheritdoc />
     public CancellationToken CancellationToken { get; }
+
+    /// <inheritdoc />
+    public DateTimeOffset HandledAt { get; }
 
     /// <inheritdoc />
     public IDictionary<string, object> Items { get; }

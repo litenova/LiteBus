@@ -65,6 +65,29 @@ public interface IMessageDeclarations
     IMessageDeclarations NotAudited(string rationale);
 
     /// <summary>
+    ///     Declares that the message requires authorization under a policy.
+    /// </summary>
+    /// <param name="policy">The policy the application authorizes the message against, such as <c>vaults.open</c>.</param>
+    /// <returns>The collection, for chaining.</returns>
+    /// <exception cref="System.ArgumentException"><paramref name="policy" /> is null, empty, or whitespace.</exception>
+    /// <remarks>
+    ///     LiteBus carries the policy to the application's guards and never evaluates it.
+    /// </remarks>
+    IMessageDeclarations Authorized(string policy);
+
+    /// <summary>
+    ///     Declares that the message is deliberately exempt from authorization, and records why.
+    /// </summary>
+    /// <param name="rationale">The recorded reason the message needs no authorization.</param>
+    /// <returns>The collection, for chaining.</returns>
+    /// <exception cref="System.ArgumentException"><paramref name="rationale" /> is null, empty, or whitespace.</exception>
+    /// <remarks>
+    ///     Equivalent to <c>Exempt&lt;AuthorizationDeclaration&gt;(rationale)</c>, and recorded as that exemption too, so
+    ///     the position satisfies <c>RequireDeclaration&lt;AuthorizationDeclaration&gt;</c> and reads back from one place.
+    /// </remarks>
+    IMessageDeclarations AuthorizationExempt(string rationale);
+
+    /// <summary>
     ///     Declares that the message deliberately states nothing for one metadata type, and records why.
     /// </summary>
     /// <typeparam name="TValue">The metadata value type the message is exempt from declaring.</typeparam>

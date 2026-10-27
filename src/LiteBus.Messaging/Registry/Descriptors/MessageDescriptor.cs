@@ -228,6 +228,21 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     ///     Adds one handler descriptor, routing it to direct or indirect collections.
     /// </summary>
     /// <param name="descriptor">The handler descriptor to associate with this message.</param>
+    /// <remarks>
+    ///     <para>
+    ///         An open generic handler such as <c>Guard&lt;T&gt; where T : ICommand</c> is closed once per registered
+    ///         message that fits it, and a base interface such as <c>ICommand</c> becomes a registered message as soon as
+    ///         any handler names it. The registry can therefore hold both <c>Guard&lt;ICommand&gt;</c>, which applies to a
+    ///         command indirectly, and <c>Guard&lt;PlaceOrder&gt;</c>, which applies to it directly. Both come from one
+    ///         registration, so the direct closure wins: an indirect closure of the same generic handler definition over
+    ///         the same contract is skipped when a direct one is present, and removed when a direct one arrives later.
+    ///         Without this the guard would run twice or once depending on which was registered first.
+    ///     </para>
+    ///     <para>
+    ///         A different handler type closed over the base type, such as a class implementing
+    ///         <c>IMessageGuard&lt;ICommand&gt;</c>, is a separate registration and still runs indirectly.
+    ///     </para>
+    /// </remarks>
     public void AddDescriptor(IHandlerDescriptor descriptor)
     {
         if (MessageType == descriptor.MessageType)
@@ -235,78 +250,114 @@ internal sealed class MessageDescriptor : IMessageDescriptor
             switch (descriptor)
             {
                 case IRefusalMapperDescriptor refusalMapperDescriptor:
-                    _refusalMappers.Add(refusalMapperDescriptor);
+                    AddDirect(_refusalMappers, _indirectRefusalMappers, refusalMapperDescriptor);
                     break;
 
                 case ICompletionHandlerDescriptor completionHandlerDescriptor:
-                    _completionHandlers.Add(completionHandlerDescriptor);
+                    AddDirect(_completionHandlers, _indirectCompletionHandlers, completionHandlerDescriptor);
                     break;
                 case IErrorHandlerDescriptor errorHandlerDescriptor:
-                    _errorHandlers.Add(errorHandlerDescriptor);
+                    AddDirect(_errorHandlers, _indirectErrorHandlers, errorHandlerDescriptor);
                     break;
                 case IMainHandlerDescriptor mainHandlerDescriptor:
                     ThrowIfUntypedShortcutMeetsResult(mainHandlerDescriptor, _preHandlers);
-                    _handlers.Add(mainHandlerDescriptor);
+                    AddDirect(_handlers, _indirectHandlers, mainHandlerDescriptor);
                     break;
                 case IPostHandlerDescriptor postHandlerDescriptor:
-                    _postHandlers.Add(postHandlerDescriptor);
+                    AddDirect(_postHandlers, _indirectPostHandlers, postHandlerDescriptor);
                     break;
                 case IPreStageHandlerDescriptor preHandlerDescriptor:
                     ThrowIfUntypedShortcutMeetsResult(preHandlerDescriptor, _handlers);
-                    _preHandlers.Add(preHandlerDescriptor);
+                    AddDirect(_preHandlers, _indirectPreHandlers, preHandlerDescriptor);
                     break;
             }
         }
-        else if (MessageType.IsAssignableTo(descriptor.MessageType))
+        else if (MessageType.IsAssignableTo(descriptor.MessageType) ||
+                 ImplementsOpenGeneric(descriptor.MessageType, MessageType))
         {
             switch (descriptor)
             {
                 case IRefusalMapperDescriptor refusalMapperDescriptor:
-                    _indirectRefusalMappers.Add(refusalMapperDescriptor);
+                    AddIndirect(_indirectRefusalMappers, _refusalMappers, refusalMapperDescriptor);
                     break;
 
                 case ICompletionHandlerDescriptor completionHandlerDescriptor:
-                    _indirectCompletionHandlers.Add(completionHandlerDescriptor);
+                    AddIndirect(_indirectCompletionHandlers, _completionHandlers, completionHandlerDescriptor);
                     break;
                 case IErrorHandlerDescriptor errorHandlerDescriptor:
-                    _indirectErrorHandlers.Add(errorHandlerDescriptor);
+                    AddIndirect(_indirectErrorHandlers, _errorHandlers, errorHandlerDescriptor);
                     break;
                 case IMainHandlerDescriptor mainHandlerDescriptor:
-                    _indirectHandlers.Add(mainHandlerDescriptor);
+                    AddIndirect(_indirectHandlers, _handlers, mainHandlerDescriptor);
                     break;
                 case IPostHandlerDescriptor postHandlerDescriptor:
-                    _indirectPostHandlers.Add(postHandlerDescriptor);
+                    AddIndirect(_indirectPostHandlers, _postHandlers, postHandlerDescriptor);
                     break;
                 case IPreStageHandlerDescriptor preHandlerDescriptor:
-                    _indirectPreHandlers.Add(preHandlerDescriptor);
+                    AddIndirect(_indirectPreHandlers, _preHandlers, preHandlerDescriptor);
                     break;
             }
         }
-        else if (ImplementsOpenGeneric(descriptor.MessageType, MessageType))
+    }
+
+    /// <summary>
+    ///     Adds a direct descriptor and removes any indirect closure of the same generic handler over the same contract.
+    /// </summary>
+    /// <typeparam name="TDescriptor">The descriptor kind.</typeparam>
+    /// <param name="direct">The direct collection of this kind.</param>
+    /// <param name="indirect">The indirect collection of this kind.</param>
+    /// <param name="descriptor">The direct descriptor being linked.</param>
+    private static void AddDirect<TDescriptor>(List<TDescriptor> direct, List<TDescriptor> indirect, TDescriptor descriptor)
+        where TDescriptor : IHandlerDescriptor
+    {
+        indirect.RemoveAll(existing => IsSameGenericClosure(existing, descriptor));
+        direct.Add(descriptor);
+    }
+
+    /// <summary>
+    ///     Adds an indirect descriptor unless a direct closure of the same generic handler over the same contract is
+    ///     already linked.
+    /// </summary>
+    /// <typeparam name="TDescriptor">The descriptor kind.</typeparam>
+    /// <param name="indirect">The indirect collection of this kind.</param>
+    /// <param name="direct">The direct collection of this kind.</param>
+    /// <param name="descriptor">The indirect descriptor being linked.</param>
+    private static void AddIndirect<TDescriptor>(List<TDescriptor> indirect, List<TDescriptor> direct, TDescriptor descriptor)
+        where TDescriptor : IHandlerDescriptor
+    {
+        if (direct.Exists(existing => IsSameGenericClosure(existing, descriptor)))
         {
-            switch (descriptor)
-            {
-                case IRefusalMapperDescriptor refusalMapperDescriptor:
-                    _indirectRefusalMappers.Add(refusalMapperDescriptor);
-                    break;
-
-                case ICompletionHandlerDescriptor completionHandlerDescriptor:
-                    _indirectCompletionHandlers.Add(completionHandlerDescriptor);
-                    break;
-                case IErrorHandlerDescriptor errorHandlerDescriptor:
-                    _indirectErrorHandlers.Add(errorHandlerDescriptor);
-                    break;
-                case IMainHandlerDescriptor mainHandlerDescriptor:
-                    _indirectHandlers.Add(mainHandlerDescriptor);
-                    break;
-                case IPostHandlerDescriptor postHandlerDescriptor:
-                    _indirectPostHandlers.Add(postHandlerDescriptor);
-                    break;
-                case IPreStageHandlerDescriptor preHandlerDescriptor:
-                    _indirectPreHandlers.Add(preHandlerDescriptor);
-                    break;
-            }
+            return;
         }
+
+        indirect.Add(descriptor);
+    }
+
+    /// <summary>
+    ///     Determines whether two descriptors are closures of one generic handler definition over one contract definition.
+    /// </summary>
+    /// <param name="first">The first descriptor.</param>
+    /// <param name="second">The second descriptor.</param>
+    /// <returns>
+    ///     <see langword="true" /> when both handler types are constructed from the same generic definition and both
+    ///     contracts are constructed from the same generic contract definition.
+    /// </returns>
+    private static bool IsSameGenericClosure(IHandlerDescriptor first, IHandlerDescriptor second)
+    {
+        return first.HandlerType.IsConstructedGenericType &&
+               second.HandlerType.IsConstructedGenericType &&
+               first.HandlerType.GetGenericTypeDefinition() == second.HandlerType.GetGenericTypeDefinition() &&
+               ContractDefinition(first.ContractType) == ContractDefinition(second.ContractType);
+    }
+
+    /// <summary>
+    ///     Gets the generic definition of a contract, or the contract itself when it is not generic.
+    /// </summary>
+    /// <param name="contractType">The contract type recorded on a descriptor.</param>
+    /// <returns>The contract's generic definition, or <paramref name="contractType" />.</returns>
+    private static Type ContractDefinition(Type contractType)
+    {
+        return contractType.IsGenericType ? contractType.GetGenericTypeDefinition() : contractType;
     }
 
     /// <summary>

@@ -21,11 +21,12 @@ namespace LiteBus.Messaging.Abstractions;
 ///         <see cref="MediationOutcome.Answered" />. No other outcome can reach this type.
 ///     </para>
 ///     <para>
-///         Two kinds of stopping decision exist and they are not interchangeable. A refusal from a guard or a validator carries no
-///         result, because a refusal does not owe the caller the value the main handler would have produced; the value a
-///         refused caller receives comes from an <see cref="IMessageRefusalMapper{TMessage,TMessageResult}" /> when one
-///         is registered, and otherwise the refusal reaches the caller as an exception. An answer from a shortcut
-///         carries the result itself, because a shortcut is supplying the value the handler would have produced.
+///         Two kinds of stopping decision exist and they are not interchangeable. A refusal from a guard, a shortcut
+///         denial, or a validator carries no result, because a refusal does not owe the caller the value the main
+///         handler would have produced; the value a refused caller receives comes from an
+///         <see cref="IMessageRefusalMapper{TMessage,TMessageResult}" /> when one is registered, and otherwise the
+///         refusal reaches the caller as an exception. An answer from a shortcut carries the result itself, because a
+///         shortcut is supplying the value the handler would have produced.
 ///     </para>
 /// </remarks>
 public readonly struct PipelineDecision : IEquatable<PipelineDecision>
@@ -87,8 +88,9 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
     ///     Gets the outcome the mediation reports for this decision.
     /// </summary>
     /// <value>
-    ///     <see cref="MediationOutcome.Denied" /> for a guard refusal, <see cref="MediationOutcome.Invalid" /> for a
-    ///     validation failure, or <see cref="MediationOutcome.Answered" /> for a shortcut.
+    ///     <see cref="MediationOutcome.Denied" /> for a guard or shortcut refusal,
+    ///     <see cref="MediationOutcome.Invalid" /> for a validation failure, or
+    ///     <see cref="MediationOutcome.Answered" /> for a shortcut answer.
     /// </value>
     public MediationOutcome Outcome { get; }
 
@@ -117,8 +119,8 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
     /// <remarks>
     ///     Every decision shape carries one and it means the same thing in all of them: something a later stage can
     ///     switch on, where <see cref="Reason" /> is prose. A guard supplies it through <see cref="Verdict.Deny" />, a
-    ///     shortcut through <see cref="Shortcut.Answer" />, and the validator stage from the single failure it
-    ///     collected, since two failures have no one code.
+    ///     shortcut through <see cref="Shortcut.Answer" /> or <see cref="Shortcut.Deny" />, and the validator stage
+    ///     from the single failure it collected, since two failures have no one code.
     /// </remarks>
     public string? Code { get; }
 
@@ -147,8 +149,8 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
     ///     Gets a value indicating whether this decision refused the message.
     /// </summary>
     /// <value>
-    ///     <see langword="true" /> for a guard refusal or a validation failure, which are the decisions a refusal mapper
-    ///     covers. A shortcut answer is not a refusal.
+    ///     <see langword="true" /> for a guard or shortcut refusal or a validation failure, which are the decisions a
+    ///     refusal mapper covers. A shortcut answer is not a refusal.
     /// </value>
     public bool IsRefusal => Outcome is MediationOutcome.Denied or MediationOutcome.Invalid;
 
@@ -203,7 +205,7 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
     /// </summary>
     /// <param name="messageType">The type of the message that was refused.</param>
     /// <returns>
-    ///     <see cref="LiteBusMessageDeniedException" /> for a guard refusal, or
+    ///     <see cref="LiteBusMessageDeniedException" /> for a guard or shortcut refusal, or
     ///     <see cref="LiteBusMessageInvalidException" /> for a validation failure.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="messageType" /> is null.</exception>
@@ -232,7 +234,8 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
     ///     value, so the typed contract cannot reach this failure. Registering the untyped contract directly against
     ///     such a message is rejected when the registry links the two, and analyzer LB1019 reports it at compile time.
     ///     What reaches here is the case neither can prove: a shortcut registered against a base type or interface,
-    ///     which is legitimate for the result-less messages beneath it and only wrong for this one.
+    ///     which is legitimate for the result-less messages beneath it and only wrong for this one. A denial never
+    ///     reaches here from either contract, because a refusal carries no result and is resolved through a mapper.
     /// </remarks>
     public TMessageResult ResolveResult<TMessageResult>(Type messageType)
     {
@@ -291,11 +294,11 @@ public readonly struct PipelineDecision : IEquatable<PipelineDecision>
     }
 
     /// <summary>
-    ///     Creates the decision a refusing guard produces.
+    ///     Creates the decision a refusing guard or shortcut produces.
     /// </summary>
     /// <param name="reason">Why the message is refused.</param>
-    /// <param name="code">The code the guard supplied, when any.</param>
-    /// <param name="decidedBy">The guard that refused the message, when known.</param>
+    /// <param name="code">The code the refusing handler supplied, when any.</param>
+    /// <param name="decidedBy">The guard or shortcut that refused the message, when known.</param>
     /// <returns>A decision reporting <see cref="MediationOutcome.Denied" />.</returns>
     internal static PipelineDecision Denied(string reason, string? code, Type? decidedBy = null)
     {

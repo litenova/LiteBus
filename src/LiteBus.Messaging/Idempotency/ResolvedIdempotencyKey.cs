@@ -7,4 +7,9 @@ namespace LiteBus.Messaging.Idempotency;
 /// </summary>
 /// <param name="Key">The scoped key, prefixed by the declaration's scope or the message type name.</param>
 /// <param name="Declaration">The declaration that produced the key, carrying the replay decision.</param>
-public readonly record struct ResolvedIdempotencyKey(string Key, IdempotencyDeclaration Declaration);
+/// <param name="Fingerprint">
+///     The fingerprint the declaration selected from the message, or <see langword="null" /> when the declaration
+///     selects none. The shortcut claims with it so the store can tell the same request from a different request
+///     reusing the key.
+/// </param>
+public readonly record struct ResolvedIdempotencyKey(string Key, IdempotencyDeclaration Declaration, string? Fingerprint = null);

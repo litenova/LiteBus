@@ -3,13 +3,14 @@ using System;
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     The answer a shortcut returns for a message that produces no result: no shortcut, or skip the work because it has
-///     already been applied.
+///     The answer a shortcut returns for a message that produces no result: no shortcut, skip the work because it has
+///     already been applied, or deny the message when the refusal can only be decided here.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         Answering is not a denial. Nothing was refused, the work has already taken effect, and an audit trail
-///         records a success. Denying belongs to a guard, which reports <see cref="MediationOutcome.Denied" /> instead.
+///         records a success. Denying reports <see cref="MediationOutcome.Denied" /> instead, and is reserved for the
+///         refusal a guard cannot make because the decision needs the shortcut stage, such as an idempotency claim.
 ///     </para>
 ///     <para>
 ///         This shape is for messages that produce no result. Use <see cref="Shortcut{TMessageResult}" /> for a message
@@ -42,11 +43,13 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     ///     Initializes a new instance of the <see cref="Shortcut" /> struct.
     /// </summary>
     /// <param name="isAnswered">Whether the shortcut skipped the main handler.</param>
-    /// <param name="reason">The reason the main handler was skipped.</param>
-    /// <param name="code">The machine-readable code for the answer.</param>
-    private Shortcut(bool isAnswered, string? reason, string? code)
+    /// <param name="isDenied">Whether the shortcut denied the message.</param>
+    /// <param name="reason">The reason the main handler was skipped or the message was denied.</param>
+    /// <param name="code">The machine-readable code for the answer or the denial.</param>
+    private Shortcut(bool isAnswered, bool isDenied, string? reason, string? code)
     {
         IsAnswered = isAnswered;
+        IsDenied = isDenied;
         Reason = reason;
         Code = code;
     }
@@ -62,23 +65,28 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     public bool IsAnswered { get; }
 
     /// <summary>
-    ///     Gets the reason the main handler was skipped.
+    ///     Gets a value indicating whether the shortcut denied the message.
+    /// </summary>
+    public bool IsDenied { get; }
+
+    /// <summary>
+    ///     Gets the reason the main handler was skipped or the message was denied.
     /// </summary>
     /// <remarks>
-    ///     A skipped mediation reaches neither post-handlers nor error handlers, so without a reason it leaves no
-    ///     explanation anywhere. Supply one.
+    ///     A stopped mediation reaches neither post-handlers nor error handlers, so without a reason it leaves no
+    ///     explanation anywhere. An answer may omit one, but a denial always carries one.
     /// </remarks>
     public string? Reason { get; }
 
     /// <summary>
-    ///     Gets the machine-readable code for the answer.
+    ///     Gets the machine-readable code for the answer or the denial.
     /// </summary>
     /// <value>
     ///     The code, or <see langword="null" /> when the shortcut supplied none. It means the same thing here as it
     ///     does on <see cref="Verdict.Code" />: something a later stage can switch on, where <see cref="Reason" /> is
     ///     prose written for a person. A completion handler tagging a metric by why the message was answered reads
     ///     this rather than parsing the reason, which is what distinguishes a cache hit from an idempotent replay
-    ///     without either shortcut agreeing on wording.
+    ///     without either shortcut agreeing on wording. A refusal mapper switches on a denial code the same way.
     /// </value>
     public string? Code { get; }
 
@@ -95,7 +103,27 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     /// </remarks>
     public static Shortcut Answer(string? reason = null, string? code = null)
     {
-        return new Shortcut(isAnswered: true, reason, code);
+        return new Shortcut(isAnswered: true, isDenied: false, reason, code);
+    }
+
+    /// <summary>
+    ///     Denies the message when the refusal can only be decided at the shortcut stage.
+    /// </summary>
+    /// <param name="reason">Why the message is denied, written for a person.</param>
+    /// <param name="code">A machine-readable code a refusal mapper can switch on, when the shortcut has one.</param>
+    /// <returns>A denying shortcut that stops the pipeline and reports <see cref="MediationOutcome.Denied" />.</returns>
+    /// <remarks>
+    ///     A denial ends the mediation exactly as a guard denial does: completion handlers observe
+    ///     <see cref="MediationOutcome.Denied" />, error handlers do not run, and a registered refusal mapper applies.
+    ///     Reach for it only when the decision needs the shortcut stage, such as an idempotency claim; anything a
+    ///     guard could decide belongs to a guard, which runs first and keeps refusals in one stage.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="reason" /> is null, empty, or whitespace.</exception>
+    public static Shortcut Deny(string reason, string? code = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+
+        return new Shortcut(isAnswered: false, isDenied: true, reason, code);
     }
 
     /// <summary>
@@ -124,6 +152,7 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     public bool Equals(Shortcut other)
     {
         return IsAnswered == other.IsAnswered
+               && IsDenied == other.IsDenied
                && string.Equals(Reason, other.Reason, StringComparison.Ordinal)
                && string.Equals(Code, other.Code, StringComparison.Ordinal);
     }
@@ -137,16 +166,24 @@ public readonly struct Shortcut : IEquatable<Shortcut>
     /// <inheritdoc />
     public override int GetHashCode()
     {
-        return HashCode.Combine(IsAnswered, Reason, Code);
+        return HashCode.Combine(IsAnswered, IsDenied, Reason, Code);
     }
 
     /// <summary>
     ///     Converts this shortcut to the decision the pipeline acts on.
     /// </summary>
-    /// <param name="decidedBy">The shortcut that produced this answer, recorded so a misuse can be named.</param>
-    /// <returns>The decision for an answer, or <see cref="PipelineDecision.Continue" /> when the mediation proceeds.</returns>
+    /// <param name="decidedBy">The shortcut that produced this answer or denial, recorded so a misuse can be named.</param>
+    /// <returns>
+    ///     The decision for an answer or a denial, or <see cref="PipelineDecision.Continue" /> when the mediation
+    ///     proceeds.
+    /// </returns>
     internal PipelineDecision ToDecision(Type decidedBy)
     {
+        if (IsDenied)
+        {
+            return PipelineDecision.Denied(Reason!, Code, decidedBy);
+        }
+
         return IsAnswered
             ? PipelineDecision.Answered(Reason, Code, hasResult: false, result: null, decidedBy)
             : PipelineDecision.Continue;

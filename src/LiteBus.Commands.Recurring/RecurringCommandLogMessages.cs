@@ -45,6 +45,15 @@ internal static class RecurringCommandLogMessages
             "Recurring command {CommandType} lost a concurrency race ({ConflictType}); another instance changed the same data. The loop continues at its normal interval.");
 
     /// <summary>
+    ///     The delegate that writes a lease-skipped event.
+    /// </summary>
+    private static readonly Action<ILogger, string, string, Exception?> LeaseSkippedMessage =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Debug,
+            new EventId(2105, nameof(LeaseSkipped)),
+            "Recurring command {CommandType} skipped a pass because the '{LeaseName}' lease is held by another instance. The loop continues at its normal interval.");
+
+    /// <summary>
     ///     Writes the loop start event.
     /// </summary>
     /// <param name="logger">The logger receiving the event.</param>
@@ -85,5 +94,16 @@ internal static class RecurringCommandLogMessages
     internal static void PassConflicted(ILogger logger, string commandType, string conflictType)
     {
         PassConflictedMessage(logger, commandType, conflictType, null);
+    }
+
+    /// <summary>
+    ///     Writes a lease-skipped event.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="commandType">The command type sent by the loop.</param>
+    /// <param name="leaseName">The lease name another instance holds.</param>
+    internal static void LeaseSkipped(ILogger logger, string commandType, string leaseName)
+    {
+        LeaseSkippedMessage(logger, commandType, leaseName, null);
     }
 }

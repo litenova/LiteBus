@@ -24,6 +24,14 @@ namespace LiteBus.Commands.Recurring;
 ///         <see cref="RecurringCommandHostOptions.ErrorBackoff" />. An exception never escapes the loop, because a
 ///         background service that ends on the first transient database blip is a scheduled outage.
 ///     </para>
+///     <para>
+///         When <see cref="RecurringCommandHostOptions.RequireLease" /> is set, each pass first acquires the named
+///         <see cref="IRecurringCommandLease" />: a pass that cannot acquire it is skipped and the loop waits
+///         <see cref="RecurringCommandHostOptions.Interval" />. One acquired lease covers the whole busy period, so
+///         immediate re-sends never let another replica interleave mid-backlog, and it is released before the loop
+///         waits. Releasing the lease is part of the pass, so a release failure is logged and backed off like any
+///         other pass failure.
+///     </para>
 /// </remarks>
 public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundService
     where TCommand : notnull
@@ -96,6 +104,18 @@ public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundSer
             throw new LiteBusDependencyResolutionException(typeof(ICommandMediator));
         }
 
+        IRecurringCommandLease? leaseService = null;
+        if (_options.RequireLease)
+        {
+            leaseService = (IRecurringCommandLease?) mediatorScope.ServiceProvider.GetService(typeof(IRecurringCommandLease));
+            if (leaseService is null)
+            {
+                throw new LiteBusDependencyResolutionException(typeof(IRecurringCommandLease));
+            }
+        }
+
+        var leaseName = _options.LeaseName ?? typeof(TCommand).FullName ?? typeof(TCommand).Name;
+
         if (_options.StartupDelay > TimeSpan.Zero)
         {
             try
@@ -110,53 +130,98 @@ public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundSer
 
         RecurringCommandLogMessages.LoopStarted(_logger, typeof(TCommand).Name, _options.Interval);
 
-        while (!stoppingToken.IsCancellationRequested)
+        IAsyncDisposable? lease = null;
+
+        try
         {
-            var delay = _options.Interval;
-
-            try
+            while (!stoppingToken.IsCancellationRequested)
             {
-                var hasMoreWork = await SendOnceAsync(mediator, stoppingToken).ConfigureAwait(false);
+                var delay = _options.Interval;
 
-                if (hasMoreWork)
+                try
                 {
-                    // The pass did as much as it was allowed to, so the next one starts without waiting. This is what
-                    // turns a large backlog into one busy period instead of one batch per interval.
-                    continue;
+                    if (leaseService is not null && lease is null)
+                    {
+                        lease = await leaseService.TryAcquireAsync(leaseName, stoppingToken).ConfigureAwait(false);
+
+                        if (lease is null)
+                        {
+                            RecurringCommandLogMessages.LeaseSkipped(_logger, typeof(TCommand).Name, leaseName);
+                        }
+                    }
+
+                    if (leaseService is null || lease is not null)
+                    {
+                        var hasMoreWork = await SendOnceAsync(mediator, stoppingToken).ConfigureAwait(false);
+
+                        if (hasMoreWork)
+                        {
+                            // The pass did as much as it was allowed to, so the next one starts without waiting. This is what
+                            // turns a large backlog into one busy period instead of one batch per interval. The lease stays
+                            // held across the busy period and is released before the next wait.
+                            continue;
+                        }
+                    }
                 }
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception exception) when (_options.IsConcurrencyConflict?.Invoke(exception) == true)
-            {
-                // Another instance won the race for the same data, so the work this send wanted is already done or
-                // will be retried by the next pass. Waiting out the error backoff would only delay that pass.
-                RecurringCommandLogMessages.PassConflicted(_logger, typeof(TCommand).Name, exception.GetType().Name);
-            }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception exception) when (_options.IsConcurrencyConflict?.Invoke(exception) == true)
+                {
+                    // Another instance won the race for the same data, so the work this send wanted is already done or
+                    // will be retried by the next pass. Waiting out the error backoff would only delay that pass.
+                    RecurringCommandLogMessages.PassConflicted(_logger, typeof(TCommand).Name, exception.GetType().Name);
+                }
 #pragma warning disable CA1031 // Do not catch general exception types
-            catch (Exception exception)
-            {
-                // A recurring loop must outlive the failures of what it calls; ending here would silently stop the
-                // work for the life of the process, which is the failure this catch exists to prevent.
-                RecurringCommandLogMessages.PassFailed(_logger, typeof(TCommand).Name, exception);
-                delay = _options.ErrorBackoff;
-            }
+                catch (Exception exception)
+                {
+                    // A recurring loop must outlive the failures of what it calls; ending here would silently stop the
+                    // work for the life of the process, which is the failure this catch exists to prevent.
+                    RecurringCommandLogMessages.PassFailed(_logger, typeof(TCommand).Name, exception);
+                    delay = _options.ErrorBackoff;
+                }
 #pragma warning restore CA1031
 
-            if (delay <= TimeSpan.Zero)
-            {
-                continue;
-            }
+#pragma warning disable CA1031 // Do not catch general exception types
+                try
+                {
+                    if (lease is not null)
+                    {
+                        await lease.DisposeAsync().ConfigureAwait(false);
+                        lease = null;
+                    }
+                }
+                catch (Exception exception)
+                {
+                    // Releasing the lease is part of the pass: a store that dropped the holding connection reports the
+                    // failure here and backs off, rather than ending the loop.
+                    lease = null;
+                    RecurringCommandLogMessages.PassFailed(_logger, typeof(TCommand).Name, exception);
+                    delay = _options.ErrorBackoff;
+                }
+#pragma warning restore CA1031
 
-            try
-            {
-                await Task.Delay(delay, _timeProvider, stoppingToken).ConfigureAwait(false);
+                if (delay <= TimeSpan.Zero)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    await Task.Delay(delay, _timeProvider, stoppingToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
             }
-            catch (OperationCanceledException)
+        }
+        finally
+        {
+            if (lease is not null)
             {
-                return;
+                await lease.DisposeAsync().ConfigureAwait(false);
             }
         }
     }

@@ -41,7 +41,7 @@ internal sealed class PlaceOrderCommandDefinition : IMessageDefinition<PlaceOrde
 }
 ```
 
-`IMessageDeclarations` carries four members: `Declare<TValue>` for any value the application defines, `Audited` and `NotAudited` for the audit position, and `Exempt<TValue>` for a recorded exemption. Declarations are keyed by value type here exactly as they are in the typed shape below, so a reader looks a value up by its own type whichever way it was declared. Declaring the same value type twice in one `Describe` is a configuration error rather than the second silently replacing the first.
+`IMessageDeclarations` carries six members: `Declare<TValue>` for any value the application defines, `Audited` and `NotAudited` for the audit position, `Authorized` and `AuthorizationExempt` for the authorization position, and `Exempt<TValue>` for a recorded exemption. Declarations are keyed by value type here exactly as they are in the typed shape below, so a reader looks a value up by its own type whichever way it was declared. Declaring the same value type twice in one `Describe` is a configuration error rather than the second silently replacing the first.
 
 ## One Interface Per Declaration
 
@@ -126,6 +126,39 @@ registry.AddCommands(builder => builder.Register(typeof(PermissionGuard<>)));
 That is the whole payoff of the declaration model. One guard replaces one authorization call per handler, and a message that forgets to declare its permission is a build failure rather than an unguarded use case, once you add [Requiring a Declaration](#requiring-a-declaration).
 
 This is the division that keeps the framework honest. **What a use case requires** is a declaration, and LiteBus carries it. **Whether the current actor holds it** is enforcement, and that stays in your application, because no messaging library can model your tenancy and role structure.
+
+## Guarding on a Declaration
+
+When the guard only needs the declaration, derive it from `DeclarationGuard<TMessage, TValue>` instead of writing the lookup. The guard from the previous section, written against the base class:
+
+```csharp
+public sealed class PermissionGuard<TCommand> : DeclarationGuard<TCommand, RequiredPermission>
+    where TCommand : ICommand
+{
+    private readonly IAccessAuthorizer _authorizer;
+
+    public PermissionGuard(IMessageMetadataAccessor metadata, IAccessAuthorizer authorizer)
+        : base(metadata)
+    {
+        _authorizer = authorizer;
+    }
+
+    protected override async Task<Verdict> DecideAsync(RequiredPermission declaration, TCommand message, CancellationToken cancellationToken)
+    {
+        return await _authorizer.HoldsAsync(declaration.Name, cancellationToken).ConfigureAwait(false)
+            ? Verdict.Allow
+            : Verdict.Deny($"the caller does not hold {declaration.Name}");
+    }
+}
+```
+
+Register it once as an open generic and it covers every command:
+
+```csharp
+registry.AddCommands(builder => builder.Register(typeof(PermissionGuard<>)));
+```
+
+The lookup reads the runtime message type, so a guard closed over a base type still enforces the concrete message's declaration. A declared value reaches the typed `DecideAsync`; a recorded exemption for the value type allows without calling it; a message declaring neither reaches `DecideUndeclaredAsync`, which denies with the `declaration.missing` code by default. Override that method to allow while a declaration is still being rolled out, and pair the guard with [Requiring a Declaration](#requiring-a-declaration) so the override becomes unreachable once every message declares its position. `AuthorizationGuard<TMessage>` applies the same shape to authorization positions: an exempt declaration allows, and an authorized one calls `AuthorizeAsync` with the declared policy. See [Authorization Declarations](authorization-declarations.md) for that half.
 
 ## What Belongs in a Definition
 
@@ -359,6 +392,84 @@ Because metadata is resolved once at registration, reading it costs a dictionary
 A type the registry does not hold raises `MessageMetadataNotFoundException` rather than answering with an empty collection. That is deliberate: an empty answer would turn a missing registration into a permission check that silently passes.
 
 `IMessageDescriptor.Metadata` is still there and still public, but reaching for it from application code means the registry's descriptor shape becomes part of your application. Use the accessor.
+
+## Declaring Effects
+
+A use case that issues commands, sends messages, and publishes events can declare those edges as metadata, so the set of consequences is written down where the pipeline can read it rather than only in an external record. Effects stay application-owned: the verbs and timings are your taxonomy, and LiteBus carries them without understanding them. Declare them with an application record plus the same enforcement this page already teaches:
+
+```csharp
+public enum EffectKind
+{
+    Issues,
+    Sends,
+    Publishes,
+    Calls
+}
+
+public enum EffectTiming
+{
+    Inline,
+    AfterCommit,
+    Async
+}
+
+public sealed record EffectEdge(Type Message, EffectKind Kind, EffectTiming Timing);
+
+public sealed record DeclaredEffects(EffectEdge[] Edges);
+
+public sealed class PlaceOrderEffects : IMessageDefinition<PlaceOrderCommand, DeclaredEffects>
+{
+    public DeclaredEffects Value => new DeclaredEffects(
+    [
+        new EffectEdge(typeof(OrderPlacedEvent), EffectKind.Publishes, EffectTiming.Inline),
+        new EffectEdge(typeof(ReceiptEmail), EffectKind.Sends, EffectTiming.AfterCommit)
+    ]);
+}
+```
+
+Presence is enforced the same way as any other declaration, at composition and at compile time:
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .RequireDeclaration<DeclaredEffects, ICommand>()
+    .ValidateComposition(catalog =>
+    {
+        var offenders = new List<string>();
+
+        foreach (var entry in catalog.Where(entry => typeof(ICommand).IsAssignableFrom(entry.MessageType)))
+        {
+            if (!entry.Metadata.TryGet<DeclaredEffects>(out var effects))
+            {
+                continue;
+            }
+
+            var duplicates = effects.Edges
+                .GroupBy(edge => edge.Message)
+                .Where(group => group.Count() > 1)
+                .Select(group => group.Key.Name)
+                .ToList();
+
+            if (duplicates.Count > 0)
+            {
+                offenders.Add($"{entry.MessageType.Name} declares {string.Join(", ", duplicates)} twice");
+            }
+        }
+
+        if (offenders.Count > 0)
+        {
+            throw new InvalidOperationException($"Declared effects must name each target once: {string.Join("; ", offenders)}");
+        }
+    }));
+```
+
+```ini
+# .editorconfig
+[*.cs]
+litebus_required_declarations = App.Effects.DeclaredEffects
+dotnet_diagnostic.LB1020.severity = warning
+```
+
+That enforces that every command states its effects and that no effect list names a target twice. It does not verify that a handler dispatches only its declared edges, because nothing records which messages a handler actually dispatched. The gap-free form of that check is a runtime audit built on shipped seams: a decorator over the dispatch path records each dispatched message type into `IExecutionContext.Data`, and a completion handler diffs the recorded edges against the declared `DeclaredEffects` read through `IMessageMetadataAccessor`. Static call-site checking stays on the [roadmap](../roadmap/integrator-feedback.md#static-checking-of-declared-effects), because the analyzer never executes `Describe` bodies and can only read attribute-declared edges.
 
 ## Next
 

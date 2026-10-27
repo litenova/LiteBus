@@ -116,19 +116,17 @@ Application handlers belong below `ReservedFloor` or at or above `ReservedCeilin
 
 The band from `ReservedCeiling` up to `UnitOfWork` is for application infrastructure that has to run after every LiteBus handler and still before the commit, such as a handler flushing a buffered projection the same commit will write. The two constants shared the value `2_000_000` in earlier previews, which left no such band: a handler on the ceiling tied with the commit and the order resolved by registration sequence, which is assembly scan order.
 
-Because handlers run in ascending order and an unannotated handler sits at zero, your handlers run before LiteBus's by default. To run *after* every LiteBus handler, use the band above the ceiling:
+Because handlers run in ascending order and an unannotated handler sits at zero, your handlers run before LiteBus's by default. To run *after* every LiteBus handler, use the band above the ceiling. The unit-of-work commit is the main resident there, and LiteBus ships it: `UseUnitOfWork<TUnitOfWork>` on the command or query module builder registers a completion handler at `UnitOfWork` that calls `IUnitOfWork.CommitAsync` after every successful mediation, so an application normally writes no handler at this priority and only implements the commit:
 
 ```csharp
-[HandlerPriority(HandlerPriorities.UnitOfWork)]
-public sealed class CommitUnitOfWork : ICommandCompletionHandler
-{
-    // Runs after the audit writer, so a record the trail staged is part of this commit.
-}
+registry.AddCommands(commands => commands
+    .RegisterFromAssembly(typeof(PlaceOrderCommand).Assembly)
+    .UseUnitOfWork<OrderUnitOfWork>());
 ```
 
 ### Why There Is a Band Above the Framework
 
-An application that needs its audit record to be atomic with the change it describes cannot commit before the record exists. The audit writer runs at `Observability`, so the commit has to run after it, which means it has to sit outside the reserved window on the far side. That is the whole reason `ReservedCeiling` exists, and it is why `UnitOfWork` is a named constant instead of advice to add one to `Observability`. It sits above the ceiling rather than on it so the ceiling stays a boundary with nothing to tie with. See [Auditing](auditing.md) for the full pattern, including what happens to a record for a failed mediation.
+An application that needs its audit record to be atomic with the change it describes cannot commit before the record exists. The audit writer runs at `Observability`, so the commit has to run after it, which means it has to sit outside the reserved window on the far side. That is the whole reason `ReservedCeiling` exists, and it is why `UnitOfWork` is a named constant instead of advice to add one to `Observability`. It sits above the ceiling rather than on it so the ceiling stays a boundary with nothing to tie with. Register the commit with `UseUnitOfWork<TUnitOfWork>`; the shipped handler runs at `UnitOfWork`, after the audit writer, so a record the trail staged is part of the commit. See [Auditing](auditing.md) for the full pattern, including what happens to a record for a failed mediation.
 
 Priority is the only ordering rule in the completion stage. In every pre stage and in the error stage, handlers registered for a base type or interface run before handlers registered for the message type; in the post stage the message-type handlers run first. The completion stage merges the two collections and sorts by priority alone. A commit that must follow a broadly registered framework writer would otherwise be unorderable.
 

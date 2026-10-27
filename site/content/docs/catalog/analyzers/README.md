@@ -31,8 +31,10 @@ Contributor contract reference. Readers using LiteBus start with [the documentat
 | [analyzers.untyped-shortcut-on-result-message](shortcut-contracts.md) | Untyped shortcut on a message that produces a result | GA |
 | [analyzers.missing-declaration](required-declarations.md) | Command or query states no position on a required declaration | GA |
 | [analyzers.reserved-handler-priority](reserved-handler-priority.md) | Handler priority inside the reserved range | GA |
+| [analyzers.nested-mediation-in-command-handler](nested-mediation-in-command-handler.md) | Command handler mediates another message inside its handle method | GA |
+| [analyzers.external-side-effect-in-command-handler](external-side-effect-in-command-handler.md) | Command handler injects an external side-effect type | GA |
 
-## Diagnostic Inventory (LB1001-LB1022)
+## Diagnostic Inventory (LB1001-LB1024)
 
 | ID | Severity | Category | Rule | Capability page |
 | --- | --- | --- | --- | --- |
@@ -58,6 +60,8 @@ Contributor contract reference. Readers using LiteBus start with [the documentat
 | `LB1020` | Warning (off by default) | `LiteBus.Declarations` | Command or query type states no position on a configured declaration | [required-declarations.md](required-declarations.md) |
 | `LB1021` | Warning | `LiteBus.Declarations` | `litebus_required_declarations` names a type that does not resolve | [required-declarations.md](required-declarations.md) |
 | `LB1022` | Warning | `LiteBus.Handlers` | `[HandlerPriority]` value falls inside the range LiteBus reserves for its own handlers | [reserved-handler-priority.md](reserved-handler-priority.md) |
+| `LB1023` | Warning (off by default) | `LiteBus.Handlers` | Command handler sends or publishes another message inside its handle method | [nested-mediation-in-command-handler.md](nested-mediation-in-command-handler.md) |
+| `LB1024` | Warning (off by default) | `LiteBus.Handlers` | Command handler injects an external side-effect type through its constructor | [external-side-effect-in-command-handler.md](external-side-effect-in-command-handler.md) |
 
 ## Suppression Policy
 

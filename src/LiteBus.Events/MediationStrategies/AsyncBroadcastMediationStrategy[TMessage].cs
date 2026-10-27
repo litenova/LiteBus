@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.MediationStrategies;
 using LiteBus.Messaging.Pipeline;
 
 namespace LiteBus.Events.MediationStrategies;
@@ -130,6 +131,26 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
+            if (MediationExceptionFilters.TryClassifyRefusal(
+                    messageDependencies.FaultRefusalClassifiers,
+                    e,
+                    out var refusal))
+            {
+                outcome = refusal.Outcome;
+                reason = refusal.Reason;
+                code = refusal.Code;
+
+                // Only a Try call installs a capture, so this is a dictionary miss on every ordinary publish.
+                MediationEndingCapture.Record(executionContext, refusal);
+
+                // An event produces no result, so a classified fault has nothing a mapper could return and always
+                // reaches the publisher as the refusal exception. It is excluded from the recoverable filter, so
+                // error handlers do not see a refusal as a fault.
+                var refusalException = refusal.CreateException(message.GetType(), e);
+                failure = refusalException;
+                throw refusalException;
+            }
+
             outcome = MediationOutcome.Failed;
             failure = e;
 
@@ -336,8 +357,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     ///     message. The non-generic <c>IEventMediator.PublishAsync(IEvent, ...)</c> overload erases the event type to
     ///     <see cref="IEvent" />, and a base-typed variable erases it the same way through the generic overload. Handler
     ///     contracts are contravariant, so a handler registered for the concrete runtime type does not satisfy a type test
-    ///     against the erased type. Such handlers are invoked through the non-generic entry point, which dispatches to the
-    ///     closed contract the handler actually implements.
+    ///     against the erased type. A handler whose descriptor names a type other than <typeparamref name="TMessage" /> is
+    ///     therefore invoked through the closed contract recorded on its descriptor, which is also what keeps one class that
+    ///     implements several closed event handler contracts dispatching to the contract each registration names.
     /// </remarks>
     private static async Task ExecuteSingleHandler(TMessage message,
                                                    LazyHandler<IMessageHandler, IMainHandlerDescriptor> lazyHandler,
@@ -347,18 +369,26 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
         var handler = lazyHandler.Handler.Value;
 
-        if (handler is IAsyncMessageHandler<TMessage> asyncHandler)
+        if (lazyHandler.Descriptor.MessageType == typeof(TMessage))
         {
-            await asyncHandler.HandleAsync(message, executionContext.CancellationToken).ConfigureAwait(false);
-            return;
+            if (handler is IAsyncMessageHandler<TMessage> asyncHandler)
+            {
+                await asyncHandler.HandleAsync(message, executionContext.CancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            if (handler is IMessageHandler<TMessage, Task> typedHandler)
+            {
+                await typedHandler.Handle(message).ConfigureAwait(false);
+                return;
+            }
         }
 
-        if (handler is IMessageHandler<TMessage, Task> typedHandler)
-        {
-            await typedHandler.Handle(message).ConfigureAwait(false);
-            return;
-        }
-
-        await ((Task) handler.Handle(message)).ConfigureAwait(false);
+        await ((Task) MainHandlerDispatch.Invoke(
+                lazyHandler.Descriptor,
+                handler,
+                message,
+                executionContext.CancellationToken))
+            .ConfigureAwait(false);
     }
 }

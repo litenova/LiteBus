@@ -112,8 +112,17 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
         }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(OutboxEnqueueOptions),
+            _builder.CollectEnqueueOptions()));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxEnvelopeFactory),
             typeof(OutboxEnvelopeFactory)));
+
+        if (_builder.IsCollectedEventStagingEnabled)
+        {
+            RegisterCollectedEventStaging(configuration);
+        }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutbox),
@@ -173,6 +182,32 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
         RegisterObservableMetrics(configuration);
         RegisterDiagnosticChecks(configuration);
 
+    }
+
+    /// <summary>
+    ///     Registers the default scoped domain event collector and the open generic staging completion handler.
+    /// </summary>
+    /// <param name="configuration">The module configuration receiving the staging registrations.</param>
+    /// <remarks>
+    ///     The handler is registered as an open generic definition, so the registry closes it over every message type
+    ///     known now and every message type registered by modules that build later. The open generic definition is
+    ///     registered in the container for the same reason: closed handler types are resolved through it regardless of
+    ///     module build order.
+    /// </remarks>
+    private static void RegisterCollectedEventStaging(IModuleConfiguration configuration)
+    {
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IDomainEventCollector),
+            typeof(DomainEventCollector),
+            InstanceLifetime.Scoped));
+
+        var messageRegistry = configuration.GetContext<IMessageRegistry>();
+        messageRegistry.Register(typeof(StageCollectedDomainEventsCompletionHandler<>));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(StageCollectedDomainEventsCompletionHandler<>),
+            typeof(StageCollectedDomainEventsCompletionHandler<>),
+            InstanceLifetime.Scoped));
     }
 
     /// <summary>

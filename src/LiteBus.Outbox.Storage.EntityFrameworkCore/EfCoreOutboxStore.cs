@@ -1513,6 +1513,7 @@ public sealed class EfCoreOutboxStore :
             ContractVersion = entity.ContractVersion,
             Payload = entity.Payload,
             Topic = entity.Topic,
+            Handler = entity.Handler,
             CreatedAt = entity.CreatedAt,
             VisibleAfter = entity.VisibleAfter,
             Status = entity.Status,
@@ -1549,6 +1550,7 @@ public sealed class EfCoreOutboxStore :
             ContractVersion = row.ContractVersion,
             Payload = row.Payload,
             Topic = row.Topic,
+            Handler = row.Handler,
             CreatedAt = row.CreatedAt,
             VisibleAfter = row.VisibleAfter,
             Status = (OutboxStatus) row.Status,
@@ -1583,6 +1585,7 @@ public sealed class EfCoreOutboxStore :
             ContractVersion = envelope.ContractVersion,
             Payload = envelope.Payload,
             Topic = envelope.Topic,
+            Handler = envelope.Handler,
             CreatedAt = envelope.CreatedAt,
             VisibleAfter = envelope.VisibleAfter,
             Status = envelope.Status,
@@ -1832,6 +1835,12 @@ public sealed class EfCoreOutboxStore :
         public string? Topic { get; set; }
 
         /// <summary>
+        ///     Gets or sets the addressed handler column.
+        /// </summary>
+        [Column("handler")]
+        public string? Handler { get; set; }
+
+        /// <summary>
         ///     Gets or sets the created timestamp column.
         /// </summary>
         [Column("created_at")]
@@ -1951,6 +1960,7 @@ public sealed class EfCoreOutboxStore :
             envelope.ContractVersion == existing.ContractVersion &&
             string.Equals(envelope.Payload, existing.Payload, StringComparison.Ordinal) &&
             string.Equals(envelope.Topic, existing.Topic, StringComparison.Ordinal) &&
+            string.Equals(envelope.Handler, existing.Handler, StringComparison.Ordinal) &&
             string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) &&
             string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) &&
             string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) &&
@@ -1979,6 +1989,7 @@ public sealed class EfCoreOutboxStore :
              envelope.ContractVersion != existing.ContractVersion ||
              !string.Equals(envelope.Payload, existing.Payload, StringComparison.Ordinal) ||
              !string.Equals(envelope.Topic, existing.Topic, StringComparison.Ordinal) ||
+             !string.Equals(envelope.Handler, existing.Handler, StringComparison.Ordinal) ||
              !string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) ||
              !string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) ||
              !string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) ||

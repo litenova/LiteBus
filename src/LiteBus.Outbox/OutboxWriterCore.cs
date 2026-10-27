@@ -34,6 +34,11 @@ public sealed class OutboxWriterCore
     /// <param name="persistAsync">The delegate that persists or stages the created envelope.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed enqueue receipt returned to callers.</returns>
+    /// <remarks>
+    ///     Under per-handler delivery the factory returns one envelope per subscribed main handler. Every envelope is
+    ///     persisted in handler-name order and the returned receipt describes the first one; the remaining envelopes
+    ///     carry their own identifiers and receipts are available through the store query roles.
+    /// </remarks>
     public async Task<OutboxReceipt<TEvent>> EnqueueAsync<TEvent>(
         OutboxEnqueueItem<TEvent> item,
         Func<OutboxEnvelope, CancellationToken, Task<OutboxAppendResult>> persistAsync,
@@ -43,13 +48,25 @@ public sealed class OutboxWriterCore
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(persistAsync);
 
-        var envelope = await _envelopeFactory.CreateAsync(item, cancellationToken).ConfigureAwait(false);
-        var appendResult = await persistAsync(envelope, cancellationToken).ConfigureAwait(false);
+        var envelopes = await _envelopeFactory.CreateManyAsync(item, cancellationToken).ConfigureAwait(false);
+
+        if (envelopes.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "The outbox envelope factory returned no envelopes for the enqueue item.");
+        }
+
+        var firstResult = await persistAsync(envelopes[0], cancellationToken).ConfigureAwait(false);
+
+        for (var index = 1; index < envelopes.Count; index++)
+        {
+            await persistAsync(envelopes[index], cancellationToken).ConfigureAwait(false);
+        }
 
         return OutboxReceiptMapper.CreateTypedReceipt<TEvent>(
-            appendResult.Envelope,
+            firstResult.Envelope,
             item.Message.GetType(),
-            appendResult.Outcome);
+            firstResult.Outcome);
     }
 
     /// <summary>
@@ -59,6 +76,11 @@ public sealed class OutboxWriterCore
     /// <param name="persistAsync">The delegate that persists or stages the created envelope.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The enqueue receipt returned to callers.</returns>
+    /// <remarks>
+    ///     Under per-handler delivery the factory returns one envelope per subscribed main handler. Every envelope is
+    ///     persisted in handler-name order and the returned receipt describes the first one; the remaining envelopes
+    ///     carry their own identifiers and receipts are available through the store query roles.
+    /// </remarks>
     public async Task<OutboxReceipt> EnqueueAsync(
         OutboxEnqueueItem item,
         Func<OutboxEnvelope, CancellationToken, Task<OutboxAppendResult>> persistAsync,
@@ -67,13 +89,25 @@ public sealed class OutboxWriterCore
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(persistAsync);
 
-        var envelope = await _envelopeFactory.CreateAsync(item, cancellationToken).ConfigureAwait(false);
-        var appendResult = await persistAsync(envelope, cancellationToken).ConfigureAwait(false);
+        var envelopes = await _envelopeFactory.CreateManyAsync(item, cancellationToken).ConfigureAwait(false);
+
+        if (envelopes.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "The outbox envelope factory returned no envelopes for the enqueue item.");
+        }
+
+        var firstResult = await persistAsync(envelopes[0], cancellationToken).ConfigureAwait(false);
+
+        for (var index = 1; index < envelopes.Count; index++)
+        {
+            await persistAsync(envelopes[index], cancellationToken).ConfigureAwait(false);
+        }
 
         return OutboxReceiptMapper.CreateReceipt(
-            appendResult.Envelope,
+            firstResult.Envelope,
             item.MessageType,
-            appendResult.Outcome);
+            firstResult.Outcome);
     }
 
     /// <summary>
@@ -83,6 +117,10 @@ public sealed class OutboxWriterCore
     /// <param name="persistBatchAsync">The delegate that persists or stages the created envelopes.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The enqueue receipts returned to batch callers.</returns>
+    /// <remarks>
+    ///     Under per-handler delivery each item fans out to one envelope per subscribed main handler and receipts are
+    ///     flattened in item order, then handler-name order within each item.
+    /// </remarks>
     public async Task<IReadOnlyList<OutboxReceipt>> EnqueueBatchAsync(
         IReadOnlyList<OutboxEnqueueItem> items,
         Func<IReadOnlyList<OutboxEnvelope>, CancellationToken, Task<IReadOnlyList<OutboxAppendResult>>> persistBatchAsync,
@@ -91,13 +129,34 @@ public sealed class OutboxWriterCore
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(persistBatchAsync);
 
-        var envelopes = await _envelopeFactory.CreateBatchAsync(items, cancellationToken).ConfigureAwait(false);
+        var tasks = new Task<IReadOnlyList<OutboxEnvelope>>[items.Count];
+
+        for (var index = 0; index < items.Count; index++)
+        {
+            tasks[index] = _envelopeFactory.CreateManyAsync(items[index], cancellationToken);
+        }
+
+        var perItemEnvelopes = await Task.WhenAll(tasks).ConfigureAwait(false);
+        List<OutboxEnvelope> envelopes = [];
+        List<Type> messageTypes = [];
+
+        for (var index = 0; index < perItemEnvelopes.Length; index++)
+        {
+            var expanded = perItemEnvelopes[index];
+
+            for (var envelopeIndex = 0; envelopeIndex < expanded.Count; envelopeIndex++)
+            {
+                envelopes.Add(expanded[envelopeIndex]);
+                messageTypes.Add(items[index].MessageType);
+            }
+        }
+
         var appendResults = await persistBatchAsync(envelopes, cancellationToken).ConfigureAwait(false);
 
-        if (appendResults.Count != items.Count)
+        if (appendResults.Count != envelopes.Count)
         {
             throw new InvalidOperationException(
-                $"The outbox append store returned {appendResults.Count} results for {items.Count} input items.");
+                $"The outbox append store returned {appendResults.Count} results for {envelopes.Count} envelopes.");
         }
 
         var receipts = new OutboxReceipt[appendResults.Count];
@@ -107,7 +166,7 @@ public sealed class OutboxWriterCore
             var appendResult = appendResults[index];
             receipts[index] = OutboxReceiptMapper.CreateReceipt(
                 appendResult.Envelope,
-                items[index].MessageType,
+                messageTypes[index],
                 appendResult.Outcome);
         }
 

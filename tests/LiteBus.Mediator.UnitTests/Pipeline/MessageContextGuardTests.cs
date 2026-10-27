@@ -183,7 +183,7 @@ public sealed class MessageContextGuardTests : LiteBusTestBase
 
     private static IExecutionContext NewExecutionContext()
     {
-        return new LiteBus.Messaging.Contexts.Execution.ExecutionContext([], new Dictionary<string, object>(), CancellationToken.None);
+        return new LiteBus.Messaging.Contexts.Execution.ExecutionContext([], new Dictionary<string, object>(), TimeProvider.System, CancellationToken.None);
     }
 
     private sealed class EmptyMessageDependencies : IMessageDependencies

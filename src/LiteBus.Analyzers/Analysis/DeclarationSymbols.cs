@@ -54,6 +54,11 @@ internal sealed class DeclarationSymbols
     private const string AuditDeclarationMetadataName = "LiteBus.Messaging.Abstractions.AuditDeclaration";
 
     /// <summary>
+    ///     The metadata name of the authorization declaration value type.
+    /// </summary>
+    private const string AuthorizationDeclarationMetadataName = "LiteBus.Messaging.Abstractions.AuthorizationDeclaration";
+
+    /// <summary>
     ///     The metadata name of the annotation stating which value an attribute declares.
     /// </summary>
     private const string MessageDeclarationAttributeMetadataName =
@@ -83,6 +88,7 @@ internal sealed class DeclarationSymbols
         DescribingContract = compilation.GetTypeByMetadataName(DescribingDefinitionMetadataName);
         Declarations = compilation.GetTypeByMetadataName(MessageDeclarationsMetadataName);
         AuditDeclaration = compilation.GetTypeByMetadataName(AuditDeclarationMetadataName);
+        AuthorizationDeclaration = compilation.GetTypeByMetadataName(AuthorizationDeclarationMetadataName);
         MessageDeclarationAnnotation = compilation.GetTypeByMetadataName(MessageDeclarationAttributeMetadataName);
         DeclarationExempt = compilation.GetTypeByMetadataName(DeclarationExemptAttributeMetadataName);
     }
@@ -121,6 +127,11 @@ internal sealed class DeclarationSymbols
     ///     Gets the audit declaration value type, when referenced.
     /// </summary>
     internal INamedTypeSymbol? AuditDeclaration { get; }
+
+    /// <summary>
+    ///     Gets the authorization declaration value type, when referenced.
+    /// </summary>
+    internal INamedTypeSymbol? AuthorizationDeclaration { get; }
 
     /// <summary>
     ///     Gets the annotation stating which value an attribute declares, when referenced.

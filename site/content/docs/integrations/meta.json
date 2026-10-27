@@ -12,6 +12,9 @@
     "outbox-ef-core-storage",
     "outbox-marten-storage",
     "postgresql-schema-management",
-    "recurring-commands"
+    "recurring-commands",
+    "commands-postgresql-idempotency-store",
+    "commands-marten",
+    "aspnetcore-idempotency-key"
   ]
 }

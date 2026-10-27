@@ -24,6 +24,12 @@ internal sealed class PostgreSqlComponentSchemaDefinition
     public required IReadOnlyList<IReadOnlyList<string>> VersionColumnSets { get; init; }
 
     /// <summary>
+    ///     Gets the upgrade scripts that bring older tables to newer schema versions, one entry per supported target
+    ///     version greater than 1. Components without upgrades leave this empty and keep the current drift behavior.
+    /// </summary>
+    public IReadOnlyList<PostgreSqlSchemaUpgradeScript> UpgradeScripts { get; init; } = [];
+
+    /// <summary>
     ///     Gets the database types required for columns whose type is part of the current schema contract.
     /// </summary>
     public required IReadOnlyDictionary<string, string> RequiredColumnDataTypes { get; init; }

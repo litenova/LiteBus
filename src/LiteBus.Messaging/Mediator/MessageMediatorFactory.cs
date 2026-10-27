@@ -40,4 +40,27 @@ public static class MessageMediatorFactory
 
         return new MessageMediator(registry, registry, dispatchScopeFactory);
     }
+
+    /// <summary>
+    ///     Creates a mediator over one registry, one dispatch scope factory, and one clock.
+    /// </summary>
+    /// <param name="registry">The registry holding the messages and handlers to mediate.</param>
+    /// <param name="dispatchScopeFactory">The factory that creates the per-mediation scope handlers resolve from.</param>
+    /// <param name="timeProvider">The clock each mediation's handled instant is read from.</param>
+    /// <returns>The mediator.</returns>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="registry" />, <paramref name="dispatchScopeFactory" />, or <paramref name="timeProvider" />
+    ///     is <see langword="null" />.
+    /// </exception>
+    public static IMessageMediator Create(
+        IMessageRegistry registry,
+        IMessageDispatchScopeFactory dispatchScopeFactory,
+        TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(dispatchScopeFactory);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
+        return new MessageMediator(registry, registry, dispatchScopeFactory, timeProvider);
+    }
 }

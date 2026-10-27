@@ -42,6 +42,16 @@ public sealed record OutboxEnvelope
     public string? Topic { get; init; }
 
     /// <summary>
+    ///     Gets the full name of the single event handler this envelope is addressed to, when per-handler delivery wrote it.
+    /// </summary>
+    /// <value>
+    ///     The handler type full name, or <see langword="null" /> when the envelope publishes to every subscribed
+    ///     handler. In-process dispatch publishes a targeted envelope with a handler predicate matching only the
+    ///     recorded handler.
+    /// </value>
+    public string? Handler { get; init; }
+
+    /// <summary>
     ///     Gets the UTC timestamp when the message was stored.
     /// </summary>
     public required DateTimeOffset CreatedAt { get; init; }

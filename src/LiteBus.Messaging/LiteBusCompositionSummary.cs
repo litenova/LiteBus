@@ -8,7 +8,8 @@ namespace LiteBus.Messaging;
 
 /// <summary>
 ///     What the host actually composed: how many messages of each axis, which open generic handlers were closed over
-///     how many of them, whether auditing and idempotency are on, and which declaration policies are enforced.
+///     how many of them, which handler types cover one message's stage twice, whether auditing and idempotency are on,
+///     and which declaration policies are enforced.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -44,6 +45,11 @@ public sealed class LiteBusCompositionSummary
     private readonly List<string> _requiredDeclarations = [];
 
     /// <summary>
+    ///     Each handler type covering one message's stage twice, once directly and once through a base type.
+    /// </summary>
+    private readonly List<DuplicateStageCoverage> _duplicateStageCoverages = [];
+
+    /// <summary>
     ///     Gets the total number of registered messages.
     /// </summary>
     public int MessageCount { get; internal set; }
@@ -66,6 +72,15 @@ public sealed class LiteBusCompositionSummary
     ///     Gets the declaration policies the composition enforces.
     /// </summary>
     public IReadOnlyList<string> RequiredDeclarations => _requiredDeclarations;
+
+    /// <summary>
+    ///     Gets each handler type covering one message's stage twice, once directly and once through a base type.
+    /// </summary>
+    /// <value>
+    ///     One entry per handler type, message, and role where both sets hold an entry, so the handler runs twice.
+    ///     Empty when every stage holds at most one entry per handler type, which is the ordinary composition.
+    /// </value>
+    public IReadOnlyList<DuplicateStageCoverage> DuplicateStageCoverages => _duplicateStageCoverages;
 
     /// <summary>
     ///     Gets a value indicating whether any axis produces audit records.
@@ -131,6 +146,21 @@ public sealed class LiteBusCompositionSummary
                   .Append(" messages");
         }
 
+        foreach (var duplicate in _duplicateStageCoverages
+                     .OrderBy(static entry => entry.HandlerType.Name, StringComparer.Ordinal)
+                     .ThenBy(static entry => entry.MessageType.Name, StringComparer.Ordinal))
+        {
+            report.Append("; duplicate stage coverage ")
+                  .Append(duplicate.HandlerType.Name)
+                  .Append(" on ")
+                  .Append(duplicate.MessageType.Name)
+                  .Append(" (direct ")
+                  .Append(duplicate.DirectContractType.Name)
+                  .Append(", indirect ")
+                  .Append(duplicate.IndirectContractType.Name)
+                  .Append(')');
+        }
+
         report.Append("; auditing ").Append(AuditingEnabled ? "on" : "off");
 
         if (AuditingEnabled)
@@ -186,5 +216,17 @@ public sealed class LiteBusCompositionSummary
     internal void RecordRequiredDeclaration(string description)
     {
         _requiredDeclarations.Add(description);
+    }
+
+    /// <summary>
+    ///     Records one handler type covering one message's stage twice.
+    /// </summary>
+    /// <param name="handlerType">The open generic handler definition or closed handler type covering both sets.</param>
+    /// <param name="messageType">The registered message covered twice.</param>
+    /// <param name="directContractType">The contract closed over the message itself.</param>
+    /// <param name="indirectContractType">The contract closed over a base type of the message.</param>
+    internal void RecordDuplicateStageCoverage(Type handlerType, Type messageType, Type directContractType, Type indirectContractType)
+    {
+        _duplicateStageCoverages.Add(new DuplicateStageCoverage(handlerType, messageType, directContractType, indirectContractType));
     }
 }

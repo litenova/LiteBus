@@ -2,6 +2,8 @@
     "title":  "Storage",
     "pages":  [
                   "README",
+                  "storage.commands.adapter.marten",
+                  "storage.commands.adapter.postgresql",
                   "storage.composite.operations-store",
                   "storage.composite.processing-store",
                   "storage.efcore.schema-ownership",

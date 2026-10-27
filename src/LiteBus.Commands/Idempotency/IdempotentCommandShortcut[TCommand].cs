@@ -22,7 +22,9 @@ namespace LiteBus.Commands.Idempotency;
 ///     </para>
 ///     <para>
 ///         A key another delivery is still applying is denied rather than answered, because nobody yet knows what the
-///         answer is. Answering would tell the caller the work is done while it might still fail.
+///         answer is. Answering would tell the caller the work is done while it might still fail. The denial carries
+///         <see cref="IdempotencyRefusalCodes.InFlight" />, and a repeat whose fingerprint differs from the stored one
+///         is denied with <see cref="IdempotencyRefusalCodes.FingerprintMismatch" />.
 ///     </para>
 ///     <para>
 ///         A granted key is recorded in the execution-context data as a <see cref="ClaimedIdempotencyKey" />, so the
@@ -72,15 +74,35 @@ internal sealed class IdempotentCommandShortcut<TCommand> : ICommandShortcut<TCo
             return Shortcut.None;
         }
 
-        var claim = await _store.TryClaimAsync(resolved.Value.Key, cancellationToken).ConfigureAwait(false);
+        var claim = await _store
+            .TryClaimAsync(resolved.Value.Key, resolved.Value.Fingerprint, cancellationToken)
+            .ConfigureAwait(false);
 
         if (claim.Outcome == IdempotencyClaimOutcome.Granted)
         {
             AmbientExecutionContext.GetCurrentOrDefault()?.Data.Set(new ClaimedIdempotencyKey(resolved.Value.Key));
+            return Shortcut.None;
         }
 
-        return claim.Outcome == IdempotencyClaimOutcome.AlreadyCompleted
-            ? Shortcut.Answer("the command was already applied")
-            : Shortcut.None;
+        if (claim.Outcome == IdempotencyClaimOutcome.AlreadyCompleted)
+        {
+            return Shortcut.Answer("the command was already applied");
+        }
+
+        if (claim.Outcome == IdempotencyClaimOutcome.InFlight)
+        {
+            return Shortcut.Deny(
+                "the command is still being applied by another delivery; retry after it settles",
+                IdempotencyRefusalCodes.InFlight);
+        }
+
+        if (claim.Outcome == IdempotencyClaimOutcome.FingerprintMismatch)
+        {
+            return Shortcut.Deny(
+                "the command was already applied with different content",
+                IdempotencyRefusalCodes.FingerprintMismatch);
+        }
+
+        return Shortcut.None;
     }
 }

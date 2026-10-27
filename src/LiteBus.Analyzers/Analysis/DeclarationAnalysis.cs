@@ -245,7 +245,7 @@ internal static class DeclarationAnalysis
             return;
         }
 
-        RecordDescribeBody(context, collector, declarations, declaration, method);
+        RecordDescribeBody(context, collector, declarations, symbols, declaration, method);
     }
 
     /// <summary>
@@ -254,18 +254,21 @@ internal static class DeclarationAnalysis
     /// <param name="context">The syntax node analysis context, carrying the body's semantic model.</param>
     /// <param name="collector">The collector holding the compilation's facts.</param>
     /// <param name="declarations">The <c>IMessageDeclarations</c> symbol whose calls are the declarations.</param>
+    /// <param name="symbols">The resolved declaration symbols.</param>
     /// <param name="declaration">The <c>Describe</c> method declaration.</param>
     /// <param name="method">The declared <c>Describe</c> method.</param>
     /// <remarks>
     ///     <c>Declare</c> states a value and <c>Exempt</c> states that the message deliberately has none, and a
     ///     requirement is answered either way, exactly as <c>[DeclarationExempt]</c> is. <c>Audited</c> and
     ///     <c>NotAudited</c> both key their declaration by <c>AuditDeclaration</c>, which is what makes
-    ///     <c>NotAudited</c> answer the same question <c>Audited</c> does.
+    ///     <c>NotAudited</c> answer the same question <c>Audited</c> does, and <c>Authorized</c> and
+    ///     <c>AuthorizationExempt</c> both key theirs by <c>AuthorizationDeclaration</c> for the same reason.
     /// </remarks>
     private static void RecordDescribeBody(
         SyntaxNodeAnalysisContext context,
         DeclarationCollector collector,
         INamedTypeSymbol declarations,
+        DeclarationSymbols symbols,
         MethodDeclarationSyntax declaration,
         IMethodSymbol method)
     {
@@ -305,6 +308,15 @@ internal static class DeclarationAnalysis
                 case "Audited":
                 case "NotAudited":
                     statesAuditPosition = true;
+                    break;
+
+                case "Authorized":
+                case "AuthorizationExempt":
+                    if (symbols.AuthorizationDeclaration is not null)
+                    {
+                        declaredValues.Add(symbols.AuthorizationDeclaration);
+                    }
+
                     break;
             }
         }

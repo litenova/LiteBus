@@ -24,8 +24,8 @@ namespace LiteBus.Commands.Idempotency;
 ///     <para>
 ///         Only the claim the same mediation was granted is settled. The shortcut records each granted key as a
 ///         <see cref="ClaimedIdempotencyKey" />, and without that record this handler returns: a denial, a validation
-///         failure, a repeat answered from the store, and a claim that threw a conflict all end here holding nothing,
-///         so settling by recomputing the key would delete another delivery's in-flight claim.
+///         failure, a repeat answered from the store, and a claim denied as in-flight or mismatched all end here
+///         holding nothing, so settling by recomputing the key would delete another delivery's in-flight claim.
 ///     </para>
 ///     <para>
 ///         Anything but <see cref="MediationOutcome.Succeeded" /> releases the recorded key, including

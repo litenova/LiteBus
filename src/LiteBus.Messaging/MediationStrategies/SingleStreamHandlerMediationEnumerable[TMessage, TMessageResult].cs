@@ -117,9 +117,28 @@ internal sealed class SingleStreamHandlerMediationEnumerable<TMessage, TMessageR
             string? code = null;
 
             // Records a fault and offers it to the error stage. Every fault path in this method goes through here, and it
-            // is a local function so it can record into the locals the enclosing iterator owns.
+            // is a local function so it can record into the locals the enclosing iterator owns. A fault a classifier
+            // recognizes ends the enumeration as that refusal instead: items may already have been yielded, so no
+            // mapper applies and the refusal exception surfaces from the enumerator.
             async Task RouteFaultAsync(Exception fault, object? observedResult)
             {
+                if (MediationExceptionFilters.TryClassifyRefusal(
+                        messageDependencies.FaultRefusalClassifiers,
+                        fault,
+                        out var refusal))
+                {
+                    outcome = refusal.Outcome;
+                    reason = refusal.Reason;
+                    code = refusal.Code;
+
+                    // Only a Try call installs a capture, so this is a dictionary miss on every ordinary mediation.
+                    MediationEndingCapture.Record(executionContext, refusal);
+
+                    var refusalException = refusal.CreateException(message.GetType(), fault);
+                    failure = refusalException;
+                    throw refusalException;
+                }
+
                 outcome = MediationOutcome.Failed;
                 failure = fault;
 
@@ -239,7 +258,7 @@ internal sealed class SingleStreamHandlerMediationEnumerable<TMessage, TMessageR
                         }
                         else
                         {
-                            var handler = SingleMainHandlerResolver.Resolve(messageDependencies, message.GetType()).Handler.Value;
+                            var handler = SingleMainHandlerResolver.Resolve(messageDependencies, message.GetType());
 
                             stream = HandlerInvocation.InvokeStreamHandler<TMessage, TMessageResult>(
                                 handler,
@@ -255,8 +274,9 @@ internal sealed class SingleStreamHandlerMediationEnumerable<TMessage, TMessageR
 
                 if (pipelineStopped)
                 {
-                    // A decision answered for the handler, so the caller gets whatever stream it supplied and the reactions
-                    // to work that never happened do not run.
+                    // A decision stopped the pipeline for the handler, so the caller gets whatever stream it supplied
+                    // and the reactions to work that never happened do not run. A refusal resolved through a mapper
+                    // arrives here as that mapped stream; without a mapper the refusal already threw above.
                     if (stream is not null)
                     {
                         await foreach (var item in stream.WithCancellation(linkedToken).ConfigureAwait(false))

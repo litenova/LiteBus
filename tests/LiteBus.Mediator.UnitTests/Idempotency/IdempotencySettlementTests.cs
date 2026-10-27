@@ -23,7 +23,7 @@ public sealed class IdempotencySettlementTests : LiteBusTestBase
         var provider = BuildProvider(store, applications, static _ => { });
 
         // Delivery A holds the claim while B arrives for the same key.
-        await store.TryClaimAsync("ApplyPaymentCommand:p-9").ConfigureAwait(false);
+        await store.TryClaimAsync("ApplyPaymentCommand:p-9", fingerprint: null).ConfigureAwait(false);
 
         var mediator = provider.GetRequiredService<ICommandMediator>();
 
@@ -54,7 +54,7 @@ public sealed class IdempotencySettlementTests : LiteBusTestBase
             applications,
             static builder => { builder.Register<DenyingPaymentGuard>(); });
 
-        await store.TryClaimAsync("ApplyPaymentCommand:p-9").ConfigureAwait(false);
+        await store.TryClaimAsync("ApplyPaymentCommand:p-9", fingerprint: null).ConfigureAwait(false);
 
         var act = async () => await provider.GetRequiredService<ICommandMediator>()
             .SendAsync(new ApplyPaymentCommand { PaymentId = "p-9" }).ConfigureAwait(false);
@@ -128,7 +128,7 @@ public sealed class IdempotencySettlementTests : LiteBusTestBase
 
         public IReadOnlyCollection<string> HeldKeys => _claimed;
 
-        public Task<IdempotencyClaim> TryClaimAsync(string key, CancellationToken cancellationToken = default)
+        public Task<IdempotencyClaim> TryClaimAsync(string key, string? fingerprint, CancellationToken cancellationToken = default)
         {
             if (!_claimed.Add(key))
             {
@@ -158,7 +158,7 @@ public sealed class IdempotencySettlementTests : LiteBusTestBase
 
         public List<string> ReleaseCalls { get; } = [];
 
-        public Task<IdempotencyClaim> TryClaimAsync(string key, CancellationToken cancellationToken = default)
+        public Task<IdempotencyClaim> TryClaimAsync(string key, string? fingerprint, CancellationToken cancellationToken = default)
         {
             ClaimCalls.Add(key);
             return Task.FromResult(IdempotencyClaim.Granted);

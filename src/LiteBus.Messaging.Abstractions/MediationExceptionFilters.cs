@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -29,6 +30,54 @@ public static class MediationExceptionFilters
             and not OperationCanceledException
             and not IdempotencyConfigurationException
             && !IsRefusal(exception);
+    }
+
+    /// <summary>
+    ///     Offers a fault to the registered refusal classifiers, in registration order, until one recognizes it.
+    /// </summary>
+    /// <param name="classifiers">The classifiers to consult, in the order they were registered.</param>
+    /// <param name="exception">The fault a stage raised.</param>
+    /// <param name="refusal">
+    ///     The refusal the first matching classifier returned when this method returns <see langword="true" />;
+    ///     undefined otherwise.
+    /// </param>
+    /// <returns>
+    ///     <see langword="true" /> when a classifier recognized the fault; otherwise, <see langword="false" />.
+    /// </returns>
+    /// <remarks>
+    ///     Cancellation is never classified: an <see cref="OperationCanceledException" /> reports the caller's own
+    ///     decision, so classifying it would let a refusal swallow a cancellation. An exception that already carries
+    ///     a refusal is not offered either, because it is a decision rather than a fault and a second classification
+    ///     would rewrite one. Callers offer only recoverable faults, so a configuration error never reaches a
+    ///     classifier.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="classifiers" /> or <paramref name="exception" /> is <see langword="null" />.
+    /// </exception>
+    public static bool TryClassifyRefusal(
+        IReadOnlyList<IFaultRefusalClassifier> classifiers,
+        Exception exception,
+        out Refusal refusal)
+    {
+        ArgumentNullException.ThrowIfNull(classifiers);
+        ArgumentNullException.ThrowIfNull(exception);
+
+        refusal = default;
+
+        if (exception is OperationCanceledException || IsRefusal(exception))
+        {
+            return false;
+        }
+
+        foreach (var classifier in classifiers)
+        {
+            if (classifier.TryClassify(exception, out refusal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

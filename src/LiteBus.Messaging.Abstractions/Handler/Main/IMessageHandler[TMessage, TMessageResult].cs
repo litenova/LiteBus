@@ -14,29 +14,6 @@ public interface IMessageHandler<in TMessage, out TMessageResult> : IMessageHand
     where TMessageResult : notnull
 {
     /// <summary>
-    ///     Provides a non-generic entry point for handling messages, effectively enabling handling of messages of any type,
-    ///     which then get cast to the specified type <typeparamref name="TMessage" /> before being processed by the generic
-    ///     Handle method.
-    /// </summary>
-    /// <param name="message">
-    ///     The message object to be handled. This object is cast to <typeparamref name="TMessage" /> type
-    ///     before being processed.
-    /// </param>
-    /// <returns>
-    ///     The outcome of the handling operation, derived as a result of processing the cast message through the generic
-    ///     Handle method. The result is represented as an object to maintain a non-generic signature.
-    /// </returns>
-    /// <remarks>
-    ///     This method operates as a bridge facilitating the handling of messages in a non-generic context, by internally
-    ///     casting messages to the appropriate type and then delegating the processing to the generic Handle method, thus
-    ///     ensuring type safety while providing flexibility.
-    /// </remarks>
-    object IMessageHandler.Handle(object message)
-    {
-        return Handle((TMessage) message);
-    }
-
-    /// <summary>
     ///     Processes the specified message and yields a result of type <typeparamref name="TMessageResult" />, facilitating
     ///     targeted and type-safe handling of messages.
     /// </summary>

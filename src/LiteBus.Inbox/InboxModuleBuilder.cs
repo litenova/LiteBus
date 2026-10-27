@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
@@ -62,6 +63,11 @@ public sealed class InboxModuleBuilder
     private IPayloadEncryptor? _payloadEncryptor;
 
     /// <summary>
+    ///     Whether <see cref="UseAmbientTrace" /> was called.
+    /// </summary>
+    private bool _useAmbientTrace;
+
+    /// <summary>
     ///     The configured storage sub-module, if any.
     /// </summary>
     private IInboxStorageModule? _storageModule;
@@ -116,6 +122,11 @@ public sealed class InboxModuleBuilder
     ///     Gets a value indicating whether payload encryption was configured on this builder.
     /// </summary>
     public bool IsPayloadEncryptionConfigured => _payloadEncryptor is not null;
+
+    /// <summary>
+    ///     Gets a value indicating whether untraced accepts inherit the ambient trace.
+    /// </summary>
+    public bool IsAmbientTraceEnabled => _useAmbientTrace;
 
     /// <summary>
     ///     Activates the background processor that polls for and dispatches
@@ -249,6 +260,30 @@ public sealed class InboxModuleBuilder
     internal IPayloadEncryptor? CollectPayloadEncryptor()
     {
         return _payloadEncryptor;
+    }
+
+    /// <summary>
+    ///     Propagates ambient trace metadata onto accepted envelopes that carry no explicit trace.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     When enabled and an accepted item carries <see cref="MessageTrace.None" />, the envelope factory stamps
+    ///     <see cref="MessageTrace.FromAmbient" /> instead. An explicit trace always wins, and outside a mediation
+    ///     the factory result is <see cref="MessageTrace.None" /> as before.
+    /// </remarks>
+    public InboxModuleBuilder UseAmbientTrace()
+    {
+        _useAmbientTrace = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     Collects the envelope options for factory registration, if any.
+    /// </summary>
+    /// <returns>The envelope options registered on this builder.</returns>
+    internal InboxEnvelopeOptions? CollectEnvelopeOptions()
+    {
+        return _useAmbientTrace ? new InboxEnvelopeOptions { UseAmbientTrace = true } : null;
     }
 
     /// <summary>

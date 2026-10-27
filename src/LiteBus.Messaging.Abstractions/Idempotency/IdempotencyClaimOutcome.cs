@@ -4,10 +4,19 @@ namespace LiteBus.Messaging.Abstractions;
 ///     How a store answered an attempt to claim an idempotency key.
 /// </summary>
 /// <remarks>
-///     There are two answers, not three. A delivery that is still being applied is not a third state the pipeline can
-///     do anything sensible with: answering the caller would report work done that might still fail, and proceeding
-///     would apply it twice. A store facing a concurrent claim either waits for the other transaction to settle, which
-///     a primary-key insert does for free, or throws its own conflict exception for the caller to retry.
+///     <para>
+///         Four answers, because an HTTP caller needs three different refusals told apart. <see cref="Granted" /> runs
+///         the message and <see cref="AlreadyCompleted" /> answers the repeat from the stored record. The other two end
+///         the mediation as a denial: <see cref="InFlight" /> tells the caller the first delivery is still running, so
+///         retrying later is the right move, and <see cref="FingerprintMismatch" /> tells the caller the key was reused
+///         for different content, so retrying the same request can never succeed.
+///     </para>
+///     <para>
+///         An unsettled claim is not held forever. A claimant that crashes without settling would otherwise block its key
+///         until an operator intervenes, so a store lets a new caller take over a claim older than its claim timeout and
+///         answers that caller <see cref="Granted" />. The timeout is long enough that a live claimant finishes first,
+///         which is what keeps the takeover from granting a key twice.
+///     </para>
 /// </remarks>
 public enum IdempotencyClaimOutcome
 {
@@ -19,5 +28,17 @@ public enum IdempotencyClaimOutcome
     /// <summary>
     ///     The key was applied by an earlier delivery. The message is answered without running.
     /// </summary>
-    AlreadyCompleted = 1
+    AlreadyCompleted = 1,
+
+    /// <summary>
+    ///     The key is held by a delivery that has not settled yet. The message is denied, and the caller retries after
+    ///     the first delivery settles.
+    /// </summary>
+    InFlight = 2,
+
+    /// <summary>
+    ///     The key was applied by an earlier delivery carrying different content. The message is denied, and retrying
+    ///     the same request is pointless: the key identifies other content now.
+    /// </summary>
+    FingerprintMismatch = 3
 }

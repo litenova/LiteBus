@@ -37,6 +37,9 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\LiteBus.Commands\LiteBus.Commands.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Commands.Recurring.Storage.PostgreSql\LiteBus.Commands.Recurring.Storage.PostgreSql.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Commands.Storage.Marten\LiteBus.Commands.Storage.Marten.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Commands.Storage.PostgreSql\LiteBus.Commands.Storage.PostgreSql.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Events\LiteBus.Events.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.Amqp\LiteBus.Inbox.Dispatch.Amqp.csproj"/>

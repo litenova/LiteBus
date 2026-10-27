@@ -88,7 +88,7 @@ var container = builder.Build();
 
 ### Log the Composition Summary
 
-`LiteBusCompositionSummary` records what the host composed: message counts per axis, each open generic handler and how many messages it closed over, whether auditing is on and which trail, actor resolver, and record writer it uses, the declaration policies enforced, and the number of composition checks. Resolve it from the container after the host is built and log it once at startup:
+`LiteBusCompositionSummary` records what the host composed: message counts per axis, each open generic handler and how many messages it closed over, every handler type that covers one message's stage twice (one class implementing both a base and a concrete contract), whether auditing is on and which trail, actor resolver, and record writer it uses, the declaration policies enforced, and the number of composition checks. Resolve it from the container after the host is built and log it once at startup:
 
 ```csharp
 var summary = app.Services.GetRequiredService<LiteBusCompositionSummary>();

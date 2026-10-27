@@ -420,7 +420,9 @@
       "litebus.extensions.aspnetcore": {
         "type": "Project",
         "dependencies": {
+          "LiteBus.Commands.Abstractions": "[7.0.0, )",
           "LiteBus.Inbox.Abstractions": "[7.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
           "LiteBus.Outbox.Abstractions": "[7.0.0, )",
           "LiteBus.Runtime.Abstractions": "[7.0.0, )"
         }
@@ -587,6 +589,17 @@
       },
       "litebus.testing": {
         "type": "Project"
+      },
+      "litebus.testing.mediation": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands.Abstractions": "[7.0.0, )",
+          "LiteBus.Events.Abstractions": "[7.0.0, )",
+          "LiteBus.Messaging": "[7.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
+          "LiteBus.Queries.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime": "[7.0.0, )"
+        }
       },
       "Microsoft.Extensions.DependencyInjection": {
         "type": "CentralTransitive",

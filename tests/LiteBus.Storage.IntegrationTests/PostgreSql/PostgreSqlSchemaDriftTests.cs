@@ -171,7 +171,7 @@ public sealed class PostgreSqlSchemaDriftTests : IClassFixture<PostgreSqlFixture
         await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>()
             .Where(exception =>
                 exception.Component == PostgreSqlSchemaComponents.Outbox &&
-                exception.ExpectedVersion == 1 &&
+                exception.ExpectedVersion == 2 &&
                 exception.Details.Contains("does not mutate incompatible tables", StringComparison.Ordinal))
             .ConfigureAwait(false);
     }

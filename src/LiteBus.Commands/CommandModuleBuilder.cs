@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Commands.Idempotency;
+using LiteBus.Commands.UnitOfWork;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
@@ -90,6 +91,16 @@ public sealed class CommandModuleBuilder
     internal bool IdempotencyEnabled { get; private set; }
 
     /// <summary>
+    ///     Gets the unit of work implementation type registered through <c>UseUnitOfWork</c>, or <see langword="null" />
+    ///     when the application commits its own way.
+    /// </summary>
+    /// <remarks>
+    ///     The module reads this after the configuration action runs, so it can register the implementation as the
+    ///     scoped <see cref="IUnitOfWork" />.
+    /// </remarks>
+    internal Type? UnitOfWorkType { get; private set; }
+
+    /// <summary>
     ///     Registers the LiteBus command audit writer, so every command mediation produces an audit record when the
     ///     message declares one.
     /// </summary>
@@ -146,6 +157,47 @@ public sealed class CommandModuleBuilder
         Register(typeof(IdempotentCommandShortcut<,>));
 
         return Register<IdempotencyCompletionHandler>();
+    }
+
+    /// <summary>
+    ///     Registers the application's unit of work, committed once per successful command mediation.
+    /// </summary>
+    /// <typeparam name="TUnitOfWork">The unit of work implementation, constructed by the container once per mediation scope.</typeparam>
+    /// <returns>The current <see cref="CommandModuleBuilder" /> instance for method chaining.</returns>
+    /// <exception cref="LiteBusConfigurationException"><c>UseUnitOfWork</c> was already called on this builder.</exception>
+    /// <remarks>
+    ///     <para>
+    ///         Registers <typeparamref name="TUnitOfWork" /> as the scoped <see cref="IUnitOfWork" /> and a completion
+    ///         handler at <see cref="HandlerPriorities.UnitOfWork" /> that calls <c>CommitAsync</c> only when the
+    ///         mediation ended with <see cref="MediationOutcome.Succeeded" />. A denial, a validation failure, a
+    ///         shortcut answer, a fault, and a cancellation all end without committing.
+    ///     </para>
+    ///     <para>
+    ///         A commit that throws fails the mediation with that exception: the completion stage suppresses a handler
+    ///         fault only when the mediation had already failed, so after a success the fault propagates to the caller
+    ///         of <c>SendAsync</c>.
+    ///     </para>
+    ///     <para>
+    ///         LiteBus never opens or owns the transaction; the implementation does. Calling this twice on one builder
+    ///         is a configuration error, because two commits would order by registration sequence with no way to say
+    ///         which one the transaction belongs to. Registering it on the query module with a different type is
+    ///         allowed, and each axis then commits its own, but prefer one type: the shared <see cref="IUnitOfWork" />
+    ///         service resolves to the first module's registration.
+    ///     </para>
+    /// </remarks>
+    public CommandModuleBuilder UseUnitOfWork<TUnitOfWork>()
+        where TUnitOfWork : class, IUnitOfWork
+    {
+        if (UnitOfWorkType is not null)
+        {
+            throw new LiteBusConfigurationException(
+                $"A unit of work is already registered on this command module builder: '{UnitOfWorkType.Name}'. " +
+                "Call UseUnitOfWork once per axis; registering it on the query module with a different type is allowed.");
+        }
+
+        UnitOfWorkType = typeof(TUnitOfWork);
+
+        return Register<CommandUnitOfWorkCompletionHandler<TUnitOfWork>>();
     }
 
     /// <summary>

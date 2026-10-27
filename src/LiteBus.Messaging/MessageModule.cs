@@ -73,7 +73,8 @@ public sealed class MessageModule : IModule
             moduleBuilder.AuditActorResolver,
             moduleBuilder.AuditActorResolverLifetime,
             moduleBuilder.AuditRecordWriter,
-            moduleBuilder.AuditRecordWriterLifetime);
+            moduleBuilder.AuditRecordWriterLifetime,
+            moduleBuilder.FaultRefusalClassifiers);
         ModuleRegistration.RegisterNewHandlers(configuration, messageRegistry, startIndex);
 
         // Published for the axis modules, which build after this one because they declare IRequires<MessageModule>.
@@ -206,10 +207,94 @@ public sealed class MessageModule : IModule
             summary.RecordOpenGeneric(handlerType.Name, closures.Count);
         }
 
+        ReportDuplicateStageCoverage(summary, reader);
+
         foreach (var requirement in moduleBuilder.RequiredDeclarations)
         {
             summary.RecordRequiredDeclaration($"{requirement.ValueType.Name} of {requirement.ScopeDescription}");
         }
+    }
+
+    /// <summary>
+    ///     Reports every handler type covering one message's stage twice, once directly and once through a base type.
+    /// </summary>
+    /// <param name="summary">The summary receiving the duplicate coverage entries.</param>
+    /// <param name="reader">The registry holding every registered message descriptor.</param>
+    /// <remarks>
+    ///     Main handlers and refusal mappers are excluded: one main handler answers a command and one mapper converts
+    ///     a refusal, with the direct registration preferred, so a handler present in both sets still runs once.
+    ///     Pre-stage, post, error, and completion entries in both sets all run, which is what makes them worth naming.
+    /// </remarks>
+    private static void ReportDuplicateStageCoverage(LiteBusCompositionSummary summary, IMessageReader reader)
+    {
+        foreach (var descriptor in reader)
+        {
+            foreach (var stage in PipelineContracts.StagesInOrder)
+            {
+                ReportDuplicateRole(
+                    summary,
+                    descriptor.MessageType,
+                    descriptor.PreStageHandlers.Where(handler => handler.Stage == stage),
+                    descriptor.IndirectPreStageHandlers.Where(handler => handler.Stage == stage));
+            }
+
+            ReportDuplicateRole(summary, descriptor.MessageType, descriptor.PostHandlers, descriptor.IndirectPostHandlers);
+            ReportDuplicateRole(summary, descriptor.MessageType, descriptor.ErrorHandlers, descriptor.IndirectErrorHandlers);
+            ReportDuplicateRole(
+                summary,
+                descriptor.MessageType,
+                descriptor.CompletionHandlers,
+                descriptor.IndirectCompletionHandlers);
+        }
+    }
+
+    /// <summary>
+    ///     Reports the handler types present in both the direct and indirect sets of one role for one message.
+    /// </summary>
+    /// <typeparam name="TDescriptor">The descriptor kind for the role.</typeparam>
+    /// <param name="summary">The summary receiving the duplicate coverage entries.</param>
+    /// <param name="messageType">The message whose role is being compared.</param>
+    /// <param name="direct">The entries closed over the message itself.</param>
+    /// <param name="indirect">The entries closed over a base type of the message.</param>
+    /// <remarks>
+    ///     Handler types are compared by open generic definition, so an open generic closed over both the base
+    ///     interface and the concrete message reports once. A handler covering a role three times still reports once;
+    ///     the entry names the first contract on each side, which is enough to find the registrations.
+    /// </remarks>
+    private static void ReportDuplicateRole<TDescriptor>(
+        LiteBusCompositionSummary summary,
+        Type messageType,
+        IEnumerable<TDescriptor> direct,
+        IEnumerable<TDescriptor> indirect)
+        where TDescriptor : IHandlerDescriptor
+    {
+        Dictionary<Type, Type> directContracts = [];
+
+        foreach (var entry in direct)
+        {
+            directContracts.TryAdd(CoverageKey(entry.HandlerType), entry.ContractType);
+        }
+
+        foreach (var entry in indirect)
+        {
+            var key = CoverageKey(entry.HandlerType);
+
+            if (directContracts.TryGetValue(key, out var directContract))
+            {
+                summary.RecordDuplicateStageCoverage(key, messageType, directContract, entry.ContractType);
+                directContracts.Remove(key);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Normalizes a handler type for duplicate comparison.
+    /// </summary>
+    /// <param name="handlerType">The handler type recorded on a descriptor.</param>
+    /// <returns>The open generic definition for a closed generic, and the type itself otherwise.</returns>
+    private static Type CoverageKey(Type handlerType)
+    {
+        return handlerType.IsGenericType ? handlerType.GetGenericTypeDefinition() : handlerType;
     }
 
     /// <summary>
@@ -248,6 +333,7 @@ public sealed class MessageModule : IModule
     /// <param name="auditActorResolverLifetime">The lifetime an actor resolver implementation type is registered with.</param>
     /// <param name="auditRecordWriter">The audit record writer registered through the builder, or null for the built-in one.</param>
     /// <param name="auditRecordWriterLifetime">The lifetime an audit record writer implementation type is registered with.</param>
+    /// <param name="faultRefusalClassifiers">The classifier implementation types and instances, in registration order.</param>
     private static void RegisterMessagingServices(
         IModuleConfiguration configuration,
         IMessageRegistry messageRegistry,
@@ -261,7 +347,8 @@ public sealed class MessageModule : IModule
         object? auditActorResolver,
         InstanceLifetime auditActorResolverLifetime,
         object? auditRecordWriter,
-        InstanceLifetime auditRecordWriterLifetime)
+        InstanceLifetime auditRecordWriterLifetime,
+        IReadOnlyList<object> faultRefusalClassifiers)
     {
         // Register message registry as singleton.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -345,6 +432,40 @@ public sealed class MessageModule : IModule
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageMediator),
             typeof(MessageMediator)));
+
+        RegisterFaultRefusalClassifiers(configuration, faultRefusalClassifiers);
+    }
+
+    /// <summary>
+    ///     Registers the fault refusal classifiers as a multi-registration collection resolved in registration order.
+    /// </summary>
+    /// <param name="configuration">The module configuration.</param>
+    /// <param name="faultRefusalClassifiers">The classifier implementation types and instances, in registration order.</param>
+    /// <remarks>
+    ///     Each entry is registered as one collection item rather than as the service itself, so several classifiers
+    ///     coexist and the strategies resolve them as an ordered enumerable. With no entry nothing is registered, and
+    ///     every fault keeps the behavior it had before classifiers existed.
+    /// </remarks>
+    private static void RegisterFaultRefusalClassifiers(
+        IModuleConfiguration configuration,
+        IReadOnlyList<object> faultRefusalClassifiers)
+    {
+        foreach (var entry in faultRefusalClassifiers)
+        {
+            if (entry is Type classifierType)
+            {
+                configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+                    typeof(IFaultRefusalClassifier),
+                    classifierType,
+                    InstanceLifetime.Singleton));
+            }
+            else
+            {
+                configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+                    typeof(IFaultRefusalClassifier),
+                    entry));
+            }
+        }
     }
 
     /// <summary>

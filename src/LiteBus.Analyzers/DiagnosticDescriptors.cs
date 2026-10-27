@@ -247,4 +247,36 @@ public static class DiagnosticDescriptors
         "LiteBus.Handlers",
         DiagnosticSeverity.Warning,
         true);
+
+    /// <summary>
+    ///     A command handler sends or publishes another message through a mediator inside its handle method.
+    /// </summary>
+    /// <remarks>
+    ///     Disabled by default. Enable with <c>dotnet_diagnostic.LB1023.severity = warning</c> once the codebase is
+    ///     ready to keep nested units of work out of command handlers.
+    /// </remarks>
+    internal static readonly DiagnosticDescriptor NestedMediationInCommandHandler = new(
+        DiagnosticIds.NestedMediationInCommandHandler,
+        "Nested mediation in command handler",
+        "Command handler '{0}' calls '{1}' inside its handle method. Mediating another message nests a second unit of work inside the first; stage follow-up work through the domain event collector or the transactional outbox instead.",
+        "LiteBus.Handlers",
+        DiagnosticSeverity.Warning,
+        false,
+        description: "Reads through IQueryMediator are not reported: queries are side-effect free by contract, so nesting a read nests no unit of work. EvaluateAsync guard checks are not reported either, because they decide without acting.");
+
+    /// <summary>
+    ///     A command handler injects an external side-effect type through its constructor.
+    /// </summary>
+    /// <remarks>
+    ///     Disabled by default. Enable with <c>dotnet_diagnostic.LB1024.severity = warning</c> once the codebase is
+    ///     ready to keep outside-world calls out of command handlers.
+    /// </remarks>
+    internal static readonly DiagnosticDescriptor ExternalSideEffectInCommandHandler = new(
+        DiagnosticIds.ExternalSideEffectInCommandHandler,
+        "External side effect in command handler",
+        "Command handler '{0}' injects '{1}' through its constructor. Acting on the outside world before the commit leaves effects the unit of work cannot roll back; move the call behind the outbox or a completion handler.",
+        "LiteBus.Handlers",
+        DiagnosticSeverity.Warning,
+        false,
+        description: "The default forbidden types are System.Net.Http.HttpClient and System.Net.Http.IHttpClientFactory. Set litebus.LB1024.forbidden_types in .editorconfig to a comma-separated list of metadata names to replace them.");
 }

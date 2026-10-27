@@ -91,6 +91,29 @@ public sealed class MediationEndingCapture
     }
 
     /// <summary>
+    ///     Records the ending a mediation strategy observed when a classifier recognized a fault.
+    /// </summary>
+    /// <param name="executionContext">The execution context the mediation ran under.</param>
+    /// <param name="refusal">The refusal the classifier returned.</param>
+    /// <remarks>
+    ///     A no-op when no capture is present, which is every ordinary mediation. Only a <c>Try</c> call installs one,
+    ///     so the cost on the normal path is one dictionary lookup.
+    /// </remarks>
+    public static void Record(IExecutionContext executionContext, Refusal refusal)
+    {
+        if (Find(executionContext) is not { } capture)
+        {
+            return;
+        }
+
+        capture.Outcome = refusal.Outcome;
+        capture.Reason = refusal.Reason;
+        capture.Code = refusal.Code;
+        capture.Failures = [];
+        capture.DecidedBy = null;
+    }
+
+    /// <summary>
     ///     Records that one pre stage ran.
     /// </summary>
     /// <param name="executionContext">The execution context the mediation is running under.</param>

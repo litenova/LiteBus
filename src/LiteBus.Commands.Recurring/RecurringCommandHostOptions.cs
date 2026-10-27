@@ -12,11 +12,11 @@ namespace LiteBus.Commands.Recurring;
 ///         particular time rather than regularly, use a scheduler.
 ///     </para>
 ///     <para>
-///         <strong>The loop runs on every host instance.</strong> LiteBus has no leader election, so a deployment of
-///         three replicas sends the command three times per interval, concurrently. That is correct for a command that
-///         drains a queue-like table by leasing rows, because the store arbitrates and the instances share the work.
-///         It is wrong for a command that assumes it is alone. Make the handler safe to run concurrently with itself,
-///         or do not use this.
+///         <strong>By default the loop runs on every host instance.</strong> A deployment of three replicas sends the
+///         command three times per interval, concurrently. That is correct for a command that drains a queue-like
+///         table by leasing rows, because the store arbitrates and the instances share the work. It is wrong for a
+///         command that assumes it is alone. Make the handler safe to run concurrently with itself, set
+///         <see cref="RequireLease" /> so the pass runs on at most one instance at a time, or do not use this.
 ///     </para>
 /// </remarks>
 public sealed class RecurringCommandHostOptions
@@ -68,6 +68,34 @@ public sealed class RecurringCommandHostOptions
     public Func<Exception, bool>? IsConcurrencyConflict { get; set; } = IsConcurrencyConflictByTypeName;
 
     /// <summary>
+    ///     Gets or sets a value indicating whether each pass first acquires the named single-flight lease.
+    /// </summary>
+    /// <value>
+    ///     The default is <see langword="false" />. When <see langword="true" />, each pass tries
+    ///     <see cref="IRecurringCommandLease" /> before sending: a pass that cannot acquire the lease is skipped and
+    ///     logged at Debug (EventId 2105), and the loop waits <see cref="Interval" />. Composition fails when no
+    ///     <see cref="IRecurringCommandLease" /> is registered.
+    /// </value>
+    /// <remarks>
+    ///     One acquired lease covers the whole busy period: immediate re-sends driven by
+    ///     <see cref="IRecurringWorkReport.HasMoreWork" /> reuse the lease the pass acquired, and it is released before
+    ///     the loop waits. Re-acquiring per send would let another replica interleave mid-backlog, which is exactly
+    ///     the interleaving single-flight exists to prevent.
+    /// </remarks>
+    public bool RequireLease { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the lease name acquired before each pass when <see cref="RequireLease" /> is
+    ///     <see langword="true" />.
+    /// </summary>
+    /// <value>
+    ///     The default is <see langword="null" />, which uses the command type's full name. Set an explicit name when
+    ///     two loops must never run at the same time: leases are per name, so loops sharing a name single-flight
+    ///     against each other.
+    /// </value>
+    public string? LeaseName { get; set; }
+
+    /// <summary>
     ///     Recognizes an optimistic-concurrency conflict by the shape of its exception type name.
     /// </summary>
     /// <param name="exception">The exception a send threw.</param>
@@ -106,16 +134,22 @@ public sealed class RecurringCommandHostOptions
     }
 
     /// <summary>
-    ///     Validates the timing values before the loop starts.
+    ///     Validates the timing values and the lease name before the loop starts.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
     ///     <see cref="Interval" /> or <see cref="ErrorBackoff" /> is zero or negative, or
     ///     <see cref="StartupDelay" /> is negative.
     /// </exception>
+    /// <exception cref="ArgumentException"><see cref="LeaseName" /> is set to an empty or whitespace value.</exception>
     public void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(Interval.Ticks);
         ArgumentOutOfRangeException.ThrowIfLessThan(StartupDelay, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ErrorBackoff.Ticks);
+
+        if (LeaseName is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(LeaseName);
+        }
     }
 }

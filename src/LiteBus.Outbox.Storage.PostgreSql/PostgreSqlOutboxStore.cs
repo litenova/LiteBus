@@ -72,7 +72,8 @@ public sealed class PostgreSqlOutboxStore :
                                               first_failed_at,
                                               dead_lettered_at,
                                               last_lease_owner,
-                                              error_type
+                                              error_type,
+                                              handler
                                               """;
 
     /// <summary>
@@ -580,6 +581,7 @@ public sealed class PostgreSqlOutboxStore :
                        contract_version,
                        payload,
                        topic,
+                       handler,
                        created_at,
                        visible_after,
                        status,
@@ -599,6 +601,7 @@ public sealed class PostgreSqlOutboxStore :
                        @contract_version,
                        @payload,
                        @topic,
+                       @handler,
                        @created_at,
                        @visible_after,
                        @status,
@@ -661,6 +664,7 @@ public sealed class PostgreSqlOutboxStore :
                string.Equals(requested.ContractName, stored.ContractName, StringComparison.Ordinal) &&
                string.Equals(requested.Payload, stored.Payload, StringComparison.Ordinal) &&
                string.Equals(requested.Topic, stored.Topic, StringComparison.Ordinal) &&
+               string.Equals(requested.Handler, stored.Handler, StringComparison.Ordinal) &&
                string.Equals(requested.IdempotencyKey, stored.IdempotencyKey, StringComparison.Ordinal) &&
                string.Equals(requested.CorrelationId, stored.CorrelationId, StringComparison.Ordinal) &&
                string.Equals(requested.CausationId, stored.CausationId, StringComparison.Ordinal) &&
@@ -718,7 +722,7 @@ public sealed class PostgreSqlOutboxStore :
                 valueClauses.Append(
                     CultureInfo.InvariantCulture,
                     $"(@message_id_{index}, @contract_name_{index}, @contract_version_{index}, @payload_{index}, " +
-                    $"@topic_{index}, @created_at_{index}, @visible_after_{index}, @status_{index}, @attempt_count_{index}, " +
+                    $"@topic_{index}, @handler_{index}, @created_at_{index}, @visible_after_{index}, @status_{index}, @attempt_count_{index}, " +
                     $"@lease_owner_{index}, @lease_expires_at_{index}, @last_error_{index}, @correlation_id_{index}, " +
                     $"@causation_id_{index}, @tenant_id_{index}, @idempotency_key_{index}, @trace_context_{index}, " +
                     $"@lease_generation_{index})");
@@ -731,6 +735,7 @@ public sealed class PostgreSqlOutboxStore :
                            contract_version,
                            payload,
                            topic,
+                           handler,
                            created_at,
                            visible_after,
                            status,
@@ -1294,6 +1299,7 @@ public sealed class PostgreSqlOutboxStore :
         payloadParameter.Value = envelope.Payload;
 
         command.Parameters.AddWithValue($"topic{suffix}", (object?) envelope.Topic ?? DBNull.Value);
+        command.Parameters.AddWithValue($"handler{suffix}", (object?) envelope.Handler ?? DBNull.Value);
         command.Parameters.AddWithValue($"created_at{suffix}", envelope.CreatedAt);
         command.Parameters.AddWithValue($"visible_after{suffix}", (object?) envelope.VisibleAfter ?? DBNull.Value);
         command.Parameters.AddWithValue($"status{suffix}", (int) envelope.Status);
@@ -1380,7 +1386,8 @@ public sealed class PostgreSqlOutboxStore :
             FirstFailedAt = GetNullable<DateTimeOffset>(reader, 20),
             DeadLetteredAt = GetNullable<DateTimeOffset>(reader, 21),
             LastLeaseOwner = GetNullableString(reader, 22),
-            ErrorType = GetNullableString(reader, 23)
+            ErrorType = GetNullableString(reader, 23),
+            Handler = GetNullableString(reader, 24)
         };
     }
 

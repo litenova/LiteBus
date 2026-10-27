@@ -35,7 +35,8 @@ public enum PreStage
     Validator = 1,
 
     /// <summary>
-    ///     Decides whether the answer is already known. Stops at the first answer.
+    ///     Decides whether the answer is already known, or the message must be refused here. Stops at the first answer
+    ///     or denial.
     /// </summary>
     Shortcut = 2,
 

@@ -39,6 +39,7 @@ public sealed class PostgreSqlOutboxInsertStatementTests : IClassFixture<Postgre
             ContractVersion = 2,
             Payload = """{"orderId":"order-1"}""",
             Topic = "orders.events",
+            Handler = "Tests.Handlers.OrderSubmittedHandler",
             CreatedAt = now,
             VisibleAfter = now.AddMinutes(1),
             Status = OutboxStatus.Failed,
@@ -56,7 +57,7 @@ public sealed class PostgreSqlOutboxInsertStatementTests : IClassFixture<Postgre
         };
 
         var statement = PostgreSqlOutboxSchema.CreateInsertStatement(envelope, options);
-        statement.Values.Should().HaveCount(18);
+        statement.Values.Should().HaveCount(19);
 
         await ExecuteInsertAsync(statement).ConfigureAwait(false);
 
@@ -66,6 +67,7 @@ public sealed class PostgreSqlOutboxInsertStatementTests : IClassFixture<Postgre
         stored.ContractVersion.Should().Be(envelope.ContractVersion);
         stored.Payload.Should().Be(envelope.Payload);
         stored.Topic.Should().Be(envelope.Topic);
+        stored.Handler.Should().Be(envelope.Handler);
         stored.CreatedAt.Should().Be(envelope.CreatedAt);
         stored.VisibleAfter.Should().Be(envelope.VisibleAfter);
         stored.Status.Should().Be(envelope.Status);
@@ -110,6 +112,7 @@ public sealed class PostgreSqlOutboxInsertStatementTests : IClassFixture<Postgre
         stored.Payload.Should().Be(envelope.Payload);
         stored.CreatedAt.Should().Be(envelope.CreatedAt);
         stored.Topic.Should().BeNull();
+        stored.Handler.Should().BeNull();
         stored.VisibleAfter.Should().BeNull();
         stored.LeaseOwner.Should().BeNull();
         stored.LeaseExpiresAt.Should().BeNull();
@@ -137,7 +140,7 @@ public sealed class PostgreSqlOutboxInsertStatementTests : IClassFixture<Postgre
             Status = OutboxStatus.Pending
         });
 
-        statement.Sql.Should().Contain("$17::jsonb");
+        statement.Sql.Should().Contain("$18::jsonb");
         statement.Sql.Should().Contain("ON CONFLICT DO NOTHING");
         statement.Sql.Should().NotContain("RETURNING");
 

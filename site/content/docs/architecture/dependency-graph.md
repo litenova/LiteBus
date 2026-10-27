@@ -126,12 +126,15 @@ The Direct project references and Direct package references columns repeat [Gene
 | `LiteBus.Events.Extensions.Autofac` | Host adapter | `LiteBus.Events`, `LiteBus.Runtime.Extensions.Autofac` | none |
 | `LiteBus.Extensions.Microsoft.DependencyInjection` | Host adapter | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection`, `LiteBus.Events.Extensions.Microsoft.DependencyInjection`, `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection`, `LiteBus.Queries.Extensions.Microsoft.DependencyInjection` | none |
 | `LiteBus.Extensions.Diagnostics.HealthChecks` | Host adapter | `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Diagnostics.HealthChecks` |
-| `LiteBus.Extensions.AspNetCore` | Host adapter | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Extensions.AspNetCore` | Host adapter | `LiteBus.Commands.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Messaging.Abstractions` | Mediation contracts | `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Messaging` | Core implementation | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
 | `LiteBus.Commands.Abstractions` | Mediation contracts | `LiteBus.Messaging.Abstractions` | none |
 | `LiteBus.Commands` | Core implementation | `LiteBus.Commands.Abstractions`, `LiteBus.Messaging`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Commands.Recurring` | Feature bridge | `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Commands.Recurring.Storage.PostgreSql` | Feature bridge | `LiteBus.Commands`, `LiteBus.Commands.Recurring`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql`, `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Commands.Storage.Marten` | Feature bridge | `LiteBus.Commands`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Marten`, `Npgsql` |
+| `LiteBus.Commands.Storage.PostgreSql` | Feature bridge | `LiteBus.Commands`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
 | `LiteBus.Queries.Abstractions` | Mediation contracts | `LiteBus.Messaging.Abstractions` | none |
 | `LiteBus.Queries` | Core implementation | `LiteBus.Messaging`, `LiteBus.Queries.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Events.Abstractions` | Mediation contracts | `LiteBus.Messaging.Abstractions` | none |
@@ -261,6 +264,10 @@ Additional rules:
 | `UseKafkaIngress(...)` | `LiteBus.Inbox.Ingress.Kafka` |
 | `UseInMemoryIngress(...)` | `LiteBus.Inbox.Ingress.InMemory` |
 | `AddRecurring(...)` (commands) | `LiteBus.Commands.Recurring` |
+| `UsePostgreSqlRecurringLease(...)` (commands) | `LiteBus.Commands.Recurring.Storage.PostgreSql` |
+| `UsePostgreSqlIdempotencyStore(...)` (commands) | `LiteBus.Commands.Storage.PostgreSql` |
+| `UseMartenUnitOfWork()`, `UseMartenIdempotencyStore(...)` (commands) | `LiteBus.Commands.Storage.Marten` |
+| `WithIdempotencyKey(...)` (ASP.NET Core endpoints) | `LiteBus.Extensions.AspNetCore` |
 | `EnableSaga(...)` | `LiteBus.Saga.InboxIntegration` |
 | `UseInMemoryStorage()` (outbox) | `LiteBus.Outbox.Storage.InMemory` |
 | `UsePostgreSqlStorage(...)` (outbox) | `LiteBus.Outbox.Storage.PostgreSql` |

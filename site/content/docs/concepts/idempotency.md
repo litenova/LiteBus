@@ -22,6 +22,19 @@ public sealed class ApplyPaymentCommandDefinition : IIdempotencyDefinition<Apply
 
 The selector is a pure projection over the message: read fields, format them. It runs once per mediation and cannot resolve services, because a declaration is created once at registration. When deriving the key needs services, declare `KeyedByContext()` and let a guard supply it.
 
+The key alone cannot tell the same request from a different request reusing the key. An HTTP client that retries a payment with the same idempotency key but a changed amount is not repeating the first request, and answering it from the stored record would report the wrong payment as done. `WithFingerprint` projects a fingerprint from the message content alongside the key:
+
+```csharp
+public sealed class ApplyPaymentCommandDefinition : IIdempotencyDefinition<ApplyPaymentCommand>
+{
+    public IdempotencyDeclaration Idempotency =>
+        IdempotencyDeclaration.KeyedBy<ApplyPaymentCommand>(command => command.PaymentId.ToString())
+            .WithFingerprint<ApplyPaymentCommand>(command => $"{command.Amount}:{command.Currency}");
+}
+```
+
+The first delivery stores the fingerprint with its claim. A repeat with a matching fingerprint is answered as already applied; a repeat with a different one is denied with `idempotency.fingerprint-mismatch`, so the caller learns the key is taken rather than receiving another request's answer. A declaration without a fingerprint keeps the old behavior, where any repeat of the key is answered as already applied.
+
 ## Keys That Need Services
 
 Some keys cannot be projected from the message. A processor webhook carries a raw body and a signature and nothing else, deliberately, so that nothing unverified reaches a decision; its deduplication key is the provider's event id, which is only knowable after the signature is checked and the body parsed. That is a lookup, and a lookup needs services.
@@ -70,6 +83,7 @@ A message declared this way that reaches the shortcut with no key in context rai
 | Member | Meaning |
 | --- | --- |
 | `KeySelector` | Projects the key from the message. Required. |
+| `FingerprintSelector` | Projects the content fingerprint from the message. Absent by default; set it with `WithFingerprint`. |
 | `Scope` | Prefixes the key. Defaults to the message type name, so two message types never collide by accident. Set it when two types share a key space on purpose. |
 | `ReplayResult` | Whether a repeat replays the result the first attempt produced. Off by default. |
 
@@ -92,14 +106,14 @@ services.AddLiteBus(registry =>
 
 That registers two shortcuts and one completion handler, all of which ignore a command declaring nothing, so one call covers the axis and only the declaring commands pay for it. The shortcut stage runs after guards and validators, so an unauthorized or malformed command cannot claim a key.
 
-You supply the store. The `litebus.idempotency.store` probe reports `Unhealthy` when idempotency is enabled and no `IIdempotencyStore` is registered.
+You supply the store, or register the shipped PostgreSQL one with `commands.UsePostgreSqlIdempotencyStore(...)` from `LiteBus.Commands.Storage.PostgreSql` (see [PostgreSQL Idempotency Store](../integrations/commands-postgresql-idempotency-store.md)). The `litebus.idempotency.store` probe reports `Unhealthy` when idempotency is enabled and no `IIdempotencyStore` is registered.
 
 ## Writing the Store
 
 ```csharp
 public interface IIdempotencyStore
 {
-    Task<IdempotencyClaim> TryClaimAsync(string key, CancellationToken cancellationToken = default);
+    Task<IdempotencyClaim> TryClaimAsync(string key, string? fingerprint, CancellationToken cancellationToken = default);
     Task CompleteAsync(string key, string? payload, CancellationToken cancellationToken = default);
     Task ReleaseAsync(string key, CancellationToken cancellationToken = default);
 }
@@ -111,11 +125,15 @@ Two rules decide whether the store is correct.
 
 **Claim inside the transaction that applies the change.** A key claimed in one transaction and a change written in another can come apart: a crash between them leaves a key claimed for work that never happened, and the retry is answered as already applied. Write the claim through the same unit of work the handler writes through and let it commit both. See [Auditing](auditing.md#making-a-record-atomic-with-its-change) for where that commit goes; the shape is the same, and the completion handler that settles the claim runs at `HandlerPriorities.Persistence`, which is before an application's commit at `HandlerPriorities.UnitOfWork`.
 
-There are only two claim outcomes, not three. A delivery still being applied is not a state the pipeline can do anything sensible with: answering the caller would report work done that might still fail, and proceeding would apply it twice. A store facing a concurrent claim either waits for the other transaction to settle, which a primary-key insert does for free, or throws its own conflict exception for the caller to retry.
+Four answers cover what a claim can meet. `Granted` runs the message and `AlreadyCompleted` answers the repeat from the stored record. `InFlight` refuses a delivery whose key another delivery still holds, and `FingerprintMismatch` refuses a repeat whose fingerprint differs from the stored one; both end the mediation as `Denied`, so `TrySendAsync` returns the denial and `SendAsync` raises `LiteBusMessageDeniedException`.
 
-Nothing expires a key. A store that grows forever is a storage problem with a storage answer, a retention job, and only you know how long a repeat is still plausible.
+The denial carries a machine-readable code from `IdempotencyRefusalCodes`: `idempotency.in-flight` for a claim still running, `idempotency.fingerprint-mismatch` for a key reused with different content. An HTTP boundary maps them the way the IETF Idempotency-Key header draft does: 409 Conflict for in-flight, telling the client to retry after the first delivery settles, and 422 Unprocessable Content for a mismatch, telling the client the request itself must change because the key already identifies other content.
+
+Nothing expires an applied key. A store that grows forever is a storage problem with a storage answer, a retention job, and only you know how long a repeat is still plausible. An unsettled claim is different: a claimant that crashes without settling would block its key until an operator intervenes, so a store takes the claim over for a new caller once it is older than the store's claim timeout, five minutes by default on both shipped stores. Keep the timeout comfortably longer than the slowest mediation that claims through the store, so a live claimant always settles first.
 
 `InMemoryIdempotencyStore` in `LiteBus.Testing.Mediation` is a test double, and it is shipped from the testing package on purpose. It forgets everything on restart, and a second process behind a load balancer shares nothing with the first, so both apply the same message. Idempotency is a claim about the system, and a per-process store cannot make it.
+
+The double still answers like a durable store: a held key reports in-flight until its claim outlasts `ClaimTimeout`, and an applied key compares fingerprints. Pass a controlled `TimeProvider` and a short timeout to drive the takeover deterministically in tests.
 
 ## Commands That Produce a Result
 
@@ -140,12 +158,32 @@ Turn replay on for a command whose caller needs the same answer twice, such as a
 | --- | --- |
 | `Succeeded` | Marked applied, with the serialized result when `ReplayResult` is set |
 | `Answered` | Released when this mediation claimed the key before a later shortcut answered; left alone when the shortcut answered a repeat without claiming |
-| `Denied`, `Invalid` | Left alone: guards and validators run before the shortcut stage, so no claim exists to settle |
+| `Denied`, `Invalid` | Left alone: a guard or validator denial never claimed, and an in-flight or mismatch denial holds no claim either, so there is nothing to settle |
 | `Failed`, `Canceled` | Released, so the retry runs |
 
-Only the mediation that was granted the key settles it. The shortcut records each granted key in execution-context data, and the completion handler completes or releases that recorded key; a mediation that never claimed, because it was denied, invalid, answered as a repeat, or its claim threw a conflict, settles nothing, so it can never delete another delivery's in-flight claim.
+Only the mediation that was granted the key settles it. The shortcut records each granted key in execution-context data, and the completion handler completes or releases that recorded key; a mediation that never claimed, because it was denied, invalid, answered as a repeat, or denied as in-flight or mismatched, settles nothing, so it can never delete another delivery's in-flight claim.
 
 Release is what makes a transient failure survivable. Burning the key on a database timeout would make the retry a false repeat, which is the opposite of what idempotency is for.
+
+## Keying an Outbox Message by the Command's Key
+
+When a command handler enqueues follow-up events, those envelopes can share the command's idempotency key instead of inventing their own: the durable `Idempotency.FromCommandKey` (in `LiteBus.Messaging.Abstractions.DurableMessaging`) reads the key the shortcut granted the in-flight command and returns it as durable `Keyed` metadata. Pass a suffix when one command enqueues several events so each envelope keys distinctly.
+
+```csharp
+public async Task HandleAsync(ApplyPaymentCommand message, CancellationToken cancellationToken = default)
+{
+    var receipt = await _outbox.EnqueueAsync(
+        OutboxEnqueueItem<PaymentAppliedEvent>.From(
+            new PaymentAppliedEvent { PaymentId = message.PaymentId },
+            OutboxEnqueueMetadata.Immediate with
+            {
+                Idempotency = Idempotency.FromCommandKey("applied"),
+            }),
+        cancellationToken).ConfigureAwait(false);
+}
+```
+
+This is explicit and opt-in: nothing reads the granted key unless the handler calls `FromCommandKey`. The call throws `InvalidOperationException` outside a keyed command's mediation, either because the command declares no idempotency key or because no mediation scope exists, so a key is never invented silently.
 
 ## Next
 

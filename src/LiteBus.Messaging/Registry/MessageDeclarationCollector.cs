@@ -86,6 +86,25 @@ internal sealed class MessageDeclarationCollector : IMessageDeclarations
     }
 
     /// <inheritdoc />
+    public IMessageDeclarations Authorized(string policy)
+    {
+        Add(typeof(AuthorizationDeclaration), AuthorizationDeclaration.Authorized(policy));
+        return this;
+    }
+
+    /// <inheritdoc />
+    public IMessageDeclarations AuthorizationExempt(string rationale)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rationale);
+
+        // Both halves, for the same reason [AuthorizationExempt] records both: the declaration is what a guard reads
+        // to know the message is exempt, and the exemption is what every requirement and catalogue reads.
+        Add(typeof(AuthorizationDeclaration), AuthorizationDeclaration.Exempt(rationale));
+        _exemptions.Add(new DeclarationExemption(typeof(AuthorizationDeclaration), rationale));
+        return this;
+    }
+
+    /// <inheritdoc />
     public IMessageDeclarations Exempt<TValue>(string rationale)
         where TValue : notnull
     {

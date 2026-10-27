@@ -103,6 +103,13 @@ public sealed class InboxModule : ICompositeModule, IRequires<MessageModule>
                 new InboxPayloadProtector(inboxEncryptor)));
         }
 
+        if (_builder.CollectEnvelopeOptions() is { } envelopeOptions)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(InboxEnvelopeOptions),
+                envelopeOptions));
+        }
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IInboxEnvelopeFactory),
             typeof(InboxEnvelopeFactory)));

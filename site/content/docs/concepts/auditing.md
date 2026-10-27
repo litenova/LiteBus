@@ -59,6 +59,25 @@ An exemption is a decision, not an omission. Recording the rationale beside the 
 
 The action code is **use-case identity**, not domain identity. Two call sites that raise the same domain event are two different actions if a person would describe them differently.
 
+### Enforcing That Every Message Declares a Position
+
+Two checks enforce the declaration, and they cover different gaps, so keep both:
+
+```csharp
+services.AddLiteBus(liteBus =>
+{
+    liteBus.AddMessaging(messaging => messaging
+        .RequireDeclaration<AuditDeclaration, ICommand>()
+        .RequireUniqueAuditActions()
+        .RequireAuditActionFormat());
+});
+```
+
+- `LB1018` reports an undeclared command or query at build time. It reads `[Audited]`, `[AuditExempt]`, keyed `IAuditDefinition<TMessage>` definitions, and `Audited`/`NotAudited` calls in a `Describe` body, but only for definitions in the assembly being compiled, and it treats a `Describe` body it cannot read as declared. See [Required Declarations](../catalog/analyzers/required-declarations.md).
+- `RequireDeclaration<AuditDeclaration, ICommand>()` fails composition for any registered command without a position, whatever shape declared it and whichever assembly holds the definition. `RequireUniqueAuditActions()` fails composition when two messages share an action code, and `RequireAuditActionFormat()` when an action code does not match `MessageModuleBuilder.DefaultAuditActionPattern` (`category.kebab-action`) or the pattern you pass.
+
+The composition checks are the complete ones; the analyzer reports earlier for the shapes it can see.
+
 ## Supplying What Only the Handler Knows
 
 The variable half of a record is known only while the handler runs. A command that creates a resource generates its identifier internally, and a reason composed at runtime cannot be declared in advance. Resolve `IAuditScope` and push what you alone know:
@@ -87,7 +106,25 @@ The scope holds no state of its own. It reads and writes the ambient execution c
 
 `IAuditScope` is registered by `AddMessaging`, not by `EnableAuditing()`, so it resolves whether or not an axis produces records. An application that wants the declaration model and its own writer can inject the scope, read declarations through [`IMessageMetadataAccessor`](message-definitions.md#reading-metadata), and never call `EnableAuditing()`. Nothing reads the scope in that configuration, so what a handler pushes is discarded; that is the intended behavior, not a misconfiguration the framework should report.
 
-Some actions are only accountable with a justification. Declare `ReasonRequired = true` and the writer refuses to produce an incomplete record for a successful action, raising `AuditReasonMissingException` instead. A required justification that silently goes missing defeats the requirement, so it is reported rather than recorded as absent. The throw happens at `HandlerPriorities.Observability`, which is before the commit at `HandlerPriorities.UnitOfWork`, so the work is rolled back rather than standing without its justification. That is the point of the flag; set it only where that trade is the one you want, and call `WithReason` on every path the handler can return through.
+### Declaring What the Message Already Knows
+
+Not every variable value needs the handler. When the target or the reason can be read off the message itself, declare that on the definition and skip the scope call in every handler:
+
+```csharp
+public sealed class RefundOrderCommandDefinition : IAuditDefinition<RefundOrderCommand>
+{
+    public AuditDeclaration Audit => AuditDeclaration.Audited("orders.refund-order")
+        .WithTargetFrom<RefundOrderCommand>(command => command.OrderId)
+        .WithReasonFrom<RefundOrderCommand>(command => command.Justification)
+        with { Category = "money", TargetKind = "order", ReasonRequired = true };
+}
+```
+
+The writer consults the scope first and runs a selector only when the scope is silent, so a handler that knows better keeps the last word without any coordination. For the reason, the pipeline decision sits between the two: a guard denial or an answer explanation describes the ending, while the selector describes the intent, and the ending is what a `Denied` record must explain. A selector result that is null or blank means the message carries no value, and `ReasonRequired` applies to the final value, so a required reason may come from the scope or the selector alike. A selector that throws fails the record write, the same way a throwing actor resolver does: a projection bug that silently produced evidence without its target or justification would be worse than a failed mediation.
+
+Selectors are delegates, so attributes cannot carry them; a message that reads its target or reason off itself needs a definition. In a `Describe` body, where the `Audited` helper takes only constants, declare the value directly with `declarations.Declare<AuditDeclaration>(AuditDeclaration.Audited("orders.refund-order").WithReasonFrom<RefundOrderCommand>(command => command.Justification))`. This is the delegate-over-the-message shape described under [Declaring a Value Computed From the Message](message-definitions.md#declaring-a-value-computed-from-the-message): the selector is built once at registration, so it can only project from the message and cannot resolve services.
+
+Some actions are only accountable with a justification. Declare `ReasonRequired = true` and the writer refuses to produce an incomplete record for a successful action, raising `AuditReasonMissingException` instead. A required justification that silently goes missing defeats the requirement, so it is reported rather than recorded as absent. The throw happens at `HandlerPriorities.Observability`, which is before the commit at `HandlerPriorities.UnitOfWork`, so the work is rolled back rather than standing without its justification. That is the point of the flag; set it only where that trade is the one you want, and supply a reason on every path the handler can return through, either by calling `WithReason` or by declaring a reason selector on the message.
 
 ## Wiring It Up
 
@@ -185,7 +222,7 @@ A replacement owns everything the built-in writer does, and all of it is public:
 | --- | --- |
 | Skips a message that declares no audit position | `IMessageRegistry.Find`, then `Metadata.TryGet<AuditDeclaration>()` |
 | Enforces a required justification | `AuditedDeclaration.ReasonRequired`, `AuditReasonMissingException` |
-| Reads the target, reason, properties and actor a handler supplied | Inject `IAuditScope` |
+| Reads the target, reason, properties and actor a handler supplied, or a selector declared | Inject `IAuditScope`; read `AuditedDeclaration.TargetSelector` and `AuditedDeclaration.ReasonSelector` |
 | Stamps the correlation and tenant identifiers | `AmbientExecutionContext.GetCurrentOrDefault()`, `MessageTraceContextKeys` |
 | Classifies the outcome and the failure code | `IAuditOutcomeMapper` |
 

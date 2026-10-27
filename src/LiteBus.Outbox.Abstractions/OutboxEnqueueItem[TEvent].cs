@@ -48,6 +48,34 @@ public sealed record OutboxEnqueueItem<TEvent>
     }
 
     /// <summary>
+    ///     Creates an enqueue item that propagates trace metadata from the ambient execution context.
+    /// </summary>
+    /// <param name="message">The message instance to serialize and store.</param>
+    /// <returns>
+    ///     An enqueue item whose trace is stamped from ambient state, or <see cref="MessageTrace.None" /> when called
+    ///     outside a mediation.
+    /// </returns>
+    /// <remarks>
+    ///     <para>
+    ///         Reads the ambient correlation, causation, and distributed trace context through
+    ///         <see cref="MessageTrace.FromAmbient" /> and stores the result as
+    ///         <see cref="OutboxEnqueueMetadata.Trace" />. Everything else matches <c>From(message)</c>. This is explicit
+    ///         and opt-in: nothing reads ambient state unless the caller calls this factory, and outside a mediation the
+    ///         item is identical to <c>From(message)</c>.
+    ///     </para>
+    /// </remarks>
+    public static OutboxEnqueueItem<TEvent> FromAmbient(TEvent message)
+    {
+        return From(message) with
+        {
+            Metadata = OutboxEnqueueMetadata.Immediate with
+            {
+                Trace = MessageTrace.FromAmbient()
+            }
+        };
+    }
+
+    /// <summary>
     ///     Creates an enqueue item that defers processor leasing until the specified UTC timestamp.
     /// </summary>
     /// <param name="message">The message instance to serialize and store.</param>

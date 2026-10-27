@@ -10,11 +10,13 @@ namespace LiteBus.Messaging.Abstractions;
 /// <typeparam name="TMessage">The type of message this shortcut runs for.</typeparam>
 /// <remarks>
 ///     <para>
-///         A shortcut answers "is this already done", and nothing else. Denying belongs to
-///         <see cref="IMessageGuard{TMessage}" /> and well-formedness to <see cref="IMessageValidator{TMessage}" />, and
-///         the split is what lets the framework run both of those first. The mediation reports
-///         <see cref="MediationOutcome.Answered" /> and an audit trail records a success, because skipping redundant work
-///         denied nobody.
+///         A shortcut answers "is this already done". It may also deny when the refusal can only be decided at the
+///         shortcut stage, such as an idempotency claim, and that denial ends the mediation exactly as a guard denial
+///         does. Anything else that refuses belongs to <see cref="IMessageGuard{TMessage}" />, and well-formedness to
+///         <see cref="IMessageValidator{TMessage}" />; the split is what lets the framework run both of those first.
+///         The mediation reports <see cref="MediationOutcome.Answered" /> for an answer, which an audit trail records
+///         as a success because skipping redundant work denied nobody, and <see cref="MediationOutcome.Denied" /> for
+///         a denial.
 ///     </para>
 ///     <para>
 ///         Shortcuts run after guards and validators and before pre-handlers. Running last among the decision stages
@@ -38,13 +40,14 @@ public interface IMessageShortcut<in TMessage> : IMessagePreStageHandler
     where TMessage : notnull
 {
     /// <summary>
-    ///     Answers the message when its work has already been applied.
+    ///     Answers the message when its work has already been applied, or denies it when the refusal can only be
+    ///     decided at the shortcut stage.
     /// </summary>
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
     /// <returns>
-    ///     <see cref="Shortcut.Answer" /> when the main handler should be skipped, or <see cref="Shortcut.None" /> to let
-    ///     the mediation proceed.
+    ///     <see cref="Shortcut.Answer" /> when the main handler should be skipped, <see cref="Shortcut.Deny" /> when
+    ///     the message is refused, or <see cref="Shortcut.None" /> to let the mediation proceed.
     /// </returns>
     Task<Shortcut> TryAnswerAsync(TMessage message, CancellationToken cancellationToken = default);
 }

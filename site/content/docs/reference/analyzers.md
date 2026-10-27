@@ -12,7 +12,7 @@
 
 Analyzers have no runtime dependency on LiteBus libraries.
 
-## Rule Inventory (LB1001-LB1022)
+## Rule Inventory (LB1001-LB1024)
 
 | ID | Severity | Category | Summary |
 | --- | --- | --- | --- |
@@ -38,6 +38,8 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | LB1020 | Warning (disabled by default) | Declarations | Command or query type states no position on a metadata value type named in `litebus_required_declarations` |
 | LB1021 | Warning | Declarations | `litebus_required_declarations` names a type that does not resolve in the compilation |
 | LB1022 | Warning | Handlers | `[HandlerPriority]` value falls inside the range LiteBus reserves for its own handlers |
+| LB1023 | Warning (disabled by default) | Handlers | Command handler sends or publishes another message through a mediator inside its handle method |
+| LB1024 | Warning (disabled by default) | Handlers | Command handler injects an external side-effect type through its constructor |
 
 ## Build-Only Rules
 
@@ -103,6 +105,33 @@ A message satisfies the rule with a definition class, with an attribute annotate
 LB1021 reports a configured name that does not resolve, because a name that silently did nothing would disable the requirement it configures, and a typo in `.editorconfig` is exactly how that happens.
 
 `RequireDeclaration<TValue>()` on the messaging module enforces the same rule at composition time, which also covers a message registered from an assembly this compilation never saw. See [Required Declarations](../catalog/analyzers/required-declarations.md).
+
+## Nested Mediation in Command Handlers (LB1023)
+
+LB1023 reports a command handler that sends a command, publishes an event, or mediates another message through `ICommandMediator`, `IEventMediator`, or `IMessageMediator` inside `HandleAsync` or `Handle`. The nested mediation runs a second unit of work inside the first, so the outer commit cannot roll the inner work back and a retry of the outer handler runs the inner work twice. It is disabled by default; enable it once command handlers are ready to keep nested units of work out.
+
+```ini
+# .editorconfig
+[*.cs]
+dotnet_diagnostic.LB1023.severity = warning
+```
+
+Reads through `IQueryMediator` are not reported: queries are side-effect free by contract (see LB1003), so nesting a read nests no unit of work. `EvaluateAsync` guard checks are not reported either, because they decide without acting. A `Mediate` call whose message is a query is treated as a read for the same reason.
+
+When the handler must cause follow-up work, stage it instead of mediating it inline: collect domain events and drain them into the transactional outbox after the handler succeeds. See [Nested Mediation in Command Handler](../catalog/analyzers/nested-mediation-in-command-handler.md).
+
+## External Side Effects in Command Handlers (LB1024)
+
+LB1024 reports a command handler that injects an external side-effect type through its constructor. The default list is `System.Net.Http.HttpClient` and `System.Net.Http.IHttpClientFactory`: an HTTP call made before the commit leaves an effect the unit of work cannot roll back. It is disabled by default; enable it and, when the defaults do not fit, name the project's own outside-world clients.
+
+```ini
+# .editorconfig
+[*.cs]
+litebus.LB1024.forbidden_types = App.Billing.BillingClient, App.Devices.DeviceGateway
+dotnet_diagnostic.LB1024.severity = warning
+```
+
+The configured list replaces the defaults; a configured value that names nothing reports nothing. Names that do not resolve are ignored. Only constructor parameters are reported: a side-effect type that appears only as a method parameter or a property is out of the rule's sight. Move the call behind the transactional outbox or into a completion handler that runs after the commit. See [External Side Effect in Command Handler](../catalog/analyzers/external-side-effect-in-command-handler.md).
 
 ## Untyped Shortcut on a Result Message (LB1019)
 

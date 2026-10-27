@@ -103,6 +103,40 @@ public readonly struct Refusal : IEquatable<Refusal>
     public bool IsDenied => Outcome == MediationOutcome.Denied;
 
     /// <summary>
+    ///     Creates the exception a refused caller receives when no refusal mapper is registered.
+    /// </summary>
+    /// <param name="messageType">The type of the message that was refused.</param>
+    /// <param name="cause">The fault a classifier recognized, when this refusal classifies one.</param>
+    /// <returns>
+    ///     <see cref="LiteBusMessageDeniedException" /> for a denial, or
+    ///     <see cref="LiteBusMessageInvalidException" /> for a validation-shaped refusal.
+    /// </returns>
+    /// <remarks>
+    ///     A classified refusal keeps its cause as the inner exception, so the fault that produced it is never lost
+    ///     to a caller that catches the refusal. An invalid refusal carries its reason and code as the single
+    ///     <see cref="ValidationFailure" /> on the exception, because a classified fault reports one thing wrong
+    ///     with the message as a whole rather than the per-member failures a validator collects.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="messageType" /> is null.</exception>
+    /// <exception cref="System.InvalidOperationException">This refusal carries no refusal outcome.</exception>
+    public Exception CreateException(Type messageType, Exception? cause = null)
+    {
+        ArgumentNullException.ThrowIfNull(messageType);
+
+        return Outcome switch
+        {
+            MediationOutcome.Denied => cause is null
+                ? new LiteBusMessageDeniedException(messageType, Reason, Code)
+                : new LiteBusMessageDeniedException(messageType, Reason, Code, cause),
+            MediationOutcome.Invalid => cause is null
+                ? new LiteBusMessageInvalidException(messageType, [new ValidationFailure(Reason, code: Code)])
+                : new LiteBusMessageInvalidException(messageType, Reason, Code, cause),
+            _ => throw new InvalidOperationException(
+                $"A '{Outcome}' refusal carries no refusal outcome, so it has no exception to describe.")
+        };
+    }
+
+    /// <summary>
     ///     Determines whether two refusals are equal.
     /// </summary>
     /// <param name="left">The first refusal.</param>

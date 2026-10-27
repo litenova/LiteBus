@@ -16,6 +16,11 @@ namespace LiteBus.Messaging.Abstractions;
 ///         from the declaration, the caller, and the clock.
 ///     </para>
 ///     <para>
+///         When the target or the reason can be read off the message itself, declare a selector on
+///         <see cref="AuditedDeclaration" /> instead of pushing it here. What the scope supplies still wins when both
+///         are present, so a handler that knows better keeps the last word.
+///     </para>
+///     <para>
 ///         The scope belongs to the mediation in flight. Calling one of its methods outside a mediation raises
 ///         <see cref="NoExecutionContextException" />, because there is no record for the value to reach.
 ///     </para>

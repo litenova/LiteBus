@@ -12,7 +12,7 @@ For one message, mediation runs these stages in this order:
 
 1. **Guards** decide whether the message may proceed. A guard refuses by returning a verdict.
 2. **Validators** decide whether the message is well-formed. A validator reports failures by returning a validity.
-3. **Shortcuts** decide whether the answer is already known. A shortcut answers by returning a result, so the main handler never runs.
+3. **Shortcuts** decide whether the answer is already known. A shortcut answers by returning a result, or denies when the refusal can only be decided at the shortcut stage; either way the main handler never runs.
 4. **Pre-handlers** prepare a message that is going to be handled. Throwing here stops the pipeline; returning cannot stop it.
 5. **Main handler** does the work. One handler for commands and queries; all matching handlers for events.
 6. **Post-handlers** react to success. They receive the message and the result.
@@ -31,6 +31,7 @@ flowchart LR
     G1 -. denies .-> I[Denied]
     V1 -. reports failures .-> L[Invalid]
     S1 -. answers .-> J[Answered]
+    S1 -. denies .-> I
     B -. throws .-> F[Error-handlers]
     C -. throws .-> F
     D -. throws .-> F
@@ -75,6 +76,31 @@ A custom mediation strategy gets the same stage order through `RunAsyncPreStages
 Each pre-handler, post-handler, and completion handler runs through the closed contract recorded in its descriptor at registration, so one class can implement pipeline contracts for several message types and each dispatch reaches the right one.
 
 LiteBus also ships pipeline handlers of its own, such as the audit record writer. Those sit in a reserved priority band at or above `HandlerPriorities.ReservedFloor`, so a handler with no explicit priority always runs first. See [Handler Priority](handler-priority.md).
+
+## Guard Discovery and Ordering
+
+`RegisterFromAssembly` on the command, query, and event module builders discovers guards alongside every other pipeline contract. A type counts as a construct of an axis when it implements the axis guard contract (`ICommandGuard<T>`, `IQueryGuard<T>`, `IEventGuard<T>`) or a messaging-level pipeline contract whose message type is, or is constrained to, the axis marker. A closed `ICommandGuard<TransferCommand>` is found because its message is a command; an open generic `AuthorizationGuard<T> where T : ICommand` is found through its constraint and closes once over each fitting message. A messaging-level guard constrained to neither axis is refused, because silently closing it over every message of whichever axis happened to register it would be a trap, and main handler contracts never cross axes.
+
+Discovery finds a guard whatever file it sits in, so ordering never depends on scan order. The guards for one message run in this order: every guard runs before any validator, because the stage order is fixed; inside the guard stage, indirect guards registered for a base type or interface run before direct guards registered for the message; inside each group, `[HandlerPriority]` orders ascending with `0` the default; ties resolve by registration sequence.
+
+Explicit `Register` calls keep working beside a scan. Name the load-bearing guards explicitly and let the scan find the rest: the registry processes each type once, so a type named directly and reached again by a scan registers once and runs once. On the command builder, explicit registrations apply before assembly scans however the calls are ordered, so an explicit guard wins a priority tie against a scanned one; on the query and event builders, registrations apply in call order.
+
+Assert the order with `IMessageReader.Explain`, which lists every step in run order:
+
+```csharp
+var plan = provider.GetRequiredService<IMessageReader>().Explain(typeof(TransferCommand));
+
+var guards = plan.Steps
+    .Where(step => step.Stage == "guard")
+    .Select(step => step.HandlerType)
+    .ToList();
+
+Assert.Equal(
+    new[] { typeof(SupportSessionGuard), typeof(TransferPolicyGuard) },
+    guards);
+```
+
+Each step also carries `IsIndirect` and `IsClosedOpenGeneric`, so a plan that shows one open generic definition covering a message both directly and indirectly names the double coverage outright. See [Inspecting the Plan](#inspecting-the-plan).
 
 ## Commands and Queries: The Single-Handler Pipeline
 
@@ -141,13 +167,62 @@ public sealed class AuditFailure : ICommandErrorHandler<ProcessPaymentCommand>
 }
 ```
 
+## Turning Faults Into Refusals
+
+A fault raised after the decision stages never passed a guard: a duplicate key reported when a unit of work commits, or a concurrency fault from the main handler, reaches the caller as an exception that every application maps by hand at its boundary. A fault refusal classifier moves that mapping into the pipeline by recognizing the fault and naming the refusal the mediation ends as instead.
+
+```csharp
+public sealed class DuplicateKeyClassifier : IFaultRefusalClassifier
+{
+    public bool TryClassify(Exception exception, out Refusal refusal)
+    {
+        if (exception is DuplicateKeyException duplicate)
+        {
+            refusal = Refusal.Denied($"'{duplicate.Reference}' is already taken", "REFERENCE_TAKEN");
+            return true;
+        }
+
+        refusal = default;
+        return false;
+    }
+}
+
+registry.AddMessaging(messaging =>
+{
+    messaging.UseFaultRefusalClassifier<DuplicateKeyClassifier>();
+});
+```
+
+A recognized fault ends the mediation as the classifier's refusal: `TrySendAsync` and `TryQueryAsync` report it as a value, `SendAsync` raises `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException` per the refusal's outcome, refusal mappers see it like any other refusal, and the audit outcome records the refusal rather than a failure. The fault stays available as the inner exception of the refusal exception, so the cause is never lost to a caller that catches it.
+
+For PostgreSQL, `PostgreSqlConstraintRefusalClassifier` in the `LiteBus.Storage.PostgreSql` package recognizes unique violations (`23505`) and exclusion violations (`23P01`) on a configured constraint map, found anywhere in the inner exception chain:
+
+```csharp
+registry.AddMessaging(messaging =>
+{
+    messaging.UseFaultRefusalClassifierInstance(new PostgreSqlConstraintRefusalClassifier(
+        new Dictionary<string, string> { ["ux_orders_reference"] = "ORDER_REFERENCE_TAKEN" }));
+});
+```
+
+The rules:
+
+- Classifiers are consulted in registration order and the first match wins, so register the most specific classifier first.
+- Classifiers are singletons and must be stateless: a pure predicate over the exception, with no I/O and no side effects.
+- A fault from any stage is offered, including the completion stage, where a commit fault becomes a refusal the caller branches on.
+- Cancellation is never classified, and an exception that already carries a refusal is never reclassified.
+- A classified fault skips the error handlers: it is a refusal, not a fault. Completion handlers still run, observing the refusal outcome.
+- A classified completion fault supersedes the ending the mediation had reached: handlers that already ran keep the outcome they observed, the remaining handlers do not run, and the caller receives the refusal exception. Refusal mappers do not apply there, because the main handler already produced the caller's value. Mediation telemetry likewise records the outcome observed when the completion stage began.
+- `EvaluateAsync` reports a classified decision-stage fault as the denial or invalid decision the message would end as when sent.
+- With no classifier registered, every fault behaves exactly as before.
+
 ## Deciding Whether the Work Happens
 
 Three kinds of pre-stage handler can end a mediation before the main handler runs, and each answers a different question:
 
 - A **guard** answers "may this happen". It refuses, and the refusal is security-relevant.
 - A **validator** answers "is this well-formed". It reports failures, and malformed input is not a refusal.
-- A **shortcut** answers "is this already done". It supplies the answer, and nothing was refused.
+- A **shortcut** answers "is this already done". It supplies the answer, and nothing was refused. It may also deny when the refusal can only be decided at the shortcut stage, such as an idempotency claim, and that denial ends the mediation exactly as a guard denial does.
 
 All three decide by returning a value rather than throwing, so the compiler requires the decision and nothing after it runs by accident.
 
@@ -160,6 +235,8 @@ All three decide by returning a value rather than throwing, so the compiler requ
 | `Shortcut.None` | a shortcut | No answer; the mediation proceeds | not applicable | not applicable |
 | `Shortcut.Answer(reason)` | a shortcut | The work was already applied | `MediationOutcome.Answered` | a success |
 | `Shortcut<T>.Answer(result, reason)` | a shortcut | The result was already known | `MediationOutcome.Answered` | a success |
+| `Shortcut.Deny(reason, code)` | a shortcut | The message is refused where only the shortcut stage can decide | `MediationOutcome.Denied` | a denial |
+| `Shortcut<T>.Deny(reason, code)` | a shortcut | The message is refused where only the shortcut stage can decide | `MediationOutcome.Denied` | a denial |
 
 Separate contracts stop false entries in the list a security review reads: a cache hit refused nobody, a replayed idempotent command took effect the first time, and a malformed field is not an access decision. The split also lets the framework fix the order.
 
@@ -206,7 +283,7 @@ public sealed class RejectSelfApproval : ICommandGuard<ApproveRefundCommand>
 
 A refusal always carries a reason and may carry a code, which a refusal mapper can switch on without parsing prose. The stage stops at the first refusal, because one reason is enough for a caller who may not proceed.
 
-`LiteBusMessageDeniedException` does **not** reach error handlers. An error handler exists to recover from faults, and letting it see a refusal would let it undo one. The mediation still reports `Denied`, so the completion stage records it. The exception carries `DeniedBy` with the concrete guard type, and its message names that guard.
+`LiteBusMessageDeniedException` does **not** reach error handlers. An error handler exists to recover from faults, and letting it see a refusal would let it undo one. The mediation still reports `Denied`, so the completion stage records it. The exception carries `DeniedBy` with the concrete guard or shortcut type, and its message names that handler.
 
 ### Validator Contracts
 
@@ -285,6 +362,14 @@ For a stream query the answer is typed over `IAsyncEnumerable<TResult>`, so answ
 return Shortcut<IAsyncEnumerable<Product>>.Answer(AsyncEnumerable.Empty<Product>(), "nothing to stream");
 ```
 
+A shortcut may also deny, when the refusal can only be decided at the shortcut stage. The shipped idempotency shortcut denies a command whose key another delivery still holds, because the claim can only be made after guards and validators have run:
+
+```csharp
+return Shortcut.Deny("the command is still being applied by another delivery", "idempotency.in-flight");
+```
+
+A shortcut denial ends the mediation exactly as a guard denial does: `TrySendAsync` reports `Denied`, `SendAsync` raises `LiteBusMessageDeniedException` naming the shortcut in `DeniedBy`, completion handlers observe `Denied`, error handlers do not run, and a registered refusal mapper applies. Anything a guard could decide belongs to a guard, which runs first.
+
 ### Refusal Mappers
 
 By default a refusal reaches the caller as `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException`, because a method that must return a value has nothing to return. When you model failure as a value, register a mapper instead:
@@ -317,7 +402,7 @@ The stream mapper is typed over `IAsyncEnumerable<TQueryResult>`, because the va
 
 - Everything after the stage that stopped the pipeline **does not run**: later decision stages, every pre-handler, the main handler, and every post-handler.
 - The reason reaches completion handlers as `MessageCompletionContext.Reason`, and an audit trail as the reason on the record. Without a reason, an answered mediation leaves no explanation anywhere, because it reaches neither post-handlers nor error handlers. A denial always has one.
-- For a message with a result type, a shortcut must supply a result. Using the untyped shortcut contract there throws `LiteBusConfigurationException` naming the typed contract to use instead. Because `ICommand<TResult>` derives from `ICommand`, the untyped contract compiles, so analyzer rule `LB1019` reports the declaration at build time. Guards and validators have no equivalent trap, because neither owes the caller a result.
+- For a message with a result type, an answering shortcut must supply a result. Using the untyped shortcut contract there throws `LiteBusConfigurationException` naming the typed contract to use instead. Because `ICommand<TResult>` derives from `ICommand`, the untyped contract compiles, so analyzer rule `LB1019` reports the declaration at build time. Guards and validators have no equivalent trap, because neither owes the caller a result. A denial has none either: it carries no result and is resolved through a mapper, so denying a result message is safe through either contract. Direct registration of the untyped contract on a result message is still rejected, because the contract cannot answer there.
 - Error handlers do not run. Stopping is a decision, not a failure.
 - A message that produces no result, and any event, has nothing a refusal mapper could return, so a refusal there always raises.
 
@@ -532,7 +617,7 @@ public sealed class RecordCommandOutcome : ICommandCompletionHandler
 | --- | --- |
 | `Succeeded` | The main handler and every post-handler ran without throwing |
 | `Answered` | A shortcut answered without the handler, because the result was already known |
-| `Denied` | A guard refused the message, carrying a reason |
+| `Denied` | A guard or a shortcut refused the message, carrying a reason |
 | `Invalid` | A validator reported the message malformed, carrying its failures |
 | `Failed` | The pipeline raised an exception other than cancellation or a refusal |
 | `Canceled` | The mediation cancellation token was observed |

@@ -25,11 +25,12 @@ public enum MediationOutcome
     Answered = 1,
 
     /// <summary>
-    ///     A guard refused the message, so the main handler never ran.
+    ///     A guard or a shortcut refused the message, so the main handler never ran.
     /// </summary>
     /// <remarks>
     ///     This is the outcome an audit trail records as a denial, and the one a security review asks about. It is
-    ///     reachable only from the guard stage: suppressing post-handlers after the work has happened still reports
+    ///     reachable only from the guard and shortcut stages: a shortcut denies only when the refusal can be decided
+    ///     nowhere earlier, and suppressing post-handlers after the work has happened still reports
     ///     <see cref="Succeeded" />.
     /// </remarks>
     Denied = 2,

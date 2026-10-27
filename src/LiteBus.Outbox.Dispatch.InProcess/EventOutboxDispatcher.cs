@@ -24,6 +24,10 @@ namespace LiteBus.Outbox.Dispatch.InProcess;
 ///         Events that implement <see cref="IEvent" /> are sent through the non-generic publisher overload. POCO events
 ///         are published through a closed generic helper cached per event type.
 ///     </para>
+///     <para>
+///         An envelope that records one handler publishes to that handler alone; an envelope without a recorded
+///         handler publishes to every subscribed handler.
+///     </para>
 /// </remarks>
 public sealed class EventOutboxDispatcher : IOutboxDispatcher
 {
@@ -235,13 +239,21 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     /// <param name="message">The outbox message whose correlation, causation, and tenant values should be applied.</param>
     /// <param name="options">The dispatch options that decide how a message with no handler is treated.</param>
     /// <returns>Event mediation settings configured for outbox replay.</returns>
+    /// <remarks>
+    ///     An envelope addressed to one handler by per-handler delivery publishes with a handler predicate matching
+    ///     only that main handler, so the reaction retries alone while pipeline observers still run. When the recorded
+    ///     handler no longer subscribes, the predicate matches no main handler and
+    ///     <see cref="InProcessOutboxDispatchOptions.RequireHandler" /> decides whether the attempt fails or completes
+    ///     as published.
+    /// </remarks>
     private static EventMediationSettings CreateMediationSettings(
         OutboxEnvelope message,
         InProcessOutboxDispatchOptions options)
     {
         var settings = new EventMediationSettings
         {
-            ThrowIfNoHandlerFound = options.RequireHandler
+            ThrowIfNoHandlerFound = options.RequireHandler,
+            Routing = CreateRoutingSettings(message)
         };
 
         MessageProcessorDiagnostics.ApplyTraceMetadata(
@@ -252,5 +264,34 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
             message.TraceContext);
 
         return settings;
+    }
+
+    /// <summary>
+    ///     Creates routing settings that restrict publication to the recorded handler for a per-handler envelope.
+    /// </summary>
+    /// <param name="message">The outbox message being dispatched.</param>
+    /// <returns>Routing settings matching only the recorded handler, or default routing for a broadcast envelope.</returns>
+    /// <remarks>
+    ///     The predicate restricts main handlers only. Pre-stage, post, error, and completion observers observe every
+    ///     mediation by message type rather than by main handler, so they pass through and run on each targeted
+    ///     dispatch exactly as they would on a broadcast.
+    /// </remarks>
+    private static EventRoutingSettings CreateRoutingSettings(OutboxEnvelope message)
+    {
+        if (message.Handler is null)
+        {
+            return new EventRoutingSettings();
+        }
+
+        var handler = message.Handler;
+
+        return new EventRoutingSettings
+        {
+            HandlerPredicate = descriptor => descriptor is not IMainHandlerDescriptor ||
+                string.Equals(
+                    descriptor.HandlerType.FullName,
+                    handler,
+                    StringComparison.Ordinal)
+        };
     }
 }

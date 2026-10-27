@@ -41,8 +41,11 @@ namespace LiteBus.Outbox.Storage.PostgreSql;
 ///         </item>
 ///     </list>
 ///     <para>
-///         The outbox schema uses version 1. Its create script contains the complete current table shape, including
-///         opaque payload text and lease fencing. LiteBus validates existing tables without mutating incompatible
+///         The outbox schema uses version 2, which adds the nullable handler column to the version 1 shape. Its
+///         create script contains the complete current table shape, including opaque payload text and lease fencing.
+///         <see
+///             cref="EnsureAsync(Npgsql.NpgsqlDataSource, PostgreSqlOutboxStoreOptions?, System.Threading.CancellationToken)" />
+///         upgrades version 1 tables automatically. LiteBus validates existing tables without mutating incompatible
 ///         shapes.
 ///     </para>
 /// </remarks>
@@ -51,7 +54,7 @@ public static class PostgreSqlOutboxSchema
     /// <summary>
     ///     Gets the outbox table schema version implemented by this package release.
     /// </summary>
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     /// <summary>
     ///     Gets the canonical SQL files shipped with the outbox PostgreSQL package.
@@ -104,6 +107,7 @@ public static class PostgreSqlOutboxSchema
                        contract_version,
                        payload,
                        topic,
+                       handler,
                        created_at,
                        visible_after,
                        status,
@@ -134,8 +138,9 @@ public static class PostgreSqlOutboxSchema
                        $14,
                        $15,
                        $16,
-                       $17::jsonb,
-                       $18)
+                       $17,
+                       $18::jsonb,
+                       $19)
                    ON CONFLICT DO NOTHING
                    """;
 
@@ -146,6 +151,7 @@ public static class PostgreSqlOutboxSchema
             envelope.ContractVersion,
             envelope.Payload,
             (object?) envelope.Topic ?? DBNull.Value,
+            (object?) envelope.Handler ?? DBNull.Value,
             envelope.CreatedAt,
             (object?) envelope.VisibleAfter ?? DBNull.Value,
             (int) envelope.Status,

@@ -75,6 +75,21 @@ var receipt = await inbox.AcceptAsync(item, cancellationToken).ConfigureAwait(fa
 
 Compose concerns with `with` on the metadata record when one factory is not enough, as the lead example shows.
 
+### Ambient Trace Opt-In
+
+`UseAmbientTrace` propagates the ambient trace onto every accepted envelope that carries no explicit trace, without changing accept call sites. Register it on the inbox module builder:
+
+```csharp
+builder.AddInbox(inbox =>
+{
+    inbox.UseAmbientTrace();
+    inbox.UseInMemoryStorage();
+    inbox.UseInProcessDispatch();
+});
+```
+
+When enabled and an accepted item's `Metadata.Trace` is `MessageTrace.None`, the envelope factory stamps `MessageTrace.FromAmbient()`: the causation id becomes the incoming message id when the mediation replayed a stored envelope, the correlation id carries over (or falls back to the incoming message id when the ambient correlation id is absent), and an ambient distributed trace context is preserved. An explicit trace always wins, and outside a mediation the factory result is `None` as before. Only trace metadata is propagated; tenant, visibility, and identity keep the item's values.
+
 ### Batch Writers
 
 `AcceptBatchAsync` accepts heterogeneous messages in one store round trip. Build each entry with the untyped `InboxAcceptItem`, which carries an explicit runtime type for contract lookup. Receipts return in the same order as the input items.

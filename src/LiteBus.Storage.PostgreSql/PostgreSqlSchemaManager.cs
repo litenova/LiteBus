@@ -8,7 +8,7 @@ using Npgsql;
 namespace LiteBus.Storage.PostgreSql;
 
 /// <summary>
-///     Creates and validates LiteBus PostgreSQL store schemas at each component's current version.
+///     Creates, upgrades, and validates LiteBus PostgreSQL store schemas at each component's current version.
 /// </summary>
 internal static class PostgreSqlSchemaManager
 {
@@ -171,7 +171,8 @@ internal static class PostgreSqlSchemaManager
     }
 
     /// <summary>
-    ///     Creates the schema when missing, ensures indexes, and records version metadata while holding the advisory lock.
+    ///     Creates the schema when missing, applies pending upgrades, ensures indexes, and records version metadata
+    ///     while holding the advisory lock.
     /// </summary>
     /// <param name="context">The schema operation context.</param>
     /// <param name="cancellationToken">A token used to cancel the operation.</param>
@@ -216,13 +217,43 @@ internal static class PostgreSqlSchemaManager
             columns,
             definition.VersionColumnSets);
 
+        if (inferredVersion < definition.CurrentSchemaVersion &&
+            inferredVersion >= 1 &&
+            TryGetUpgradePath(definition, inferredVersion, out var upgradeScripts))
+        {
+            await ApplyUpgradeScriptsAsync(context, upgradeScripts, cancellationToken).ConfigureAwait(false);
+
+            columns = await PostgreSqlSchemaInspector.GetColumnNamesAsync(
+                    context.Connection,
+                    context.StoreTable,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            inferredVersion = PostgreSqlSchemaInspector.InferVersionFromColumns(
+                columns,
+                definition.VersionColumnSets);
+        }
+
         if (inferredVersion < definition.CurrentSchemaVersion)
         {
-            var details = tableExists && definition.CurrentSchemaVersion == 1
-                ? "The existing table does not match the current LiteBus schema version 1 column set. LiteBus does " +
-                  "not mutate incompatible tables automatically. Drain and replace the table, or run a reviewed " +
-                  "application-owned data migration before startup."
-                : $"Table column set infers schema version {inferredVersion}.";
+            string details;
+
+            if (tableExists && definition.CurrentSchemaVersion == 1)
+            {
+                details = "The existing table does not match the current LiteBus schema version 1 column set. LiteBus does " +
+                    "not mutate incompatible tables automatically. Drain and replace the table, or run a reviewed " +
+                    "application-owned data migration before startup.";
+            }
+            else if (tableExists && inferredVersion == 0)
+            {
+                details = "The existing table does not match any known LiteBus schema column set. LiteBus does " +
+                    "not mutate incompatible tables automatically. Drain and replace the table, or run a reviewed " +
+                    "application-owned data migration before startup.";
+            }
+            else
+            {
+                details = $"Table column set infers schema version {inferredVersion}.";
+            }
 
             var exception = new PostgreSqlSchemaDriftException(
                 definition.Component,
@@ -251,6 +282,117 @@ internal static class PostgreSqlSchemaManager
                 DateTimeOffset.UtcNow,
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Runs pending upgrade scripts that bring an older table to the current schema version.
+    /// </summary>
+    /// <param name="context">The schema operation context.</param>
+    /// <param name="upgradeScripts">The upgrade scripts ordered by target version.</param>
+    /// <param name="cancellationToken">A token used to cancel the operation.</param>
+    /// <returns>A task that completes when every upgrade script has run.</returns>
+    private static async Task ApplyUpgradeScriptsAsync(
+        PostgreSqlSchemaOperationContext context,
+        IReadOnlyList<PostgreSqlSchemaUpgradeScript> upgradeScripts,
+        CancellationToken cancellationToken)
+    {
+        var definition = context.Definition ?? throw new InvalidOperationException("Schema upgrade requires a component schema definition.");
+
+        foreach (var upgradeScript in upgradeScripts)
+        {
+            context.Logger.Log(
+                PostgreSqlSchemaLogLevel.Information,
+                $"Upgrading {definition.Component} schema from version {upgradeScript.TargetVersion - 1} to version " +
+                $"{upgradeScript.TargetVersion} for '{context.StoreTable.QualifiedName}'.");
+
+            await PostgreSqlSchemaExecutor.ExecuteScriptAsync(
+                    context.Connection,
+                    upgradeScript.BuildScript(context.Options),
+                    context.Logger,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Returns the ordered upgrade scripts that bring version <paramref name="fromVersion" /> to the current
+    ///     schema version.
+    /// </summary>
+    /// <param name="definition">The component schema definition that supplies upgrade metadata.</param>
+    /// <param name="fromVersion">The schema version found on the existing table.</param>
+    /// <param name="upgradeScripts">The upgrade scripts ordered by target version when a complete path exists.</param>
+    /// <returns>
+    ///     <see langword="true" /> when every step from <paramref name="fromVersion" /> to the current version has an
+    ///     upgrade script; otherwise, <see langword="false" />.
+    /// </returns>
+    private static bool TryGetUpgradePath(
+        PostgreSqlComponentSchemaDefinition definition,
+        int fromVersion,
+        out IReadOnlyList<PostgreSqlSchemaUpgradeScript> upgradeScripts)
+    {
+        List<PostgreSqlSchemaUpgradeScript> path = [];
+
+        for (var targetVersion = fromVersion + 1; targetVersion <= definition.CurrentSchemaVersion; targetVersion++)
+        {
+            var found = false;
+
+            foreach (var candidate in definition.UpgradeScripts)
+            {
+                if (candidate.TargetVersion == targetVersion)
+                {
+                    path.Add(candidate);
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                upgradeScripts = [];
+                return false;
+            }
+        }
+
+        upgradeScripts = path;
+        return true;
+    }
+
+    /// <summary>
+    ///     Builds drift details that name an available upgrade path from a found schema version.
+    /// </summary>
+    /// <param name="definition">The component schema definition that supplies upgrade metadata.</param>
+    /// <param name="foundVersion">The schema version found on the existing table.</param>
+    /// <param name="details">The upgrade details when a complete upgrade path exists.</param>
+    /// <returns><see langword="true" /> when a complete upgrade path exists; otherwise, <see langword="false" />.</returns>
+    private static bool TryGetUpgradeDetails(
+        PostgreSqlComponentSchemaDefinition definition,
+        int foundVersion,
+        out string details)
+    {
+        details = string.Empty;
+
+        if (foundVersion < 1 ||
+            foundVersion >= definition.CurrentSchemaVersion ||
+            !TryGetUpgradePath(definition, foundVersion, out var upgradeScripts))
+        {
+            return false;
+        }
+
+        List<string> scriptNames = [];
+
+        foreach (var upgradeScript in upgradeScripts)
+        {
+            scriptNames.Add($"'{upgradeScript.RelativePath}'");
+        }
+
+        var noun = upgradeScripts.Count == 1 ? "upgrade script" : "upgrade scripts";
+
+        details =
+            $"Found schema version {foundVersion} but version {definition.CurrentSchemaVersion} is required. " +
+            $"Enable schema initialization so EnsureAsync applies the upgrade automatically, or run {noun} " +
+            $"{string.Join(", ", scriptNames)} by hand.";
+
+        return true;
     }
 
     /// <summary>
@@ -298,13 +440,26 @@ internal static class PostgreSqlSchemaManager
 
         if (missingColumns.Count > 0)
         {
+            var inferredVersion = PostgreSqlSchemaInspector.InferVersionFromColumns(
+                columns,
+                definition.VersionColumnSets);
+
+            int? actualVersion = null;
+            var details = $"Missing columns: {string.Join(", ", missingColumns)}.";
+
+            if (TryGetUpgradeDetails(definition, inferredVersion, out var upgradeDetails))
+            {
+                actualVersion = inferredVersion;
+                details = upgradeDetails;
+            }
+
             var exception = new PostgreSqlSchemaDriftException(
                 definition.Component,
                 context.StoreTable.SchemaName,
                 context.StoreTable.TableName,
                 definition.CurrentSchemaVersion,
-                null,
-                $"Missing columns: {string.Join(", ", missingColumns)}.");
+                actualVersion,
+                details);
 
             context.Logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
             throw exception;
@@ -323,13 +478,20 @@ internal static class PostgreSqlSchemaManager
 
             if (inferredVersion != definition.CurrentSchemaVersion)
             {
+                var details = "Schema metadata is missing and the table shape does not match the current LiteBus release.";
+
+                if (TryGetUpgradeDetails(definition, inferredVersion, out var upgradeDetails))
+                {
+                    details = upgradeDetails;
+                }
+
                 var exception = new PostgreSqlSchemaDriftException(
                     definition.Component,
                     context.StoreTable.SchemaName,
                     context.StoreTable.TableName,
                     definition.CurrentSchemaVersion,
                     inferredVersion == 0 ? null : inferredVersion,
-                    "Schema metadata is missing and the table shape does not match the current LiteBus release.");
+                    details);
 
                 context.Logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
                 throw exception;
@@ -340,15 +502,22 @@ internal static class PostgreSqlSchemaManager
 
         if (recordedVersion != definition.CurrentSchemaVersion)
         {
+            var details = "The recorded schema version does not match the current LiteBus schema contract. LiteBus does not " +
+                "mutate incompatible tables automatically. Drain and replace the table, or run a reviewed " +
+                "application-owned data migration before startup.";
+
+            if (TryGetUpgradeDetails(definition, recordedVersion, out var upgradeDetails))
+            {
+                details = upgradeDetails;
+            }
+
             var exception = new PostgreSqlSchemaDriftException(
                 definition.Component,
                 context.StoreTable.SchemaName,
                 context.StoreTable.TableName,
                 definition.CurrentSchemaVersion,
                 recordedVersion,
-                "The recorded schema version does not match the current LiteBus schema contract. LiteBus does not " +
-                "mutate incompatible tables automatically. Drain and replace the table, or run a reviewed " +
-                "application-owned data migration before startup.");
+                details);
 
             context.Logger.Log(PostgreSqlSchemaLogLevel.Error, exception.Message, exception);
             throw exception;

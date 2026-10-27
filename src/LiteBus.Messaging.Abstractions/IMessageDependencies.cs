@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
@@ -124,6 +126,19 @@ public interface IMessageDependencies
     ///     Gets the refusal mappers registered for a base type or interface that this message type implements.
     /// </summary>
     ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> IndirectRefusalMappers { get; }
+
+    /// <summary>
+    ///     Gets the fault refusal classifiers consulted when a stage raises a recoverable fault, in registration order.
+    /// </summary>
+    /// <value>
+    ///     The classifiers, first match wins. Empty when none were registered, in which case every fault keeps the
+    ///     behavior it had before classifiers existed.
+    /// </value>
+    /// <remarks>
+    ///     The default implementation answers empty, so an implementation that predates classifiers keeps working
+    ///     without one. LiteBus resolves the registered classifiers from the dispatch scope.
+    /// </remarks>
+    IReadOnlyList<IFaultRefusalClassifier> FaultRefusalClassifiers => [];
 
     /// <summary>
     ///     Gets a lazy initialized read-only collection of every completion handler that observes this message, ordered

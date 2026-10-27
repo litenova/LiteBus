@@ -3,7 +3,7 @@ using System;
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Represents the denial of a message by a guard, raised when no refusal mapper supplies a value for the caller.
+///     Represents the denial of a message by a guard or a shortcut, raised when no refusal mapper supplies a value for the caller.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -24,9 +24,9 @@ public sealed class LiteBusMessageDeniedException : Exception
     ///     Initializes a new instance of the <see cref="LiteBusMessageDeniedException" /> class.
     /// </summary>
     /// <param name="messageType">The type of the message that was denied.</param>
-    /// <param name="reason">The reason the guard gave for denying the message.</param>
-    /// <param name="code">The code the guard supplied, when any.</param>
-    /// <param name="deniedBy">The guard that denied the message, when known.</param>
+    /// <param name="reason">The reason the guard or shortcut gave for denying the message.</param>
+    /// <param name="code">The code the guard or shortcut supplied, when any.</param>
+    /// <param name="deniedBy">The guard or shortcut that denied the message, when known.</param>
     public LiteBusMessageDeniedException(Type messageType, string reason, string? code = null, Type? deniedBy = null)
         : base(deniedBy is null
             ? $"Mediation of '{messageType?.Name}' was denied: {reason}"
@@ -36,6 +36,23 @@ public sealed class LiteBusMessageDeniedException : Exception
         Reason = reason;
         Code = code;
         DeniedBy = deniedBy;
+    }
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="LiteBusMessageDeniedException" /> class for a fault a
+    ///     classifier recognized as a denial, keeping the fault as the inner exception.
+    /// </summary>
+    /// <param name="messageType">The type of the message that was denied.</param>
+    /// <param name="reason">The reason the classifier gave for denying the message.</param>
+    /// <param name="code">The code the classifier supplied, when any.</param>
+    /// <param name="innerException">The fault the classifier recognized.</param>
+    public LiteBusMessageDeniedException(Type messageType, string reason, string? code, Exception innerException)
+        : base($"Mediation of '{messageType?.Name}' was denied: {reason}", innerException)
+    {
+        MessageType = messageType;
+        Reason = reason;
+        Code = code;
+        DeniedBy = null;
     }
 
     /// <summary>
@@ -67,23 +84,23 @@ public sealed class LiteBusMessageDeniedException : Exception
     }
 
     /// <summary>
-    ///     Gets the type of the message that was refused, when the denial came from a guard.
+    ///     Gets the type of the message that was refused, when the denial came from a guard or a shortcut.
     /// </summary>
     public Type? MessageType { get; }
 
     /// <summary>
-    ///     Gets the reason the guard gave for refusing the message, when the denial came from a guard.
+    ///     Gets the reason the guard or shortcut gave for refusing the message.
     /// </summary>
     public string? Reason { get; }
 
     /// <summary>
-    ///     Gets the code the guard supplied, when it supplied one.
+    ///     Gets the code the guard or shortcut supplied, when it supplied one.
     /// </summary>
     public string? Code { get; }
 
     /// <summary>
-    ///     Gets the guard that denied the message.
+    ///     Gets the guard or shortcut that denied the message.
     /// </summary>
-    /// <value>The concrete guard type that denied the message, or <see langword="null" /> when unknown.</value>
+    /// <value>The concrete guard or shortcut type that denied the message, or <see langword="null" /> when unknown.</value>
     public Type? DeniedBy { get; }
 }

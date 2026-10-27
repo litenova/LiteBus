@@ -38,10 +38,12 @@ public static class CommandModuleBuilderRecurringExtensions
     ///     </para>
     ///     <para>
     ///         <strong>This is a poll loop and not a scheduler.</strong> There is no cron expression and no
-    ///         missed-run catch-up, and because LiteBus has no leader election the loop runs on every host instance
-    ///         concurrently. That suits a command that drains work by leasing rows, where the store arbitrates between
-    ///         instances; it does not suit a command that assumes it is the only one running. See
-    ///         <see cref="RecurringCommandHostOptions" /> for the full boundary.
+    ///         missed-run catch-up, and by default the loop runs on every host instance concurrently. That suits a
+    ///         command that drains work by leasing rows, where the store arbitrates between instances; it does not
+    ///         suit a command that assumes it is the only one running, unless
+    ///         <see cref="RecurringCommandHostOptions.RequireLease" /> is set with a registered
+    ///         <see cref="IRecurringCommandLease" />. See <see cref="RecurringCommandHostOptions" /> for the full
+    ///         boundary.
     ///     </para>
     ///     <para>
     ///         A command whose result implements <see cref="IRecurringWorkReport" /> can tell the loop to send again

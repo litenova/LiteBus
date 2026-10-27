@@ -26,6 +26,12 @@ namespace LiteBus.Commands.Idempotency;
 ///         <see langword="default" /> would hand the caller a zero or a null that looks like a real result.
 ///     </para>
 ///     <para>
+///         A key another delivery is still applying is denied rather than answered, because nobody yet knows what the
+///         answer is. The denial carries <see cref="IdempotencyRefusalCodes.InFlight" />, and a repeat whose fingerprint
+///         differs from the stored one is denied with
+///         <see cref="IdempotencyRefusalCodes.FingerprintMismatch" />.
+///     </para>
+///     <para>
 ///         A granted key is recorded in the execution-context data as a <see cref="ClaimedIdempotencyKey" />, so the
 ///         completion handler settles exactly the claim this mediation holds and never one another delivery holds.
 ///     </para>
@@ -83,11 +89,28 @@ internal sealed class IdempotentCommandShortcut<TCommand, TCommandResult> : ICom
             return Shortcut<TCommandResult>.None;
         }
 
-        var claim = await _store.TryClaimAsync(resolved.Value.Key, cancellationToken).ConfigureAwait(false);
+        var claim = await _store
+            .TryClaimAsync(resolved.Value.Key, resolved.Value.Fingerprint, cancellationToken)
+            .ConfigureAwait(false);
 
         if (claim.Outcome == IdempotencyClaimOutcome.Granted)
         {
             AmbientExecutionContext.GetCurrentOrDefault()?.Data.Set(new ClaimedIdempotencyKey(resolved.Value.Key));
+            return Shortcut<TCommandResult>.None;
+        }
+
+        if (claim.Outcome == IdempotencyClaimOutcome.InFlight)
+        {
+            return Shortcut<TCommandResult>.Deny(
+                "the command is still being applied by another delivery; retry after it settles",
+                IdempotencyRefusalCodes.InFlight);
+        }
+
+        if (claim.Outcome == IdempotencyClaimOutcome.FingerprintMismatch)
+        {
+            return Shortcut<TCommandResult>.Deny(
+                "the command was already applied with different content",
+                IdempotencyRefusalCodes.FingerprintMismatch);
         }
 
         if (claim.Outcome != IdempotencyClaimOutcome.AlreadyCompleted)

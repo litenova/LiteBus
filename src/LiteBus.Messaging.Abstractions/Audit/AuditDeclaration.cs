@@ -7,7 +7,8 @@ namespace LiteBus.Messaging.Abstractions;
 ///     <para>
 ///         This is the constant half of an audit record: the parts that are known without running anything. The variable
 ///         half, such as the identifier of a resource the handler created, is supplied at runtime through
-///         <see cref="IAuditScope" />.
+///         <see cref="IAuditScope" />, or declared on <see cref="AuditedDeclaration" /> as a selector when it can be
+///         read off the message itself.
 ///     </para>
 ///     <para>
 ///         The two positions are separate types rather than one type with a flag, so a declaration cannot hold a

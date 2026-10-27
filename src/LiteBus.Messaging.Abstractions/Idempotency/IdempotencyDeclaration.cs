@@ -60,6 +60,23 @@ public sealed record IdempotencyDeclaration
     public Func<object, string>? KeySelector { get; init; }
 
     /// <summary>
+    ///     Gets the projection from the message to the fingerprint that distinguishes its content.
+    /// </summary>
+    /// <value>
+    ///     The selector, or <see langword="null" /> when the declaration carries no fingerprint and any repeat of the
+    ///     key is answered as already applied. Set it through <see cref="WithFingerprint{TMessage}" />.
+    /// </value>
+    /// <remarks>
+    ///     The fingerprint answers the question the key alone cannot: is this delivery the same request, or a
+    ///     different request reusing the key. An HTTP client that retries a payment with the same idempotency key but
+    ///     a changed amount is not repeating the first request, and answering it from the stored record would report
+    ///     the wrong payment as done. The store keeps the fingerprint the first delivery claimed with and denies a
+    ///     repeat whose fingerprint differs, so the caller learns the key is taken rather than receiving another
+    ///     request's answer.
+    /// </remarks>
+    public Func<object, string>? FingerprintSelector { get; init; }
+
+    /// <summary>
     ///     Gets the prefix that separates this message's keys from every other message's.
     /// </summary>
     /// <value>
@@ -146,5 +163,36 @@ public sealed record IdempotencyDeclaration
     public static IdempotencyDeclaration KeyedByContext()
     {
         return new IdempotencyDeclaration();
+    }
+
+    /// <summary>
+    ///     Returns a copy of this declaration that fingerprints the message content.
+    /// </summary>
+    /// <typeparam name="TMessage">The message type the selector reads.</typeparam>
+    /// <param name="fingerprintSelector">Projects the content fingerprint from the message.</param>
+    /// <returns>A declaration that claims with the projected fingerprint.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="fingerprintSelector" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     The cast inside is safe because a declaration only ever reaches messages assignable to the type it was
+    ///     declared for. The fingerprint travels with the claim: the first delivery stores it, a repeat with a matching
+    ///     fingerprint is answered as already applied, and a repeat with a different one is denied with
+    ///     <see cref="IdempotencyRefusalCodes.FingerprintMismatch" />. A declaration without a fingerprint keeps the old
+    ///     behavior, where any repeat of the key is answered as already applied.
+    /// </remarks>
+    /// <example>
+    ///     <code><![CDATA[
+    /// public sealed class ApplyPaymentCommandDefinition : IIdempotencyDefinition<ApplyPaymentCommand>
+    /// {
+    ///     public IdempotencyDeclaration Idempotency =>
+    ///         IdempotencyDeclaration.KeyedBy<ApplyPaymentCommand>(command => command.PaymentId.ToString())
+    ///             .WithFingerprint<ApplyPaymentCommand>(command => $"{command.Amount}:{command.Currency}");
+    /// }
+    /// ]]></code>
+    /// </example>
+    public IdempotencyDeclaration WithFingerprint<TMessage>(Func<TMessage, string> fingerprintSelector)
+        where TMessage : notnull
+    {
+        ArgumentNullException.ThrowIfNull(fingerprintSelector);
+        return this with { FingerprintSelector = message => fingerprintSelector((TMessage) message) };
     }
 }

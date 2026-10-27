@@ -338,14 +338,17 @@ public sealed class PipelineDispatch
     }
 
     /// <summary>
-    ///     Runs a shortcut over a message that produces no result, and returns its answer as the decision the pipeline
-    ///     acts on.
+    ///     Runs a shortcut over a message that produces no result, and returns its answer or denial as the decision the
+    ///     pipeline acts on.
     /// </summary>
     /// <typeparam name="TMessage">The registered message type.</typeparam>
     /// <param name="handler">The shortcut instance.</param>
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
-    /// <returns>The decision for an answer, or <see cref="PipelineDecision.Continue" /> when the mediation proceeds.</returns>
+    /// <returns>
+    ///     The decision for an answer or a denial, or <see cref="PipelineDecision.Continue" /> when the mediation
+    ///     proceeds.
+    /// </returns>
     internal static async Task<PipelineDecision> InvokeShortcut<TMessage>(
         IMessagePreStageHandler handler,
         object message,
@@ -360,15 +363,18 @@ public sealed class PipelineDispatch
     }
 
     /// <summary>
-    ///     Runs a shortcut over a message that produces a result, and returns its answer as the decision the pipeline
-    ///     acts on.
+    ///     Runs a shortcut over a message that produces a result, and returns its answer or denial as the decision the
+    ///     pipeline acts on.
     /// </summary>
     /// <typeparam name="TMessage">The registered message type.</typeparam>
     /// <typeparam name="TMessageResult">The registered result type.</typeparam>
     /// <param name="handler">The shortcut instance.</param>
     /// <param name="message">The message being mediated.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
-    /// <returns>The decision for an answer, or <see cref="PipelineDecision.Continue" /> when the mediation proceeds.</returns>
+    /// <returns>
+    ///     The decision for an answer or a denial, or <see cref="PipelineDecision.Continue" /> when the mediation
+    ///     proceeds.
+    /// </returns>
     internal static async Task<PipelineDecision> InvokeTypedShortcut<TMessage, TMessageResult>(
         IMessagePreStageHandler handler,
         object message,

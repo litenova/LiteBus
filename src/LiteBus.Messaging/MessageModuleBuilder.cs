@@ -41,6 +41,11 @@ public sealed class MessageModuleBuilder
     private readonly List<DeclarationRequirement> _requiredDeclarations = [];
 
     /// <summary>
+    ///     The fault refusal classifier implementation types and pre-created instances, in registration order.
+    /// </summary>
+    private readonly List<object> _faultRefusalClassifiers = [];
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="MessageModuleBuilder" /> class.
     /// </summary>
     /// <param name="messageRegistry">The message registry shared across LiteBus modules.</param>
@@ -866,6 +871,56 @@ public sealed class MessageModuleBuilder
         where TAuditOutcomeMapper : IAuditOutcomeMapper, new()
     {
         AuditOutcomeMapper = new TAuditOutcomeMapper();
+        return this;
+    }
+
+    /// <summary>
+    ///     Gets the fault refusal classifiers registered through <see cref="UseFaultRefusalClassifier{TClassifier}" />
+    ///     and <see cref="UseFaultRefusalClassifierInstance" />, in registration order, as implementation types and
+    ///     pre-created instances.
+    /// </summary>
+    internal IReadOnlyList<object> FaultRefusalClassifiers => _faultRefusalClassifiers;
+
+    /// <summary>
+    ///     Registers a classifier that turns a recognized fault into the refusal the mediation ends as.
+    /// </summary>
+    /// <typeparam name="TClassifier">The classifier implementation, constructed from the container.</typeparam>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Call this once per classifier. The strategies consult them in registration order and the first match
+    ///         wins, so register the most specific classifier first. A fault from any stage is offered, including the
+    ///         completion stage, where a duplicate key or concurrency fault raised by a unit-of-work commit becomes a
+    ///         typed refusal instead of an exception every application maps by hand.
+    ///     </para>
+    ///     <para>
+    ///         Classifiers are singletons, so an implementation must be stateless and safe to call from concurrent
+    ///         mediations, and may only depend on singleton services. Cancellation is never offered, and a classified
+    ///         fault skips the error handlers: it is a refusal, not a fault.
+    ///     </para>
+    /// </remarks>
+    public MessageModuleBuilder UseFaultRefusalClassifier<TClassifier>()
+        where TClassifier : class, IFaultRefusalClassifier
+    {
+        _faultRefusalClassifiers.Add(typeof(TClassifier));
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers a pre-created classifier that turns a recognized fault into the refusal the mediation ends as.
+    /// </summary>
+    /// <param name="classifier">The classifier instance, shared by every mediation for the life of the process.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="classifier" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     The name says the lifetime, because a pre-created instance can only be a singleton. This is the overload
+    ///     for a classifier that is configured rather than injected, such as one built over a constraint map. Use
+    ///     <see cref="UseFaultRefusalClassifier{TClassifier}" /> whenever the classifier has dependencies.
+    /// </remarks>
+    public MessageModuleBuilder UseFaultRefusalClassifierInstance(IFaultRefusalClassifier classifier)
+    {
+        ArgumentNullException.ThrowIfNull(classifier);
+        _faultRefusalClassifiers.Add(classifier);
         return this;
     }
 

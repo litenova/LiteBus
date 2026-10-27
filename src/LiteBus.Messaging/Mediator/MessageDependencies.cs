@@ -31,6 +31,12 @@ internal sealed class MessageDependencies : IMessageDependencies
     private readonly IReadOnlyCollection<string> _tags;
 
     /// <summary>
+    ///     The fault refusal classifiers, resolved from the dispatch scope on first use so that offering a fault never
+    ///     creates the scope for a mediation that never faults.
+    /// </summary>
+    private readonly Lazy<IReadOnlyList<IFaultRefusalClassifier>> _faultRefusalClassifiers;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="MessageDependencies" /> class.
     /// </summary>
     /// <param name="messageType">The concrete runtime type of the message being mediated.</param>
@@ -67,6 +73,8 @@ internal sealed class MessageDependencies : IMessageDependencies
             handlerType => (IMessageCompletionHandler) serviceProvider.GetRequiredService(handlerType));
         RefusalMappers = ResolveHandlers(descriptor.RefusalMappers, handlerType => (IMessageRefusalMapper) serviceProvider.GetRequiredService(handlerType));
         IndirectRefusalMappers = ResolveHandlers(descriptor.IndirectRefusalMappers, handlerType => (IMessageRefusalMapper) serviceProvider.GetRequiredService(handlerType));
+        _faultRefusalClassifiers = new Lazy<IReadOnlyList<IFaultRefusalClassifier>>(
+            () => ResolveFaultRefusalClassifiers(serviceProvider));
         _occupiedPreStages = ComputeOccupiedPreStages(PreStageHandlers, IndirectPreStageHandlers);
     }
 
@@ -104,6 +112,9 @@ internal sealed class MessageDependencies : IMessageDependencies
     public ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> IndirectRefusalMappers { get; }
 
     /// <inheritdoc />
+    public IReadOnlyList<IFaultRefusalClassifier> FaultRefusalClassifiers => _faultRefusalClassifiers.Value;
+
+    /// <inheritdoc />
     public bool HasPreStageHandlers(PreStage stage)
     {
         return (_occupiedPreStages & (1 << (int) stage)) != 0;
@@ -132,6 +143,31 @@ internal sealed class MessageDependencies : IMessageDependencies
         }
 
         return mask;
+    }
+
+    /// <summary>
+    ///     Resolves the registered fault refusal classifiers from the dispatch scope.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider handlers resolve from.</param>
+    /// <returns>The registered classifiers in registration order, or an empty list when there are none.</returns>
+    /// <remarks>
+    ///     The collection resolves first, because that is how the messaging module registers classifiers. A single
+    ///     classifier registered directly against the service type is honored as a one-item collection, so a host
+    ///     that wires one by hand without the module builder still classifies.
+    /// </remarks>
+    private static IFaultRefusalClassifier[] ResolveFaultRefusalClassifiers(IServiceProvider serviceProvider)
+    {
+        if (serviceProvider.GetService(typeof(IEnumerable<IFaultRefusalClassifier>)) is IEnumerable<IFaultRefusalClassifier> classifiers)
+        {
+            return classifiers.ToArray();
+        }
+
+        if (serviceProvider.GetService(typeof(IFaultRefusalClassifier)) is IFaultRefusalClassifier classifier)
+        {
+            return [classifier];
+        }
+
+        return [];
     }
 
     /// <summary>

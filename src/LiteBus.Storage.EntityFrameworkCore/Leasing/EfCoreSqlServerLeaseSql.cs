@@ -95,6 +95,7 @@ internal static class EfCoreSqlServerLeaseSql
                INSERTED.[contract_version],
                INSERTED.[payload],
                INSERTED.[topic],
+               INSERTED.[handler],
                INSERTED.[created_at],
                INSERTED.[visible_after],
                INSERTED.[status],

@@ -361,6 +361,33 @@ public sealed class ArchitectureDependencyPolicyTests
                    referencedProject.StartsWith("LiteBus.Runtime", StringComparison.Ordinal);
         }
 
+        // The PostgreSQL recurring lease bridges the recurring loop to PostgreSQL session locks through the shared
+        // storage helpers. It must not reach a durable axis: the lease fences a pass, not a stored message.
+        if (projectName == "LiteBus.Commands.Recurring.Storage.PostgreSql")
+        {
+            return referencedProject.StartsWith("LiteBus.Commands", StringComparison.Ordinal) ||
+                   referencedProject.StartsWith("LiteBus.Runtime", StringComparison.Ordinal) ||
+                   referencedProject == "LiteBus.Storage.PostgreSql";
+        }
+
+        // The PostgreSQL idempotency store bridges the command axis to the shared PostgreSQL storage helpers. It stores
+        // applied command keys, so it has no business with the durable axes or the recurring loop.
+        if (projectName == "LiteBus.Commands.Storage.PostgreSql")
+        {
+            return referencedProject is "LiteBus.Commands" or "LiteBus.Commands.Abstractions" or "LiteBus.Storage.PostgreSql" ||
+                   referencedProject.StartsWith("LiteBus.Messaging", StringComparison.Ordinal) ||
+                   referencedProject.StartsWith("LiteBus.Runtime", StringComparison.Ordinal);
+        }
+
+        // The Marten command package bridges the command axis to Marten sessions for the unit of work, idempotency store
+        // and audit trail. It must not reference the query axis, the durable axes or the recurring loop.
+        if (projectName == "LiteBus.Commands.Storage.Marten")
+        {
+            return referencedProject is "LiteBus.Commands" or "LiteBus.Commands.Abstractions" ||
+                   referencedProject.StartsWith("LiteBus.Messaging", StringComparison.Ordinal) ||
+                   referencedProject.StartsWith("LiteBus.Runtime", StringComparison.Ordinal);
+        }
+
         return true;
     }
 
@@ -515,7 +542,10 @@ public sealed class ArchitectureDependencyPolicyTests
             projectName.StartsWith("LiteBus.Outbox.Storage", StringComparison.Ordinal) ||
             projectName.StartsWith("LiteBus.Saga.Storage", StringComparison.Ordinal) ||
             projectName == "LiteBus.Saga.InboxIntegration" ||
-            projectName == "LiteBus.Commands.Recurring")
+            projectName == "LiteBus.Commands.Recurring" ||
+            projectName == "LiteBus.Commands.Recurring.Storage.PostgreSql" ||
+            projectName == "LiteBus.Commands.Storage.PostgreSql" ||
+            projectName == "LiteBus.Commands.Storage.Marten")
         {
             role = ProjectRole.FeatureBridge;
             return true;
