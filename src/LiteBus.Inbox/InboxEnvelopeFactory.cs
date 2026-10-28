@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.DurableMessaging;
 
 namespace LiteBus.Inbox;
 
@@ -39,6 +40,11 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
     private readonly IInboxPayloadProtector? _payloadProtector;
 
     /// <summary>
+    ///     Gets a value indicating whether untraced accepts inherit the ambient trace.
+    /// </summary>
+    private readonly bool _useAmbientTrace;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="InboxEnvelopeFactory" /> class.
     /// </summary>
     /// <param name="contractRegistry">The registry used to map message types to stable contracts.</param>
@@ -49,18 +55,24 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
     ///     The optional resolver that overrides contract lookup type selection. When omitted, the runtime message type is
     ///     used.
     /// </param>
+    /// <param name="envelopeOptions">
+    ///     The optional envelope options. When <see cref="InboxEnvelopeOptions.UseAmbientTrace" /> is set, untraced
+    ///     accepts inherit the ambient trace. When omitted, accepts keep the trace their item carries.
+    /// </param>
     public InboxEnvelopeFactory(
         IContractReader contractRegistry,
         IMessageSerializer messageSerializer,
         TimeProvider clock,
         IInboxPayloadProtector? payloadProtector = null,
-        IMessageContractResolver? contractTypeResolver = null)
+        IMessageContractResolver? contractTypeResolver = null,
+        InboxEnvelopeOptions? envelopeOptions = null)
     {
         _contractRegistry = contractRegistry ?? throw new ArgumentNullException(nameof(contractRegistry));
         _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _payloadProtector = payloadProtector;
         _contractTypeResolver = contractTypeResolver;
+        _useAmbientTrace = envelopeOptions?.UseAmbientTrace ?? false;
     }
 
     /// <inheritdoc />
@@ -147,7 +159,7 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
                 },
                 cancellationToken)
             .ConfigureAwait(false);
-        var (correlationId, causationId, traceContext) = DurableEnvelopeMetadataMapper.ResolveTraceColumns(metadata.Trace);
+        var (correlationId, causationId, traceContext) = DurableEnvelopeMetadataMapper.ResolveTraceColumns(ResolveTrace(metadata.Trace));
 
         return new InboxEnvelope
         {
@@ -166,6 +178,24 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
             TenantId = tenantId,
             TraceContext = traceContext
         };
+    }
+
+    /// <summary>
+    ///     Resolves the trace metadata persisted with an envelope, propagating ambient state when opted in.
+    /// </summary>
+    /// <param name="trace">The trace metadata supplied by the caller.</param>
+    /// <returns>
+    ///     The caller trace when the opt-in is off or the trace is explicit; otherwise, the ambient trace, or
+    ///     <see cref="MessageTrace.None" /> outside a mediation.
+    /// </returns>
+    private MessageTrace ResolveTrace(MessageTrace trace)
+    {
+        if (!_useAmbientTrace || trace is not MessageTrace.None)
+        {
+            return trace;
+        }
+
+        return MessageTrace.FromAmbient();
     }
 
     /// <summary>

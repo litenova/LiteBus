@@ -1,3 +1,4 @@
+using System;
 using LiteBus.Runtime.Abstractions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -29,6 +30,10 @@ public static class LiteBusHealthCheckExtensions
         ArgumentNullException.ThrowIfNull(options.DiagnosticChecks);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.DiagnosticChecks.MaxParallelism);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.DiagnosticChecks.Timeout.Ticks);
+        if (options.DiagnosticChecks.RunTimeout is { } runTimeout)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(runTimeout.Ticks);
+        }
         builder.Services.AddSingleton(options);
 
         return builder.AddCheck<LiteBusHealthCheck>(

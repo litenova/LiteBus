@@ -57,7 +57,7 @@ services.AddLiteBus(litebus =>
 | API | Role |
 | --- | --- |
 | `OutboxModuleBuilder.UseInMemoryDispatch(Action<TransportOutboxDispatcherOptions>? configure = null)` | Registers outbox transport dispatcher that requires the root in-memory transport |
-| `TransportOutboxDispatchModule.DefaultHookFailurePolicy` | Defaults to `CompleteDespiteHookFailure` |
+| `TransportOutboxDispatchModule<TTransportModule>.DefaultHookFailurePolicy` | Defaults to `CompleteDespiteHookFailure` |
 | `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | Shared outbox publish flow over in-process channel transport |
 
 ## Observability

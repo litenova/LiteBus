@@ -27,7 +27,7 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
     ///     Verifies that an unknown contract is discarded without requeue and does not reach the inbox store.
     /// </summary>
     /// <returns>A task that completes when the acknowledgement assertion succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task UnknownContract_ShouldNackWithoutRequeueAndSkipStore()
     {
         var fixture = new RabbitMqBrokerFixture();
@@ -35,6 +35,9 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
 
         try
         {
+            DockerTestGate.EnsureBrokerAvailable(fixture.IsAvailable, "RabbitMQ");
+            Skip.IfNot(fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
+
             var queueName = CreateQueueName();
             var provider = BuildProvider(fixture.ConnectionOptions, queueName, 100);
             await using (provider.ConfigureAwait(false))
@@ -65,7 +68,7 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
     ///     Verifies that invalid JSON is discarded without requeue and does not reach the inbox store.
     /// </summary>
     /// <returns>A task that completes when the acknowledgement assertion succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task InvalidJson_ShouldNackWithoutRequeueAndSkipStore()
     {
         var fixture = new RabbitMqBrokerFixture();
@@ -73,6 +76,9 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
 
         try
         {
+            DockerTestGate.EnsureBrokerAvailable(fixture.IsAvailable, "RabbitMQ");
+            Skip.IfNot(fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
+
             var queueName = CreateQueueName();
             var provider = BuildProvider(fixture.ConnectionOptions, queueName, 100);
             await using (provider.ConfigureAwait(false))
@@ -104,7 +110,7 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
     ///     requeue.
     /// </summary>
     /// <returns>A task that completes when the acknowledgement assertion succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task StoreFull_ShouldNackWithoutRequeueWhenCapacityExceeded()
     {
         var fixture = new RabbitMqBrokerFixture();
@@ -112,6 +118,9 @@ public sealed class AmqpInboxIngressFailureTests : LiteBusTestBase
 
         try
         {
+            DockerTestGate.EnsureBrokerAvailable(fixture.IsAvailable, "RabbitMQ");
+            Skip.IfNot(fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
+
             var queueName = CreateQueueName();
             var provider = BuildProvider(fixture.ConnectionOptions, queueName, 1);
             await using (provider.ConfigureAwait(false))

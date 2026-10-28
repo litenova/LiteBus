@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <!-- Marten and JasperFx ship without strong names. LiteBus targets only .NET, whose runtime does not validate
+             strong names, so referencing them from this signed assembly is safe and CS8002 is suppressed here only. -->
+        <NoWarn>$(NoWarn);CS8002</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Marten"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
+        <ProjectReference Include="..\LiteBus.Outbox.Storage.PostgreSql\LiteBus.Outbox.Storage.PostgreSql.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+    </ItemGroup>
+
+</Project>

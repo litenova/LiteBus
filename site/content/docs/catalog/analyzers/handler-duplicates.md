@@ -71,7 +71,7 @@ public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
 
 ## Test Coverage
 
-Source: `tests/LiteBus.Analyzers.UnitTests/DuplicateCommandHandlerAnalyzerTests.cs`, `tests/LiteBus.Analyzers.UnitTests/DuplicateQueryHandlerAnalyzerTests.cs`
+Source: `tests/LiteBus.Analyzers.UnitTests/DuplicateCommandHandlerAnalyzerTests.cs`, `tests/LiteBus.Analyzers.UnitTests/DuplicateQueryHandlerAnalyzerTests.cs`, `tests/LiteBus.Analyzers.UnitTests/DuplicateQueryHandlerAnalyzerRegressionTests.cs`
 
 | Test method | Verifies |
 | --- | --- |
@@ -80,7 +80,4 @@ Source: `tests/LiteBus.Analyzers.UnitTests/DuplicateCommandHandlerAnalyzerTests.
 | `DuplicateCommandHandlersWithResult_ProduceDiagnostic` | Duplicate result command handlers report `LB1001` |
 | `SingleQueryHandler_ProducesNoDiagnostic` | Single query handler is valid |
 | `DuplicateQueryHandlers_ProduceDiagnostic` | Duplicate query handlers report `LB1010` |
-
-Untested in this suite:
-
-- Duplicate stream query handler fixture for `LB1010` (logic is implemented, dedicated stream duplicate fixture is not present).
+| `DuplicateStreamQueryHandlers_ProduceDiagnostic` | Duplicate stream query handlers report `LB1010` |

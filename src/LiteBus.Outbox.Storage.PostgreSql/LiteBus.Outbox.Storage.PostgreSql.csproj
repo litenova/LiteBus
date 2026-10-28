@@ -5,6 +5,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="LiteBus.Outbox.Storage.Marten, PublicKey=$(LiteBusPublicKey)"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <EmbeddedResource Include="Sql/**/*.sql"/>
         <None Include="Sql/**/*.sql" Pack="true" PackagePath="sql/%(RecursiveDir)%(Filename)%(Extension)"/>
     </ItemGroup>

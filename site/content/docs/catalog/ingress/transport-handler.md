@@ -9,7 +9,7 @@
 
 `TransportInboxIngressHandler` is the broker-neutral accept path. For each delivery it validates body size and optional authorization, reads contract name and version from LiteBus transport headers, resolves the CLR type through `IContractReader`, deserializes the JSON body, maps headers to `InboxAcceptMetadata`, and calls `IInbox.AcceptAsync(InboxAcceptItem)`.
 
-Batch mode delegates to `IInbox.AcceptBatchAsync` after building an `InboxAcceptItem` per message. Header mapping failures wrap `TransportHeaderMappingException` as `InboxIngressException`.
+Batch mode delegates to `IInbox.AcceptBatchAsync` after building an `InboxAcceptItem` per message. Both the single and batch paths wrap `TransportHeaderMappingException` as `InboxIngressException`, so invalid headers report the same exception shape on either path.
 
 ## Accept Pipeline
 
@@ -33,9 +33,10 @@ flowchart TD
 | --- | --- |
 | `TransportInboxIngressHandler.AcceptAsync(TransportMessage, CancellationToken)` | Single delivery accept |
 | `TransportInboxIngressHandler.AcceptBatchAsync(IReadOnlyList<TransportMessage>, CancellationToken)` | Batch store round trip |
-| `AmqpInboxIngressHandler.AcceptAsync(TransportMessage, CancellationToken)` | AMQP-shaped manual or test accept (delegates to inner handler) |
+| `AmqpInboxIngressHandler.AcceptAsync(AmqpReceivedMessage, CancellationToken)` | AMQP-shaped manual or test accept (delegates to inner handler) |
+| `AmqpInboxIngressHandler.AcceptBatchAsync(IReadOnlyList<AmqpReceivedMessage>, CancellationToken)` | AMQP-shaped batch accept (delegates to inner handler) |
 | `TransportInboxIngressMapper` | Internal; maps wire headers to `InboxAcceptMetadata` |
-| `TransportInboxIngressMappingOptions` | `RequireStableIdentity`, `TrustApplicationHeaders` mapping policy |
+| `TransportInboxIngressMappingOptions` | Internal; `RequireStableIdentity`, `TrustApplicationHeaders` mapping policy |
 
 ## Validation Behavior
 
@@ -57,7 +58,7 @@ flowchart TD
 
 - `ingress.header-mapping`
 - `ingress.safety-options`
-- `durable-core.inbox.accept`
+- `durable-core.inbox-acceptance`
 - `runtime.contract-registry`
 - `runtime.message-serialization` ( `IMessageSerializer` )
 

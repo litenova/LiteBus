@@ -19,6 +19,9 @@
 | `MessageModuleBuilder.RegisterFromAssembly(Assembly)` | Assembly scan registration |
 | `MessageModuleBuilder.Contracts` | Durable contract registration |
 | `MessageModuleBuilder.UseTimeProvider(TimeProvider)` | Optional custom clock |
+| `MessageModuleBuilder.UseTelemetry(MediationTelemetryOptions)` | Mediation telemetry selection (spans and metrics on; stage spans and metrics opt-in) |
+| `MessageModuleBuilder.RequireExplicitOpenGenerics()` | Fails composition on unnamed scan-found open generics |
+| `LiteBusCompositionSummary` | Resolvable summary: per-axis message counts, open-generic closures, required declarations, audit configuration, composition checks |
 
 ## Packages
 

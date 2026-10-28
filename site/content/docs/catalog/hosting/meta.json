@@ -1,0 +1,24 @@
+{
+    "title":  "Hosting",
+    "pages":  [
+                  "README",
+                  "add-lite-bus-autofac",
+                  "add-lite-bus-microsoft-di",
+                  "aspnet-health-checks",
+                  "aspnet-management-endpoints",
+                  "autofac-hosting-bridge",
+                  "background-services",
+                  "diagnostic-probes",
+                  "generic-host-orchestrator",
+                  "host-manifest",
+                  "idempotency-key-endpoint-filter",
+                  "manual-host-execution",
+                  "microsoft-hosting-bridge",
+                  "opentelemetry-inbox",
+                  "opentelemetry-mediation",
+                  "opentelemetry-outbox",
+                  "opentelemetry-transport",
+                  "startup-tasks"
+              ]
+}
+

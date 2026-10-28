@@ -10,9 +10,10 @@ public sealed class PostgreSqlOutboxSchemaTests : IClassFixture<PostgreSqlFixtur
     public PostgreSqlOutboxSchemaTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task EnsureAsync_ShouldCreateSchemaAndBeIdempotent()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -23,7 +24,7 @@ public sealed class PostgreSqlOutboxSchemaTests : IClassFixture<PostgreSqlFixtur
         await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(false);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task EnsureAsync_ShouldHandleConcurrentBootstrap()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -36,7 +37,7 @@ public sealed class PostgreSqlOutboxSchemaTests : IClassFixture<PostgreSqlFixtur
         await PostgreSqlOutboxSchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(false);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ValidateAsync_ShouldThrowWhenTableIsMissing()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();

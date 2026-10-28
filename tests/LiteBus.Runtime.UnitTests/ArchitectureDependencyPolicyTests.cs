@@ -8,7 +8,7 @@ namespace LiteBus.Runtime.UnitTests;
 public sealed class ArchitectureDependencyPolicyTests
 {
     /// <summary>
-    ///     Confirms project and package references follow the allowed role dependency matrix.
+    ///     Confirms project, package, and framework references follow the allowed role dependency matrix.
     /// </summary>
     [Fact]
     public void SourceProjects_ShouldFollowRoleDependencyPolicy()
@@ -27,6 +27,10 @@ public sealed class ArchitectureDependencyPolicyTests
         var projectPackages = projectFiles.ToDictionary(
             path => Path.GetFileNameWithoutExtension(path)!,
             path => ReadIncludes(XDocument.Load(path), "PackageReference").ToArray(),
+            StringComparer.Ordinal);
+        var projectFrameworks = projectFiles.ToDictionary(
+            path => Path.GetFileNameWithoutExtension(path)!,
+            path => ReadIncludes(XDocument.Load(path), "FrameworkReference").ToArray(),
             StringComparer.Ordinal);
         var violations = new List<string>();
 
@@ -82,6 +86,14 @@ public sealed class ArchitectureDependencyPolicyTests
                 }
             }
 
+            foreach (var framework in projectFrameworks[projectName])
+            {
+                if (!IsFrameworkReferenceAllowed(sourceRole, framework))
+                {
+                    violations.Add($"{projectName} ({sourceRole}) may not reference framework '{framework}'.");
+                }
+            }
+
             if (sourceRole is ProjectRole.TechnologyAdapter or ProjectRole.FeatureBridge)
             {
                 var technologyFamilies = GetTransitiveTechnologyFamilies(
@@ -99,6 +111,39 @@ public sealed class ArchitectureDependencyPolicyTests
         }
 
         violations.Should().BeEmpty(string.Join(Environment.NewLine, violations));
+    }
+
+    /// <summary>
+    ///     Confirms the host-adapter role may reference the ASP.NET Core shared framework.
+    /// </summary>
+    [Fact]
+    public void HostAdapter_ShouldAllowAspNetCoreFrameworkReference()
+    {
+        IsFrameworkReferenceAllowed(ProjectRole.HostAdapter, "Microsoft.AspNetCore.App").Should().BeTrue();
+    }
+
+    /// <summary>
+    ///     Confirms roles outside the host adapter may not reference the ASP.NET Core shared framework.
+    /// </summary>
+    [Fact]
+    public void NonHostAdapter_ShouldRejectAspNetCoreFrameworkReference()
+    {
+        ProjectRole[] roles =
+        [
+            ProjectRole.PlatformContracts,
+            ProjectRole.MediationContracts,
+            ProjectRole.DurableContracts,
+            ProjectRole.CoreImplementation,
+            ProjectRole.TechnologyAdapter,
+            ProjectRole.FeatureBridge,
+            ProjectRole.ConsumerTooling,
+            ProjectRole.Aggregate,
+        ];
+
+        foreach (var role in roles)
+        {
+            IsFrameworkReferenceAllowed(role, "Microsoft.AspNetCore.App").Should().BeFalse();
+        }
     }
 
     /// <summary>
@@ -242,6 +287,18 @@ public sealed class ArchitectureDependencyPolicyTests
     }
 
     /// <summary>
+    ///     Determines whether a direct framework reference is permitted for a project role.
+    /// </summary>
+    /// <param name="role">The project role.</param>
+    /// <param name="framework">The framework identifier.</param>
+    /// <returns><see langword="true" /> when the framework is allowed; otherwise, <see langword="false" />.</returns>
+    private static bool IsFrameworkReferenceAllowed(ProjectRole role, string framework)
+    {
+        return role == ProjectRole.HostAdapter &&
+            string.Equals(framework, "Microsoft.AspNetCore.App", StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Determines whether a package is an approved persistence or transport SDK.
     /// </summary>
     /// <param name="package">The package identifier.</param>
@@ -290,6 +347,43 @@ public sealed class ArchitectureDependencyPolicyTests
             return referencedProject.StartsWith("LiteBus.Saga", StringComparison.Ordinal) ||
                    referencedProject.StartsWith("LiteBus.Inbox", StringComparison.Ordinal) ||
                    referencedProject.StartsWith("LiteBus.Commands", StringComparison.Ordinal) ||
+                   referencedProject.StartsWith("LiteBus.Messaging", StringComparison.Ordinal) ||
+                   referencedProject.StartsWith("LiteBus.Runtime", StringComparison.Ordinal);
+        }
+
+        // The recurring host bridges the command axis to the runtime background-service manifest. It must not reach
+        // for a durable axis: a loop that leased rows itself would duplicate what the inbox and outbox processors do,
+        // with none of their fencing.
+        if (projectName == "LiteBus.Commands.Recurring")
+        {
+            return referencedProject.StartsWith("LiteBus.Commands", StringComparison.Ordinal) ||
+                   referencedProject.StartsWith("LiteBus.Messaging", StringComparison.Ordinal) ||
+                   referencedProject.StartsWith("LiteBus.Runtime", StringComparison.Ordinal);
+        }
+
+        // The PostgreSQL recurring lease bridges the recurring loop to PostgreSQL session locks through the shared
+        // storage helpers. It must not reach a durable axis: the lease fences a pass, not a stored message.
+        if (projectName == "LiteBus.Commands.Recurring.Storage.PostgreSql")
+        {
+            return referencedProject.StartsWith("LiteBus.Commands", StringComparison.Ordinal) ||
+                   referencedProject.StartsWith("LiteBus.Runtime", StringComparison.Ordinal) ||
+                   referencedProject == "LiteBus.Storage.PostgreSql";
+        }
+
+        // The PostgreSQL idempotency store bridges the command axis to the shared PostgreSQL storage helpers. It stores
+        // applied command keys, so it has no business with the durable axes or the recurring loop.
+        if (projectName == "LiteBus.Commands.Storage.PostgreSql")
+        {
+            return referencedProject is "LiteBus.Commands" or "LiteBus.Commands.Abstractions" or "LiteBus.Storage.PostgreSql" ||
+                   referencedProject.StartsWith("LiteBus.Messaging", StringComparison.Ordinal) ||
+                   referencedProject.StartsWith("LiteBus.Runtime", StringComparison.Ordinal);
+        }
+
+        // The Marten command package bridges the command axis to Marten sessions for the unit of work, idempotency store
+        // and audit trail. It must not reference the query axis, the durable axes or the recurring loop.
+        if (projectName == "LiteBus.Commands.Storage.Marten")
+        {
+            return referencedProject is "LiteBus.Commands" or "LiteBus.Commands.Abstractions" ||
                    referencedProject.StartsWith("LiteBus.Messaging", StringComparison.Ordinal) ||
                    referencedProject.StartsWith("LiteBus.Runtime", StringComparison.Ordinal);
         }
@@ -380,6 +474,7 @@ public sealed class ArchitectureDependencyPolicyTests
             "AWSSDK.SQS" => "AwsSqs",
             "Azure.Messaging.ServiceBus" => "AzureServiceBus",
             "Confluent.Kafka" => "Kafka",
+            "Marten" => "PostgreSql",
             "Npgsql" => "PostgreSql",
             "RabbitMQ.Client" => "Amqp",
             _ => null
@@ -446,7 +541,11 @@ public sealed class ArchitectureDependencyPolicyTests
             projectName.StartsWith("LiteBus.Outbox.Dispatch", StringComparison.Ordinal) ||
             projectName.StartsWith("LiteBus.Outbox.Storage", StringComparison.Ordinal) ||
             projectName.StartsWith("LiteBus.Saga.Storage", StringComparison.Ordinal) ||
-            projectName == "LiteBus.Saga.InboxIntegration")
+            projectName == "LiteBus.Saga.InboxIntegration" ||
+            projectName == "LiteBus.Commands.Recurring" ||
+            projectName == "LiteBus.Commands.Recurring.Storage.PostgreSql" ||
+            projectName == "LiteBus.Commands.Storage.PostgreSql" ||
+            projectName == "LiteBus.Commands.Storage.Marten")
         {
             role = ProjectRole.FeatureBridge;
             return true;

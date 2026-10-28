@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Npgsql"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="Sql/**/*.sql"/>
+        <None Include="Sql/**/*.sql" Pack="true" PackagePath="sql/%(RecursiveDir)%(Filename)%(Extension)"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Commands\LiteBus.Commands.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Storage.PostgreSql\LiteBus.Storage.PostgreSql.csproj"/>
+    </ItemGroup>
+
+</Project>

@@ -57,6 +57,10 @@ public sealed class SagaModuleBuilder
     /// <param name="contractName">The durable message contract name.</param>
     /// <param name="sagaDefinitionId">The saga definition identifier that owns state for the contract.</param>
     /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     Module build fails when <paramref name="sagaDefinitionId" /> has no registered state type, so a misspelled
+    ///     definition identifier cannot leave the saga silently inactive.
+    /// </remarks>
     public SagaModuleBuilder MapContract(string contractName, string sagaDefinitionId)
     {
         _registry.MapContract(contractName, sagaDefinitionId);
@@ -93,19 +97,30 @@ public sealed class SagaModuleBuilder
     /// </summary>
     /// <param name="storageModule">The saga storage module.</param>
     /// <returns>The current builder.</returns>
-    /// <exception cref="LiteBusConfigurationException">Thrown when storage was already selected.</exception>
+    /// <exception cref="DurableStorageConfigurationException">Thrown when storage was already selected.</exception>
     public SagaModuleBuilder RegisterStorage(ISagaStorageModule storageModule)
     {
         ArgumentNullException.ThrowIfNull(storageModule);
 
         if (_storageModule is not null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Saga storage is already configured. Select exactly one saga storage implementation.");
         }
 
         _storageModule = storageModule;
         return this;
+    }
+
+    /// <summary>
+    ///     Throws when a mapped contract names a saga definition with no registered state type.
+    /// </summary>
+    /// <exception cref="DurableStorageConfigurationException">
+    ///     A contract mapping names a saga definition identifier with no registered state type.
+    /// </exception>
+    internal void ValidateContractMappings()
+    {
+        _registry.ValidateContractMappings();
     }
 
     /// <summary>
@@ -121,10 +136,10 @@ public sealed class SagaModuleBuilder
     ///     Collects the explicitly selected saga storage module.
     /// </summary>
     /// <returns>The selected storage module.</returns>
-    /// <exception cref="LiteBusConfigurationException">Thrown when no saga storage was selected.</exception>
+    /// <exception cref="DurableStorageConfigurationException">Thrown when no saga storage was selected.</exception>
     internal ISagaStorageModule CollectStorageModule()
     {
-        return _storageModule ?? throw new LiteBusConfigurationException(
+        return _storageModule ?? throw new DurableStorageConfigurationException(
             "Saga storage is required. Call UseInMemoryStorage or a storage adapter method such as UsePostgreSqlStorage inside EnableSaga(...).");
     }
 }

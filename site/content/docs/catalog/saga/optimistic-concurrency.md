@@ -9,7 +9,7 @@
 
 Every saga instance carries an optimistic lock version observed on load. `ISagaStore.SaveAsync` and `CompleteAsync` require `ExpectedVersion` on `SagaSaveItem` and `SagaCompleteItem`. Mismatch throws `SagaConcurrencyException` with the failing `SagaCorrelation`.
 
-After successful handler dispatch, `SagaProcessorHook` saves dirty state once with the version observed before dispatch. A conflict propagates immediately because the hook cannot infer how to merge an arbitrary handler-owned state snapshot with a concurrent update. Replacing the newer row with the stale snapshot would report success while losing state.
+After successful handler dispatch, `SagaProcessorHook` saves dirty state once with the version observed before dispatch. Dirty covers both `SetState` replacement and in-place mutation detected against the JSON snapshot taken at load. A conflict propagates immediately because the hook cannot infer how to merge an arbitrary handler-owned state snapshot with a concurrent update. Replacing the newer row with the stale snapshot would report success while losing state.
 
 Completion-only conflicts are different because completion is idempotent. The hook reloads the current version and retries completion up to three attempts. If another worker already completed the saga, the hook treats the requested completion as satisfied.
 
@@ -41,6 +41,7 @@ Raising inbox `DispatcherConcurrency` above one increases concurrent updates to 
 - Handler failure before `AfterDispatchAsync` does not increment stored version for that attempt.
 - Insert uses expected version 0 on first save from hook after new saga scope.
 - Missing rows reject nonzero expected versions, and completed rows reject save or repeated completion.
+- `Complete()` on a never-saved saga saves the initial snapshot before completing, so the row is created already completed instead of reporting a concurrency conflict.
 - In-memory completion uses an atomic compare-and-update operation.
 - Dirty-state conflicts propagate after one failed save attempt.
 - Completion-only conflicts reload and retry up to three attempts, or succeed when the row is already completed.

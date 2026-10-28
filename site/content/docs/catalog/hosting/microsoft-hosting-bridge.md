@@ -20,9 +20,9 @@ It deduplicates implementation types while preserving first-seen order.
 
 ### Registration
 
-- `IServiceCollection RegisterDiagnosticChecks(IReadOnlyList<DiagnosticCheckDescriptor>)`
-- `IServiceCollection RegisterBackgroundServices(IReadOnlyList<Type> startupTasks, IReadOnlyList<Type> backgroundServices)`
-- `IHostedService GetHostedServiceForBackgroundService<TBackgroundService>()` (manual adapter lookup for tests)
+- `void RegisterDiagnosticChecks(this IServiceCollection services, IReadOnlyList<DiagnosticCheckDescriptor> diagnosticChecks)`
+- `void RegisterBackgroundServices(this IServiceCollection services, IReadOnlyList<Type> startupTasks, IReadOnlyList<Type> backgroundServices)`
+- `IHostedService GetHostedServiceForBackgroundService<TBackgroundService>(this IServiceProvider serviceProvider)` (manual adapter lookup for tests)
 
 ### Extension Points
 

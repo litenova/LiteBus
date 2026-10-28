@@ -16,9 +16,10 @@ public static class ServiceProviderExtensions
     /// <param name="serviceProvider">The service provider instance.</param>
     /// <returns>The required service of type <typeparamref name="T" />.</returns>
     /// <exception cref="LiteBusDependencyResolutionException">Thrown if the service is not registered.</exception>
+    [Obsolete("Use LiteBus.Runtime.Abstractions.Extensions.ServiceProviderExtensions.", error: false)]
     public static T GetRequiredService<T>(this IServiceProvider serviceProvider)
     {
-        return (T) serviceProvider.GetRequiredService(typeof(T));
+        return LiteBus.Runtime.Abstractions.Extensions.ServiceProviderExtensions.GetRequiredService<T>(serviceProvider);
     }
 
     /// <summary>
@@ -30,15 +31,9 @@ public static class ServiceProviderExtensions
     /// <param name="serviceType">The type of the service to retrieve.</param>
     /// <returns>The required service of the specified <paramref name="serviceType" />.</returns>
     /// <exception cref="LiteBusDependencyResolutionException">Thrown if the service is not registered.</exception>
+    [Obsolete("Use LiteBus.Runtime.Abstractions.Extensions.ServiceProviderExtensions.", error: false)]
     public static object GetRequiredService(this IServiceProvider serviceProvider, Type serviceType)
     {
-        var service = serviceProvider.GetService(serviceType);
-
-        if (service == null)
-        {
-            throw new LiteBusDependencyResolutionException(serviceType);
-        }
-
-        return service;
+        return LiteBus.Runtime.Abstractions.Extensions.ServiceProviderExtensions.GetRequiredService(serviceProvider, serviceType);
     }
 }

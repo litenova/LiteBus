@@ -26,14 +26,15 @@ Publishers record documented broker SDK exceptions. Caller cancellation and unex
 | `ITransportCircuitBreaker` | `AcquirePermit()` | Admit a normal operation or the single half-open probe |
 | `ITransportCircuitBreaker` | `RecordFailure(permit)` | Record a failure for the generation that admitted the operation |
 | `ITransportCircuitBreaker` | `RecordSuccess(permit)` | Record success without allowing stale completion to reset newer state |
+| `ITransportCircuitBreaker` | `ReleasePermit(permit)` | Release a permit without changing broker resilience state |
 | `TransportCircuitBreakerPermit` | opaque value | Carries admission generation and recovery-probe identity |
 | `ITransportCircuitBreakerRegistry` | `GetPublisherCircuit(destination)` | Stable publisher breaker scoped by destination |
 | `ITransportCircuitBreakerRegistry` | `IsAnyOpen`, `FailureCount` | Aggregate publisher state for metrics |
 | `TransportCircuitBreaker` | implementation | Default breaker |
 | `TransportCircuitBreakerRegistry` | implementation | Concurrent publisher-scope registry |
-| `TransportCircuitBreakerOptions` | `FailureThreshold`, `BreakDuration` | Breaker tuning |
+| `TransportCircuitBreakerOptions` | `FailureThreshold`, `BreakDuration` | Breaker tuning (defaults 5 failures and 30 seconds) |
 | `TransportCircuitBreakerOpenException` | exception type | Open-circuit failure |
-| `AmqpCircuitBreakerOptions` | AMQP option | AMQP-specific breaker options holder |
+| `AmqpCircuitBreakerOptions` | AMQP option | AMQP-specific breaker options holder (same 5-failure and 30-second defaults) |
 
 ## Packages
 
@@ -102,9 +103,9 @@ Broker tag values set by module registration:
 
 | Test method | Project |
 | --- | --- |
-| `RecordFailure_until_threshold_ShouldOpenCircuitAndExposeFailureCount` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
-| `RecordSuccess_after_failures_ShouldCloseCircuit` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
 | `AcquirePermit_AfterBreakDuration_ShouldAdmitOneHalfOpenProbe` | `LiteBus.Transport.UnitTests` |
+| `ReleasePermit_DuringHalfOpenProbe_ShouldAllowAnotherProbe` | `LiteBus.Transport.UnitTests` |
+| `PublishAsync_WithOpenCircuit_ShouldRethrowCircuitException` | `LiteBus.Transport.UnitTests` (`InMemory/`) |
 | `RecordFailure_DuringHalfOpenProbe_ShouldReopenCircuit` | `LiteBus.Transport.UnitTests` |
 | `RecordFailure_WhileOpen_ShouldNotExtendBreakDuration` | `LiteBus.Transport.UnitTests` |
 | `RecordSuccess_FromPreviousGeneration_ShouldNotCloseCircuit` | `LiteBus.Transport.UnitTests` |

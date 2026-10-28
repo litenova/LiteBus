@@ -25,12 +25,80 @@ public static class EfCoreRelationalTableQualifier
 
         return provider switch
         {
-            EfCoreStorageProvider.PostgreSql => $"\"{schemaName}\".\"{tableName}\"",
-            EfCoreStorageProvider.SqlServer  => $"[{schemaName}].[{tableName}]",
-            EfCoreStorageProvider.MySql      => $"`{tableName}`",
-            EfCoreStorageProvider.InMemory   => $"\"{schemaName}\".\"{tableName}\"",
-            EfCoreStorageProvider.Sqlite     => $"\"{tableName}\"",
-            _                                => throw new EfCoreStorageNotSupportedException($"Table qualification is not supported for provider '{provider}'.")
+            EfCoreStorageProvider.PostgreSql => $"{QuotePostgreSql(schemaName)}.{QuotePostgreSql(tableName)}",
+            EfCoreStorageProvider.SqlServer => $"{QuoteSqlServer(schemaName)}.{QuoteSqlServer(tableName)}",
+            EfCoreStorageProvider.MySql => QuoteMySql(tableName),
+            EfCoreStorageProvider.InMemory => $"{QuotePostgreSql(schemaName)}.{QuotePostgreSql(tableName)}",
+            EfCoreStorageProvider.Sqlite => QuoteSqlite(tableName),
+            _ => throw new EfCoreStorageNotSupportedException($"Table qualification is not supported for provider '{provider}'.")
         };
+    }
+
+    /// <summary>
+    ///     Quotes one PostgreSQL identifier and escapes embedded quote characters.
+    /// </summary>
+    /// <param name="identifier">The unquoted identifier.</param>
+    /// <returns>The quoted identifier.</returns>
+    private static string QuotePostgreSql(string identifier)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        if (identifier.Contains('\0'))
+        {
+            throw new ArgumentException("PostgreSQL identifiers cannot contain null characters.", nameof(identifier));
+        }
+
+        return $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
+    }
+
+    /// <summary>
+    ///     Quotes one SQL Server identifier and escapes embedded closing brackets.
+    /// </summary>
+    /// <param name="identifier">The unquoted identifier.</param>
+    /// <returns>The quoted identifier.</returns>
+    private static string QuoteSqlServer(string identifier)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        if (identifier.Contains('\0'))
+        {
+            throw new ArgumentException("SQL Server identifiers cannot contain null characters.", nameof(identifier));
+        }
+
+        return $"[{identifier.Replace("]", "]]", StringComparison.Ordinal)}]";
+    }
+
+    /// <summary>
+    ///     Quotes one MySQL identifier and escapes embedded backticks.
+    /// </summary>
+    /// <param name="identifier">The unquoted identifier.</param>
+    /// <returns>The quoted identifier.</returns>
+    private static string QuoteMySql(string identifier)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        if (identifier.Contains('\0'))
+        {
+            throw new ArgumentException("MySQL identifiers cannot contain null characters.", nameof(identifier));
+        }
+
+        return $"`{identifier.Replace("`", "``", StringComparison.Ordinal)}`";
+    }
+
+    /// <summary>
+    ///     Quotes one SQLite identifier and escapes embedded quote characters.
+    /// </summary>
+    /// <param name="identifier">The unquoted identifier.</param>
+    /// <returns>The quoted identifier.</returns>
+    private static string QuoteSqlite(string identifier)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        if (identifier.Contains('\0'))
+        {
+            throw new ArgumentException("SQLite identifiers cannot contain null characters.", nameof(identifier));
+        }
+
+        return $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
     }
 }

@@ -6,7 +6,7 @@ using LiteBus.Inbox.Storage.InMemory;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Saga;
 using LiteBus.Saga.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,7 +39,7 @@ public sealed class SagaProcessorHookTests
         registry.RegisterStateType<OrderSagaState>("process-order");
 
         registry.ResolveDefinitionId("process-order").Should().Be("process-order");
-        registry.ResolveStateType("process-order").Should().Be(typeof(OrderSagaState));
+        registry.ResolveStateType("process-order").Should().Be<OrderSagaState>();
     }
 
     /// <summary>
@@ -562,6 +562,150 @@ public sealed class SagaProcessorHookTests
     }
 
     /// <summary>
+    ///     Verifies a new correlated message on a completed saga dispatches with an inactive scope and no saga mutation.
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingAsync_NewCorrelatedMessageAfterCompletion_ShouldDispatchWithInactiveScope()
+    {
+        var store = new InMemoryInboxStore();
+        var serializer = new SystemTextJsonMessageSerializer();
+        var sagaStore = new InMemorySagaStore(serializer);
+        var registry = new SagaStateTypeRegistry();
+        registry.RegisterStateType<OrderSagaState>("process-order");
+        var contractRegistry = new MessageContractRegistry();
+        contractRegistry.Register<ProcessOrderCommand>("process-order");
+        var correlation = new SagaCorrelation
+        {
+            CorrelationId = "order-42",
+            SagaDefinitionId = "process-order"
+        };
+
+        await sagaStore.SaveAsync(SagaSaveItem<OrderSagaState>.From(
+            correlation,
+            new OrderSagaState { Step = 3 },
+            0)).ConfigureAwait(false);
+        await sagaStore.CompleteAsync(SagaCompleteItem.From(correlation, 1)).ConfigureAwait(false);
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IInboxStore>(store);
+        services.AddSingleton<IInboxProcessingStore>(store);
+        services.AddSingleton<IInboxLeaseStore>(store);
+        services.AddSingleton<IInboxStateWriter>(store);
+        services.AddSingleton<ISagaStore>(sagaStore);
+        services.AddSingleton<ISagaStateTypeRegistry>(registry);
+        services.AddSingleton(new SagaExecutionContext());
+        services.AddSingleton<ISagaContext>(sp => sp.GetRequiredService<SagaExecutionContext>());
+        services.AddSingleton<IProcessorEnvelopeHook, SagaProcessorHook>();
+        services.AddSingleton<IContractReader>(contractRegistry);
+        services.AddSingleton<IMessageSerializer>(serializer);
+        services.AddSingleton<TimeProvider>(TimeProvider.System);
+        services.AddSingleton<IInboxDispatcher, InactiveScopeRecordingDispatcher>();
+        var options = new InboxProcessorOptions { BatchSize = 10, DispatcherConcurrency = 1 };
+        services.AddSingleton(options);
+
+        services.AddSingleton<IInboxProcessor>(sp => new PipelinedInboxProcessor(
+            sp.GetRequiredService<IInboxLeaseStore>(),
+            sp.GetRequiredService<IInboxStateWriter>(),
+            sp.GetRequiredService<IInboxDispatcher>(),
+            options,
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetServices<IProcessorEnvelopeHook>().ToArray()));
+
+        var provider = services.BuildServiceProvider();
+
+        var inbox = new Inbox.Inbox(
+            store,
+            new InboxEnvelopeFactory(
+                provider.GetRequiredService<IContractReader>(),
+                provider.GetRequiredService<IMessageSerializer>(),
+                TimeProvider.System));
+
+        await inbox.AcceptAsync(InboxAcceptItem<ProcessOrderCommand>.From(
+            new ProcessOrderCommand(),
+            InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated("order-42") })).ConfigureAwait(false);
+
+        await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync().ConfigureAwait(false);
+
+        var dispatcher = (InactiveScopeRecordingDispatcher) provider.GetRequiredService<IInboxDispatcher>();
+        dispatcher.DispatchCount.Should().Be(1);
+        dispatcher.ObservedActiveDispatch.Should().BeFalse();
+        store.GetAll(InboxStatus.Completed).Should().HaveCount(1);
+
+        var completed = await sagaStore.LoadAsync<OrderSagaState>(correlation).ConfigureAwait(false);
+        completed.Should().NotBeNull();
+        completed!.IsCompleted.Should().BeTrue();
+        completed.Version.Should().Be(2);
+        completed.State.Step.Should().Be(3);
+    }
+
+    /// <summary>
+    ///     Verifies Complete as the first saga interaction creates the saga row already completed.
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingAsync_CompleteAsFirstInteraction_ShouldCreateCompletedRow()
+    {
+        var store = new InMemoryInboxStore();
+        var serializer = new SystemTextJsonMessageSerializer();
+        var sagaStore = new InMemorySagaStore(serializer);
+        var registry = new SagaStateTypeRegistry();
+        registry.RegisterStateType<OrderSagaState>("process-order");
+        var contractRegistry = new MessageContractRegistry();
+        contractRegistry.Register<ProcessOrderCommand>("process-order");
+        var correlation = new SagaCorrelation
+        {
+            CorrelationId = "order-42",
+            SagaDefinitionId = "process-order"
+        };
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IInboxStore>(store);
+        services.AddSingleton<IInboxProcessingStore>(store);
+        services.AddSingleton<IInboxLeaseStore>(store);
+        services.AddSingleton<IInboxStateWriter>(store);
+        services.AddSingleton<ISagaStore>(sagaStore);
+        services.AddSingleton<ISagaStateTypeRegistry>(registry);
+        services.AddSingleton(new SagaExecutionContext());
+        services.AddSingleton<ISagaContext>(sp => sp.GetRequiredService<SagaExecutionContext>());
+        services.AddSingleton<IProcessorEnvelopeHook, SagaProcessorHook>();
+        services.AddSingleton<IContractReader>(contractRegistry);
+        services.AddSingleton<IMessageSerializer>(serializer);
+        services.AddSingleton<TimeProvider>(TimeProvider.System);
+        services.AddSingleton<IInboxDispatcher, ConcurrentSagaCompletingDispatcher>();
+        var options = new InboxProcessorOptions { BatchSize = 10, DispatcherConcurrency = 1 };
+        services.AddSingleton(options);
+
+        services.AddSingleton<IInboxProcessor>(sp => new PipelinedInboxProcessor(
+            sp.GetRequiredService<IInboxLeaseStore>(),
+            sp.GetRequiredService<IInboxStateWriter>(),
+            sp.GetRequiredService<IInboxDispatcher>(),
+            options,
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetServices<IProcessorEnvelopeHook>().ToArray()));
+
+        var provider = services.BuildServiceProvider();
+
+        var inbox = new Inbox.Inbox(
+            store,
+            new InboxEnvelopeFactory(
+                provider.GetRequiredService<IContractReader>(),
+                provider.GetRequiredService<IMessageSerializer>(),
+                TimeProvider.System));
+
+        await inbox.AcceptAsync(InboxAcceptItem<ProcessOrderCommand>.From(
+            new ProcessOrderCommand(),
+            InboxAcceptMetadata.Immediate with { Trace = new MessageTrace.Correlated("order-42") })).ConfigureAwait(false);
+
+        await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync().ConfigureAwait(false);
+
+        store.GetAll(InboxStatus.Completed).Should().HaveCount(1);
+
+        var completed = await sagaStore.LoadAsync<OrderSagaState>(correlation).ConfigureAwait(false);
+        completed.Should().NotBeNull();
+        completed!.IsCompleted.Should().BeTrue();
+        completed.Version.Should().Be(2);
+    }
+
+    /// <summary>
     ///     Minimal processor envelope for hook tests.
     /// </summary>
     private sealed class TestProcessorEnvelope : IProcessorEnvelope
@@ -663,6 +807,59 @@ public sealed class SagaProcessorHookTests
                 _sagaContext.Complete();
             }
             await Task.CompletedTask.ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Test dispatcher that records saga scope activity without mutating state.
+    /// </summary>
+    private sealed class InactiveScopeRecordingDispatcher : IInboxDispatcher
+    {
+        /// <summary>
+        ///     Gets the ambient saga context.
+        /// </summary>
+        private readonly ISagaContext _sagaContext;
+
+        /// <summary>
+        ///     The number of dispatched envelopes.
+        /// </summary>
+        private int _dispatchCount;
+
+        /// <summary>
+        ///     Whether any dispatch observed an active saga scope.
+        /// </summary>
+        private int _observedActiveDispatch;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="InactiveScopeRecordingDispatcher" /> class.
+        /// </summary>
+        /// <param name="sagaContext">The ambient saga context.</param>
+        public InactiveScopeRecordingDispatcher(ISagaContext sagaContext)
+        {
+            _sagaContext = sagaContext;
+        }
+
+        /// <summary>
+        ///     Gets the number of dispatched envelopes.
+        /// </summary>
+        public int DispatchCount => _dispatchCount;
+
+        /// <summary>
+        ///     Gets a value indicating whether any dispatch observed an active saga scope.
+        /// </summary>
+        public bool ObservedActiveDispatch => Volatile.Read(ref _observedActiveDispatch) == 1;
+
+        /// <inheritdoc />
+        public Task DispatchAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref _dispatchCount);
+
+            if (_sagaContext.IsActive)
+            {
+                Interlocked.Exchange(ref _observedActiveDispatch, 1);
+            }
+
+            return Task.CompletedTask;
         }
     }
 

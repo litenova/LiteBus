@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
-using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.MediationStrategies;
+using LiteBus.Messaging.Pipeline;
 
 namespace LiteBus.Events.MediationStrategies;
 
@@ -53,6 +56,14 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     ///     Thrown if <see cref="EventMediationSettings.ThrowIfNoHandlerFound" /> is
     ///     <see langword="true" /> and no main handlers are found for the message.
     /// </exception>
+    /// <remarks>
+    ///     A fault the recoverable filter excludes, such as a missing handler when
+    ///     <see cref="EventMediationSettings.ThrowIfNoHandlerFound" /> is <see langword="true" />, bypasses the error
+    ///     handlers but is still recorded before completion runs, so completion never observes
+    ///     <see cref="MediationOutcome.Succeeded" /> for a broadcast that threw. When error handlers recover, the
+    ///     outcome stays <see cref="MediationOutcome.Failed" /> but no exception is recorded, which is what
+    ///     distinguishes a recovered fault from one that propagated.
+    /// </remarks>
     public async Task Mediate(TMessage message, IMessageDependencies messageDependencies, IExecutionContext executionContext)
     {
         ArgumentNullException.ThrowIfNull(message);
@@ -60,10 +71,39 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         ArgumentNullException.ThrowIfNull(executionContext);
 
         var executionTaskOfAllHandlers = Task.CompletedTask;
+        var startedAt = Stopwatch.GetTimestamp();
+        using var activity = MediationTelemetry.StartMediation(message.GetType());
+        var outcome = MediationOutcome.Succeeded;
+        Exception? failure = null;
+        string? reason = null;
+        string? code = null;
 
         try
         {
-            await messageDependencies.RunAsyncPreHandlers(message, executionContext.CancellationToken).ConfigureAwait(false);
+            var decision = await messageDependencies
+                .RunAsyncPreStages(message, executionContext.CancellationToken)
+                .ConfigureAwait(false);
+
+            if (decision.StopsPipeline)
+            {
+                outcome = decision.Outcome;
+                reason = decision.Reason;
+                code = decision.Code;
+
+                // Only a Try call installs a capture, so this is a dictionary miss on every ordinary publish.
+                MediationEndingCapture.Record(executionContext, decision);
+
+                if (decision.IsRefusal)
+                {
+                    // An event produces no result, so a refusal has nothing a mapper could return and always reaches
+                    // the publisher as an exception.
+                    var refusal = decision.CreateRefusalException(message.GetType());
+                    failure = refusal;
+                    throw refusal;
+                }
+
+                return;
+            }
 
             var allMainHandlers = messageDependencies.MainHandlers
                 .Concat(messageDependencies.IndirectMainHandlers)
@@ -75,7 +115,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
             {
                 if (_settings.ThrowIfNoHandlerFound)
                 {
-                    throw new NoHandlerFoundException(typeof(TMessage));
+                    // The runtime type names the failing message; TMessage may be erased to IEvent by the non-generic
+                    // PublishAsync overload.
+                    throw new NoHandlerFoundException(message.GetType());
                 }
 
                 return;
@@ -86,16 +128,84 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
             await messageDependencies.RunAsyncPostHandlers(
                 message,
-                executionTaskOfAllHandlers,
+                null,
                 executionContext.CancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException canceledException)
+        {
+            outcome = MediationOutcome.Canceled;
+            failure = canceledException;
+            throw;
         }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            await messageDependencies.RunAsyncErrorHandlers(
-                message,
-                executionTaskOfAllHandlers,
-                ExceptionDispatchInfo.Capture(e),
-                executionContext.CancellationToken).ConfigureAwait(false);
+            if (MediationExceptionFilters.TryClassifyRefusal(
+                    messageDependencies.FaultRefusalClassifiers,
+                    e,
+                    out var refusal))
+            {
+                outcome = refusal.Outcome;
+                reason = refusal.Reason;
+                code = refusal.Code;
+
+                // Only a Try call installs a capture, so this is a dictionary miss on every ordinary publish.
+                MediationEndingCapture.Record(executionContext, refusal);
+
+                // An event produces no result, so a classified fault has nothing a mapper could return and always
+                // reaches the publisher as the refusal exception. It is excluded from the recoverable filter, so
+                // error handlers do not see a refusal as a fault.
+                var refusalException = refusal.CreateException(message.GetType(), e);
+                failure = refusalException;
+                throw refusalException;
+            }
+
+            outcome = MediationOutcome.Failed;
+            failure = e;
+
+            await messageDependencies
+                .RunAsyncErrorHandlers(message, null, e, executionContext)
+                .ConfigureAwait(false);
+
+            // Reaching here means an error handler recovered: the stage rethrows otherwise. The outcome stays Failed
+            // so the audit trail still records that a fault occurred, but no exception is recorded, which is what
+            // distinguishes a recovered fault from one that propagated and what lets a completion-handler fault
+            // propagate instead of being suppressed into an exception nobody receives.
+            failure = null;
+        }
+#pragma warning disable CA1031 // A non-recoverable fault must still be recorded before completion handlers run.
+        catch (Exception e)
+#pragma warning restore CA1031
+        {
+            // A missing handler, an idempotency misconfiguration, and an application-thrown refusal bypass the
+            // error stage, but completion must not observe Succeeded for a broadcast that threw. An ending already
+            // recorded, such as a refusal the pre stages decided, keeps what it recorded: only a broadcast with no
+            // recorded failure is marked Failed here.
+            if (failure is null)
+            {
+                outcome = MediationOutcome.Failed;
+                failure = e;
+            }
+
+            throw;
+        }
+        finally
+        {
+            // An event produces no result. The task that tracks its handlers is not one, so completion handlers
+            // see none rather than seeing a Task where a message result belongs.
+            var elapsed = Stopwatch.GetElapsedTime(startedAt);
+            MediationTelemetry.RecordMediation(activity, message.GetType(), outcome, code, elapsed);
+
+            await messageDependencies
+                .RunAsyncCompletionHandlers(
+                    message,
+                    executionContext,
+                    outcome,
+                    failure,
+                    reason,
+                    code,
+                    messageResult: null,
+                    elapsed)
+                .ConfigureAwait(false);
         }
     }
 
@@ -150,24 +260,85 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         {
             var handlerTasks = orderedHandlers.Select(lazyHandler => ExecuteSingleHandler(message, lazyHandler, executionContext)).ToArray();
             await AwaitParallelTasksAsync(handlerTasks).ConfigureAwait(false);
+            return;
         }
-        else
+
+        await ExecuteHandlersSequentiallyAsync(message, orderedHandlers, executionContext).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Runs handlers one after another, applying <see cref="EventExecutionSettings.FaultMode" /> to their failures.
+    /// </summary>
+    /// <param name="message">The message being broadcast to handlers.</param>
+    /// <param name="orderedHandlers">The handlers in the order they must run.</param>
+    /// <param name="executionContext">The execution context propagated to each handler invocation.</param>
+    /// <returns>A task that completes when the group has finished or faults according to the fault mode.</returns>
+    /// <remarks>
+    ///     Under <see cref="HandlerFaultMode.ContinueAndAggregate" /> a handler that throws does not stop the handlers
+    ///     behind it, which is what lets independent subscribers stay isolated without moving the group to parallel
+    ///     execution. Cancellation is not a handler fault and stops the group immediately either way, because a
+    ///     cancelled host is not asking for the rest of the broadcast.
+    /// </remarks>
+    private async Task ExecuteHandlersSequentiallyAsync(TMessage message,
+                                                        IReadOnlyList<LazyHandler<IMessageHandler, IMainHandlerDescriptor>> orderedHandlers,
+                                                        IExecutionContext executionContext)
+    {
+        if (_settings.Execution.FaultMode != HandlerFaultMode.ContinueAndAggregate)
         {
             foreach (var lazyHandler in orderedHandlers)
             {
                 await ExecuteSingleHandler(message, lazyHandler, executionContext).ConfigureAwait(false);
             }
+
+            return;
         }
+
+        List<Exception>? exceptions = null;
+
+        foreach (var lazyHandler in orderedHandlers)
+        {
+            try
+            {
+                await ExecuteSingleHandler(message, lazyHandler, executionContext).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+#pragma warning disable CA1031 // Do not catch general exception types
+            catch (Exception exception)
+            {
+                // ContinueAndAggregate keeps the remaining handlers running and collects every failure instead.
+                exceptions ??= [];
+                exceptions.Add(exception);
+            }
+#pragma warning restore CA1031
+        }
+
+        if (exceptions is null)
+        {
+            return;
+        }
+
+        throw exceptions.Count == 1
+            ? exceptions[0]
+            : new AggregateException(exceptions);
     }
 
     /// <summary>
-    ///     Awaits parallel handler tasks using the configured <see cref="EventExecutionSettings.ParallelFaultMode" />.
+    ///     Awaits parallel handler tasks using the configured <see cref="EventExecutionSettings.FaultMode" />.
     /// </summary>
     /// <param name="tasks">The handler tasks executing concurrently.</param>
     /// <returns>A task that completes when every handler task has finished or faults according to fault mode.</returns>
+    /// <remarks>
+    ///     Cancellation is not a handler fault. When every collected failure is an
+    ///     <see cref="OperationCanceledException" />, one of them is rethrown so the mediation reports
+    ///     <see cref="MediationOutcome.Canceled" /> instead of aggregating a cancellation into a failure, matching the
+    ///     sequential path. Mixed cancellation and faults still aggregate.
+    /// </remarks>
     private async Task AwaitParallelTasksAsync(IReadOnlyList<Task> tasks)
     {
-        if (_settings.Execution.ParallelFaultMode == ParallelFaultMode.AggregateAll)
+        if (_settings.Execution.FaultMode == HandlerFaultMode.ContinueAndAggregate)
         {
             var exceptions = new List<Exception>();
 
@@ -180,7 +351,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 #pragma warning disable CA1031 // Do not catch general exception types
                 catch (Exception exception)
                 {
-                    // AggregateAll fault mode collects every handler failure before surfacing a combined exception.
+                    // ContinueAndAggregate collects every handler failure before surfacing a combined exception.
                     exceptions.Add(exception);
                 }
 #pragma warning restore CA1031
@@ -188,6 +359,11 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
             if (exceptions.Count > 0)
             {
+                if (exceptions.TrueForAll(static exception => exception is OperationCanceledException))
+                {
+                    throw exceptions[0];
+                }
+
                 throw exceptions.Count == 1
                     ? exceptions[0]
                     : new AggregateException(exceptions);
@@ -211,8 +387,9 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     ///     message. The non-generic <c>IEventMediator.PublishAsync(IEvent, ...)</c> overload erases the event type to
     ///     <see cref="IEvent" />, and a base-typed variable erases it the same way through the generic overload. Handler
     ///     contracts are contravariant, so a handler registered for the concrete runtime type does not satisfy a type test
-    ///     against the erased type. Such handlers are invoked through the non-generic entry point, which dispatches to the
-    ///     closed contract the handler actually implements.
+    ///     against the erased type. A handler whose descriptor names a type other than <typeparamref name="TMessage" /> is
+    ///     therefore invoked through the closed contract recorded on its descriptor, which is also what keeps one class that
+    ///     implements several closed event handler contracts dispatching to the contract each registration names.
     /// </remarks>
     private static async Task ExecuteSingleHandler(TMessage message,
                                                    LazyHandler<IMessageHandler, IMainHandlerDescriptor> lazyHandler,
@@ -222,18 +399,26 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
 
         var handler = lazyHandler.Handler.Value;
 
-        if (handler is IAsyncMessageHandler<TMessage> asyncHandler)
+        if (lazyHandler.Descriptor.MessageType == typeof(TMessage))
         {
-            await asyncHandler.HandleAsync(message, executionContext.CancellationToken).ConfigureAwait(false);
-            return;
+            if (handler is IAsyncMessageHandler<TMessage> asyncHandler)
+            {
+                await asyncHandler.HandleAsync(message, executionContext.CancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            if (handler is IMessageHandler<TMessage, Task> typedHandler)
+            {
+                await typedHandler.Handle(message).ConfigureAwait(false);
+                return;
+            }
         }
 
-        if (handler is IMessageHandler<TMessage, Task> typedHandler)
-        {
-            await typedHandler.Handle(message).ConfigureAwait(false);
-            return;
-        }
-
-        await ((Task) handler.Handle(message)).ConfigureAwait(false);
+        await ((Task) MainHandlerDispatch.Invoke(
+                lazyHandler.Descriptor,
+                handler,
+                message,
+                executionContext.CancellationToken))
+            .ConfigureAwait(false);
     }
 }

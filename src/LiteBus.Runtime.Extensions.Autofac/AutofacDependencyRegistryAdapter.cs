@@ -48,7 +48,7 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     /// </summary>
     /// <param name="descriptor">The dependency descriptor to register.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
-    /// <exception cref="LiteBusConfigurationException">
+    /// <exception cref="ModuleCompositionException">
     ///     Thrown when another module already registered <see cref="DependencyDescriptor.DependencyType" /> with a different
     ///     binding.
     /// </exception>
@@ -62,7 +62,7 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
 
         if (descriptor.IsCollectionRegistration)
         {
-            throw new LiteBusConfigurationException(
+            throw new ModuleCompositionException(
                 $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' was registered with collection metadata. " +
                 $"Use {nameof(RegisterCollection)} for multi-registration services such as IEnumerable<T> hooks.");
         }
@@ -77,7 +77,7 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
 
         if (!descriptor.IsCollectionRegistration)
         {
-            throw new LiteBusConfigurationException(
+            throw new ModuleCompositionException(
                 $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' must be created with " +
                 $"{nameof(DependencyDescriptor.ForCollection)} before calling {nameof(RegisterCollection)}.");
         }
@@ -165,6 +165,9 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
             case InstanceLifetime.Scoped:
                 registration.InstancePerLifetimeScope();
                 break;
+
+            // Unreachable: DependencyDescriptor.ValidateLifetime rejects any undefined lifetime in every
+            // constructor, and Lifetime has no setter.
             default:
                 throw new ArgumentOutOfRangeException(nameof(descriptor), descriptor.Lifetime, "Unknown instance lifetime.");
         }

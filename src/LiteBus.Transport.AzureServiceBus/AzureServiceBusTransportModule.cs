@@ -1,3 +1,4 @@
+using System;
 using Azure.Messaging.ServiceBus;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Transport.Abstractions;
@@ -38,6 +39,9 @@ public sealed class AzureServiceBusTransportModule : IModule
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        // Runs first so a second transport module in the composition is refused with a message naming both modules.
+        TransportMetricsRegistration.RegisterIfNeeded(configuration, "azure_service_bus", GetType());
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(AzureServiceBusTransportOptions),
             _options));
@@ -64,7 +68,8 @@ public sealed class AzureServiceBusTransportModule : IModule
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ITransportPublisher),
-            typeof(AzureServiceBusPublisher)));
+            typeof(AzureServiceBusPublisher),
+            InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageConsumer),
@@ -79,9 +84,8 @@ public sealed class AzureServiceBusTransportModule : IModule
 
                 return new AzureServiceBusConsumer(client, options);
             },
-            InstanceLifetime.Singleton));
+            InstanceLifetime.Transient));
 
-        TransportMetricsRegistration.RegisterIfNeeded(configuration, "azure_service_bus");
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(AzureServiceBusConnectivityDiagnosticCheck),

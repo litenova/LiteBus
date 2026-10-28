@@ -4,6 +4,7 @@
 - **Name**: Polymorphic dispatch
 - **Maturity**: GA
 - **Summary**: Resolves base-type and interface handlers for derived messages and prevents ambiguous descriptor selection.
+- **Guide**: [Polymorphic dispatch](../../concepts/polymorphic-dispatch.md)
 
 ## What It Does
 
@@ -30,7 +31,7 @@ public sealed class BasePolymorphicCommandHandler : ICommandHandler<BasePolymorp
 | API | Role |
 | --- | --- |
 | `ActualTypeOrFirstAssignableTypeMessageResolveStrategy` | Descriptor resolution strategy |
-| `AmbiguousMessageResolveException` | Ambiguous polymorphic match guard |
+| `AmbiguousMessageResolveException` | Ambiguous polymorphic match guard; `Candidates` names the registered types that tied |
 | Indirect handler collections on message descriptors | Base/interface pre, post, error, and main handler linkage |
 
 ## Packages
@@ -49,6 +50,7 @@ public sealed class BasePolymorphicCommandHandler : ICommandHandler<BasePolymorp
 - Exact descriptor match wins before assignable candidates.
 - Ambiguous highest-depth assignable candidates throw instead of choosing arbitrarily.
 - Single-handler mediators still enforce one main handler after polymorphic resolution.
+- Metadata and audit reads follow the same resolution: an unregistered runtime type reads the metadata of the descriptor it mediates through.
 - Generic message resolution normalizes by generic type definition first.
 
 ## Non-Goals

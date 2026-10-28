@@ -1,0 +1,23 @@
+{
+    "title":  "Dispatch",
+    "pages":  [
+                  "README",
+                  "inbox-amqp",
+                  "inbox-aws-sqs",
+                  "inbox-azure-service-bus",
+                  "inbox-in-process",
+                  "inbox-inmemory",
+                  "inbox-kafka",
+                  "outbox-amqp",
+                  "outbox-aws-sqs",
+                  "outbox-azure-service-bus",
+                  "outbox-in-process",
+                  "outbox-inmemory",
+                  "outbox-kafka",
+                  "processor-coupling",
+                  "registration",
+                  "transport-core",
+                  "transport-envelope-mapping"
+              ]
+}
+

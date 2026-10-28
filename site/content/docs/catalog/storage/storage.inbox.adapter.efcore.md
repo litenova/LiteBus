@@ -61,7 +61,7 @@ inbox.UseEntityFrameworkCoreStorage(o =>
 
 | Option surface | Purpose |
 | --- | --- |
-| `EntityFrameworkCoreInboxStoreOptions` | Schema, table, lease duration, conflict mode |
+| `EntityFrameworkCoreInboxStoreOptions` | Schema, table, lease provider override |
 | `UseDbContext<TContext>()` | Selects the application-registered `IDbContextFactory<TContext>` |
 | `EnableSaveChangesInterceptor()` / `EnforceTransactionalSetup()` | Transactional accept path |
 | `GetModelBuilderConfiguration()` | Application-owned EF model (see schema ownership) |
@@ -89,6 +89,11 @@ inbox.UseEntityFrameworkCoreStorage(o =>
 
 - Model configuration must match store expectations (column names, indexes, filtered idempotency index).
 - Auto-commit operations use factory-created contexts; transactional paths use the caller context.
+- A null tenant filter leaves query, purge, and lease unrestricted; an empty tenant filter matches only unscoped rows.
+- Batch inserts that fail after a concurrent commit resolve stored rows as `AlreadyAccepted` and re-insert rolled-back rows; persistent failures surface with the original database error chained.
+- Transactional batch staging rejects strict same-identifier duplicates with changed payloads before anything is staged.
+- Single-add strict checks apply to rows staged on the same context, so a differing staged duplicate throws `IdempotencyConflictException` like the batch and persisted paths.
+- SQLite and in-memory tracked renew, release, and terminal persist compare `lease_generation` through an Entity Framework concurrency token; a lost race reports skipped instead of overwriting the new holder.
 
 ## Non-Goals
 
@@ -102,12 +107,12 @@ inbox.UseEntityFrameworkCoreStorage(o =>
 | --- | --- | --- | --- | --- | --- |
 | `LiteBus.Inbox` | `litebus.inbox.queue.depth` | Observable gauge | OpenTelemetry scrape | `litebus.inbox.status` | EF store diagnostics role |
 | `LiteBus.Inbox` | `litebus.inbox.processor.state` | Observable gauge | Processor loop | State enum | Processor on EF store |
-| `LiteBus.Inbox` | `litebus.inbox.processor.leases_acquired` | Counter | Processor pass |: | EF lease SQL |
-| `LiteBus.Inbox` | `litebus.inbox.processor.dispatch_duration` | Histogram | After dispatch |: | Handler execution |
-| `LiteBus.Inbox` | `litebus.inbox.processor.lease_lost` | Counter | Lease renewal failure |: | Long dispatch |
-| `LiteBus.Inbox` | `litebus.inbox.processor.persist_skipped` | Counter | Skipped terminal persist |: | Lost lease |
-| `LiteBus.Inbox` | `litebus.inbox.processor.persist_rejected` | Counter | Rejected persist |: | Competing workers |
-| `LiteBus.Inbox` | `litebus.inbox.cleanup.errors` | Counter | Retention failure |: | EF retention store |
+| `LiteBus.Inbox` | `litebus.inbox.processor.leases_acquired` | Counter | Processor pass | none | EF lease SQL |
+| `LiteBus.Inbox` | `litebus.inbox.processor.dispatch_duration` | Histogram | After dispatch | none | Handler execution |
+| `LiteBus.Inbox` | `litebus.inbox.processor.lease_lost` | Counter | Lease renewal failure | none | Long dispatch |
+| `LiteBus.Inbox` | `litebus.inbox.processor.persist_skipped` | Counter | Skipped terminal persist | none | Lost lease |
+| `LiteBus.Inbox` | `litebus.inbox.processor.persist_rejected` | Counter | Rejected persist | none | Competing workers |
+| `LiteBus.Inbox` | `litebus.inbox.cleanup.errors` | Counter | Retention failure | none | EF retention store |
 
 Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry`.
 
@@ -127,7 +132,7 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Description**: Build EF inbox storage module
 - **Behavior**: Resolve all inbox store interfaces
 - **Expected outcome**: Same instance for every role
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreInboxStorageModuleTests.AddEfCoreInboxStorage_WithSaveChangesInterceptor_ShouldRegisterTransactionalInbox`
 
@@ -136,7 +141,7 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Description**: Module with interceptor enabled
 - **Behavior**: Resolve `ITransactionalInbox<TContext>`
 - **Expected outcome**: Transactional inbox registered
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreInboxStorageModuleTests.AddEfCoreInboxStorage_WithEnforceTransactionalSetupWithoutInterceptor_ShouldThrowOnBuild`
 
@@ -145,7 +150,7 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Description**: Enforce without interceptor
 - **Behavior**: Module build
 - **Expected outcome**: Configuration exception
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreInboxStoreContractTests` (Inherits `InboxStoreContractTests`)
 
@@ -154,7 +159,7 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Description**: Full contract against EF in-memory provider
 - **Behavior**: Inherited contract tests
 - **Expected outcome**: Parity with shared contract suite
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreInboxStorePostgreSqlContractTests` (Inherits `InboxStoreContractTests`)
 
@@ -163,7 +168,7 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Description**: Migrated PostgreSQL EF store contract tests
 - **Behavior**: Inherited contract tests
 - **Expected outcome**: Parity with shared contract suite
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `EfCoreInboxStoreSqlServerContractTests` (Inherits `InboxStoreContractTests`)
 
@@ -172,7 +177,7 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Description**: Migrated SQL Server EF store contract tests
 - **Behavior**: Inherited contract tests
 - **Expected outcome**: Parity with shared contract suite
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `EfCoreInboxProcessorEndToEndTests.ProcessPendingAsync_ShouldExecuteScheduledCommandThroughEfCoreStore`
 
@@ -181,7 +186,7 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Description**: Accept and process via EF store
 - **Behavior**: Processor pass with handler
 - **Expected outcome**: Command completed in database
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreInboxStoreParityTests.LeasePendingAsync_FiltersByTenantId`
 
@@ -190,7 +195,7 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Description**: Multi-tenant pending rows
 - **Behavior**: Lease with tenant id
 - **Expected outcome**: Only matching tenant leased
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InboxEntityFrameworkCoreModelTests.GetModelBuilderConfiguration_ShouldMapVersion1Columns`
 
@@ -199,7 +204,7 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Description**: Model extension configuration
 - **Behavior**: Inspect EF model
 - **Expected outcome**: v1 column layout mapped
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InboxEntityFrameworkCoreModelTests.GetModelBuilderConfiguration_ShouldMapTenantScopedIdempotencyIndex`
 
@@ -208,7 +213,7 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Description**: Index configuration from model extension
 - **Behavior**: Inspect indexes
 - **Expected outcome**: Filtered unique idempotency index present
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InboxEntityFrameworkCoreModelTests.GetModelBuilderConfiguration_ShouldMapCustomSchemaAndTable`
 
@@ -217,7 +222,7 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Description**: Custom names in model extension
 - **Behavior**: Inspect table mapping
 - **Expected outcome**: Custom qualified table name
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `EfCoreInboxSaveChangesInterceptorRollbackTests.SaveChangesAsync_ShouldNotPersistInboxMessage_WhenTransactionRollsBack`
 
@@ -226,7 +231,7 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Description**: Accept via interceptor then rollback
 - **Behavior**: Rolled-back EF transaction
 - **Expected outcome**: No inbox row in database
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `TransactionalInboxAcceptTests.AcceptAsync_should_stage_envelope_with_contract_and_metadata`
 
@@ -235,7 +240,34 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 - **Description**: `ITransactionalInbox` before save
 - **Behavior**: Accept then inspect staged state
 - **Expected outcome**: Contract and metadata staged
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
+
+#### `TransactionalInboxAcceptTests.AcceptBatchAsync_with_strict_same_id_changed_payload_should_throw_before_staging`
+
+- **Use case**: Strict batch rejects same-identifier duplicates with changed payloads
+- **Test kind**: Unit
+- **Description**: `ITransactionalInbox` batch with one message identifier twice
+- **Behavior**: Accept batch under strict conflict mode
+- **Expected outcome**: `IdempotencyConflictException` before anything is staged
+- **Remarks**: `LiteBus.Storage.UnitTests`
+
+#### `EfCoreInboxBatchRecoveryTests.AddBatchAsync_WhenConcurrentBatchCommitsOverlap_ShouldInsertMissingRows`
+
+- **Use case**: Batch recovery re-inserts rows rolled back by a concurrent commit
+- **Test kind**: Integration
+- **Description**: Overlapping batch committed between pre-check and insert on SQLite
+- **Behavior**: `AddBatchAsync` with overlapping and new envelopes
+- **Expected outcome**: Overlapping row reports `AlreadyAccepted`; new rows are inserted
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
+
+#### `EfCoreInboxBatchRecoveryTests.AddBatchAsync_WhenSaveChangesFailsWithoutConflict_ShouldSurfaceOriginalError`
+
+- **Use case**: Non-conflict batch failure surfaces the original database error
+- **Test kind**: Integration
+- **Description**: Injected `DbUpdateException` on every save against SQLite
+- **Behavior**: `AddBatchAsync` with new envelopes
+- **Expected outcome**: `InvalidOperationException` with the original failure chained
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `EfCoreInboxStoreMySqlContractTests` (Inherits `InboxStoreContractTests`)
 

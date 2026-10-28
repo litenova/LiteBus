@@ -14,10 +14,17 @@
 
 ## SQL Behavior
 
-- Creates v1 inbox and outbox tables from embedded SQL resources.
+- Creates inbox tables at schema version 1 and outbox tables at schema version 2 from embedded SQL resources.
 - Creates index set required by each adapter, then validates index presence.
 - Writes and reads schema version metadata via `litebus_schema_versions`.
 - `GetCreateScript` renders final SQL with configured schema, table, and index names.
+
+## Schema Upgrades
+
+- `EnsureAsync` upgrades an outbox table found at version 1 to version 2 automatically by running the ordered `UpgradeScripts` from the component schema definition; the version 2 upgrade adds the nullable `handler` column and preserves every row.
+- Fresh databases are created at the current version directly, with no upgrade step.
+- `ValidateAsync` never mutates: on a version 1 outbox table it raises `PostgreSqlSchemaDriftException` with details naming the available upgrade path.
+- Components without upgrades (inbox, idempotency, recurring lease, all at version 1) report the version gap only.
 
 ## Concurrency and Drift Rules
 
@@ -28,8 +35,8 @@
 ## Index Expectations
 
 - Inbox: idempotency unique index plus lease index.
-- Outbox: idempotency unique index, lease index, and topic index.
-- Both tables include insert trigger and notify function in v1 create script.
+- Outbox: idempotency unique index, lease index, and topic index (unchanged by the version 2 upgrade).
+- Both tables include insert trigger and notify function in the create script.
 
 ## Observability
 
@@ -44,7 +51,8 @@
 ### `LiteBus.Storage.IntegrationTests` (`PostgreSql/`)
 
 - `PostgreSqlInboxSchemaTests` and `PostgreSqlOutboxSchemaTests`: idempotent create, concurrent bootstrap, and validation failures.
-- `PostgreSqlSchemaScriptTests`: create script content includes v1 objects and indexes.
+- `PostgreSqlOutboxSchemaUpgradeTests`: automatic version 1 to version 2 upgrade with row preservation, handler read-back after upgrade, drift naming the upgrade path, and direct version 2 creation on a fresh database.
+- `PostgreSqlSchemaScriptTests`: create script content includes current-version objects and indexes.
 - `PostgreSqlSchemaDriftTests`: missing column and missing index detection paths.
 - `PostgreSqlSchemaHostingTests`: startup initializer behavior for enabled, disabled, and validate-only modes.
 

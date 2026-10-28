@@ -1,8 +1,17 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace LiteBus.Transport.Abstractions;
 
 /// <summary>
 ///     Consumes transport messages from a destination with manual acknowledgement support.
 /// </summary>
+/// <remarks>
+///     Consumers hold single-subscription state for the active consume loop, so each subscription needs its own
+///     instance: transport modules register this interface as transient, and calling
+///     <see cref="StartAsync" /> twice on one instance throws <see cref="InvalidOperationException" />.
+/// </remarks>
 public interface IMessageConsumer : IAsyncDisposable
 {
     /// <summary>
@@ -15,7 +24,11 @@ public interface IMessageConsumer : IAsyncDisposable
     ///     <see cref="TransportMessage.ReturnToQueueAsync" /> before returning.
     /// </param>
     /// <param name="cancellationToken">The token used to cancel startup.</param>
-    /// <returns>A task that completes when the consumer subscription is active.</returns>
+    /// <returns>
+    ///     A task that completes when the consume loop has been initiated. Startup and subscription failures surface
+    ///     through <see cref="WaitUntilStoppedAsync" />. Transports that subscribe synchronously complete after the
+    ///     subscription is active.
+    /// </returns>
     Task StartAsync(
         TransportConsumerOptions options,
         Func<TransportMessage, CancellationToken, Task> handler,

@@ -4,6 +4,7 @@
 - **Name**: Module registration
 - **Maturity**: GA
 - **Summary**: Registers messaging, command, query, and event features with explicit dependencies and assembly scanning.
+- **Guide**: [Getting started](../../getting-started/README.md)
 
 ## What It Does
 
@@ -11,9 +12,9 @@ Mediator composition is explicit:
 1. Call `AddMessaging` once.
 2. Call `AddCommands`, `AddQueries`, and/or `AddEvents` from the installed feature packages.
 
-Semantic modules require `MessageModule` to exist. The complete graph validates that requirement after the callback, so declaration order does not affect the result. Registering `MessageModule` twice throws `LiteBusConfigurationException` because type-based module identity permits one instance of each module type.
+Semantic modules require `MessageModule` to exist. The complete graph validates that requirement after the callback, so declaration order does not affect the result. Registering `MessageModule` twice throws `ModuleCompositionException` because type-based module identity permits one instance of each module type.
 
-Builders provide `Register<T>()`, `Register(Type)`, and `RegisterFromAssembly(Assembly)`. Semantic builders expose `Contracts` for stable durable contract registration.
+Builders provide `Register<T>()`, `Register(Type)`, and `RegisterFromAssembly(Assembly)`. Semantic builders expose `Contracts` for stable durable contract registration. `CommandModuleBuilder.RegisterChildModule` is the seam a feature package layered on the command axis composes through, so the capability registers inside `AddCommands` rather than as a second top-level module.
 
 ## Public Surface
 
@@ -53,6 +54,7 @@ services.AddLiteBus(bus =>
 | `CommandModuleBuilder.RegisterFromAssembly(Assembly)` | Registers command constructs from assembly |
 | `QueryModuleBuilder.RegisterFromAssembly(Assembly)` | Registers query constructs from assembly |
 | `EventModuleBuilder.RegisterFromAssembly(Assembly)` | Registers event constructs from assembly |
+| `CommandModuleBuilder.RegisterChildModule(IModule)` | Registers a feature package as a child of `CommandModule` inside `AddCommands` |
 
 ## Packages
 
@@ -69,7 +71,7 @@ services.AddLiteBus(bus =>
 ## Invariants
 
 - `MessageModule` must be present in the completed graph when semantic modules are used.
-- `MessageModule` can only be registered once.
+- `MessageModule` can only be registered once; a duplicate registration throws `ModuleCompositionException`.
 - Builder `RegisterFromAssembly` throws `ArgumentNullException` for null assembly arguments.
 - Semantic builder registration rejects unsupported construct types (`LiteBusNotSupportedException` for wrong shape).
 

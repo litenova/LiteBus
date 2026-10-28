@@ -28,6 +28,7 @@ Enqueue integration events and other registered message types into durable stora
 - **`EnqueueAsync(OutboxEnqueueItem, CancellationToken)`**: Runtime-type enqueue for heterogeneous payloads; contract lookup uses `event.GetType()`.
 - **`EnqueueBatchAsync(IReadOnlyList<OutboxEnqueueItem>, CancellationToken)`**: Batch enqueue in one store round trip (homogeneous or heterogeneous).
 - **`OutboxEnqueueItem<T>.From(message)`**: Static factory for body-only construction.
+- **`OutboxEnqueueItem<TEvent>.FromAmbient(message)`**: Body-only enqueue that stamps `MessageTrace.FromAmbient()` onto the item, so an event enqueued inside a mediation carries the ambient correlation, causation, and distributed trace context; outside a mediation the item equals `From(message)`.
 
 Typical call sites: command post-handlers draining domain events, application services publishing integration events, operational replay tools.
 
@@ -35,7 +36,10 @@ Typical call sites: command post-handlers draining domain events, application se
 
 - **`AddOutbox()`** with **`Use*Storage()`** registered inside the same outbox module builder (required before first enqueue).
 - **`Contracts.Register<TEvent>(name, version)`** or **`RegisterFromAssembly`** for each stored event type.
-- Default **`IOutbox`** registers as singleton against the non-transactional store.
+- **`UseAmbientTrace()`** on the outbox builder stamps `MessageTrace.FromAmbient()` onto every enqueued envelope whose item trace is `MessageTrace.None`; an explicit item trace always wins, and outside a mediation the envelope stays untraced.
+- **`UseContractResolver(IMessageContractResolver)`** (outbox only) lets the envelope factory resolve the contract from the declared parameter type instead of the runtime instance type; `DeclaredTypeMessageContractResolver` is the shipped implementation.
+- **`EnablePerHandlerDelivery()`** writes one envelope per subscribed main handler instead of one envelope per event (see Per-Handler Delivery below).
+- Default **`IOutbox`** registers transient against the singleton non-transactional store.
 
 ### Configuration
 
@@ -47,6 +51,19 @@ Typical call sites: command post-handlers draining domain events, application se
 - Custom storage implements **`IOutboxStore`** append role and returns **`OutboxAppendResult`** so the writer can preserve insertion outcomes (storage axis).
 - For domain-transaction alignment use **`ITransactionalOutbox`** or **`ITransactionalOutbox<TContext>`** instead of **`IOutbox`** (transactional-writes capability).
 - **`IOutboxEnvelopeFactory`** controls serialization and field mapping inside the writer pipeline.
+
+## Per-Handler Delivery
+
+`EnablePerHandlerDelivery` writes one envelope per subscribed main handler of each enqueued event instead of one envelope per event, so each reaction gets its own retry, dead letter, and replay: a failing reaction retries alone while the healthy reactions publish. Each envelope records the full name of the handler it is addressed to in the `Handler` column (`null` means broadcast), and in-process dispatch publishes each envelope to that main handler alone while pipeline observers (pre-stage, post, error, and completion stages) still run on every targeted dispatch.
+
+```csharp
+registry.AddOutbox(outbox =>
+{
+    outbox.EnablePerHandlerDelivery();
+});
+```
+
+Enqueueing an event with no subscribed main handler throws `NoHandlerFoundException`, matching the default `RequireHandler` rule. Direct plus indirect main handlers count, deduplicated by handler full name, and per-handler envelopes are ordered by handler full name. A caller idempotency key is derived per handler as `{key}:{handler}` preserving the conflict mode, and a caller-supplied message identifier derives deterministic per-handler identifiers, so a retried enqueue resolves to the same rows. The whole fan-out of one enqueue persists in one batch call, so a mid-fan-out failure never leaves a partial set behind. The returned receipt describes the first per-handler envelope in handler-name order; batch receipts flatten one per envelope in item order. A handler added after enqueue does not receive already-enqueued events, and a handler removed before dispatch leaves its envelopes with no matching subscriber, which `RequireHandler` then decides. Use per-handler delivery only with in-process dispatch: broker dispatchers publish the full event per envelope, so per-handler envelopes would duplicate broker publication. Composition throws `DurableStorageConfigurationException` when per-handler delivery meets a transport dispatcher unless `AllowPerHandlerDeliveryWithTransportDispatch` acknowledges the duplication.
 
 ## Packages
 
@@ -65,8 +82,9 @@ Typical call sites: command post-handlers draining domain events, application se
 ## Invariants
 
 - Contract lookup uses `event.GetType()` for each instance
+- A distributed trace context must be valid JSON text; creation throws `ArgumentException` otherwise, so every provider fails fast instead of persisting a row it cannot read back
 - Default `IOutbox` commits immediately (separate from open domain transactions)
-- `AlreadyEnqueued` returns the existing row for a duplicate message ID or tenant-scoped idempotency key
+- `AlreadyEnqueued` returns the existing row for a duplicate message ID within the same tenant or a tenant-scoped idempotency key; a message ID reused across tenants throws `IdempotencyConflictException` instead of returning the foreign row, so supplied IDs must be unguessable per tenant or derived per tenant
 - Do not call `IEventMediator.PublishAsync` for cross-process notifications that must survive crash or commit with domain state
 
 ## Non-Goals
@@ -114,7 +132,7 @@ No dedicated enqueue counter. Writer failures surface as store or contract-resol
 ## Deep Docs
 
 - [Outbox](../../reliable-messaging/outbox.md)
-- [Domain events and unit of work](../../concepts/domain-events-and-unit-of-work.md)
+- [Domain events and unit of work](../../reliable-messaging/domain-events-and-unit-of-work.md)
 
 ## Test Coverage
 
@@ -237,13 +255,67 @@ No dedicated enqueue counter. Writer failures surface as store or contract-resol
 - **Expected outcome**: Message id row wins
 - **Remarks**: EF-specific
 
+#### `AmbientEnqueueItemTests.FromAmbient_inside_a_processor_built_scope_stamps_the_distributed_trace`
+
+- **Use case**: Ambient trace stamped on enqueue item
+- **Test kind**: Unit
+- **Description**: `OutboxEnqueueItem<T>.FromAmbient(message)` inside a traced mediation
+- **Behavior**: Ambient trace factory on the enqueue item
+- **Expected outcome**: Item trace holds the ambient correlation, causation, and trace context
+- **Remarks**: Companion tests cover the workflow fallback, the preserved ambient causation, and the untraced result outside any scope
+
+#### `OutboxAmbientTraceTests.Enqueue_inside_a_traced_mediation_should_stamp_ambient_trace_when_opted_in`
+
+- **Use case**: Module ambient-trace opt-in on enqueue
+- **Test kind**: Unit
+- **Description**: Outbox module with `UseAmbientTrace` enabled
+- **Behavior**: Enqueue with `MessageTrace.None` inside a traced mediation
+- **Expected outcome**: Stored envelope carries the ambient trace; explicit item traces are kept
+- **Remarks**: `LiteBus.Outbox.UnitTests` (`AmbientTrace/`)
+
+#### `PerHandlerDeliveryTests.EnqueueAsync_should_write_one_envelope_per_subscribed_handler`
+
+- **Use case**: Per-handler envelopes on enqueue
+- **Test kind**: Unit
+- **Description**: Outbox module with `EnablePerHandlerDelivery` and two subscribed handlers
+- **Behavior**: `EnqueueAsync` of one event
+- **Expected outcome**: One stored envelope per handler, each addressed on `Handler`
+- **Remarks**: `LiteBus.Outbox.UnitTests` (`PerHandlerDelivery/`)
+
+#### `PerHandlerDeliveryTests.EnqueueAsync_without_a_subscribed_handler_should_throw`
+
+- **Use case**: Per-handler enqueue with no subscriber fails
+- **Test kind**: Unit
+- **Description**: Event with no registered main handler under per-handler delivery
+- **Behavior**: `EnqueueAsync`
+- **Expected outcome**: `NoHandlerFoundException`
+- **Remarks**: `LiteBus.Outbox.UnitTests` (`PerHandlerDelivery/`)
+
+#### `PerHandlerDeliveryTests.DeadLetter_and_requeue_should_apply_per_handler`
+
+- **Use case**: Per-handler retry, dead letter, and replay
+- **Test kind**: Unit
+- **Description**: One failing reaction beside a healthy reaction on the same event
+- **Behavior**: Processor passes then operator requeue
+- **Expected outcome**: Only the failing reaction dead-letters and replays
+- **Remarks**: `LiteBus.Outbox.UnitTests` (`PerHandlerDelivery/`)
+
+#### `PerHandlerDeliveryTests.Targeted_dispatch_should_run_observers_on_every_envelope`
+
+- **Use case**: Pipeline observers run on targeted dispatch
+- **Test kind**: Unit
+- **Description**: Per-handler envelope dispatched in-process
+- **Behavior**: Targeted publish to the recorded handler
+- **Expected outcome**: Pre, post, error, and completion observers still run
+- **Remarks**: `LiteBus.Outbox.UnitTests` (`PerHandlerDelivery/`)
+
 ### Untested Use Cases
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
 | Enqueue with AMQP topic routing in production topology | Yes | Topic routing covered in dispatch tests, not writer | Integration | Low |
 | Enqueue batch of 1000+ events | Yes | No stress test for batch serialization | Integration | Low |
-| Cross-process enqueue without storage | No | N/A |: |: |
+| Cross-process enqueue without storage | No | Not supported | N/A | N/A |
 
 ### Out-of-Scope Use Cases
 

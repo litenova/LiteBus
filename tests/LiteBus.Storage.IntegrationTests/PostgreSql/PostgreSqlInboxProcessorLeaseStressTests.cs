@@ -9,7 +9,7 @@ using LiteBus.Inbox.Storage.PostgreSql;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using IInboxProcessor = LiteBus.Inbox.Abstractions.IInboxProcessor;
@@ -36,76 +36,77 @@ public sealed class PostgreSqlInboxProcessorLeaseStressTests : LiteBusTestBase, 
     public PostgreSqlInboxProcessorLeaseStressTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies parallel workers complete every message once without duplicate terminal outcomes.
     /// </summary>
     /// <returns>A task that completes when the stress test finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_parallel_workers_should_produce_single_terminal_state_per_message()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureInboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
 
         var tracker = new InvocationTracker();
-         var provider = BuildProvider(_fixture, options, tracker);
-         await using (provider.ConfigureAwait(false))
-         {
-
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var messageIds = new List<Guid>(MessageCount);
-
-        for (var index = 0; index < MessageCount; index++)
+        var provider = BuildProvider(_fixture, options, tracker);
+        await using (provider.ConfigureAwait(false))
         {
-            var messageId = Guid.NewGuid();
 
-            await scheduler.AcceptAsync(InboxAcceptItem<ShipOrderCommand>.WithIdentity(
-                new ShipOrderCommand
-                {
-                    OrderId = messageId,
-                    IdempotencyKey = $"stress:{messageId:N}"
-                },
-                messageId)).ConfigureAwait(false);
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var messageIds = new List<Guid>(MessageCount);
 
-            messageIds.Add(messageId);
-        }
+            for (var index = 0; index < MessageCount; index++)
+            {
+                var messageId = Guid.NewGuid();
 
-        var processingStore = provider.GetRequiredService<IInboxProcessingStore>();
-        var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
-        var processorOptions = provider.GetRequiredService<InboxProcessorOptions>();
-        var clock = provider.GetRequiredService<TimeProvider>();
+                await scheduler.AcceptAsync(InboxAcceptItem<ShipOrderCommand>.WithIdentity(
+                    new ShipOrderCommand
+                    {
+                        OrderId = messageId,
+                        IdempotencyKey = $"stress:{messageId:N}"
+                    },
+                    messageId)).ConfigureAwait(false);
 
-        var processors = Enumerable.Range(0, WorkerCount)
-            .Select(workerIndex => new PipelinedInboxProcessor(
-                processingStore,
-                processingStore,
-                dispatcher,
-                processorOptions with
-                {
-                    LeaseOwner = $"stress-worker-{workerIndex}",
-                    DispatcherConcurrency = 2,
-                    LeaseHeartbeatInterval = TimeSpan.FromMilliseconds(25)
-                },
-                clock,
-                Array.Empty<IProcessorEnvelopeHook>()))
-            .ToArray();
+                messageIds.Add(messageId);
+            }
 
-        var workerTasks = processors.Select(processor => RunUntilIdleAsync(processor)).ToArray();
-        await Task.WhenAll(workerTasks).ConfigureAwait(false);
+            var processingStore = provider.GetRequiredService<IInboxProcessingStore>();
+            var dispatcher = provider.GetRequiredService<IInboxDispatcher>();
+            var processorOptions = provider.GetRequiredService<InboxProcessorOptions>();
+            var clock = provider.GetRequiredService<TimeProvider>();
 
-        foreach (var messageId in messageIds)
-        {
-            var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
-            row.Should().NotBeNull();
-            row!.Status.Should().Be(InboxStatus.Completed);
-            row.AttemptCount.Should().BeInRange(1, MaxAttempts);
+            var processors = Enumerable.Range(0, WorkerCount)
+                .Select(workerIndex => new PipelinedInboxProcessor(
+                    processingStore,
+                    processingStore,
+                    dispatcher,
+                    processorOptions with
+                    {
+                        LeaseOwner = $"stress-worker-{workerIndex}",
+                        DispatcherConcurrency = 2,
+                        LeaseHeartbeatInterval = TimeSpan.FromMilliseconds(25)
+                    },
+                    clock,
+                    Array.Empty<IProcessorEnvelopeHook>()))
+                .ToArray();
 
-            var invocations = tracker.GetInvocationCount(messageId);
-            invocations.Should().BeInRange(1, MaxAttempts);
-        }
+            var workerTasks = processors.Select(processor => RunUntilIdleAsync(processor)).ToArray();
+            await Task.WhenAll(workerTasks).ConfigureAwait(false);
 
-        tracker.TotalInvocations.Should().BeInRange(MessageCount, MessageCount * MaxAttempts);
+            foreach (var messageId in messageIds)
+            {
+                var row = await PostgreSqlTableReaders.ReadInboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
+                row.Should().NotBeNull();
+                row!.Status.Should().Be(InboxStatus.Completed);
+                row.AttemptCount.Should().BeInRange(1, MaxAttempts);
+
+                var invocations = tracker.GetInvocationCount(messageId);
+                invocations.Should().BeInRange(1, MaxAttempts);
+            }
+
+            tracker.TotalInvocations.Should().BeLessThanOrEqualTo(MessageCount * MaxAttempts);
         }
     }
 

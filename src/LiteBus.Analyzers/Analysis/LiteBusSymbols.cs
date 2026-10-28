@@ -17,10 +17,13 @@ internal static class LiteBusSymbols
         "LiteBus.Events.Abstractions.IEventMediator",
         "LiteBus.Queries.Abstractions.IQueryMediator",
         "LiteBus.Inbox.Abstractions.IInbox",
+        "LiteBus.Inbox.Abstractions.ITransactionalInbox",
         "LiteBus.Inbox.Abstractions.ITransactionalInbox`1",
         "LiteBus.Inbox.Abstractions.IInboxStore",
         "LiteBus.Inbox.Abstractions.ITransactionalInboxStore",
         "LiteBus.Outbox.Abstractions.IOutbox",
+        "LiteBus.Outbox.Abstractions.ITransactionalOutbox",
+        "LiteBus.Outbox.Abstractions.ITransactionalOutbox`1",
         "LiteBus.Outbox.Abstractions.IOutboxStore",
         "LiteBus.Outbox.Abstractions.ITransactionalOutboxStore",
         "LiteBus.Transport.Abstractions.ITransportPublisher"
@@ -89,34 +92,6 @@ internal static class LiteBusSymbols
         }
 
         return false;
-    }
-
-    /// <summary>
-    ///     Gets implemented handler interfaces that match one of the supplied open generic metadata names.
-    /// </summary>
-    /// <param name="type">The handler type symbol.</param>
-    /// <param name="interfaceMetadataNames">Open generic interface metadata names.</param>
-    /// <returns>The matching implemented interfaces.</returns>
-    internal static ImmutableArray<INamedTypeSymbol> GetImplementedHandlerInterfaces(
-        INamedTypeSymbol type,
-        params string[] interfaceMetadataNames)
-    {
-        var builder = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
-
-        foreach (var candidate in type.AllInterfaces)
-        {
-            var metadataName = candidate.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-
-            foreach (var expected in interfaceMetadataNames)
-            {
-                if (metadataName == expected)
-                {
-                    builder.Add(candidate);
-                }
-            }
-        }
-
-        return builder.ToImmutable();
     }
 
     /// <summary>

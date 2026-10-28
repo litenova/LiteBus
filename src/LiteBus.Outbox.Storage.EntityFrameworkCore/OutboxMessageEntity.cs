@@ -39,6 +39,11 @@ public sealed class OutboxMessageEntity
     public string? Topic { get; set; }
 
     /// <summary>
+    ///     Gets or sets the full name of the single event handler the row is addressed to, when per-handler delivery wrote it.
+    /// </summary>
+    public string? Handler { get; set; }
+
+    /// <summary>
     ///     Gets or sets the UTC timestamp when the event was stored.
     /// </summary>
     public DateTimeOffset CreatedAt { get; set; }
@@ -66,6 +71,10 @@ public sealed class OutboxMessageEntity
     /// <summary>
     ///     Gets or sets the monotonic lease fencing generation.
     /// </summary>
+    /// <remarks>
+    ///     Configured as an Entity Framework concurrency token, so a tracked update that lost a lease race fails
+    ///     instead of overwriting the row claimed by the new holder.
+    /// </remarks>
     public long LeaseGeneration { get; set; }
 
     /// <summary>

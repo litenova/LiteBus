@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 
 namespace LiteBus.Outbox.Abstractions;
@@ -39,6 +40,16 @@ public sealed record OutboxEnvelope
     ///     Gets the optional topic or channel used by external dispatchers.
     /// </summary>
     public string? Topic { get; init; }
+
+    /// <summary>
+    ///     Gets the full name of the single event handler this envelope is addressed to, when per-handler delivery wrote it.
+    /// </summary>
+    /// <value>
+    ///     The handler type full name, or <see langword="null" /> when the envelope publishes to every subscribed
+    ///     handler. In-process dispatch publishes a targeted envelope with a handler predicate matching only the
+    ///     recorded handler.
+    /// </value>
+    public string? Handler { get; init; }
 
     /// <summary>
     ///     Gets the UTC timestamp when the message was stored.
@@ -117,6 +128,74 @@ public sealed record OutboxEnvelope
     public DateTimeOffset? PublishedAt { get; init; }
 
     /// <summary>
+    ///     Gets the UTC timestamp of the most recent lease, which is the last time a processor attempted the message.
+    /// </summary>
+    /// <value>
+    ///     The timestamp, or <see langword="null" /> when the message has never been leased.
+    /// </value>
+    public DateTimeOffset? LastAttemptedAt { get; init; }
+
+    /// <summary>
+    ///     Gets the UTC timestamp of the first failed attempt.
+    /// </summary>
+    /// <value>
+    ///     The timestamp, or <see langword="null" /> when no attempt has failed. It is not reset by later successes,
+    ///     so it answers how long a message struggled before it succeeded or gave up.
+    /// </value>
+    public DateTimeOffset? FirstFailedAt { get; init; }
+
+    /// <summary>
+    ///     Gets the UTC timestamp at which the message was moved to the dead-letter state.
+    /// </summary>
+    /// <value>
+    ///     The timestamp, or <see langword="null" /> when the message has not been dead-lettered. This is the field a
+    ///     dead-letter listing sorts by, and it is cleared when the message is requeued.
+    /// </value>
+    public DateTimeOffset? DeadLetteredAt { get; init; }
+
+    /// <summary>
+    ///     Gets the processor instance that most recently held the lease.
+    /// </summary>
+    /// <value>
+    ///     The lease owner, or <see langword="null" /> when the message has never been leased. Unlike
+    ///     <see cref="LeaseOwner" />, this survives the lease being released, so it still names the instance that was
+    ///     handling a message when it failed.
+    /// </value>
+    public string? LastLeaseOwner { get; init; }
+
+    /// <summary>
+    ///     Gets the CLR type name of the exception behind <see cref="LastError" />.
+    /// </summary>
+    /// <value>
+    ///     The type name, or <see langword="null" /> when the message has not failed or the failure carried no
+    ///     exception. Stored apart from <see cref="LastError" /> so failures can be grouped without parsing text.
+    /// </value>
+    public string? ErrorType { get; init; }
+
+    /// <summary>
+    ///     Returns a new envelope released from its lease without charging the attempt the lease consumed.
+    /// </summary>
+    /// <returns>
+    ///     The envelope in <see cref="OutboxStatus.Pending" />, or <see cref="OutboxStatus.Failed" /> when it already
+    ///     carries an error, with its lease cleared and its attempt count decremented. Visibility is unchanged.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    ///     The envelope is not in the <see cref="OutboxStatus.Publishing" /> state.
+    /// </exception>
+    public OutboxEnvelope AsReleased()
+    {
+        EnsureStatus(OutboxStatus.Publishing);
+
+        return this with
+        {
+            Status = LastError is null ? OutboxStatus.Pending : OutboxStatus.Failed,
+            LeaseOwner = null,
+            LeaseExpiresAt = null,
+            AttemptCount = Math.Max(0, AttemptCount - 1)
+        };
+    }
+
+    /// <summary>
     ///     Returns a new envelope with an active lease and an incremented attempt count.
     /// </summary>
     /// <param name="leaseOwner">The processor instance that claimed the envelope.</param>
@@ -128,6 +207,7 @@ public sealed record OutboxEnvelope
         {
             Status = OutboxStatus.Publishing,
             LeaseOwner = leaseOwner,
+            LastLeaseOwner = leaseOwner,
             LeaseGeneration = checked(LeaseGeneration + 1),
             LeaseExpiresAt = leaseExpiresAt,
             AttemptCount = AttemptCount + 1
@@ -158,42 +238,53 @@ public sealed record OutboxEnvelope
     ///     Returns a new envelope representing a failed dispatch attempt,
     ///     scheduling the next visibility window via <paramref name="visibleAfter" />.
     /// </summary>
-    /// <param name="error">The error captured for this attempt.</param>
+    /// <param name="failure">The failure captured for this attempt.</param>
     /// <param name="visibleAfter">The earliest UTC timestamp at which the envelope may be leased again.</param>
     /// <returns>The envelope scheduled for retry.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="failure" /> is <see langword="null" />.</exception>
     /// <exception cref="InvalidOperationException">
     ///     The envelope is not in the <see cref="OutboxStatus.Publishing" /> state.
     /// </exception>
-    public OutboxEnvelope AsFailed(string error, DateTimeOffset? visibleAfter = null)
+    /// <remarks>
+    ///     <see cref="FirstFailedAt" /> is set only on the first failure, so it keeps naming the moment the message
+    ///     started struggling rather than the moment it last did.
+    /// </remarks>
+    public OutboxEnvelope AsFailed(MessageFailure failure, DateTimeOffset? visibleAfter = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(error);
+        ArgumentNullException.ThrowIfNull(failure);
         EnsureStatus(OutboxStatus.Publishing);
 
         return this with
         {
             Status = OutboxStatus.Failed,
             VisibleAfter = visibleAfter,
-            LastError = error
+            LastError = failure.Error,
+            ErrorType = failure.ErrorType,
+            FirstFailedAt = FirstFailedAt ?? failure.OccurredAt
         };
     }
 
     /// <summary>
     ///     Returns a new envelope moved to the dead-letter state after retries are exhausted.
     /// </summary>
-    /// <param name="reason">The reason the envelope was moved to the dead-letter state.</param>
+    /// <param name="failure">The failure that exhausted the message's attempts.</param>
     /// <returns>The dead-lettered envelope.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="failure" /> is <see langword="null" />.</exception>
     /// <exception cref="InvalidOperationException">
     ///     The envelope is not in the <see cref="OutboxStatus.Publishing" /> state.
     /// </exception>
-    public OutboxEnvelope AsDeadLettered(string reason)
+    public OutboxEnvelope AsDeadLettered(MessageFailure failure)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        ArgumentNullException.ThrowIfNull(failure);
         EnsureStatus(OutboxStatus.Publishing);
 
         return this with
         {
             Status = OutboxStatus.DeadLettered,
-            LastError = reason
+            LastError = failure.Error,
+            ErrorType = failure.ErrorType,
+            FirstFailedAt = FirstFailedAt ?? failure.OccurredAt,
+            DeadLetteredAt = failure.OccurredAt
         };
     }
 
@@ -215,7 +306,10 @@ public sealed record OutboxEnvelope
             AttemptCount = 0,
             LeaseOwner = null,
             LeaseExpiresAt = null,
-            LastError = null
+            LastError = null,
+            ErrorType = null,
+            FirstFailedAt = null,
+            DeadLetteredAt = null
         };
     }
 

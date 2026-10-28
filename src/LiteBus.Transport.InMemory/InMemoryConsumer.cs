@@ -1,4 +1,8 @@
+using System;
+using System.Threading;
+using System.Threading.Channels;
 using LiteBus.Transport.Abstractions;
+using System.Threading.Tasks;
 
 namespace LiteBus.Transport.InMemory;
 
@@ -6,10 +10,11 @@ namespace LiteBus.Transport.InMemory;
 ///     Consumes in-memory channel deliveries with manual acknowledgement support.
 /// </summary>
 /// <remarks>
-///     When a handler throws, the delivery is returned to the channel for redelivery by default. Handlers that reject a
-///     message without throwing should call <see cref="TransportMessage.ReturnToQueueAsync" /> or
-///     <see cref="TransportMessage.DiscardAsync" /> explicitly. This differs from broker transports where the broker owns
-///     retry and dead-letter policy.
+///     When a handler throws, the delivery is returned to the channel for redelivery by default. A handler that
+///     returns successfully without settling is returned to the channel for redelivery as well, so a missing settle
+///     never drops the delivery silently. Handlers that reject a message without throwing should call
+///     <see cref="TransportMessage.ReturnToQueueAsync" /> or <see cref="TransportMessage.DiscardAsync" /> explicitly.
+///     This differs from broker transports where the broker owns retry and dead-letter policy.
 /// </remarks>
 public sealed class InMemoryConsumer : IMessageConsumer
 {
@@ -22,6 +27,11 @@ public sealed class InMemoryConsumer : IMessageConsumer
     ///     Serializes start and stop operations on the consume loop.
     /// </summary>
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+
+    /// <summary>
+    ///     Tracks whether asynchronous disposal has started.
+    /// </summary>
+    private int _disposed;
 
     /// <summary>
     ///     Gets the cancellation source used to stop the active consume loop.
@@ -112,6 +122,14 @@ public sealed class InMemoryConsumer : IMessageConsumer
                     {
                         // Expected when cancellation stops the consume loop.
                     }
+                    catch (ChannelClosedException)
+                    {
+                        // Expected when the destination channel completed while a delivery was unsettled.
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Expected when the broker was reset or disposed during shutdown.
+                    }
                 }
             }
             finally
@@ -133,7 +151,18 @@ public sealed class InMemoryConsumer : IMessageConsumer
     {
         if (_consumeTask is { } consumeTask)
         {
-            await consumeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await consumeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (ChannelClosedException)
+            {
+                // The destination channel completed; the session is stopped rather than failed.
+            }
+            catch (ObjectDisposedException)
+            {
+                // The broker was reset or disposed; the session is stopped rather than failed.
+            }
             return;
         }
 
@@ -143,6 +172,11 @@ public sealed class InMemoryConsumer : IMessageConsumer
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         await StopAsync().ConfigureAwait(false);
         _lifecycleGate.Dispose();
     }
@@ -178,6 +212,7 @@ public sealed class InMemoryConsumer : IMessageConsumer
                     try
                     {
                         await boundedHandler(transportMessage, cancellationToken).ConfigureAwait(false);
+                        await settlement.RequeueAsync(CancellationToken.None).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                     {

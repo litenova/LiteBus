@@ -15,6 +15,6 @@ public sealed class AddLiteBusSurfaceTests
 
         methods.Should().ContainSingle();
         methods[0].GetParameters().Should().HaveCount(2);
-        methods[0].GetParameters()[1].ParameterType.Should().Be(typeof(Action<ILiteBusBuilder>));
+        methods[0].GetParameters()[1].ParameterType.Should().Be<Action<ILiteBusBuilder>>();
     }
 }

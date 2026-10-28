@@ -16,6 +16,7 @@
 | `Register<TMessage>(string, int)` | Explicit generic contract registration |
 | `Register(Type, string, int)` | Runtime type registration |
 | `AddFromAssembly(Assembly)` | Attribute-driven registration |
+| `RegisterFromAssembly(Assembly)` | Extension on `IContractWriter` and `IMessageContractRegistry`; delegates to `AddFromAssembly` |
 | `GetContract(Type)` / `TryGetContract(Type)` | Type-to-contract lookup |
 | `GetMessageType(string, int)` / `TryGetMessageType(string, int)` | Contract-to-type lookup |
 
@@ -30,8 +31,8 @@
 
 ## Invariants
 
-- Contract version must be positive.
-- Open generic message types are rejected.
+- Contract version defaults to 1 and must be positive.
+- Explicit registration rejects open generic message types; assembly scanning skips them.
 - Conflicting type or key mappings fail fast.
 
 ## Non-Goals

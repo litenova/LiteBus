@@ -5,7 +5,7 @@
 <h1 align="center">LiteBus</h1>
 
 <p align="center">
-  <a href="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml"><img src="https://github.com/litenova/LiteBus/actions/workflows/build-and-test.yml/badge.svg" alt="Build and test status"></a>
+  <a href="https://github.com/litenova/LiteBus/actions/workflows/ci.yml"><img src="https://github.com/litenova/LiteBus/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="https://app.codecov.io/gh/litenova/LiteBus"><img src="https://codecov.io/gh/litenova/LiteBus/branch/main/graph/badge.svg" alt="Test coverage"></a>
   <a href="https://litebus.io/docs"><img src="https://img.shields.io/badge/Documentation-Available-0A66C2?logo=gitbook" alt="Documentation"></a>
   <a href="https://www.nuget.org/packages/LiteBus"><img src="https://img.shields.io/nuget/v/LiteBus.svg" alt="NuGet version"></a>
@@ -16,16 +16,16 @@
 
 LiteBus provides command, query, and event mediation for .NET 10 applications using CQS and DDD. Durable modules add inbox, outbox, saga, storage, dispatch, ingress, hosting, and operational APIs without requiring unrelated broker or database SDKs.
 
-LiteBus is open source under the MIT license, free for commercial use, and will remain free.
-Find all API and architecture documentation at https://litebus.io/docs.
+LiteBus 7.0.0 is released. LiteBus is open source under the MIT license, free for commercial use, and will remain free. Find all API and architecture documentation at https://litebus.io/docs, which documents the latest stable release. The release history is described in [Changelog.md](Changelog.md).
 
 ## What LiteBus Includes
 
 - Separate command, query, and event contracts, mediators, handlers, and pipelines.
-- Handler priorities, filters, pre-handlers, post-handlers, and error handlers.
+- Declarative per-message metadata and an audit trail recorded at the mediation boundary, including refusals and cancellations.
+- Handler priorities, filters, pre-handlers, gates that refuse or answer early, post-handlers, error handlers, and completion handlers that observe every outcome.
 - Durable inbox processing for commands and transactional outbox processing for events.
 - Saga state with correlation, tenancy, optimistic concurrency, and duplicate dispatch suppression.
-- Opt-in PostgreSQL, Entity Framework Core, in-memory, AMQP, Kafka, AWS SQS, and Azure Service Bus adapters.
+- Opt-in PostgreSQL, Entity Framework Core, Marten, in-memory, AMQP, Kafka, AWS SQS, and Azure Service Bus adapters.
 - Generic Host integration, health checks, diagnostics, management endpoints, and OpenTelemetry registration.
 
 ## Quick Start
@@ -84,11 +84,11 @@ See [Reliable Messaging](https://litebus.io/docs/reliable-messaging), [Transacti
 ## Documentation
 
 - [Documentation Index](https://litebus.io/docs)
-- [Feature and Package Index](https://litebus.io/docs/reference/feature-index-v6)
+- [Feature and Package Index](https://litebus.io/docs/reference/feature-index)
 - [Architecture and Module Model](https://litebus.io/docs/architecture)
 - [Operations](https://litebus.io/docs/operations)
 - [Testing](https://litebus.io/docs/testing)
-- [Migration Guide](https://litebus.io/docs/migration/v6)
+- [Migration Guide](https://litebus.io/docs/migration/v7)
 
 ## Build and Test
 

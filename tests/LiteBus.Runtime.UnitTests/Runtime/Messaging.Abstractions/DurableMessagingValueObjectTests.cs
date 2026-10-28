@@ -139,39 +139,39 @@ public sealed class DurableMessagingValueObjectTests
         var identityLabel = identity switch
         {
             MessageIdentity.Generated => "generated",
-            MessageIdentity.Supplied  => "supplied",
-            _                         => "unknown"
+            MessageIdentity.Supplied => "supplied",
+            _ => "unknown"
         };
 
         var idempotencyLabel = idempotency switch
         {
-            Idempotency.None  => "none",
+            Idempotency.None => "none",
             Idempotency.Keyed => "keyed",
-            _                 => "unknown"
+            _ => "unknown"
         };
 
         var visibilityLabel = visibility switch
         {
             MessageVisibility.Immediate => "immediate",
-            MessageVisibility.At        => "at",
-            MessageVisibility.After     => "after",
-            _                           => "unknown"
+            MessageVisibility.At => "at",
+            MessageVisibility.After => "after",
+            _ => "unknown"
         };
 
         var traceLabel = trace switch
         {
-            MessageTrace.None        => "none",
-            MessageTrace.Correlated  => "correlated",
-            MessageTrace.Workflow    => "workflow",
+            MessageTrace.None => "none",
+            MessageTrace.Correlated => "correlated",
+            MessageTrace.Workflow => "workflow",
             MessageTrace.Distributed => "distributed",
-            _                        => "unknown"
+            _ => "unknown"
         };
 
         var tenantLabel = tenant switch
         {
             TenantScope.Unscoped => "unscoped",
             TenantScope.Isolated => "isolated",
-            _                    => "unknown"
+            _ => "unknown"
         };
 
         identityLabel.Should().Be("supplied");

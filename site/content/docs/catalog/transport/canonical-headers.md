@@ -34,8 +34,24 @@ Canonical headers are transport contract surface. Renaming them breaks wire comp
 | `TraceContext` | `litebus-trace-context` | string | Distributed trace context payload |
 | `IdempotencyKey` | `litebus-idempotency-key` | string | Durable idempotency key |
 | `VisibleAfter` | `litebus-visible-after` | ISO-8601 string | Absolute visibility timestamp |
-| `VisibleAfterDelay` | `litebus-visible-after-delay` | number or string | Relative visibility delay seconds |
+| `VisibleAfterDelay` | `litebus-visible-after-delay` | number or string | Relative visibility delay as an ISO-8601 duration or tick count |
 | `ContentEncoding` | `litebus-content-encoding` | string | Payload encoding marker (`base64` for SQS binary path) |
+| `Route` | `litebus-route` | string | In-destination route, such as an AMQP routing key (see per-adapter mapping below) |
+| `ContentType` | `content-type` | string | Body MIME type (see per-adapter mapping below) |
+
+### Route and Content Type per Adapter
+
+`TransportPublishRequest.Route` and `TransportPublishRequest.ContentType` travel differently per broker:
+
+| Adapter | Route | Content type |
+| --- | --- | --- |
+| AMQP | AMQP routing key (`RoutingKey`) | AMQP message property (`ContentType`) |
+| Kafka | Record key | `content-type` header |
+| AWS SQS | `litebus-route` message attribute | `content-type` message attribute |
+| Azure Service Bus | Message `Subject` | Message `ContentType` property |
+| InMemory | Preserved on the delivery | Not mapped; survives only when the caller also sets it in `Headers` |
+
+Kafka publishes route as the record key and content type under the `content-type` header; SQS publishes both as message attributes under `litebus-route` and `content-type`. A consumer outside LiteBus reads the key on Kafka and those attribute names on SQS, not `Route` or `ContentType` properties.
 
 ### Conversion Rules (`TransportHeaderValues`)
 
@@ -60,7 +76,7 @@ Canonical headers are transport contract surface. Renaming them breaks wire comp
 ## Invariants
 
 - Header names are public wire contract and must remain stable.
-- Legacy `CorrelationId` is read fallback only, not default write target.
+- `correlation-id` is the canonical correlation header written by outbound mapping and read by ingress trace resolution.
 - Header readers apply invariant culture and broker-safe coercion.
 
 ## Non-Goals

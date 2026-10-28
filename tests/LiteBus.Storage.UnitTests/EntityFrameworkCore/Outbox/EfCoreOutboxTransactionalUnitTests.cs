@@ -23,33 +23,33 @@ public sealed class EfCoreOutboxTransactionalUnitTests
             .UseInMemoryDatabase(databaseName)
             .Options;
 
-         var context = new TestOutboxDbContext(options);
-         await using (context.ConfigureAwait(false))
-         {
-        await context.Database.EnsureCreatedAsync().ConfigureAwait(true);
-
-        var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), new EntityFrameworkCoreOutboxStoreOptions());
-        var transactionalStore = store.UseExistingDbContext(context);
-
-        var envelope = new OutboxEnvelope
+        var context = new TestOutboxDbContext(options);
+        await using (context.ConfigureAwait(false))
         {
-            Id = Guid.NewGuid(),
-            ContractName = "orders.events.submitted",
-            ContractVersion = 1,
-            Payload = """{"orderId":"1"}""",
-            CreatedAt = DateTimeOffset.UtcNow,
-            Status = OutboxStatus.Pending,
-            AttemptCount = 0
-        };
+            await context.Database.EnsureCreatedAsync().ConfigureAwait(true);
 
-        await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
+            var store = new EfCoreOutboxStore(_ => Task.FromResult<IOutboxDbContext>(context), new EntityFrameworkCoreOutboxStoreOptions());
+            var transactionalStore = store.UseExistingDbContext(context);
 
-        context.OutboxMessages.Local.Should().ContainSingle(message => message.Id == envelope.Id);
-        (await context.OutboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(0);
+            var envelope = new OutboxEnvelope
+            {
+                Id = Guid.NewGuid(),
+                ContractName = "orders.events.submitted",
+                ContractVersion = 1,
+                Payload = """{"orderId":"1"}""",
+                CreatedAt = DateTimeOffset.UtcNow,
+                Status = OutboxStatus.Pending,
+                AttemptCount = 0
+            };
 
-        await context.SaveChangesAsync().ConfigureAwait(true);
+            await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
 
-        (await context.OutboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(1);
+            context.OutboxMessages.Local.Should().ContainSingle(message => message.Id == envelope.Id);
+            (await context.OutboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(0);
+
+            await context.SaveChangesAsync().ConfigureAwait(true);
+
+            (await context.OutboxMessages.CountAsync().ConfigureAwait(true)).Should().Be(1);
         }
     }
 

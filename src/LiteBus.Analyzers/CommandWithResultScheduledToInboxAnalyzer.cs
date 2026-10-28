@@ -115,7 +115,8 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
 
     /// <summary>
     ///     Determines whether the method symbol is an inbox acceptance API on
-    ///     <c>LiteBus.Inbox.Abstractions.IInbox</c> or <c>ITransactionalInbox</c>.
+    ///     <c>LiteBus.Inbox.Abstractions.IInbox</c>, <c>ITransactionalInbox</c>, or
+    ///     <c>ITransactionalInbox{TContext}</c>.
     /// </summary>
     /// <param name="method">The invoked method symbol.</param>
     /// <param name="compilation">The compilation being analyzed.</param>
@@ -124,6 +125,8 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
     {
         var inboxInterface = compilation.GetTypeByMetadataName("LiteBus.Inbox.Abstractions.IInbox");
         var transactionalInboxInterface = compilation.GetTypeByMetadataName("LiteBus.Inbox.Abstractions.ITransactionalInbox");
+        var genericTransactionalInboxInterface =
+            compilation.GetTypeByMetadataName("LiteBus.Inbox.Abstractions.ITransactionalInbox`1");
 
         if (method.ContainingType is null)
         {
@@ -138,10 +141,29 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
             return true;
         }
 
-        return transactionalInboxInterface is not null &&
-               (SymbolEqualityComparer.Default.Equals(method.ContainingType, transactionalInboxInterface) ||
+        if (transactionalInboxInterface is not null &&
+            (SymbolEqualityComparer.Default.Equals(method.ContainingType, transactionalInboxInterface) ||
+             method.ContainingType.AllInterfaces.Any(candidate =>
+                 SymbolEqualityComparer.Default.Equals(candidate, transactionalInboxInterface))))
+        {
+            return true;
+        }
+
+        return genericTransactionalInboxInterface is not null &&
+               (MatchesOriginalDefinition(method.ContainingType, genericTransactionalInboxInterface) ||
                 method.ContainingType.AllInterfaces.Any(candidate =>
-                    SymbolEqualityComparer.Default.Equals(candidate, transactionalInboxInterface)));
+                    MatchesOriginalDefinition(candidate, genericTransactionalInboxInterface)));
+    }
+
+    /// <summary>
+    ///     Determines whether the candidate type closes the expected open generic interface.
+    /// </summary>
+    /// <param name="candidate">The candidate type symbol.</param>
+    /// <param name="openGeneric">The open generic interface symbol.</param>
+    /// <returns><see langword="true" /> when the original definitions match; otherwise, <see langword="false" />.</returns>
+    private static bool MatchesOriginalDefinition(ITypeSymbol candidate, INamedTypeSymbol openGeneric)
+    {
+        return SymbolEqualityComparer.Default.Equals(candidate.OriginalDefinition, openGeneric);
     }
 
     /// <summary>
@@ -161,14 +183,55 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
             return method.TypeArguments[0];
         }
 
-        if (invocation.ArgumentList.Arguments.Count == 0)
+        if (method.Parameters.Length == 0 ||
+            GetBoundArgumentExpression(method, invocation, method.Parameters[0].Name) is not { } itemExpression)
         {
             return null;
         }
 
-        return GetMessageTypeFromAcceptItem(
-            invocation.ArgumentList.Arguments[0].Expression,
-            semanticModel);
+        return GetMessageTypeFromAcceptItem(itemExpression, semanticModel);
+    }
+
+    /// <summary>
+    ///     Gets the argument expression bound to one parameter of an invocation.
+    /// </summary>
+    /// <param name="method">The invoked method symbol.</param>
+    /// <param name="invocation">The invocation syntax.</param>
+    /// <param name="parameterName">The bound parameter name.</param>
+    /// <returns>The bound argument expression, if present.</returns>
+    /// <remarks>
+    ///     Arguments are matched to parameters by name when a name is present and by position otherwise, so a call
+    ///     that reorders named arguments still resolves to the item argument rather than to the token.
+    /// </remarks>
+    private static ExpressionSyntax? GetBoundArgumentExpression(
+        IMethodSymbol method,
+        InvocationExpressionSyntax invocation,
+        string parameterName)
+    {
+        var positionalIndex = 0;
+
+        foreach (var argument in invocation.ArgumentList.Arguments)
+        {
+            if (argument.NameColon is not null)
+            {
+                if (argument.NameColon.Name.Identifier.ValueText == parameterName)
+                {
+                    return argument.Expression;
+                }
+
+                continue;
+            }
+
+            if (positionalIndex < method.Parameters.Length &&
+                method.Parameters[positionalIndex].Name == parameterName)
+            {
+                return argument.Expression;
+            }
+
+            positionalIndex++;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -179,18 +242,23 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
     /// <param name="semanticModel">The semantic model.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The batch message types paired with diagnostic locations.</returns>
+    /// <remarks>
+    ///     Only batches whose elements are visible at the call site are inspected. A batch that arrives as a method
+    ///     result, a parameter, or a field is statically opaque: its element type is always
+    ///     <c>InboxAcceptItem</c>, so no static recovery exists and the call stays silent.
+    /// </remarks>
     private static ImmutableArray<(ITypeSymbol MessageType, Location Location)> GetBatchMessageTypes(
         IMethodSymbol method,
         InvocationExpressionSyntax invocation,
         SemanticModel semanticModel,
         CancellationToken cancellationToken)
     {
-        if (invocation.ArgumentList.Arguments.Count == 0)
+        if (method.Parameters.Length == 0 ||
+            GetBoundArgumentExpression(method, invocation, method.Parameters[0].Name) is not { } batchArgument)
         {
             return ImmutableArray<(ITypeSymbol MessageType, Location Location)>.Empty;
         }
 
-        var batchArgument = invocation.ArgumentList.Arguments[0].Expression;
         var builder = ImmutableArray.CreateBuilder<(ITypeSymbol MessageType, Location Location)>();
 
         foreach (var element in GetCollectionElementExpressions(
@@ -206,11 +274,6 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
             }
 
             builder.Add((messageType, element.GetLocation()));
-        }
-
-        if (builder.Count == 0 && method.TypeArguments.Length > 0)
-        {
-            builder.Add((method.TypeArguments[0], invocation.GetLocation()));
         }
 
         return builder.ToImmutable();
@@ -363,6 +426,11 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
     /// <param name="expression">The acceptance item expression.</param>
     /// <param name="semanticModel">The semantic model.</param>
     /// <returns>The message type symbol, if resolved.</returns>
+    /// <remarks>
+    ///     Untyped <c>InboxAcceptItem</c> values resolve through the <c>MessageType</c> assignment when one names a
+    ///     type through <c>typeof</c>, and through the <c>Message</c> property assignment otherwise, mirroring the
+    ///     runtime contract lookup.
+    /// </remarks>
     private static ITypeSymbol? GetMessageTypeFromAcceptItem(
         ExpressionSyntax expression,
         SemanticModel semanticModel)
@@ -375,10 +443,21 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
                 return fromMethod.TypeArguments[0];
             }
 
-            if (fromInvocation.ArgumentList.Arguments.Count > 0)
+            if (GetFromMessageTypeArgument(fromMethod, fromInvocation, semanticModel) is { } declaredType)
             {
-                return semanticModel.GetTypeInfo(fromInvocation.ArgumentList.Arguments[0].Expression).Type;
+                return declaredType;
             }
+
+            if (fromMethod.Parameters.Length > 0 &&
+                GetBoundArgumentExpression(fromMethod, fromInvocation, fromMethod.Parameters[0].Name) is { } messageExpression)
+            {
+                return semanticModel.GetTypeInfo(messageExpression).Type;
+            }
+        }
+
+        if (GetMessageTypeFromItemInitializer(expression, semanticModel) is { } initializerType)
+        {
+            return initializerType;
         }
 
         var expressionType = semanticModel.GetTypeInfo(expression).Type;
@@ -389,6 +468,83 @@ public sealed class CommandWithResultScheduledToInboxAnalyzer : DiagnosticAnalyz
         }
 
         return expressionType;
+    }
+
+    /// <summary>
+    ///     Reads the message type from the <c>messageType</c> argument of an <c>InboxAcceptItem.From</c> call.
+    /// </summary>
+    /// <param name="method">The invoked <c>From</c> method symbol.</param>
+    /// <param name="invocation">The invocation syntax.</param>
+    /// <param name="semanticModel">The semantic model.</param>
+    /// <returns>The declared message type, when the call passes one through <c>typeof</c>.</returns>
+    private static ITypeSymbol? GetFromMessageTypeArgument(
+        IMethodSymbol method,
+        InvocationExpressionSyntax invocation,
+        SemanticModel semanticModel)
+    {
+        var parameter = method.Parameters.FirstOrDefault(candidate => candidate.Name == "messageType");
+
+        if (parameter is null || parameter.Type.ToDisplayString() != "System.Type")
+        {
+            return null;
+        }
+
+        if (GetBoundArgumentExpression(method, invocation, "messageType") is not TypeOfExpressionSyntax typeOf)
+        {
+            return null;
+        }
+
+        return semanticModel.GetTypeInfo(typeOf.Type).Type;
+    }
+
+    /// <summary>
+    ///     Reads the message type from an untyped acceptance item initializer.
+    /// </summary>
+    /// <param name="expression">The acceptance item expression.</param>
+    /// <param name="semanticModel">The semantic model.</param>
+    /// <returns>The message type symbol, if resolved.</returns>
+    /// <remarks>
+    ///     A <c>MessageType = typeof(X)</c> assignment wins over the <c>Message</c> assignment, mirroring the runtime
+    ///     contract lookup, which uses <c>MessageType</c> when supplied.
+    /// </remarks>
+    private static ITypeSymbol? GetMessageTypeFromItemInitializer(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel)
+    {
+        InitializerExpressionSyntax? initializer = expression switch
+        {
+            ObjectCreationExpressionSyntax objectCreation => objectCreation.Initializer,
+            ImplicitObjectCreationExpressionSyntax implicitCreation => implicitCreation.Initializer,
+            _ => null,
+        };
+
+        if (initializer is null)
+        {
+            return null;
+        }
+
+        foreach (var item in initializer.Expressions)
+        {
+            if (item is AssignmentExpressionSyntax assignment &&
+                assignment.Left is IdentifierNameSyntax { Identifier.ValueText: "MessageType" } &&
+                assignment.Right is TypeOfExpressionSyntax messageTypeOf &&
+                semanticModel.GetTypeInfo(messageTypeOf.Type).Type is { } declaredType)
+            {
+                return declaredType;
+            }
+        }
+
+        foreach (var item in initializer.Expressions)
+        {
+            if (item is AssignmentExpressionSyntax assignment &&
+                assignment.Left is IdentifierNameSyntax { Identifier.ValueText: "Message" } &&
+                semanticModel.GetTypeInfo(assignment.Right).Type is { } messageType)
+            {
+                return messageType;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

@@ -13,7 +13,7 @@ public sealed class GlobalEventPreHandler : IEventPreHandler
 
         if (message is ProblematicEvent.ProblematicEvent problematicEvent && problematicEvent.ThrowExceptionInType == GetType())
         {
-            throw new Exception();
+            throw new InvalidOperationException("Simulated handler failure.");
         }
 
         return Task.CompletedTask;

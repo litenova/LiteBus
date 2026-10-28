@@ -25,7 +25,7 @@ public static class DiagnosticDescriptors
     internal static readonly DiagnosticDescriptor QueryHandlerImpurity = new(
         DiagnosticIds.QueryHandlerImpurity,
         "Query handler impurity",
-        "Query handler '{0}' depends on '{1}'. Query handlers should be side-effect free and must not use command, event, inbox, or outbox APIs.",
+        "Query handler '{0}' depends on '{1}'. Query handlers should be side-effect free and must not use command, event, query, inbox, outbox, or transport publisher APIs.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Warning,
         true);
@@ -47,7 +47,7 @@ public static class DiagnosticDescriptors
     internal static readonly DiagnosticDescriptor UnsupportedOpenGenericHandler = new(
         DiagnosticIds.UnsupportedOpenGenericHandler,
         "Unsupported open generic handler",
-        "Open generic handler '{0}' exposes {1} type parameters. LiteBus open generic handlers must expose exactly one type parameter that matches the handled message type.",
+        "Open generic handler '{0}' exposes {1} type parameters. LiteBus closes one, binding the handled message type, or two, binding the message type and the result type the message declares.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Error,
         true);
@@ -179,4 +179,104 @@ public static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         true,
         customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     A command or query type states no audit position.
+    /// </summary>
+    /// <remarks>
+    ///     Disabled by default. Enable with <c>dotnet_diagnostic.LB1018.severity = warning</c> once the codebase has
+    ///     declared its position, since turning it on silently would break every existing compilation.
+    /// </remarks>
+    internal static readonly DiagnosticDescriptor MissingAuditDeclaration = new(
+        DiagnosticIds.MissingAuditDeclaration,
+        "Message states no audit position",
+        "Message type '{0}' declares neither [Audited] nor [AuditExempt] and has no IAuditDefinition. State the position explicitly so that an unaudited message is a recorded decision rather than an oversight.",
+        "LiteBus.Auditing",
+        DiagnosticSeverity.Warning,
+        false,
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     A message states no position on a metadata value type the project requires it to declare.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor MissingDeclaration = new(
+        DiagnosticIds.MissingDeclaration,
+        "Message states no position on a required declaration",
+        "Message type '{0}' declares no '{1}'. Declare it with a definition class or an attribute annotated [MessageDeclaration(typeof({1}))], or record why it does not need one with [DeclarationExempt(typeof({1}), \"rationale\")].",
+        "LiteBus.Declarations",
+        DiagnosticSeverity.Warning,
+        false,
+        description: "Configure the required value types with litebus_required_declarations in .editorconfig, then enable this rule. It turns a written policy such as \"every command states the permission it requires\" into a build failure.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     A required declaration type named in configuration cannot be resolved in the compilation.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor UnresolvedRequiredDeclaration = new(
+        DiagnosticIds.UnresolvedRequiredDeclaration,
+        "Required declaration type not found",
+        "litebus_required_declarations names '{0}', which does not resolve in this compilation. Use the full metadata name and make sure the project references the assembly declaring it.",
+        "LiteBus.Declarations",
+        DiagnosticSeverity.Warning,
+        true,
+        description: "A name that does not resolve would silently disable the requirement it configures, so it is reported rather than skipped.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     A shortcut uses the untyped shortcut contract for a message that produces a result.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor UntypedShortcutOnResultMessage = new(
+        DiagnosticIds.UntypedShortcutOnResultMessage,
+        "Untyped shortcut on a message that produces a result",
+        "Shortcut '{0}' implements the untyped shortcut contract for '{1}', which produces '{2}'. The untyped answer cannot carry a result, so answering fails at runtime with LiteBusConfigurationException. Implement {3}<{1}, {2}> instead.",
+        "LiteBus.Handlers",
+        DiagnosticSeverity.Warning,
+        true);
+
+    /// <summary>
+    ///     A handler priority falls inside the range LiteBus reserves for the handlers it ships.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor ReservedHandlerPriority = new(
+        DiagnosticIds.ReservedHandlerPriority,
+        "Handler priority is inside the range reserved by LiteBus",
+        "Handler '{0}' has priority {1}, which is inside the range LiteBus reserves for its own handlers "
+        + "(HandlerPriorities.ReservedFloor to ReservedCeiling). It is ordered against LiteBus stages such as the "
+        + "persistence and audit writers rather than against other application handlers, and the position can move "
+        + "between releases. Use a value below HandlerPriorities.ReservedFloor to run before every LiteBus handler, "
+        + "or at or above HandlerPriorities.ReservedCeiling to run after them.",
+        "LiteBus.Handlers",
+        DiagnosticSeverity.Warning,
+        true);
+
+    /// <summary>
+    ///     A command handler sends or publishes another message through a mediator inside its handle method.
+    /// </summary>
+    /// <remarks>
+    ///     Disabled by default. Enable with <c>dotnet_diagnostic.LB1023.severity = warning</c> once the codebase is
+    ///     ready to keep nested units of work out of command handlers.
+    /// </remarks>
+    internal static readonly DiagnosticDescriptor NestedMediationInCommandHandler = new(
+        DiagnosticIds.NestedMediationInCommandHandler,
+        "Nested mediation in command handler",
+        "Command handler '{0}' calls '{1}' inside its handle method. Mediating another message nests a second unit of work inside the first; stage follow-up work through the domain event collector or the transactional outbox instead.",
+        "LiteBus.Handlers",
+        DiagnosticSeverity.Warning,
+        false,
+        description: "Reads through IQueryMediator are not reported: queries are side-effect free by contract, so nesting a read nests no unit of work. EvaluateAsync guard checks are not reported either, because they decide without acting.");
+
+    /// <summary>
+    ///     A command handler injects an external side-effect type through its constructor.
+    /// </summary>
+    /// <remarks>
+    ///     Disabled by default. Enable with <c>dotnet_diagnostic.LB1024.severity = warning</c> once the codebase is
+    ///     ready to keep outside-world calls out of command handlers.
+    /// </remarks>
+    internal static readonly DiagnosticDescriptor ExternalSideEffectInCommandHandler = new(
+        DiagnosticIds.ExternalSideEffectInCommandHandler,
+        "External side effect in command handler",
+        "Command handler '{0}' injects '{1}' through its constructor. Acting on the outside world before the commit leaves effects the unit of work cannot roll back; move the call behind the outbox or a completion handler.",
+        "LiteBus.Handlers",
+        DiagnosticSeverity.Warning,
+        false,
+        description: "The default forbidden types are System.Net.Http.HttpClient and System.Net.Http.IHttpClientFactory. Set litebus.LB1024.forbidden_types in .editorconfig to a comma-separated list of metadata names to replace them.");
 }

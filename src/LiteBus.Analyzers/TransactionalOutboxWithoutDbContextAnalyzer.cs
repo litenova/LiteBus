@@ -80,11 +80,18 @@ public sealed class TransactionalOutboxWithoutDbContextAnalyzer : DiagnosticAnal
     /// </summary>
     /// <param name="type">The candidate type symbol.</param>
     /// <returns><see langword="true" /> when the type is or inherits from <c>DbContext</c>.</returns>
+    /// <remarks>
+    ///     Only a class in the <c>Microsoft.EntityFrameworkCore</c> namespace counts. A same-named application
+    ///     type, or an interface named <c>DbContext</c>, carries no Entity Framework Core unit of work.
+    /// </remarks>
     private static bool InheritsFromDbContext(ITypeSymbol type)
     {
         for (var current = type; current is not null; current = current.BaseType)
         {
-            if (current.Name == "DbContext")
+            if (current.Name == "DbContext" &&
+                current is INamedTypeSymbol named &&
+                named.TypeKind == TypeKind.Class &&
+                named.ContainingNamespace?.ToDisplayString() == "Microsoft.EntityFrameworkCore")
             {
                 return true;
             }

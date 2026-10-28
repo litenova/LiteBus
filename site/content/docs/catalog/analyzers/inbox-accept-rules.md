@@ -12,7 +12,7 @@
 `LB1004` reports when:
 
 - Invocation target is `AcceptAsync` or `AcceptBatchAsync`.
-- Receiver type is `IInbox`, `ITransactionalInbox`, or a type implementing either.
+- Receiver type is `IInbox`, `ITransactionalInbox`, `ITransactionalInbox<TContext>`, or a type implementing any of them.
 - Message type implements `ICommand<TResult>`.
 
 Batch detection includes:
@@ -20,6 +20,8 @@ Batch detection includes:
 - Implicit arrays, explicit arrays, and collection expressions.
 - `InboxAcceptItem<T>` and `InboxAcceptItem.From(...)` item shapes.
 - Explicit generic calls such as `AcceptAsync<CreateUserCommand>(...)`.
+
+Untyped items resolve through `MessageType = typeof(X)` when present, else through the `Message` assignment, mirroring the runtime contract lookup. Arguments match parameters by name, so reordered named arguments resolve correctly. Batches that are not inline at the call site, such as a method result, a parameter, or a field, are statically opaque and stay silent, because their element type is always `InboxAcceptItem`.
 
 ## Bad Example
 
@@ -75,7 +77,11 @@ Source: `tests/LiteBus.Analyzers.UnitTests/CommandWithResultScheduledToInboxAnal
 | `CommandWithResultStoredInInbox_ProducesDiagnostic` | Result command in `AcceptAsync` reports `LB1004` |
 | `ExplicitGenericAcceptAsyncWithCommandResult_ProducesDiagnostic` | Explicit generic `AcceptAsync<T>` reports `LB1004` |
 | `CommandWithResultStoredThroughInboxImplementation_ProducesDiagnostic` | Interface implementations of `IInbox` are recognized |
-
-Untested in this suite:
-
-- `AcceptBatchAsync` fixture coverage for mixed item sources and collection expressions.
+| `ResultCommandInCollectionExpressionBatch_ProducesDiagnostic` | Result command in an inline heterogeneous batch reports `LB1004` at the offending item |
+| `ResultCommandInLocalSpreadBatch_ProducesDiagnostic` | Result command found through local initializers and collection spreads reports `LB1004` |
+| `ResultCommandInTransactionalArrayBatch_ProducesDiagnostic` | Result command in an explicitly created array batch to a transactional inbox reports `LB1004` |
+| `ResultCommandInLocalListBatch_ProducesDiagnostic` | Result command in a target-typed local list batch reports `LB1004` |
+| `ResultCommandNamedThroughMessageType_ProducesDiagnostic` | Result command named through `MessageType` reports `LB1004` |
+| `MessageTypeNamingVoidCommand_ProducesNoDiagnostic` | `MessageType` naming a result-less command wins over the `Message` assignment |
+| `ResultCommandWithReorderedNamedArguments_ProducesDiagnostic` | Reordered named arguments resolve to the acceptance item |
+| `ResultCommandThroughFromMessageTypeOverload_ProducesDiagnostic` | Result command passed through the `From` message-type overload reports `LB1004` |

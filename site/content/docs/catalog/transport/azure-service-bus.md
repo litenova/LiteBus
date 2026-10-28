@@ -7,7 +7,7 @@
 
 ## What It Does
 
-`AzureServiceBusTransportModule` registers `AzureServiceBusPublisher` and `AzureServiceBusConsumer` using `Azure.Messaging.ServiceBus`. Publish maps `Destination` to queue or topic and maps `Route` to `Subject`. Consume uses peek-lock with `AutoCompleteMessages = false` and explicit settlement delegates.
+`AzureServiceBusTransportModule` registers `AzureServiceBusPublisher` and `AzureServiceBusConsumer` using `Azure.Messaging.ServiceBus`. Publish maps `Destination` to queue or topic and maps `Route` to `Subject`. The request `MessageId` is optional and is copied only when supplied. Consume uses peek-lock with `AutoCompleteMessages = false` and explicit settlement delegates. The publisher is a singleton and consumers are transient; publisher disposal waits at most five seconds for sender links to close.
 
 Beta tier note: adapter behavior is validated in durable integration tests, with optional live-connection coverage kept separate from emulator coverage.
 
@@ -89,7 +89,7 @@ Beta tier note: adapter behavior is validated in durable integration tests, with
 - `AzureServiceBusQueueDiagnosticTarget` peeks a queue.
 - `AzureServiceBusSubscriptionDiagnosticTarget` peeks a topic subscription.
 - The peek does not lock or settle messages. Grant entity listen permission. Missing target configuration reports degraded.
-- See the current [`PeekMessagesAsync` contract](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusreceiver.peekmessagesasync?view=azure-dotnet).
+- See the [`PeekMessagesAsync` contract](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusreceiver.peekmessagesasync?view=azure-dotnet).
 
 ## Test Coverage
 
@@ -99,6 +99,10 @@ Beta tier note: adapter behavior is validated in durable integration tests, with
 | --- | --- |
 | `Build_ShouldRejectDuplicateTransportRegistration` | `LiteBus.Transport.UnitTests` (`AzureServiceBus/`) |
 | `Constructor_ShouldRejectEmptyConnectionString` | `LiteBus.Transport.UnitTests` (`AzureServiceBus/`) |
+| `Build_ShouldRegisterPublisherAsSingletonAndConsumerAsTransient` | `LiteBus.Transport.UnitTests` (`AzureServiceBus/`) |
+| `ToServiceBusMessage_WithoutMessageId_ShouldMapWithoutThrowing` | `LiteBus.Transport.UnitTests` (`AzureServiceBus/`) |
+| `ToServiceBusMessage_WithMessageId_ShouldCopyIt` | `LiteBus.Transport.UnitTests` (`AzureServiceBus/`) |
+| `Dispose_WhenSenderCloseIsCanceled_ShouldCompleteWithoutThrowing` | `LiteBus.Transport.UnitTests` (`AzureServiceBus/`) |
 | `CheckAsync_WithoutTarget_ShouldReturnDegraded` | `LiteBus.Transport.UnitTests` (`AzureServiceBus/`) |
 | `PublishThroughServiceBus_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/AzureServiceBus/`) |
 | `PublishThroughServiceBus_ShouldAcceptProcessAndDispatchCommand` readiness assertion | `LiteBus.Durable.IntegrationTests` (`Ingress/AzureServiceBus/`) |

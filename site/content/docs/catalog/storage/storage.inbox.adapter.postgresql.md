@@ -10,7 +10,7 @@
 | Interface | Methods used in adapter |
 | --- | --- |
 | `IInboxStore` | `AddAsync`, `AddBatchAsync` |
-| `IInboxLeaseStore` | `LeasePendingAsync`, `RenewLeaseAsync` (via `ILeaseRenewable`) |
+| `IInboxLeaseStore` | `LeasePendingAsync`, `RenewLeaseAsync`, `ReleaseLeaseAsync` (via `ILeaseRenewable`) |
 | `IInboxStateWriter` | `PersistAsync` |
 | `IInboxDeadLetterStore` | `RequeueAsync` |
 | `IInboxRetentionStore` | `DeleteCompletedOlderThanAsync` |
@@ -22,8 +22,10 @@
 
 - Table: configurable, defaults to `public.litebus_inbox_messages`.
 - Insert path uses `ON CONFLICT DO NOTHING RETURNING`; returned rows report `Accepted`, while conflict lookups report `AlreadyAccepted`.
+- Batch inserts run in 1,000-row statements so large batches never approach the PostgreSQL parameter cap.
+- A null tenant filter leaves query, purge, and lease unrestricted; an empty tenant filter matches only unscoped rows. Stored and requested tenants compare through `DurableTenantId.Normalize`.
 - Retention delete uses `COALESCE(completed_at, created_at) < @older_than`.
-- Dead-letter replay uses `UPDATE ... SET status = pending, visible_after = NULL, attempt_count = 0`.
+- Dead-letter replay uses `UPDATE ... SET status = pending, visible_after = NULL, attempt_count = 0` and clears lease, error, and failure-timestamp columns (`lease_owner`, `lease_expires_at`, `last_error`, `error_type`, `first_failed_at`, `dead_lettered_at`); only rows still in dead-letter status are rewritten.
 - Status diagnostics uses grouped count query: `SELECT status, COUNT(*) FROM ... GROUP BY status`.
 
 ## Concurrency Model
@@ -55,6 +57,7 @@ Schema v1 creates and validates:
 ### `LiteBus.Storage.IntegrationTests` (`PostgreSql/`)
 
 - `PostgreSqlInboxStoreTests` (contract inheritance): append, lease, persist, replay, retention, diagnostics.
+- `PostgreSqlInboxBatchInsertTests`: 4,000-envelope batch stored in input order across chunked statements.
 - `PostgreSqlInboxEndToEndTests`: full processor pass and retry/dead-letter transitions.
 - `PostgreSqlInboxProcessorLeaseStressTests`: parallel workers with one terminal result per message.
 - `PostgreSqlInboxWorkSignalNotifyTests` and `PostgreSqlInboxWorkSignalTests`: LISTEN/NOTIFY wake and reconnect.

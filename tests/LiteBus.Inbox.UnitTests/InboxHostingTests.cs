@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using LiteBus.Commands;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Inbox.Abstractions;
@@ -65,7 +66,8 @@ public sealed class InboxHostingTests : LiteBusTestBase
             var scheduler = provider.GetRequiredService<IInbox>();
             var orderId = Guid.NewGuid();
 
-            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
+            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+            {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
             }).ConfigureAwait(true);
@@ -138,27 +140,27 @@ public sealed class InboxHostingTests : LiteBusTestBase
                 options.StartupDelay = TimeSpan.FromMilliseconds(300);
                 options.PollInterval = TimeSpan.FromMilliseconds(50);
             });
-        await using (provider.ConfigureAwait(true))
+        await using (provider.ConfigureAwait(false))
         {
             var scheduler = provider.GetRequiredService<IInbox>();
 
             var orderId = Guid.NewGuid();
 
-            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
+            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+            {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
-            }).ConfigureAwait(true);
+            }).ConfigureAwait(false);
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-            await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(true);
-
-            await Task.Delay(TimeSpan.FromMilliseconds(100)).ConfigureAwait(true);
-            recorder.Commands.Should().BeEmpty();
-
-            await Task.Delay(TimeSpan.FromMilliseconds(350)).ConfigureAwait(true);
-            await InboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(true);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var elapsed = Stopwatch.StartNew();
+            await InboxTestInfrastructure.StartLiteBusHostedServicesAsync(provider, cts.Token).ConfigureAwait(false);
+            await WaitUntilAsync(() => recorder.Commands.Count == 1, TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+            elapsed.Stop();
+            await InboxTestInfrastructure.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
 
             recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
+            elapsed.Elapsed.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(250));
         }
     }
 
@@ -193,7 +195,8 @@ public sealed class InboxHostingTests : LiteBusTestBase
             {
                 var orderId = Guid.NewGuid();
 
-                await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
+                await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+                {
                     OrderId = orderId,
                     IdempotencyKey = $"ship:{orderId}"
                 }).ConfigureAwait(true);
@@ -224,7 +227,8 @@ public sealed class InboxHostingTests : LiteBusTestBase
 
             var orderId = Guid.NewGuid();
 
-            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
+            await scheduler.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+            {
                 OrderId = orderId,
                 IdempotencyKey = $"ship:{orderId}"
             }).ConfigureAwait(true);

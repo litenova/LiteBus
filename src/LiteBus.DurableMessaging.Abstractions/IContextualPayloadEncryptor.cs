@@ -8,7 +8,8 @@ namespace LiteBus.Messaging.Abstractions;
 /// </summary>
 /// <remarks>
 ///     Implementations should use the canonical context as associated data so ciphertext cannot be moved between
-///     message rows, contracts, tenants, or durable axes without authentication failure.
+///     message rows, contracts, tenants, or durable axes without authentication failure. The context tenant identifier
+///     is normalized to <see langword="null" /> for unscoped messages.
 /// </remarks>
 public interface IContextualPayloadEncryptor : IPayloadEncryptor
 {

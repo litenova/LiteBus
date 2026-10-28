@@ -100,7 +100,7 @@ The extension subscribes `LiteBusTransportTelemetry.ActivitySourceName`. Exporte
 - Serialized W3C remote parent continuation.
 - Error status and `error.type` recording.
 
-`LiteBusTransportOpenTelemetryIntegrationTests` verifies activity source and meter provider registration.
+`LiteBusTransportOpenTelemetryIntegrationTests.AddLiteBusTransportInstrumentation_ShouldSubscribePublicActivitySourceName` verifies activity source registration on the tracer provider.
 
 ## Related Documentation
 

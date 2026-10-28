@@ -14,11 +14,11 @@
 - `IQueryHandler<TQuery, TResult>`
 - `IStreamQueryHandler<TQuery, TResult>`
 
-It reports when a dependency type in constructor parameters, method parameters, fields, or properties matches or implements one of the impure APIs:
+It reports when a dependency type in constructor parameters, fields, or properties matches or implements one of the impure APIs. Members inherited from base handler classes are inspected the same way as declared members. Ordinary method parameters are not dependencies, because a helper receives them from its caller rather than from injection, so they stay silent:
 
 - `ICommandMediator`, `IEventMediator`, `IQueryMediator`
-- `IInbox`, `ITransactionalInbox<T>`, `IInboxStore`, `ITransactionalInboxStore`
-- `IOutbox`, `IOutboxStore`, `ITransactionalOutboxStore`
+- `IInbox`, `ITransactionalInbox`, `ITransactionalInbox<T>`, `IInboxStore`, `ITransactionalInboxStore`
+- `IOutbox`, `ITransactionalOutbox`, `ITransactionalOutbox<T>`, `IOutboxStore`, `ITransactionalOutboxStore`
 - `ITransportPublisher`
 
 The analyzer reports each impure dependency metadata type once per handler.
@@ -75,7 +75,7 @@ public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
 
 ## Test Coverage
 
-Source: `tests/LiteBus.Analyzers.UnitTests/QueryHandlerImpurityAnalyzerTests.cs`
+Source: `tests/LiteBus.Analyzers.UnitTests/QueryHandlerImpurityAnalyzerTests.cs`, `tests/LiteBus.Analyzers.UnitTests/QueryHandlerImpurityAnalyzerRegressionTests.cs`
 
 | Test method | Verifies |
 | --- | --- |
@@ -83,6 +83,11 @@ Source: `tests/LiteBus.Analyzers.UnitTests/QueryHandlerImpurityAnalyzerTests.cs`
 | `QueryHandlerWithCommandMediator_ProducesDiagnostic` | `ICommandMediator` dependency reports `LB1003` |
 | `QueryHandlerWithInbox_ProducesDiagnostic` | `IInbox` dependency reports `LB1003` |
 | `QueryHandlerWithTransactionalInbox_ProducesDiagnostic` | `IInboxStore` dependency reports `LB1003` |
+| `QueryHandlerWithTransactionalInboxWriter_ProducesDiagnostic` | `ITransactionalInbox` dependency reports `LB1003` |
+| `QueryHandlerWithTransactionalOutboxWriter_ProducesDiagnostic` | `ITransactionalOutbox` dependency reports `LB1003` |
+| `QueryHandlerWithGenericTransactionalOutboxWriter_ProducesDiagnostic` | `ITransactionalOutbox<T>` dependency reports `LB1003` |
 | `StreamQueryHandlerWithCommandMediator_ProducesDiagnostic` | Stream query handlers are covered |
 | `QueryHandlerWithImpureField_ProducesDiagnostic` | Field dependency on `IEventMediator` reports `LB1003` |
 | `QueryHandlerWithMessageTransport_ProducesDiagnostic` | `ITransportPublisher` dependency reports `LB1003` |
+| `QueryHandlerWithOrdinaryMethodParameter_ProducesNoDiagnostic` | Ordinary method parameter is not an injected dependency |
+| `QueryHandlerWithInheritedImpureProperty_ProducesDiagnostic` | Base-class property dependency reports `LB1003` |

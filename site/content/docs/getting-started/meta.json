@@ -1,0 +1,10 @@
+{
+  "title": "Getting Started",
+  "pages": [
+    "README",
+    "sample",
+    "cheat-sheet",
+    "cookbook",
+    "best-practices"
+  ]
+}

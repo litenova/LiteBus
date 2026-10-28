@@ -14,6 +14,9 @@
 | API | Role |
 | --- | --- |
 | `IMessageWriter.Register(Type)` | Registers message or handler type |
+| `IMessageWriter.RegisterFromScan(Type)` | Registers a scan-discovered type and records that no registration line named it |
+| `IMessageReader.OpenGenericClosures` | Each open generic handler and the concrete messages it closed over |
+| `IMessageReader.ScannedOpenGenericHandlers` | Open generic handlers that arrived through a scan rather than a registration line |
 | `IMessageReader.Find(Type)` | Exact-type descriptor lookup |
 | `IMessageReader.Handlers` | Ordered handler descriptors |
 | `IMessageReader.Count` | Count of committed message descriptors |
@@ -66,4 +69,4 @@ No dedicated telemetry.
 
 ### Out-of-Scope Use Cases
 
-- Open-generic handlers with multiple type parameters.
+- Open-generic handlers with more than two type parameters.

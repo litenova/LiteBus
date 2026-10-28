@@ -13,10 +13,8 @@ public sealed class LiteBusDependencyResolutionException : Exception
     /// <param name="serviceType">The unresolved service type.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceType" /> is <see langword="null" />.</exception>
     public LiteBusDependencyResolutionException(Type serviceType)
-        : base($"Service of type '{serviceType.FullName ?? serviceType.Name}' is not registered.")
+        : base(BuildMessage(serviceType))
     {
-        ArgumentNullException.ThrowIfNull(serviceType);
-
         ServiceType = serviceType;
     }
 
@@ -24,4 +22,17 @@ public sealed class LiteBusDependencyResolutionException : Exception
     ///     Gets the unresolved service type.
     /// </summary>
     public Type ServiceType { get; }
+
+    /// <summary>
+    ///     Builds the exception message for the unresolved service type.
+    /// </summary>
+    /// <param name="serviceType">The unresolved service type.</param>
+    /// <returns>The exception message naming the unresolved service type.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceType" /> is <see langword="null" />.</exception>
+    private static string BuildMessage(Type serviceType)
+    {
+        ArgumentNullException.ThrowIfNull(serviceType);
+
+        return $"Service of type '{serviceType.FullName ?? serviceType.Name}' is not registered.";
+    }
 }

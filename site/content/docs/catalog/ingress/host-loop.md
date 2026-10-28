@@ -12,7 +12,8 @@ Ingress modules register `TransportInboxIngressConsumer` through `IModuleConfigu
 | Property | Default | Role |
 | --- | --- | --- |
 | `Enabled` | true | Skip the consumer loop when false |
-| `RetryPollInterval` | 5 seconds | Delay before restarting after transport faults |
+| `RetryPollInterval` | 5 seconds | Delay before restarting after transport faults; zero still waits `MinimumRestartDelay` (1 second) |
+| `MinimumRestartDelay` | 1 second | Floor between restarts, so a zero interval cannot hot-loop |
 
 Module builders expose `DisableIngressConsumer()` to register handler services without starting the subscription loop (custom consume paths or tests). Kafka builder also exposes `ConfigureHost(Action<TransportInboxIngressHostOptions>)`.
 
@@ -50,7 +51,7 @@ flowchart TD
 
 ## Requires
 
-- `hosting.manifest-background-services` (generic host orchestrator)
+- `hosting.background-services` (generic host orchestrator)
 - `ingress.transport-consumer`
 
 ## Invariants
@@ -58,14 +59,14 @@ flowchart TD
 - Background services start after startup tasks complete (host orchestrator ordering).
 - Disabling the consumer still registers `TransportInboxIngressHandler` for manual accept scenarios.
 - Ingress does not register `IHostedService` directly; it uses manifest indirection.
-- Retry behavior is infinite until cancellation, with delay controlled by `RetryPollInterval`.
+- Retry behavior is infinite until cancellation, with delay controlled by `RetryPollInterval` floored at `MinimumRestartDelay` (1 second); cancellation during the delay breaks the loop cleanly.
 
 ## Broker Parity
 
 | Broker adapter | `DisableIngressConsumer()` | Host options customization |
 | --- | --- | --- |
 | AMQP | yes | `HostOptions` property |
-| Kafka | yes | `ConfigureHost(...)` API |
+| Kafka | yes | `HostOptions` property and `ConfigureHost(...)` |
 | AWS SQS | yes | `HostOptions` property |
 | Azure Service Bus | yes | `HostOptions` property |
 | InMemory | yes | `HostOptions` property |

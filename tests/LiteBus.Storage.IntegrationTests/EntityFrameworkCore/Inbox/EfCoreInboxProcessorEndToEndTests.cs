@@ -23,6 +23,7 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
     public EfCoreInboxProcessorEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
@@ -30,7 +31,7 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
     ///     storage.
     /// </summary>
     /// <returns>A task that completes when the command is handled.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_ShouldExecuteScheduledCommandThroughEfCoreStore()
     {
         var storeOptions = EfCoreInboxE2eSupport.CreateStoreOptions(TableName);
@@ -38,23 +39,24 @@ public sealed class EfCoreInboxProcessorEndToEndTests : LiteBusTestBase, IClassF
 
         var recorder = new CommandRecorder();
 
-         var provider = EfCoreInboxE2eSupport.BuildProvider<HappyPathInboxDbContext>(             _fixture.ConnectionString,             storeOptions,             new InboxE2eComposition             {                 Recorder = recorder,                 LeaseOwner = "efcore-inbox-happy-path"             });
-         await using (provider.ConfigureAwait(true))
-         {
+        var provider = EfCoreInboxE2eSupport.BuildProvider<HappyPathInboxDbContext>(_fixture.ConnectionString, storeOptions, new InboxE2eComposition { Recorder = recorder, LeaseOwner = "efcore-inbox-happy-path" });
+        await using (provider.ConfigureAwait(true))
+        {
 
-        var scheduler = provider.GetRequiredService<IInbox>();
-        var processor = provider.GetRequiredService<IInboxProcessor>();
+            var scheduler = provider.GetRequiredService<IInbox>();
+            var processor = provider.GetRequiredService<IInboxProcessor>();
 
-        var orderId = Guid.NewGuid();
+            var orderId = Guid.NewGuid();
 
-        await scheduler.AcceptAsync(new ShipOrderCommand {
-            OrderId = orderId,
-            IdempotencyKey = $"ship:{orderId}"
-        }).ConfigureAwait(false);
+            await scheduler.AcceptAsync(new ShipOrderCommand
+            {
+                OrderId = orderId,
+                IdempotencyKey = $"ship:{orderId}"
+            }).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
+            recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
         }
     }
 

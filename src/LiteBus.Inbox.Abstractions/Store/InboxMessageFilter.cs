@@ -47,7 +47,7 @@ public sealed record InboxMessageFilter
     public string? CausationId { get; init; }
 
     /// <summary>
-    ///     Gets the tenant identifier that must match when set.
+    ///     Gets the tenant identifier that must match when set. A <see langword="null" /> value leaves the query unrestricted across tenants, while the empty string matches only unscoped rows. Stored and requested tenants compare through <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.DurableTenantId" /> normalization.
     /// </summary>
     public string? TenantId { get; init; }
 

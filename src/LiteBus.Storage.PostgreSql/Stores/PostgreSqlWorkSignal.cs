@@ -9,7 +9,7 @@ namespace LiteBus.Storage.PostgreSql.Stores;
 /// <summary>
 ///     Listens for PostgreSQL <c>NOTIFY</c> events on a work channel and falls back to polling delays.
 /// </summary>
-public sealed class PostgreSqlWorkSignal : IAsyncDisposable
+public sealed class PostgreSqlWorkSignal : IAsyncDisposable, IDisposable
 {
     /// <summary>
     ///     The delay applied before reconnecting a broken listener connection.
@@ -47,6 +47,12 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     private readonly SemaphoreSlim _signal = new(0, int.MaxValue);
 
     /// <summary>
+    ///     Set to <see langword="true" /> under <see cref="_listenerLoopSync" /> once disposal starts, so no listener loop
+    ///     is started after disposal has taken the current one.
+    /// </summary>
+    private bool _disposed;
+
+    /// <summary>
     ///     Gets the dedicated listener connection, if one has been opened.
     /// </summary>
     private NpgsqlConnection? _listenerConnection;
@@ -75,6 +81,12 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     Disposal is idempotent. The two semaphores are not disposed: a processor can still be inside
+    ///     <see cref="WaitForWorkOrDelayAsync" /> when the container disposes this signal, and disposing a
+    ///     <see cref="SemaphoreSlim" /> under a waiter turns an orderly shutdown into an <see cref="ObjectDisposedException" />.
+    ///     Neither semaphore exposes its wait handle, so it holds no unmanaged resource to release.
+    /// </remarks>
     public async ValueTask DisposeAsync()
     {
         CancellationTokenSource? listenerLoopCts;
@@ -82,6 +94,12 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
 
         lock (_listenerLoopSync)
         {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
             listenerLoopCts = _listenerLoopCts;
             listenerLoopTask = _listenerLoopTask;
             _listenerLoopCts = null;
@@ -95,28 +113,53 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
 
         if (listenerLoopTask is not null)
         {
+#pragma warning disable CA1031 // Disposal must not fail: the listener loop can fault with a BCL transport exception racing shutdown.
             try
             {
                 await listenerLoopTask.ConfigureAwait(false);
             }
-            catch (OperationCanceledException)
+            catch (Exception)
             {
-                // Expected when the listener loop is cancelled during disposal.
+                // The listener loop's last-resort catch is filtered on cancellation, so an exception raised after
+                // cancellation was requested faults the task instead of looping. Disposal still has to close the
+                // listener connection and wake waiters, so the fault is swallowed here.
             }
+#pragma warning restore CA1031
         }
 
         listenerLoopCts?.Dispose();
 
-        var connection = TakeListenerConnection();
+        // Taking the startup gate waits out a listener startup already in progress, so the connection it publishes is
+        // the one disposed here; a startup that acquires the gate afterwards sees the disposed flag and opens nothing.
+        await _listenerGate.WaitAsync().ConfigureAwait(false);
 
-        if (connection is not null)
+        try
         {
-            DetachListenerConnection(connection);
-            await connection.DisposeAsync().ConfigureAwait(false);
+            var connection = TakeListenerConnection();
+
+            if (connection is not null)
+            {
+                DetachListenerConnection(connection);
+                await connection.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _listenerGate.Release();
         }
 
-        _signal.Dispose();
-        _listenerGate.Dispose();
+        // Wake a processor blocked on the signal so it observes shutdown instead of waiting out its poll interval.
+        ReleaseSignal();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     Containers that are disposed synchronously call this overload. It blocks on <see cref="DisposeAsync" />, which
+    ///     only cancels the listener loop and closes one connection.
+    /// </remarks>
+    public void Dispose()
+    {
+        DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
     /// <summary>
@@ -127,7 +170,14 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     /// <returns>A task that completes when work is signaled or the poll interval expires.</returns>
     public async Task WaitForWorkOrDelayAsync(TimeSpan pollInterval, CancellationToken cancellationToken = default)
     {
-        EnsureListenerLoopStarted();
+        if (!EnsureListenerLoopStarted())
+        {
+            // Disposed: the listener is gone, so fall back to the polling delay a processor still draining can use.
+            await Task.Delay(pollInterval > TimeSpan.Zero ? pollInterval : Timeout.InfiniteTimeSpan, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
         await EnsureListenerStartedAsync(cancellationToken).ConfigureAwait(false);
 
         if (pollInterval <= TimeSpan.Zero)
@@ -142,17 +192,27 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     /// <summary>
     ///     Starts the dedicated background loop that calls <c>WaitAsync</c>.
     /// </summary>
-    private void EnsureListenerLoopStarted()
+    /// <returns>
+    ///     <see langword="false" /> when the signal has been disposed, in which case no loop is started; otherwise
+    ///     <see langword="true" />.
+    /// </returns>
+    private bool EnsureListenerLoopStarted()
     {
         lock (_listenerLoopSync)
         {
+            if (_disposed)
+            {
+                return false;
+            }
+
             if (_listenerLoopTask is not null)
             {
-                return;
+                return true;
             }
 
             _listenerLoopCts = new CancellationTokenSource();
             _listenerLoopTask = RunListenerLoopAsync(_listenerLoopCts.Token);
+            return true;
         }
     }
 
@@ -225,6 +285,18 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
     }
 
     /// <summary>
+    ///     Builds the <c>LISTEN</c> command text for a work channel name.
+    /// </summary>
+    /// <param name="channelName">The notification channel name.</param>
+    /// <returns>The <c>LISTEN</c> command with the quoted channel name.</returns>
+    internal static string BuildListenCommand(string channelName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channelName);
+
+        return $"LISTEN {PostgreSqlIdentifier.Quote(channelName)}";
+    }
+
+    /// <summary>
     ///     Opens the listener connection and subscribes to work notifications.
     /// </summary>
     /// <param name="cancellationToken">A token used to cancel listener startup.</param>
@@ -240,6 +312,11 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
 
         try
         {
+            if (Volatile.Read(ref _disposed))
+            {
+                return;
+            }
+
             var existingConnection = GetListenerConnection();
 
             if (existingConnection is { State: ConnectionState.Open })
@@ -262,7 +339,7 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable
             try
             {
                 using var command = connection.CreateCommand();
-                command.CommandText = $"LISTEN {_channelName}";
+                command.CommandText = BuildListenCommand(_channelName);
                 await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                 SetListenerConnection(connection);
             }

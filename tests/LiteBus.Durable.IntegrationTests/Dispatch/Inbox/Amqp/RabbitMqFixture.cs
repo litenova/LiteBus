@@ -1,4 +1,5 @@
 using LiteBus.Transport.Amqp;
+using LiteBus.Transport.IntegrationTesting;
 using Testcontainers.RabbitMq;
 
 namespace LiteBus.Durable.IntegrationTests.Dispatch.Inbox.Amqp;
@@ -8,12 +9,6 @@ namespace LiteBus.Durable.IntegrationTests.Dispatch.Inbox.Amqp;
 /// </summary>
 public sealed class RabbitMqFixture : IAsyncLifetime
 {
-    /// <summary>
-    ///     Message shown when integration tests fail because Docker is not available.
-    /// </summary>
-    public const string DockerRequiredMessage =
-        "AMQP integration tests require Docker. Start Docker Desktop (or the Docker daemon) and run the tests again.";
-
     private RabbitMqContainer? _container;
 
     /// <summary>
@@ -21,27 +16,37 @@ public sealed class RabbitMqFixture : IAsyncLifetime
     /// </summary>
     public AmqpConnectionOptions ConnectionOptions { get; private set; } = null!;
 
+    /// <summary>
+    ///     Gets a value indicating whether the RabbitMQ container started successfully.
+    /// </summary>
+    public bool IsAvailable { get; private set; }
+
     /// <inheritdoc />
     public async Task InitializeAsync()
     {
         try
         {
-            _container = new RabbitMqBuilder("rabbitmq:4-management")
-                .WithUsername("guest")
-                .WithPassword("guest")
-                .Build();
-
-            await _container.StartAsync().ConfigureAwait(false);
-
-            ConnectionOptions = new AmqpConnectionOptions
+            await DockerTestGate.RunAsync(async () =>
             {
-                Uri = new Uri(_container.GetConnectionString()),
-                ClientProvidedName = "LiteBus.Durable.IntegrationTests.Dispatch.Inbox.Amqp.RabbitMQ"
-            };
+                _container = new RabbitMqBuilder("rabbitmq:4-management")
+                    .WithUsername("guest")
+                    .WithPassword("guest")
+                    .Build();
+
+                await _container.StartAsync().ConfigureAwait(false);
+
+                ConnectionOptions = new AmqpConnectionOptions
+                {
+                    Uri = new Uri(_container.GetConnectionString()),
+                    ClientProvidedName = "LiteBus.Durable.IntegrationTests.Dispatch.Inbox.Amqp.RabbitMQ"
+                };
+
+                IsAvailable = true;
+            }).ConfigureAwait(false);
         }
-        catch (Exception exception)
+        catch (InvalidOperationException) when (!DockerTestGate.IsStrictTransportMode)
         {
-            throw new InvalidOperationException(DockerRequiredMessage, exception);
+            IsAvailable = false;
         }
     }
 

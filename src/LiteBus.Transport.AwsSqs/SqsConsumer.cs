@@ -1,3 +1,9 @@
+using System;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using LiteBus.Transport.Abstractions;
@@ -15,6 +21,11 @@ public sealed class SqsConsumer : IMessageConsumer
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
 
     /// <summary>
+    ///     Tracks whether asynchronous disposal has started.
+    /// </summary>
+    private int _disposed;
+
+    /// <summary>
     ///     Gets the transport options controlling poll and visibility behavior.
     /// </summary>
     private readonly AwsSqsTransportOptions _options;
@@ -23,6 +34,11 @@ public sealed class SqsConsumer : IMessageConsumer
     ///     Gets the SQS client used to receive and acknowledge messages.
     /// </summary>
     private readonly IAmazonSQS _sqsClient;
+
+    /// <summary>
+    ///     Gets the time source used for visibility extension delays while handlers run.
+    /// </summary>
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     ///     Gets the number of consecutive receive batches where every handler failed.
@@ -49,12 +65,14 @@ public sealed class SqsConsumer : IMessageConsumer
     /// </summary>
     /// <param name="sqsClient">The SQS client used to receive and acknowledge messages.</param>
     /// <param name="options">The transport options controlling poll and visibility behavior.</param>
-    public SqsConsumer(IAmazonSQS sqsClient, AwsSqsTransportOptions options)
+    /// <param name="timeProvider">The time source used for visibility extension delays while handlers run.</param>
+    public SqsConsumer(IAmazonSQS sqsClient, AwsSqsTransportOptions options, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(sqsClient);
         ArgumentNullException.ThrowIfNull(options);
         _sqsClient = sqsClient;
         _options = options;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -90,6 +108,10 @@ public sealed class SqsConsumer : IMessageConsumer
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     A faulted consume loop is captured into the stop signal instead of thrown here, so the terminal failure
+    ///     surfaces through <see cref="WaitUntilStoppedAsync" />.
+    /// </remarks>
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -117,6 +139,12 @@ public sealed class SqsConsumer : IMessageConsumer
                     catch (OperationCanceledException)
                     {
                         // Expected when cancellation stops the consume loop.
+                    }
+#pragma warning disable CA1031 // A faulted loop surfaces through WaitUntilStoppedAsync, not StopAsync.
+                    catch (Exception exception)
+#pragma warning restore CA1031
+                    {
+                        SignalStopped(exception);
                     }
                 }
             }
@@ -149,17 +177,66 @@ public sealed class SqsConsumer : IMessageConsumer
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         await StopAsync().ConfigureAwait(false);
         _lifecycleGate.Dispose();
+    }
+
+    /// <summary>
+    ///     Invokes the consumer handler while extending SQS visibility so a long handler keeps its receipt handle alive.
+    /// </summary>
+    /// <remarks>
+    ///     One <c>ChangeMessageVisibility</c> is issued per half visibility timeout through the configured
+    ///     <see cref="TimeProvider" />. The requeue delay computed at receive time is unchanged and still applies
+    ///     when the handler requests requeue.
+    /// </remarks>
+    /// <param name="handler">The bounded handler invoked for the delivery.</param>
+    /// <param name="transportMessage">The transport delivery passed to the handler.</param>
+    /// <param name="brokerMessage">The received SQS message supplying the receipt handle.</param>
+    /// <param name="queueUrl">The queue URL owning the receipt handle.</param>
+    /// <param name="cancellationToken">The token used to cancel handler execution.</param>
+    /// <returns>The settlement outcome observed by the caller.</returns>
+    private async Task<TransportConsumerInvocationOutcome> InvokeHandlerWithVisibilityExtensionAsync(
+        Func<TransportMessage, CancellationToken, Task<TransportConsumerInvocationOutcome>> handler,
+        TransportMessage transportMessage,
+        Message brokerMessage,
+        string queueUrl,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(transportMessage);
+        ArgumentNullException.ThrowIfNull(brokerMessage);
+        ArgumentException.ThrowIfNullOrWhiteSpace(queueUrl);
+
+        return await SqsVisibilityHeartbeat.RunWithVisibilityExtensionAsync(
+                token => _sqsClient.ChangeMessageVisibilityAsync(
+                    new ChangeMessageVisibilityRequest
+                    {
+                        QueueUrl = queueUrl,
+                        ReceiptHandle = brokerMessage.ReceiptHandle,
+                        VisibilityTimeout = _options.VisibilityTimeoutSeconds
+                    },
+                    token),
+                SqsVisibilityHeartbeat.ComputeExtensionInterval(_options.VisibilityTimeoutSeconds),
+                _timeProvider,
+                handlerToken => handler(transportMessage, handlerToken),
+                cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
     ///     Long-polls the configured queue until cancellation is requested.
     /// </summary>
     /// <remarks>
-    ///     When a handler throws, the message visibility is extended using exponential backoff derived from
-    ///     <c>ApproximateReceiveCount</c>. When an entire received batch fails, poll backoff is applied before the next
-    ///     <c>ReceiveMessage</c> call.
+    ///     While a handler runs, message visibility is extended once per half visibility timeout so the receipt
+    ///     handle cannot expire mid-handler. When a handler throws, the message visibility is extended using
+    ///     exponential backoff derived from <c>ApproximateReceiveCount</c>. When an entire received batch fails,
+    ///     poll backoff is applied before the next <c>ReceiveMessage</c> call. A message that cannot be mapped
+    ///     because its body or packed headers are malformed is deleted as poison and skipped, so one bad delivery
+    ///     cannot stall the loop or every restart after it.
     /// </remarks>
     /// <param name="options">The consumer options for the active subscription.</param>
     /// <param name="handler">The handler invoked for each delivery.</param>
@@ -231,13 +308,36 @@ public sealed class SqsConsumer : IMessageConsumer
                                 token)
                     };
 
-                    var transportMessage = SqsMessageMapper.ToTransportMessage(
-                        message,
-                        options.Destination,
-                        ackHandlers);
+                    TransportMessage transportMessage;
 
-                    var outcome = await boundedHandler(
+                    try
+                    {
+                        transportMessage = SqsMessageMapper.ToTransportMessage(
+                            message,
+                            options.Destination,
+                            ackHandlers);
+                    }
+                    catch (FormatException)
+                    {
+                        await DeletePoisonMessageAsync(message, options.Destination, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+                    catch (JsonException)
+                    {
+                        await DeletePoisonMessageAsync(message, options.Destination, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+                    catch (EncoderFallbackException)
+                    {
+                        await DeletePoisonMessageAsync(message, options.Destination, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    var outcome = await InvokeHandlerWithVisibilityExtensionAsync(
+                            boundedHandler,
                             transportMessage,
+                            message,
+                            options.Destination,
                             cancellationToken)
                         .ConfigureAwait(false);
 
@@ -267,9 +367,50 @@ public sealed class SqsConsumer : IMessageConsumer
         {
             // Expected during consumer shutdown.
         }
+#pragma warning disable CA1031 // Terminal loop failures surface through WaitUntilStoppedAsync; the signal preserves the fault before rethrow.
+        catch (Exception exception)
+#pragma warning restore CA1031
+        {
+            SignalStopped(exception);
+            throw;
+        }
         finally
         {
             SignalStopped();
+        }
+    }
+
+    /// <summary>
+    ///     Deletes one poison message that can never be mapped to the transport model.
+    /// </summary>
+    /// <remarks>
+    ///     Mapping poison can never be processed, so the message is deleted instead of requeued. Deletion is
+    ///     best-effort: a failed delete leaves the message queued for redelivery, and the loop continues with the
+    ///     next delivery either way.
+    /// </remarks>
+    /// <param name="message">The received SQS message that failed mapping.</param>
+    /// <param name="queueUrl">The queue URL owning the receipt handle.</param>
+    /// <param name="cancellationToken">The token used to cancel the consume loop.</param>
+    /// <returns>A task that completes when the poison delete has been attempted.</returns>
+    private async Task DeletePoisonMessageAsync(Message message, string queueUrl, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _sqsClient.DeleteMessageAsync(
+                new DeleteMessageRequest
+                {
+                    QueueUrl = queueUrl,
+                    ReceiptHandle = message.ReceiptHandle
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (AmazonClientException)
+        {
+            // Best-effort: the poison message stays queued for redelivery when the delete fails.
         }
     }
 
@@ -285,8 +426,15 @@ public sealed class SqsConsumer : IMessageConsumer
     /// <summary>
     ///     Marks the current consume session as stopped.
     /// </summary>
-    private void SignalStopped()
+    /// <param name="exception">The broker failure that stopped the session, when one was supplied.</param>
+    private void SignalStopped(Exception? exception = null)
     {
+        if (exception is not null)
+        {
+            _stoppedTcs.TrySetException(exception);
+            return;
+        }
+
         _stoppedTcs.TrySetResult();
     }
 }

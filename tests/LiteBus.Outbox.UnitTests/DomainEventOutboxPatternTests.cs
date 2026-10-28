@@ -22,10 +22,7 @@ public sealed class DomainEventOutboxPatternTests
         var transactionalOutbox = new StoreBoundTransactionalOutbox(
             store,
             new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System));
-        var handler = new PlaceOrderHandler(
-            new DomainEventCollector(),
-            new OrderIntegrationEventMapper(),
-            transactionalOutbox);
+        var handler = new PlaceOrderHandler(transactionalOutbox);
         var order = new Order(Guid.NewGuid());
 
         await handler.HandleAsync(order).ConfigureAwait(false);
@@ -37,7 +34,7 @@ public sealed class DomainEventOutboxPatternTests
         envelope.Topic.Should().Be("orders.events");
         envelope.IdempotencyKey.Should().Be($"order-placed:{order.Id:N}");
 
-        var integrationEvent = (OrderPlacedIntegrationEvent)await serializer.DeserializeAsync(
+        var integrationEvent = (OrderPlacedIntegrationEvent) await serializer.DeserializeAsync(
             typeof(OrderPlacedIntegrationEvent),
             envelope.Payload).ConfigureAwait(false);
         integrationEvent.OrderId.Should().Be(order.Id);
@@ -96,7 +93,7 @@ public sealed class DomainEventOutboxPatternTests
 
     private sealed class DomainEventCollector
     {
-        public IReadOnlyList<IDomainEvent> Drain(IHasDomainEvents aggregate)
+        public static IReadOnlyList<IDomainEvent> Drain(IHasDomainEvents aggregate)
         {
             ArgumentNullException.ThrowIfNull(aggregate);
             return aggregate.DrainDomainEvents();
@@ -105,7 +102,7 @@ public sealed class DomainEventOutboxPatternTests
 
     private sealed class OrderIntegrationEventMapper
     {
-        public OutboxEnqueueItem<OrderPlacedIntegrationEvent> Map(IDomainEvent domainEvent)
+        public static OutboxEnqueueItem<OrderPlacedIntegrationEvent> Map(IDomainEvent domainEvent)
         {
             ArgumentNullException.ThrowIfNull(domainEvent);
 
@@ -125,21 +122,12 @@ public sealed class DomainEventOutboxPatternTests
 
     private sealed class PlaceOrderHandler
     {
-        private readonly DomainEventCollector _collector;
-        private readonly OrderIntegrationEventMapper _mapper;
         private readonly ITransactionalOutbox _transactionalOutbox;
 
-        public PlaceOrderHandler(
-            DomainEventCollector collector,
-            OrderIntegrationEventMapper mapper,
-            ITransactionalOutbox transactionalOutbox)
+        public PlaceOrderHandler(ITransactionalOutbox transactionalOutbox)
         {
-            ArgumentNullException.ThrowIfNull(collector);
-            ArgumentNullException.ThrowIfNull(mapper);
             ArgumentNullException.ThrowIfNull(transactionalOutbox);
 
-            _collector = collector;
-            _mapper = mapper;
             _transactionalOutbox = transactionalOutbox;
         }
 
@@ -149,9 +137,9 @@ public sealed class DomainEventOutboxPatternTests
 
             order.Place();
 
-            foreach (var domainEvent in _collector.Drain(order))
+            foreach (var domainEvent in DomainEventCollector.Drain(order))
             {
-                await _transactionalOutbox.EnqueueAsync(_mapper.Map(domainEvent), cancellationToken)
+                await _transactionalOutbox.EnqueueAsync(OrderIntegrationEventMapper.Map(domainEvent), cancellationToken)
                     .ConfigureAwait(false);
             }
         }

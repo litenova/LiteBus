@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Reflection;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Saga.Abstractions;
 
 namespace LiteBus.Saga;
@@ -14,6 +16,11 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
     ///     The maximum number of optimistic concurrency attempts for completion-only dispatches.
     /// </summary>
     private const int MaxCompletionAttempts = 3;
+
+    /// <summary>
+    ///     Cached invokers that close the generic serializer call over runtime saga state types.
+    /// </summary>
+    private static readonly ConcurrentDictionary<Type, SerializeStateInvoker> SerializeInvokers = new();
 
     /// <summary>
     ///     Serializes saga dispatches that target the same tenant, definition, and correlation.
@@ -46,7 +53,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
     private readonly ISagaStore _sagaStore;
 
     /// <summary>
-    ///     Gets the serializer used to hydrate default state objects.
+    ///     Gets the serializer used to snapshot saga state for change detection.
     /// </summary>
     private readonly IMessageSerializer _serializer;
 
@@ -60,7 +67,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
     /// </summary>
     /// <param name="sagaStore">The durable saga store.</param>
     /// <param name="stateTypeRegistry">The registry that maps saga definition identifiers to state types.</param>
-    /// <param name="serializer">The serializer used to hydrate default state objects.</param>
+    /// <param name="serializer">The serializer used to snapshot saga state for change detection.</param>
     /// <param name="context">The ambient saga context exposed to handlers.</param>
     public SagaProcessorHook(
         ISagaStore sagaStore,
@@ -123,7 +130,8 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
         {
             var initialState = Activator.CreateInstance(stateType)
                 ?? throw new InvalidOperationException($"Could not create saga state type '{stateType.FullName}'.");
-            _context.Begin(envelope.MessageId, correlation, initialState, 0);
+            var initialSnapshot = await SerializeStateAsync(stateType, initialState, cancellationToken).ConfigureAwait(false);
+            _context.Begin(envelope.MessageId, correlation, initialState, 0, initialSnapshot);
         }
         catch
         {
@@ -136,7 +144,7 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
             var loaded = await SagaStoreInvoker.LoadAsync(_sagaStore, stateType, correlation, cancellationToken)
                 .ConfigureAwait(false);
 
-            if (loaded?.LastAppliedMessageId == envelope.MessageId || loaded?.IsCompleted == true)
+            if (loaded?.LastAppliedMessageId == envelope.MessageId)
             {
                 _suppressedDispatches[envelope.MessageId] = 0;
                 _context.Reset();
@@ -144,9 +152,17 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
                 return;
             }
 
+            if (loaded?.IsCompleted == true)
+            {
+                _context.Reset();
+                ReleaseDispatchGate(envelope.MessageId);
+                return;
+            }
+
             if (loaded is not null)
             {
-                _context.RefreshLoadedState(loaded.Value.State, loaded.Value.Version);
+                var loadedSnapshot = await SerializeStateAsync(stateType, loaded.Value.State, cancellationToken).ConfigureAwait(false);
+                _context.RefreshLoadedState(loaded.Value.State, loaded.Value.Version, loadedSnapshot);
             }
         }
         catch
@@ -175,14 +191,20 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
     public void AbandonDispatchScope(IProcessorEnvelope envelope)
     {
         ArgumentNullException.ThrowIfNull(envelope);
-        _suppressedDispatches.TryRemove(envelope.MessageId, out _);
 
-        if (_context.TryAttach(envelope.MessageId))
+        try
         {
-            _context.Reset();
-        }
+            _suppressedDispatches.TryRemove(envelope.MessageId, out _);
 
-        ReleaseDispatchGate(envelope.MessageId);
+            if (_context.TryAttach(envelope.MessageId))
+            {
+                _context.Reset();
+            }
+        }
+        finally
+        {
+            ReleaseDispatchGate(envelope.MessageId);
+        }
     }
 
     /// <inheritdoc />
@@ -221,16 +243,24 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
             return;
         }
 
-        if (_context is { IsDirty: true, ShouldComplete: true })
+        var state = _context.GetActiveState();
+        string? currentStateJson = null;
+
+        if (!_context.IsDirty && _context.StateObserved)
         {
-            throw new InvalidOperationException(
-                "Saga scope cannot call Complete() and SetState() in the same dispatch. Persist final state first, then complete on a later message.");
+            currentStateJson = await SerializeStateAsync(state.GetType(), state, cancellationToken).ConfigureAwait(false);
         }
 
-        if (_context.IsDirty)
-        {
-            var state = _context.GetActiveState();
+        var hasChanges = _context.HasChanges(currentStateJson);
 
+        if (hasChanges && _context.ShouldComplete)
+        {
+            throw new InvalidOperationException(
+                "Saga scope cannot call Complete() and change state in the same dispatch. Persist final state first, then complete on a later message.");
+        }
+
+        if (hasChanges)
+        {
             await SagaStoreInvoker.SaveAsync(
                     _sagaStore,
                     state.GetType(),
@@ -257,7 +287,9 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
     /// <returns>A task that completes when the saga is completed or already completed.</returns>
     /// <remarks>
     ///     Completion is idempotent and can be retried against a newer version. Dirty state is never retried here because
-    ///     the hook cannot safely merge an arbitrary handler-owned state snapshot with a concurrent update.
+    ///     the hook cannot safely merge an arbitrary handler-owned state snapshot with a concurrent update. When
+    ///     <c>Complete()</c> is the first saga interaction, no row exists at version 0; the hook saves the initial
+    ///     snapshot and completes the new row instead of reporting a concurrency conflict.
     /// </remarks>
     private async Task PersistCompletionAsync(CancellationToken cancellationToken)
     {
@@ -297,12 +329,62 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
 
                 if (loaded is null)
                 {
+                    if (_context.Version == 0)
+                    {
+                        var state = _context.GetActiveState();
+                        await SagaStoreInvoker.SaveAsync(
+                                _sagaStore,
+                                stateType,
+                                correlation,
+                                state,
+                                0,
+                                _context.DispatchId,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        var savedSnapshot = await SerializeStateAsync(stateType, state, cancellationToken).ConfigureAwait(false);
+                        _context.RefreshLoadedState(state, 1, savedSnapshot);
+                        continue;
+                    }
+
                     throw new SagaConcurrencyException(correlation);
                 }
 
-                _context.RefreshLoadedState(loaded.Value.State, loaded.Value.Version);
+                var loadedSnapshot = await SerializeStateAsync(stateType, loaded.Value.State, cancellationToken).ConfigureAwait(false);
+                _context.RefreshLoadedState(loaded.Value.State, loaded.Value.Version, loadedSnapshot);
             }
         }
+    }
+
+    /// <summary>
+    ///     Serializes one saga state object with the saga serializer.
+    /// </summary>
+    /// <param name="stateType">The saga state type that closes the generic serializer call.</param>
+    /// <param name="state">The state object.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The serialized state JSON.</returns>
+    /// <remarks>
+    ///     The generic call is closed over the runtime state type so serializers that depend on the compile-time
+    ///     type argument observe the state type rather than <see cref="object" />.
+    /// </remarks>
+    private async Task<string> SerializeStateAsync(Type stateType, object state, CancellationToken cancellationToken)
+    {
+        var invoker = SerializeInvokers.GetOrAdd(stateType, CreateSerializeInvoker);
+        return await invoker(_serializer, state, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Creates a cached serialize invoker for one state type.
+    /// </summary>
+    /// <param name="stateType">The saga state type.</param>
+    /// <returns>The serialize invoker delegate.</returns>
+    private static SerializeStateInvoker CreateSerializeInvoker(Type stateType)
+    {
+        var method = typeof(IMessageSerializer)
+            .GetMethod(nameof(IMessageSerializer.SerializeAsync), BindingFlags.Public | BindingFlags.Instance)!
+            .MakeGenericMethod(stateType);
+
+        return (serializer, state, cancellationToken) =>
+            (Task<string>) method.Invoke(serializer, [state, cancellationToken])!;
     }
 
     /// <summary>
@@ -389,6 +471,18 @@ public sealed class SagaProcessorHook : IProcessorEnvelopeHook
             }
         }
     }
+
+    /// <summary>
+    ///     Delegate that serializes saga state for one runtime-resolved state type.
+    /// </summary>
+    /// <param name="serializer">The message serializer.</param>
+    /// <param name="state">The state object.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The serialized state JSON.</returns>
+    private delegate Task<string> SerializeStateInvoker(
+        IMessageSerializer serializer,
+        object state,
+        CancellationToken cancellationToken);
 
     /// <summary>
     ///     Tracks one correlation semaphore and its active waiters.

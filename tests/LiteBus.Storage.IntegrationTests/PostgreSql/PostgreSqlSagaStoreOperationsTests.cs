@@ -18,12 +18,13 @@ public sealed class PostgreSqlSagaStoreOperationsTests : IClassFixture<PostgreSq
     public PostgreSqlSagaStoreOperationsTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies the tenant identifier participates in the primary key and tenant filters select the matching row.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task SaveAsync_SameCorrelationAcrossTenants_ShouldKeepRowsIsolated()
     {
         var store = await CreateStoreAsync().ConfigureAwait(false);
@@ -55,7 +56,7 @@ public sealed class PostgreSqlSagaStoreOperationsTests : IClassFixture<PostgreSq
     /// <summary>
     ///     Verifies query predicates, descending update order, take limits, and invalid take validation.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task QueryAsync_WithFilters_ShouldReturnNewestMatchingRows()
     {
         var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
@@ -108,7 +109,7 @@ public sealed class PostgreSqlSagaStoreOperationsTests : IClassFixture<PostgreSq
     /// <summary>
     ///     Verifies completed-before retention respects tenant filters and never removes active saga rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task PurgeAsync_WithCompletedBefore_ShouldRemoveOnlyOlderCompletedRows()
     {
         var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
@@ -151,7 +152,7 @@ public sealed class PostgreSqlSagaStoreOperationsTests : IClassFixture<PostgreSq
     /// <summary>
     ///     Verifies two workers cannot complete the same saga version successfully.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task CompleteAsync_ConcurrentWorkers_ShouldAllowOneCompletion()
     {
         var store = await CreateStoreAsync().ConfigureAwait(false);

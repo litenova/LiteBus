@@ -103,6 +103,31 @@ public sealed class MissingQueryHandlerAnalyzerTests
     }
 
     /// <summary>
+    ///     Verifies that a result query covered only by an arity-2 open generic main handler produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task ResultQueryWithArityTwoOpenGenericHandler_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+
+                              public sealed class AuditQueryHandler<TQuery, TResult> : IQueryHandler<TQuery, TResult>
+                                  where TQuery : IQuery<TResult>
+                              {
+                                  public Task<TResult> HandleAsync(TQuery query, CancellationToken cancellationToken = default)
+                                      => Task.FromResult<TResult>(default!);
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<MissingQueryHandlerAnalyzer>(source);
+    }
+
+    /// <summary>
     ///     Verifies that a query declared in a referenced assembly with a handler in the main project produces no diagnostic.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
@@ -145,11 +170,11 @@ public sealed class MissingQueryHandlerAnalyzerTests
     }
 
     /// <summary>
-    ///     Verifies that a query declared only in a referenced assembly without a handler produces LB1009.
+    ///     Verifies that a query declared only in a referenced assembly without a handler produces no diagnostic, because candidates are scoped to the analyzed assembly.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
     [Fact]
-    public Task QueryInReferencedAssemblyWithoutHandler_ProducesDiagnostic()
+    public Task QueryInReferencedAssemblyWithoutHandler_ProducesNoDiagnostic()
     {
         const string source = """
                               public sealed class Placeholder
@@ -173,10 +198,8 @@ public sealed class MissingQueryHandlerAnalyzerTests
             queriesReference,
             messagingReference);
 
-        return AnalyzerTest.VerifyDiagnosticWithReferencesAsync<MissingQueryHandlerAnalyzer>(
+        return AnalyzerTest.VerifyNoDiagnosticsWithReferencesAsync<MissingQueryHandlerAnalyzer>(
             source,
-            DiagnosticDescriptors.MissingQueryHandler,
-            ["GetUserQuery"],
             queriesReference,
             messagingReference,
             referencedProject);
@@ -230,11 +253,11 @@ public sealed class MissingQueryHandlerAnalyzerTests
     }
 
     /// <summary>
-    ///     Verifies that a stream query declared only in a referenced assembly without a handler produces LB1009.
+    ///     Verifies that a stream query declared only in a referenced assembly without a handler produces no diagnostic, because candidates are scoped to the analyzed assembly.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
     [Fact]
-    public Task StreamQueryInReferencedAssemblyWithoutHandler_ProducesDiagnostic()
+    public Task StreamQueryInReferencedAssemblyWithoutHandler_ProducesNoDiagnostic()
     {
         const string source = """
                               public sealed class Placeholder
@@ -258,10 +281,8 @@ public sealed class MissingQueryHandlerAnalyzerTests
             queriesReference,
             messagingReference);
 
-        return AnalyzerTest.VerifyDiagnosticWithReferencesAsync<MissingQueryHandlerAnalyzer>(
+        return AnalyzerTest.VerifyNoDiagnosticsWithReferencesAsync<MissingQueryHandlerAnalyzer>(
             source,
-            DiagnosticDescriptors.MissingQueryHandler,
-            ["StreamUsersQuery"],
             queriesReference,
             messagingReference,
             referencedProject);

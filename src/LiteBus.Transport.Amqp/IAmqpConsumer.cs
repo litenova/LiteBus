@@ -18,7 +18,10 @@ public interface IAmqpConsumer : IAsyncDisposable
     ///     <see cref="AmqpReceivedMessage.AcceptAsync" />, <see cref="AmqpReceivedMessage.DiscardAsync" />, or
     ///     <see cref="AmqpReceivedMessage.ReturnToQueueAsync" /> before returning.
     /// </param>
-    /// <param name="cancellationToken">The token used to cancel startup.</param>
+    /// <param name="cancellationToken">
+    ///     The token used to cancel startup. Cancelling or disposing it after startup completes does not affect
+    ///     deliveries; call <see cref="StopAsync" /> to end the subscription.
+    /// </param>
     /// <returns>A task that completes when the consumer subscription is active.</returns>
     Task StartAsync(
         AmqpConsumerOptions options,

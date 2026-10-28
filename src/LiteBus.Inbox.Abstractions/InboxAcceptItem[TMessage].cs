@@ -46,6 +46,35 @@ public sealed record InboxAcceptItem<TMessage>
     }
 
     /// <summary>
+    ///     Creates an acceptance item that propagates trace metadata from the ambient execution context.
+    /// </summary>
+    /// <param name="message">The message instance to accept.</param>
+    /// <returns>
+    ///     An acceptance item whose trace is stamped from ambient state, or <see cref="MessageTrace.None" /> when
+    ///     called outside a mediation.
+    /// </returns>
+    /// <remarks>
+    ///     <para>
+    ///         Reads the ambient correlation, causation, and distributed trace context through
+    ///         <see cref="MessageTrace.FromAmbient" /> and stores the result as
+    ///         <see cref="InboxAcceptMetadata.Trace" />. When the mediation replays a stored envelope, the incoming
+    ///         message id in <see cref="InboxExecutionContextKeys.MessageId" /> becomes the causation id. Everything
+    ///         else matches <c>From(message)</c>. This is explicit and opt-in: nothing reads ambient state unless the
+    ///         caller calls this factory, and outside a mediation the item is identical to <c>From(message)</c>.
+    ///     </para>
+    /// </remarks>
+    public static InboxAcceptItem<TMessage> FromAmbient(TMessage message)
+    {
+        return From(message) with
+        {
+            Metadata = InboxAcceptMetadata.Immediate with
+            {
+                Trace = MessageTrace.FromAmbient()
+            }
+        };
+    }
+
+    /// <summary>
     ///     Creates an acceptance item that defers processor leasing until the specified UTC timestamp.
     /// </summary>
     /// <param name="message">The message instance to accept.</param>

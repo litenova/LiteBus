@@ -21,91 +21,92 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
     public PostgreSqlOutboxEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_ShouldPublishEventThroughPostgreSqlStore()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
         var recorder = new EventRecorder();
 
-         var provider = BuildProvider(_fixture, options, recorder);
-         await using (provider.ConfigureAwait(false))
-         {
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
+        var provider = BuildProvider(_fixture, options, recorder);
+        await using (provider.ConfigureAwait(false))
+        {
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
 
-        var orderId = Guid.NewGuid();
-        var messageId = Guid.NewGuid();
+            var orderId = Guid.NewGuid();
+            var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
-            new OrderSubmittedIntegrationEvent { OrderId = orderId },
-            messageId)).ConfigureAwait(false);
+            await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
+                new OrderSubmittedIntegrationEvent { OrderId = orderId },
+                messageId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
+            recorder.Events.Should().ContainSingle(@event => @event.OrderId == orderId);
 
-        var row = await PostgreSqlTableReaders.ReadOutboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
-        row!.Status.Should().Be(OutboxStatus.Published);
-        row.AttemptCount.Should().Be(1);
+            var row = await PostgreSqlTableReaders.ReadOutboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
+            row!.Status.Should().Be(OutboxStatus.Published);
+            row.AttemptCount.Should().Be(1);
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenDispatcherFails_ShouldMarkFailedWithVisibleAfter()
     {
         var clock = new ManualTimeProvider(PostgreSqlTestInfrastructure.BaseTime);
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
 
-         var provider = BuildProvider(             _fixture,             options,             null,             clock,             true,             5,             TimeSpan.FromMinutes(2));
-         await using (provider.ConfigureAwait(true))
-         {
+        var provider = BuildProvider(_fixture, options, null, clock, true, 5, TimeSpan.FromMinutes(2));
+        await using (provider.ConfigureAwait(true))
+        {
 
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var messageId = Guid.NewGuid();
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
-            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            messageId)).ConfigureAwait(false);
+            await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
+                new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                messageId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        var row = await PostgreSqlTableReaders.ReadOutboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
-        row!.Status.Should().Be(OutboxStatus.Failed);
-        row.VisibleAfter.Should().Be(PostgreSqlTestInfrastructure.BaseTime.AddMinutes(2));
+            var row = await PostgreSqlTableReaders.ReadOutboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
+            row!.Status.Should().Be(OutboxStatus.Failed);
+            row.VisibleAfter.Should().Be(PostgreSqlTestInfrastructure.BaseTime.AddMinutes(2));
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenMaxAttemptsExceeded_ShouldMoveToDeadLetter()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, options).ConfigureAwait(false);
 
-         var provider = BuildProvider(             _fixture,             options,             null,             useFailingDispatcher: true,             maxAttempts: 1);
-         await using (provider.ConfigureAwait(true))
-         {
+        var provider = BuildProvider(_fixture, options, null, useFailingDispatcher: true, maxAttempts: 1);
+        await using (provider.ConfigureAwait(true))
+        {
 
-        var outbox = provider.GetRequiredService<IOutbox>();
-        var processor = provider.GetRequiredService<IOutboxProcessor>();
-        var messageId = Guid.NewGuid();
+            var outbox = provider.GetRequiredService<IOutbox>();
+            var processor = provider.GetRequiredService<IOutboxProcessor>();
+            var messageId = Guid.NewGuid();
 
-        await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
-            new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
-            messageId)).ConfigureAwait(false);
+            await outbox.EnqueueAsync(OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.WithIdentity(
+                new OrderSubmittedIntegrationEvent { OrderId = Guid.NewGuid() },
+                messageId)).ConfigureAwait(false);
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+            await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        var row = await PostgreSqlTableReaders.ReadOutboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
-        row!.Status.Should().Be(OutboxStatus.DeadLettered);
+            var row = await PostgreSqlTableReaders.ReadOutboxAsync(_fixture.DataSource, options, messageId).ConfigureAwait(false);
+            row!.Status.Should().Be(OutboxStatus.DeadLettered);
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_WhenLeaseExpires_ShouldReclaimAndPublishMessage()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -148,7 +149,7 @@ public sealed class PostgreSqlOutboxEndToEndTests : LiteBusTestBase, IClassFixtu
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task AddAsync_WithVisibleAfter_ShouldDeferPublishingUntilDue()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();

@@ -1,6 +1,6 @@
 # Cookbook and Scenarios
 
-This page collects recipe-style solutions to scenarios you hit when building with LiteBus: contextual handling, caching, result overriding, validation, durable wiring, and more. Each recipe is self-contained and links to the concept page behind it. Use it as a lookup once you know the basics from [Getting Started](README.md).
+This page collects recipe-style solutions to scenarios encountered when building with LiteBus: contextual handling, caching, result overriding, validation, durable wiring, and more. Each recipe is self-contained and links to the concept page behind it. Use it as a lookup once you know the basics from [Getting Started](README.md).
 
 For atomic domain + inbox/outbox writes (EF, PostgreSQL, Marten), start with [Transactional messaging writes](../reliable-messaging/transactional-writes.md).
 
@@ -29,29 +29,31 @@ Apply the `[HandlerTag]` attribute to handlers that should only run in a specifi
 ```csharp
 // This validator only runs for requests from the public API.
 [HandlerTag(RequestContexts.PublicApi)]
-public class StrictUserUpdateValidator : ICommandValidator<UpdateUserCommand>
+public sealed class StrictUserUpdateValidator : ICommandValidator<UpdateUserCommand>
 {
-    public Task ValidateAsync(UpdateUserCommand command, CancellationToken cancellationToken)
+    public Task<Validity> ValidateAsync(UpdateUserCommand command, CancellationToken cancellationToken = default)
     {
         // Public API cannot change a user's role.
         if (command.Role != null)
         {
-            throw new ValidationException("Role cannot be changed via the public API.");
+            return Task.FromResult(Validity.Invalid("Role cannot be changed via the public API.", nameof(command.Role)));
         }
-        return Task.CompletedTask;
+
+        return Task.FromResult(Validity.Valid);
     }
 }
 
-// This handler is untagged, so it runs for ALL contexts.
-public class CommonUserUpdateValidator : ICommandValidator<UpdateUserCommand>
+// This validator is untagged, so it runs for ALL contexts.
+public sealed class CommonUserUpdateValidator : ICommandValidator<UpdateUserCommand>
 {
-    public Task ValidateAsync(UpdateUserCommand command, CancellationToken cancellationToken)
+    public Task<Validity> ValidateAsync(UpdateUserCommand command, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(command.Email))
         {
-            throw new ValidationException("Email is required.");
+            return Task.FromResult(Validity.Invalid("Email is required.", nameof(command.Email)));
         }
-        return Task.CompletedTask;
+
+        return Task.FromResult(Validity.Valid);
     }
 }
 ```
@@ -82,7 +84,7 @@ public async Task<IActionResult> UpdateUserFromAdmin(Guid id, UpdateUserCommand 
 }
 ```
 
-**Result**: You have successfully implemented different validation rules for the same command without `if/else` logic in your handlers, keeping them clean and focused.
+**Result**: The public API runs both validators; the admin portal runs only the untagged one.
 
 ---
 
@@ -181,40 +183,41 @@ No changes to existing handlers or commands are required. New commands added in 
 
 ## Recipe: Generic FluentValidation Integration
 
-**Problem**: You have FluentValidation validators for your commands and want them to run automatically in the LiteBus pipeline without writing a pre-handler for each command.
+**Problem**: You have FluentValidation validators for your commands and want them to run automatically in the LiteBus pipeline without writing a validator for each command.
 
-**Solution**: Create a single open generic pre-handler that resolves the correct `IValidator<T>` from DI.
+**Solution**: Create a single open generic validator that resolves the correct `IValidator<T>` from DI and returns its failures as `Validity`.
 
 ### 1. Define the Generic Validator
 
 ```csharp
-public sealed class FluentValidationPreHandler<TCommand> : ICommandPreHandler<TCommand>
+public sealed class FluentValidationCommandValidator<TCommand> : ICommandValidator<TCommand>
     where TCommand : ICommand
 {
     private readonly IEnumerable<IValidator<TCommand>> _validators;
 
-    public FluentValidationPreHandler(IEnumerable<IValidator<TCommand>> validators)
+    public FluentValidationCommandValidator(IEnumerable<IValidator<TCommand>> validators)
     {
         _validators = validators;
     }
 
-    public async Task PreHandleAsync(TCommand message, CancellationToken cancellationToken = default)
+    public async Task<Validity> ValidateAsync(TCommand command, CancellationToken cancellationToken = default)
     {
-        if (!_validators.Any()) return;
+        if (!_validators.Any())
+        {
+            return Validity.Valid;
+        }
 
-        var context = new ValidationContext<TCommand>(message);
+        var context = new ValidationContext<TCommand>(command);
         var results = await Task.WhenAll(
-            _validators.Select(v => v.ValidateAsync(context, cancellationToken)));
+            _validators.Select(v => v.ValidateAsync(context, cancellationToken))).ConfigureAwait(false);
 
         var failures = results
             .SelectMany(r => r.Errors)
             .Where(f => f is not null)
+            .Select(f => new ValidationFailure(f.ErrorMessage, f.PropertyName, f.ErrorCode))
             .ToList();
 
-        if (failures.Count > 0)
-        {
-            throw new ValidationException(failures);
-        }
+        return Validity.Invalid(failures);
     }
 }
 ```
@@ -229,7 +232,7 @@ builder.Services.AddLiteBus(builder =>
     builder.AddMessaging(_ => { });
     builder.AddCommands(module =>
     {
-        module.RegisterFromAssembly(typeof(Program).Assembly); // picks up FluentValidationPreHandler<> too
+        module.RegisterFromAssembly(typeof(Program).Assembly); // picks up FluentValidationCommandValidator<> too
     });
 });
 
@@ -237,7 +240,7 @@ builder.Services.AddLiteBus(builder =>
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 ```
 
-If the handler is in a **different assembly**, register it explicitly:
+If the validator is in a **different assembly**, register it explicitly:
 
 ```csharp
 builder.Services.AddLiteBus(builder =>
@@ -245,7 +248,7 @@ builder.Services.AddLiteBus(builder =>
     builder.AddMessaging(_ => { });
     builder.AddCommands(module =>
     {
-        module.Register(typeof(FluentValidationPreHandler<>)); // from external library
+        module.Register(typeof(FluentValidationCommandValidator<>)); // from external library
         module.RegisterFromAssembly(typeof(Program).Assembly);
     });
 });
@@ -277,9 +280,15 @@ builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 ### Example
 
 ```csharp
-public class EnrichResultPostHandler(IDemoService demoService)
-    : ICommandPostHandler<MyCommand, Result<MyResponse>>
+public sealed class EnrichResultPostHandler : ICommandPostHandler<MyCommand, Result<MyResponse>>
 {
+    private readonly IDemoService _demoService;
+
+    public EnrichResultPostHandler(IDemoService demoService)
+    {
+        _demoService = demoService;
+    }
+
     public async Task PostHandleAsync(
         MyCommand message,
         Result<MyResponse>? messageResult,
@@ -287,7 +296,7 @@ public class EnrichResultPostHandler(IDemoService demoService)
     {
         if (messageResult is { IsSuccess: true })
         {
-            var serviceResult = await demoService.DoWork(messageResult.Value, cancellationToken);
+            var serviceResult = await _demoService.DoWork(messageResult.Value, cancellationToken).ConfigureAwait(false);
 
             if (serviceResult.IsFailed)
             {
@@ -426,16 +435,19 @@ var dataSource = NpgsqlDataSource.Create(configuration.GetConnectionString("Orde
 services.AddSingleton(dataSource);
 services.AddScoped<IPostgreSqlTransactionProvider, OrderUnitOfWork>();
 
-builder.AddOutbox(outbox =>
+services.AddLiteBus(builder =>
 {
-    outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
-    outbox.UsePostgreSqlStorage(pg =>
+    builder.AddOutbox(outbox =>
     {
-        pg.UseDataSource(dataSource);
-        pg.EnableAmbientTransactionProvider();
+        outbox.Contracts.Register<OrderSubmittedIntegrationEvent>("orders.events.submitted", 1);
+        outbox.UsePostgreSqlStorage(pg =>
+        {
+            pg.UseDataSource(dataSource);
+            pg.EnableAmbientTransactionProvider();
+        });
+        outbox.UseInProcessDispatch();
+        outbox.EnableOutboxProcessor();
     });
-    outbox.UseInProcessDispatch();
-    outbox.EnableOutboxProcessor();
 });
 ```
 

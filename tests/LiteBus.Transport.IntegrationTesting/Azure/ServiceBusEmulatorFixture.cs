@@ -100,15 +100,15 @@ public sealed class ServiceBusEmulatorFixture : IAsyncLifetime
     /// </summary>
     /// <param name="prefix">The prefix identifying the scenario under test.</param>
     /// <returns>The queue name declared in the emulator configuration.</returns>
-    public string ResolveQueue(string prefix)
+    public static string ResolveQueue(string prefix)
     {
         return prefix switch
         {
-            "ingress"                              => IngressQueueName,
+            "ingress" => IngressQueueName,
             "ingress-fail" or "ingress-store-full" => FailureQueueName,
-            "dispatch" or "inbox-dispatch"         => DispatchQueueName,
-            "outbox-dispatch" or "outbox-route"    => OutboxQueueName,
-            _                                      => FailureQueueName
+            "dispatch" or "inbox-dispatch" => DispatchQueueName,
+            "outbox-dispatch" or "outbox-route" => OutboxQueueName,
+            _ => FailureQueueName
         };
     }
 }

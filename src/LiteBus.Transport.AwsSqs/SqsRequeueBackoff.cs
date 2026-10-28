@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using Amazon.SQS.Model;
 
@@ -50,10 +51,10 @@ internal static class SqsRequeueBackoff
     ///     Reads the approximate receive count attribute when present on the SQS message.
     /// </summary>
     /// <param name="message">The received SQS message.</param>
-    /// <returns>The receive count, defaulting to one when the attribute is absent.</returns>
+    /// <returns>The receive count, defaulting to one when the attribute or the attribute dictionary is absent.</returns>
     private static int GetApproximateReceiveCount(Message message)
     {
-        if (!message.Attributes.TryGetValue("ApproximateReceiveCount", out var count) ||
+        if (message.Attributes?.TryGetValue("ApproximateReceiveCount", out var count) != true ||
             !int.TryParse(count, NumberStyles.Integer, CultureInfo.InvariantCulture, out var receiveCount) ||
             receiveCount < 1)
         {

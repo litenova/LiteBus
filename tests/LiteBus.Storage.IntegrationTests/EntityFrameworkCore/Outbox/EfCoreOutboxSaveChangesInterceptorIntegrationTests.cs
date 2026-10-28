@@ -25,89 +25,90 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
     public EfCoreOutboxSaveChangesInterceptorIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms rolled-back <c>SaveChanges</c> does not persist queued outbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task SaveChangesAsync_ShouldNotPersistOutboxMessage_WhenTransactionRollsBack()
     {
         var storeOptions = await CreateOutboxTableAsync().ConfigureAwait(false);
         var interceptor = new LiteBusOutboxSaveChangesInterceptor();
 
-         var context = CreateContext(storeOptions, interceptor);
-         await using (context.ConfigureAwait(false))
-         {
-        var envelope = CreateEnvelope();
+        var context = CreateContext(storeOptions, interceptor);
+        await using (context.ConfigureAwait(false))
+        {
+            var envelope = CreateEnvelope();
 
-         var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
-         await using (transaction.ConfigureAwait(false))
-         {
-        interceptor.Enqueue(context, envelope);
+            var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
+            await using (transaction.ConfigureAwait(false))
+            {
+                interceptor.Enqueue(context, envelope);
 
-        var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
-        savedCount.Should().Be(1);
+                var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
+                savedCount.Should().Be(1);
 
-        await transaction.RollbackAsync().ConfigureAwait(false);
+                await transaction.RollbackAsync().ConfigureAwait(false);
 
-         var verificationContext = CreateContext(storeOptions);
-         await using (verificationContext.ConfigureAwait(false))
-         {
+                var verificationContext = CreateContext(storeOptions);
+                await using (verificationContext.ConfigureAwait(false))
+                {
 
-        var storedCount = await verificationContext.OutboxMessages
-            .CountAsync(message => message.Id == envelope.Id).ConfigureAwait(false);
+                    var storedCount = await verificationContext.OutboxMessages
+                        .CountAsync(message => message.Id == envelope.Id).ConfigureAwait(false);
 
-        storedCount.Should().Be(0);
-        }
-        }
+                    storedCount.Should().Be(0);
+                }
+            }
         }
     }
 
     /// <summary>
     ///     Confirms committed <c>SaveChanges</c> persists queued outbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task SaveChangesAsync_ShouldPersistOutboxMessage_WhenTransactionCommits()
     {
         var storeOptions = await CreateOutboxTableAsync().ConfigureAwait(false);
         var interceptor = new LiteBusOutboxSaveChangesInterceptor();
 
-         var context = CreateContext(storeOptions, interceptor);
-         await using (context.ConfigureAwait(false))
-         {
-        var envelope = CreateEnvelope();
+        var context = CreateContext(storeOptions, interceptor);
+        await using (context.ConfigureAwait(false))
+        {
+            var envelope = CreateEnvelope();
 
-         var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
-         await using (transaction.ConfigureAwait(false))
-         {
-        interceptor.Enqueue(context, envelope);
+            var transaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
+            await using (transaction.ConfigureAwait(false))
+            {
+                interceptor.Enqueue(context, envelope);
 
-        var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
-        savedCount.Should().Be(1);
+                var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
+                savedCount.Should().Be(1);
 
-        await transaction.CommitAsync().ConfigureAwait(false);
+                await transaction.CommitAsync().ConfigureAwait(false);
 
-         var verificationContext = CreateContext(storeOptions);
-         await using (verificationContext.ConfigureAwait(false))
-         {
+                var verificationContext = CreateContext(storeOptions);
+                await using (verificationContext.ConfigureAwait(false))
+                {
 
-        var storedMessage = await verificationContext.OutboxMessages
-            .SingleOrDefaultAsync(message => message.Id == envelope.Id).ConfigureAwait(false);
+                    var storedMessage = await verificationContext.OutboxMessages
+                        .SingleOrDefaultAsync(message => message.Id == envelope.Id).ConfigureAwait(false);
 
-        storedMessage.Should().NotBeNull();
-        storedMessage!.ContractName.Should().Be(envelope.ContractName);
-        storedMessage.Payload.Should().Contain("orderId");
-        storedMessage.Status.Should().Be(OutboxStatus.Pending);
-        }
-        }
+                    storedMessage.Should().NotBeNull();
+                    storedMessage!.ContractName.Should().Be(envelope.ContractName);
+                    storedMessage.Payload.Should().Contain("orderId");
+                    storedMessage.Status.Should().Be(OutboxStatus.Pending);
+                }
+            }
         }
     }
 
     /// <summary>
     ///     Confirms every <see cref="OutboxEnvelope" /> field round-trips through the interceptor into persistence.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task SaveChangesAsync_ShouldPersistEveryEnvelopeField_IncludingIdempotencyKeyAndTraceContext()
     {
         var storeOptions = await CreateOutboxTableAsync().ConfigureAwait(false);
@@ -131,33 +132,33 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
             TraceContext = """{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}"""
         };
 
-         var context = CreateContext(storeOptions, interceptor);
-         await using (context.ConfigureAwait(false))
-         {
-        interceptor.Enqueue(context, envelope);
-        await context.SaveChangesAsync().ConfigureAwait(false);
+        var context = CreateContext(storeOptions, interceptor);
+        await using (context.ConfigureAwait(false))
+        {
+            interceptor.Enqueue(context, envelope);
+            await context.SaveChangesAsync().ConfigureAwait(false);
 
-         var verificationContext = CreateContext(storeOptions);
-         await using (verificationContext.ConfigureAwait(false))
-         {
+            var verificationContext = CreateContext(storeOptions);
+            await using (verificationContext.ConfigureAwait(false))
+            {
 
-        var storedMessage = await verificationContext.OutboxMessages
-            .SingleAsync(message => message.Id == envelope.Id).ConfigureAwait(false);
+                var storedMessage = await verificationContext.OutboxMessages
+                    .SingleAsync(message => message.Id == envelope.Id).ConfigureAwait(false);
 
-        storedMessage.ContractName.Should().Be(envelope.ContractName);
-        storedMessage.ContractVersion.Should().Be(envelope.ContractVersion);
-        NormalizeJson(storedMessage.Payload).Should().Be(NormalizeJson(envelope.Payload));
-        storedMessage.Topic.Should().Be(envelope.Topic);
-        storedMessage.CreatedAt.Should().Be(envelope.CreatedAt);
-        storedMessage.VisibleAfter.Should().Be(envelope.VisibleAfter);
-        storedMessage.Status.Should().Be(envelope.Status);
-        storedMessage.AttemptCount.Should().Be(envelope.AttemptCount);
-        storedMessage.CorrelationId.Should().Be(envelope.CorrelationId);
-        storedMessage.CausationId.Should().Be(envelope.CausationId);
-        storedMessage.TenantId.Should().Be(envelope.TenantId);
-        storedMessage.IdempotencyKey.Should().Be(envelope.IdempotencyKey);
-        NormalizeJson(storedMessage.TraceContext!).Should().Be(NormalizeJson(envelope.TraceContext!));
-        }
+                storedMessage.ContractName.Should().Be(envelope.ContractName);
+                storedMessage.ContractVersion.Should().Be(envelope.ContractVersion);
+                NormalizeJson(storedMessage.Payload).Should().Be(NormalizeJson(envelope.Payload));
+                storedMessage.Topic.Should().Be(envelope.Topic);
+                storedMessage.CreatedAt.Should().Be(envelope.CreatedAt);
+                storedMessage.VisibleAfter.Should().Be(envelope.VisibleAfter);
+                storedMessage.Status.Should().Be(envelope.Status);
+                storedMessage.AttemptCount.Should().Be(envelope.AttemptCount);
+                storedMessage.CorrelationId.Should().Be(envelope.CorrelationId);
+                storedMessage.CausationId.Should().Be(envelope.CausationId);
+                storedMessage.TenantId.Should().Be(envelope.TenantId);
+                storedMessage.IdempotencyKey.Should().Be(envelope.IdempotencyKey);
+                NormalizeJson(storedMessage.TraceContext!).Should().Be(NormalizeJson(envelope.TraceContext!));
+            }
         }
     }
 
@@ -169,24 +170,24 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
     {
         var options = new EntityFrameworkCoreOutboxStoreOptions
         {
-            SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
+            SchemaName = EfCoreProviderTestInfrastructure.SchemaName,
             TableName = $"outbox_ef_atomic_{Guid.NewGuid():N}"
         };
 
-         var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
-         await using (dataSource.ConfigureAwait(false))
-         {
+        var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+        await using (dataSource.ConfigureAwait(false))
+        {
 
-        await PostgreSqlOutboxSchema.EnsureAsync(
-            dataSource,
-            new PostgreSqlOutboxStoreOptions
-            {
-                SchemaName = options.SchemaName,
-                TableName = options.TableName,
-                ValidateSchemaCreationOnStartup = false
-            }).ConfigureAwait(false);
+            await PostgreSqlOutboxSchema.EnsureAsync(
+                dataSource,
+                new PostgreSqlOutboxStoreOptions
+                {
+                    SchemaName = options.SchemaName,
+                    TableName = options.TableName,
+                    ValidateSchemaCreationOnStartup = false
+                }).ConfigureAwait(false);
 
-        return options;
+            return options;
         }
     }
 
@@ -201,7 +202,7 @@ public sealed class EfCoreOutboxSaveChangesInterceptorIntegrationTests : IClassF
         LiteBusOutboxSaveChangesInterceptor? interceptor = null)
     {
         var builder = new DbContextOptionsBuilder<InterceptorOutboxDbContext>()
-            .UseNpgsql(EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(_fixture.ConnectionString, storeOptions));
+            .UseNpgsql(EfCoreProviderTestInfrastructure.CreateOutboxScopedConnectionString(_fixture.ConnectionString, storeOptions));
 
         if (interceptor is not null)
         {

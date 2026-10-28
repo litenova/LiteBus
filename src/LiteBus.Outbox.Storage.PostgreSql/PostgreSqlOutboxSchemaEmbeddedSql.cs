@@ -20,4 +20,14 @@ internal static class PostgreSqlOutboxSchemaEmbeddedSql
     ///     Embedded resource path for outbox index ensure SQL.
     /// </summary>
     internal const string V1EnsureIndexes = "outbox/v1/ensure_indexes.sql";
+
+    /// <summary>
+    ///     Embedded resource path for version 2 outbox table creation SQL.
+    /// </summary>
+    internal const string V2Create = "outbox/v2/create.sql";
+
+    /// <summary>
+    ///     Embedded resource path for version 1 to version 2 outbox upgrade SQL.
+    /// </summary>
+    internal const string V2Upgrade = "outbox/v2/upgrade.sql";
 }

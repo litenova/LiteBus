@@ -69,10 +69,10 @@ public sealed class MissingMessageContractRegistrationAnalyzerTests
     public Task MessageRegisteredThroughTypeOfRegister_ProducesNoDiagnostic()
     {
         const string source = """
-                              using System;
                               using System.Threading;
                               using System.Threading.Tasks;
                               using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
 
                               public sealed record ProcessPaymentCommand(int PaymentId) : ICommand;
 
@@ -84,20 +84,9 @@ public sealed class MissingMessageContractRegistrationAnalyzerTests
 
                               public static class InboxModuleConfiguration
                               {
-                                  public static void Configure(ContractsRegistry contracts)
+                                  public static void Configure(MessageContractBuilder contracts)
                                   {
                                       contracts.Register(typeof(ProcessPaymentCommand), "payments.process-payment", 1);
-                                  }
-                              }
-
-                              public sealed class ContractsRegistry
-                              {
-                                  public void Register(Type messageType, string name, int version)
-                                  {
-                                  }
-
-                                  public void RegisterFromAssembly(System.Reflection.Assembly assembly)
-                                  {
                                   }
                               }
                               """;
@@ -148,6 +137,7 @@ public sealed class MissingMessageContractRegistrationAnalyzerTests
                               using System.Threading;
                               using System.Threading.Tasks;
                               using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
 
                               public sealed record ProcessPaymentCommand(int PaymentId) : ICommand;
 
@@ -159,20 +149,9 @@ public sealed class MissingMessageContractRegistrationAnalyzerTests
 
                               public static class InboxModuleConfiguration
                               {
-                                  public static void Configure(ContractsRegistry contracts)
+                                  public static void Configure(MessageContractBuilder contracts)
                                   {
                                       contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
-                                  }
-                              }
-
-                              public sealed class ContractsRegistry
-                              {
-                                  public void Register<T>(string name, int version)
-                                  {
-                                  }
-
-                                  public void RegisterFromAssembly(System.Reflection.Assembly assembly)
-                                  {
                                   }
                               }
                               """;
@@ -251,6 +230,86 @@ public sealed class MissingMessageContractRegistrationAnalyzerTests
     }
 
     /// <summary>
+    ///     Verifies that a contract scan through <c>Assembly.GetExecutingAssembly()</c> satisfies LB1007.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task HandledMessageCoveredByExecutingAssemblyScan_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Reflection;
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record ProcessPaymentCommand(int PaymentId) : ICommand;
+
+                              public sealed class ProcessPaymentCommandHandler : ICommandHandler<ProcessPaymentCommand>
+                              {
+                                  public Task HandleAsync(ProcessPaymentCommand command, CancellationToken cancellationToken = default)
+                                      => Task.CompletedTask;
+                              }
+
+                              public static class InboxModuleConfiguration
+                              {
+                                  public static void Configure(ContractsRegistry contracts)
+                                  {
+                                      contracts.RegisterFromAssembly(Assembly.GetExecutingAssembly());
+                                  }
+                              }
+
+                              public sealed class ContractsRegistry
+                              {
+                                  public void RegisterFromAssembly(Assembly assembly)
+                                  {
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<MissingMessageContractRegistrationAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies that a contract scan through a local holding <c>typeof(T).Assembly</c> satisfies LB1007.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task HandledMessageCoveredByLocalAssemblyVariable_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record ProcessPaymentCommand(int PaymentId) : ICommand;
+
+                              public sealed class ProcessPaymentCommandHandler : ICommandHandler<ProcessPaymentCommand>
+                              {
+                                  public Task HandleAsync(ProcessPaymentCommand command, CancellationToken cancellationToken = default)
+                                      => Task.CompletedTask;
+                              }
+
+                              public static class InboxModuleConfiguration
+                              {
+                                  public static void Configure(ContractsRegistry contracts)
+                                  {
+                                      var assembly = typeof(ProcessPaymentCommand).Assembly;
+                                      contracts.RegisterFromAssembly(assembly);
+                                  }
+                              }
+
+                              public sealed class ContractsRegistry
+                              {
+                                  public void RegisterFromAssembly(System.Reflection.Assembly assembly)
+                                  {
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<MissingMessageContractRegistrationAnalyzer>(source);
+    }
+
+    /// <summary>
     ///     Verifies that query handlers are not subject to durable contract registration.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
@@ -272,5 +331,54 @@ public sealed class MissingMessageContractRegistrationAnalyzerTests
                               """;
 
         return AnalyzerTest.VerifyNoDiagnosticsAsync<MissingMessageContractRegistrationAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies that <c>Register</c> on a same-shaped handler registry with an assembly scan does not satisfy durable contract registration.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task HandledMessageRegisteredOnlyThroughScanShapedRegistry_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record ProcessPaymentCommand(int PaymentId) : ICommand;
+
+                              public sealed class {|#0:ProcessPaymentCommandHandler|} : ICommandHandler<ProcessPaymentCommand>
+                              {
+                                  public Task HandleAsync(ProcessPaymentCommand command, CancellationToken cancellationToken = default)
+                                      => Task.CompletedTask;
+                              }
+
+                              public static class HandlerConfiguration
+                              {
+                                  public static void Configure(HandlerRegistry registry)
+                                  {
+                                      registry.Register<ProcessPaymentCommand>();
+                                  }
+                              }
+
+                              public sealed class HandlerRegistry
+                              {
+                                  public void Register<T>()
+                                  {
+                                  }
+
+                                  public void RegisterFromAssembly(System.Reflection.Assembly assembly)
+                                  {
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<MissingMessageContractRegistrationAnalyzer>(
+            source,
+            DiagnosticDescriptors.MissingMessageContractRegistration,
+            0,
+            "ProcessPaymentCommand",
+            "ProcessPaymentCommandHandler",
+            "ProcessPaymentCommand");
     }
 }

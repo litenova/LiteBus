@@ -56,6 +56,11 @@ internal sealed class ProcessorBackgroundService<TProcessor> : IBackgroundServic
     private readonly IProcessorWorkSignal _workSignal;
 
     /// <summary>
+    ///     Gets the time provider used for startup delays.
+    /// </summary>
+    private readonly TimeProvider _timeProvider;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="ProcessorBackgroundService{TProcessor}" /> class.
     /// </summary>
     /// <param name="processor">The processor that performs each pass.</param>
@@ -66,6 +71,7 @@ internal sealed class ProcessorBackgroundService<TProcessor> : IBackgroundServic
     /// <param name="recordLoopError">The callback invoked when the loop catches an unexpected exception.</param>
     /// <param name="logLoopFailed">The callback invoked to log loop failures.</param>
     /// <param name="logger">The logger used for processor loop diagnostics.</param>
+    /// <param name="timeProvider">The time provider used for startup delays.</param>
     public ProcessorBackgroundService(
         TProcessor processor,
         ProcessorOptions processorOptions,
@@ -74,7 +80,8 @@ internal sealed class ProcessorBackgroundService<TProcessor> : IBackgroundServic
         IProcessorBackgroundControl control,
         Action recordLoopError,
         Action<ILogger, Exception> logLoopFailed,
-        ILogger logger)
+        ILogger logger,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(processor);
         ArgumentNullException.ThrowIfNull(processorOptions);
@@ -92,6 +99,7 @@ internal sealed class ProcessorBackgroundService<TProcessor> : IBackgroundServic
         _recordLoopError = recordLoopError;
         _logLoopFailed = logLoopFailed;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -112,7 +120,7 @@ internal sealed class ProcessorBackgroundService<TProcessor> : IBackgroundServic
 
             try
             {
-                await Task.Delay(_hostOptions.StartupDelay, startupCancellation.Token).ConfigureAwait(false);
+                await Task.Delay(_hostOptions.StartupDelay, _timeProvider, startupCancellation.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (_control.IsDraining && !stoppingToken.IsCancellationRequested)
             {

@@ -1,4 +1,6 @@
-# Inbox Ingress Capability Catalog
+# Ingress
+
+Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 
 Inbox ingress is the durable intake edge for commands. It receives broker deliveries, maps headers to inbox metadata, and writes `InboxEnvelope` rows through `IInbox.AcceptAsync` or `IInbox.AcceptBatchAsync`.
 
@@ -66,6 +68,7 @@ flowchart LR
 | Exposes shared `Safety` options | yes | yes | yes | yes | yes |
 | Exposes batch accept through `Safety` | yes | yes | yes | yes | yes |
 | Native receive control | AMQP prefetch | none | receive batch size | prefetch and callback concurrency | none |
+| Enforced `MaxInFlightMessages` bound | 1 | 1 | 1 | lower of value and `MaxConcurrentCalls` | 1 |
 | Broker declaration options on ingress options | yes | no | no | no | no |
 | Cross-broker identity and idempotency defaults | broker-scoped | broker-scoped | broker-scoped | broker-scoped | broker-scoped |
 

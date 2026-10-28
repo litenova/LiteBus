@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace LiteBus.Messaging.Mediator;
 
 /// <summary>
-///     Retains an ambient execution context scope until an asynchronous mediation result completes.
+///     Retains a dispatch scope until an asynchronous mediation result completes.
 /// </summary>
 internal static class MediationScopeRetention
 {
@@ -28,7 +28,7 @@ internal static class MediationScopeRetention
     {
         if (result is Task task)
         {
-            return (TResult)RetainTask(task, resourceScope);
+            return (TResult) RetainTask(task, resourceScope);
         }
 
         var asyncEnumerableType = GetAsyncEnumerableElementType(result);
@@ -112,7 +112,7 @@ internal static class MediationScopeRetention
     {
         try
         {
-            return await ((Task<T>)task).ConfigureAwait(false);
+            return await ((Task<T>) task).ConfigureAwait(false);
         }
         finally
         {
@@ -145,7 +145,7 @@ internal static class MediationScopeRetention
     }
 
     /// <summary>
-    ///     Wraps an asynchronous enumerable and disposes the ambient scope when enumeration completes.
+    ///     Wraps an asynchronous enumerable and disposes the dispatch scope when enumeration completes.
     /// </summary>
     /// <typeparam name="T">The element type streamed by the mediation result.</typeparam>
     private sealed class ScopeRetainedAsyncEnumerable<T> : IAsyncEnumerable<T>
@@ -197,7 +197,7 @@ internal static class MediationScopeRetention
         }
 
         /// <summary>
-        ///     Wraps an asynchronous enumerator and disposes the ambient scope when enumeration completes.
+        ///     Wraps an asynchronous enumerator and disposes the dispatch scope when enumeration completes.
         /// </summary>
         private sealed class ScopeRetainedAsyncEnumerator : IAsyncEnumerator<T>
         {

@@ -15,11 +15,11 @@ Applications subscribe with `AddLiteBusTransportMetrics()`. AMQP package keeps c
 
 | API | Role |
 | --- | --- |
-| `TransportMetricsRegistration.RegisterIfNeeded(IModuleConfiguration, string? broker)` | One-time registration of metrics hooks |
+| `TransportMetricsRegistration.RegisterIfNeeded(IModuleConfiguration, string? broker, Type moduleType)` | One-time registration of metrics hooks; refuses a second transport module |
 | `TransportObservableMetricsInitializer` | Startup task that creates gauges |
 | `TransportObservableMetrics` | Gauge producer bound to aggregate publisher breaker state |
 | `TransportBrokerIdentity` | Broker tag identity value |
-| `TransportMetricsRegisteredMarker` | Marker to prevent duplicate registration |
+| `TransportCompositionContext` | Shared compose claim that refuses a second transport module (internal) |
 | `AddLiteBusTransportMetrics()` | OpenTelemetry meter registration extension |
 | `AddLiteBusAmqpMetrics()` | AMQP alias to shared meter |
 | `LiteBusTransportTelemetry` constants | Stable meter, instrument, and tag names |
@@ -88,15 +88,14 @@ Applications subscribe with `AddLiteBusTransportMetrics()`. AMQP package keeps c
 
 | Test method | Project |
 | --- | --- |
-| `RecordFailure_until_threshold_ShouldOpenCircuitAndExposeFailureCount` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
-| `RecordSuccess_after_failures_ShouldCloseCircuit` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
 | `ObservableGauges_ShouldReportBreakerStateAndStopAfterDisposal` | `LiteBus.Transport.UnitTests` |
+| `AddLiteBusTransportMetrics_ShouldSubscribePublicMeterName` | `LiteBus.Extensions.IntegrationTests` (`OpenTelemetry/`) |
 | `ProcessPendingAsync_WhenCircuitBreakerOpen_ShouldNotPublish` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Kafka/`, `Dispatch/Outbox/AwsSqs/`) |
 
 ### Untested
 
 - Assertions for startup task registration and execution in host composition tests.
-- Assertions for OpenTelemetry meter provider subscription (`AddLiteBusTransportMetrics`, `AddLiteBusAmqpMetrics`).
+- Assertions for the `AddLiteBusAmqpMetrics` alias subscription (`AddLiteBusTransportMetrics` is covered).
 - Broker-tagged gauge export assertions.
 
 ### Out-of-Scope

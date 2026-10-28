@@ -18,6 +18,8 @@ public sealed class RabbitMqInboxDispatchIntegrationTests : AmqpInboxDispatcherI
     public RabbitMqInboxDispatchIntegrationTests(RabbitMqFixture fixture)
     {
         _fixture = fixture;
+        DockerTestGate.EnsureBrokerAvailable(_fixture.IsAvailable, "RabbitMQ");
+        Skip.IfNot(_fixture.IsAvailable, DockerTestGate.DockerRequiredMessage);
     }
 
     /// <inheritdoc />

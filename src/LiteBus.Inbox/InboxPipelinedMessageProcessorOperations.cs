@@ -7,7 +7,6 @@ using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Messaging.Processing;
-using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions;
 using Microsoft.Extensions.Logging;
 
@@ -172,6 +171,11 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     Lease-loss persistence uses a broad <see cref="Exception" /> handler because store faults cannot be enumerated
+    ///     safely at the processor boundary. A failure is logged and recorded, and the pass continues with the remaining
+    ///     messages instead of aborting the whole batch.
+    /// </remarks>
     public async Task PersistLeaseLossOutcomeAsync(
         InboxEnvelope sourceEnvelope,
         ConcurrentProcessorPassAccumulator<InboxEnvelope> accumulator,
@@ -180,10 +184,24 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
         CancellationToken cancellationToken)
     {
         var visibleAfter = _clock.GetUtcNow().Add(options.Retry.CalculateDelay(sourceEnvelope.AttemptCount));
-        var updated = sourceEnvelope.AsFailed(MessageProcessorDiagnostics.LeaseLostDuringProcessingError, visibleAfter);
+        var updated = sourceEnvelope.AsFailed(
+            MessageFailure.FromError(MessageProcessorDiagnostics.LeaseLostDuringProcessingError, _clock.GetUtcNow()),
+            visibleAfter);
         var persistToken = options.HonorShutdownTokenOnPersist ? cancellationToken : CancellationToken.None;
 
-        var persistResult = await _stateWriter.PersistAsync([updated], persistToken).ConfigureAwait(false);
+#pragma warning disable CA1031 // One envelope lease-loss persist failure must not abort the entire processor pass.
+        PersistResult persistResult;
+        try
+        {
+            persistResult = await _stateWriter.PersistAsync([updated], persistToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            InboxProcessorLogMessages.LeaseLossPersistFailed(logger, sourceEnvelope.Id, exception);
+            RecordPersistFailed();
+            return;
+        }
+#pragma warning restore CA1031
 
         if (persistResult.SkippedCount > 0)
         {
@@ -198,6 +216,17 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     <para>
+    ///         AfterDispatch hook failures surface as unrelated exception types, so the handler stays broad and maps the
+    ///         failure through the configured hook failure policy instead of enumerating hook exception types.
+    ///     </para>
+    ///     <para>
+    ///         AfterDispatch runs on the persist token rather than the shutdown token. With the default
+    ///         <c>HonorShutdownTokenOnPersist = false</c>, a hook that never returns delays shutdown instead of risking a
+    ///         duplicate execution after the row was already completed.
+    ///     </para>
+    /// </remarks>
     public async Task PersistTerminalOutcomeAsync(
         InboxEnvelope sourceEnvelope,
         InboxEnvelope updated,
@@ -213,16 +242,19 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
             InboxEnvelope terminal;
             var afterDispatchHooksCompleted = false;
 
+            // One adapter serves both hook phases below, rather than each building its own.
+            var hookEnvelope = new InboxProcessorEnvelopeAdapter(sourceEnvelope);
+
             try
             {
-                await InboxProcessorHookRunner.RunAfterDispatchAsync(_hooks, sourceEnvelope, cancellationToken)
+                await ProcessorHookRunner.RunAfterDispatchAsync(_hooks, hookEnvelope, persistToken)
                     .ConfigureAwait(false);
 
                 afterDispatchHooksCompleted = true;
                 terminal = updated;
             }
 
-            // AfterDispatch hook failures surface as unrelated exception types; apply the configured hook failure policy.
+#pragma warning disable CA1031 // AfterDispatch hook failures surface as unrelated exception types; the hook failure policy maps them.
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 if (options.HookFailurePolicy == ProcessorHookFailurePolicy.CompleteDespiteHookFailure)
@@ -233,18 +265,17 @@ internal sealed class InboxPipelinedMessageProcessorOperations : IPipelinedMessa
                 }
                 else
                 {
-                    var error = MessageProcessorDiagnostics.FormatError(exception);
-
                     InboxProcessorLogMessages.AfterDispatchDeadLettered(logger, updated.Id, exception);
 
-                    terminal = sourceEnvelope.AsDeadLettered(error);
+                    terminal = sourceEnvelope.AsDeadLettered(MessageFailure.From(exception, _clock.GetUtcNow()));
                 }
             }
+#pragma warning restore CA1031
             finally
             {
                 if (!afterDispatchHooksCompleted)
                 {
-                    InboxProcessorHookRunner.RunAbandonDispatchScopes(_hooks, sourceEnvelope);
+                    ProcessorHookRunner.RunAbandonDispatchScopes(_hooks, hookEnvelope);
                 }
             }
 

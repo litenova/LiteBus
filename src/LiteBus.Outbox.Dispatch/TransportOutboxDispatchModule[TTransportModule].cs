@@ -2,6 +2,7 @@ using System;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Transport.Abstractions;
 
 namespace LiteBus.Outbox.Dispatch;
 
@@ -17,6 +18,9 @@ public sealed class TransportOutboxDispatchModule<TTransportModule> :
     /// <inheritdoc />
     public ProcessorHookFailurePolicy DefaultHookFailurePolicy =>
         ProcessorHookFailurePolicy.CompleteDespiteHookFailure;
+
+    /// <inheritdoc />
+    public bool PublishesFullEventPerEnvelope => true;
 
     /// <summary>
     ///     Gets the dispatcher options configured by the application.
@@ -45,5 +49,12 @@ public sealed class TransportOutboxDispatchModule<TTransportModule> :
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxDispatcher),
             typeof(TransportOutboxDispatcher)));
+
+        if (_options.TenantRoutingStrategy is { } tenantRoutingStrategy)
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(ITenantRoutingStrategy),
+                tenantRoutingStrategy));
+        }
     }
 }

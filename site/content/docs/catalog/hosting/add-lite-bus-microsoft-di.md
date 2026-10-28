@@ -37,12 +37,13 @@ This capability is composition only. It does not own ASP.NET routes, health chec
 
 ## Requires
 
-- `hosting.module-registry`
+- `runtime.module-registry`
 - `hosting.host-manifest`
 - `hosting.microsoft-hosting-bridge`
 
 ## Invariants
 
+- A second `AddLiteBus` call on the same service collection throws `ModuleCompositionException`.
 - Module build order is frozen after `BuildOrder()`.
 - `LiteBusHostManifest` reflects startup tasks, background services, and diagnostic checks collected during composition.
 - Each dispatch opens and disposes an `IServiceScope`.

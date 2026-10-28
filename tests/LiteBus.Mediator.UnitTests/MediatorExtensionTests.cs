@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Events.Abstractions;
 using LiteBus.Queries.Abstractions;
 
@@ -20,9 +21,9 @@ public sealed class MediatorExtensionTests
         var mediator = new RecordingCommandMediator();
         using var cancellation = new CancellationTokenSource();
 
-        await mediator.SendAsync((ICommand)new TestCommand(), cancellation.Token).ConfigureAwait(false);
+        await mediator.SendAsync((ICommand) new TestCommand(), cancellation.Token).ConfigureAwait(false);
         var result = await mediator.SendAsync(new TestResultCommand(), cancellation.Token).ConfigureAwait(false);
-        await mediator.SendAsync((ICommand)new TestCommand(), "command-tag", cancellation.Token).ConfigureAwait(false);
+        await mediator.SendAsync((ICommand) new TestCommand(), "command-tag", cancellation.Token).ConfigureAwait(false);
         var taggedResult = await mediator.SendAsync(new TestResultCommand(), "result-tag", cancellation.Token).ConfigureAwait(false);
 
         result.Should().Be(42);
@@ -80,8 +81,8 @@ public sealed class MediatorExtensionTests
         using var cancellation = new CancellationTokenSource();
         var @event = new TestEvent();
 
-        await mediator.PublishAsync((IEvent)@event, cancellation.Token).ConfigureAwait(false);
-        await mediator.PublishAsync((IEvent)@event, "event-tag", cancellation.Token).ConfigureAwait(false);
+        await mediator.PublishAsync((IEvent) @event, cancellation.Token).ConfigureAwait(false);
+        await mediator.PublishAsync((IEvent) @event, "event-tag", cancellation.Token).ConfigureAwait(false);
         await mediator.PublishAsync(@event, "typed-tag", cancellation.Token).ConfigureAwait(false);
 
         mediator.Settings.Should().HaveCount(3);
@@ -124,7 +125,34 @@ public sealed class MediatorExtensionTests
         {
             Settings.Add(commandMediationSettings);
             Tokens.Add(cancellationToken);
-            return Task.FromResult((TCommandResult)(object)42);
+            return Task.FromResult((TCommandResult) (object) 42);
+        }
+
+        /// <inheritdoc />
+        public Task<MediationResult> TrySendAsync(
+            ICommand command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationResult.Succeeded());
+        }
+
+        /// <inheritdoc />
+        public Task<MediationResult<TCommandResult>> TrySendAsync<TCommandResult>(
+            ICommand<TCommandResult> command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationResult<TCommandResult>.Succeeded(default!));
+        }
+
+        /// <inheritdoc />
+        public Task<MediationDecision> EvaluateAsync(
+            ICommand command,
+            CommandMediationSettings? commandMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationDecision.Allowed);
         }
     }
 
@@ -141,7 +169,7 @@ public sealed class MediatorExtensionTests
         {
             Settings.Add(queryMediationSettings);
             Tokens.Add(cancellationToken);
-            return Task.FromResult((TQueryResult)(object)42);
+            return Task.FromResult((TQueryResult) (object) 42);
         }
 
         public IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(
@@ -151,7 +179,7 @@ public sealed class MediatorExtensionTests
         {
             Settings.Add(queryMediationSettings);
             Tokens.Add(cancellationToken);
-            return YieldAsync((TQueryResult)(object)42, cancellationToken);
+            return YieldAsync((TQueryResult) (object) 42, cancellationToken);
         }
 
         private static async IAsyncEnumerable<T> YieldAsync<T>(
@@ -161,6 +189,24 @@ public sealed class MediatorExtensionTests
             await Task.CompletedTask.ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             yield return item;
+        }
+
+        /// <inheritdoc />
+        public Task<MediationResult<TQueryResult>> TryQueryAsync<TQueryResult>(
+            IQuery<TQueryResult> query,
+            QueryMediationSettings? queryMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationResult<TQueryResult>.Succeeded(default!));
+        }
+
+        /// <inheritdoc />
+        public Task<MediationDecision> EvaluateAsync(
+            IQuery query,
+            QueryMediationSettings? queryMediationSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MediationDecision.Allowed);
         }
     }
 

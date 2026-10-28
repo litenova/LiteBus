@@ -7,21 +7,23 @@
 
 | Role | Methods |
 | --- | --- |
-| `IInboxLeaseStore` | `LeasePendingAsync`, `RenewLeaseAsync` |
-| `IOutboxLeaseStore` | `LeasePendingAsync`, `RenewLeaseAsync` |
-| `ILeaseRenewable` | renewal contract used by long-running handlers and dispatchers |
+| `IInboxLeaseStore` | `LeasePendingAsync`, `RenewLeaseAsync`, `ReleaseLeaseAsync` |
+| `IOutboxLeaseStore` | `LeasePendingAsync`, `RenewLeaseAsync`, `ReleaseLeaseAsync` |
+| `ILeaseRenewable` | renewal and release contract: `RenewLeaseAsync` extends a lease, `ReleaseLeaseAsync` returns a cancelled lease without charging the attempt (default returns `false`) |
 
 ## SQL Behavior
 
 - PostgreSQL claim query uses `FOR UPDATE SKIP LOCKED` with due-time and lease-expiry predicates.
 - Claim update sets `status`, `lease_owner`, `lease_expires_at`, and increments `attempt_count`.
 - Eligible statuses include pending and failed; expired processing/publishing leases are reclaimable.
+- A null lease tenant means no tenant restriction; an empty string leases only unscoped rows, with stored and requested tenants compared through normalized values on every adapter.
 
 ## Concurrency Model
 
 - Multiple workers can lease in parallel without double-claiming the same row.
 - Lost worker case is handled by lease expiry and reclaim.
 - Renewal path extends `lease_expires_at` when the caller still owns the lease.
+- Release path returns a dispatch the processor cancelled to pending (or to failed when the row already carries an error) with the attempt count decremented; without a store implementation the lease expires with the attempt counted.
 
 ## Index Interaction
 

@@ -1,4 +1,4 @@
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Saga.Abstractions;
 
@@ -52,6 +52,8 @@ public sealed class SagaModule : ICompositeModule
             throw new Runtime.Abstractions.Exceptions.LiteBusConfigurationException(
                 "SagaModule.Build was called without a prior DeclareChildren call. Register the module through IModuleRegistry.");
         }
+
+        _builder.ValidateContractMappings();
 
         var registry = _builder.CollectRegistry();
 

@@ -1,0 +1,144 @@
+/* LiteBus Editor theme: home-only rules, ported from the approved mock.
+   Imported by the landing page and the privacy page. Shared chrome (window,
+   header, editor, code, footer, status bar, buttons, syntax roles) lives in
+   globals.css; nothing here redefines those classes. */
+
+/* ------------------------------------------------------------------- hero */
+.hero { padding: 96px 0 80px; position: relative; isolation: isolate; overflow: hidden; }
+/* A soft accent glow on the right and a faint grid that fades toward the copy, so the hero has depth without a
+   competing element. Both layers sit behind the content and ignore the pointer. */
+.hero::before,
+.hero::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.hero::before { background: radial-gradient(ellipse 48% 70% at 82% 38%, var(--acc-soft), transparent 70%); }
+.hero::after {
+  background-image:
+    linear-gradient(var(--line-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 46% 64% at 80% 42%, #000 0%, transparent 72%);
+  -webkit-mask-image: radial-gradient(ellipse 46% 64% at 80% 42%, #000 0%, transparent 72%);
+  opacity: .55;
+}
+.chip { display: inline-flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12.5px; color: var(--dim); border: var(--bw) solid var(--line); border-radius: 999px; padding: 4px 12px 4px 10px; transition: border-color .12s; }
+.chip:hover { border-color: var(--acc); text-decoration: none; }
+.chip b { color: var(--fg); font-weight: 500; }
+.chip i { font-style: normal; color: var(--acc); }
+.pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--acc); animation: e-pulse 2.4s var(--ease) infinite; flex: none; }
+.hero h1 { font-size: clamp(38px, 5.2vw, 60px); font-weight: 700; letter-spacing: -.035em; line-height: 1.05; margin-top: 24px; max-width: 22ch; }
+.lead { margin-top: 20px; font-size: 18px; line-height: 1.6; color: var(--dim); max-width: 58ch; }
+.actions { display: flex; align-items: center; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
+.install { display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 6px 0 14px; border: var(--bw) solid var(--line); border-radius: 6px; background: var(--side); font-family: var(--mono); font-size: 13.5px; color: var(--fg); min-width: 0; max-width: 100%; }
+.install .pr { color: var(--acc); flex: none; }
+.cmdbox { display: inline-grid; min-width: 0; }
+.cmdbox > span { grid-area: 1 / 1; }
+.ghost { visibility: hidden; white-space: nowrap; padding-right: 9px; }
+.typed { display: inline-block; overflow: hidden; white-space: nowrap; width: 0; border-right: 7px solid var(--acc); padding-right: 2px; animation: e-type 1.7s steps(67) .5s forwards, e-caret 1.1s steps(1) infinite; }
+.facts { margin: 52px 0 0; padding-top: 22px; border-top: var(--bw) solid var(--line-soft); display: flex; flex-wrap: wrap; row-gap: 16px; max-width: 760px; }
+.facts div { padding: 0 28px; border-left: var(--bw) solid var(--line); }
+.facts div:first-child { padding-left: 0; border-left: 0; }
+.facts dt { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.facts dd { margin: 3px 0 0; font-size: 15px; font-weight: 500; color: var(--fg); }
+
+/* MediatR comparison: the same section rhythm as the others, one paragraph and a link. */
+.mediatr .sub { max-width: 72ch; }
+.mediatr .next { margin-top: 28px; }
+
+/* -------------------------------------------------------------- sections */
+.sec { padding: 80px 0; border-top: var(--bw) solid var(--line-soft); }
+.sec h2 { font-size: 30px; font-weight: 700; }
+.sub { margin-top: 8px; color: var(--dim); max-width: 62ch; }
+
+/* stepper: three steps drive one fixed-size editor */
+.stepper { margin-top: 36px; display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 28px; align-items: start; }
+.steplist { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* Steps are real buttons; strip the UA button chrome so the mock card holds. */
+.step { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 4px 12px; padding: 14px 14px 14px 12px; border-radius: 8px; border: 1px solid transparent; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; transition: background-color .14s, border-color .14s; }
+.step:hover { background: var(--hover); }
+.step .num { grid-row: span 3; width: 26px; height: 26px; border-radius: 50%; border: var(--bw) solid var(--line); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 12px; color: var(--dim); transition: background-color .16s, border-color .16s, color .16s; }
+.step b { font-weight: 600; font-size: 15px; }
+.step .d { color: var(--dim); font-size: 14px; line-height: 1.55; }
+.step .d code { font-family: var(--mono); font-size: 12.5px; color: var(--fg); }
+.step .fname { margin-top: 4px; font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+.step.on { background: var(--side); border-color: var(--line); }
+.step.on .num { background: var(--acc); border-color: var(--acc); color: var(--acc-fg); }
+/* Tabs are real buttons on the home stepper; strip the UA button chrome. The
+   global .ed-tab.on rule still wins for the active tab background. */
+button.ed-tab { background: transparent; border: 0; border-right: var(--bw) solid var(--line); }
+.file { display: none; }
+.file.on { display: block; }
+.stepper .file pre.code { height: calc(20 * 1.65em + 30px); }
+
+/* next action: a command-palette row */
+.next { margin-top: 20px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 14px 16px 14px 18px; border: var(--bw) solid var(--line); border-radius: 8px; background: var(--side); color: var(--fg); transition: border-color .14s, background-color .14s; }
+.next:hover { text-decoration: none; border-color: var(--acc); background: var(--acc-soft); }
+.next .pr { font-family: var(--mono); color: var(--acc); font-size: 15px; }
+.next b { font-weight: 600; font-size: 15px; }
+.next .d { display: block; color: var(--dim); font-size: 13.5px; }
+.next .go { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12.5px; color: var(--dim); }
+.next .arrow { color: var(--acc); transition: transform .16s var(--ease); }
+.next:hover .arrow { transform: translateX(3px); }
+
+/* "rewritten": each line is written left to right, top to bottom, when its
+   file opens. The stepper wraps each .line content in .lc so the clip-path
+   animation clips the code while the ::before line number stays visible. */
+.code .lc { display: inline-block; vertical-align: top; }
+.write .lc { animation: e-write .26s steps(14) both; animation-delay: calc(var(--i) * 55ms + 80ms); }
+.write .line:last-child .lc::after { content: ""; display: inline-block; width: 2px; height: 1.15em; margin-left: 2px; vertical-align: -3px; background: var(--acc); animation: e-blink 1.1s steps(1) infinite; }
+
+/* features, grouped by axis under a small mono label */
+.feat-group { margin-top: 40px; }
+.feat-group h3 { display: flex; align-items: center; gap: 12px; font-family: var(--mono); font-size: 11.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--acc); }
+.feat-group h3::after { content: ""; flex: 1; height: var(--bw); background: var(--line-soft); }
+.feat-group .feats { margin-top: 12px; border-top: 0; }
+.feats { margin-top: 32px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 40px; border-top: var(--bw) solid var(--line-soft); }
+.feat { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; padding: 20px 8px; border-bottom: var(--bw) solid var(--line-soft); color: var(--fg); transition: background-color .14s; }
+.feat:hover { text-decoration: none; background: linear-gradient(90deg, var(--acc-soft), transparent 70%); }
+.feat .sym { grid-column: 1; font-family: var(--mono); font-size: 12.5px; }
+.feat b { grid-column: 1; font-weight: 600; font-size: 15.5px; }
+.feat .d { grid-column: 1; color: var(--dim); font-size: 14px; line-height: 1.55; }
+.feat .go { grid-column: 2; grid-row: 1 / span 3; align-self: center; color: var(--acc); font-family: var(--mono); font-size: 13px; opacity: 0; transform: translateX(-6px); transition: opacity .14s, transform .14s var(--ease); white-space: nowrap; }
+.feat:hover .go { opacity: 1; transform: none; }
+[data-theme="light"] .feat .sym { font-weight: 500; }
+
+/* legal column for the privacy page, sized from the mock docs prose */
+.legal { max-width: 780px; margin: 0 auto; padding: 44px 0 72px; }
+.legal h1 { font-size: 40px; font-weight: 700; letter-spacing: -.03em; }
+.legal h2 { font-size: 22px; font-weight: 650; margin: 48px 0 12px; }
+.legal p { margin-top: 12px; }
+.legal ul { margin: 12px 0 0; padding-left: 22px; }
+.legal li + li { margin-top: 8px; }
+
+/* ------------------------------------------------------------- responsive */
+@media (max-width: 1024px) {
+  .stepper { grid-template-columns: minmax(0, 1fr); }
+  .steplist { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .step .d { display: none; }
+}
+@media (max-width: 640px) {
+  .hero { padding: 56px 0 48px; }
+  .lead { font-size: 16px; }
+  .chip { flex-wrap: wrap; row-gap: 2px; }
+  .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .facts div, .facts div:first-child { padding: 0; border-left: 0; }
+  .actions { flex-direction: column; align-items: flex-start; gap: 12px; margin-top: 28px; }
+  .actions .btn { height: 38px; padding: 0 16px; font-size: 14px; }
+  .install { width: 100%; height: auto; min-height: 42px; padding: 12px 10px 12px 14px; align-items: flex-start; line-height: 1.5; }
+  .install .copy { margin-top: -1px; }
+  .ghost { display: none; }
+  .typed { width: auto; white-space: normal; overflow-wrap: anywhere; animation: none; border-right: 0; }
+  .sec { padding: 56px 0; }
+  .steplist { grid-template-columns: minmax(0, 1fr); }
+  .step .d { display: block; }
+  .stepper .file pre.code { height: calc(14 * 1.65em + 30px); }
+  .next { grid-template-columns: auto minmax(0, 1fr); }
+  .next .go { display: none; }
+  .feats { grid-template-columns: minmax(0, 1fr); }
+  .feat .go { display: none; }
+  .legal { padding: 28px 0 56px; }
+  .legal h1 { font-size: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The global block already disables every animation; without this the
+     install command keeps its pre-typing width of zero. */
+  .typed { width: auto; border-right: 0; }
+}

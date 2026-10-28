@@ -94,7 +94,12 @@ public sealed class EfCoreOutboxStore :
     /// <summary>
     ///     Initializes a new instance of the <see cref="EfCoreOutboxStore" /> class using a custom context factory.
     /// </summary>
-    /// <param name="contextFactory">A factory that returns a context for one store operation.</param>
+    /// <param name="contextFactory">
+    ///     A factory that returns the context for one store operation. The store does not dispose the returned context:
+    ///     the caller owns it, whether the factory returns one shared context or a new one per call. A factory that
+    ///     creates a new context per call must track and dispose those contexts itself; the storage module registration
+    ///     avoids this by creating and disposing one context per operation through <c>IDbContextFactory</c>.
+    /// </param>
     /// <param name="options">The store options.</param>
     public EfCoreOutboxStore(
         Func<CancellationToken, Task<IOutboxDbContext>> contextFactory,
@@ -196,6 +201,70 @@ public sealed class EfCoreOutboxStore :
     }
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        return ExecuteAsync(async (context, token) =>
+        {
+            var countRows = await context.OutboxMessages
+                .Where(message => message.Status == OutboxStatus.Failed || message.Status == OutboxStatus.DeadLettered)
+                .GroupBy(message => new { message.ContractName, message.ContractVersion, message.Status })
+                .Select(group => new
+                {
+                    group.Key.ContractName,
+                    group.Key.ContractVersion,
+                    Status = group.Key.Status,
+                    Count = group.Count()
+                })
+                .ToListAsync(token)
+                .ConfigureAwait(false);
+
+            if (countRows.Count == 0)
+            {
+                return (IReadOnlyList<OutboxFailureSummary>) [];
+            }
+
+            var summaries = new List<OutboxFailureSummary>();
+
+            // One indexed top-1 read per failing contract keeps the cost bounded by the number of contracts rather
+            // than the number of failing messages, which is the quantity that grows when a probe matters most.
+            foreach (var group in countRows.GroupBy(row => new { row.ContractName, row.ContractVersion }))
+            {
+                var latest = await context.OutboxMessages
+                    .Where(message =>
+                        (message.Status == OutboxStatus.Failed || message.Status == OutboxStatus.DeadLettered) &&
+                        message.ContractName == group.Key.ContractName &&
+                        message.ContractVersion == group.Key.ContractVersion)
+                    .OrderBy(message => message.LastAttemptedAt == null)
+                    .ThenByDescending(message => message.LastAttemptedAt)
+                    .Select(message => new
+                    {
+                        message.LastError,
+                        message.ErrorType,
+                        message.LastAttemptedAt
+                    })
+                    .FirstOrDefaultAsync(token)
+                    .ConfigureAwait(false);
+
+                summaries.Add(new OutboxFailureSummary
+                {
+                    ContractName = group.Key.ContractName,
+                    ContractVersion = group.Key.ContractVersion,
+                    FailedCount = group.Where(row => row.Status == OutboxStatus.Failed).Sum(row => row.Count),
+                    DeadLetteredCount = group.Where(row => row.Status == OutboxStatus.DeadLettered).Sum(row => row.Count),
+                    LastError = latest?.LastError,
+                    LastErrorType = latest?.ErrorType,
+                    LastFailedAt = latest?.LastAttemptedAt
+                });
+            }
+
+            return (IReadOnlyList<OutboxFailureSummary>) summaries
+                .OrderByDescending(summary => summary.LastFailedAt)
+                .ThenBy(summary => summary.ContractName, StringComparer.Ordinal)
+                .ToArray();
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -282,6 +351,53 @@ public sealed class EfCoreOutboxStore :
                     token),
                 renewalQuery,
                 entity => entity.LeaseExpiresAt = expiresAt,
+                token).ConfigureAwait(false);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+
+        return ExecuteAsync(async (context, token) =>
+        {
+            if (context is not DbContext dbContext)
+            {
+                throw new InvalidOperationException("Lease release requires a DbContext-backed outbox database context.");
+            }
+
+            var releaseQuery = dbContext.Set<OutboxMessageEntity>()
+                .Where(message =>
+                    message.Id == request.MessageId &&
+                    message.Status == OutboxStatus.Publishing &&
+                    message.LeaseOwner == request.LeaseOwner &&
+                    message.LeaseGeneration == request.LeaseGeneration);
+
+            return await EfCoreDurableStoreOperations.ExecuteUpdateOrTrackAsync(
+                dbContext,
+                () => releaseQuery.ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(
+                            message => message.Status,
+                            message => message.LastError == null ? OutboxStatus.Pending : OutboxStatus.Failed)
+                        .SetProperty(message => message.LeaseOwner, (string?) null)
+                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
+                        .SetProperty(
+                            message => message.AttemptCount,
+                            message => message.AttemptCount > 0 ? message.AttemptCount - 1 : 0),
+                    token),
+                releaseQuery,
+                entity =>
+                {
+                    entity.Status = entity.LastError == null ? OutboxStatus.Pending : OutboxStatus.Failed;
+                    entity.LeaseOwner = null;
+                    entity.LeaseExpiresAt = null;
+                    entity.AttemptCount = Math.Max(0, entity.AttemptCount - 1);
+                },
                 token).ConfigureAwait(false);
         }, cancellationToken);
     }
@@ -403,6 +519,8 @@ public sealed class EfCoreOutboxStore :
 
             if (local is not null)
             {
+                ThrowIfCrossTenantMessageIdMatch(envelope, local);
+                ThrowIfStrictConflict(envelope, local);
                 return new OutboxAppendResult(ToEnvelope(local), OutboxEnqueueOutcome.AlreadyEnqueued);
             }
 
@@ -410,6 +528,7 @@ public sealed class EfCoreOutboxStore :
 
             if (existing is not null)
             {
+                ThrowIfCrossTenantMessageIdMatch(envelope, existing);
                 ThrowIfStrictConflict(envelope, existing);
                 return new OutboxAppendResult(ToEnvelope(existing), OutboxEnqueueOutcome.AlreadyEnqueued);
             }
@@ -428,7 +547,7 @@ public sealed class EfCoreOutboxStore :
                 await ReloadEntityAsync(context, entity, token).ConfigureAwait(false);
                 return new OutboxAppendResult(ToEnvelope(entity), OutboxEnqueueOutcome.Enqueued);
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException ex)
             {
                 var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.TenantId, envelope.IdempotencyKey, token).ConfigureAwait(false);
 
@@ -437,6 +556,13 @@ public sealed class EfCoreOutboxStore :
                     throw;
                 }
 
+                if (!IsUniqueViolation(ex))
+                {
+                    DetachFailedInsert(context, entity);
+                    throw;
+                }
+
+                ThrowIfCrossTenantMessageIdMatch(envelope, stored);
                 ThrowIfStrictConflict(envelope, stored);
                 DetachFailedInsert(context, entity);
                 return new OutboxAppendResult(ToEnvelope(stored), OutboxEnqueueOutcome.AlreadyEnqueued);
@@ -472,6 +598,7 @@ public sealed class EfCoreOutboxStore :
 
                 if (seenIds.TryGetValue(envelope.Id, out var duplicateById))
                 {
+                    ThrowIfCrossTenantMessageIdMatch(envelope, duplicateById);
                     ThrowIfStrictConflict(envelope, duplicateById);
                     results[index] = new OutboxAppendResult(duplicateById, OutboxEnqueueOutcome.AlreadyEnqueued);
                     continue;
@@ -493,6 +620,7 @@ public sealed class EfCoreOutboxStore :
 
                 if (local is not null)
                 {
+                    ThrowIfCrossTenantMessageIdMatch(envelope, local);
                     ThrowIfStrictConflict(envelope, local);
                     results[index] = new OutboxAppendResult(ToEnvelope(local), OutboxEnqueueOutcome.AlreadyEnqueued);
                     RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
@@ -504,6 +632,7 @@ public sealed class EfCoreOutboxStore :
 
                 if (existing is not null)
                 {
+                    ThrowIfCrossTenantMessageIdMatch(envelope, existing);
                     ThrowIfStrictConflict(envelope, existing);
                     results[index] = new OutboxAppendResult(ToEnvelope(existing), OutboxEnqueueOutcome.AlreadyEnqueued);
                     RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
@@ -512,6 +641,7 @@ public sealed class EfCoreOutboxStore :
 
                 if (pendingIds.TryGetValue(envelope.Id, out var pendingIdSourceIndex))
                 {
+                    ThrowIfCrossTenantMessageIdMatch(envelope, envelopes[pendingIdSourceIndex]);
                     ThrowIfStrictConflict(envelope, envelopes[pendingIdSourceIndex]);
                     pendingAliases[index] = pendingIdSourceIndex;
                     continue;
@@ -585,22 +715,94 @@ public sealed class EfCoreOutboxStore :
 
                 ApplyPendingResults();
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException ex)
             {
                 foreach (var entity in entities)
                 {
                     DetachFailedInsert(context, entity);
                 }
 
+                var missing = new List<(int Index, OutboxEnvelope Envelope)>();
+
                 foreach (var (index, envelope) in pending)
                 {
                     var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.TenantId, envelope.IdempotencyKey, token)
-                                     .ConfigureAwait(false) ??
-                                 throw new InvalidOperationException(
-                                     "The outbox batch insert failed and the existing message could not be found.");
+                        .ConfigureAwait(false);
 
+                    if (stored is null)
+                    {
+                        missing.Add((index, envelope));
+                        continue;
+                    }
+
+                    ThrowIfCrossTenantMessageIdMatch(envelope, stored);
+                    ThrowIfStrictConflict(envelope, stored);
                     results[index] = new OutboxAppendResult(ToEnvelope(stored), OutboxEnqueueOutcome.AlreadyEnqueued);
                     RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
+                }
+
+                if (missing.Count == 0)
+                {
+                    if (!IsUniqueViolation(ex))
+                    {
+                        throw;
+                    }
+                }
+                else
+                {
+                    var retryEntities = missing.Select(entry => ToEntity(entry.Envelope)).ToList();
+                    context.OutboxMessages.AddRange(retryEntities);
+
+                    try
+                    {
+                        await SaveChangesAsync(context, token).ConfigureAwait(false);
+
+                        for (var retryIndex = 0; retryIndex < retryEntities.Count; retryIndex++)
+                        {
+                            await ReloadEntityAsync(context, retryEntities[retryIndex], token).ConfigureAwait(false);
+                            var stored = ToEnvelope(retryEntities[retryIndex]);
+                            results[missing[retryIndex].Index] = new OutboxAppendResult(stored, OutboxEnqueueOutcome.Enqueued);
+                            RememberBatchResult(seenIds, seenIdempotencyKeys, missing[retryIndex].Envelope, stored);
+                        }
+                    }
+                    catch (DbUpdateException retryEx)
+                    {
+                        foreach (var retryEntity in retryEntities)
+                        {
+                            DetachFailedInsert(context, retryEntity);
+                        }
+
+                        var stillMissing = 0;
+
+                        foreach (var (index, envelope) in missing)
+                        {
+                            var stored = await FindExistingEntityAsync(context, envelope.Id, envelope.TenantId, envelope.IdempotencyKey, token)
+                                .ConfigureAwait(false);
+
+                            if (stored is null)
+                            {
+                                stillMissing++;
+                                continue;
+                            }
+
+                            ThrowIfCrossTenantMessageIdMatch(envelope, stored);
+                            ThrowIfStrictConflict(envelope, stored);
+                            results[index] = new OutboxAppendResult(ToEnvelope(stored), OutboxEnqueueOutcome.AlreadyEnqueued);
+                            RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
+                        }
+
+                        if (stillMissing > 0)
+                        {
+                            throw new InvalidOperationException(
+                                "The outbox batch insert failed and the existing message could not be found.",
+                                retryEx);
+                        }
+
+                        if (!IsUniqueViolation(retryEx))
+                        {
+                            throw;
+                        }
+                    }
                 }
 
                 foreach (var (duplicateIndex, sourceIndex) in pendingAliases)
@@ -669,8 +871,10 @@ public sealed class EfCoreOutboxStore :
                     setters => setters
                         .SetProperty(message => message.Status, OutboxStatus.Published)
                         .SetProperty(message => message.LeaseOwner, (string?) null)
+                        .SetProperty(message => message.LastLeaseOwner, envelope.LeaseOwner)
                         .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
                         .SetProperty(message => message.LastError, (string?) null)
+                        .SetProperty(message => message.ErrorType, (string?) null)
                         .SetProperty(message => message.PublishedAt, publishedAt),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -691,6 +895,10 @@ public sealed class EfCoreOutboxStore :
     /// <param name="envelopes">The published envelopes to persist.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
     /// <returns>The message identifiers updated under the lease guard.</returns>
+    /// <remarks>
+    ///     Each row saves separately so a re-lease committed after the tracked load skips only that row through the
+    ///     lease-generation concurrency token instead of failing the whole batch.
+    /// </remarks>
     private static async Task<HashSet<Guid>> ApplyPublishedTrackedAsync(
         IOutboxDbContext context,
         IReadOnlyList<OutboxEnvelope> envelopes,
@@ -716,7 +924,10 @@ public sealed class EfCoreOutboxStore :
 
             ApplyMutableState(entity, source);
 
-            persistedMessageIds.Add(entity.Id);
+            if (await TrySaveTrackedEntityAsync(context, entity, cancellationToken).ConfigureAwait(false))
+            {
+                persistedMessageIds.Add(entity.Id);
+            }
         }
 
         return persistedMessageIds;
@@ -760,8 +971,11 @@ public sealed class EfCoreOutboxStore :
                         .SetProperty(message => message.VisibleAfter, envelope.VisibleAfter)
                         .SetProperty(message => message.AttemptCount, envelope.AttemptCount)
                         .SetProperty(message => message.LeaseOwner, (string?) null)
+                        .SetProperty(message => message.LastLeaseOwner, envelope.LeaseOwner)
                         .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
-                        .SetProperty(message => message.LastError, envelope.LastError),
+                        .SetProperty(message => message.LastError, envelope.LastError)
+                        .SetProperty(message => message.ErrorType, envelope.ErrorType)
+                        .SetProperty(message => message.FirstFailedAt, message => message.FirstFailedAt ?? envelope.FirstFailedAt),
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -781,6 +995,10 @@ public sealed class EfCoreOutboxStore :
     /// <param name="envelopes">The failed envelopes to persist.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
     /// <returns>The message identifiers updated under the lease guard.</returns>
+    /// <remarks>
+    ///     Each row saves separately so a re-lease committed after the tracked load skips only that row through the
+    ///     lease-generation concurrency token instead of failing the whole batch.
+    /// </remarks>
     private static async Task<HashSet<Guid>> ApplyFailedTrackedAsync(
         IOutboxDbContext context,
         IReadOnlyList<OutboxEnvelope> envelopes,
@@ -805,7 +1023,11 @@ public sealed class EfCoreOutboxStore :
             }
 
             ApplyMutableState(entity, source);
-            persistedMessageIds.Add(entity.Id);
+
+            if (await TrySaveTrackedEntityAsync(context, entity, cancellationToken).ConfigureAwait(false))
+            {
+                persistedMessageIds.Add(entity.Id);
+            }
         }
 
         return persistedMessageIds;
@@ -848,8 +1070,12 @@ public sealed class EfCoreOutboxStore :
                         .SetProperty(message => message.Status, OutboxStatus.DeadLettered)
                         .SetProperty(message => message.AttemptCount, envelope.AttemptCount)
                         .SetProperty(message => message.LeaseOwner, (string?) null)
+                        .SetProperty(message => message.LastLeaseOwner, envelope.LeaseOwner)
                         .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
-                        .SetProperty(message => message.LastError, envelope.LastError),
+                        .SetProperty(message => message.LastError, envelope.LastError)
+                        .SetProperty(message => message.ErrorType, envelope.ErrorType)
+                        .SetProperty(message => message.FirstFailedAt, message => message.FirstFailedAt ?? envelope.FirstFailedAt)
+                        .SetProperty(message => message.DeadLetteredAt, envelope.DeadLetteredAt ?? DateTimeOffset.UtcNow),
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -869,6 +1095,10 @@ public sealed class EfCoreOutboxStore :
     /// <param name="envelopes">The dead-lettered envelopes to persist.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
     /// <returns>The message identifiers updated under the lease guard.</returns>
+    /// <remarks>
+    ///     Each row saves separately so a re-lease committed after the tracked load skips only that row through the
+    ///     lease-generation concurrency token instead of failing the whole batch.
+    /// </remarks>
     private static async Task<HashSet<Guid>> ApplyDeadLetteredTrackedAsync(
         IOutboxDbContext context,
         IReadOnlyList<OutboxEnvelope> envelopes,
@@ -893,7 +1123,11 @@ public sealed class EfCoreOutboxStore :
             }
 
             ApplyMutableState(entity, source);
-            persistedMessageIds.Add(entity.Id);
+
+            if (await TrySaveTrackedEntityAsync(context, entity, cancellationToken).ConfigureAwait(false))
+            {
+                persistedMessageIds.Add(entity.Id);
+            }
         }
 
         return persistedMessageIds;
@@ -910,6 +1144,47 @@ public sealed class EfCoreOutboxStore :
         return entity.Status == OutboxStatus.Publishing &&
                string.Equals(entity.LeaseOwner, envelope.LeaseOwner, StringComparison.Ordinal) &&
                entity.LeaseGeneration == envelope.LeaseGeneration;
+    }
+
+    /// <summary>
+    ///     Saves one tracked terminal update, treating a lost lease race as a skip instead of an overwrite.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="entity">The tracked entity carrying the terminal state.</param>
+    /// <param name="cancellationToken">A token that cancels the save.</param>
+    /// <returns><see langword="true" /> when the update committed; otherwise, <see langword="false" />.</returns>
+    /// <remarks>
+    ///     The lease generation is an Entity Framework concurrency token, so a re-lease committed after the tracked
+    ///     load fails this save with <see cref="DbUpdateConcurrencyException" /> instead of overwriting the new holder.
+    /// </remarks>
+    private static async Task<bool> TrySaveTrackedEntityAsync(
+        IOutboxDbContext context,
+        OutboxMessageEntity entity,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await SaveChangesAsync(context, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            DetachConflictedEntity(context, entity);
+            return false;
+        }
+    }
+
+    /// <summary>
+    ///     Detaches an entity that lost a lease race so its stale update is not retried by a later save.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="entity">The conflicted entity.</param>
+    private static void DetachConflictedEntity(IOutboxDbContext context, OutboxMessageEntity entity)
+    {
+        if (context is DbContext dbContext)
+        {
+            dbContext.Entry(entity).State = EntityState.Detached;
+        }
     }
 
     /// <summary>
@@ -930,6 +1205,8 @@ public sealed class EfCoreOutboxStore :
 
         if (_contextFactory is not null)
         {
+            // The caller owns contexts this factory returns: callers commonly hand back one shared context, which
+            // disposing here would break on the next operation.
             var context = await _contextFactory(cancellationToken).ConfigureAwait(false);
             return await action(context, cancellationToken).ConfigureAwait(false);
         }
@@ -1110,10 +1387,11 @@ public sealed class EfCoreOutboxStore :
         var failedStatus = OutboxStatus.Failed;
         var publishingStatus = OutboxStatus.Publishing;
         var tenantId = request.TenantId;
+        var normalizedTenantId = tenantId is null ? null : EfCoreIdempotencyResolution.NormalizeTenantId(tenantId);
 
         var candidates = await context.OutboxMessages
             .Where(message =>
-                (tenantId == null || message.TenantId == tenantId) &&
+                (tenantId == null || message.TenantId == normalizedTenantId) &&
                 ((message.Status == pendingStatus || message.Status == failedStatus) && (message.VisibleAfter == null || message.VisibleAfter <= now) ||
                  message.Status == publishingStatus && message.LeaseExpiresAt != null && message.LeaseExpiresAt <= now ||
                  message.Status == publishingStatus && message.LeaseExpiresAt == null && message.CreatedAt < staleCutoff))
@@ -1309,6 +1587,7 @@ public sealed class EfCoreOutboxStore :
             ContractVersion = entity.ContractVersion,
             Payload = entity.Payload,
             Topic = entity.Topic,
+            Handler = entity.Handler,
             CreatedAt = entity.CreatedAt,
             VisibleAfter = entity.VisibleAfter,
             Status = entity.Status,
@@ -1322,7 +1601,12 @@ public sealed class EfCoreOutboxStore :
             TenantId = entity.TenantId,
             IdempotencyKey = entity.IdempotencyKey,
             TraceContext = EfCoreJsonTextNormalizer.Normalize(entity.TraceContext),
-            PublishedAt = entity.PublishedAt
+            PublishedAt = entity.PublishedAt,
+            LastAttemptedAt = entity.LastAttemptedAt,
+            FirstFailedAt = entity.FirstFailedAt,
+            DeadLetteredAt = entity.DeadLetteredAt,
+            LastLeaseOwner = entity.LastLeaseOwner,
+            ErrorType = entity.ErrorType
         };
     }
 
@@ -1340,6 +1624,7 @@ public sealed class EfCoreOutboxStore :
             ContractVersion = row.ContractVersion,
             Payload = row.Payload,
             Topic = row.Topic,
+            Handler = row.Handler,
             CreatedAt = row.CreatedAt,
             VisibleAfter = row.VisibleAfter,
             Status = (OutboxStatus) row.Status,
@@ -1351,7 +1636,13 @@ public sealed class EfCoreOutboxStore :
             CorrelationId = row.CorrelationId,
             CausationId = row.CausationId,
             TenantId = row.TenantId,
-            TraceContext = EfCoreJsonTextNormalizer.Normalize(row.TraceContext)
+            IdempotencyKey = row.IdempotencyKey,
+            TraceContext = EfCoreJsonTextNormalizer.Normalize(row.TraceContext),
+            LastAttemptedAt = row.LastAttemptedAt,
+            FirstFailedAt = row.FirstFailedAt,
+            DeadLetteredAt = row.DeadLetteredAt,
+            LastLeaseOwner = row.LastLeaseOwner,
+            ErrorType = row.ErrorType
         };
     }
 
@@ -1369,6 +1660,7 @@ public sealed class EfCoreOutboxStore :
             ContractVersion = envelope.ContractVersion,
             Payload = envelope.Payload,
             Topic = envelope.Topic,
+            Handler = envelope.Handler,
             CreatedAt = envelope.CreatedAt,
             VisibleAfter = envelope.VisibleAfter,
             Status = envelope.Status,
@@ -1410,6 +1702,23 @@ public sealed class EfCoreOutboxStore :
             : envelope.LeaseExpiresAt;
 
         entity.LastError = envelope.LastError;
+        entity.ErrorType = envelope.ErrorType;
+
+        // The lease owner is cleared on every terminal status, so it is copied aside first. Without it the one
+        // question a dead-letter listing always asks, which instance was handling this, has no answer.
+        if (envelope.LastLeaseOwner is not null)
+        {
+            entity.LastLeaseOwner = envelope.LastLeaseOwner;
+        }
+
+        // Only ever set once, so it keeps naming the first failure rather than the most recent one.
+        entity.FirstFailedAt = envelope.FirstFailedAt is null
+            ? null
+            : entity.FirstFailedAt ?? envelope.FirstFailedAt;
+
+        entity.DeadLetteredAt = envelope.Status == OutboxStatus.DeadLettered
+            ? envelope.DeadLetteredAt ?? DateTimeOffset.UtcNow
+            : envelope.DeadLetteredAt;
 
         if (envelope.Status == OutboxStatus.Publishing && leasedAt is not null)
         {
@@ -1469,9 +1778,10 @@ public sealed class EfCoreOutboxStore :
             query = query.Where(message => message.CausationId == filter.CausationId);
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.TenantId))
+        if (filter.TenantId is not null)
         {
-            query = query.Where(message => message.TenantId == filter.TenantId);
+            var normalizedTenantId = EfCoreIdempotencyResolution.NormalizeTenantId(filter.TenantId);
+            query = query.Where(message => message.TenantId == normalizedTenantId);
         }
 
         if (filter.CreatedAfter is not null)
@@ -1600,6 +1910,12 @@ public sealed class EfCoreOutboxStore :
         public string? Topic { get; set; }
 
         /// <summary>
+        ///     Gets or sets the addressed handler column.
+        /// </summary>
+        [Column("handler")]
+        public string? Handler { get; set; }
+
+        /// <summary>
         ///     Gets or sets the created timestamp column.
         /// </summary>
         [Column("created_at")]
@@ -1622,6 +1938,12 @@ public sealed class EfCoreOutboxStore :
         /// </summary>
         [Column("attempt_count")]
         public int AttemptCount { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the idempotency key column.
+        /// </summary>
+        [Column("idempotency_key")]
+        public string? IdempotencyKey { get; set; }
 
         /// <summary>
         ///     Gets or sets the lease owner column.
@@ -1670,6 +1992,84 @@ public sealed class EfCoreOutboxStore :
         /// </summary>
         [Column("trace_context")]
         public string? TraceContext { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the last attempt timestamp column.
+        /// </summary>
+        [Column("last_attempted_at")]
+        public DateTimeOffset? LastAttemptedAt { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the first failure timestamp column.
+        /// </summary>
+        [Column("first_failed_at")]
+        public DateTimeOffset? FirstFailedAt { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the dead-letter timestamp column.
+        /// </summary>
+        [Column("dead_lettered_at")]
+        public DateTimeOffset? DeadLetteredAt { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the most recent lease owner column.
+        /// </summary>
+        [Column("last_lease_owner")]
+        public string? LastLeaseOwner { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the failure type column.
+        /// </summary>
+        [Column("error_type")]
+        public string? ErrorType { get; set; }
+    }
+
+    /// <summary>
+    ///     Throws when a message identifier already exists for another tenant.
+    /// </summary>
+    /// <param name="envelope">The envelope attempted for insert.</param>
+    /// <param name="existing">The conflicting entity already stored or tracked by the context.</param>
+    /// <exception cref="IdempotencyConflictException">
+    ///     The stored row shares the message id but belongs to a different tenant.
+    /// </exception>
+    /// <remarks>
+    ///     The message identifier lookup is global while the idempotency-key lookup is tenant-scoped, so only an
+    ///     identifier match can span tenants. Returning the foreign row would expose its metadata and silently drop
+    ///     the second tenant's message, so a cross-tenant identifier hit is always a conflict, regardless of the
+    ///     configured conflict mode.
+    /// </remarks>
+    private static void ThrowIfCrossTenantMessageIdMatch(OutboxEnvelope envelope, OutboxMessageEntity existing)
+    {
+        if (existing.Id == envelope.Id &&
+            !string.Equals(
+                EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
+                EfCoreIdempotencyResolution.NormalizeTenantId(existing.TenantId),
+                StringComparison.Ordinal))
+        {
+            throw new IdempotencyConflictException(
+                $"An outbox message with message id '{envelope.Id}' already exists for a different tenant.");
+        }
+    }
+
+    /// <summary>
+    ///     Throws when a batch message identifier already exists for another tenant.
+    /// </summary>
+    /// <param name="envelope">The envelope attempted for insert.</param>
+    /// <param name="existing">The envelope already resolved in the batch.</param>
+    /// <exception cref="IdempotencyConflictException">
+    ///     The resolved envelope shares the message id but belongs to a different tenant.
+    /// </exception>
+    private static void ThrowIfCrossTenantMessageIdMatch(OutboxEnvelope envelope, OutboxEnvelope existing)
+    {
+        if (existing.Id == envelope.Id &&
+            !string.Equals(
+                EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
+                EfCoreIdempotencyResolution.NormalizeTenantId(existing.TenantId),
+                StringComparison.Ordinal))
+        {
+            throw new IdempotencyConflictException(
+                $"An outbox message with message id '{envelope.Id}' already exists for a different tenant.");
+        }
     }
 
     /// <summary>
@@ -1689,12 +2089,13 @@ public sealed class EfCoreOutboxStore :
             envelope.ContractVersion == existing.ContractVersion &&
             string.Equals(envelope.Payload, existing.Payload, StringComparison.Ordinal) &&
             string.Equals(envelope.Topic, existing.Topic, StringComparison.Ordinal) &&
+            string.Equals(envelope.Handler, existing.Handler, StringComparison.Ordinal) &&
             string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) &&
             string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) &&
             string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) &&
             string.Equals(
                 EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
-                existing.TenantId,
+                EfCoreIdempotencyResolution.NormalizeTenantId(existing.TenantId),
                 StringComparison.Ordinal))
         {
             return;
@@ -1717,16 +2118,42 @@ public sealed class EfCoreOutboxStore :
              envelope.ContractVersion != existing.ContractVersion ||
              !string.Equals(envelope.Payload, existing.Payload, StringComparison.Ordinal) ||
              !string.Equals(envelope.Topic, existing.Topic, StringComparison.Ordinal) ||
+             !string.Equals(envelope.Handler, existing.Handler, StringComparison.Ordinal) ||
              !string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) ||
              !string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) ||
              !string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) ||
              !string.Equals(
                  EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
-                 existing.TenantId,
+                 EfCoreIdempotencyResolution.NormalizeTenantId(existing.TenantId),
                  StringComparison.Ordinal)))
         {
             throw new IdempotencyConflictException(
                 $"An outbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
         }
+    }
+
+    /// <summary>
+    ///     Determines whether a database update failure was caused by a unique constraint violation.
+    /// </summary>
+    /// <param name="exception">The database update exception.</param>
+    /// <returns><see langword="true" /> when the failure looks like a unique violation; otherwise, <see langword="false" />.</returns>
+    private static bool IsUniqueViolation(DbUpdateException exception)
+    {
+        for (var current = (Exception) exception; current is not null; current = current.InnerException)
+        {
+            var message = current.Message;
+
+            if (message.Contains("unique", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("23505", StringComparison.Ordinal) ||
+                message.Contains("2627", StringComparison.Ordinal) ||
+                message.Contains("2601", StringComparison.Ordinal) ||
+                message.Contains("1062", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

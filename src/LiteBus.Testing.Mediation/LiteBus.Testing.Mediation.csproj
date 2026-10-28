@@ -3,13 +3,15 @@
     <PropertyGroup>
         <Description>Command, query, and event mediator doubles for LiteBus tests.</Description>
         <PackageTags>$(PackageTags);testing;mediator</PackageTags>
-        <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Events.Abstractions\LiteBus.Events.Abstractions.csproj"/>
         <ProjectReference Include="..\LiteBus.Queries.Abstractions\LiteBus.Queries.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime\LiteBus.Runtime.csproj"/>
     </ItemGroup>
 
 </Project>

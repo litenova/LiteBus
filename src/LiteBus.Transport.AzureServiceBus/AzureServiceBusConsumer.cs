@@ -1,3 +1,6 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Azure.Messaging.ServiceBus;
 using LiteBus.Transport.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -19,6 +22,11 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     ///     Serializes start and stop operations on the processor.
     /// </summary>
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+
+    /// <summary>
+    ///     Tracks whether asynchronous disposal has started.
+    /// </summary>
+    private int _disposed;
 
     /// <summary>
     ///     Gets the transport options controlling reconnect backoff.
@@ -168,6 +176,11 @@ public sealed class AzureServiceBusConsumer : IMessageConsumer
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         await StopAsync().ConfigureAwait(false);
         _lifecycleGate.Dispose();
     }

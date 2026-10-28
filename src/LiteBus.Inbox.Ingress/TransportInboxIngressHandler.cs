@@ -95,6 +95,7 @@ public sealed class TransportInboxIngressHandler
     /// <param name="messages">The received transport deliveries.</param>
     /// <param name="cancellationToken">The token used to cancel deserialization or the store write.</param>
     /// <returns>A task that completes when the inbox accepts every message.</returns>
+    /// <exception cref="InboxIngressException">A delivery carries invalid transport headers.</exception>
     public async Task AcceptBatchAsync(
         IReadOnlyList<TransportMessage> messages,
         CancellationToken cancellationToken = default)
@@ -106,16 +107,23 @@ public sealed class TransportInboxIngressHandler
             return;
         }
 
-        var items = new InboxAcceptItem[messages.Count];
-
-        for (var index = 0; index < messages.Count; index++)
+        try
         {
-            var message = messages[index];
+            var items = new InboxAcceptItem[messages.Count];
 
-            items[index] = await BuildAcceptItemAsync(message, cancellationToken).ConfigureAwait(false);
+            for (var index = 0; index < messages.Count; index++)
+            {
+                var message = messages[index];
+
+                items[index] = await BuildAcceptItemAsync(message, cancellationToken).ConfigureAwait(false);
+            }
+
+            await _inbox.AcceptBatchAsync(items, cancellationToken).ConfigureAwait(false);
         }
-
-        await _inbox.AcceptBatchAsync(items, cancellationToken).ConfigureAwait(false);
+        catch (TransportHeaderMappingException exception)
+        {
+            throw new InboxIngressException(exception.Message, exception);
+        }
     }
 
     /// <summary>

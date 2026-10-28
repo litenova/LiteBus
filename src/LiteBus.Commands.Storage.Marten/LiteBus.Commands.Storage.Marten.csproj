@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <!-- Marten and JasperFx ship without strong names. LiteBus targets only .NET, whose runtime does not validate
+             strong names, so referencing them from this signed assembly is safe and CS8002 is suppressed here only. -->
+        <NoWarn>$(NoWarn);CS8002</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Marten"/>
+        <!-- Pins the central Npgsql version; Marten alone resolves an older transitive Npgsql. -->
+        <PackageReference Include="Npgsql"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Commands\LiteBus.Commands.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+    </ItemGroup>
+
+</Project>

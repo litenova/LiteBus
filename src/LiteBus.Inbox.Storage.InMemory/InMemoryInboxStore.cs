@@ -52,7 +52,8 @@ public sealed class InMemoryInboxStore :
     private readonly object _sync = new();
 
     /// <summary>
-    ///     The clock used when lease requests omit an explicit timestamp.
+    ///     The clock used when lease requests omit an explicit timestamp and for terminal timestamps on envelopes
+    ///     that carry none.
     /// </summary>
     private readonly TimeProvider _timeProvider;
 
@@ -62,7 +63,7 @@ public sealed class InMemoryInboxStore :
     /// <param name="options">The store options.</param>
     /// <param name="timeProvider">
     ///     The clock used for lease expiry when a lease request omits
-    ///     <see cref="InboxLeaseRequest.Now" />.
+    ///     <see cref="InboxLeaseRequest.Now" />, and for terminal timestamps on envelopes that carry none.
     /// </param>
     public InMemoryInboxStore(InMemoryInboxStoreOptions? options = null, TimeProvider? timeProvider = null)
     {
@@ -254,6 +255,30 @@ public sealed class InMemoryInboxStore :
     }
 
     /// <inheritdoc />
+    public Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
+        {
+            if (!_envelopes.TryGetValue(request.MessageId, out var envelope) ||
+                envelope.Status != InboxStatus.Processing ||
+                !string.Equals(envelope.LeaseOwner, request.LeaseOwner, StringComparison.Ordinal) ||
+                envelope.LeaseGeneration != request.LeaseGeneration)
+            {
+                return Task.FromResult(false);
+            }
+
+            _envelopes[request.MessageId] = envelope.AsReleased();
+            return Task.FromResult(true);
+        }
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<InboxEnvelope>> LeasePendingAsync(
         InboxLeaseRequest request,
         CancellationToken cancellationToken = default)
@@ -261,14 +286,14 @@ public sealed class InMemoryInboxStore :
         ArgumentNullException.ThrowIfNull(request);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.BatchSize, 0);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
-        ArgumentOutOfRangeException.ThrowIfLessThan(request.LeaseDuration, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.LeaseDuration, TimeSpan.Zero);
         cancellationToken.ThrowIfCancellationRequested();
 
         var now = ResolveLeaseClock(request);
 
-        var leaseDuration = request.LeaseDuration > TimeSpan.Zero
-            ? request.LeaseDuration
-            : _options.DefaultLeaseDuration;
+        var leaseDuration = request.LeaseDuration;
+        // Zero is rejected above, so the request value is always the effective lease.
+
 
         lock (_sync)
         {
@@ -280,7 +305,9 @@ public sealed class InMemoryInboxStore :
                 .Where(envelope => IsAvailable(envelope, now, staleCutoff))
                 .OrderBy(envelope => envelope.CreatedAt)
                 .Take(request.BatchSize)
-                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt))
+                // The relational stores stamp last_attempted_at in the lease statement itself, so the
+                // in-memory store stamps it here to keep the three adapters answering the same question.
+                .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt) with { LastAttemptedAt = now })
                 .ToArray();
 
             foreach (var envelope in leased)
@@ -301,6 +328,16 @@ public sealed class InMemoryInboxStore :
         if (envelopes.Count == 0)
         {
             return Task.FromResult(PersistResult.Empty);
+        }
+
+        foreach (var envelope in envelopes)
+        {
+            if (envelope.Status is not (InboxStatus.Completed or InboxStatus.Failed or InboxStatus.DeadLettered))
+            {
+                throw new InvalidOperationException(
+                    $"Envelope '{envelope.Id}' has unexpected status '{envelope.Status}' in PersistAsync. " +
+                    "Only Completed, Failed, and DeadLettered are valid outcomes.");
+            }
         }
 
         HashSet<Guid> persistedMessageIds;
@@ -494,7 +531,11 @@ public sealed class InMemoryInboxStore :
     /// <returns><see langword="true" /> when the row is visible to the lease request.</returns>
     private static bool MatchesTenantFilter(string? requestedTenantId, string? storedTenantId)
     {
-        return requestedTenantId is null || string.Equals(storedTenantId, requestedTenantId, StringComparison.Ordinal);
+        return requestedTenantId is null ||
+               string.Equals(
+                   DurableTenantId.Normalize(storedTenantId),
+                   DurableTenantId.Normalize(requestedTenantId),
+                   StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -556,9 +597,11 @@ public sealed class InMemoryInboxStore :
             source = source.Where(envelope => envelope.CausationId == filter.CausationId);
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.TenantId))
+        if (filter.TenantId is not null)
         {
-            source = source.Where(envelope => envelope.TenantId == filter.TenantId);
+            var tenantId = DurableTenantId.Normalize(filter.TenantId);
+            source = source.Where(envelope =>
+                string.Equals(DurableTenantId.Normalize(envelope.TenantId), tenantId, StringComparison.Ordinal));
         }
 
         if (filter.CreatedAfter is not null)
@@ -616,14 +659,17 @@ public sealed class InMemoryInboxStore :
     }
 
     /// <summary>
-    ///     Validates that the requested page size is positive.
+    ///     Validates that the requested page size is within the supported range.
     /// </summary>
     /// <param name="pageSize">The requested page size.</param>
     private static void ValidatePageSize(int pageSize)
     {
-        if (pageSize <= 0)
+        if (pageSize <= 0 || pageSize > InboxMessagePageRequest.MaxPageSize)
         {
-            throw new ArgumentOutOfRangeException(nameof(pageSize), pageSize, "Page size must be greater than zero.");
+            throw new ArgumentOutOfRangeException(
+                nameof(pageSize),
+                pageSize,
+                $"Page size must be between 1 and {InboxMessagePageRequest.MaxPageSize}.");
         }
     }
 
@@ -636,6 +682,7 @@ public sealed class InMemoryInboxStore :
     {
         if (_envelopes.TryGetValue(envelope.Id, out var existingById))
         {
+            ThrowIfCrossTenantMessageIdMatch(envelope, existingById);
             ThrowIfStrictConflict(envelope, existingById);
             return new InboxAppendResult(existingById, InboxAcceptOutcome.AlreadyAccepted);
         }
@@ -695,7 +742,7 @@ public sealed class InMemoryInboxStore :
     /// </summary>
     /// <param name="envelope">The post-transition envelope supplied by the processor.</param>
     /// <returns>The envelope with lease fields cleared when the status is terminal.</returns>
-    private static InboxEnvelope ClearLeaseWhenTerminal(InboxEnvelope envelope)
+    private InboxEnvelope ClearLeaseWhenTerminal(InboxEnvelope envelope)
     {
         if (envelope.Status is InboxStatus.Completed or InboxStatus.Failed or InboxStatus.DeadLettered)
         {
@@ -704,12 +751,35 @@ public sealed class InMemoryInboxStore :
                 LeaseOwner = null,
                 LeaseExpiresAt = null,
                 CompletedAt = envelope.Status == InboxStatus.Completed
-                    ? envelope.CompletedAt ?? DateTimeOffset.UtcNow
+                    ? envelope.CompletedAt ?? _timeProvider.GetUtcNow()
                     : envelope.CompletedAt
             };
         }
 
         return envelope;
+    }
+
+    /// <summary>
+    ///     Throws when a message identifier already exists for another tenant.
+    /// </summary>
+    /// <param name="envelope">The envelope attempted for insert.</param>
+    /// <param name="existing">The stored envelope that conflicts with the attempt.</param>
+    /// <remarks>
+    ///     The message identifier lookup is global while the idempotency-key index is tenant-scoped, so only an
+    ///     identifier match can span tenants. Returning the foreign row would expose its metadata and silently drop
+    ///     the second tenant's message, so a cross-tenant identifier hit is always a conflict, regardless of the
+    ///     configured conflict mode.
+    /// </remarks>
+    private static void ThrowIfCrossTenantMessageIdMatch(InboxEnvelope envelope, InboxEnvelope existing)
+    {
+        if (!string.Equals(
+                DurableTenantId.Normalize(envelope.TenantId),
+                DurableTenantId.Normalize(existing.TenantId),
+                StringComparison.Ordinal))
+        {
+            throw new IdempotencyConflictException(
+                $"An inbox message with message id '{envelope.Id}' already exists for another tenant.");
+        }
     }
 
     /// <summary>
@@ -731,7 +801,10 @@ public sealed class InMemoryInboxStore :
             string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) &&
             string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) &&
             string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) &&
-            string.Equals(envelope.TenantId, existing.TenantId, StringComparison.Ordinal))
+            string.Equals(
+                DurableTenantId.Normalize(envelope.TenantId),
+                DurableTenantId.Normalize(existing.TenantId),
+                StringComparison.Ordinal))
         {
             return;
         }

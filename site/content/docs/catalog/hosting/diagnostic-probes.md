@@ -13,6 +13,33 @@
 
 `DiagnosticCheckRunner.RunAsync(...)` aggregates status and handles zero-probe policy (`failHealthWhenNoProbes`). Probes run concurrently with a bounded semaphore, and each probe has a timeout. A missing registration, timeout, or probe exception becomes an unhealthy outcome for that probe while sibling probes continue.
 
+## Run Budget
+
+`DiagnosticCheckRunOptions` carries three limits:
+
+| Option | Default | Role |
+| --- | --- | --- |
+| `MaxParallelism` | `4` | Probes that may execute concurrently |
+| `Timeout` | 5 seconds | Maximum time allowed for one probe |
+| `RunTimeout` | `null` | Maximum time allowed for the whole run |
+
+A `null` `RunTimeout` derives the budget as the worst-case packing of the probe count over `MaxParallelism` lanes at `Timeout` per probe. An explicit `RunTimeout` cancels the run when it expires and reports unfinished probes as unhealthy. After a computed budget expires, the runner allows a 1-second grace period before reporting over-budget probes, since the computed budget already equals the worst case of the in-flight per-probe timeouts.
+
+## Shipped Probes
+
+| Probe name | Type | Registered by |
+| --- | --- | --- |
+| `litebus.audit.trail` | `AuditTrailDiagnosticCheck` | Command, query, or event module with auditing enabled |
+| `litebus.idempotency.store` | `IdempotencyStoreDiagnosticCheck` | Command module with idempotency enabled |
+| `inbox.postgresql.schema` | `PostgreSqlInboxSchemaDiagnosticCheck` | PostgreSQL inbox storage module |
+| `outbox.postgresql.schema` | `PostgreSqlOutboxSchemaDiagnosticCheck` | PostgreSQL outbox storage module |
+| `idempotency.postgresql.schema` | `PostgreSqlIdempotencySchemaDiagnosticCheck` | PostgreSQL idempotency store module |
+| `recurring.postgresql.schema` | `PostgreSqlRecurringLeaseSchemaDiagnosticCheck` | PostgreSQL recurring lease module |
+| `transport.amqp.connectivity` | `AmqpConnectivityDiagnosticCheck` | AMQP transport module |
+| `transport.kafka.connectivity` | `KafkaConnectivityDiagnosticCheck` | Kafka transport module |
+| `transport.sqs.connectivity` | `AwsSqsConnectivityDiagnosticCheck` | SQS transport module |
+| `transport.azure_service_bus.connectivity` | `AzureServiceBusConnectivityDiagnosticCheck` | Azure Service Bus transport module |
+
 ## Public Surface
 
 ### Consumer Contracts
@@ -42,8 +69,8 @@
 
 - Descriptor name is the operator-facing probe name.
 - Descriptor implementation type must resolve to `IDiagnosticCheck` from DI.
-- Duplicate probe type registrations are deduplicated by implementation type.
-- `MaxParallelism` and `Timeout` are positive. Probe cancellation is requested when a timeout expires.
+- Registering the same probe type under the same name more than once keeps only the first registration; registering it under a different name fails composition with `ModuleCompositionException`, and registering a name already taken by another probe type fails composition with `ModuleCompositionException`.
+- `MaxParallelism` and `Timeout` are positive. A negative `RunTimeout` is rejected when health or management endpoints are registered and when a run starts. Probe cancellation is requested when a timeout expires.
 - Caller cancellation propagates; provider failures, missing registrations, and timeouts become isolated unhealthy outcomes.
 
 ## Non-Goals
@@ -85,11 +112,20 @@ When no probes are registered and fail-on-empty is true, runner returns degraded
 
 #### `ModuleConfigurationDiagnosticCheckTests.RegisterDiagnosticCheck_SameTypeAndNameTwice_ShouldIgnoreSecondRegistration`
 
-- **Use case**: duplicate probe type deduplication
+- **Use case**: duplicate probe registration with the same name
 - **Test kind**: Unit
-- **Description**: registers same probe type twice with different names
+- **Description**: registers the same probe type twice under the same name
 - **Behavior**: reads diagnostic check descriptors
 - **Expected outcome**: only first registration persists
+- **Remarks**: `tests/LiteBus.Runtime.UnitTests/ModuleConfigurationDiagnosticCheckTests.cs`
+
+#### `ModuleConfigurationDiagnosticCheckTests.RegisterDiagnosticCheck_SameTypeWithDifferentName_ShouldThrowLiteBusConfigurationException`
+
+- **Use case**: duplicate probe type under a different name
+- **Test kind**: Unit
+- **Description**: registers the same probe type under two different names
+- **Behavior**: attempts the conflicting registration at composition
+- **Expected outcome**: composition throws `ModuleCompositionException` naming both names
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/ModuleConfigurationDiagnosticCheckTests.cs`
 
 ### Untested Use Cases

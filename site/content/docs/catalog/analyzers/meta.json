@@ -1,0 +1,24 @@
+{
+  "title": "Analyzers",
+  "pages": [
+    "README",
+    "audit-declaration",
+    "contract-registration",
+    "cross-assembly-handlers",
+    "external-side-effect-in-command-handler",
+    "handler-coverage",
+    "handler-duplicates",
+    "handler-tags",
+    "inbox-accept-rules",
+    "nested-mediation-in-command-handler",
+    "open-generic-handlers",
+    "processor-dispatcher-coupling",
+    "query-handler-purity",
+    "reserved-handler-priority",
+    "required-declarations",
+    "shortcut-contracts",
+    "transactional-ef-interceptor",
+    "transactional-inbox-wiring",
+    "transactional-outbox-wiring"
+  ]
+}

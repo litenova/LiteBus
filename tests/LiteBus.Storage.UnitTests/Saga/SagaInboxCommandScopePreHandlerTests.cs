@@ -2,7 +2,7 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Saga;
 using LiteBus.Saga.Abstractions;
 using LiteBus.Saga.InboxIntegration;
@@ -118,15 +118,21 @@ public sealed class SagaInboxCommandScopePreHandlerTests
 
         public CancellationToken CancellationToken => CancellationToken.None;
 
+        public DateTimeOffset HandledAt { get; } = DateTimeOffset.UtcNow;
+
         public IDictionary<string, object> Items => _items;
+
+        public IHandleContextData Data { get; } = new HandleContextData();
 
         public IReadOnlyCollection<string> Tags => [];
 
         public object? MessageResult { get; set; }
 
-        public void Abort(object? messageResult = null)
+        public bool PostHandlersSuppressed { get; private set; }
+
+        public void SuppressPostHandlers()
         {
-            MessageResult = messageResult;
+            PostHandlersSuppressed = true;
         }
     }
 }

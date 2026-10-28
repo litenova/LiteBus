@@ -21,25 +21,25 @@ internal static class EfCoreOutboxE2eSupport
     {
         return new EntityFrameworkCoreOutboxStoreOptions
         {
-            SchemaName = EfCorePostgreSqlTestInfrastructure.SchemaName,
+            SchemaName = EfCoreProviderTestInfrastructure.SchemaName,
             TableName = tableName
         };
     }
 
     internal static async Task EnsureOutboxTableAsync(string connectionString, EntityFrameworkCoreOutboxStoreOptions storeOptions)
     {
-         var dataSource = NpgsqlDataSource.Create(connectionString);
-         await using (dataSource.ConfigureAwait(false))
-         {
+        var dataSource = NpgsqlDataSource.Create(connectionString);
+        await using (dataSource.ConfigureAwait(false))
+        {
 
-        await PostgreSqlOutboxSchema.EnsureAsync(
-            dataSource,
-            new PostgreSqlOutboxStoreOptions
-            {
-                SchemaName = storeOptions.SchemaName,
-                TableName = storeOptions.TableName,
-                ValidateSchemaCreationOnStartup = false
-            }).ConfigureAwait(false);
+            await PostgreSqlOutboxSchema.EnsureAsync(
+                dataSource,
+                new PostgreSqlOutboxStoreOptions
+                {
+                    SchemaName = storeOptions.SchemaName,
+                    TableName = storeOptions.TableName,
+                    ValidateSchemaCreationOnStartup = false
+                }).ConfigureAwait(false);
         }
     }
 
@@ -63,7 +63,7 @@ internal static class EfCoreOutboxE2eSupport
 
         services.AddSingleton(storeOptions);
         services.AddDbContextFactory<TDbContext>(options =>
-            options.UseNpgsql(EfCorePostgreSqlTestInfrastructure.CreateScopedConnectionString(connectionString, storeOptions)));
+            options.UseNpgsql(EfCoreProviderTestInfrastructure.CreateOutboxScopedConnectionString(connectionString, storeOptions)));
 
         services.AddLiteBus(registry =>
         {

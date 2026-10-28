@@ -31,7 +31,7 @@ public sealed class OutboxEnvelopeFactoryTests
         {
             Identity = new MessageIdentity.Supplied(messageId),
             Idempotency = new Idempotency.Keyed("idem-1"),
-            Trace = new MessageTrace.Distributed("corr-1", "cause-1", "trace-1"),
+            Trace = new MessageTrace.Distributed("corr-1", "cause-1", """{"traceparent":"00-trace-1-01"}"""),
             Tenant = new TenantScope.Isolated("tenant-1"),
             Target = new PublicationTarget.Topic("orders")
         };
@@ -50,7 +50,7 @@ public sealed class OutboxEnvelopeFactoryTests
         envelope.CorrelationId.Should().Be("corr-1");
         envelope.CausationId.Should().Be("cause-1");
         envelope.TenantId.Should().Be("tenant-1");
-        envelope.TraceContext.Should().Be("trace-1");
+        envelope.TraceContext.Should().Be("""{"traceparent":"00-trace-1-01"}""");
         envelope.Status.Should().Be(OutboxStatus.Pending);
         envelope.AttemptCount.Should().Be(0);
     }

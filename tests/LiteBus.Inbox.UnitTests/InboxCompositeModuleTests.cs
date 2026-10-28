@@ -114,19 +114,20 @@ public sealed class InboxCompositeModuleTests
         await using (provider.ConfigureAwait(true))
         {
 
-        var inbox = provider.GetRequiredService<IInbox>();
-        var orderId = Guid.NewGuid();
+            var inbox = provider.GetRequiredService<IInbox>();
+            var orderId = Guid.NewGuid();
 
-        await inbox.AcceptAsync(new InboxTestFixtures.ShipOrderCommand {
-            OrderId = orderId,
-            IdempotencyKey = $"ship:{orderId}"
-        }).ConfigureAwait(true);
+            await inbox.AcceptAsync(new InboxTestFixtures.ShipOrderCommand
+            {
+                OrderId = orderId,
+                IdempotencyKey = $"ship:{orderId}"
+            }).ConfigureAwait(true);
 
-        var processor = provider.GetRequiredService<IInboxProcessor>();
-        var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
-        pass.LeasedCount.Should().Be(1);
+            var processor = provider.GetRequiredService<IInboxProcessor>();
+            var pass = await processor.ProcessPendingAsync().ConfigureAwait(true);
+            pass.LeasedCount.Should().Be(1);
 
-        recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
+            recorder.Commands.Should().ContainSingle(command => command.OrderId == orderId);
         }
     }
 }

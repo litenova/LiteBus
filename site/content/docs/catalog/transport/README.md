@@ -1,4 +1,6 @@
-# Transport Axis Capability Catalog
+# Transport
+
+Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 
 LiteBus transport is the broker-facing publish and consume axis. Dispatch and ingress call transport contracts (`ITransportPublisher`, `IMessageConsumer`) but own durable storage, leasing, and processor policy.
 
@@ -72,7 +74,7 @@ Transport reference pages use a four-executor test map:
 | Executor | Scope |
 | --- | --- |
 | `LiteBus.Transport.UnitTests` | Adapter and core unit behavior (`Amqp/`, `Kafka/`, `AwsSqs/`, `AzureServiceBus/`, `InMemory/`) |
-| `LiteBus.Transport.IntegrationTests` | AMQP transport wire tests |
+| `LiteBus.Transport.IntegrationTests` | Broker wire and contract tests (`Amqp/`, `Aws/`, `Azure/`, `Kafka/`) |
 | `LiteBus.Durable.IntegrationTests` | Dispatch and ingress hops that exercise transport through durable pipelines |
 | Application host executor | Consumer application integration that composes LiteBus modules; repo helper package `LiteBus.Transport.IntegrationTesting` provides fixtures only and is not an executor |
 

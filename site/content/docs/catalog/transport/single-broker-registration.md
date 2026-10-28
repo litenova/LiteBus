@@ -9,7 +9,7 @@
 
 Applications register their shared broker once through `AddAmqpTransport`, `AddKafkaTransport`, `AddAwsSqsTransport`, `AddAzureServiceBusTransport`, or `AddInMemoryTransport`. Inbox dispatch, outbox dispatch, and ingress modules depend on that root module through the validated module graph.
 
-If advanced registry code adds a second broker module, the dependency registry rejects its duplicate singleton services with `LiteBusConfigurationException`. Transport modules do not scan registrations or store context markers during `Build()`.
+If advanced registry code adds a second broker module, composition fails with `ModuleCompositionException`, which extends `LiteBusConfigurationException` and names both modules. The first transport module records its module type in a shared composition context during `Build()`; the second module is refused against that claim.
 
 This rule keeps publisher and consumer runtime behavior aligned to one broker SDK graph and one breaker identity in a process.
 
@@ -22,7 +22,7 @@ This rule keeps publisher and consumer runtime behavior aligned to one broker SD
 | `ILiteBusBuilder.AddAwsSqsTransport(...)` | Registers the shared AWS SQS root transport |
 | `ILiteBusBuilder.AddAzureServiceBusTransport(...)` | Registers the shared Azure Service Bus root transport |
 | `ILiteBusBuilder.AddInMemoryTransport(...)` | Registers the shared in-memory root transport |
-| `LiteBusConfigurationException` | Reports duplicate service or module composition |
+| `ModuleCompositionException` | Refuses a second transport module, naming both modules; extends `LiteBusConfigurationException` |
 
 ## Packages
 
@@ -60,6 +60,10 @@ This rule keeps publisher and consumer runtime behavior aligned to one broker SD
 | `Build_SecondTransportModule_ShouldThrow` | `LiteBus.Transport.UnitTests` (`Kafka/`) |
 | `Build_SecondTransportModule_ShouldThrow` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
 | `Build_ShouldRejectDuplicateTransportRegistration` | `LiteBus.Transport.UnitTests` (`AzureServiceBus/`) |
+| `Build_WithSecondTransportModule_ShouldThrowNamingBothModules` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `Build_SecondTransportModule_ShouldNameBothModules` | `LiteBus.Transport.UnitTests` (`Kafka/`) |
+| `RegisterIfNeeded_SecondTransportModule_ThrowsNamingBothModules` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
+| `Build_AzureThenInMemory_ShouldRefuseSecondTransportNamingBoth` | `LiteBus.Transport.UnitTests` (`AzureServiceBus/`) |
 | `InboxDispatchExtensions_ShouldRegisterTransportDispatcher` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
 | `OutboxDispatchExtensions_ShouldRegisterTransportDispatcher` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
 | `InboxIngressExtensions_ShouldRegisterIngressServices` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
@@ -76,5 +80,4 @@ This rule keeps publisher and consumer runtime behavior aligned to one broker SD
 ## Deep Docs
 
 - [Architecture.md](../../architecture/README.md)
-- [Dependency-Graph.md](../../architecture/dependency-graph.md)
 - [Dependency Graph](../../architecture/dependency-graph.md)

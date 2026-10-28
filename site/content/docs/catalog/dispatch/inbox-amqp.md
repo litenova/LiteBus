@@ -52,7 +52,7 @@ services.AddLiteBus(litebus =>
 | `DefaultDestination` | `""` | Exchange name (`""` targets default direct exchange) |
 | `ContentType` | `application/json` | MIME value written to publish request |
 | `Persistent` | `true` | Requests broker-persistent delivery |
-| `Mandatory` | `false` | Fails publish when message is unroutable |
+| `Mandatory` | `true` | Fails publish with `AmqpMessageReturnedException` when message is unroutable |
 | `ResolveRoute` | `null` | Route override delegate per envelope |
 | `ValidatePayloadBeforeDispatch` | `false` | Deserializes payload before publish to detect contract mismatch |
 
@@ -88,9 +88,10 @@ services.AddLiteBus(litebus =>
 ## Invariants
 
 - Only one `IInboxDispatcher` can be registered in an inbox module builder scope.
-- `TransportInboxDispatchModule` throws at compose time when no `ITransportPublisher` is registered.
+- `TransportInboxDispatchModule<AmqpTransportModule>` requires the root AMQP transport module, so composition fails when `AddAmqpTransport` is missing and no dispatch runs without an `ITransportPublisher`.
 - Route resolution order is tenant strategy, then `ResolveRoute`, then `ContractName`.
 - Processor semantics remain at-least-once, AMQP publish success alone does not mark completion.
+- A mandatory publication the broker returns as unroutable throws `AmqpMessageReturnedException`, so the envelope stays leased and retries instead of being silently dropped.
 
 ## Non-Goals
 
@@ -103,8 +104,8 @@ services.AddLiteBus(litebus =>
 | Signal | Name | Tags |
 | --- | --- | --- |
 | Activity | `send {destination}` | `messaging.destination.name`, `messaging.rabbitmq.destination.routing_key`, `messaging.message.id` |
-| Counter | `litebus.transport.circuit_breaker.open` | `litebus.transport.broker=amqp` |
-| Counter | `litebus.transport.circuit_breaker.failure_count` | `litebus.transport.broker=amqp` |
+| Gauge | `litebus.transport.circuit_breaker.open` | `litebus.transport.broker=amqp` |
+| Gauge | `litebus.transport.circuit_breaker.failure_count` | `litebus.transport.broker=amqp` |
 | Histogram | `litebus.inbox.processor.dispatch_duration` | processor tags |
 | Counters | `litebus.inbox.processor.succeeded` / `failed` / `dead_lettered` | processor tags |
 
@@ -119,11 +120,13 @@ Register transport signals with `AddLiteBusAmqpMetrics()` and processor signals 
 | `InboxDispatchExtensions_ShouldRegisterTransportDispatcher` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
 | `ProcessPendingAsync_ShouldPublishLeasedEnvelopeToAmqpQueue` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Inbox/Amqp/`) |
 | `ProcessPendingAsync_ShouldPublishToAmqpAndMarkPostgreSqlEnvelopeCompleted` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Inbox/Amqp/`) |
+| `TransportPublishRequest_Mandatory_ShouldDefaultToTrue` | `LiteBus.Transport.UnitTests` (`Amqp/`, `AmqpPublishRequestDefaultsTests`) |
+| `PublishAsync_WithMandatoryAndNoBinding_ShouldThrow` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
+| `PublishAsync_WithMandatoryFalseAndNoBinding_ShouldSucceed` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
 
 ### Untested
 
 - Explicit inbox dispatch failure path when broker is unreachable.
-- `Mandatory = true` unroutable publish behavior in integration tests.
 - Custom route resolver and tenant routing strategy branches.
 
 ### Out-of-Scope

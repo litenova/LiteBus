@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
 using Azure.Messaging.ServiceBus;
 using LiteBus.Transport.Abstractions;
@@ -21,10 +23,15 @@ internal static class AzureServiceBusMessageMapper
         var message = new ServiceBusMessage(request.Body)
         {
             ContentType = request.ContentType,
-            MessageId = request.MessageId,
             CorrelationId = request.CorrelationId,
             Subject = request.Route
         };
+
+        // MessageId is optional on the request, but the SDK setter rejects null, so it is only copied when supplied.
+        if (request.MessageId is not null)
+        {
+            message.MessageId = request.MessageId;
+        }
 
         ApplyHeaders(message, request.Headers);
         return message;
@@ -86,20 +93,20 @@ internal static class AzureServiceBusMessageMapper
     {
         return value switch
         {
-            null                        => string.Empty,
-            string text                 => text,
-            int number                  => number,
-            long number                 => number,
-            bool flag                   => flag,
-            double number               => number,
-            float number                => number,
-            decimal number              => number,
-            DateTimeOffset timestamp    => timestamp.ToString("O", CultureInfo.InvariantCulture),
-            DateTime timestamp          => timestamp.ToString("O", CultureInfo.InvariantCulture),
-            byte[] bytes                => bytes,
+            null => string.Empty,
+            string text => text,
+            int number => number,
+            long number => number,
+            bool flag => flag,
+            double number => number,
+            float number => number,
+            decimal number => number,
+            DateTimeOffset timestamp => timestamp.ToString("O", CultureInfo.InvariantCulture),
+            DateTime timestamp => timestamp.ToString("O", CultureInfo.InvariantCulture),
+            byte[] bytes => bytes,
             ReadOnlyMemory<byte> memory => memory.ToArray(),
-            Memory<byte> memory         => memory.ToArray(),
-            _                           => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
+            Memory<byte> memory => memory.ToArray(),
+            _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
         };
     }
 

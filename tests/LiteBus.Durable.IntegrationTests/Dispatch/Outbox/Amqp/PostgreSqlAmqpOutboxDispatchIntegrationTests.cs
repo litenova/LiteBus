@@ -24,6 +24,8 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
 {
     private const string TestSchemaName = "litebus_tests";
 
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web);
+
     private readonly PostgreSqlFixture _postgresFixture;
     private readonly RabbitMqFixture _rabbitMqFixture;
 
@@ -36,13 +38,16 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
     {
         _postgresFixture = postgresFixture;
         _rabbitMqFixture = rabbitMqFixture;
+        DockerTestGate.EnsureBrokerAvailable(_rabbitMqFixture.IsAvailable, "RabbitMQ");
+        Skip.IfNot(_rabbitMqFixture.IsAvailable, RabbitMqFixture.DockerRequiredMessage);
+        Skip.IfNot(_postgresFixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that the outbox processor publishes a PostgreSQL-stored envelope and marks it published.
     /// </summary>
     /// <returns>A task that completes when the end-to-end flow succeeds.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task ProcessPendingAsync_ShouldPublishToAmqpAndMarkPostgreSqlEnvelopePublished()
     {
         var storeOptions = CreateOutboxStoreOptions();
@@ -86,7 +91,7 @@ public sealed class PostgreSqlAmqpOutboxDispatchIntegrationTests : LiteBusTestBa
 
             var payload = JsonSerializer.Deserialize<OrderSubmittedIntegrationEvent>(
                 json,
-                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                JsonOptions);
 
             payload!.OrderId.Should().Be(orderId);
             amqpMessage.MessageId.Should().Be(messageId.ToString("D"));

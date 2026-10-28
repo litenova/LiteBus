@@ -18,12 +18,13 @@ public sealed class PostgreSqlInboxStorePersistResultTests : IClassFixture<Postg
     public PostgreSqlInboxStorePersistResultTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms batch completed persists use envelope timestamps instead of database clock time.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task PersistAsync_batch_completed_should_use_envelope_completed_at()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -66,7 +67,7 @@ public sealed class PostgreSqlInboxStorePersistResultTests : IClassFixture<Postg
     /// <summary>
     ///     Confirms terminal persist reports lease loss when another worker reclaimed the row.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task PersistAsync_when_lease_reclaimed_should_report_lease_lost()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();

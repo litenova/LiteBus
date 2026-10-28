@@ -33,75 +33,75 @@ public sealed class InMemoryOutboxAtLeastOnceIntegrationTests : LiteBusTestBase
         var firstPublish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-         var provider = BuildProvider(destination);
-         await using (provider.ConfigureAwait(false))
-         {
-        var broker = provider.GetRequiredService<InMemoryTransportBroker>();
-         var consumer = await StartCountingConsumerAsync(
-             broker,
-             destination,
-             () =>
-             {
-                 if (Interlocked.Increment(ref publishCount) == 1)
-                 {
-                     firstPublish.TrySetResult();
-                 }
-             },
-             2,
-             received).ConfigureAwait(true);
-         await using (consumer.ConfigureAwait(true))
-         {
-
-        var dispatcher = provider.GetRequiredService<IOutboxDispatcher>();
-        var processor = new PipelinedOutboxProcessor(
-            store,
-            store,
-            dispatcher,
-            new OutboxProcessorOptions
+        var provider = BuildProvider(destination);
+        await using (provider.ConfigureAwait(false))
+        {
+            var broker = provider.GetRequiredService<InMemoryTransportBroker>();
+            var consumer = await StartCountingConsumerAsync(
+                broker,
+                destination,
+                () =>
+                {
+                    if (Interlocked.Increment(ref publishCount) == 1)
+                    {
+                        firstPublish.TrySetResult();
+                    }
+                },
+                2,
+                received).ConfigureAwait(true);
+            await using (consumer.ConfigureAwait(true))
             {
-                BatchSize = 1,
-                LeaseOwner = "at-least-once-publisher",
-                LeaseDuration = TimeSpan.FromSeconds(5),
-                LeaseHeartbeatInterval = TimeSpan.Zero,
-                Retry = new RetryOptions { UseJitter = false }
-            },
-            clock,
-            []);
 
-        var messageId = Guid.NewGuid();
+                var dispatcher = provider.GetRequiredService<IOutboxDispatcher>();
+                var processor = new PipelinedOutboxProcessor(
+                    store,
+                    store,
+                    dispatcher,
+                    new OutboxProcessorOptions
+                    {
+                        BatchSize = 1,
+                        LeaseOwner = "at-least-once-publisher",
+                        LeaseDuration = TimeSpan.FromSeconds(5),
+                        LeaseHeartbeatInterval = TimeSpan.Zero,
+                        Retry = new RetryOptions { UseJitter = false }
+                    },
+                    clock,
+                    []);
 
-        await innerStore.AddAsync(new OutboxEnvelope
-        {
-            Id = messageId,
-            ContractName = "orders.order-submitted",
-            ContractVersion = 1,
-            Payload = "{\"orderId\":\"11111111-1111-1111-1111-111111111111\"}",
-            CreatedAt = clock.GetUtcNow(),
-            AttemptCount = 0,
-            Status = OutboxStatus.Pending,
-            Topic = destination
-        }).ConfigureAwait(false);
+                var messageId = Guid.NewGuid();
 
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+                await innerStore.AddAsync(new OutboxEnvelope
+                {
+                    Id = messageId,
+                    ContractName = "orders.order-submitted",
+                    ContractVersion = 1,
+                    Payload = "{\"orderId\":\"11111111-1111-1111-1111-111111111111\"}",
+                    CreatedAt = clock.GetUtcNow(),
+                    AttemptCount = 0,
+                    Status = OutboxStatus.Pending,
+                    Topic = destination
+                }).ConfigureAwait(false);
 
-        using (var firstPublishCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
-        {
-            await firstPublish.Task.WaitAsync(firstPublishCancellation.Token).ConfigureAwait(false);
-        }
+                await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        publishCount.Should().Be(1);
-        innerStore.Get(messageId).Status.Should().Be(OutboxStatus.Publishing);
+                using (var firstPublishCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+                {
+                    await firstPublish.Task.WaitAsync(firstPublishCancellation.Token).ConfigureAwait(false);
+                }
 
-        clock.Advance(TimeSpan.FromSeconds(6));
-        await processor.ProcessPendingAsync().ConfigureAwait(false);
+                publishCount.Should().Be(1);
+                innerStore.Get(messageId).Status.Should().Be(OutboxStatus.Publishing);
 
-        using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
+                clock.Advance(TimeSpan.FromSeconds(6));
+                await processor.ProcessPendingAsync().ConfigureAwait(false);
 
-        publishCount.Should().Be(2);
-        innerStore.Get(messageId).Status.Should().Be(OutboxStatus.Published);
-        innerStore.Get(messageId).AttemptCount.Should().Be(2);
-        }
+                using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await received.Task.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
+
+                publishCount.Should().Be(2);
+                innerStore.Get(messageId).Status.Should().Be(OutboxStatus.Published);
+                innerStore.Get(messageId).AttemptCount.Should().Be(2);
+            }
         }
     }
 

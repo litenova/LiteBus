@@ -57,7 +57,7 @@ public sealed class InMemoryInboxStoreOptionsTests
     }
 
     [Fact]
-    public async Task LeasePendingAsync_WhenLeaseDurationIsZero_ShouldUseDefaultLeaseDuration()
+    public async Task LeasePendingAsync_WhenLeaseDurationIsZero_ShouldThrowLikeTheOtherStores()
     {
         var store = new InMemoryInboxStore(new InMemoryInboxStoreOptions
         {
@@ -69,16 +69,15 @@ public sealed class InMemoryInboxStoreOptionsTests
 
         await store.AddAsync(CreatePendingEnvelope(commandId, now)).ConfigureAwait(false);
 
-        var leased = await store.LeasePendingAsync(new InboxLeaseRequest
+        var act = () => store.LeasePendingAsync(new InboxLeaseRequest
         {
             BatchSize = 1,
             LeaseOwner = "worker-1",
             Now = now,
             LeaseDuration = TimeSpan.Zero
-        }).ConfigureAwait(false);
+        });
 
-        leased.Should().ContainSingle();
-        leased[0].LeaseExpiresAt.Should().Be(now.AddMinutes(5));
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>().ConfigureAwait(false);
     }
 
     [Fact]

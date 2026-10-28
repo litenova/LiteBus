@@ -60,14 +60,37 @@ public interface IModuleConfiguration
     /// <exception cref="ArgumentException">
     ///     Thrown when <paramref name="implementationType" /> does not implement <see cref="IDiagnosticCheck" />.
     /// </exception>
+    /// <exception cref="Exceptions.ModuleCompositionException">
+    ///     Thrown when <paramref name="implementationType" /> is already registered under another name, or when
+    ///     <paramref name="name" /> is already registered by another implementation type.
+    /// </exception>
     void RegisterDiagnosticCheck(Type implementationType, string name);
+
+    /// <summary>
+    ///     Gets the validations registered by modules to run once every module has been built.
+    /// </summary>
+    IReadOnlyList<Action> CompositionValidations { get; }
+
+    /// <summary>
+    ///     Registers a validation that runs after every module has been built.
+    /// </summary>
+    /// <param name="validate">The validation to run. It reports a problem by throwing.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="validate" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     Modules build in dependency order, so a foundational module cannot see what a module built after it
+    ///     registered. A rule spanning several modules, such as a requirement that every registered message declares a
+    ///     given value, has nothing to check while the module holding the rule is being built. Registering it here runs
+    ///     it once the registry is complete and still at composition time, which is where a configuration error belongs:
+    ///     a startup task would report it after the host has already started.
+    /// </remarks>
+    void RegisterCompositionValidation(Action validate);
 
     /// <summary>
     ///     Gets a context object of the specified type.
     /// </summary>
     /// <typeparam name="T">The type of context to retrieve.</typeparam>
     /// <returns>The context object of the specified type.</returns>
-    /// <exception cref="System.InvalidOperationException">Thrown when the context type is not found.</exception>
+    /// <exception cref="Exceptions.LiteBusConfigurationException">Thrown when the context type is not found.</exception>
     T GetContext<T>() where T : class;
 
     /// <summary>

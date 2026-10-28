@@ -11,9 +11,10 @@ public sealed class PostgreSqlSchemaDriftTests : IClassFixture<PostgreSqlFixture
     public PostgreSqlSchemaDriftTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task InboxValidateAsync_WhenRequiredColumnMissing_ShouldThrowWithMissingColumns()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -37,12 +38,12 @@ public sealed class PostgreSqlSchemaDriftTests : IClassFixture<PostgreSqlFixture
                 await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>()
                     .Where(exception =>
                         exception.Component == PostgreSqlSchemaComponents.Inbox &&
-                        exception.Details.Contains("trace_context", StringComparison.Ordinal));
+                        exception.Details.Contains("trace_context", StringComparison.Ordinal)).ConfigureAwait(false);
             }
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task OutboxValidateAsync_WhenRequiredColumnMissing_ShouldThrowWithMissingColumns()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -66,12 +67,12 @@ public sealed class PostgreSqlSchemaDriftTests : IClassFixture<PostgreSqlFixture
                 await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>()
                     .Where(exception =>
                         exception.Component == PostgreSqlSchemaComponents.Outbox &&
-                        exception.Details.Contains("trace_context", StringComparison.Ordinal));
+                        exception.Details.Contains("trace_context", StringComparison.Ordinal)).ConfigureAwait(false);
             }
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task InboxValidateAsync_WhenRequiredIndexMissing_ShouldThrowWithMissingIndexes()
     {
         var options = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -93,12 +94,12 @@ public sealed class PostgreSqlSchemaDriftTests : IClassFixture<PostgreSqlFixture
                 await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>()
                     .Where(exception =>
                         exception.Component == PostgreSqlSchemaComponents.Inbox &&
-                        exception.Details.Contains(indexName, StringComparison.Ordinal));
+                        exception.Details.Contains(indexName, StringComparison.Ordinal)).ConfigureAwait(false);
             }
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task OutboxValidateAsync_WhenRequiredIndexMissing_ShouldThrowWithMissingIndexes()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -120,12 +121,12 @@ public sealed class PostgreSqlSchemaDriftTests : IClassFixture<PostgreSqlFixture
                 await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>()
                     .Where(exception =>
                         exception.Component == PostgreSqlSchemaComponents.Outbox &&
-                        exception.Details.Contains(indexName, StringComparison.Ordinal));
+                        exception.Details.Contains(indexName, StringComparison.Ordinal)).ConfigureAwait(false);
             }
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task OutboxEnsureAsync_WhenV5TableExists_ShouldRejectAutomaticMigration()
     {
         var options = PostgreSqlTestInfrastructure.CreateOutboxStoreOptions();
@@ -170,7 +171,7 @@ public sealed class PostgreSqlSchemaDriftTests : IClassFixture<PostgreSqlFixture
         await action.Should().ThrowAsync<PostgreSqlSchemaDriftException>()
             .Where(exception =>
                 exception.Component == PostgreSqlSchemaComponents.Outbox &&
-                exception.ExpectedVersion == 1 &&
+                exception.ExpectedVersion == 2 &&
                 exception.Details.Contains("does not mutate incompatible tables", StringComparison.Ordinal))
             .ConfigureAwait(false);
     }

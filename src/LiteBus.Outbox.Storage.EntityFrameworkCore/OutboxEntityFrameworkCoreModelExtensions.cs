@@ -77,6 +77,9 @@ public static class OutboxEntityFrameworkCoreModelExtensions
         entity.Property(message => message.Topic)
             .HasColumnName("topic");
 
+        entity.Property(message => message.Handler)
+            .HasColumnName("handler");
+
         entity.Property(message => message.CreatedAt)
             .HasColumnName("created_at")
             .ConfigureUtcTimestampColumn(provider);
@@ -96,7 +99,8 @@ public static class OutboxEntityFrameworkCoreModelExtensions
             .HasColumnName("lease_owner");
 
         entity.Property(message => message.LeaseGeneration)
-            .HasColumnName("lease_generation");
+            .HasColumnName("lease_generation")
+            .IsConcurrencyToken();
 
         entity.Property(message => message.LeaseExpiresAt)
             .HasColumnName("lease_expires_at")

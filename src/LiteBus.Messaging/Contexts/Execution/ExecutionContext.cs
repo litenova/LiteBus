@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -13,19 +15,34 @@ internal sealed class ExecutionContext : IExecutionContext
     /// </summary>
     /// <param name="tags">The tags associated with the execution context.</param>
     /// <param name="items">The key/value collection for sharing data within the execution context.</param>
+    /// <param name="timeProvider">The time provider the handled instant is read from, once.</param>
     /// <param name="cancellationToken">The cancellation token associated with the execution context.</param>
-    public ExecutionContext(IEnumerable<string> tags, IDictionary<string, object> items, CancellationToken cancellationToken)
+    public ExecutionContext(
+        IEnumerable<string> tags,
+        IDictionary<string, object> items,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
         CancellationToken = cancellationToken;
         Tags = tags.ToList();
-        Items = new Dictionary<string, object>(items);
+        Items = new ConcurrentDictionary<string, object>(items);
+        Data = new HandleContextData();
+        HandledAt = timeProvider.GetUtcNow();
     }
 
     /// <inheritdoc />
     public CancellationToken CancellationToken { get; }
 
     /// <inheritdoc />
+    public DateTimeOffset HandledAt { get; }
+
+    /// <inheritdoc />
     public IDictionary<string, object> Items { get; }
+
+    /// <inheritdoc />
+    public IHandleContextData Data { get; }
 
     /// <inheritdoc />
     public IReadOnlyCollection<string> Tags { get; }
@@ -34,9 +51,11 @@ internal sealed class ExecutionContext : IExecutionContext
     public object? MessageResult { get; set; }
 
     /// <inheritdoc />
-    public void Abort(object? messageResult = null)
+    public bool PostHandlersSuppressed { get; private set; }
+
+    /// <inheritdoc />
+    public void SuppressPostHandlers()
     {
-        MessageResult = messageResult;
-        throw new LiteBusExecutionAbortedException();
+        PostHandlersSuppressed = true;
     }
 }

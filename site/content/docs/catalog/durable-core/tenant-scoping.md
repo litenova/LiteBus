@@ -41,6 +41,7 @@ The query and purge filters use different null semantics:
 
 - `TenantId = "tenant-a"` restricts the operation to `tenant-a`.
 - `TenantId = null` omits the predicate and includes every tenant.
+- A blank `TenantId` (empty or whitespace) matches unscoped rows only.
 
 This distinction lets an operator query all rows while preserving an explicit unscoped partition for message identity.
 
@@ -57,7 +58,7 @@ inbox.UseProcessorOptions(new InboxProcessorOptions
 });
 ```
 
-A processor with this configuration leaves `tenant-b` rows pending. A separate processor configured for `tenant-b` can lease those rows from the same store.
+A processor with this configuration leaves `tenant-b` rows pending. A separate processor configured for `tenant-b` can lease those rows from the same store. Lease requests use the same null semantics on every store: `null` leases across all tenants and a blank value leases unscoped rows only, matching the manager filter rule below.
 
 Processor leasing belongs to the inbox and outbox domains. It does not depend on transport routing abstractions.
 
@@ -82,7 +83,7 @@ public sealed class TenantRouteStrategy : ITenantRoutingStrategy
 }
 ```
 
-Without a strategy, inbox dispatch uses its configured route resolver or contract name. Outbox dispatch prefers `OutboxEnvelope.Topic`, then its configured route resolver, then the contract name.
+Without a strategy, inbox dispatch uses its configured route resolver or contract name. Outbox dispatch prefers its configured route resolver, then the envelope topic when present, then the contract name. Configure the outbox strategy through `TransportOutboxDispatcherOptions.TenantRoutingStrategy`; the inbox dispatcher resolves an optional strategy from the container instead.
 
 ## Management Operations
 
@@ -105,6 +106,7 @@ For example, `GET /litebus/inbox/messages?tenantId=tenant-a&status=Pending` retu
 ## Invariants
 
 - The same idempotency key can identify one row per tenant partition.
+- A message identifier that already exists for another tenant throws `IdempotencyConflictException` regardless of conflict mode instead of resolving to the foreign row.
 - A configured processor tenant limits only that processor's lease requests.
 - A null manager tenant filter includes all tenants.
 - Tenant ingress headers are ignored unless application headers are trusted.
@@ -132,6 +134,7 @@ The tenant contract is covered at each boundary:
 - `TenantLeaseFilterTests` verifies inbox and outbox lease requests against mixed-tenant in-memory rows.
 - `TransportInboxIngressMapperTests.ToInboxAcceptMetadata_ShouldMapOptionalHeadersWhenTrusted` verifies trusted header propagation; companion tests verify untrusted headers are ignored.
 - `TransportInboxDispatcherTests` and `TransportOutboxDispatcherTests` verify `ITenantRoutingStrategy` receives the envelope tenant and controls the published route.
+- `OutboxTenantRoutingRegistrationTests.Dispatcher_WhenTenantRoutingRegistered_ShouldConsultStrategy` verifies a strategy set on `TransportOutboxDispatcherOptions.TenantRoutingStrategy` is consulted by the resolved dispatcher.
 - Broker dispatch integration tests verify `tenant-id` propagation for AMQP, Kafka, Azure Service Bus, AWS SQS, and the in-memory transport.
 - `PostgreSqlSagaInboxEndToEndTests.ProcessPendingAsync_WithTenantScopedAccepts_ShouldPersistSeparateSagaRows` verifies two tenants with the same saga correlation create separate PostgreSQL rows.
 

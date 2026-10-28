@@ -9,7 +9,7 @@
 
 ## What It Does
 
-Registers `TransportOutboxDispatchModule` with `KafkaTransportModule`. Outbox processor produces records to the configured topic with key from topic metadata, resolver, or contract name. Payload and headers follow the same mapping as other transport outbox adapters.
+Registers `TransportOutboxDispatchModule<TTransportModule>` with `KafkaTransportModule`. Outbox processor produces records to the configured topic with key from the resolver, topic metadata, or contract name. Payload and headers follow the same mapping as other transport outbox adapters.
 
 ## Packages
 
@@ -62,10 +62,10 @@ services.AddLiteBus(litebus =>
 | API | Role |
 | --- | --- |
 | `OutboxModuleBuilder.UseKafkaDispatch(Action<TransportOutboxDispatcherOptions>)` | Registers outbox transport dispatcher that requires the root Kafka transport |
-| `TransportOutboxDispatchModule.DefaultHookFailurePolicy` | Defaults to `CompleteDespiteHookFailure` |
+| `TransportOutboxDispatchModule<TTransportModule>.DefaultHookFailurePolicy` | Defaults to `CompleteDespiteHookFailure` |
 | `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | Publishes outbox payload and headers to Kafka |
 
-Route resolution: tenant strategy, then envelope `Topic`, then resolver, then contract name.
+Route resolution: tenant strategy, then resolver, then envelope `Topic`, then contract name.
 
 ## Observability
 

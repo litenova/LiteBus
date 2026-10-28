@@ -24,6 +24,7 @@ The health check maps aggregated diagnostic status into ASP.NET health statuses 
 - `LiteBusHealthCheckOptions.FailHealthWhenNoProbes` (default `true`)
 - `LiteBusHealthCheckOptions.DiagnosticChecks.Timeout` (default 5 seconds per probe)
 - `LiteBusHealthCheckOptions.DiagnosticChecks.MaxParallelism` (default 4)
+- `LiteBusHealthCheckOptions.DiagnosticChecks.RunTimeout` (default `null`, deriving the worst-case budget from probe count, parallelism, and timeout)
 
 ### Consumer Contracts
 
@@ -52,7 +53,7 @@ The health check maps aggregated diagnostic status into ASP.NET health statuses 
 
 ## Observability
 
-- Health check data contains a `probes` array with per-probe status, description, and data.
+- Health check data contains a `probes` array with per-probe name, status, description, and data.
 - Aggregate mapping:
   - all healthy -> healthy
   - any unhealthy -> unhealthy

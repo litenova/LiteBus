@@ -1,6 +1,11 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using LiteBus.Transport.Abstractions;
+using LiteBus.Transport.AwsSqs.Exceptions;
 
 namespace LiteBus.Transport.AwsSqs;
 
@@ -37,7 +42,9 @@ public sealed class SqsPublisher : ITransportPublisher
     /// <inheritdoc />
     /// <remarks>
     ///     <see cref="AmazonSQSException" /> is handled explicitly so broker failures increment the destination circuit.
-    ///     Unexpected application failures are traced and rethrown without changing broker resilience state.
+    ///     Client-side SDK failures that never reached the broker surface as
+    ///     <see cref="AwsSqsTransportConfigurationException" /> and release the permit instead of recording a
+    ///     failure. Unexpected application failures are traced and rethrown without changing broker resilience state.
     /// </remarks>
     public async Task PublishAsync(TransportPublishRequest request, CancellationToken cancellationToken = default)
     {
@@ -84,6 +91,17 @@ public sealed class SqsPublisher : ITransportPublisher
             circuitBreaker.RecordFailure(permit);
             throw;
         }
+        catch (AmazonClientException exception) when (IsConfigurationFailure(exception))
+        {
+            var configurationException = new AwsSqsTransportConfigurationException(
+                $"The AWS SQS publish to '{request.Destination}' failed with a client-side error that does not " +
+                "indicate broker health. Configure the region explicitly or make it resolvable from the " +
+                "environment, shared configuration file, or instance metadata.",
+                exception);
+            TransportTracing.RecordException(activity, configurationException);
+            circuitBreaker.ReleasePermit(permit);
+            throw configurationException;
+        }
 #pragma warning disable CA1031 // Last-resort publish boundary traces unexpected failures before rethrowing.
         catch (Exception exception)
 #pragma warning restore CA1031
@@ -92,5 +110,20 @@ public sealed class SqsPublisher : ITransportPublisher
             circuitBreaker.ReleasePermit(permit);
             throw;
         }
+    }
+
+    /// <summary>
+    ///     Returns whether a publish failure reflects client configuration rather than broker health.
+    /// </summary>
+    /// <remarks>
+    ///     Service responses, including <see cref="AmazonSQSException" />, record a circuit-breaker failure. Only
+    ///     client-side SDK failures that never reached the broker bypass it.
+    /// </remarks>
+    /// <param name="exception">The exception thrown by the publish operation.</param>
+    /// <returns><see langword="true" /> for client-side SDK failures; otherwise, <see langword="false" />.</returns>
+    internal static bool IsConfigurationFailure(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        return exception is AmazonClientException && exception is not AmazonServiceException;
     }
 }

@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Hosting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -90,13 +95,14 @@ public sealed class LiteBusHealthCheck : IHealthCheck
     ///     Flattens probe outcomes into health check report data.
     /// </summary>
     /// <param name="probes">The probe outcomes collected during the check.</param>
-    /// <returns>Structured values attached to the health check result.</returns>
+    /// <returns>Structured values, including per-probe names, attached to the health check result.</returns>
     private static Dictionary<string, object> BuildData(IReadOnlyList<DiagnosticProbeOutcome> probes)
     {
         return new Dictionary<string, object>
         {
             ["probes"] = probes.Select(probe => new Dictionary<string, object?>
             {
+                ["name"] = probe.Name,
                 ["status"] = probe.Status.ToString(),
                 ["description"] = probe.Description,
                 ["data"] = probe.Data

@@ -18,6 +18,11 @@ namespace LiteBus.Inbox.Abstractions;
 ///         Expired leases should become eligible for another processor. This gives the inbox at-least-once execution
 ///         behavior after a worker crash or process shutdown.
 ///     </para>
+///     <para>
+///         Stores with a database clock use the database clock for visibility checks;
+///         <see cref="InboxLeaseRequest.Now" /> and <see cref="LeaseRenewalRequest.RequestedExpiresAt" /> are the
+///         fallback for stores without one.
+///     </para>
 /// </remarks>
 public interface IInboxLeaseStore : ILeaseRenewable
 {

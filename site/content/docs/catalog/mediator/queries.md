@@ -4,6 +4,7 @@
 - **Name**: Queries
 - **Maturity**: GA
 - **Summary**: Executes read models through one main handler, including single-result and stream query paths.
+- **Guide**: [Query module](../../concepts/queries.md)
 
 ## What It Does
 
@@ -35,9 +36,14 @@ var dto = await queryMediator.QueryAsync(new GetProductQuery(id), cancellationTo
 | `IQueryMediator.StreamAsync<TResult>(...)` | Execute stream query |
 | `IQueryHandler<TQuery, TResult>` | Main handler for `IQuery<TResult>` |
 | `IStreamQueryHandler<TQuery, TResult>` | Main handler for stream query |
-| `IQueryPreHandler<TQuery>` / `IQueryValidator<TQuery>` | Pre stage |
+| `IQueryMediator.TryQueryAsync` / `IQueryMediator.EvaluateAsync` | Refusal as a `MediationResult<TResult>` value; guard and validator evaluation as a `MediationDecision` |
+| `IQueryGuard<TQuery>` / `IQueryValidator<TQuery>` / `IQueryShortcut<TQuery, TQueryResult>` / `IStreamQueryShortcut<TQuery, TQueryResult>` / `IQueryPreHandler<TQuery>` | Decision and pre stages, in framework-fixed order |
 | `IQueryPostHandler<TQuery>` / `IQueryPostHandler<TQuery, TResult>` | Post stage |
+| `IStreamQueryPostHandler<TQuery, TResult>` | Post stage for stream queries |
+| `IQueryRefusalMapper<TQuery, TResult>` / `IStreamQueryRefusalMapper<TQuery, TResult>` | Refusal mappers for single-result and stream queries |
 | `IQueryErrorHandler<TQuery>` / `IQueryErrorHandler<TQuery, TResult>` | Error stage |
+| `IQueryCompletionHandler` / `IQueryCompletionHandler<TQuery>` / `IQueryCompletionHandler<TQuery, TQueryResult>` | Completion stage, on every outcome path |
+| `ThrowingQueryValidator<TQuery, TException>` | Migration adapter for a validator whose body still reports failure by throwing |
 | `QueryMediatorExtensions.QueryAsync(..., string tag, ...)` | Single-tag query routing sugar |
 | `QueryMediatorExtensions.StreamAsync(..., string tag, ...)` | Single-tag stream routing sugar |
 
@@ -55,9 +61,9 @@ var dto = await queryMediator.QueryAsync(new GetProductQuery(id), cancellationTo
 
 ## Invariants
 
-- Exactly one main query handler must resolve after routing filters.
+- One main query handler must resolve after routing filters, at the winning level (direct, else indirect).
 - `QueryAsync` and `StreamAsync` throw `ArgumentNullException` for `null` query arguments.
-- Aborted stream queries can return an empty stream when pre-stage aborts.
+- A shortcut that stops a stream query yields the stream it answered with, which may be an empty sequence; post-handlers do not run.
 - Query handlers are intended for side-effect free reads.
 
 ## Non-Goals
@@ -68,7 +74,7 @@ var dto = await queryMediator.QueryAsync(new GetProductQuery(id), cancellationTo
 
 ## Observability
 
-No dedicated query mediator meter or activity source exists.
+Query mediation is covered by the shared `LiteBus.Mediation` activity source and meter: one span per mediation plus duration, count, and decision instruments, with per-stage spans and metrics opt-in through `MessageModuleBuilder.UseTelemetry`. See [Handler pipeline](handler-pipeline.md) for the instrument table.
 
 Operational alternatives:
 - Instrument application query handlers directly.
@@ -91,7 +97,7 @@ Operational alternatives:
 ### Untested
 
 - Stream cancellation under heavy asynchronous producer backpressure.
-- Query-side telemetry contract stability because no dedicated contract is exposed.
+- Per-stage span and metric emission for query mediation under the opt-in telemetry flags.
 
 ### Out-of-Scope
 

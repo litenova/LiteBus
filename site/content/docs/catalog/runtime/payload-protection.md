@@ -14,6 +14,8 @@ Runtime calls:
 
 With no encryptor, payload is passed through unchanged.
 
+Overloads taking `PayloadProtectionContext` pass durable metadata as associated data when the encryptor implements `IContextualPayloadEncryptor`; any other encryptor, or a null context, uses the plain contract. The context carries the message id, contract name and version, tenant id, and durable axis, so ciphertext cannot move between rows, contracts, tenants, or axes without authentication failure.
+
 ## Public Surface
 
 | API | Role |
@@ -22,10 +24,12 @@ With no encryptor, payload is passed through unchanged.
 | `IPayloadEncryptor.DecryptAsync(...)` | Decrypts payload |
 | `PayloadProtection.ProtectAsync(...)` | Encrypt-or-pass-through helper |
 | `PayloadProtection.UnprotectAsync(...)` | Decrypt-or-pass-through helper |
+| `IContextualPayloadEncryptor.EncryptAsync(...)` / `DecryptAsync(...)` | Encrypts and decrypts while authenticating durable metadata |
+| `PayloadProtectionContext` | Immutable metadata bound to ciphertext: message id, contract, tenant, axis |
 
 ## Packages
 
-- `LiteBus.Messaging.Abstractions`
+- `LiteBus.DurableMessaging.Abstractions`
 - `LiteBus.Messaging`
 
 ## Requires
@@ -37,6 +41,8 @@ With no encryptor, payload is passed through unchanged.
 - Null payload is rejected.
 - Null encryptor returns original payload.
 - Contract metadata remains plaintext.
+- A null context, or an encryptor without contextual support, falls back to the plain encryptor contract.
+- Unscoped tenant identifiers normalize to null in protection contexts, so null, empty, and whitespace authenticate identically.
 
 ## Non-Goals
 

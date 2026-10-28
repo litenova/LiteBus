@@ -9,7 +9,7 @@
 
 `AddAmqpTransport(...)` registers `AmqpTransportModule` once at the root. `UseAmqpDispatch(configure)` on `OutboxModuleBuilder` registers `TransportOutboxDispatchModule` as a feature bridge to that transport. After domain logic enqueues events to outbox storage, the processor publishes to the configured exchange when rows are leased.
 
-Route resolution prefers envelope `Topic`, then custom resolver, then contract name. Headers carry contract identity and trace context for downstream ingress.
+Route resolution prefers the custom resolver, then envelope `Topic`, then contract name. Headers carry contract identity and trace context for downstream ingress.
 
 ## Packages
 
@@ -30,6 +30,7 @@ Route resolution prefers envelope `Topic`, then custom resolver, then contract n
 - Default hook failure policy is `CompleteDespiteHookFailure` for transport outbox modules.
 - At-least-once publication: crash after broker ack but before terminal persist can duplicate messages.
 - Downstream consumers must deduplicate (message id, idempotency header, or business keys).
+- A mandatory publication the broker returns as unroutable throws `AmqpMessageReturnedException`, so the envelope stays leased and retries instead of being silently dropped.
 
 ## Non-Goals
 
@@ -76,11 +77,12 @@ services.AddLiteBus(litebus =>
 | `DefaultDestination` | `""` | Exchange name |
 | `ContentType` | `application/json` | Outgoing MIME content type |
 | `Persistent` | `true` | Durable message flag |
-| `Mandatory` | `false` | Fail publish when unroutable |
-| `ResolveRoute` | `null` | Route selector after topic fallback |
+| `Mandatory` | `true` | Fail publish with `AmqpMessageReturnedException` when unroutable |
+| `ResolveRoute` | `null` | Route selector; wins over envelope `Topic` and must return a non-empty route |
+| `TenantRoutingStrategy` | `null` | Per-tenant destination override, registered as the `ITenantRoutingStrategy` the dispatcher resolves |
 | `ValidatePayloadBeforeDispatch` | `false` | Deserialize payload before publish for validation |
 
-Outbox route order is tenant strategy, then envelope `Topic`, then `ResolveRoute`, then contract name.
+Outbox route order is tenant strategy, then `ResolveRoute`, then envelope `Topic`, then contract name.
 
 `AmqpConnectionOptions`:
 
@@ -122,6 +124,9 @@ Outbox route order is tenant strategy, then envelope `Topic`, then `ResolveRoute
 | `ProcessPendingAsync_ShouldPublishEnvelopeToAmqpQueue` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Amqp/`) |
 | `ProcessPendingAsync_WhenTopicMissing_ShouldUseContractNameAsRoutingKey` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Amqp/`) |
 | `ProcessPendingAsync_ShouldPublishToAmqpAndMarkPostgreSqlEnvelopePublished` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Amqp/`) |
+| `TransportPublishRequest_Mandatory_ShouldDefaultToTrue` | `LiteBus.Transport.UnitTests` (`Amqp/`, `AmqpPublishRequestDefaultsTests`) |
+| `PublishAsync_WithMandatoryAndNoBinding_ShouldThrow` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
+| `PublishAsync_WithMandatoryFalseAndNoBinding_ShouldSucceed` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
 
 ### Untested
 

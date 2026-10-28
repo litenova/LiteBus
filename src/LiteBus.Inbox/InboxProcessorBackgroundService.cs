@@ -28,13 +28,17 @@ public sealed class InboxProcessorBackgroundService : IBackgroundService
     /// <param name="workSignal">The signal used to wait for work notifications or polling delays.</param>
     /// <param name="control">The control surface used to pause, resume, and drain the processor loop.</param>
     /// <param name="logger">The optional logger for processor loop diagnostics.</param>
+    /// <param name="timeProvider">
+    ///     The optional clock for the startup delay; <see cref="TimeProvider.System" /> when none is registered.
+    /// </param>
     public InboxProcessorBackgroundService(
         IInboxProcessor processor,
         InboxProcessorOptions processorOptions,
         InboxProcessorHostOptions hostOptions,
         IInboxWorkSignal workSignal,
         InboxProcessorControl control,
-        ILogger<InboxProcessorBackgroundService>? logger = null)
+        ILogger<InboxProcessorBackgroundService>? logger = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(processor);
         ArgumentNullException.ThrowIfNull(processorOptions);
@@ -52,7 +56,8 @@ public sealed class InboxProcessorBackgroundService : IBackgroundService
             control,
             InboxProcessorTelemetry.RecordLoopError,
             InboxProcessorLogMessages.LoopFailed,
-            resolvedLogger);
+            resolvedLogger,
+            timeProvider);
     }
 
     /// <inheritdoc />

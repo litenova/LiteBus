@@ -1,8 +1,8 @@
 # Inbox AMQP Ingress
 
-AMQP inbox ingress consumes commands from a broker queue and accepts them into the inbox store through `IInbox.AcceptAsync`. Pair with nested storage, `UseInProcessDispatch`, and `EnableInboxProcessor`.
+AMQP inbox ingress consumes commands from a broker queue and accepts them into the inbox store through `IInbox.AcceptAsync`. Pair with inbox storage, one dispatcher, and `EnableInboxProcessor`.
 
-RabbitMQ and LavinMQ both speak AMQP 0.9.1 through `LiteBus.Transport.Amqp`.
+RabbitMQ and LavinMQ both implement AMQP 0.9.1. `LiteBus.Transport.Amqp` connects to either broker.
 
 ## Flow
 
@@ -42,14 +42,44 @@ builder.Services.AddLiteBus(builder =>
 });
 ```
 
-Ingress requires the root `AmqpTransportModule` registered by `AddAmqpTransport`. Broker connection settings do not belong to ingress options.
+Ingress requires the root `AmqpTransportModule` registered by `AddAmqpTransport`. Broker connection settings belong to `AmqpConnectionOptions`, not to ingress options.
 
 ## Headers
 
-Publishers must send `litebus-contract-name` and `litebus-contract-version`. Ingress defaults to broker-scoped idempotency from the AMQP `message-id` (or `litebus-message-id` header) so redelivery after a successful accept does not create duplicate inbox rows.
+Publishers must send `litebus-contract-name` and `litebus-contract-version`. Ingress defaults to broker-scoped idempotency from the AMQP `message-id` (or the `litebus-message-id` header when `Safety.TrustApplicationHeaders` is `true`) so redelivery after a successful accept does not create duplicate inbox rows.
 
-Optional `litebus-idempotency-key` and `tenant-id` headers are ignored unless `AmqpInboxIngressOptions.Safety.TrustApplicationHeaders` is `true` on an authenticated broker binding. Use `Safety.AuthorizeDeliveryAsync` to enforce tenant or contract policy before accept.
+Optional `litebus-idempotency-key`, `tenant-id`, `litebus-visible-after`, and `litebus-visible-after-delay` headers are ignored unless `AmqpInboxIngressOptions.Safety.TrustApplicationHeaders` is `true` on an authenticated broker binding. Correlation headers are always honored. Use `Safety.AuthorizeDeliveryAsync` to enforce tenant or contract policy before accept.
 
-Configure `MaxMessageBytes` to cap ingress body size (default 4 MiB). Oversized deliveries throw `InboxIngressException` and are discarded unless `RequeueOnFailure` applies to the failure type.
+`Safety.MaxMessageBytes` caps the ingress body size (default 4 MiB). Oversize deliveries throw `InboxIngressException`, which the acknowledgement policy never requeues, so the delivery is discarded even when `RequeueOnFailure` is `true`.
 
-See [Inbox](../reliable-messaging/inbox.md) and [AMQP transport](amqp.md).
+## Inbox AMQP Patterns
+
+Two AMQP patterns cover local execution and remote execution of commands:
+
+| Direction | Package | Role |
+| --- | --- | --- |
+| Ingress (consume into inbox) | `LiteBus.Inbox.Ingress.Amqp` | Broker queue to `IInbox.AcceptAsync` |
+| Dispatch (publish leased inbox) | `LiteBus.Inbox.Dispatch.Amqp` | `PipelinedInboxProcessor` to the explicitly registered root AMQP transport |
+
+### Local Development Without a Broker
+
+```csharp
+inbox.UseInMemoryStorage();
+inbox.UseInProcessDispatch();
+```
+
+### Remote Ingress, Local Execution
+
+```text
+External producer to AMQP queue to UseAmqpIngress to IInbox.AcceptAsync to store
+  to PipelinedInboxProcessor to UseInProcessDispatch to ICommandMediator
+```
+
+### Remote Execution (Inbox as Outbound Command Bus)
+
+```text
+IInbox.AcceptAsync to store to PipelinedInboxProcessor to UseAmqpDispatch to AMQP exchange
+  to remote service UseAmqpIngress to IInbox.AcceptAsync
+```
+
+See [Inbox](../reliable-messaging/inbox.md) and [AMQP Transport](amqp.md).

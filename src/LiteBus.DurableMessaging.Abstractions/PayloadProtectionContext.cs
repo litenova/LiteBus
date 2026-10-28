@@ -1,10 +1,21 @@
+using System;
+
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
 ///     Identifies the immutable durable metadata that authenticated payload encryption should bind to ciphertext.
 /// </summary>
+/// <remarks>
+///     The tenant identifier is normalized so <see langword="null" />, empty, and whitespace values all read back as
+///     <see langword="null" /> for unscoped messages.
+/// </remarks>
 public sealed record PayloadProtectionContext
 {
+    /// <summary>
+    ///     Gets the normalized tenant identifier stored beside the payload.
+    /// </summary>
+    private string? _tenantId;
+
     /// <summary>
     ///     Gets the durable message identifier.
     /// </summary>
@@ -23,7 +34,14 @@ public sealed record PayloadProtectionContext
     /// <summary>
     ///     Gets the optional tenant identifier stored beside the payload.
     /// </summary>
-    public string? TenantId { get; init; }
+    /// <value>
+    ///     The tenant identifier, or <see langword="null" /> when the message is unscoped. Empty and whitespace values normalize to <see langword="null" />.
+    /// </value>
+    public string? TenantId
+    {
+        get => _tenantId;
+        init => _tenantId = string.IsNullOrWhiteSpace(value) ? null : value;
+    }
 
     /// <summary>
     ///     Gets the durable axis that owns the payload, either <c>inbox</c> or <c>outbox</c>.

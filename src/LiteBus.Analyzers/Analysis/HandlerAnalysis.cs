@@ -1,10 +1,6 @@
 using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
-using System.Threading;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace LiteBus.Analyzers.Analysis;
 
@@ -30,120 +26,77 @@ internal static class HandlerAnalysis
         ("LiteBus.Commands.Abstractions.ICommandErrorHandler`2", "command error-handler"),
         ("LiteBus.Events.Abstractions.IEventErrorHandler`1", "event error-handler"),
         ("LiteBus.Queries.Abstractions.IQueryErrorHandler`1", "query error-handler"),
-        ("LiteBus.Queries.Abstractions.IQueryErrorHandler`2", "query error-handler")
+        ("LiteBus.Queries.Abstractions.IQueryErrorHandler`2", "query error-handler"),
+        ("LiteBus.Commands.Abstractions.ICommandPostHandler`2", "command post-handler"),
+        ("LiteBus.Queries.Abstractions.IQueryPostHandler`2", "query post-handler"),
+        ("LiteBus.Queries.Abstractions.IStreamQueryPostHandler`2", "stream query post-handler"),
+        ("LiteBus.Commands.Abstractions.ICommandGuard`1", "command guard"),
+        ("LiteBus.Queries.Abstractions.IQueryGuard`1", "query guard"),
+        ("LiteBus.Events.Abstractions.IEventGuard`1", "event guard"),
+        ("LiteBus.Commands.Abstractions.ICommandValidator`1", "command validator"),
+        ("LiteBus.Queries.Abstractions.IQueryValidator`1", "query validator"),
+        ("LiteBus.Events.Abstractions.IEventValidator`1", "event validator"),
+        ("LiteBus.Commands.Abstractions.ICommandRefusalMapper`2", "command refusal-mapper"),
+        ("LiteBus.Queries.Abstractions.IQueryRefusalMapper`2", "query refusal-mapper"),
+        ("LiteBus.Queries.Abstractions.IStreamQueryRefusalMapper`2", "stream query refusal-mapper"),
+        ("LiteBus.Commands.Abstractions.ICommandShortcut`1", "command shortcut"),
+        ("LiteBus.Commands.Abstractions.ICommandShortcut`2", "command shortcut"),
+        ("LiteBus.Queries.Abstractions.IQueryShortcut`2", "query shortcut"),
+        ("LiteBus.Queries.Abstractions.IStreamQueryShortcut`2", "stream query shortcut"),
+        ("LiteBus.Events.Abstractions.IEventShortcut`1", "event shortcut"),
+        ("LiteBus.Commands.Abstractions.ICommandCompletionHandler`1", "command completion-handler"),
+        ("LiteBus.Commands.Abstractions.ICommandCompletionHandler`2", "command completion-handler"),
+        ("LiteBus.Queries.Abstractions.IQueryCompletionHandler`1", "query completion-handler"),
+        ("LiteBus.Queries.Abstractions.IQueryCompletionHandler`2", "query completion-handler"),
+        ("LiteBus.Events.Abstractions.IEventCompletionHandler`1", "event completion-handler")
     ];
 
     /// <summary>
-    ///     Collects handler registrations declared in the compilation.
+    ///     Gets the number of distinct handler interface metadata names in the handler interface map.
     /// </summary>
-    /// <param name="compilation">The compilation being analyzed.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>All discovered handler registrations.</returns>
-    internal static ImmutableArray<HandlerRegistration> CollectHandlerRegistrations(
-        Compilation compilation,
-        CancellationToken cancellationToken = default)
+    internal static int DistinctHandlerInterfaceMetadataNameCount =>
+        HandlerInterfaceMap.Select(entry => entry.MetadataName).Distinct(StringComparer.Ordinal).Count();
+
+    /// <summary>
+    ///     Determines whether any handler interface in the handler interface map resolves in the compilation.
+    /// </summary>
+    /// <param name="typeCache">The per-compilation type cache.</param>
+    /// <returns><see langword="true" /> when at least one handler interface resolves; otherwise, <see langword="false" />.</returns>
+    internal static bool AnyHandlerInterfaceResolves(LiteBusTypeCache typeCache)
     {
-        var builder = ImmutableArray.CreateBuilder<HandlerRegistration>();
-        var processed = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
-
-        foreach (var syntaxTree in compilation.SyntaxTrees)
+        foreach (var entry in HandlerInterfaceMap)
         {
-            foreach (var typeDeclaration in syntaxTree.GetRoot(cancellationToken).DescendantNodes()
-                         .OfType<TypeDeclarationSyntax>())
+            if (typeCache.GetType(entry.MetadataName) is not null)
             {
-                var model = compilation.GetSemanticModel(syntaxTree);
-
-                if (model.GetDeclaredSymbol(typeDeclaration, cancellationToken) is INamedTypeSymbol symbol)
-                {
-                    TryAddHandlerRegistration(compilation, symbol, builder, processed);
-                }
+                return true;
             }
         }
 
-        foreach (var reference in compilation.References)
+        return false;
+    }
+
+    /// <summary>
+    ///     Determines whether any handler interface for the pipeline stage resolves in the compilation.
+    /// </summary>
+    /// <param name="typeCache">The per-compilation type cache.</param>
+    /// <param name="pipeline">The pipeline stage name.</param>
+    /// <returns><see langword="true" /> when at least one stage interface resolves; otherwise, <see langword="false" />.</returns>
+    internal static bool AnyPipelineInterfaceResolves(LiteBusTypeCache typeCache, string pipeline)
+    {
+        foreach (var entry in HandlerInterfaceMap)
         {
-            if (compilation.GetAssemblyOrModuleSymbol(reference) is not IAssemblySymbol assemblySymbol ||
-                !ShouldScanReferencedAssembly(assemblySymbol, compilation.Assembly))
+            if (!string.Equals(entry.Pipeline, pipeline, StringComparison.Ordinal))
             {
                 continue;
             }
 
-            foreach (var module in assemblySymbol.Modules)
+            if (typeCache.GetType(entry.MetadataName) is not null)
             {
-                CollectHandlerRegistrationsFromNamespace(
-                    compilation,
-                    module.GlobalNamespace,
-                    builder,
-                    processed);
+                return true;
             }
         }
 
-        return builder.ToImmutable();
-    }
-
-    /// <summary>
-    ///     Adds handler registrations declared on one named type symbol when it has not already been processed.
-    /// </summary>
-    /// <param name="compilation">The compilation being analyzed.</param>
-    /// <param name="symbol">The candidate handler type symbol.</param>
-    /// <param name="builder">The registration builder.</param>
-    /// <param name="processed">The set of handler types already processed.</param>
-    private static void TryAddHandlerRegistration(
-        Compilation compilation,
-        INamedTypeSymbol symbol,
-        ImmutableArray<HandlerRegistration>.Builder builder,
-        HashSet<INamedTypeSymbol> processed)
-    {
-        if (symbol.TypeKind == TypeKind.Interface || !processed.Add(symbol))
-        {
-            return;
-        }
-
-        var location = symbol.Locations.FirstOrDefault(locationCandidate => locationCandidate.IsInSource) ?? symbol.Locations.FirstOrDefault() ?? Location.None;
-
-        foreach (var handlerInterface in symbol.AllInterfaces)
-        {
-            var pipeline = GetPipeline(compilation, handlerInterface);
-
-            if (pipeline is null)
-            {
-                continue;
-            }
-
-            var messageType = handlerInterface.TypeArguments[0];
-            builder.Add(new HandlerRegistration(symbol, messageType, pipeline, location));
-        }
-
-        foreach (var nestedType in symbol.GetTypeMembers())
-        {
-            TryAddHandlerRegistration(compilation, nestedType, builder, processed);
-        }
-    }
-
-    /// <summary>
-    ///     Walks a namespace and registers handler types declared beneath it.
-    /// </summary>
-    /// <param name="compilation">The compilation being analyzed.</param>
-    /// <param name="namespaceSymbol">The namespace to walk.</param>
-    /// <param name="builder">The registration builder.</param>
-    /// <param name="processed">The set of handler types already processed.</param>
-    private static void CollectHandlerRegistrationsFromNamespace(
-        Compilation compilation,
-        INamespaceSymbol namespaceSymbol,
-        ImmutableArray<HandlerRegistration>.Builder builder,
-        HashSet<INamedTypeSymbol> processed)
-    {
-        foreach (var member in namespaceSymbol.GetMembers())
-        {
-            if (member is INamespaceSymbol nestedNamespace)
-            {
-                CollectHandlerRegistrationsFromNamespace(compilation, nestedNamespace, builder, processed);
-            }
-            else if (member is INamedTypeSymbol namedType)
-            {
-                TryAddHandlerRegistration(compilation, namedType, builder, processed);
-            }
-        }
+        return false;
     }
 
     /// <summary>
@@ -170,16 +123,16 @@ internal static class HandlerAnalysis
     /// <summary>
     ///     Resolves the pipeline stage for a handler interface symbol.
     /// </summary>
-    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="typeCache">The per-compilation type cache.</param>
     /// <param name="handlerInterface">The implemented handler interface symbol.</param>
     /// <returns>The pipeline stage name, if matched.</returns>
-    private static string? GetPipeline(Compilation compilation, INamedTypeSymbol handlerInterface)
+    internal static string? GetPipeline(LiteBusTypeCache typeCache, INamedTypeSymbol handlerInterface)
     {
         var original = handlerInterface.OriginalDefinition;
 
         foreach (var entry in HandlerInterfaceMap)
         {
-            var interfaceType = compilation.GetTypeByMetadataName(entry.MetadataName);
+            var interfaceType = typeCache.GetType(entry.MetadataName);
 
             if (interfaceType is not null &&
                 SymbolEqualityComparer.Default.Equals(original, interfaceType))
@@ -199,9 +152,20 @@ internal static class HandlerAnalysis
     /// <returns><see langword="true" /> when the type implements a handler interface.</returns>
     internal static bool IsHandlerType(INamedTypeSymbol handlerType, Compilation compilation)
     {
+        return IsHandlerType(handlerType, new LiteBusTypeCache(compilation));
+    }
+
+    /// <summary>
+    ///     Determines whether the type implements any LiteBus handler interface, sharing one type cache for the pass.
+    /// </summary>
+    /// <param name="handlerType">The candidate handler type symbol.</param>
+    /// <param name="typeCache">The per-compilation type cache.</param>
+    /// <returns><see langword="true" /> when the type implements a handler interface.</returns>
+    internal static bool IsHandlerType(INamedTypeSymbol handlerType, LiteBusTypeCache typeCache)
+    {
         foreach (var handlerInterface in handlerType.AllInterfaces)
         {
-            if (GetPipeline(compilation, handlerInterface) is not null)
+            if (GetPipeline(typeCache, handlerInterface) is not null)
             {
                 return true;
             }
@@ -241,7 +205,48 @@ internal static class HandlerAnalysis
             return false;
         }
 
-        return openDefinition.TypeParameters.Length != 1;
+        return openDefinition.TypeParameters.Length switch
+        {
+            1 => false,
+
+            // Two parameters are closable only when the handler implements a contract taking both, in which case the
+            // second binds to the result type the message declares. A second parameter the handler invented, a
+            // TContext or a TStore, has nothing to bind to.
+            2 => !BindsBothParametersToATypedContract(openDefinition),
+            _ => true
+        };
+    }
+
+    /// <summary>
+    ///     Determines whether an arity-2 handler implements a contract taking both of its type parameters, in order.
+    /// </summary>
+    /// <param name="openDefinition">The open generic handler type definition.</param>
+    /// <returns><see langword="true" /> when the second parameter binds to a result type rather than to nothing.</returns>
+    /// <remarks>
+    ///     The interface list is the transitive closure, so matching a two-argument handler contract covers both the
+    ///     messaging-level shape and the axis shape that derives from it. The name is not checked against a list: any
+    ///     handler interface taking the handler's two parameters in order is closable, because the registry closes it by
+    ///     position.
+    /// </remarks>
+    internal static bool BindsBothParametersToATypedContract(INamedTypeSymbol openDefinition)
+    {
+        var parameters = openDefinition.TypeParameters;
+
+        foreach (var handlerInterface in openDefinition.AllInterfaces)
+        {
+            if (handlerInterface.TypeArguments.Length != 2)
+            {
+                continue;
+            }
+
+            if (SymbolEqualityComparer.Default.Equals(handlerInterface.TypeArguments[0], parameters[0]) &&
+                SymbolEqualityComparer.Default.Equals(handlerInterface.TypeArguments[1], parameters[1]))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

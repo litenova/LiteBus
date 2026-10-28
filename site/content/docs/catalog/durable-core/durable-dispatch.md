@@ -37,19 +37,26 @@ Requires command or event module registration and handler discovery for handled 
 | `UseAzureServiceBusDispatch(configure)` | `*.Dispatch.AzureServiceBus` | Beta |
 | `UseInMemoryDispatch(configure?)` | `*.Dispatch.InMemory` | Tests and samples |
 
-Register the matching `Add*Transport(...)` once at the root. Each dispatch extension builds **`TransportInboxDispatcherOptions`** or **`TransportOutboxDispatcherOptions`**, registers a dispatcher child that requires the root transport module, and calls **`RegisterDispatcher`**. Second dispatcher registration on the same builder throws **`LiteBusConfigurationException`**.
+Register the matching `Add*Transport(...)` once at the root. Each dispatch extension builds **`TransportInboxDispatcherOptions`** or **`TransportOutboxDispatcherOptions`**, registers a dispatcher child that requires the root transport module, and calls **`RegisterDispatcher`**. Second dispatcher registration on the same builder throws **`DurableStorageConfigurationException`**.
 
 ### Transport Configuration
 
-- **`TransportOutboxDispatcherOptions.ValidatePayloadBeforeDispatch`**: Pre-dispatch deserialization gate; fail before broker publish when payload cannot deserialize
-- **`ITenantRoutingStrategy`**: Resolves broker destination from tenant metadata on transport adapters
+- **`TransportOutboxDispatcherOptions.ValidatePayloadBeforeDispatch`** (default `false`): Pre-dispatch deserialization gate; fail before broker publish when payload cannot deserialize
+- **Route precedence**: `ITenantRoutingStrategy` when one is registered, else the `ResolveRoute` delegate when set, else the envelope `Topic` (outbox only) when present, else the contract name. On the outbox axis a strategy or delegate result of null or whitespace fails the dispatch with `LiteBusDispatchException`; on the inbox axis a delegate result of null or whitespace fails with `InboxDispatchException`.
+- **`TransportOutboxDispatcherOptions.TenantRoutingStrategy`**: Registers the strategy as the `ITenantRoutingStrategy` the outbox dispatcher resolves; the inbox dispatcher resolves an optional strategy from the container instead.
+- **FIFO addressing**: The outbox dispatcher fills `TransportPublishRequest.MessageGroupId` (tenant id, or the contract name when unscoped) and `DeduplicationKey` (idempotency key, or the message id when absent) on every publish; the SQS adapter maps them on queue URLs ending in `.fifo` only.
 - Inbox transport dispatch publishes the leased envelope (dual-hop topology)
 - Outbox transport dispatch publishes before terminal persist
+
+### In-Process Configuration
+
+- **`InProcessOutboxDispatchOptions.RequireHandler`** (default `true`, set through `UseInProcessDispatch(dispatch => ...)`): A dispatched message with no handler fails the attempt, retries, and dead-letters; `false` marks the message published without any handler having run. The inbox axis cannot fail this way because command mediation requires exactly one handler.
+- **Per-handler envelopes**: In-process outbox dispatch publishes a targeted envelope to its recorded `Handler` alone; pre, post, error, and completion observers still run (see [Per-Handler Delivery](outbox-enqueue.md#per-handler-delivery)).
 
 ### Extension Points
 
 - Custom dispatchers implement **`IInboxDispatcher`** or **`IOutboxDispatcher`** and register through **`RegisterDispatcher(I*DispatcherModule)`**
-- Wire metadata mapping: **`OutboxTransportEnvelopeMapper`** / inbox transport mappers (shared dispatch packages)
+- Wire metadata mapping: internal **`OutboxTransportEnvelopeMapper`** / **`InboxTransportEnvelopeMapper`** in the shared dispatch packages own header mapping; custom dispatchers map metadata themselves
 
 ## Packages
 
@@ -73,7 +80,8 @@ Register the matching `Add*Transport(...)` once at the root. Each dispatch exten
 - Inbox transport dispatch publishes leased envelope (dual-hop topology)
 - Outbox transport dispatch publishes before terminal persist (at-least-once window)
 - Custom dispatchers implement single-method interfaces; throw on failure
-- `ITenantRoutingStrategy` on transport adapters resolves destinations from tenant metadata
+- Route precedence is tenant strategy, then `ResolveRoute`, then envelope `Topic` (outbox), then contract name
+- A second dispatcher on one axis throws `DurableStorageConfigurationException`
 
 ## Non-Goals
 
@@ -179,9 +187,9 @@ Register the matching `Add*Transport(...)` once at the root. Each dispatch exten
 - **Use case**: When a second inbox dispatcher is registered on the same builder, compose fails
 - **Test kind**: Unit
 - **Description**: Duplicate dispatcher registration guard
-- **Behavior**: Two dispatcher **`Use*Dispatch`** calls on inbox builder
-- **Expected outcome**: **`LiteBusConfigurationException`**
-- **Remarks**: `LiteBus.Inbox.UnitTests` (`Dispatch/InProcess/`)
+- **Behavior**: Two dispatcher registrations against one inbox module
+- **Expected outcome**: **`LiteBusConfigurationException`** naming `IInboxDispatcher`
+- **Remarks**: `LiteBus.Inbox.UnitTests` (`Dispatch/InProcess/`); the builder-level duplicate throws the derived `DurableStorageConfigurationException`
 
 #### `TransportInboxDispatcherTests.DispatchAsync_ShouldPublishEnvelopeThroughTransport`
 
@@ -345,13 +353,40 @@ Register the matching `Add*Transport(...)` once at the root. Each dispatch exten
 - **Expected outcome**: Exception before transport publish
 - **Remarks**: `LiteBus.Outbox.UnitTests` (`Dispatch/`)
 
+#### `TransportOutboxDispatcherResolveRouteTests.DispatchAsync_WithResolveRouteAndTopic_ShouldUseResolveRoute`
+
+- **Use case**: When both `ResolveRoute` and a topic are set, the delegate wins
+- **Test kind**: Unit
+- **Description**: Outbox route precedence with topic metadata present
+- **Behavior**: **`DispatchAsync`** with `ResolveRoute` configured and `Topic` on the envelope
+- **Expected outcome**: Published route comes from the delegate, not the topic
+- **Remarks**: `LiteBus.Outbox.UnitTests` (`Dispatch/`); companion tests cover the topic fallback and the empty-result `LiteBusDispatchException`
+
+#### `TransportOutboxDispatcherTests.DispatchAsync_WithTenantRoutingStrategy_ShouldUseResolvedRoute`
+
+- **Use case**: When a tenant routing strategy is registered, its route wins over every fallback
+- **Test kind**: Unit
+- **Description**: Strategy receiving envelope tenant, contract, and topic metadata
+- **Behavior**: **`DispatchAsync`** with a recording `ITenantRoutingStrategy`
+- **Expected outcome**: Published route is the strategy return value
+- **Remarks**: `LiteBus.Outbox.UnitTests` (`Dispatch/`); the inbox twin is `TransportInboxDispatcherTests.DispatchAsync_WithTenantRoutingStrategy_ShouldUseResolvedRoute`
+
+#### `TransportOutboxDispatcherFifoFieldsTests.DispatchAsync_WhenIdempotencyKeyAndTenantIdAreSet_ShouldMapFifoFields`
+
+- **Use case**: When the envelope carries an idempotency key and tenant id, FIFO addressing follows them
+- **Test kind**: Unit
+- **Description**: Outbox transport publish with keyed idempotency and tenant scope
+- **Behavior**: **`DispatchAsync`** on the transport path
+- **Expected outcome**: `DeduplicationKey` is the idempotency key and `MessageGroupId` is the tenant id
+- **Remarks**: `LiteBus.Outbox.UnitTests` (`Dispatch/`); companion tests cover the message-id and contract-name fallbacks
+
 ### Untested Use Cases
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| Inbox in-process dispatch to events | No (planned) | N/A |: |: |
-| Webhook/gRPC outbox adapters | No (planned) | N/A |: |: |
-| Multi-dispatcher within one module | No (by design) | N/A |: |: |
+| Inbox in-process dispatch to events | No (planned) | N/A | N/A | N/A |
+| Webhook/gRPC outbox adapters | No (planned) | N/A | N/A | N/A |
+| Multi-dispatcher within one module | No (by design) | N/A | N/A | N/A |
 
 ### Out-of-Scope Use Cases
 

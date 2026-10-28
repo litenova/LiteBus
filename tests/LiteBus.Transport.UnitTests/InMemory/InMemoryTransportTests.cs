@@ -23,10 +23,10 @@ public sealed class InMemoryTransportTests
 
         await consumer.StartAsync(
             new TransportConsumerOptions { Destination = "orders" },
-            (message, _) =>
+            (message, cancellationToken) =>
             {
                 received = message;
-                return message.AcceptAsync();
+                return message.AcceptAsync(cancellationToken);
             }).ConfigureAwait(false);
 
         await publisher.PublishAsync(new TransportPublishRequest
@@ -67,17 +67,17 @@ public sealed class InMemoryTransportTests
 
         await consumer.StartAsync(
             new TransportConsumerOptions { Destination = "retry-queue" },
-            async (message, _) =>
+            async (message, cancellationToken) =>
             {
                 deliveryCount++;
 
                 if (deliveryCount == 1)
                 {
-                    await message.ReturnToQueueAsync().ConfigureAwait(false);
+                    await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
                     return;
                 }
 
-                await message.AcceptAsync().ConfigureAwait(false);
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
             }).ConfigureAwait(false);
 
         await publisher.PublishAsync(new TransportPublishRequest
@@ -150,7 +150,7 @@ public sealed class InMemoryTransportTests
     }
 
     /// <summary>
-    ///     Verifies a terminal consume-loop failure is propagated while teardown still permits a new session.
+    ///     Verifies a terminal consume-loop failure is treated as stopped while teardown still permits a new session.
     /// </summary>
     [Fact]
     public async Task StopAsync_AfterTerminalLoopFailure_ShouldCleanUpForRestart()
@@ -176,10 +176,10 @@ public sealed class InMemoryTransportTests
         releaseHandler.TrySetResult();
 
         var wait = () => consumer.WaitUntilStoppedAsync();
-        await wait.Should().ThrowAsync<ChannelClosedException>().ConfigureAwait(false);
+        await wait.Should().NotThrowAsync().ConfigureAwait(false);
 
         var stop = () => consumer.StopAsync();
-        await stop.Should().ThrowAsync<ChannelClosedException>().ConfigureAwait(false);
+        await stop.Should().NotThrowAsync().ConfigureAwait(false);
 
         await consumer.StartAsync(
             new TransportConsumerOptions { Destination = "restarted-consumer" },
@@ -208,17 +208,17 @@ public sealed class InMemoryTransportTests
 
         await consumer.StartAsync(
             new TransportConsumerOptions { Destination = "bounded-destination" },
-            async (message, _) =>
+            async (message, cancellationToken) =>
             {
                 deliveryCount++;
 
                 if (deliveryCount == 1)
                 {
-                    await message.ReturnToQueueAsync().ConfigureAwait(false);
+                    await message.ReturnToQueueAsync(cancellationToken).ConfigureAwait(false);
                     return;
                 }
 
-                await message.AcceptAsync().ConfigureAwait(false);
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
             }).ConfigureAwait(false);
 
         await waitingPublish.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
@@ -254,10 +254,10 @@ public sealed class InMemoryTransportTests
 
         await consumer.StartAsync(
             new TransportConsumerOptions { Destination = "cancel-bounded-destination" },
-            async (message, _) =>
+            async (message, cancellationToken) =>
             {
                 deliveryCount++;
-                await message.AcceptAsync().ConfigureAwait(false);
+                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
             }).ConfigureAwait(false);
 
         await WaitForAsync(() => deliveryCount == 1, TimeSpan.FromSeconds(2)).ConfigureAwait(false);

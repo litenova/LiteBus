@@ -49,11 +49,20 @@ internal static class PostgreSqlOutboxSchemaScripts
     ];
 
     /// <summary>
+    ///     The column names introduced by outbox schema version 2.
+    /// </summary>
+    internal static readonly IReadOnlyList<string> Version2Columns =
+    [
+        "handler"
+    ];
+
+    /// <summary>
     ///     The ordered column groups introduced by each outbox schema version.
     /// </summary>
     internal static readonly IReadOnlyList<IReadOnlyList<string>> VersionColumnSets =
     [
-        Version1Columns
+        Version1Columns,
+        Version2Columns
     ];
 
     /// <summary>
@@ -72,11 +81,14 @@ internal static class PostgreSqlOutboxSchemaScripts
     internal static IReadOnlyList<PostgreSqlSchemaSqlFile> SqlFiles { get; } =
     [
         new(
-            PostgreSqlOutboxSchemaSqlPaths.V1Create,
+            PostgreSqlOutboxSchemaSqlPaths.V2Create,
             "Creates the current outbox table, indexes, and optional insert notify trigger for a new installation."),
         new(
             PostgreSqlOutboxSchemaSqlPaths.V1EnsureIndexes,
-            "Ensures the current outbox indexes exist.")
+            "Ensures the current outbox indexes exist."),
+        new(
+            PostgreSqlOutboxSchemaSqlPaths.V2Upgrade,
+            "Upgrades a version 1 outbox table to version 2 by adding the handler column.")
     ];
 
     /// <summary>
@@ -89,6 +101,13 @@ internal static class PostgreSqlOutboxSchemaScripts
         VersionColumnSets = VersionColumnSets,
         RequiredColumnDataTypes = RequiredColumnDataTypes,
         SqlFiles = SqlFiles,
+        UpgradeScripts =
+        [
+            new PostgreSqlSchemaUpgradeScript(
+                2,
+                PostgreSqlOutboxSchemaSqlPaths.V2Upgrade,
+                BuildUpgradeToVersion2Script)
+        ],
         BuildBaselineCreateScript = BuildBaselineCreateScript,
         BuildEnsureIndexesScript = BuildEnsureIndexesScript,
         BuildCreateScript = BuildCreateScript,
@@ -121,7 +140,22 @@ internal static class PostgreSqlOutboxSchemaScripts
     {
         return PostgreSqlSqlScriptLoader.LoadAndRender(
             Assembly,
-            PostgreSqlOutboxSchemaEmbeddedSql.V1Create,
+            PostgreSqlOutboxSchemaEmbeddedSql.V2Create,
+            CreateStoreTokens(options));
+    }
+
+    /// <summary>
+    ///     Builds the script that upgrades a version 1 outbox table to version 2.
+    /// </summary>
+    /// <param name="options">The store table and metadata options.</param>
+    /// <returns>The rendered upgrade SQL batch.</returns>
+    internal static string BuildUpgradeToVersion2Script(IPostgreSqlStoreTableOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        return PostgreSqlSqlScriptLoader.LoadAndRender(
+            Assembly,
+            PostgreSqlOutboxSchemaEmbeddedSql.V2Upgrade,
             CreateStoreTokens(options));
     }
 

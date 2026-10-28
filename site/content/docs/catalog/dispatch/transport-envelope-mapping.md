@@ -30,6 +30,7 @@ Ingress adapters on the receiving side read the same header conventions to popul
 - Contract identity on the wire uses stable contract name and version, not CLR type names.
 - Message body remains the serialized payload from storage; headers carry metadata only.
 - Header mapping lives in dispatch and ingress adapter packages, not in storage or core processors.
+- FIFO addressing (`MessageGroupId`, `DeduplicationKey`) travels as `TransportPublishRequest` properties set by the outbox dispatcher, not as headers.
 
 ## Non-Goals
 

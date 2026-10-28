@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using LiteBus.Runtime.Abstractions.Diagnostics;
@@ -5,7 +9,7 @@ using LiteBus.Runtime.Abstractions.Diagnostics;
 namespace LiteBus.Transport.Kafka;
 
 /// <summary>
-    ///     Verifies that the configured Kafka cluster returns its description within a bounded interval.
+///     Verifies that the configured Kafka cluster returns its description within a bounded interval.
 /// </summary>
 public sealed class KafkaConnectivityDiagnosticCheck : IDiagnosticCheck
 {
@@ -46,9 +50,9 @@ public sealed class KafkaConnectivityDiagnosticCheck : IDiagnosticCheck
         {
             cancellationToken.ThrowIfCancellationRequested();
             var result = await _adminClient.DescribeClusterAsync(new DescribeClusterOptions
-                {
-                    RequestTimeout = _options.ConnectivityCheckTimeout
-                })
+            {
+                RequestTimeout = _options.ConnectivityCheckTimeout
+            })
                 .WaitAsync(cancellationToken)
                 .ConfigureAwait(false);
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fails when test sources contain [Fact(Skip = ...)] attributes.
 #
-# Waiver policy (see build-and-test.yml):
+# Waiver policy (see ci.yml):
 #   - Allowed only on branches named quarantine until GA sign-off.
 #   - SkippableFact and Trait-based quarantine are not gated here.
 set -euo pipefail

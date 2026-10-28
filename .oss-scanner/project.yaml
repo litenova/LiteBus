@@ -1,0 +1,23 @@
+# Enrolment file for Anthropic's OSS Scanner (https://red.anthropic.com/oss-scanner/).
+# Submit a copy of this file as projects/litebus/project.yaml in a pull request to https://github.com/anthropics/oss-scanner.
+# It is kept here so the submitted configuration is reviewed and versioned with the repository it describes.
+
+# The one git repository to scan.
+repo: https://github.com/litenova/LiteBus#main
+
+# Reports and questions go here. Published as the security contact in SECURITY.md.
+primary_contact: security@litebus.io
+
+homepage: https://litebus.io
+
+output_format:
+  email:
+    min_severity: low
+  github_security_advisory:
+    min_severity: none
+
+disabled: false
+
+dockerfile: .oss-scanner/Dockerfile
+
+threat_model: .oss-scanner/threat_model.md

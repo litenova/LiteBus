@@ -17,9 +17,10 @@ public sealed class EfCoreInboxProcessorDeferredVisibilityEndToEndTests : LiteBu
     public EfCoreInboxProcessorDeferredVisibilityEndToEndTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ScheduleAsync_WithVisibleAfter_ShouldDeferProcessingUntilDue()
     {
         var storeOptions = EfCoreInboxE2eSupport.CreateStoreOptions(TableName);

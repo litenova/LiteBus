@@ -31,6 +31,7 @@ public sealed class PostgreSqlSchemaScriptTests
 
         script.Should().Contain(options.TableName);
         script.Should().Contain("trace_context");
+        script.Should().Contain("handler");
         script.Should().Contain(options.MetadataTableName);
     }
 }

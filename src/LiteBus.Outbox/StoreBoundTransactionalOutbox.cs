@@ -42,7 +42,7 @@ public sealed class StoreBoundTransactionalOutbox : ITransactionalOutbox
         CancellationToken cancellationToken = default)
         where TEvent : notnull
     {
-        return _writerCore.EnqueueAsync(item, (envelope, token) => _store.AddAsync(envelope, token), cancellationToken);
+        return _writerCore.EnqueueAsync(item, (envelopes, token) => OutboxWriterCore.AppendAsync(_store, envelopes, token), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -50,7 +50,7 @@ public sealed class StoreBoundTransactionalOutbox : ITransactionalOutbox
         OutboxEnqueueItem item,
         CancellationToken cancellationToken = default)
     {
-        return _writerCore.EnqueueAsync(item, (envelope, token) => _store.AddAsync(envelope, token), cancellationToken);
+        return _writerCore.EnqueueAsync(item, (envelopes, token) => OutboxWriterCore.AppendAsync(_store, envelopes, token), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -60,7 +60,7 @@ public sealed class StoreBoundTransactionalOutbox : ITransactionalOutbox
     {
         return _writerCore.EnqueueBatchAsync(
             items,
-            (envelopes, token) => _store.AddBatchAsync(envelopes, token),
+            (envelopes, token) => OutboxWriterCore.AppendAsync(_store, envelopes, token),
             cancellationToken);
     }
 }

@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
@@ -10,16 +14,30 @@ namespace LiteBus.Testing;
 /// <remarks>
 ///     Implements the writer, lease, state, dead-letter, retention, and diagnostics roles on one process-local instance.
 ///     Prefer this type over wiring production storage modules when tests only need deterministic outbox behaviour.
+///     The transactional writer marker is included so tests can resolve an in-memory
+///     <see cref="ITransactionalOutbox" /> without a database; writes commit immediately because the in-memory
+///     backend has no transaction boundary to enlist in.
 /// </remarks>
 public sealed class TestOutboxStore :
     IOutboxStore,
     IOutboxProcessingStore,
-    IOutboxOperationsStore
+    IOutboxOperationsStore,
+    ITransactionalOutboxStore
 {
     /// <summary>
     ///     Gets the underlying in-memory store that owns envelope state.
     /// </summary>
-    private readonly InMemoryOutboxStore _inner = new();
+    private readonly InMemoryOutboxStore _inner;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="TestOutboxStore" /> class.
+    /// </summary>
+    /// <param name="options">Optional store limits applied to the backing in-memory implementation.</param>
+    /// <param name="timeProvider">Optional clock used for lease expiry when requests omit an explicit timestamp.</param>
+    public TestOutboxStore(InMemoryOutboxStoreOptions? options = null, TimeProvider? timeProvider = null)
+    {
+        _inner = new InMemoryOutboxStore(options, timeProvider);
+    }
 
     /// <inheritdoc />
     public Task<RequeueResult> RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)
@@ -37,6 +55,12 @@ public sealed class TestOutboxStore :
     public Task<IReadOnlyDictionary<OutboxStatus, int>> GetStatusCountsAsync(CancellationToken cancellationToken = default)
     {
         return _inner.GetStatusCountsAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        return _inner.GetFailureSummaryAsync(cancellationToken);
     }
 
     /// <inheritdoc />
@@ -74,6 +98,14 @@ public sealed class TestOutboxStore :
         CancellationToken cancellationToken = default)
     {
         return _inner.RenewLeaseAsync(request, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return _inner.ReleaseLeaseAsync(request, cancellationToken);
     }
 
     /// <inheritdoc />

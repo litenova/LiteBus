@@ -1,19 +1,18 @@
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
-///     Represents the non-generic base interface for all message handlers, facilitating handling operations for messages
-///     of any type.
+///     Marks a type as a main message handler, the non-generic base of every closed main handler contract.
 /// </summary>
-public interface IMessageHandler
-{
-    /// <summary>
-    ///     Handles the incoming message and facilitates the necessary operations or transformations as defined by the specific
-    ///     handler implementation.
-    /// </summary>
-    /// <param name="message">The message to be handled, represented as an object which can be of any type.</param>
-    /// <returns>
-    ///     An object representing the outcome of the handling operation, which might include results of processing,
-    ///     transformed message, or other related data depending on the specific handler's implementation.
-    /// </returns>
-    object Handle(object message);
-}
+/// <remarks>
+///     <para>
+///         The interface has no members. The mediator calls a main handler through the closed
+///         <see cref="IMessageHandler{TMessage,TMessageResult}" /> contract recorded on the handler's
+///         <see cref="IMainHandlerDescriptor" />, never through an untyped entry point on the handler.
+///     </para>
+///     <para>
+///         Because nothing here is implemented per contract, one class can implement several closed handler contracts,
+///         such as <c>IEventHandler&lt;OrderPlaced&gt;</c> and <c>IEventHandler&lt;OrderCancelled&gt;</c>, and each
+///         registration dispatches to the contract it names.
+///     </para>
+/// </remarks>
+public interface IMessageHandler;

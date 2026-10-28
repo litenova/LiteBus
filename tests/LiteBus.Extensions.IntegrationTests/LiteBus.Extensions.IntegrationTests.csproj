@@ -11,6 +11,7 @@
         <PackageReference Include="Npgsql"/>
         <PackageReference Include="OpenTelemetry"/>
         <PackageReference Include="Testcontainers.PostgreSql"/>
+        <PackageReference Include="Xunit.SkippableFact"/>
         <PackageReference Include="xunit"/>
         <PackageReference Include="xunit.runner.visualstudio">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

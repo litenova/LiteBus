@@ -7,7 +7,7 @@
 
 ## What It Does
 
-`ActualTypeOrFirstAssignableTypeMessageResolveStrategy` first checks exact type lookup, then scans assignable candidates and selects the most-derived match. Ambiguous ties raise `AmbiguousMessageResolveException`.
+`ActualTypeOrFirstAssignableTypeMessageResolveStrategy` first checks exact type lookup, then scans assignable candidates and selects the most-derived match. Depth is the base-type chain length plus the registered type's implemented interface count, with generic type definitions contributing only the chain length. Ambiguous ties raise `AmbiguousMessageResolveException`, whose `Candidates` names the registered types that tied.
 
 ## Public Surface
 
@@ -15,6 +15,7 @@
 | --- | --- |
 | `IMessageResolveStrategy.Find(Type, IMessageReader)` | Strategy contract |
 | `ActualTypeOrFirstAssignableTypeMessageResolveStrategy` | Default resolver |
+| `AmbiguousMessageResolveException.Candidates` | The equally specific registered types that collided |
 
 ## Packages
 
@@ -50,11 +51,14 @@ No dedicated metric.
 - **Test kind**: Unit
 - **Expected outcome**: unresolved strategy path fails with descriptor exception
 
+#### `MessageResolveStrategyTests.Find_WhenMultipleAssignableDescriptorsShareDepth_ShouldThrowAmbiguousMessageResolveException`
+- **Test kind**: Unit
+- **Expected outcome**: equal-depth assignable candidates raise the ambiguity exception
+- **Remarks**: `tests/LiteBus.Mediator.UnitTests/UseCases/Messaging/MessageResolveStrategyTests.cs`
+
 ### Untested Use Cases
 
-| Use case | Priority | Notes |
-| --- | --- | --- |
-| Explicit ambiguity tie coverage | Medium | Guard exists, dedicated tie test is limited |
+None currently tracked.
 
 ### Out-of-Scope Use Cases
 

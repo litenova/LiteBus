@@ -19,7 +19,7 @@ Inbox and outbox writers can encrypt serialized payload bodies before persistenc
 | `InboxModuleBuilder.UsePayloadEncryption` | Applies protection to inbox acceptance and dispatch |
 | `OutboxModuleBuilder.UsePayloadEncryption` | Applies protection to outbox enqueue and dispatch |
 
-Register protection on each durable axis that shares the encrypted store:
+Register protection on each durable axis that shares the encrypted store. The encryptor below is application code: implement `IPayloadEncryptor` against your key provider, since LiteBus ships the contract only.
 
 ```csharp
 var encryptor = new ApplicationPayloadEncryptor(keyProvider);
@@ -49,6 +49,8 @@ Inbox and outbox can use separate implementations when they use different keys o
 Storage adapters treat the protected payload as opaque text. EF Core and PostgreSQL adapters map payload columns to text so ciphertext does not need to be valid JSON. Contract name and version stay plaintext so the registry can select a CLR type before deserialization. Topic, correlation, tenant, visibility, and status fields also remain plaintext for leasing and operations.
 
 Implement `IContextualPayloadEncryptor` when ciphertext must be bound to its row metadata. LiteBus passes `MessageId`, `ContractName`, `ContractVersion`, `TenantId`, and an axis value of `inbox` or `outbox`. Use these fields as authenticated associated data in an AEAD implementation. Existing `IPayloadEncryptor` implementations remain supported but do not receive associated data.
+
+The inbox and outbox protectors forward the contextual overloads to the configured encryptor when it implements `IContextualPayloadEncryptor`, and fall back to the plain contract otherwise. `PayloadProtectionContext.TenantId` normalizes null, empty, and whitespace values to null so unscoped messages authenticate identically on encrypt and decrypt; custom protectors can implement `IContextualPayloadEncryptor` to receive the same metadata.
 
 ## Key Rotation
 
@@ -92,6 +94,7 @@ Repeated decrypt failures after a deployment usually identify missing keys, mism
 - All readers of one store must retain keys for every non-expired ciphertext.
 - Contract and operational metadata are not encrypted.
 - Contextual encryptors must reject decryption when supplied metadata differs from the values authenticated during encryption.
+- Unscoped tenant identifiers normalize to null in protection contexts.
 - Transactional writers use the same axis protector as non-transactional writers.
 
 ## Non-Goals
@@ -120,6 +123,7 @@ LiteBus does not emit key identifiers as metric tags because key and tenant sets
 - `PayloadEncryptionTests.Inbox_WithRotatedKeyRing_ShouldDispatchHistoricalAndCurrentCiphertext` writes one row with `key-v1`, rotates the active key to `key-v2`, writes another row, and dispatches both through one retained key ring.
 - `InboxEnvelopeFactoryTests.CreateAsync_should_encrypt_payload_when_protector_configured` verifies the inbox writer boundary.
 - `TransactionalInboxAcceptTests` and `TransactionalOutboxEnqueueTests` verify encryption inside EF Core transactional staging.
+- `InboxPayloadProtectorContextTests` and `OutboxPayloadProtectorContextTests` verify contextual forwarding, cross-row rejection, and unscoped tenant round-trips.
 
 PostgreSQL stores use the same envelope factories and opaque payload contract. Store-specific encryption does not exist.
 

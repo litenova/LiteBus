@@ -14,5 +14,5 @@ namespace LiteBus.Queries.Abstractions;
 ///     return a fallback result.
 /// </remarks>
 public interface IQueryErrorHandler<TQuery, TQueryResult>
-    : IAsyncMessageErrorHandler<TQuery, TQueryResult>
+    : IMessageErrorHandler<TQuery, TQueryResult>
     where TQuery : IQuery<TQueryResult>;

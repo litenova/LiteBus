@@ -11,9 +11,7 @@
 
 AMQP registration includes a transport connectivity diagnostic check and shared transport circuit-breaker metrics tagged with broker value `amqp`.
 
-RabbitMQ's default exchange has an empty name and routes directly to the queue named by the routing key. LiteBus scopes
-its publisher circuit by named exchange, or by routing key for the default exchange, so one unavailable default-exchange
-queue does not reject publications to another queue.
+RabbitMQ's default exchange has an empty name and routes directly to the queue named by the routing key. LiteBus scopes its publisher circuit by named exchange, or by routing key for the default exchange, so one unavailable default-exchange queue does not reject publications to another queue.
 
 ## Public Surface
 
@@ -28,6 +26,7 @@ queue does not reject publications to another queue.
 | `IAmqpPublisher`, `IAmqpConsumer` | AMQP-specific adapter contracts |
 | `AmqpConnectivityDiagnosticCheck` | Host manifest connectivity probe |
 | `AmqpTransportConfigurationException` | Invalid AMQP configuration error |
+| `AmqpMessageReturnedException` | Mandatory publication returned as unroutable |
 
 ### Options
 
@@ -45,6 +44,7 @@ queue does not reject publications to another queue.
 | `AmqpConnectionOptions` | `CircuitBreaker` | `new()` | AMQP breaker threshold and duration |
 | `AmqpConsumerOptions` | `QueueName` | required | Queue to consume |
 | `AmqpConsumerOptions` | `PrefetchCount` | `1` | Unacked delivery window |
+| `AmqpConsumerOptions` | `MaxInFlightMessages` | `32` | Concurrent handler limit for typed `IAmqpConsumer` subscriptions, matching the generic consumer path |
 | `AmqpConsumerOptions` | `Exclusive` | `false` | Exclusive consumer |
 | `AmqpConsumerOptions` | `ConsumerTag` | `null` | Explicit consumer tag |
 | `AmqpConsumerOptions` | `DeclareQueue` | `true` | Declare queue before consume |
@@ -76,6 +76,12 @@ queue does not reject publications to another queue.
 - `TransportMessage` ack delegates map directly to `basic.ack` and `basic.nack`.
 - Circuit breaker and metrics register once per module configuration using broker tag `amqp`.
 - Publisher circuits use the named exchange as their scope. The empty-name default exchange uses its queue routing key.
+- A mandatory publication the broker returns as unroutable throws `AmqpMessageReturnedException` without recording a broker circuit failure; non-mandatory publications still succeed and drop.
+- A cancelled connection attempt releases its circuit breaker permit, so the next attempt past the break duration is admitted as the recovery probe.
+- The publisher is a singleton and the consumer is transient; a failed consumer start releases its channel and can be retried.
+- Consumed `TransportMessage.Destination` is the queue the message was consumed from (`AmqpReceivedMessage.QueueName`), falling back to the exchange when the consumer did not track it.
+- Each delivery settles at most once: a repeat acknowledgement for the same delivery is ignored, and the failure-path requeue is skipped when the handler already settled.
+- A second `StartAsync` throws `InvalidOperationException`, and the `StartAsync` token cancels startup only; `StopAsync` ends the subscription and cancels in-flight handlers.
 
 ## Non-Goals
 
@@ -117,10 +123,26 @@ queue does not reject publications to another queue.
 | `PublishAsync_AfterConnectionClosed_RecreatesPublishChannel` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
 | `GetConnectionAsync_AfterConnectionClosed_RecreatesWorkingConnection` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
 | `ShouldNack_when_handlerFails_ShouldReturnTrue` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
-| `RecordFailure_until_threshold_ShouldOpenCircuitAndExposeFailureCount` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
-| `RecordSuccess_after_failures_ShouldCloseCircuit` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `PublishAsync_WithDefaultExchange_ShouldScopeCircuitByRoutingKey` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `PublishAsync_WithNamedExchange_ShouldScopeCircuitByExchange` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
 | `PublishThroughRabbitMq_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | `PublishThroughLavinMq_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
+| `TransportPublishRequest_Mandatory_ShouldDefaultToTrue` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `AmqpPublishRequest_Mandatory_ShouldDefaultToTrue` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `QueueName_WhenSet_ShouldRoundTrip` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `QueueName_WhenNotSet_ShouldBeNull` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `Build_ShouldRegisterPublisherAsSingleton` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `Build_ShouldRegisterConsumerAsTransient` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `StartAsync_AfterFailedStart_ShouldSucceedAndStop` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `GetConnectionAsync_AfterCancelledHalfOpenProbe_ShouldAdmitNextAttempt` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `PublishAsync_WithMandatoryAndNoBinding_ShouldThrow` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
+| `PublishAsync_WithMandatoryFalseAndNoBinding_ShouldSucceed` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
+| `StartAsync_WhenAlreadyStarted_ShouldThrowInvalidOperationException` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `StartAsync_WhenAlreadyStarted_ThrowsInvalidOperationException` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
+| `StartAsync_AfterStartupTokenCancelledAndDisposed_ShouldStillDeliver` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `StopAsync_ThenStartAsync_ShouldDeliverOnNewSubscription` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `NativeHandlerThatSettlesThenThrows_ShouldNotNackAgain` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `NeutralHandlerThatSettlesThenThrows_ShouldNotReturnToQueueAgain` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
 
 ### Untested
 

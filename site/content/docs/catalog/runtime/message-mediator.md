@@ -14,7 +14,7 @@
 | API | Role |
 | --- | --- |
 | `IMessageMediator.Mediate<TMessage,TResult>(...)` | Main mediation entry |
-| `MessageMediationRequest<TMessage,TResult>` | Resolve strategy, mediation strategy, tags, predicate, items |
+| `MessageMediationRequest<TMessage,TResult>` | Resolve strategy, mediation strategy, tags, predicate, items, on-spot registration |
 
 ## Packages
 
@@ -31,6 +31,7 @@
 ## Invariants
 
 - Each mediation call creates one dispatch scope.
+- `Mediate` is synchronous and returns the strategy result directly; scope retention keeps the dispatch scope alive until an async result completes.
 - Missing descriptor after retry path throws `MessageDescriptorNotFoundException`.
 - No handler with on-spot disabled throws `NoHandlerFoundException`.
 

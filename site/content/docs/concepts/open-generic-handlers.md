@@ -4,17 +4,7 @@ An open generic handler is a handler class with a type parameter, such as `Comma
 
 ## When to Use This over Polymorphic Dispatch
 
-Both patterns let you write a handler once and apply it to many messages, but they differ in what the handler receives and which messages it covers:
-
-| | Polymorphic Dispatch | Open Generic Handlers |
-| :--- | :--- | :--- |
-| Mechanism | A handler for a base type or interface accepts derived messages via contravariance (`in TMessage`). | A handler with a type parameter is closed for each concrete message at startup. |
-| Message requirements | Messages must implement the shared interface. | No changes to messages; constraints are checked automatically. |
-| Handler receives | The base type, with direct access to shared properties. | The concrete type, with no shared properties unless it casts. |
-| Scope | Opt-in: only messages implementing the interface. | Opt-out: every message satisfying the constraint. |
-| Best for | Behavior that reads shared data (`UserId`, `TenantId`, `CorrelationId`). | Universal behavior that does not need shared data (logging, metrics, transactions). |
-
-Rule of thumb: if the handler needs properties from a shared interface, use polymorphic dispatch; if it should apply to all messages regardless of shape, use an open generic handler. The two combine, covered at the end of this page.
+Rule of thumb: if the handler needs properties from a shared interface, use polymorphic dispatch; if it should apply to all messages regardless of shape, use an open generic handler. The full comparison, the decision flowchart, and a combined example live on [Polymorphic Dispatch](polymorphic-dispatch.md#polymorphic-dispatch-vs-open-generic-handlers).
 
 ## How LiteBus Closes an Open Generic Handler
 
@@ -105,7 +95,7 @@ builder.Services.AddLiteBus(builder =>
 
 When you send any command, the open generic handlers are part of the pipeline:
 
-```
+```text
 CreateProductCommand
   1. CommandLoggingPreHandler<CreateProductCommand>   (open generic, auto-closed)
   2. CreateProductCommandHandler                       (concrete main handler)
@@ -113,6 +103,14 @@ CreateProductCommand
 ```
 
 No changes are needed to existing commands or handlers. Use `[HandlerPriority]` to order an open generic handler relative to message-specific handlers in the same stage; see [Handler Priority](handler-priority.md).
+
+## Running Once per Message
+
+One open generic registration runs once per mediated message, whatever the registration order.
+
+An open generic is closed over every registered message that fits its constraint, and a base interface such as `ICommand` becomes a registered message as soon as any handler names it. `Guard<T> where T : ICommand` can therefore be closed both as `Guard<ICommand>`, which would apply to every command indirectly, and as `Guard<PlaceOrder>`. When both closures of one generic handler definition reach a message through the same contract, the direct closure wins and the indirect one is dropped for that message.
+
+A different handler type that names the base interface is a separate registration and still runs: a class implementing `IMessageGuard<ICommand>` runs for every command, indirect before direct. A class that implements both `IMessageGuard<ICommand>` and `IMessageGuard<PlaceOrder>` runs twice for `PlaceOrder`, once per contract; the composition summary reports every such handler type, so the double run shows up at startup instead of in production data. See [Getting Started](../getting-started/README.md).
 
 ## Constraints Are Respected
 
@@ -130,9 +128,24 @@ public sealed class AuditHandler<T> : ICommandPostHandler<T>
 
 Supported constraints include interface constraints (`where T : IMyInterface`), base class constraints (`where T : MyBaseClass`), `class` and `struct` constraints, and the `new()` constraint. Use the narrowest constraint that fits, so a handler applies only where it makes sense.
 
-## Single Type Parameter Only
+## Supported Type Parameter Shapes
 
-Open generic handlers are supported for handlers with a single generic type parameter. Multi-parameter open generics such as `MyHandler<TCommand, TResult>` are not closed automatically; registering one throws `UnsupportedOpenGenericHandlerException` at startup. See [Troubleshooting](../operations/troubleshooting.md) for that exception.
+One type parameter binds the message type. Two are closed when the handler implements a typed contract over both in order, such as `ICommandPostHandler<TCommand, TCommandResult>`, because then the second parameter binds to the result type the message declares. Any other arity throws `UnsupportedOpenGenericHandlerException` at startup: a second parameter that is the handler's own invention, such as a `TContext` or a `TStore`, has nothing to bind to. See [Troubleshooting](../operations/troubleshooting.md) for that exception.
+
+```csharp
+// Closed over each command and its declared result type.
+public sealed class CommandAuditPostHandler<TCommand, TCommandResult>
+    : ICommandPostHandler<TCommand, TCommandResult>
+    where TCommand : ICommand<TCommandResult>
+    where TCommandResult : notnull
+{
+    public Task PostHandleAsync(TCommand command, TCommandResult? result, CancellationToken cancellationToken = default)
+    {
+        // ...
+        return Task.CompletedTask;
+    }
+}
+```
 
 ## Common Uses
 
@@ -142,46 +155,19 @@ Open generic handlers are supported for handlers with a single generic type para
 - Transaction wrapping with commit and rollback.
 - Idempotency checks that record and verify a message ID.
 
-## Combining with Polymorphic Dispatch
+## Requiring Explicit Registration
 
-Use an open generic handler for universal concerns and polymorphic dispatch for targeted behavior on the same message:
+An open generic handler closed over every message it fits is the implicit behavior with the widest reach in the library: adding one file to a scanned assembly inserts a pipeline stage into every message, with no registration line for a reviewer to read. `RequireExplicitOpenGenerics` on the messaging builder makes composition fail, naming each offender, until every open generic handler is registered explicitly with `Register(typeof(MyHandler<>))`:
 
 ```csharp
-// Universal: applies to all commands (open generic).
-public sealed class CommandLogger<T> : ICommandPreHandler<T> where T : ICommand
+builder.Services.AddLiteBus(builder =>
 {
-    public Task PreHandleAsync(T message, CancellationToken ct)
-    {
-        Console.WriteLine($"[LOG] Executing: {typeof(T).Name}");
-        return Task.CompletedTask;
-    }
-}
-
-// Targeted: applies only to auditable commands (polymorphic dispatch).
-public sealed class AuditTrailWriter : ICommandPostHandler<IAuditableCommand>
-{
-    public Task PostHandleAsync(IAuditableCommand command, object? result, CancellationToken ct)
-    {
-        _auditStore.Write(command.UserId, command.CorrelationId, command.GetType().Name);
-        return Task.CompletedTask;
-    }
-}
-
-public sealed class CreateProductCommand : IAuditableCommand, ICommand<Guid>
-{
-    public Guid CorrelationId { get; init; }
-    public string UserId { get; init; }
-    public required string Name { get; init; }
-}
+    builder.AddMessaging(messaging => messaging.RequireExplicitOpenGenerics());
+    builder.AddCommands(module => module.RegisterFromAssembly(typeof(Program).Assembly));
+});
 ```
 
-Sending `CreateProductCommand` runs:
-
-```
-1. CommandLogger<CreateProductCommand>   (open generic, universal)
-2. CreateProductCommandHandler           (main handler)
-3. AuditTrailWriter                      (polymorphic dispatch; reads UserId/CorrelationId)
-```
+Scanning still finds everything else. The rule is opt-in because scans have picked up open generic handlers since v4, and changing that changes what a scan is rather than fixing a defect. Whether the rule is on or not, the composition summary reports every open generic handler and how many messages it closed over; see [Getting Started](../getting-started/README.md).
 
 ## Next
 

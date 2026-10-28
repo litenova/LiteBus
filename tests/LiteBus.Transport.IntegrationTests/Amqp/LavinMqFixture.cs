@@ -4,16 +4,10 @@ using DotNet.Testcontainers.Containers;
 namespace LiteBus.Transport.IntegrationTests.Amqp;
 
 /// <summary>
-///     Shared LavinMQ container for integration tests. Initialization fails when Docker is unavailable.
+///     Shared LavinMQ container for integration tests. Only container-runtime failures map to the Docker-required outcome.
 /// </summary>
 public sealed class LavinMqFixture : IAsyncLifetime
 {
-    /// <summary>
-    ///     Message shown when integration tests fail because Docker is not available.
-    /// </summary>
-    public const string DockerRequiredMessage =
-        "AMQP integration tests require Docker. Start Docker Desktop (or the Docker daemon) and run the tests again.";
-
     private IContainer? _container;
 
     /// <summary>
@@ -21,22 +15,31 @@ public sealed class LavinMqFixture : IAsyncLifetime
     /// </summary>
     public AmqpConnectionOptions ConnectionOptions { get; private set; } = null!;
 
+    /// <summary>
+    ///     Gets a value indicating whether the LavinMQ container started successfully.
+    /// </summary>
+    public bool IsAvailable { get; private set; }
+
     /// <inheritdoc />
     public async Task InitializeAsync()
     {
         try
         {
-            _container = new ContainerBuilder("cloudamqp/lavinmq")
-                .WithPortBinding(5672, true)
-                .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
-                .Build();
+            await DockerTestGate.RunAsync(async () =>
+            {
+                _container = new ContainerBuilder("cloudamqp/lavinmq")
+                    .WithPortBinding(5672, true)
+                    .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
+                    .Build();
 
-            await _container.StartAsync().ConfigureAwait(false);
-            ConnectionOptions = CreateConnectionOptions(_container);
+                await _container.StartAsync().ConfigureAwait(false);
+                ConnectionOptions = CreateConnectionOptions(_container);
+                IsAvailable = true;
+            }).ConfigureAwait(false);
         }
-        catch (Exception exception)
+        catch (InvalidOperationException) when (!DockerTestGate.IsStrictTransportMode)
         {
-            throw new InvalidOperationException(DockerRequiredMessage, exception);
+            IsAvailable = false;
         }
     }
 

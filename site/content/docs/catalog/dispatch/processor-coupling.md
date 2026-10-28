@@ -34,6 +34,7 @@ Hook failure policies differ by dispatcher type. Transport outbox dispatch defau
 - At-least-once dispatch: crash between external side effect and terminal persist can produce duplicates.
 - Outbox processors dispatch before terminal published state is persisted; broker ack without persist can republish on lease reclaim.
 - Per-message dispatch failures do not abort sibling workers in the same pass; pass-level abort applies to leasing and shutdown cancellation.
+- A dispatch the processor cancels during shutdown, a drain, or a lease loss is released through `ILeaseRenewable.ReleaseLeaseAsync` with its attempt refunded instead of recorded as a failure; the release runs on its own 5-second budget and falls back to lease expiry when it fails or times out.
 - In-flight rows may remain `Processing` until lease expiry on graceful shutdown unless drained.
 
 ## Non-Goals
@@ -45,11 +46,12 @@ Hook failure policies differ by dispatcher type. Transport outbox dispatch defau
 ## Public Surface
 
 ```csharp
-inbox.EnableInboxProcessor(options =>
+inbox.UseProcessorOptions(new InboxProcessorOptions
 {
-    options.DispatcherConcurrency = 4;
-    options.LeaseHeartbeatInterval = TimeSpan.FromSeconds(10);
+    DispatcherConcurrency = 4,
+    LeaseHeartbeatInterval = TimeSpan.FromSeconds(10)
 });
+inbox.EnableInboxProcessor();
 ```
 
 ### `IInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)`
@@ -101,6 +103,8 @@ Before/after hooks around each leased envelope (saga, custom). Hook failures int
 | Loop errors | `litebus.inbox.processor.loop_errors`, `litebus.outbox.processor.loop_errors` | Unexpected pass-level exceptions |
 | Dispatch duration | `litebus.inbox.processor.dispatch_duration`, `litebus.outbox.processor.dispatch_duration` | Histogram around each `DispatchAsync` invocation |
 | Lease lost | `litebus.inbox.processor.lease_lost`, `litebus.outbox.processor.lease_lost` | Heartbeat renewal failure cancels in-flight dispatch |
+| Lease released | EventId `3011` (Debug) | Cancelled dispatch returned to the queue with its attempt refunded |
+| Lease release failed | EventId `3012` (Warning) | Release failed or timed out; the lease expires and the row is reclaimed with the attempt counted |
 | Transport send | `send {destination}` activity | Emitted by the concrete transport publisher during processor-driven dispatch |
 
 No separate OpenTelemetry meter on `IInboxDispatcher` implementations; all dispatch-axis processor telemetry flows through inbox/outbox processor meters.

@@ -17,10 +17,10 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         <see cref="IdempotencyConflictMode.ReturnExisting" /> resolves tracked, pending, and persisted rows by message
-///         identifier or tenant-scoped idempotency key before staging. <see cref="IdempotencyConflictMode.Strict" />
-///         always stages the new envelope so duplicate scoped keys surface as <see cref="DbUpdateException" /> on
-///         <c>SaveChanges</c> and roll back the caller unit of work.
+///         Both conflict modes resolve tracked, pending, and persisted rows by message identifier or tenant-scoped
+///         idempotency key before staging. <see cref="IdempotencyConflictMode.Strict" /> throws
+///         <see cref="IdempotencyConflictException" /> for conflicting content known at staging time; only concurrent
+///         races surface as <see cref="DbUpdateException" /> on <c>SaveChanges</c> and roll back the caller unit of work.
 ///     </para>
 /// </remarks>
 /// <typeparam name="TContext">The application database context type bound to the current scope.</typeparam>
@@ -113,16 +113,17 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
         for (var index = 0; index < envelopes.Count; index++)
         {
             var envelope = envelopes[index];
+            var existing = await FindExistingAsync(envelope, cancellationToken, pending).ConfigureAwait(false);
 
-            if (envelope.IdempotencyConflictMode == IdempotencyConflictMode.ReturnExisting)
+            if (existing is not null)
             {
-                var existing = await FindExistingAsync(envelope, cancellationToken, pending).ConfigureAwait(false);
-
-                if (existing is not null)
+                if (envelope.IdempotencyConflictMode == IdempotencyConflictMode.Strict)
                 {
-                    staged[index] = new OutboxAppendResult(existing, OutboxEnqueueOutcome.AlreadyEnqueued);
-                    continue;
+                    ThrowIfStrictConflict(envelope, existing);
                 }
+
+                staged[index] = new OutboxAppendResult(existing, OutboxEnqueueOutcome.AlreadyEnqueued);
+                continue;
             }
 
             staged[index] = new OutboxAppendResult(envelope, OutboxEnqueueOutcome.Enqueued);
@@ -138,26 +139,27 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
     }
 
     /// <summary>
-    ///     Stages one envelope through the save-changes interceptor or returns an existing row for
-    ///     <see cref="IdempotencyConflictMode.ReturnExisting" />.
+    ///     Stages one envelope through the save-changes interceptor or returns an existing row for duplicate submissions.
     /// </summary>
     /// <param name="envelope">The envelope created for the current enqueue attempt.</param>
     /// <param name="cancellationToken">The token used to cancel the lookup.</param>
     /// <returns>The staged or existing envelope with its enqueue outcome.</returns>
     /// <remarks>
-    ///     Strict conflict mode never resolves duplicates here; conflicting scoped keys are left for the database unique
-    ///     index to reject during <c>SaveChanges</c>.
+    ///     Strict conflict mode resolves known duplicates here and throws for conflicting content; only concurrent races
+    ///     unknown at staging time are left for the database unique index to reject during <c>SaveChanges</c>.
     /// </remarks>
     private async Task<OutboxAppendResult> StageAsync(OutboxEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (envelope.IdempotencyConflictMode == IdempotencyConflictMode.ReturnExisting)
-        {
-            var existing = await FindExistingAsync(envelope, cancellationToken).ConfigureAwait(false);
+        var existing = await FindExistingAsync(envelope, cancellationToken).ConfigureAwait(false);
 
-            if (existing is not null)
+        if (existing is not null)
+        {
+            if (envelope.IdempotencyConflictMode == IdempotencyConflictMode.Strict)
             {
-                return new OutboxAppendResult(existing, OutboxEnqueueOutcome.AlreadyEnqueued);
+                ThrowIfStrictConflict(envelope, existing);
             }
+
+            return new OutboxAppendResult(existing, OutboxEnqueueOutcome.AlreadyEnqueued);
         }
 
         _interceptor.Enqueue(_dbContext, envelope);
@@ -273,6 +275,7 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
             ContractVersion = entity.ContractVersion,
             Payload = entity.Payload,
             Topic = entity.Topic,
+            Handler = entity.Handler,
             CreatedAt = entity.CreatedAt,
             VisibleAfter = entity.VisibleAfter,
             Status = entity.Status,
@@ -287,5 +290,38 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
             TraceContext = entity.TraceContext,
             PublishedAt = entity.PublishedAt
         };
+    }
+
+    /// <summary>
+    ///     Throws when a strict submission differs from the envelope already staged or stored for its identifier.
+    /// </summary>
+    /// <param name="envelope">The envelope created for the current enqueue attempt.</param>
+    /// <param name="existing">The staged or stored envelope that caused the conflict.</param>
+    private static void ThrowIfStrictConflict(OutboxEnvelope envelope, OutboxEnvelope existing)
+    {
+        if (envelope.IdempotencyConflictMode != IdempotencyConflictMode.Strict)
+        {
+            return;
+        }
+
+        if (envelope.Id == existing.Id &&
+            string.Equals(envelope.ContractName, existing.ContractName, StringComparison.Ordinal) &&
+            envelope.ContractVersion == existing.ContractVersion &&
+            string.Equals(envelope.Payload, existing.Payload, StringComparison.Ordinal) &&
+            string.Equals(envelope.Topic, existing.Topic, StringComparison.Ordinal) &&
+            string.Equals(envelope.Handler, existing.Handler, StringComparison.Ordinal) &&
+            string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) &&
+            string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) &&
+            string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) &&
+            string.Equals(
+                DurableTenantId.Normalize(envelope.TenantId),
+                DurableTenantId.Normalize(existing.TenantId),
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        throw new IdempotencyConflictException(
+            $"An outbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
     }
 }

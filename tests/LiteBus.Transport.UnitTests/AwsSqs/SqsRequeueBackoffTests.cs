@@ -35,6 +35,29 @@ public sealed class SqsRequeueBackoffTests
     }
 
     /// <summary>
+    ///     Verifies requeue visibility tolerates a null attribute dictionary as a first delivery.
+    /// </summary>
+    [Fact]
+    public void ComputeRequeueVisibilityTimeout_WithNullAttributes_ShouldUseBaseTimeout()
+    {
+        var message = new Message
+        {
+            Attributes = null!
+        };
+
+        var timeout = SqsRequeueBackoff.ComputeRequeueVisibilityTimeout(
+            message,
+            new AwsSqsTransportOptions
+            {
+                RequeueVisibilityTimeoutSeconds = 10,
+                RequeueBackoffMultiplier = 2.0,
+                MaxRequeueVisibilityTimeoutSeconds = 900
+            });
+
+        timeout.Should().Be(10);
+    }
+
+    /// <summary>
     ///     Verifies poll backoff increases with consecutive full-batch failures.
     /// </summary>
     [Fact]

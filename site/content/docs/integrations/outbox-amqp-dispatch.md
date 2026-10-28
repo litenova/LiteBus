@@ -1,10 +1,10 @@
 # Outbox AMQP Dispatch
 
-Publish leased outbox envelopes to an AMQP 0.9.1 broker through `outbox.UseAmqpDispatch(...)` from `LiteBus.Outbox.Dispatch.Amqp`. Register the shared transport once at the root.
+`outbox.UseAmqpDispatch(...)` from `LiteBus.Outbox.Dispatch.Amqp` publishes leased outbox envelopes to an AMQP 0.9.1 broker. Register the shared transport once at the root.
 
 ## When to Use It
 
-Use transport dispatch when integration events should leave the process and reach downstream consumers through RabbitMQ or LavinMQ. The outbox processor still owns leasing, retries, and dead-letter state.
+Use transport dispatch when integration events leave the process and reach downstream consumers through RabbitMQ or LavinMQ. The outbox processor still owns leasing, retries, and dead-letter state.
 
 For in-process replay into LiteBus event handlers, use `UseInProcessDispatch()` from `LiteBus.Outbox.Dispatch.InProcess`.
 
@@ -28,14 +28,14 @@ builder.Services.AddLiteBus(builder =>
 });
 ```
 
-`UseAmqpDispatch` requires the root AMQP transport module and only configures durable envelope routing.
+`UseAmqpDispatch` requires the root AMQP transport module and only configures durable envelope routing. Register exactly one dispatcher per outbox: a second dispatcher registration throws `LiteBusConfigurationException`.
 
 ## Routing
 
 | Outbox field | AMQP target |
 |---|---|
-| `Topic` | Routing key or destination when set |
-| `ContractName` | Fallback routing metadata in transport headers |
+| `Topic` | Route when set; the destination exchange comes from `DefaultDestination` |
+| `ContractName` | Fallback route when `Topic` is unset |
 
 Set `PublicationTarget` on `OutboxEnqueueMetadata` when enqueueing if each event type routes differently:
 
@@ -46,7 +46,7 @@ OutboxEnqueueMetadata.Immediate with
 }
 ```
 
-`PublicationTarget.Exchange` and `PublicationTarget.Queue` store explicit AMQP exchange or queue names on the envelope topic column for dispatchers that map them to broker targets.
+`PublicationTarget.Topic`, `PublicationTarget.Exchange`, and `PublicationTarget.Queue` each store their name on the envelope topic column. The dispatcher resolves the route from the tenant routing strategy when one is registered, otherwise from a configured `ResolveRoute` delegate, otherwise from the topic, otherwise from the contract name, and the AMQP publisher sends the destination as the exchange with the route as the routing key.
 
 ## Wire Format
 
@@ -56,4 +56,4 @@ The message body is the persisted JSON payload. Transport headers carry `litebus
 
 Publish failures throw to `PipelinedOutboxProcessor`. The processor records retry visibility or dead-letter state. Consumers must be idempotent.
 
-See [AMQP transport](amqp.md).
+See [AMQP Transport](amqp.md).

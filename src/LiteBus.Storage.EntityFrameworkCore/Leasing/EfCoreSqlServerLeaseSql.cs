@@ -38,7 +38,8 @@ internal static class EfCoreSqlServerLeaseSql
                    [lease_expires_at] = {6},
                    [lease_generation] = [__ALIAS__].[lease_generation] + 1,
                    [attempt_count] = [__ALIAS__].[attempt_count] + 1,
-                   [last_attempted_at] = {2}
+                   [last_attempted_at] = {2},
+                   [last_lease_owner] = {5}
                OUTPUT
                    __OUTPUT__
                FROM __TABLE__ AS [__ALIAS__]
@@ -73,7 +74,12 @@ internal static class EfCoreSqlServerLeaseSql
                INSERTED.[causation_id],
                INSERTED.[tenant_id],
                INSERTED.[trace_context],
-               INSERTED.[lease_generation]
+               INSERTED.[lease_generation],
+               INSERTED.[last_attempted_at],
+               INSERTED.[first_failed_at],
+               INSERTED.[dead_lettered_at],
+               INSERTED.[last_lease_owner],
+               INSERTED.[error_type]
                """;
     }
 
@@ -89,10 +95,12 @@ internal static class EfCoreSqlServerLeaseSql
                INSERTED.[contract_version],
                INSERTED.[payload],
                INSERTED.[topic],
+               INSERTED.[handler],
                INSERTED.[created_at],
                INSERTED.[visible_after],
                INSERTED.[status],
                INSERTED.[attempt_count],
+               INSERTED.[idempotency_key],
                INSERTED.[lease_owner],
                INSERTED.[lease_expires_at],
                INSERTED.[last_error],
@@ -100,7 +108,12 @@ internal static class EfCoreSqlServerLeaseSql
                INSERTED.[causation_id],
                INSERTED.[tenant_id],
                INSERTED.[trace_context],
-               INSERTED.[lease_generation]
+               INSERTED.[lease_generation],
+               INSERTED.[last_attempted_at],
+               INSERTED.[first_failed_at],
+               INSERTED.[dead_lettered_at],
+               INSERTED.[last_lease_owner],
+               INSERTED.[error_type]
                """;
     }
 }

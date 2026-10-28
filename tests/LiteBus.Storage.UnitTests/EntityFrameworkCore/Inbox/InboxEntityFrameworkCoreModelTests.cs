@@ -125,4 +125,17 @@ public sealed class InboxEntityFrameworkCoreModelTests
         traceContext.Should().NotBeNull();
         traceContext.GetColumnType().Should().BeNull();
     }
+
+    [Fact]
+    public void GetModelBuilderConfiguration_ShouldMarkLeaseGenerationAsConcurrencyToken()
+    {
+        var modelBuilder = new ModelBuilder();
+        modelBuilder.GetModelBuilderConfiguration();
+
+        var entity = modelBuilder.Model.FindEntityType(typeof(InboxMessageEntity));
+        var leaseGeneration = entity!.FindProperty(nameof(InboxMessageEntity.LeaseGeneration));
+
+        leaseGeneration.Should().NotBeNull();
+        leaseGeneration.IsConcurrencyToken.Should().BeTrue();
+    }
 }

@@ -35,13 +35,14 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
     public ManagementEndpointPostgreSqlIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Verifies that querying inbox messages returns rows persisted in PostgreSQL.
     /// </summary>
     /// <returns>A task that completes when the assertion finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task QueryInboxMessages_ReturnsPersistedRows()
     {
         var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -58,7 +59,7 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
         {
             OrderId = orderId,
             IdempotencyKey = $"ship:{orderId}"
-        });
+        }).ConfigureAwait(false);
 
         using var client = host.GetTestClient();
         var response = await client.GetAsync("/litebus/inbox/messages?pageSize=50").ConfigureAwait(true);
@@ -78,7 +79,7 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
     ///     Verifies that purge with confirmation deletes rows from PostgreSQL storage.
     /// </summary>
     /// <returns>A task that completes when the assertion finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task Purge_WithConfirm_DeletesRowsInStore()
     {
         var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -108,7 +109,7 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
         var queryBeforePurge = await client.GetAsync("/litebus/inbox/messages?pageSize=50").ConfigureAwait(true);
         queryBeforePurge.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        (await queryBeforePurge.Content.ReadFromJsonAsync<JsonElement>())
+        (await queryBeforePurge.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false))
             .GetProperty("items")
             .GetArrayLength()
             .Should()
@@ -121,12 +122,12 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
 
         var purgeResponse = await client.SendAsync(purgeRequest).ConfigureAwait(true);
         purgeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await purgeResponse.Content.ReadFromJsonAsync<JsonElement>()).GetInt32().Should().Be(2);
+        (await purgeResponse.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false)).GetInt32().Should().Be(2);
 
         var queryAfterPurge = await client.GetAsync("/litebus/inbox/messages?pageSize=50").ConfigureAwait(true);
         queryAfterPurge.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        (await queryAfterPurge.Content.ReadFromJsonAsync<JsonElement>())
+        (await queryAfterPurge.Content.ReadFromJsonAsync<JsonElement>().ConfigureAwait(false))
             .GetProperty("items")
             .GetArrayLength()
             .Should()
@@ -137,7 +138,7 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
     ///     Verifies that diagnostic probes registered on the inbox module appear in the health response.
     /// </summary>
     /// <returns>A task that completes when the assertion finishes.</returns>
-    [Fact]
+    [SkippableFact]
     public async Task Health_IncludesRegisteredDiagnosticProbe()
     {
         var inboxOptions = PostgreSqlTestInfrastructure.CreateInboxStoreOptions();
@@ -148,7 +149,7 @@ public sealed class ManagementEndpointPostgreSqlIntegrationTests : IClassFixture
         using var host = await CreateHostAsync(
             inboxOptions,
             outboxOptions,
-            inbox => inbox.AddDiagnosticCheck<PostgreSqlInboxSchemaDiagnosticCheck>("inbox.postgresql.schema"));
+            inbox => inbox.AddDiagnosticCheck<PostgreSqlInboxSchemaDiagnosticCheck>("inbox.postgresql.schema")).ConfigureAwait(false);
 
         using var client = host.GetTestClient();
         var response = await client.GetAsync("/litebus/health").ConfigureAwait(true);

@@ -74,7 +74,7 @@ Optional constructor dependency: `IInboxPayloadProtector` for encrypted payloads
 
 ### `CommandInboxDispatchModule.Build(IModuleConfiguration)`
 
-Registers `IInboxDispatcher` to `CommandInboxDispatcher`. Throws when a second dispatcher is already registered.
+Registers `IInboxDispatcher` to `CommandInboxDispatcher`. Registering a second dispatcher on the same builder throws `DurableStorageConfigurationException` from `InboxModuleBuilder.RegisterDispatcher`.
 
 ## Observability
 
@@ -108,9 +108,9 @@ Register inbox processor metrics through `AddLiteBusInboxMetrics()`. Command-spe
 | `DispatchAsync_ShouldExecuteCommandThroughMediator` | `LiteBus.Inbox.UnitTests` (`Dispatch/InProcess/`) |
 | `DispatchAsync_WhenMessageIsNotACommand_ShouldThrowInvalidOperationException` | `LiteBus.Inbox.UnitTests` (`Dispatch/InProcess/`) |
 | `DispatchAsync_ShouldSetIsInboxExecutionAndCopyTraceMetadata` | `LiteBus.Inbox.UnitTests` (`Dispatch/InProcess/`) |
-| `DispatchAsync_WhenCancellationRequested_ShouldPassCancelledTokenToMediator` | `LiteBus.Inbox.UnitTests` (`Dispatch/InProcess/`) |
-| `ProcessPendingAsync_ShouldExecuteScheduledCommandThroughPostgreSqlStore` | `LiteBus.Storage.IntegrationTests (`PostgreSql/`)` |
-| `ProcessPendingAsync_WhenHandlerFails_ShouldMarkFailedWithVisibleAfter` | `LiteBus.Storage.IntegrationTests (`PostgreSql/`)` |
+| `DispatchAsync_WhenCancellationRequested_ShouldStopBeforeDeserialization` | `LiteBus.Inbox.UnitTests` (`Dispatch/InProcess/`) |
+| `ProcessPendingAsync_ShouldExecuteScheduledCommandThroughPostgreSqlStore` | `LiteBus.Storage.IntegrationTests` (`PostgreSql/`) |
+| `ProcessPendingAsync_WhenHandlerFails_ShouldMarkFailedWithVisibleAfter` | `LiteBus.Storage.IntegrationTests` (`PostgreSql/`) |
 | `NestedConfiguration_ShouldAcceptAndProcessCommand` | `LiteBus.Inbox.UnitTests` |
 | `AddInboxInProcessDispatcher_ShouldRegisterCommandInboxDispatcher` | `LiteBus.Inbox.UnitTests` (`Dispatch/InProcess/`) |
 | `AddInboxInProcessDispatcher_WhenCalledTwice_ShouldThrow` | `LiteBus.Inbox.UnitTests` (`Dispatch/InProcess/`) |

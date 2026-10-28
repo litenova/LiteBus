@@ -23,14 +23,15 @@ Defer inbox execution and outbox publication until an absolute time or relative 
 ### Writer Invocation
 
 - Set visibility on **`InboxAcceptItem`** / **`OutboxEnqueueItem`** metadata with record **`with`**, or use static helpers:
-  - **`OutboxEnqueueItem<T>.ScheduledAt(message, visibleAfter)`** for absolute deferral
-  - **`OutboxEnqueueItem<T>.ScheduledAfter(message, delay)`** for relative deferral
+  - **`OutboxEnqueueItem<T>.ScheduledAt(message, visibleAfter)`** / **`InboxAcceptItem<T>.ScheduledAt(message, visibleAfter)`** for absolute deferral
+  - **`OutboxEnqueueItem<T>.ScheduledAfter(message, delay)`** / **`InboxAcceptItem<T>.ScheduledAfter(message, delay)`** for relative deferral
 - Inbox accepts use the same **`MessageVisibility`** variants on **`InboxAcceptMetadata`**.
 
 ### Ingress Wire Mapping
 
 - **`TransportHeaders.VisibleAfter`** (`litebus-visible-after`): ISO-8601 absolute timestamp mapped to **`MessageVisibility.At`**
 - **`TransportHeaders.VisibleAfterDelay`** (`litebus-visible-after-delay`): Duration mapped to **`MessageVisibility.After`**
+- Visibility headers are honored only when `TrustApplicationHeaders` is `true`; distrusted deliveries are immediately visible
 - When both headers are present, relative delay takes precedence over absolute timestamp
 - Invalid absolute header values are ignored (immediate visibility)
 
@@ -50,7 +51,7 @@ Defer inbox execution and outbox publication until an absolute time or relative 
 
 | Package | Role |
 | --- | --- |
-| `LiteBus.Messaging.Abstractions` | `MessageVisibility` |
+| `LiteBus.DurableMessaging.Abstractions` | `MessageVisibility` |
 | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | Metadata records |
 | `LiteBus.Inbox.Ingress` | Header parsing on ingress |
 | `LiteBus.Transport.Abstractions` | `TransportHeaders.VisibleAfter`, `VisibleAfterDelay` |
@@ -70,7 +71,7 @@ Defer inbox execution and outbox publication until an absolute time or relative 
 
 ## Non-Goals
 
-- Cron-style recurring jobs
+- Cron expressions (fixed-interval recurring commands ship separately through `CommandModuleBuilder.AddRecurring`; see [Recurring Commands](../../integrations/recurring-commands.md))
 - Distributed scheduler cluster
 - Priority queues separate from created-at ordering
 
@@ -232,11 +233,11 @@ No dedicated scheduled-vs-ready metric. Deferred rows appear in queue depth whil
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
 | Absolute vs relative header precedence on ingress | Yes | Documented rule; no conflicting-header integration test | Integration | Low |
-| Sub-second exact-time execution | Yes | Poll interval dominates; no SLA test |: | Low |
-| Cron-style recurring schedules | No | Not supported |: |: |
+| Sub-second exact-time execution | Yes | Poll interval dominates; no SLA test | N/A | Low |
+| Cron-style recurring schedules | No | Cron expressions are not supported; fixed-interval commands ship separately | N/A | N/A |
 
 ### Out-of-Scope Use Cases
 
-- Cron or recurring job scheduler
+- Cron expressions or a recurring job scheduler on this axis (fixed-interval commands ship as `LiteBus.Commands.Recurring`)
 - Distributed scheduler cluster
 - Priority queues separate from created-at ordering

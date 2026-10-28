@@ -9,9 +9,11 @@
 
 `InMemoryTransportModule` registers `InMemoryTransportBroker`, `InMemoryPublisher`, and `InMemoryConsumer`. Messages are queued by destination inside process memory and delivered through the same `TransportMessage` contract used by external brokers.
 
-Each destination admits at most `InMemoryTransportOptions.DestinationCapacity` unsettled deliveries, including queued and currently handled messages. The default is 1024. When the limit is reached, `PublishAsync` waits asynchronously until a delivery settles or the caller cancels. LiteBus uses the lossless `BoundedChannelFullMode.Wait` behavior documented in the current [.NET channels guidance](https://learn.microsoft.com/en-us/dotnet/core/extensions/channels).
+Each destination admits at most `InMemoryTransportOptions.DestinationCapacity` unsettled deliveries, including queued and currently handled messages. The default is 1024. When the limit is reached, `PublishAsync` waits asynchronously until a delivery settles or the caller cancels. A full destination waits for capacity with `BoundedChannelFullMode.Wait` ([.NET channels guidance](https://learn.microsoft.com/en-us/dotnet/core/extensions/channels)); the transport does not drop old or new writes.
 
-Ack behavior is explicit. `AcceptAsync` and `DiscardAsync` release the delivery's capacity reservation. `ReturnToQueueAsync` re-enqueues with `Redelivered = true` and retains the reservation, so a waiting publisher cannot take the only slot and deadlock redelivery.
+Ack behavior is explicit. `AcceptAsync` and `DiscardAsync` release the delivery's capacity reservation. `ReturnToQueueAsync` re-enqueues with `Redelivered = true` and retains the reservation, so a waiting publisher cannot take the only slot and deadlock redelivery. The consumer runs one handler at a time regardless of the requested `MaxInFlightMessages`.
+
+`InMemoryTransportBroker` implements `IDisposable` and completes its destination channels on dispose; the consumer's `StopAsync` and `WaitUntilStoppedAsync` complete after the channel is closed. The publisher is a singleton and consumers are transient.
 
 ```csharp
 bus.AddInMemoryTransport(new InMemoryTransportOptions
@@ -29,8 +31,8 @@ bus.AddInMemoryTransport(new InMemoryTransportOptions
 | `InMemoryTransportBroker` | Queue registry keyed by destination |
 | `InMemoryPublisher.PublishAsync` | Enqueue publish request body and headers |
 | `InMemoryConsumer.StartAsync` | Dequeue and invoke handler loop |
-| `InMemoryDestinationEndpoint` | Destination queue and synchronization |
-| `InMemoryPendingDelivery` | Delivery snapshot with redelivery bit |
+| `InMemoryDestinationEndpoint` | Destination queue and synchronization (internal) |
+| `InMemoryPendingDelivery` | Delivery snapshot with redelivery bit (internal) |
 | `LiteBusInMemoryTelemetry.MeterName` | Reserved in-memory adapter meter |
 
 ## Packages
@@ -48,7 +50,8 @@ bus.AddInMemoryTransport(new InMemoryTransportOptions
 - Transport is process-local and not durable.
 - Destination capacity is positive, applies independently to every destination, and is validated during composition.
 - Full destinations wait for capacity; the transport does not drop old or new writes.
-- Redelivery requires explicit `ReturnToQueueAsync` or exception path through invoker behavior.
+- Redelivery happens through explicit `ReturnToQueueAsync`, the exception path through invoker behavior, or a handler that returns without settling.
+- A handler that returns successfully without settling is returned to the destination with `Redelivered = true` instead of dropped.
 - Shared transport metrics are tagged `inmemory`.
 
 ## Non-Goals
@@ -82,6 +85,10 @@ bus.AddInMemoryTransport(new InMemoryTransportOptions
 | --- | --- |
 | `PublishAndConsume_ShouldDeliverMessageToConsumer` | `LiteBus.Transport.UnitTests` (`InMemory/`) |
 | `ReturnToQueue_ShouldRedeliverMessage` | `LiteBus.Transport.UnitTests` (`InMemory/`) |
+| `StartAsync_WithMaxInFlightEight_ShouldEnforceInMemoryBoundOfOne` | `LiteBus.Transport.UnitTests` (`InMemory/`) |
+| `Build_ShouldRegisterSingletonPublisherAndTransientConsumer` | `LiteBus.Transport.UnitTests` (`InMemory/`) |
+| `GetOrCreateEndpoint_AfterDispose_ShouldThrowObjectDisposedException` | `LiteBus.Transport.UnitTests` (`InMemory/`) |
+| `StopAsync_AfterBrokerDispose_ShouldCompleteWithoutThrowing` | `LiteBus.Transport.UnitTests` (`InMemory/`) |
 | `HandlerThrow_ShouldRequeueMessageByDefault` | `LiteBus.Transport.UnitTests` (`InMemory/`) |
 | `PublishAsync_WhenDestinationIsFull_ShouldWaitForSettlement` | `LiteBus.Transport.UnitTests` (`InMemory/`) |
 | `PublishAsync_WhenCapacityWaitIsCanceled_ShouldReleaseAdmissionWaiter` | `LiteBus.Transport.UnitTests` (`InMemory/`) |
@@ -89,6 +96,7 @@ bus.AddInMemoryTransport(new InMemoryTransportOptions
 | `PublishThroughInMemoryTransport_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/InMemory/`) |
 | `ProcessPendingAsync_ShouldPublishEnvelopeToInMemoryDestination` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/InMemory/`) |
 | `ProcessPendingAsync_ShouldPublishLeasedEnvelopeToInMemoryDestination` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Inbox/InMemory/`) |
+| `HandlerWithoutSettlement_ShouldRedeliverInsteadOfDrop` | `LiteBus.Transport.UnitTests` (`InMemory/`) |
 
 ### Untested
 

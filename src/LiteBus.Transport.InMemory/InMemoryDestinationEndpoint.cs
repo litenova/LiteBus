@@ -1,4 +1,7 @@
+using System;
+using System.Threading;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 
 namespace LiteBus.Transport.InMemory;
 
@@ -82,9 +85,24 @@ internal sealed class InMemoryDestinationEndpoint : IDisposable
     }
 
     /// <summary>
-    ///     Releases the capacity reservation held by a settled delivery.
+    ///     Releases the capacity reservation held by a settled delivery; a disposed endpoint is a no-op.
     /// </summary>
     internal void ReleaseCapacity()
+    {
+        try
+        {
+            ReleaseCapacityCore();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The endpoint was disposed by a concurrent reset; capacity accounting is gone with it.
+        }
+    }
+
+    /// <summary>
+    ///     Releases the underlying capacity reservation.
+    /// </summary>
+    private void ReleaseCapacityCore()
     {
         _capacity.Release();
     }

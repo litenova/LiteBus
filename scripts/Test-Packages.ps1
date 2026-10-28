@@ -13,10 +13,11 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $sourceRoot = Join-Path $repositoryRoot "src"
+# Test support packages opt in with <IsPackable>true</IsPackable>; tests/Directory.Build.props defaults it to false.
 $testingProjects = @(
-    "tests/LiteBus.Storage.Testing/LiteBus.Storage.Testing.csproj"
-    "tests/LiteBus.Transport.Testing/LiteBus.Transport.Testing.csproj"
-) | ForEach-Object { Get-Item -LiteralPath (Join-Path $repositoryRoot $_) }
+    Get-ChildItem -LiteralPath (Join-Path $repositoryRoot "tests") -Recurse -Filter "*.csproj" -File |
+        Where-Object { (Get-Content -LiteralPath $_.FullName -Raw) -match "<IsPackable>\s*true\s*</IsPackable>" }
+)
 $resolvedPackageDirectory = if ([IO.Path]::IsPathRooted($PackageDirectory)) {
     $PackageDirectory
 }
@@ -176,6 +177,10 @@ foreach ($package in $packageMetadata) {
         $errors.Add("Package '$($package.Id)' does not declare a description.")
     }
 
+    if ($null -ne $description -and $description.InnerText.StartsWith("Mediator and durable messaging contracts for explicit command")) {
+        $errors.Add("Package '$($package.Id)' publishes the shared fallback description; give it its own in src/Directory.Build.props.")
+    }
+
     if ($null -eq $license -or $license.InnerText -ne "MIT") {
         $errors.Add("Package '$($package.Id)' does not declare the MIT license expression.")
     }
@@ -184,8 +189,12 @@ foreach ($package in $packageMetadata) {
         $errors.Add("Package '$($package.Id)' does not declare the LiteBus website as its project URL.")
     }
 
-    if ($null -eq $releaseNotes -or $releaseNotes.InnerText -ne "https://github.com/litenova/LiteBus/blob/main/Changelog.md#v602") {
-        $errors.Add("Package '$($package.Id)' does not link to the v6.0.2 release notes.")
+    # A package links to the release for the version it carries, so the check follows the version being packed rather
+    # than naming one release. Hard-coding the previous release's anchor made this gate fail on every version bump.
+    $expectedReleaseNotes = "https://github.com/litenova/LiteBus/releases/tag/v$($package.Version)"
+
+    if ($null -eq $releaseNotes -or $releaseNotes.InnerText -ne $expectedReleaseNotes) {
+        $errors.Add("Package '$($package.Id)' links to '$(if ($null -eq $releaseNotes) { '<missing>' } else { $releaseNotes.InnerText })' instead of its own release notes at '$expectedReleaseNotes'.")
     }
 
     if ($null -eq $readme -or $readme.InnerText -ne "README.md") {

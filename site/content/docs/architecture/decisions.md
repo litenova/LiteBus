@@ -54,7 +54,7 @@ Inbox and outbox storage use stable contract names and integer versions, not ass
 
 Status: Accepted
 
-PostgreSQL inbox, outbox, and saga schemas use version **1**. The version 1 create scripts contain the complete current table shape. The schema manager validates that shape and does not mutate incompatible existing tables. Historical database transitions are documented in the [Migration Guide](../migration/v6.md).
+PostgreSQL inbox, outbox, and saga schemas use version **1**. The version 1 create scripts contain the complete current table shape. The schema manager validates that shape and does not mutate incompatible existing tables. Historical database transitions are documented in the [v6 Migration Guide](../migration/v6.md).
 
 ## ADR-0010: Pipelined Processors Only
 
@@ -66,7 +66,7 @@ Status: Accepted
 
 Status: Accepted
 
-Saga hooks implement `IProcessorEnvelopeHook` from `LiteBus.DurableMessaging.Abstractions`. Registration stays on `inbox.EnableSaga()`; inbox maps envelopes through an adapter.
+Saga hooks implement `IProcessorEnvelopeHook` from `LiteBus.Messaging.Abstractions.Processing`. Registration stays on `inbox.EnableSaga()`; inbox maps envelopes through an adapter.
 
 ## Next
 

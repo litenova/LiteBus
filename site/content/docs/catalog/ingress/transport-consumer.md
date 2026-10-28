@@ -9,7 +9,7 @@
 
 `TransportInboxIngressConsumer` implements `IBackgroundService`. It starts `IMessageConsumer` with the destination, provider-neutral maximum-in-flight limit, and adapter-native receive settings from `TransportInboxIngressOptions`. The transport admission wrapper caps concurrent LiteBus handlers before the ingress handler accepts and acknowledges each delivery.
 
-On accept failure it applies `IngressAckPolicy`: requeue through `ReturnToQueueAsync` when policy allows, otherwise discard through `DiscardAsync`. When store accept succeeds but broker ack fails, it records telemetry, logs, and requeues so idempotent redelivery absorbs into the existing inbox row.
+On accept failure it applies `IngressAckPolicy`: requeue through `ReturnToQueueAsync` when policy allows, otherwise discard through `DiscardAsync`. When store accept succeeds but broker ack fails, it records telemetry, logs, and requeues so idempotent redelivery absorbs into the existing inbox row. When the ingress token is cancelled, the consumer rethrows before settlement, so the delivery stays unacknowledged and the broker redelivers it.
 
 The consumer restarts after transport faults using `TransportInboxIngressHostOptions.RetryPollInterval`. Publisher circuit state is intentionally absent from this loop, so a failed outbound destination cannot pause inbound acceptance.
 
@@ -42,7 +42,7 @@ flowchart TD
 
 ## Batch Mode Behavior
 
-When `EnableBatchAccept=true`, the consumer:
+When `Safety.EnableBatchAccept` is true, the consumer:
 
 - Buffers messages up to `Safety.BatchSize`.
 - Flushes on threshold, timer (`BatchMaxWait`), or shutdown.
@@ -58,15 +58,17 @@ When `EnableBatchAccept=true`, the consumer:
 - `ingress.transport-handler`
 - `ingress.ack-policy`
 - `ingress.host-loop`
-- `transport.message-consumer` (broker adapter)
+- `transport.publish-consume-contracts` (broker adapter)
 
 ## Invariants
 
 - Ack follows successful inbox accept (accept-then-ack ordering).
 - Ack failure after accept requeues; duplicate rows are prevented by broker-scoped idempotency when stable delivery ids exist.
+- A cancelled acceptance rethrows before settlement and leaves the delivery unacknowledged.
 - Consumer loop exits immediately when `TransportInboxIngressHostOptions.Enabled` is false.
 - Partial batch buffers flush on stop, timer, or `Safety.BatchSize` when batch accept is enabled.
 - `Safety.MaxInFlightMessages` limits LiteBus callback work independently from AMQP or Azure prefetch, SQS receive size, and Azure processor concurrency.
+- The enforced `Safety.MaxInFlightMessages` bound is 1 on AMQP, Kafka, AWS SQS, and in-memory ingress; on Azure Service Bus it is the lower of that value and `MaxConcurrentCalls`.
 - Consumer restart loop treats transport faults as retryable host-loop failures and logs EventId 3002.
 
 ## Non-Goals
@@ -114,6 +116,7 @@ Consumer adapters use broker SDK recovery and the supervised restart loop. AMQP 
 | `HandleDeliveryAsync_WhenTransientFailureAndRequeueEnabled_ShouldReturnToQueue` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `HandleDeliveryAsync_WhenAuthorizationRejects_ShouldDiscardWithoutAccept` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `HandleDeliveryAsync_WhenAckFailsAfterAccept_ShouldNotDiscard` (includes counter assertion) | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
+| `HandleDeliveryAsync_WhenAcceptCancelled_ShouldPropagateWithoutSettling` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `BatchAccept_WhenBufferFull_ShouldBlockUntilFlushCompletes` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `BatchAccept_WhenOneDeliveryFails_ShouldAcknowledgeSuccessfulDeliveriesOnly` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `BatchAccept_ShouldFlushPartialBatchAfterBatchMaxWait` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |

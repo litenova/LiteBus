@@ -67,8 +67,33 @@ public sealed class PostgreSqlOutboxStore :
                                               idempotency_key,
                                               trace_context::text,
                                               published_at,
-                                              lease_generation
+                                              lease_generation,
+                                              last_attempted_at,
+                                              first_failed_at,
+                                              dead_lettered_at,
+                                              last_lease_owner,
+                                              error_type,
+                                              handler
                                               """;
+
+    /// <summary>
+    ///     The <see cref="BatchSelectColumns" /> list qualified with the update alias used by the lease statement.
+    /// </summary>
+    /// <remarks>
+    ///     Derived from the shared list rather than written out again, because the reader materializes rows by
+    ///     ordinal: a column added to one list and not the other shifts every field after it.
+    /// </remarks>
+    private static readonly string LeasedReturningColumns = string.Join(
+        ",\n                       ",
+        BatchSelectColumns
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(static column => "outbox." + column.Trim().TrimEnd(',')));
+
+    /// <summary>
+    ///     Limits each batch insert statement to a bounded row count so callers can enqueue batches of any size
+    ///     without approaching the database parameter cap.
+    /// </summary>
+    private const int InsertBatchSize = 1000;
 
     /// <summary>
     ///     Limits each cleanup statement so retention work cannot monopolize a PostgreSQL table or transaction.
@@ -119,17 +144,19 @@ public sealed class PostgreSqlOutboxStore :
     ///     Initializes a new instance of the <see cref="PostgreSqlOutboxStore" /> class bound to an existing transaction.
     /// </summary>
     /// <param name="dataSource">The PostgreSQL data source.</param>
+    /// <param name="options">The store options carried from the parent store.</param>
     /// <param name="tableName">The fully qualified outbox table name.</param>
     /// <param name="transactionConnection">The existing open PostgreSQL connection.</param>
     /// <param name="transaction">The existing PostgreSQL transaction.</param>
     private PostgreSqlOutboxStore(
         NpgsqlDataSource dataSource,
+        PostgreSqlOutboxStoreOptions options,
         string tableName,
         NpgsqlConnection? transactionConnection,
         NpgsqlTransaction? transaction)
     {
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
-        _options = new PostgreSqlOutboxStoreOptions();
+        _options = options ?? throw new ArgumentNullException(nameof(options));
         _tableName = tableName ?? throw new ArgumentNullException(nameof(tableName));
         _transactionConnection = transactionConnection;
         _transaction = transaction;
@@ -155,7 +182,10 @@ public sealed class PostgreSqlOutboxStore :
                                  attempt_count = 0,
                                  lease_owner = NULL,
                                  lease_expires_at = NULL,
-                                 last_error = NULL
+                                 last_error = NULL,
+                                 error_type = NULL,
+                                 first_failed_at = NULL,
+                                 dead_lettered_at = NULL
                              WHERE message_id = @message_id AND status = @dead_lettered_status;
                              """;
 
@@ -175,7 +205,10 @@ public sealed class PostgreSqlOutboxStore :
                        attempt_count = 0,
                        lease_owner = NULL,
                        lease_expires_at = NULL,
-                       last_error = NULL
+                       last_error = NULL,
+                       error_type = NULL,
+                       first_failed_at = NULL,
+                       dead_lettered_at = NULL
                    WHERE message_id = ANY(@message_ids) AND status = @dead_lettered_status;
                    """;
 
@@ -242,6 +275,59 @@ public sealed class PostgreSqlOutboxStore :
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<OutboxFailureSummary>> GetFailureSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        var sql = $"""
+                   WITH counts AS (
+                       SELECT
+                           contract_name,
+                           contract_version,
+                           COUNT(*) FILTER (WHERE status = @failed_status)::int AS failed_count,
+                           COUNT(*) FILTER (WHERE status = @dead_lettered_status)::int AS dead_lettered_count,
+                           MAX(last_attempted_at) AS last_failed_at
+                       FROM {_tableName}
+                       WHERE status IN (@failed_status, @dead_lettered_status)
+                       GROUP BY contract_name, contract_version
+                   ),
+                   latest AS (
+                       SELECT DISTINCT ON (contract_name, contract_version)
+                           contract_name,
+                           contract_version,
+                           last_error,
+                           error_type
+                       FROM {_tableName}
+                       WHERE status IN (@failed_status, @dead_lettered_status)
+                       ORDER BY contract_name, contract_version, last_attempted_at DESC NULLS LAST
+                   )
+                   SELECT
+                       counts.contract_name,
+                       counts.contract_version,
+                       counts.failed_count,
+                       counts.dead_lettered_count,
+                       latest.last_error,
+                       latest.error_type,
+                       counts.last_failed_at
+                   FROM counts
+                   JOIN latest USING (contract_name, contract_version)
+                   ORDER BY counts.last_failed_at DESC NULLS LAST, counts.contract_name ASC;
+                   """;
+
+        using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("failed_status", (int) OutboxStatus.Failed);
+        command.Parameters.AddWithValue("dead_lettered_status", (int) OutboxStatus.DeadLettered);
+
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var summaries = new List<OutboxFailureSummary>();
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            summaries.Add(ReadFailureSummary(reader));
+        }
+
+        return summaries;
+    }
+
+    /// <inheritdoc />
     public async Task<StoreSchemaInfo> GetSchemaInfoAsync(CancellationToken cancellationToken = default)
     {
         using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -279,25 +365,7 @@ public sealed class PostgreSqlOutboxStore :
 
         var sql = $"""
                    SELECT
-                       message_id,
-                       contract_name,
-                       contract_version,
-                       payload::text,
-                       topic,
-                       created_at,
-                       visible_after,
-                       status,
-                       attempt_count,
-                       lease_owner,
-                       lease_expires_at,
-                       last_error,
-                       correlation_id,
-                       causation_id,
-                       tenant_id,
-                       idempotency_key,
-                       trace_context::text,
-                       published_at,
-                       lease_generation
+                       {BatchSelectColumns}
                    FROM {_tableName}
                    WHERE (@status_filter OR status = ANY(@statuses))
                        AND (@message_id IS NULL OR message_id = @message_id)
@@ -378,29 +446,12 @@ public sealed class PostgreSqlOutboxStore :
                        lease_expires_at = CURRENT_TIMESTAMP + @lease_duration,
                        lease_generation = outbox.lease_generation + 1,
                        attempt_count = outbox.attempt_count + 1,
-                       last_attempted_at = CURRENT_TIMESTAMP
+                       last_attempted_at = CURRENT_TIMESTAMP,
+                       last_lease_owner = @lease_owner
                    FROM candidates
                    WHERE outbox.message_id = candidates.message_id
                    RETURNING
-                       outbox.message_id,
-                       outbox.contract_name,
-                       outbox.contract_version,
-                       outbox.payload::text,
-                       outbox.topic,
-                       outbox.created_at,
-                       outbox.visible_after,
-                       outbox.status,
-                       outbox.attempt_count,
-                       outbox.lease_owner,
-                       outbox.lease_expires_at,
-                       outbox.last_error,
-                       outbox.correlation_id,
-                       outbox.causation_id,
-                       outbox.tenant_id,
-                       outbox.idempotency_key,
-                       outbox.trace_context::text,
-                       outbox.published_at,
-                       outbox.lease_generation;
+                       {LeasedReturningColumns};
                    """;
 
         using var command = CreateCommand(sql);
@@ -410,7 +461,7 @@ public sealed class PostgreSqlOutboxStore :
         command.Parameters.AddWithValue("batch_size", request.BatchSize);
         command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
         command.Parameters.AddWithValue("lease_duration", request.LeaseDuration);
-        AddNullableTextParameter(command, "tenant_id", request.TenantId);
+        AddNullableTextParameter(command, "tenant_id", NormalizeTenantFilter(request.TenantId));
 
         return await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
     }
@@ -437,6 +488,39 @@ public sealed class PostgreSqlOutboxStore :
         command.Parameters.AddWithValue("lease_duration", request.LeaseDuration);
         command.Parameters.AddWithValue("message_id", request.MessageId);
         command.Parameters.AddWithValue("publishing_status", (int) OutboxStatus.Publishing);
+        command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
+        command.Parameters.AddWithValue("lease_generation", request.LeaseGeneration);
+
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affected > 0;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> ReleaseLeaseAsync(
+        LeaseReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+
+        var sql = $"""
+                   UPDATE {_tableName}
+                   SET
+                       status = CASE WHEN last_error IS NULL THEN @pending_status ELSE @failed_status END,
+                       lease_owner = NULL,
+                       lease_expires_at = NULL,
+                       attempt_count = GREATEST(attempt_count - 1, 0)
+                   WHERE message_id = @message_id
+                       AND status = @publishing_status
+                       AND lease_owner = @lease_owner
+                       AND lease_generation = @lease_generation;
+                   """;
+
+        using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("pending_status", (int) OutboxStatus.Pending);
+        command.Parameters.AddWithValue("failed_status", (int) OutboxStatus.Failed);
+        command.Parameters.AddWithValue("publishing_status", (int) OutboxStatus.Publishing);
+        command.Parameters.AddWithValue("message_id", request.MessageId);
         command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
         command.Parameters.AddWithValue("lease_generation", request.LeaseGeneration);
 
@@ -499,6 +583,7 @@ public sealed class PostgreSqlOutboxStore :
                        contract_version,
                        payload,
                        topic,
+                       handler,
                        created_at,
                        visible_after,
                        status,
@@ -518,6 +603,7 @@ public sealed class PostgreSqlOutboxStore :
                        @contract_version,
                        @payload,
                        @topic,
+                       @handler,
                        @created_at,
                        @visible_after,
                        @status,
@@ -533,25 +619,7 @@ public sealed class PostgreSqlOutboxStore :
                        @lease_generation)
                    ON CONFLICT DO NOTHING
                    RETURNING
-                       message_id,
-                       contract_name,
-                       contract_version,
-                       payload::text,
-                       topic,
-                       created_at,
-                       visible_after,
-                       status,
-                       attempt_count,
-                       lease_owner,
-                       lease_expires_at,
-                       last_error,
-                       correlation_id,
-                       causation_id,
-                       tenant_id,
-                       idempotency_key,
-                       trace_context::text,
-                       published_at,
-                       lease_generation;
+                       {BatchSelectColumns};
                    """;
 
         using var command = CreateCommand(sql);
@@ -591,17 +659,21 @@ public sealed class PostgreSqlOutboxStore :
     /// <param name="requested">The incoming envelope.</param>
     /// <param name="stored">The existing envelope.</param>
     /// <returns><see langword="true" /> when identity and message content match.</returns>
-    private static bool HasSameSubmission(OutboxEnvelope requested, OutboxEnvelope stored)
+    internal static bool HasSameSubmission(OutboxEnvelope requested, OutboxEnvelope stored)
     {
         return requested.Id == stored.Id &&
                requested.ContractVersion == stored.ContractVersion &&
                string.Equals(requested.ContractName, stored.ContractName, StringComparison.Ordinal) &&
                string.Equals(requested.Payload, stored.Payload, StringComparison.Ordinal) &&
                string.Equals(requested.Topic, stored.Topic, StringComparison.Ordinal) &&
+               string.Equals(requested.Handler, stored.Handler, StringComparison.Ordinal) &&
                string.Equals(requested.IdempotencyKey, stored.IdempotencyKey, StringComparison.Ordinal) &&
                string.Equals(requested.CorrelationId, stored.CorrelationId, StringComparison.Ordinal) &&
                string.Equals(requested.CausationId, stored.CausationId, StringComparison.Ordinal) &&
-               string.Equals(requested.TenantId, stored.TenantId, StringComparison.Ordinal);
+               string.Equals(
+                   Messaging.Abstractions.DurableMessaging.DurableTenantId.Normalize(requested.TenantId),
+                   Messaging.Abstractions.DurableMessaging.DurableTenantId.Normalize(stored.TenantId),
+                   StringComparison.Ordinal);
     }
 
     /// <inheritdoc />
@@ -633,76 +705,69 @@ public sealed class PostgreSqlOutboxStore :
             return [await AddAsync(envelopes[0], cancellationToken).ConfigureAwait(false)];
         }
 
-        var valueClauses = new StringBuilder();
+        // Chunk the insert so one statement never approaches the database parameter cap. Each chunk runs
+        // through the same command factory, so a caller-bound transaction still contains every chunk.
+        List<OutboxEnvelope> inserted = [];
 
-        for (var index = 0; index < envelopes.Count; index++)
+        for (var offset = 0; offset < envelopes.Count; offset += InsertBatchSize)
         {
-            if (index > 0)
+            var chunkSize = Math.Min(InsertBatchSize, envelopes.Count - offset);
+            var valueClauses = new StringBuilder();
+
+            for (var index = 0; index < chunkSize; index++)
             {
-                valueClauses.Append(',');
+                if (index > 0)
+                {
+                    valueClauses.Append(',');
+                }
+
+                valueClauses.Append(
+                    CultureInfo.InvariantCulture,
+                    $"(@message_id_{index}, @contract_name_{index}, @contract_version_{index}, @payload_{index}, " +
+                    $"@topic_{index}, @handler_{index}, @created_at_{index}, @visible_after_{index}, @status_{index}, @attempt_count_{index}, " +
+                    $"@lease_owner_{index}, @lease_expires_at_{index}, @last_error_{index}, @correlation_id_{index}, " +
+                    $"@causation_id_{index}, @tenant_id_{index}, @idempotency_key_{index}, @trace_context_{index}, " +
+                    $"@lease_generation_{index})");
             }
 
-            valueClauses.Append(
-                CultureInfo.InvariantCulture,
-                $"(@message_id_{index}, @contract_name_{index}, @contract_version_{index}, @payload_{index}, " +
-                $"@topic_{index}, @created_at_{index}, @visible_after_{index}, @status_{index}, @attempt_count_{index}, " +
-                $"@lease_owner_{index}, @lease_expires_at_{index}, @last_error_{index}, @correlation_id_{index}, " +
-                $"@causation_id_{index}, @tenant_id_{index}, @idempotency_key_{index}, @trace_context_{index}, " +
-                $"@lease_generation_{index})");
+            var sql = $"""
+                       INSERT INTO {_tableName} (
+                           message_id,
+                           contract_name,
+                           contract_version,
+                           payload,
+                           topic,
+                           handler,
+                           created_at,
+                           visible_after,
+                           status,
+                           attempt_count,
+                           lease_owner,
+                           lease_expires_at,
+                           last_error,
+                           correlation_id,
+                           causation_id,
+                           tenant_id,
+                           idempotency_key,
+                           trace_context,
+                           lease_generation)
+                       VALUES {valueClauses}
+                       ON CONFLICT DO NOTHING
+                       RETURNING
+                           {BatchSelectColumns};
+                       """;
+
+            using var command = CreateCommand(sql);
+
+            for (var index = 0; index < chunkSize; index++)
+            {
+                AddEnvelopeParameters(command, envelopes[offset + index], index);
+            }
+
+            var chunkInserted = await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
+            inserted.AddRange(chunkInserted);
         }
 
-        var sql = $"""
-                   INSERT INTO {_tableName} (
-                       message_id,
-                       contract_name,
-                       contract_version,
-                       payload,
-                       topic,
-                       created_at,
-                       visible_after,
-                       status,
-                       attempt_count,
-                       lease_owner,
-                       lease_expires_at,
-                       last_error,
-                       correlation_id,
-                       causation_id,
-                       tenant_id,
-                       idempotency_key,
-                       trace_context,
-                       lease_generation)
-                   VALUES {valueClauses}
-                   ON CONFLICT DO NOTHING
-                   RETURNING
-                       message_id,
-                       contract_name,
-                       contract_version,
-                       payload::text,
-                       topic,
-                       created_at,
-                       visible_after,
-                       status,
-                       attempt_count,
-                       lease_owner,
-                       lease_expires_at,
-                       last_error,
-                       correlation_id,
-                       causation_id,
-                       tenant_id,
-                       idempotency_key,
-                       trace_context::text,
-                       published_at,
-                       lease_generation;
-                   """;
-
-        using var command = CreateCommand(sql);
-
-        for (var index = 0; index < envelopes.Count; index++)
-        {
-            AddEnvelopeParameters(command, envelopes[index], index);
-        }
-
-        var inserted = await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
         var insertedById = inserted.ToDictionary(envelope => envelope.Id);
         var results = new OutboxAppendResult[envelopes.Count];
         var assignedInsertedIds = new HashSet<Guid>();
@@ -756,6 +821,8 @@ public sealed class PostgreSqlOutboxStore :
                         envelope.IdempotencyKey,
                         cancellationToken).ConfigureAwait(false);
 
+                ThrowIfCrossTenantMessageIdHit(envelope.Id, envelope.TenantId, existing);
+
                 results[index] = new OutboxAppendResult(
                     existing,
                     OutboxEnqueueOutcome.AlreadyEnqueued);
@@ -786,7 +853,7 @@ public sealed class PostgreSqlOutboxStore :
             throw new InvalidOperationException("The supplied connection must already be open.");
         }
 
-        return new PostgreSqlOutboxStore(_dataSource, _tableName, connection, transaction);
+        return new PostgreSqlOutboxStore(_dataSource, _options, _tableName, connection, transaction);
     }
 
     /// <summary>
@@ -810,7 +877,7 @@ public sealed class PostgreSqlOutboxStore :
             using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
-            var scopedStore = new PostgreSqlOutboxStore(_dataSource, _tableName, connection, transaction);
+            var scopedStore = new PostgreSqlOutboxStore(_dataSource, _options, _tableName, connection, transaction);
 
             var result = await scopedStore.PersistTerminalGroupsAsync(
                     published,
@@ -865,8 +932,10 @@ public sealed class PostgreSqlOutboxStore :
                        SET
                            status = @published_status,
                            lease_owner = NULL,
+                           last_lease_owner = @owner,
                            lease_expires_at = NULL,
                            last_error = NULL,
+                           error_type = NULL,
                            published_at = @published_at
                        WHERE message_id = @message_id
                            AND status = @in_flight_status
@@ -903,8 +972,10 @@ public sealed class PostgreSqlOutboxStore :
                         SET
                             status = @published_status,
                             lease_owner = NULL,
+                            last_lease_owner = batch.lease_owner,
                             lease_expires_at = NULL,
                             last_error = NULL,
+                            error_type = NULL,
                             published_at = batch.published_at
                         FROM unnest(@message_ids, @lease_owners, @lease_generations, @published_at)
                             AS batch(message_id, lease_owner, lease_generation, published_at)
@@ -945,8 +1016,11 @@ public sealed class PostgreSqlOutboxStore :
                            status = @failed_status,
                            visible_after = @visible_after,
                            lease_owner = NULL,
+                           last_lease_owner = @owner,
                            lease_expires_at = NULL,
-                           last_error = @last_error
+                           last_error = @last_error,
+                           error_type = @error_type,
+                           first_failed_at = COALESCE(first_failed_at, @first_failed_at)
                        WHERE message_id = @message_id
                            AND status = @in_flight_status
                            AND lease_owner = @owner
@@ -959,6 +1033,8 @@ public sealed class PostgreSqlOutboxStore :
             command.Parameters.AddWithValue("in_flight_status", (int) OutboxStatus.Publishing);
             command.Parameters.AddWithValue("visible_after", (object?) envelope.VisibleAfter ?? DBNull.Value);
             command.Parameters.AddWithValue("last_error", envelope.LastError!);
+            command.Parameters.AddWithValue("error_type", (object?) envelope.ErrorType ?? DBNull.Value);
+            command.Parameters.AddWithValue("first_failed_at", ResolveFirstFailedAt(envelope));
             command.Parameters.AddWithValue("message_id", envelope.Id);
             command.Parameters.AddWithValue("owner", envelope.LeaseOwner!);
             command.Parameters.AddWithValue("lease_generation", envelope.LeaseGeneration);
@@ -970,6 +1046,8 @@ public sealed class PostgreSqlOutboxStore :
         var generations = new long[envelopes.Count];
         var visibleAfter = new DateTimeOffset?[envelopes.Count];
         var errors = new string[envelopes.Count];
+        var errorTypes = new string?[envelopes.Count];
+        var firstFailedAt = new DateTimeOffset[envelopes.Count];
 
         for (var index = 0; index < envelopes.Count; index++)
         {
@@ -978,6 +1056,8 @@ public sealed class PostgreSqlOutboxStore :
             generations[index] = envelopes[index].LeaseGeneration;
             visibleAfter[index] = envelopes[index].VisibleAfter;
             errors[index] = envelopes[index].LastError!;
+            errorTypes[index] = envelopes[index].ErrorType;
+            firstFailedAt[index] = ResolveFirstFailedAt(envelopes[index]);
         }
 
         var batchSql = $"""
@@ -986,10 +1066,13 @@ public sealed class PostgreSqlOutboxStore :
                             status = @failed_status,
                             visible_after = batch.visible_after,
                             lease_owner = NULL,
+                            last_lease_owner = batch.lease_owner,
                             lease_expires_at = NULL,
-                            last_error = batch.last_error
-                        FROM unnest(@message_ids, @lease_owners, @lease_generations, @visible_after, @last_errors)
-                            AS batch(message_id, lease_owner, lease_generation, visible_after, last_error)
+                            last_error = batch.last_error,
+                            error_type = batch.error_type,
+                            first_failed_at = COALESCE(outbox.first_failed_at, batch.first_failed_at)
+                        FROM unnest(@message_ids, @lease_owners, @lease_generations, @visible_after, @last_errors, @error_types, @first_failed_at)
+                            AS batch(message_id, lease_owner, lease_generation, visible_after, last_error, error_type, first_failed_at)
                         WHERE outbox.message_id = batch.message_id
                             AND outbox.status = @in_flight_status
                             AND outbox.lease_owner = batch.lease_owner
@@ -1005,6 +1088,8 @@ public sealed class PostgreSqlOutboxStore :
         batchCommand.Parameters.AddWithValue("lease_generations", generations);
         AddVisibleAfterArrayParameter(batchCommand, visibleAfter);
         batchCommand.Parameters.AddWithValue("last_errors", errors);
+        AddNullableTextArrayParameter(batchCommand, "error_types", errorTypes);
+        AddTimestampArrayParameter(batchCommand, "first_failed_at", firstFailedAt);
         return await ExecuteTerminalUpdateWithReturningAsync(batchCommand, cancellationToken).ConfigureAwait(false);
     }
 
@@ -1027,8 +1112,12 @@ public sealed class PostgreSqlOutboxStore :
                        SET
                            status = @dead_lettered_status,
                            lease_owner = NULL,
+                           last_lease_owner = @owner,
                            lease_expires_at = NULL,
-                           last_error = @last_error
+                           last_error = @last_error,
+                           error_type = @error_type,
+                           first_failed_at = COALESCE(first_failed_at, @first_failed_at),
+                           dead_lettered_at = @dead_lettered_at
                        WHERE message_id = @message_id
                            AND status = @in_flight_status
                            AND lease_owner = @owner
@@ -1040,6 +1129,9 @@ public sealed class PostgreSqlOutboxStore :
             command.Parameters.AddWithValue("dead_lettered_status", (int) OutboxStatus.DeadLettered);
             command.Parameters.AddWithValue("in_flight_status", (int) OutboxStatus.Publishing);
             command.Parameters.AddWithValue("last_error", envelope.LastError!);
+            command.Parameters.AddWithValue("error_type", (object?) envelope.ErrorType ?? DBNull.Value);
+            command.Parameters.AddWithValue("first_failed_at", ResolveFirstFailedAt(envelope));
+            command.Parameters.AddWithValue("dead_lettered_at", ResolveDeadLetteredAt(envelope));
             command.Parameters.AddWithValue("message_id", envelope.Id);
             command.Parameters.AddWithValue("owner", envelope.LeaseOwner!);
             command.Parameters.AddWithValue("lease_generation", envelope.LeaseGeneration);
@@ -1050,6 +1142,9 @@ public sealed class PostgreSqlOutboxStore :
         var owners = new string[envelopes.Count];
         var generations = new long[envelopes.Count];
         var reasons = new string[envelopes.Count];
+        var reasonTypes = new string?[envelopes.Count];
+        var firstFailedAt = new DateTimeOffset[envelopes.Count];
+        var deadLetteredAt = new DateTimeOffset[envelopes.Count];
 
         for (var index = 0; index < envelopes.Count; index++)
         {
@@ -1057,6 +1152,9 @@ public sealed class PostgreSqlOutboxStore :
             owners[index] = envelopes[index].LeaseOwner!;
             generations[index] = envelopes[index].LeaseGeneration;
             reasons[index] = envelopes[index].LastError!;
+            reasonTypes[index] = envelopes[index].ErrorType;
+            firstFailedAt[index] = ResolveFirstFailedAt(envelopes[index]);
+            deadLetteredAt[index] = ResolveDeadLetteredAt(envelopes[index]);
         }
 
         var batchSql = $"""
@@ -1064,10 +1162,14 @@ public sealed class PostgreSqlOutboxStore :
                         SET
                             status = @dead_lettered_status,
                             lease_owner = NULL,
+                            last_lease_owner = batch.lease_owner,
                             lease_expires_at = NULL,
-                            last_error = batch.last_error
-                        FROM unnest(@message_ids, @lease_owners, @lease_generations, @last_errors)
-                            AS batch(message_id, lease_owner, lease_generation, last_error)
+                            last_error = batch.last_error,
+                            error_type = batch.error_type,
+                            first_failed_at = COALESCE(outbox.first_failed_at, batch.first_failed_at),
+                            dead_lettered_at = batch.dead_lettered_at
+                        FROM unnest(@message_ids, @lease_owners, @lease_generations, @last_errors, @error_types, @first_failed_at, @dead_lettered_at)
+                            AS batch(message_id, lease_owner, lease_generation, last_error, error_type, first_failed_at, dead_lettered_at)
                         WHERE outbox.message_id = batch.message_id
                             AND outbox.status = @in_flight_status
                             AND outbox.lease_owner = batch.lease_owner
@@ -1082,6 +1184,9 @@ public sealed class PostgreSqlOutboxStore :
         batchCommand.Parameters.AddWithValue("lease_owners", owners);
         batchCommand.Parameters.AddWithValue("lease_generations", generations);
         batchCommand.Parameters.AddWithValue("last_errors", reasons);
+        AddNullableTextArrayParameter(batchCommand, "error_types", reasonTypes);
+        AddTimestampArrayParameter(batchCommand, "first_failed_at", firstFailedAt);
+        AddTimestampArrayParameter(batchCommand, "dead_lettered_at", deadLetteredAt);
         return await ExecuteTerminalUpdateWithReturningAsync(batchCommand, cancellationToken).ConfigureAwait(false);
     }
 
@@ -1121,6 +1226,33 @@ public sealed class PostgreSqlOutboxStore :
         string? idempotencyKey,
         CancellationToken cancellationToken)
     {
+        return await FindExistingOrDefaultAsync(messageId, tenantId, idempotencyKey, cancellationToken).ConfigureAwait(false) ??
+               throw new InvalidOperationException("The outbox insert was skipped but the existing message could not be found.");
+    }
+
+    /// <summary>
+    ///     Reads the stored row that shares a message id, or a tenant-scoped idempotency key, with a pending insert.
+    /// </summary>
+    /// <remarks>
+    ///     Used by writers that stage the insert in another unit of work, such as the Marten transactional outbox, and
+    ///     so must resolve idempotency before the row is written rather than from a skipped insert. A row that shares
+    ///     the message id but belongs to a different tenant is reported as a conflict rather than returned, so the
+    ///     caller never receives another tenant envelope metadata.
+    /// </remarks>
+    /// <param name="messageId">The message id of the pending insert.</param>
+    /// <param name="tenantId">The tenant identifier of the pending insert.</param>
+    /// <param name="idempotencyKey">The optional idempotency key of the pending insert.</param>
+    /// <param name="cancellationToken">A token used to cancel the lookup.</param>
+    /// <returns>The stored envelope, or <see langword="null" /> when no row matches.</returns>
+    /// <exception cref="Messaging.Abstractions.DurableMessaging.IdempotencyConflictException">
+    ///     A row with the same message id belongs to a different tenant.
+    /// </exception>
+    internal async Task<OutboxEnvelope?> FindExistingOrDefaultAsync(
+        Guid messageId,
+        string? tenantId,
+        string? idempotencyKey,
+        CancellationToken cancellationToken)
+    {
         var (sql, requiresTenantParameter) = PostgreSqlIdempotencyResolution.BuildFindExistingSql(
             _tableName,
             BatchSelectColumns,
@@ -1143,8 +1275,40 @@ public sealed class PostgreSqlOutboxStore :
 
         command.CommandText = sql;
 
-        return await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false) ??
-               throw new InvalidOperationException("The outbox insert was skipped but the existing message could not be found.");
+        var existing = await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false);
+
+        if (existing is not null)
+        {
+            ThrowIfCrossTenantMessageIdHit(messageId, tenantId, existing);
+        }
+
+        return existing;
+    }
+
+    /// <summary>
+    ///     Throws when an idempotency lookup resolved a row that shares the message id but belongs to another tenant.
+    /// </summary>
+    /// <param name="messageId">The message id of the pending insert.</param>
+    /// <param name="tenantId">The tenant identifier of the pending insert.</param>
+    /// <param name="existing">The stored envelope resolved by message id or idempotency key.</param>
+    /// <exception cref="Messaging.Abstractions.DurableMessaging.IdempotencyConflictException">
+    ///     The resolved row belongs to a different tenant.
+    /// </exception>
+    /// <remarks>
+    ///     The idempotency-key branch is tenant-scoped, so only the global message-id branch can return a foreign row.
+    ///     Throwing regardless of conflict mode keeps the foreign tenant identifier, contract, and trace metadata out
+    ///     of the receipt and ensures the second tenant message is never silently dropped.
+    /// </remarks>
+    private static void ThrowIfCrossTenantMessageIdHit(Guid messageId, string? tenantId, OutboxEnvelope existing)
+    {
+        var requestedTenant = Messaging.Abstractions.DurableMessaging.DurableTenantId.Normalize(tenantId);
+        var storedTenant = Messaging.Abstractions.DurableMessaging.DurableTenantId.Normalize(existing.TenantId);
+
+        if (!string.Equals(requestedTenant, storedTenant, StringComparison.Ordinal))
+        {
+            throw new Messaging.Abstractions.DurableMessaging.IdempotencyConflictException(
+                $"An outbox message with message id '{messageId}' already exists for a different tenant.");
+        }
     }
 
     /// <summary>
@@ -1177,6 +1341,7 @@ public sealed class PostgreSqlOutboxStore :
         payloadParameter.Value = envelope.Payload;
 
         command.Parameters.AddWithValue($"topic{suffix}", (object?) envelope.Topic ?? DBNull.Value);
+        command.Parameters.AddWithValue($"handler{suffix}", (object?) envelope.Handler ?? DBNull.Value);
         command.Parameters.AddWithValue($"created_at{suffix}", envelope.CreatedAt);
         command.Parameters.AddWithValue($"visible_after{suffix}", (object?) envelope.VisibleAfter ?? DBNull.Value);
         command.Parameters.AddWithValue($"status{suffix}", (int) envelope.Status);
@@ -1258,7 +1423,32 @@ public sealed class PostgreSqlOutboxStore :
             IdempotencyKey = GetNullableString(reader, 15),
             TraceContext = NormalizeJsonText(GetNullableString(reader, 16)),
             PublishedAt = GetNullable<DateTimeOffset>(reader, 17),
-            LeaseGeneration = reader.GetInt64(18)
+            LeaseGeneration = reader.GetInt64(18),
+            LastAttemptedAt = GetNullable<DateTimeOffset>(reader, 19),
+            FirstFailedAt = GetNullable<DateTimeOffset>(reader, 20),
+            DeadLetteredAt = GetNullable<DateTimeOffset>(reader, 21),
+            LastLeaseOwner = GetNullableString(reader, 22),
+            ErrorType = GetNullableString(reader, 23),
+            Handler = GetNullableString(reader, 24)
+        };
+    }
+
+    /// <summary>
+    ///     Maps the current failure-summary row to an <see cref="OutboxFailureSummary" />.
+    /// </summary>
+    /// <param name="reader">The reader positioned on a summary row.</param>
+    /// <returns>The mapped summary.</returns>
+    private static OutboxFailureSummary ReadFailureSummary(NpgsqlDataReader reader)
+    {
+        return new OutboxFailureSummary
+        {
+            ContractName = reader.GetString(0),
+            ContractVersion = reader.GetInt32(1),
+            FailedCount = reader.GetInt32(2),
+            DeadLetteredCount = reader.GetInt32(3),
+            LastError = GetNullableString(reader, 4),
+            LastErrorType = GetNullableString(reader, 5),
+            LastFailedAt = GetNullable<DateTimeOffset>(reader, 6)
         };
     }
 
@@ -1286,6 +1476,30 @@ public sealed class PostgreSqlOutboxStore :
     private static DateTimeOffset ResolvePublishedAt(OutboxEnvelope envelope)
     {
         return envelope.PublishedAt ?? DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
+    ///     Resolves the timestamp written to <c>first_failed_at</c> for a failed or dead-lettered envelope.
+    /// </summary>
+    /// <param name="envelope">The envelope being persisted.</param>
+    /// <returns>The UTC timestamp of the first failure.</returns>
+    /// <remarks>
+    ///     The statement wraps this in <c>COALESCE</c> against the stored value, so a row that already recorded a
+    ///     first failure keeps it and this value is only used for the first one.
+    /// </remarks>
+    private static DateTimeOffset ResolveFirstFailedAt(OutboxEnvelope envelope)
+    {
+        return envelope.FirstFailedAt ?? DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
+    ///     Resolves the timestamp written to <c>dead_lettered_at</c> for a dead-lettered envelope.
+    /// </summary>
+    /// <param name="envelope">The envelope being persisted.</param>
+    /// <returns>The UTC timestamp at which the envelope gave up.</returns>
+    private static DateTimeOffset ResolveDeadLetteredAt(OutboxEnvelope envelope)
+    {
+        return envelope.DeadLetteredAt ?? DateTimeOffset.UtcNow;
     }
 
     /// <summary>
@@ -1333,6 +1547,22 @@ public sealed class PostgreSqlOutboxStore :
     {
         var parameter = command.Parameters.Add(name, NpgsqlDbType.Array | NpgsqlDbType.TimestampTz);
         parameter.Value = timestamps;
+    }
+
+    /// <summary>
+    ///     Adds a text array parameter whose entries may individually be null.
+    /// </summary>
+    /// <param name="command">The command receiving the parameter.</param>
+    /// <param name="name">The parameter name.</param>
+    /// <param name="values">The per-message values, where a null entry becomes a SQL null.</param>
+    /// <remarks>
+    ///     Npgsql infers an untyped array from the CLR element type, which fails for an all-null array. Declaring
+    ///     the array type keeps a batch of failures that carried no exception type working.
+    /// </remarks>
+    private static void AddNullableTextArrayParameter(NpgsqlCommand command, string name, string?[] values)
+    {
+        var parameter = command.Parameters.Add(name, NpgsqlDbType.Array | NpgsqlDbType.Text);
+        parameter.Value = values;
     }
 
     /// <summary>
@@ -1393,7 +1623,7 @@ public sealed class PostgreSqlOutboxStore :
         AddNullableTextParameter(command, "topic", filter.Topic);
         AddNullableTextParameter(command, "correlation_id", filter.CorrelationId);
         AddNullableTextParameter(command, "causation_id", filter.CausationId);
-        AddNullableTextParameter(command, "tenant_id", filter.TenantId);
+        AddNullableTextParameter(command, "tenant_id", NormalizeTenantFilter(filter.TenantId));
         AddNullableTimestampParameter(command, "created_after", filter.CreatedAfter);
         AddNullableTimestampParameter(command, "created_before", filter.CreatedBefore);
     }
@@ -1449,6 +1679,16 @@ public sealed class PostgreSqlOutboxStore :
         {
             throw new ArgumentOutOfRangeException(nameof(pageSize), pageSize, "Page size must be greater than zero.");
         }
+    }
+
+    /// <summary>
+    ///     Normalizes a tenant filter value so blank tenants match unscoped rows while a null filter stays unrestricted.
+    /// </summary>
+    /// <param name="tenantId">The tenant filter supplied by the caller.</param>
+    /// <returns><see langword="null" /> when unrestricted; otherwise the normalized tenant identifier.</returns>
+    private static string? NormalizeTenantFilter(string? tenantId)
+    {
+        return tenantId is null ? null : PostgreSqlIdempotencyResolution.NormalizeTenantParameter(tenantId);
     }
 
     /// <summary>

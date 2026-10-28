@@ -1,0 +1,421 @@
+# CI - every gate a change must pass, run once per commit.
+#
+# Triggers: pushes to main and to version branches (v7, v8, ...), pull requests into them, and manual dispatch.
+# A pull request from a branch of this repository whose head is main or a version branch is already covered by that
+# branch's push run on the same commit, so the plan job skips it; pull requests from forks and from other branches
+# run in full. The release workflow publishes only a commit whose push or dispatch run of this workflow succeeded.
+#
+# Layout: documentation, build and package, and every test shard run as parallel jobs. Each test shard builds the
+# solution itself and uploads its coverage; the coverage job merges the shards' reports and enforces the gate. The
+# shards together run exactly the solution's tests: the integration filter is split by project and by the storage
+# PostgreSQL namespace, and the integration-other shard runs that filter over everything outside the four
+# integration projects, so a matching class elsewhere still runs.
+#
+# Skip waiver policy:
+#   - [Fact(Skip = ...)] is blocked by verify-no-fact-skips.sh on all branches except quarantine.
+#   - Emulator-backed SkippableFact broker tests must not skip when Docker is available: TransportDocker and
+#     TransportAzure set LITEBUS_CI_STRICT_TRANSPORT=true and verify TRX skipped counts. TransportLiveAzure is an
+#     opt-in category that requires explicit cloud credentials and does not run here.
+#   - Full integration (PostgreSQL, AMQP, EF) requires Docker on ubuntu-latest runners.
+name: CI
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI_PACKAGE_VERSION: 7.0.0-ci.${{ github.run_number }}
+  # The integration filter the integration shards narrow.
+  INTEGRATION_FILTER: FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure
+
+on:
+  push:
+    branches: [ main, 'v[0-9]*' ]
+    paths:
+      - 'LiteBus.slnx'
+      - 'Changelog.md'
+      - 'README.md'
+      - 'assets/**'
+      - 'benchmarks/**'
+      - 'coverlet*.runsettings'
+      - 'site/**'
+      - 'global.json'
+      - 'dotnet-tools.json'
+      - 'samples/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+      - '.github/scripts/**'
+      - '.github/actions/**'
+  pull_request:
+    branches: [ main, 'v[0-9]*' ]
+    paths:
+      - 'LiteBus.slnx'
+      - 'Changelog.md'
+      - 'README.md'
+      - 'assets/**'
+      - 'benchmarks/**'
+      - 'coverlet*.runsettings'
+      - 'site/**'
+      - 'global.json'
+      - 'dotnet-tools.json'
+      - 'samples/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+      - '.github/scripts/**'
+      - '.github/actions/**'
+  workflow_dispatch:
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - name: Decide whether this run is needed
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_REF: ${{ github.head_ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          run=true
+          if [ "${EVENT}" = "pull_request" ] && [ "${HEAD_REPO}" = "${REPO}" ] && [[ "${HEAD_REF}" =~ ^(main|v[0-9].*)$ ]]; then
+            run=false
+            echo "The push run of ${HEAD_REF} already covers this commit." >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          echo "run=${run}" >> "${GITHUB_OUTPUT}"
+
+  docs:
+    name: Documentation
+    needs: plan
+    if: needs.plan.outputs.run == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Validate Documentation
+        shell: pwsh
+        run: ./scripts/Test-Documentation.ps1
+
+      - name: Validate Documentation Site
+        working-directory: site
+        run: |
+          npm ci
+          if ! npm audit --audit-level=high; then
+            echo "::warning::npm audit (high) reported vulnerabilities. Continuing CI because documentation dependencies are best-effort validated here."
+          fi
+          npm run lint
+          npm run typecheck
+          npm run build
+          npm run check
+
+  build:
+    name: Build and Package
+    needs: plan
+    if: needs.plan.outputs.run == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Restore Dependencies
+        run: dotnet restore LiteBus.slnx --locked-mode
+
+      - name: Verify Formatting
+        # The analyzers already fail the build; this gate covers the whitespace rules in .editorconfig.
+        run: dotnet format whitespace LiteBus.slnx --verify-no-changes --verbosity minimal
+
+      - name: Audit NuGet Dependencies
+        run: |
+          audit_output="$(dotnet list LiteBus.slnx package --vulnerable --include-transitive)"
+          printf '%s\n' "${audit_output}"
+          if grep -qi "has the following vulnerable packages" <<< "${audit_output}"; then
+            echo "::error::NuGet vulnerability audit found a vulnerable package."
+            exit 1
+          fi
+
+      - name: Decode Strong Name Key
+        uses: ./.github/actions/strong-name-key
+        with:
+          key: ${{ secrets.STRONG_NAME_KEY }}
+
+      - name: Build
+        run: dotnet build LiteBus.slnx --configuration Release --no-restore /p:Version=${{ env.CI_PACKAGE_VERSION }} /p:ContinuousIntegrationBuild=true
+
+      - name: Validate Documentation Semantics
+        shell: pwsh
+        run: ./scripts/Test-DocumentationSemantics.ps1 -Configuration Release
+
+      - name: Verify Benchmark Discovery
+        run: dotnet run --project benchmarks/LiteBus.Processor.Benchmarks --configuration Release --no-build -- --list flat
+
+      - name: Fail on [Fact(Skip = ...)] in test projects
+        run: bash .github/scripts/verify-no-fact-skips.sh "${{ github.workspace }}"
+
+      - name: Pack Packages
+        shell: pwsh
+        run: ./scripts/Pack-Packages.ps1 -OutputDirectory artifacts -Configuration Release -Version ${{ env.CI_PACKAGE_VERSION }} -NoBuild -NoRestore
+
+      - name: Validate Packages
+        shell: pwsh
+        run: ./scripts/Test-Packages.ps1 -PackageDirectory artifacts -ExpectedVersion ${{ env.CI_PACKAGE_VERSION }}
+
+      - name: Upload Packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nuget-packages
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+
+  test:
+    name: Test (${{ matrix.name }})
+    needs: plan
+    if: needs.plan.outputs.run == 'true'
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Every shard reports, so one failing suite does not hide another.
+      fail-fast: false
+      matrix:
+        include:
+          - name: unit
+            target: LiteBus.slnx
+            filter: FullyQualifiedName!~IntegrationTests
+            docker: false
+            strict: false
+          - name: transport-fast
+            target: tests/LiteBus.Durable.IntegrationTests
+            filter: Category=TransportFast
+            docker: false
+            strict: false
+          - name: transport-docker-durable
+            target: tests/LiteBus.Durable.IntegrationTests
+            filter: Category=TransportDocker
+            docker: true
+            strict: true
+          - name: transport-docker-wire
+            target: tests/LiteBus.Transport.IntegrationTests
+            filter: Category=TransportDocker
+            docker: true
+            strict: true
+          - name: transport-azure
+            target: tests/LiteBus.Durable.IntegrationTests
+            filter: Category=TransportAzure
+            docker: true
+            strict: true
+          - name: integration-durable
+            target: tests/LiteBus.Durable.IntegrationTests
+            filter: ''
+            docker: true
+            strict: false
+          - name: integration-extensions
+            target: tests/LiteBus.Extensions.IntegrationTests
+            filter: ''
+            docker: true
+            strict: false
+          - name: integration-storage-postgresql
+            target: tests/LiteBus.Storage.IntegrationTests
+            filter: '&FullyQualifiedName~LiteBus.Storage.IntegrationTests.PostgreSql.'
+            docker: true
+            strict: false
+          - name: integration-storage-other
+            target: tests/LiteBus.Storage.IntegrationTests
+            filter: '&FullyQualifiedName!~LiteBus.Storage.IntegrationTests.PostgreSql.'
+            docker: true
+            strict: false
+          - name: integration-transport
+            target: tests/LiteBus.Transport.IntegrationTests
+            filter: ''
+            docker: true
+            strict: false
+          - name: integration-other
+            target: LiteBus.slnx
+            filter: '&FullyQualifiedName!~LiteBus.Durable.IntegrationTests.&FullyQualifiedName!~LiteBus.Extensions.IntegrationTests.&FullyQualifiedName!~LiteBus.Storage.IntegrationTests.&FullyQualifiedName!~LiteBus.Transport.IntegrationTests.'
+            docker: false
+            strict: false
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Restore Dependencies
+        run: dotnet restore LiteBus.slnx --locked-mode
+
+      - name: Decode Strong Name Key
+        uses: ./.github/actions/strong-name-key
+        with:
+          key: ${{ secrets.STRONG_NAME_KEY }}
+
+      - name: Build
+        run: dotnet build LiteBus.slnx --configuration Release --no-restore /p:Version=${{ env.CI_PACKAGE_VERSION }} /p:ContinuousIntegrationBuild=true
+
+      - name: Require Docker
+        if: matrix.docker
+        run: |
+          if ! docker info >/dev/null 2>&1; then
+            echo "::error::Docker is required for TransportDocker, TransportAzure, and full integration tests on CI."
+            exit 1
+          fi
+
+      - name: Run Tests
+        env:
+          LITEBUS_CI_STRICT_TRANSPORT: ${{ matrix.strict && 'true' || '' }}
+          SHARD: ${{ matrix.name }}
+          TARGET: ${{ matrix.target }}
+          SHARD_FILTER: ${{ matrix.filter }}
+          IS_INTEGRATION: ${{ startsWith(matrix.name, 'integration-') }}
+          IS_STRICT: ${{ matrix.strict }}
+        run: |
+          # Recorded before the run, so a shard that starts but produces no report fails the coverage job.
+          mkdir -p "artifacts/coverage/${SHARD}"
+          echo "${SHARD}" > "artifacts/coverage/expected-${SHARD}.txt"
+          filter="${SHARD_FILTER}"
+          if [ "${IS_INTEGRATION}" = "true" ]; then
+            filter="${INTEGRATION_FILTER}${SHARD_FILTER}"
+          fi
+          trx="${RUNNER_TEMP}/${SHARD}.trx"
+          dotnet test "${TARGET}" \
+            --no-build --configuration Release --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings \
+            --results-directory "artifacts/coverage/${SHARD}" \
+            --filter "${filter}" \
+            --logger "trx;LogFileName=${trx}"
+          if [ "${IS_STRICT}" = "true" ]; then
+            bash .github/scripts/verify-no-skipped-tests.sh "${trx}"
+          fi
+
+      - name: Upload Shard Coverage
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-${{ matrix.name }}
+          path: |
+            artifacts/coverage/expected-${{ matrix.name }}.txt
+            artifacts/coverage/${{ matrix.name }}/**/coverage.*
+          if-no-files-found: warn
+
+  coverage:
+    name: Coverage
+    needs: [ plan, test ]
+    if: ${{ !cancelled() && needs.plan.outputs.run == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download Shard Coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: coverage-*
+          path: artifacts/coverage
+          merge-multiple: true
+
+      - name: Check Coverage Reports
+        id: coverage-reports
+        run: |
+          # Each shard records its name before it runs, so a shard that never started is not expected and a shard
+          # that ran without producing a report fails here.
+          cat artifacts/coverage/expected-*.txt 2>/dev/null > artifacts/coverage/expected.txt || true
+          coverage_count="$(find artifacts/coverage -type f -name 'coverage.cobertura.xml' | wc -l)"
+          echo "count=${coverage_count}" >> "$GITHUB_OUTPUT"
+          if [ "${coverage_count}" -eq 0 ]; then
+            echo "has_reports=false" >> "$GITHUB_OUTPUT"
+            echo "::error::No Cobertura coverage reports were found in artifacts/coverage."
+            exit 1
+          fi
+          echo "has_reports=true" >> "$GITHUB_OUTPUT"
+          missing=0
+          while read -r name; do
+            [ -z "${name}" ] && continue
+            if [ -z "$(find "artifacts/coverage/${name}" -type f -name 'coverage.cobertura.xml' 2>/dev/null | head -n 1)" ]; then
+              echo "::error::The ${name} test shard produced no coverage.cobertura.xml in artifacts/coverage/${name}."
+              missing=1
+            fi
+          done < artifacts/coverage/expected.txt
+          exit "${missing}"
+
+      - name: Enforce Merged Coverage Gate
+        shell: pwsh
+        run: ./scripts/Test-CoverageThreshold.ps1 -Root artifacts/coverage -LineThreshold 90
+
+      - name: Upload Coverage Reports
+        if: always() && steps.coverage-reports.outputs.has_reports == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-reports
+          path: artifacts/coverage/**/coverage.*
+
+      - name: Upload Coverage to Codecov
+        if: always() && steps.coverage-reports.outputs.has_reports == 'true'
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: ./artifacts/coverage/**/coverage.cobertura.xml
+          disable_search: true
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  result:
+    name: CI result
+    # One job that is green only when every gate passed (or the plan skipped a duplicate run), so a branch rule or
+    # the release workflow can depend on a single name.
+    needs: [ plan, docs, build, test, coverage ]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check every gate
+        env:
+          RUN: ${{ needs.plan.outputs.run }}
+          RESULTS: ${{ needs.docs.result }} ${{ needs.build.result }} ${{ needs.test.result }} ${{ needs.coverage.result }}
+        run: |
+          if [ "${RUN}" != "true" ]; then
+            echo "Skipped: the push run of this commit is the check of record."
+            exit 0
+          fi
+          for result in ${RESULTS}; do
+            if [ "${result}" != "success" ]; then
+              echo "::error::A CI gate did not succeed (docs, build, test, coverage: ${RESULTS})."
+              exit 1
+            fi
+          done
+          echo "Every gate passed."

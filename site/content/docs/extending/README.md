@@ -1,13 +1,14 @@
-# Extensibility
+# Extending
 
+LiteBus modules, mediation strategies, and message resolution are extension points: a new module introduces a message type with its own contracts and mediation logic, composed through `ILiteBusBuilder` like the shipped modules. This page builds a Notification module, then shows custom strategies and resolution.
 
 ## Creating Custom Modules
 
-A custom module allows you to introduce a new type of message with its own contracts and mediation logic. Let's create a simple "Notification" module as an example.
+A custom module introduces a new type of message with its own contracts and mediation logic. The example below defines a Notification module with its own contracts and mediation logic.
 
-### 1. Define Abstractions
+### Define Abstractions
 
-First, define the core interfaces for your module.
+Define the core interfaces for the module.
 
 ```csharp
 // The base notification message contract
@@ -26,7 +27,7 @@ public interface INotificationMediator
 }
 ```
 
-### 2. Implement the Module Logic
+### Implement the Module Logic
 
 Create the `IModule` implementation, a builder, and the mediator. Custom mediators on `IMessageMediator` use `MessageMediationRequest<TMessage, TResult>`; pass `CancellationToken` to `Mediate`, not inside the request bag. Historical API mappings are documented in the [Migration Guide](../migration/v6.md).
 
@@ -50,6 +51,7 @@ internal sealed class NotificationMediator : INotificationMediator
         {
             MessageMediationStrategy = mediationStrategy,
             MessageResolveStrategy = resolveStrategy,
+            Tags = [],
         };
         return _messageMediator.Mediate(notification, request, cancellationToken);
     }
@@ -89,7 +91,7 @@ internal sealed class NotificationModule : IModule, IRequires<MessageModule>
     public void Build(IModuleConfiguration configuration)
     {
         // Run the user's configuration
-        var messageRegistry = configuration.GetOrCreateContext(() => new MessageRegistry());
+        var messageRegistry = configuration.GetOrCreateContext<IMessageRegistry>(() => new MessageRegistry());
         _builderAction(new NotificationModuleBuilder(messageRegistry));
 
         // Register the module's services
@@ -98,9 +100,9 @@ internal sealed class NotificationModule : IModule, IRequires<MessageModule>
 }
 ```
 
-### 3. Create the Extension Method
+### Create the Extension Method
 
-Finally, create an extension method to make registration easy.
+Create an extension method so application code registers the module through `ILiteBusBuilder`.
 
 ```csharp
 public static class ModuleRegistryExtensions
@@ -122,44 +124,55 @@ The application still calls `AddMessaging(...)`. The graph validates `IRequires<
 You can change how messages are processed by implementing `IMessageMediationStrategy<TMessage, TMessageResult>`. For example, you could create a strategy that retries failed handlers.
 
 ```csharp
-public class RetryMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task> where TMessage : notnull
+public sealed class RetryMediationStrategy<TMessage> : IMessageMediationStrategy<TMessage, Task> where TMessage : notnull
 {
     private readonly int _retryCount;
 
-    public RetryMediationStrategy(int retryCount = 3) => _retryCount = retryCount;
+    public RetryMediationStrategy(int retryCount = 3)
+    {
+        _retryCount = retryCount;
+    }
 
     public async Task Mediate(TMessage message, IMessageDependencies deps, IExecutionContext context)
     {
-        await deps.RunAsyncPreHandlers(message);
+        var decision = await deps.RunAsyncPreStages(message, context.CancellationToken).ConfigureAwait(false);
+
+        if (decision.StopsPipeline)
+        {
+            return;
+        }
 
         var handler = deps.MainHandlers.Single().Handler.Value;
 
-        for (int i = 0; i < _retryCount; i++)
+        for (var i = 0; i < _retryCount; i++)
         {
             try
             {
-                await (Task)handler.Handle(message);
+                await ((Task)handler.Handle(message)).ConfigureAwait(false);
                 break; // Success
             }
             catch (Exception) when (i < _retryCount - 1)
             {
-                await Task.Delay(100 * (i + 1)); // Exponential backoff
+                await Task.Delay(100 * (i + 1), context.CancellationToken).ConfigureAwait(false); // Exponential backoff
             }
         }
 
-        await deps.RunAsyncPostHandlers(message, null);
+        await deps.RunAsyncPostHandlers(message, null, context.CancellationToken).ConfigureAwait(false);
     }
 }
 ```
 
 ## Custom Message Resolution
 
-You can change how LiteBus finds handlers for a message by implementing `IMessageResolveStrategy`. This is an advanced scenario, useful if you have custom rules for matching messages to handlers (e.g., based on versioning attributes).
+Change how LiteBus finds handlers for a message by implementing `IMessageResolveStrategy`. This is an advanced scenario for custom rules that match messages to handlers, such as versioning attributes. Resolution internals are documented in [Handler Resolution Internals](../architecture/handler-resolution.md).
 
 ## Best Practices for Extensibility
 
-1.  **Build on `IMessageMediator`**: Your custom mediators should delegate the core mediation logic to the built-in `IMessageMediator` and only provide the custom strategy and options.
-2.  **Follow Existing Patterns**: Model your custom modules and extensions on the existing LiteBus architecture for consistency.
-3.  **Register module services**: Your `IModule` implementation registers all services your module needs with the `IDependencyRegistry`.
+1.  **Build on `IMessageMediator`**: custom mediators delegate the core mediation logic to the built-in `IMessageMediator` and provide only the custom strategy and options.
+2.  **Follow existing patterns**: model custom modules and extensions on the shipped command, query, and event modules for consistent registration and discovery.
+3.  **Register module services**: the `IModule` implementation registers every service the module needs with the `IDependencyRegistry`.
 
 ## Next
+
+- [Custom Stores and Dispatchers](custom-stores-and-dispatchers.md): storage roles and dispatcher contracts for the durable axes
+- [Handler Resolution Internals](../architecture/handler-resolution.md): how registration builds the handler lists strategies run

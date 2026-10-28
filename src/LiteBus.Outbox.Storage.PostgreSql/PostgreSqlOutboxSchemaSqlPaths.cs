@@ -24,4 +24,14 @@ public static class PostgreSqlOutboxSchemaSqlPaths
     ///     Ensures the current outbox indexes exist.
     /// </summary>
     public const string V1EnsureIndexes = Root + "outbox/v1/ensure_indexes.sql";
+
+    /// <summary>
+    ///     Creates the version 2 outbox table, indexes, and insert notify trigger.
+    /// </summary>
+    public const string V2Create = Root + "outbox/v2/create.sql";
+
+    /// <summary>
+    ///     Upgrades a version 1 outbox table to version 2.
+    /// </summary>
+    public const string V2Upgrade = Root + "outbox/v2/upgrade.sql";
 }

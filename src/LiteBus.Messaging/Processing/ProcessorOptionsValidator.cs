@@ -42,5 +42,6 @@ internal static class ProcessorOptionsValidator
         }
 
         MessageProcessorDiagnostics.ValidateRetryOptions(options.Retry, optionsParameterName);
+        options.Retry.Validate();
     }
 }

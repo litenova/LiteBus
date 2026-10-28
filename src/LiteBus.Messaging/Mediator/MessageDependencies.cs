@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Extensions;
+using LiteBus.Runtime.Abstractions.Extensions;
+using MessagingEnumerableExtensions = LiteBus.Messaging.Extensions.EnumerableExtensions;
 
 namespace LiteBus.Messaging.Mediator;
 
@@ -20,9 +21,20 @@ internal sealed class MessageDependencies : IMessageDependencies
     private readonly Type _messageType;
 
     /// <summary>
+    ///     One bit per <see cref="PreStage" /> that has at least one handler, computed once at resolution.
+    /// </summary>
+    private readonly int _occupiedPreStages;
+
+    /// <summary>
     ///     The mediation tags used to filter handlers by tag intersection.
     /// </summary>
     private readonly IReadOnlyCollection<string> _tags;
+
+    /// <summary>
+    ///     The fault refusal classifiers, resolved from the dispatch scope on first use so that offering a fault never
+    ///     creates the scope for a mediation that never faults.
+    /// </summary>
+    private readonly Lazy<IReadOnlyList<IFaultRefusalClassifier>> _faultRefusalClassifiers;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="MessageDependencies" /> class.
@@ -45,14 +57,25 @@ internal sealed class MessageDependencies : IMessageDependencies
         MainHandlers = ResolveHandlers(descriptor.Handlers, handlerType => (IMessageHandler) serviceProvider.GetRequiredService(handlerType));
         IndirectMainHandlers = ResolveHandlers(descriptor.IndirectHandlers, handlerType => (IMessageHandler) serviceProvider.GetRequiredService(handlerType));
 
-        PreHandlers = ResolveHandlers(descriptor.PreHandlers, handlerType => (IMessagePreHandler) serviceProvider.GetRequiredService(handlerType));
-        IndirectPreHandlers = ResolveHandlers(descriptor.IndirectPreHandlers, handlerType => (IMessagePreHandler) serviceProvider.GetRequiredService(handlerType));
+        PreStageHandlers = ResolveHandlers(descriptor.PreStageHandlers, handlerType => (IMessagePreStageHandler) serviceProvider.GetRequiredService(handlerType));
+        IndirectPreStageHandlers = ResolveHandlers(descriptor.IndirectPreStageHandlers, handlerType => (IMessagePreStageHandler) serviceProvider.GetRequiredService(handlerType));
 
         PostHandlers = ResolveHandlers(descriptor.PostHandlers, handlerType => (IMessagePostHandler) serviceProvider.GetRequiredService(handlerType));
         IndirectPostHandlers = ResolveHandlers(descriptor.IndirectPostHandlers, handlerType => (IMessagePostHandler) serviceProvider.GetRequiredService(handlerType));
 
         ErrorHandlers = ResolveHandlers(descriptor.ErrorHandlers, handlerType => (IMessageErrorHandler) serviceProvider.GetRequiredService(handlerType));
         IndirectErrorHandlers = ResolveHandlers(descriptor.IndirectErrorHandlers, handlerType => (IMessageErrorHandler) serviceProvider.GetRequiredService(handlerType));
+
+        // The completion stage orders by priority alone, so the two descriptor sets are resolved as one collection
+        // rather than kept apart the way every wrapping role keeps them apart.
+        CompletionHandlers = ResolveHandlers(
+            descriptor.CompletionHandlers.Concat(descriptor.IndirectCompletionHandlers),
+            handlerType => (IMessageCompletionHandler) serviceProvider.GetRequiredService(handlerType));
+        RefusalMappers = ResolveHandlers(descriptor.RefusalMappers, handlerType => (IMessageRefusalMapper) serviceProvider.GetRequiredService(handlerType));
+        IndirectRefusalMappers = ResolveHandlers(descriptor.IndirectRefusalMappers, handlerType => (IMessageRefusalMapper) serviceProvider.GetRequiredService(handlerType));
+        _faultRefusalClassifiers = new Lazy<IReadOnlyList<IFaultRefusalClassifier>>(
+            () => ResolveFaultRefusalClassifiers(serviceProvider));
+        _occupiedPreStages = ComputeOccupiedPreStages(PreStageHandlers, IndirectPreStageHandlers);
     }
 
     /// <inheritdoc />
@@ -62,10 +85,10 @@ internal sealed class MessageDependencies : IMessageDependencies
     public ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor> IndirectMainHandlers { get; }
 
     /// <inheritdoc />
-    public ILazyHandlerCollection<IMessagePreHandler, IPreHandlerDescriptor> PreHandlers { get; }
+    public ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor> PreStageHandlers { get; }
 
     /// <inheritdoc />
-    public ILazyHandlerCollection<IMessagePreHandler, IPreHandlerDescriptor> IndirectPreHandlers { get; }
+    public ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor> IndirectPreStageHandlers { get; }
 
     /// <inheritdoc />
     public ILazyHandlerCollection<IMessagePostHandler, IPostHandlerDescriptor> PostHandlers { get; }
@@ -78,6 +101,74 @@ internal sealed class MessageDependencies : IMessageDependencies
 
     /// <inheritdoc />
     public ILazyHandlerCollection<IMessageErrorHandler, IErrorHandlerDescriptor> IndirectErrorHandlers { get; }
+
+    /// <inheritdoc />
+    public ILazyHandlerCollection<IMessageCompletionHandler, ICompletionHandlerDescriptor> CompletionHandlers { get; }
+
+    /// <inheritdoc />
+    public ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> RefusalMappers { get; }
+
+    /// <inheritdoc />
+    public ILazyHandlerCollection<IMessageRefusalMapper, IRefusalMapperDescriptor> IndirectRefusalMappers { get; }
+
+    /// <inheritdoc />
+    public IReadOnlyList<IFaultRefusalClassifier> FaultRefusalClassifiers => _faultRefusalClassifiers.Value;
+
+    /// <inheritdoc />
+    public bool HasPreStageHandlers(PreStage stage)
+    {
+        return (_occupiedPreStages & (1 << (int) stage)) != 0;
+    }
+
+    /// <summary>
+    ///     Builds the stage-occupancy mask from the resolved pre-stage descriptors.
+    /// </summary>
+    /// <param name="preHandlers">The pre-stage handlers registered for the message type itself.</param>
+    /// <param name="indirectPreHandlers">The pre-stage handlers registered for a base type or interface.</param>
+    /// <returns>A mask with one bit set per stage that has at least one handler.</returns>
+    private static int ComputeOccupiedPreStages(
+        ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor> preHandlers,
+        ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor> indirectPreHandlers)
+    {
+        var mask = 0;
+
+        foreach (var preHandler in preHandlers)
+        {
+            mask |= 1 << (int) preHandler.Descriptor.Stage;
+        }
+
+        foreach (var preHandler in indirectPreHandlers)
+        {
+            mask |= 1 << (int) preHandler.Descriptor.Stage;
+        }
+
+        return mask;
+    }
+
+    /// <summary>
+    ///     Resolves the registered fault refusal classifiers from the dispatch scope.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider handlers resolve from.</param>
+    /// <returns>The registered classifiers in registration order, or an empty list when there are none.</returns>
+    /// <remarks>
+    ///     The collection resolves first, because that is how the messaging module registers classifiers. A single
+    ///     classifier registered directly against the service type is honored as a one-item collection, so a host
+    ///     that wires one by hand without the module builder still classifies.
+    /// </remarks>
+    private static IFaultRefusalClassifier[] ResolveFaultRefusalClassifiers(IServiceProvider serviceProvider)
+    {
+        if (serviceProvider.GetService(typeof(IEnumerable<IFaultRefusalClassifier>)) is IEnumerable<IFaultRefusalClassifier> classifiers)
+        {
+            return classifiers.ToArray();
+        }
+
+        if (serviceProvider.GetService(typeof(IFaultRefusalClassifier)) is IFaultRefusalClassifier classifier)
+        {
+            return [classifier];
+        }
+
+        return [];
+    }
 
     /// <summary>
     ///     Resolves handlers from the provided descriptors and a handler resolution function.
@@ -96,7 +187,7 @@ internal sealed class MessageDependencies : IMessageDependencies
         IEnumerable<TDescriptor> descriptors,
         Func<Type, THandler> resolveFunc) where TDescriptor : IHandlerDescriptor
     {
-        return descriptors
+        return MessagingEnumerableExtensions.ToLazyReadOnlyCollection(descriptors
             .Where(d => _handlerPredicate(d))
             .Where(d => d.Tags.Count == 0 || d.Tags.Intersect(_tags).Any())
             .OrderBy(d => d.Priority)
@@ -105,8 +196,7 @@ internal sealed class MessageDependencies : IMessageDependencies
             {
                 Handler = new Lazy<THandler>(() => resolveFunc(GetHandlerType(d))),
                 Descriptor = d
-            })
-            .ToLazyReadOnlyCollection();
+            }));
     }
 
     /// <summary>

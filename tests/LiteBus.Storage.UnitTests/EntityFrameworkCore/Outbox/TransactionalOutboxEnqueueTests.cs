@@ -28,62 +28,62 @@ public sealed class TransactionalOutboxEnqueueTests
             .AddLiteBusOutboxInterceptor(interceptor)
             .Options;
 
-         var context = new TransactionalOutboxDbContext(options);
-         await using (context.ConfigureAwait(false))
-         {
-        await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
-        var registry = new MessageContractRegistry();
-        registry.Register<OrderSubmittedEvent>("orders.events.submitted", 2);
+        var context = new TransactionalOutboxDbContext(options);
+        await using (context.ConfigureAwait(false))
+        {
+            await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
+            var registry = new MessageContractRegistry();
+            registry.Register<OrderSubmittedEvent>("orders.events.submitted", 2);
 
-        var serializer = new SynchronousMessageSerializer();
+            var serializer = new SynchronousMessageSerializer();
 
-        var transactionalOutbox = new TransactionalOutbox<TransactionalOutboxDbContext>(
-            interceptor,
-            context,
-            new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System));
+            var transactionalOutbox = new TransactionalOutbox<TransactionalOutboxDbContext>(
+                interceptor,
+                context,
+                new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System));
 
-        var orderId = Guid.NewGuid();
-        var messageId = Guid.NewGuid();
+            var orderId = Guid.NewGuid();
+            var messageId = Guid.NewGuid();
 
-        var receipt = await transactionalOutbox.EnqueueAsync(
-            OutboxEnqueueItem<OrderSubmittedEvent>.From(
-                new OrderSubmittedEvent { OrderId = orderId },
-                new OutboxEnqueueMetadata
-                {
-                    Identity = new MessageIdentity.Supplied(messageId),
-                    Idempotency = new Idempotency.Keyed("idem-1"),
-                    Visibility = MessageVisibility.Immediate.Instance,
-                    Trace = new MessageTrace.Distributed(
-                        "corr-1",
-                        "cause-1",
-                        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
-                    Tenant = new TenantScope.Isolated("tenant-1"),
-                    Target = new PublicationTarget.Topic("orders")
-                })).ConfigureAwait(false);
+            var receipt = await transactionalOutbox.EnqueueAsync(
+                OutboxEnqueueItem<OrderSubmittedEvent>.From(
+                    new OrderSubmittedEvent { OrderId = orderId },
+                    new OutboxEnqueueMetadata
+                    {
+                        Identity = new MessageIdentity.Supplied(messageId),
+                        Idempotency = new Idempotency.Keyed("idem-1"),
+                        Visibility = MessageVisibility.Immediate.Instance,
+                        Trace = new MessageTrace.Distributed(
+                            "corr-1",
+                            "cause-1",
+                            """{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}"""),
+                        Tenant = new TenantScope.Isolated("tenant-1"),
+                        Target = new PublicationTarget.Topic("orders")
+                    })).ConfigureAwait(false);
 
-        receipt.Contract.Name.Should().Be("orders.events.submitted");
-        receipt.Contract.Version.Should().Be(2);
+            receipt.Contract.Name.Should().Be("orders.events.submitted");
+            receipt.Contract.Version.Should().Be(2);
 
-        receipt.Trace.Should().Be(new MessageTrace.Distributed(
-            "corr-1",
-            "cause-1",
-            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"));
+            receipt.Trace.Should().Be(new MessageTrace.Distributed(
+                "corr-1",
+                "cause-1",
+                """{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}"""));
 
-        var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
-        savedCount.Should().Be(1);
+            var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
+            savedCount.Should().Be(1);
 
-        var stored = await context.OutboxMessages.SingleAsync().ConfigureAwait(false);
-        stored.Id.Should().Be(receipt.Id);
-        stored.ContractName.Should().Be("orders.events.submitted");
-        stored.ContractVersion.Should().Be(2);
-        stored.Topic.Should().Be("orders");
-        stored.CorrelationId.Should().Be("corr-1");
-        stored.CausationId.Should().Be("cause-1");
-        stored.TenantId.Should().Be("tenant-1");
-        stored.IdempotencyKey.Should().Be("idem-1");
-        stored.TraceContext.Should().Be("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
-        stored.Payload.Should().Contain(orderId.ToString("D"));
-        stored.Status.Should().Be(OutboxStatus.Pending);
+            var stored = await context.OutboxMessages.SingleAsync().ConfigureAwait(false);
+            stored.Id.Should().Be(receipt.Id);
+            stored.ContractName.Should().Be("orders.events.submitted");
+            stored.ContractVersion.Should().Be(2);
+            stored.Topic.Should().Be("orders");
+            stored.CorrelationId.Should().Be("corr-1");
+            stored.CausationId.Should().Be("cause-1");
+            stored.TenantId.Should().Be("tenant-1");
+            stored.IdempotencyKey.Should().Be("idem-1");
+            stored.TraceContext.Should().Be("""{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}""");
+            stored.Payload.Should().Contain(orderId.ToString("D"));
+            stored.Status.Should().Be(OutboxStatus.Pending);
         }
     }
 
@@ -101,27 +101,27 @@ public sealed class TransactionalOutboxEnqueueTests
             .AddLiteBusOutboxInterceptor(interceptor)
             .Options;
 
-         var context = new TransactionalOutboxDbContext(options);
-         await using (context.ConfigureAwait(false))
-         {
-        await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
-        var registry = new MessageContractRegistry();
-        registry.Register<OrderSubmittedEvent>("orders.events.submitted");
-        var serializer = new SynchronousMessageSerializer();
-        IOutboxPayloadProtector protector = new PrefixPayloadProtector("tx-outbox:");
+        var context = new TransactionalOutboxDbContext(options);
+        await using (context.ConfigureAwait(false))
+        {
+            await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
+            var registry = new MessageContractRegistry();
+            registry.Register<OrderSubmittedEvent>("orders.events.submitted");
+            var serializer = new SynchronousMessageSerializer();
+            IOutboxPayloadProtector protector = new PrefixPayloadProtector("tx-outbox:");
 
-        var transactionalOutbox = new TransactionalOutbox<TransactionalOutboxDbContext>(
-            interceptor,
-            context,
-            new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector));
+            var transactionalOutbox = new TransactionalOutbox<TransactionalOutboxDbContext>(
+                interceptor,
+                context,
+                new OutboxEnvelopeFactory(registry, serializer, TimeProvider.System, protector));
 
-        await transactionalOutbox.EnqueueAsync(
-            OutboxEnqueueItem<OrderSubmittedEvent>.From(new OrderSubmittedEvent { OrderId = Guid.NewGuid() })).ConfigureAwait(false);
+            await transactionalOutbox.EnqueueAsync(
+                OutboxEnqueueItem<OrderSubmittedEvent>.From(new OrderSubmittedEvent { OrderId = Guid.NewGuid() })).ConfigureAwait(false);
 
-        await context.SaveChangesAsync().ConfigureAwait(false);
+            await context.SaveChangesAsync().ConfigureAwait(false);
 
-        var stored = await context.OutboxMessages.SingleAsync().ConfigureAwait(false);
-        stored.Payload.Should().StartWith("tx-outbox:");
+            var stored = await context.OutboxMessages.SingleAsync().ConfigureAwait(false);
+            stored.Payload.Should().StartWith("tx-outbox:");
         }
     }
 

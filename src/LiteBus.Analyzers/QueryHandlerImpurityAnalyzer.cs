@@ -11,6 +11,11 @@ namespace LiteBus.Analyzers;
 /// <summary>
 ///     Reports query handlers that depend on side-effecting mediators or durable writers.
 /// </summary>
+/// <remarks>
+///     Constructor parameters, fields, and properties are inspected, including members inherited from base handler
+///     classes. Ordinary method parameters are not dependencies: a helper that takes a mediator receives it from its
+///     caller rather than from injection, so such parameters stay silent.
+/// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
 {
@@ -53,15 +58,33 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
 
         var reportedDependencies = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var member in handlerType.GetMembers())
+        for (INamedTypeSymbol? current = handlerType;
+            current is not null && current.SpecialType != SpecialType.System_Object;
+            current = current.BaseType)
+        {
+            AnalyzeMembers(context, handlerType, current, reportedDependencies);
+        }
+    }
+
+    /// <summary>
+    ///     Reports impure dependencies declared on one level of the handler type hierarchy.
+    /// </summary>
+    /// <param name="context">The symbol analysis context.</param>
+    /// <param name="handlerType">The query handler type symbol.</param>
+    /// <param name="declaringType">The hierarchy level whose members are inspected.</param>
+    /// <param name="reportedDependencies">The impure dependency metadata names already reported.</param>
+    private static void AnalyzeMembers(
+        SymbolAnalysisContext context,
+        INamedTypeSymbol handlerType,
+        INamedTypeSymbol declaringType,
+        HashSet<string> reportedDependencies)
+    {
+        foreach (var member in declaringType.GetMembers())
         {
             switch (member)
             {
                 case IMethodSymbol { MethodKind: MethodKind.Constructor } constructor:
                     AnalyzeParameters(context, handlerType, constructor.Parameters, reportedDependencies);
-                    break;
-                case IMethodSymbol { MethodKind: MethodKind.Ordinary or MethodKind.LocalFunction } method:
-                    AnalyzeParameters(context, handlerType, method.Parameters, reportedDependencies);
                     break;
                 case IFieldSymbol field:
                     ReportIfImpure(context, handlerType, field.Type, field.Locations.FirstOrDefault(), reportedDependencies);
@@ -86,11 +109,12 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    ///     Reports impure dependency types used by method parameters.
+    ///     Reports impure dependency types used by constructor parameters.
     /// </summary>
     /// <param name="context">The symbol analysis context.</param>
     /// <param name="handlerType">The query handler type symbol.</param>
     /// <param name="parameters">The parameters to inspect.</param>
+    /// <param name="reportedDependencies">The impure dependency metadata names already reported.</param>
     private static void AnalyzeParameters(
         SymbolAnalysisContext context,
         INamedTypeSymbol handlerType,
@@ -110,6 +134,7 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
     /// <param name="handlerType">The query handler type symbol.</param>
     /// <param name="dependencyType">The dependency type symbol.</param>
     /// <param name="location">The diagnostic location.</param>
+    /// <param name="reportedDependencies">The impure dependency metadata names already reported.</param>
     private static void ReportIfImpure(
         SymbolAnalysisContext context,
         INamedTypeSymbol handlerType,
@@ -129,9 +154,13 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
             return;
         }
 
+        var diagnosticLocation = LiteBusSymbols.GetDiagnosticLocation(
+            context.Compilation,
+            location ?? Location.None);
+
         context.ReportDiagnostic(Diagnostic.Create(
             DiagnosticDescriptors.QueryHandlerImpurity,
-            location,
+            diagnosticLocation,
             handlerType.Name,
             dependencyMetadataName));
     }
@@ -153,14 +182,15 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
                 continue;
             }
 
-            if (SymbolEqualityComparer.Default.Equals(dependencyType, expectedType))
+            if (dependencyType is INamedTypeSymbol namedDependency &&
+                SymbolEqualityComparer.Default.Equals(namedDependency.OriginalDefinition, expectedType))
             {
                 return metadataName;
             }
 
             foreach (var candidate in dependencyType.AllInterfaces)
             {
-                if (SymbolEqualityComparer.Default.Equals(candidate, expectedType))
+                if (SymbolEqualityComparer.Default.Equals(candidate.OriginalDefinition, expectedType))
                 {
                     return metadataName;
                 }

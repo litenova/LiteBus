@@ -10,12 +10,16 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Commands.Abstractions` | `LiteBus.Messaging.Abstractions` | none |
 | `LiteBus.Commands.Extensions.Autofac` | `LiteBus.Commands`, `LiteBus.Runtime.Extensions.Autofac` | none |
 | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection` | `LiteBus.Commands`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | none |
+| `LiteBus.Commands.Recurring` | `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Commands.Recurring.Storage.PostgreSql` | `LiteBus.Commands`, `LiteBus.Commands.Recurring`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Microsoft.Extensions.Logging.Abstractions`, `Npgsql` |
+| `LiteBus.Commands.Storage.Marten` | `LiteBus.Commands`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Marten`, `Npgsql` |
+| `LiteBus.Commands.Storage.PostgreSql` | `LiteBus.Commands`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
 | `LiteBus.DurableMessaging.Abstractions` | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Events` | `LiteBus.Events.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Events.Abstractions` | `LiteBus.Messaging.Abstractions` | none |
 | `LiteBus.Events.Extensions.Autofac` | `LiteBus.Events`, `LiteBus.Runtime.Extensions.Autofac` | none |
 | `LiteBus.Events.Extensions.Microsoft.DependencyInjection` | `LiteBus.Events`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | none |
-| `LiteBus.Extensions.AspNetCore` | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Extensions.AspNetCore` | `LiteBus.Commands.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Extensions.Diagnostics.HealthChecks` | `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Diagnostics.HealthChecks` |
 | `LiteBus.Extensions.Microsoft.DependencyInjection` | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection`, `LiteBus.Events.Extensions.Microsoft.DependencyInjection`, `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection`, `LiteBus.Queries.Extensions.Microsoft.DependencyInjection` | none |
 | `LiteBus.Inbox` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
@@ -41,6 +45,7 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Messaging.Abstractions` | `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Messaging.Extensions.Autofac` | `LiteBus.Messaging`, `LiteBus.Runtime.Extensions.Autofac` | none |
 | `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection` | `LiteBus.Messaging`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | none |
+| `LiteBus.Messaging.Extensions.OpenTelemetry` | `LiteBus.Messaging` | `OpenTelemetry` |
 | `LiteBus.Outbox` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
 | `LiteBus.Outbox.Abstractions` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Outbox.Dispatch` | `LiteBus.Messaging`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Transport`, `LiteBus.Transport.Abstractions` | none |
@@ -53,6 +58,7 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Outbox.Extensions.OpenTelemetry` | `LiteBus.Outbox` | `OpenTelemetry` |
 | `LiteBus.Outbox.Storage.EntityFrameworkCore` | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.EntityFrameworkCore` | `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Relational` |
 | `LiteBus.Outbox.Storage.InMemory` | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Outbox.Storage.Marten` | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Storage.PostgreSql`, `LiteBus.Runtime.Abstractions` | `Marten` |
 | `LiteBus.Outbox.Storage.PostgreSql` | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
 | `LiteBus.Queries` | `LiteBus.Messaging`, `LiteBus.Queries.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Queries.Abstractions` | `LiteBus.Messaging.Abstractions` | none |
@@ -65,17 +71,17 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Runtime.Extensions.Hosting` | `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Hosting.Abstractions` |
 | `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | `LiteBus.Runtime`, `LiteBus.Runtime.Extensions.Microsoft.Hosting` | `Microsoft.Extensions.DependencyInjection.Abstractions` |
 | `LiteBus.Runtime.Extensions.Microsoft.Hosting` | `LiteBus.Runtime.Extensions.Hosting` | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Hosting.Abstractions` |
-| `LiteBus.Saga` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Saga` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga.Abstractions` | none |
 | `LiteBus.Saga.Abstractions` | `LiteBus.Commands.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Saga.InboxIntegration` | `LiteBus.Commands.Abstractions`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Saga` | none |
 | `LiteBus.Saga.Storage.PostgreSql` | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga`, `LiteBus.Saga.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
 | `LiteBus.Storage.EntityFrameworkCore` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions` | `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Relational` |
 | `LiteBus.Storage.PostgreSql` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions` | `Npgsql` |
-| `LiteBus.Storage.Testing` | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | `AwesomeAssertions`, `xunit` |
+| `LiteBus.Storage.Testing` | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | `AwesomeAssertions`, `StyleCop.Analyzers (private)`, `xunit`, `Xunit.SkippableFact` |
 | `LiteBus.Testing` | none | none |
 | `LiteBus.Testing.DurableMessaging` | `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Storage.InMemory`, `LiteBus.Messaging`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Storage.InMemory`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.DependencyInjection` |
 | `LiteBus.Testing.Hosting` | `LiteBus.Inbox`, `LiteBus.Runtime.Abstractions`, `LiteBus.Runtime.Extensions.Microsoft.Hosting` | `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Hosting.Abstractions` |
-| `LiteBus.Testing.Mediation` | `LiteBus.Commands.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Queries.Abstractions` | none |
+| `LiteBus.Testing.Mediation` | `LiteBus.Commands.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Runtime` | none |
 | `LiteBus.Testing.Transport` | `LiteBus.Transport.Abstractions` | none |
 | `LiteBus.Transport` | `LiteBus.Runtime.Abstractions`, `LiteBus.Transport.Abstractions` | none |
 | `LiteBus.Transport.Abstractions` | none | none |
@@ -86,4 +92,4 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Transport.Extensions.OpenTelemetry` | `LiteBus.Transport` | `OpenTelemetry` |
 | `LiteBus.Transport.InMemory` | `LiteBus.Runtime.Abstractions`, `LiteBus.Transport`, `LiteBus.Transport.Abstractions` | none |
 | `LiteBus.Transport.Kafka` | `LiteBus.Runtime.Abstractions`, `LiteBus.Transport`, `LiteBus.Transport.Abstractions` | `Confluent.Kafka` |
-| `LiteBus.Transport.Testing` | `LiteBus.Transport.Abstractions` | `xunit` |
+| `LiteBus.Transport.Testing` | `LiteBus.Transport.Abstractions` | `StyleCop.Analyzers (private)`, `xunit`, `Xunit.SkippableFact` |

@@ -221,9 +221,9 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
             .ToList();
 
         command1Relevant.Should().HaveCount(3);
-        command1Relevant[0].Should().Be(typeof(ScanTestOpenGenericPreHandler<ScanTestCommand>));
-        command1Relevant[1].Should().Be(typeof(ScanTestCommandHandler));
-        command1Relevant[2].Should().Be(typeof(ScanTestOpenGenericPostHandler<ScanTestCommand>));
+        command1Relevant[0].Should().Be<ScanTestOpenGenericPreHandler<ScanTestCommand>>();
+        command1Relevant[1].Should().Be<ScanTestCommandHandler>();
+        command1Relevant[2].Should().Be<ScanTestOpenGenericPostHandler<ScanTestCommand>>();
 
         var command2Relevant = command2.ExecutedTypes
             .Where(t => t == typeof(AnotherScanTestCommandHandler) ||
@@ -232,8 +232,8 @@ public sealed class OpenGenericAssemblyScanTests : LiteBusTestBase
             .ToList();
 
         command2Relevant.Should().HaveCount(3);
-        command2Relevant[0].Should().Be(typeof(ScanTestOpenGenericPreHandler<AnotherScanTestCommand>));
-        command2Relevant[1].Should().Be(typeof(AnotherScanTestCommandHandler));
-        command2Relevant[2].Should().Be(typeof(ScanTestOpenGenericPostHandler<AnotherScanTestCommand>));
+        command2Relevant[0].Should().Be<ScanTestOpenGenericPreHandler<AnotherScanTestCommand>>();
+        command2Relevant[1].Should().Be<AnotherScanTestCommandHandler>();
+        command2Relevant[2].Should().Be<ScanTestOpenGenericPostHandler<AnotherScanTestCommand>>();
     }
 }

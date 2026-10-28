@@ -25,6 +25,7 @@ public sealed class OutboxEntityFrameworkCoreModelTests
             "contract_version",
             "payload",
             "topic",
+            "handler",
             "created_at",
             "visible_after",
             "status",
@@ -89,5 +90,18 @@ public sealed class OutboxEntityFrameworkCoreModelTests
         traceContext.GetColumnName().Should().Be("trace_context");
         traceContext.GetColumnType().Should().Be("jsonb");
         traceContext.IsNullable.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GetModelBuilderConfiguration_ShouldMarkLeaseGenerationAsConcurrencyToken()
+    {
+        var modelBuilder = new ModelBuilder();
+        modelBuilder.GetModelBuilderConfiguration();
+
+        var entity = modelBuilder.Model.FindEntityType(typeof(OutboxMessageEntity));
+        var leaseGeneration = entity!.FindProperty(nameof(OutboxMessageEntity.LeaseGeneration));
+
+        leaseGeneration.Should().NotBeNull();
+        leaseGeneration.IsConcurrencyToken.Should().BeTrue();
     }
 }

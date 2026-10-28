@@ -38,13 +38,13 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<
 
         if (moduleBuilder.DbContextType is null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "An outbox database context must be configured. Call UseDbContext<TContext>() on the EF Core outbox storage builder.");
         }
 
         if (moduleBuilder is { RequireTransactionalSetup: true, RegisterSaveChangesInterceptor: false })
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "EnforceTransactionalSetup() is enabled but EnableSaveChangesInterceptor() was not called. " +
                 "Call EnableSaveChangesInterceptor() on the EF Core outbox storage builder and add " +
                 "optionsBuilder.AddLiteBusOutboxInterceptor(interceptor) to your DbContext configuration. " +
@@ -140,6 +140,11 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<
                 transactionalOutboxType,
                 serviceProvider => CreateTransactionalOutbox(serviceProvider, moduleBuilder),
                 InstanceLifetime.Scoped));
+
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(ITransactionalOutbox),
+                serviceProvider => CreateTransactionalOutboxAdapter(serviceProvider, moduleBuilder),
+                InstanceLifetime.Scoped));
         }
     }
 
@@ -161,6 +166,23 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<
             serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>(),
             dbContext,
             serviceProvider.GetRequiredService<IOutboxEnvelopeFactory>())!;
+    }
+
+    /// <summary>
+    ///     Creates a non-generic transactional outbox adapter over the configured generic writer.
+    /// </summary>
+    /// <param name="serviceProvider">The application service provider.</param>
+    /// <param name="moduleBuilder">The configured module builder.</param>
+    /// <returns>The transactional outbox adapter instance.</returns>
+    private static object CreateTransactionalOutboxAdapter(
+        IServiceProvider serviceProvider,
+        EfCoreOutboxStorageModuleBuilder moduleBuilder)
+    {
+        var transactionalOutboxType = typeof(ITransactionalOutbox<>).MakeGenericType(moduleBuilder.DbContextType!);
+        var inner = serviceProvider.GetRequiredService(transactionalOutboxType);
+        var adapterType = typeof(TransactionalOutboxAdapter<>).MakeGenericType(moduleBuilder.DbContextType!);
+
+        return Activator.CreateInstance(adapterType, inner)!;
     }
 
     /// <summary>
@@ -186,7 +208,7 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<
     /// <returns>The context factory adapter.</returns>
     private static object CreateDbContextFactory(IServiceProvider serviceProvider, Type? dbContextType)
     {
-        var contextType = dbContextType ?? throw new LiteBusConfigurationException(
+        var contextType = dbContextType ?? throw new DurableStorageConfigurationException(
             "An outbox database context must be configured before the context factory is created.");
         var factoryContract = typeof(Microsoft.EntityFrameworkCore.IDbContextFactory<>).MakeGenericType(contextType);
         var factory = serviceProvider.GetRequiredService(factoryContract);

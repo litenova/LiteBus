@@ -3,6 +3,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Abstractions.Exceptions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Transport.Abstractions;
@@ -123,6 +124,12 @@ public sealed class TransportInboxDispatcher : IInboxDispatcher
     /// </summary>
     /// <param name="envelope">The inbox envelope being dispatched.</param>
     /// <returns>The route passed to the transport publisher.</returns>
+    /// <exception cref="InboxDispatchException">The configured route resolver returned null or whitespace.</exception>
+    /// <remarks>
+    ///     The tenant routing strategy wins when registered. Otherwise the configured
+    ///     <see cref="TransportInboxDispatcherOptions.ResolveRoute" /> delegate wins over
+    ///     <see cref="InboxEnvelope.ContractName" />.
+    /// </remarks>
     private string ResolveRoute(InboxEnvelope envelope)
     {
         if (_tenantRoutingStrategy is not null)
@@ -135,7 +142,16 @@ public sealed class TransportInboxDispatcher : IInboxDispatcher
 
         if (_options.ResolveRoute is not null)
         {
-            return _options.ResolveRoute(envelope);
+            var resolvedRoute = _options.ResolveRoute(envelope);
+
+            if (string.IsNullOrWhiteSpace(resolvedRoute))
+            {
+                throw new InboxDispatchException(
+                    $"Inbox dispatch failed for message '{envelope.Id:D}' (contract '{envelope.ContractName}' version {envelope.ContractVersion}): " +
+                    "the configured route resolver returned null or whitespace. Configure ResolveRoute to return a non-empty route for every envelope.");
+            }
+
+            return resolvedRoute;
         }
 
         return envelope.ContractName;

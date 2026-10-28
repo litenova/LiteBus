@@ -69,6 +69,32 @@ public sealed class DependencyRegistryTests
     }
 
     [Fact]
+    public void Register_AfterCollectionRegistrationForSameServiceType_ShouldThrowModuleCompositionException()
+    {
+        var registry = new DependencyRegistry();
+
+        registry.RegisterCollection(DependencyDescriptor.ForCollection(typeof(ITestService), typeof(TestServiceA)));
+
+        var act = () => registry.Register(new DependencyDescriptor(typeof(ITestService), typeof(TestServiceB)));
+
+        act.Should().Throw<ModuleCompositionException>()
+            .WithMessage("*ITestService*");
+    }
+
+    [Fact]
+    public void RegisterCollection_AfterSingleRegistrationForSameServiceType_ShouldThrowModuleCompositionException()
+    {
+        var registry = new DependencyRegistry();
+
+        registry.Register(new DependencyDescriptor(typeof(ITestService), typeof(TestServiceA)));
+
+        var act = () => registry.RegisterCollection(DependencyDescriptor.ForCollection(typeof(ITestService), typeof(TestServiceB)));
+
+        act.Should().Throw<ModuleCompositionException>()
+            .WithMessage("*ITestService*");
+    }
+
+    [Fact]
     public void Register_WithNullDescriptor_ShouldThrowArgumentNullException()
     {
         var registry = new DependencyRegistry();

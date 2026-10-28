@@ -13,9 +13,12 @@ internal static class EfCoreBulkUpdateCapabilities
     /// </summary>
     /// <param name="dbContext">The database context executing the update.</param>
     /// <returns><see langword="true" /> when bulk updates are supported; otherwise, <see langword="false" />.</returns>
+    /// <exception cref="LiteBus.Storage.EntityFrameworkCore.Exceptions.EfCoreStorageNotSupportedException">
+    ///     Thrown when the active provider name is not recognized.
+    /// </exception>
     internal static bool SupportsExecuteUpdate(DbContext dbContext)
     {
-        var provider = dbContext.Database.ProviderName;
-        return provider?.Contains("InMemory", StringComparison.Ordinal) != true && provider?.Contains("Sqlite", StringComparison.Ordinal) != true;
+        var provider = EfCoreProviderResolver.ResolveProviderName(dbContext.Database.ProviderName);
+        return provider is not EfCoreStorageProvider.InMemory and not EfCoreStorageProvider.Sqlite;
     }
 }

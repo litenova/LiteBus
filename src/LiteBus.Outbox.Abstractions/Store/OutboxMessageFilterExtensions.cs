@@ -20,7 +20,8 @@ public static class OutboxMessageFilterExtensions
     }
 
     /// <summary>
-    ///     Returns <see langword="true" /> when at least one predicate narrows the matched rows.
+    ///     Returns <see langword="true" /> when at least one predicate narrows the matched rows. A blank tenant
+    ///     identifier is treated as unset for purge safety; stores treat an empty string as unscoped-only.
     /// </summary>
     /// <param name="filter">The filter to inspect.</param>
     /// <returns><see langword="true" /> when purge or query is scoped to a subset of rows.</returns>

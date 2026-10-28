@@ -21,7 +21,7 @@ public sealed class LiteBusBuilderTests
         using var provider = services.BuildServiceProvider();
         var registry = provider.GetRequiredService<IMessageContractRegistry>();
 
-        registry.GetMessageType("shared.contract", 2).Should().Be(typeof(SharedContractMessage));
+        registry.GetMessageType("shared.contract", 2).Should().Be<SharedContractMessage>();
     }
 
     [Fact]
@@ -41,8 +41,8 @@ public sealed class LiteBusBuilderTests
         using var provider = services.BuildServiceProvider();
         var registry = provider.GetRequiredService<IMessageContractRegistry>();
 
-        registry.GetMessageType("shared.contract", 2).Should().Be(typeof(SharedContractMessage));
-        registry.GetMessageType("module.contract", 1).Should().Be(typeof(ModuleContractMessage));
+        registry.GetMessageType("shared.contract", 2).Should().Be<SharedContractMessage>();
+        registry.GetMessageType("module.contract", 1).Should().Be<ModuleContractMessage>();
     }
 
     private sealed record SharedContractMessage(Guid Id);

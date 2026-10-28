@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
+using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Registry.Descriptors;
 
@@ -10,9 +13,29 @@ namespace LiteBus.Messaging.Registry.Descriptors;
 internal sealed class MessageDescriptor : IMessageDescriptor
 {
     /// <summary>
+    ///     The untyped shortcut contract, which answers without carrying a result.
+    /// </summary>
+    private static readonly Type UntypedShortcutContract = typeof(IMessageShortcut<>);
+
+    /// <summary>
     ///     Direct error handlers registered for <see cref="MessageType" />.
     /// </summary>
     private readonly List<IErrorHandlerDescriptor> _errorHandlers = [];
+
+    /// <summary>
+    ///     Declarative metadata resolved for <see cref="MessageType" />.
+    /// </summary>
+    private readonly MessageMetadata _metadata;
+
+    /// <summary>
+    ///     Direct completion handlers registered for <see cref="MessageType" />.
+    /// </summary>
+    private readonly List<ICompletionHandlerDescriptor> _completionHandlers = [];
+
+    /// <summary>
+    ///     Completion handlers registered for a base type or interface of <see cref="MessageType" />.
+    /// </summary>
+    private readonly List<ICompletionHandlerDescriptor> _indirectCompletionHandlers = [];
 
     /// <summary>
     ///     Direct main handlers registered for <see cref="MessageType" />.
@@ -37,7 +60,7 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// <summary>
     ///     Pre-handlers registered for a base type or interface of <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IPreHandlerDescriptor> _indirectPreHandlers = [];
+    private readonly List<IPreStageHandlerDescriptor> _indirectPreHandlers = [];
 
     /// <summary>
     ///     Direct post-handlers registered for <see cref="MessageType" />.
@@ -47,7 +70,17 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// <summary>
     ///     Direct pre-handlers registered for <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IPreHandlerDescriptor> _preHandlers = [];
+    private readonly List<IPreStageHandlerDescriptor> _preHandlers = [];
+
+    /// <summary>
+    ///     Refusal mappers registered for this exact message type.
+    /// </summary>
+    private readonly List<IRefusalMapperDescriptor> _refusalMappers = [];
+
+    /// <summary>
+    ///     Refusal mappers registered for a base type or interface of this message type.
+    /// </summary>
+    private readonly List<IRefusalMapperDescriptor> _indirectRefusalMappers = [];
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="MessageDescriptor" /> class.
@@ -57,6 +90,84 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     {
         MessageType = messageType;
         IsGeneric = messageType.IsGenericType;
+        _metadata = new MessageMetadata(messageType);
+
+        // Only attributes that declare themselves as metadata are collected, and each is converted to the value type a
+        // definition would contribute, so a definition for the same message overwrites it instead of sitting beside it.
+        List<DeclarationExemption>? exemptions = null;
+
+        // Tested independently rather than in a switch, because one attribute may do both. [AuditExempt] declares the
+        // audit position and records the exemption from declaring one, and a switch would run only the first arm.
+        foreach (var attribute in messageType.GetCustomAttributes(inherit: true))
+        {
+            if (attribute is IMessageDeclarationSource declaration)
+            {
+                ThrowIfAnnotationDisagrees(declaration);
+                _metadata.Set(
+                    declaration.DeclarationType,
+                    declaration.CreateDeclaration(),
+                    messageType,
+                    MetadataSourceKind.Attribute);
+            }
+
+            // Exemptions are collected rather than set one at a time. Metadata holds one value per key type, and a
+            // message may be exempt from several requirements, so the attributes have to collapse into one set
+            // instead of overwriting each other.
+            if (attribute is IMessageDeclarationExemptionSource exempt)
+            {
+                (exemptions ??= []).Add(exempt.CreateExemption());
+            }
+        }
+
+        if (exemptions is not null)
+        {
+            _metadata.Set(
+                typeof(DeclarationExemptions),
+                new DeclarationExemptions(exemptions),
+                messageType,
+                MetadataSourceKind.Attribute);
+        }
+    }
+
+    /// <inheritdoc />
+    public IMessageMetadata Metadata => _metadata;
+
+    /// <summary>
+    ///     Verifies that a declaring attribute's <see cref="MessageDeclarationAttribute" /> names the same value type
+    ///     its <see cref="IMessageDeclarationSource.DeclarationType" /> returns.
+    /// </summary>
+    /// <param name="declaration">The declaring attribute instance found on a message type.</param>
+    /// <exception cref="PipelineContractException">The annotation and the property disagree.</exception>
+    /// <remarks>
+    ///     The annotation is what an analyzer reads, and the property is what the registry reads. Letting them drift
+    ///     would make LB1020 report a message as undeclared while registration accepts it, or the reverse, which is
+    ///     worse than either rule being absent.
+    /// </remarks>
+    private static void ThrowIfAnnotationDisagrees(IMessageDeclarationSource declaration)
+    {
+        var annotation = declaration.GetType().GetCustomAttribute<MessageDeclarationAttribute>(inherit: false);
+
+        if (annotation is null || annotation.DeclarationType == declaration.DeclarationType)
+        {
+            return;
+        }
+
+        throw new PipelineContractException(
+            $"The attribute '{declaration.GetType().Name}' is annotated [MessageDeclaration(typeof("
+            + $"{annotation.DeclarationType.Name}))] but its DeclarationType returns '{declaration.DeclarationType.Name}'. "
+            + "The annotation is what analyzers read and the property is what registration reads, so they have to name "
+            + "the same type.");
+    }
+
+    /// <summary>
+    ///     Applies a value declared by a message definition to this descriptor's metadata.
+    /// </summary>
+    /// <param name="keyType">The metadata key type the definition declared.</param>
+    /// <param name="value">The metadata value the definition declared.</param>
+    /// <param name="declaringMessageType">The message type the definition was written for.</param>
+    public void ApplyMetadata(Type keyType, object value, Type declaringMessageType)
+    {
+        _metadata.Set(keyType, value, declaringMessageType, MetadataSourceKind.Definition);
     }
 
     /// <inheritdoc />
@@ -78,16 +189,28 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     public IReadOnlyCollection<IPostHandlerDescriptor> IndirectPostHandlers => _indirectPostHandlers;
 
     /// <inheritdoc />
-    public IReadOnlyCollection<IPreHandlerDescriptor> PreHandlers => _preHandlers;
+    public IReadOnlyCollection<IPreStageHandlerDescriptor> PreStageHandlers => _preHandlers;
 
     /// <inheritdoc />
-    public IReadOnlyCollection<IPreHandlerDescriptor> IndirectPreHandlers => _indirectPreHandlers;
+    public IReadOnlyCollection<IPreStageHandlerDescriptor> IndirectPreStageHandlers => _indirectPreHandlers;
 
     /// <inheritdoc />
     public IReadOnlyCollection<IErrorHandlerDescriptor> ErrorHandlers => _errorHandlers;
 
     /// <inheritdoc />
     public IReadOnlyCollection<IErrorHandlerDescriptor> IndirectErrorHandlers => _indirectErrorHandlers;
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<ICompletionHandlerDescriptor> CompletionHandlers => _completionHandlers;
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<ICompletionHandlerDescriptor> IndirectCompletionHandlers => _indirectCompletionHandlers;
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<IRefusalMapperDescriptor> RefusalMappers => _refusalMappers;
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<IRefusalMapperDescriptor> IndirectRefusalMappers => _indirectRefusalMappers;
 
     /// <summary>
     ///     Adds handler descriptors, routing each to direct or indirect collections.
@@ -105,62 +228,257 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     ///     Adds one handler descriptor, routing it to direct or indirect collections.
     /// </summary>
     /// <param name="descriptor">The handler descriptor to associate with this message.</param>
+    /// <remarks>
+    ///     <para>
+    ///         An open generic handler such as <c>Guard&lt;T&gt; where T : ICommand</c> is closed once per registered
+    ///         message that fits it, and a base interface such as <c>ICommand</c> becomes a registered message as soon as
+    ///         any handler names it. The registry can therefore hold both <c>Guard&lt;ICommand&gt;</c>, which applies to a
+    ///         command indirectly, and <c>Guard&lt;PlaceOrder&gt;</c>, which applies to it directly. Both come from one
+    ///         registration, so the direct closure wins: an indirect closure of the same generic handler definition over
+    ///         the same contract is skipped when a direct one is present, and removed when a direct one arrives later.
+    ///         Without this the guard would run twice or once depending on which was registered first.
+    ///     </para>
+    ///     <para>
+    ///         A different handler type closed over the base type, such as a class implementing
+    ///         <c>IMessageGuard&lt;ICommand&gt;</c>, is a separate registration and still runs indirectly.
+    ///     </para>
+    /// </remarks>
     public void AddDescriptor(IHandlerDescriptor descriptor)
     {
         if (MessageType == descriptor.MessageType)
         {
             switch (descriptor)
             {
+                case IRefusalMapperDescriptor refusalMapperDescriptor:
+                    AddDirect(_refusalMappers, _indirectRefusalMappers, refusalMapperDescriptor);
+                    break;
+
+                case ICompletionHandlerDescriptor completionHandlerDescriptor:
+                    AddDirect(_completionHandlers, _indirectCompletionHandlers, completionHandlerDescriptor);
+                    break;
                 case IErrorHandlerDescriptor errorHandlerDescriptor:
-                    _errorHandlers.Add(errorHandlerDescriptor);
+                    AddDirect(_errorHandlers, _indirectErrorHandlers, errorHandlerDescriptor);
                     break;
                 case IMainHandlerDescriptor mainHandlerDescriptor:
-                    _handlers.Add(mainHandlerDescriptor);
+                    ThrowIfUntypedShortcutMeetsResult(mainHandlerDescriptor, _preHandlers);
+                    AddDirect(_handlers, _indirectHandlers, mainHandlerDescriptor);
                     break;
                 case IPostHandlerDescriptor postHandlerDescriptor:
-                    _postHandlers.Add(postHandlerDescriptor);
+                    AddDirect(_postHandlers, _indirectPostHandlers, postHandlerDescriptor);
                     break;
-                case IPreHandlerDescriptor preHandlerDescriptor:
-                    _preHandlers.Add(preHandlerDescriptor);
+                case IPreStageHandlerDescriptor preHandlerDescriptor:
+                    ThrowIfUntypedShortcutMeetsResult(preHandlerDescriptor, _handlers);
+                    AddDirect(_preHandlers, _indirectPreHandlers, preHandlerDescriptor);
                     break;
             }
         }
-        else if (MessageType.IsAssignableTo(descriptor.MessageType))
+        else if (MessageType.IsAssignableTo(descriptor.MessageType) ||
+                 ImplementsOpenGeneric(descriptor.MessageType, MessageType))
         {
             switch (descriptor)
             {
+                case IRefusalMapperDescriptor refusalMapperDescriptor:
+                    AddIndirect(_indirectRefusalMappers, _refusalMappers, refusalMapperDescriptor);
+                    break;
+
+                case ICompletionHandlerDescriptor completionHandlerDescriptor:
+                    AddIndirect(_indirectCompletionHandlers, _completionHandlers, completionHandlerDescriptor);
+                    break;
                 case IErrorHandlerDescriptor errorHandlerDescriptor:
-                    _indirectErrorHandlers.Add(errorHandlerDescriptor);
+                    AddIndirect(_indirectErrorHandlers, _errorHandlers, errorHandlerDescriptor);
                     break;
                 case IMainHandlerDescriptor mainHandlerDescriptor:
-                    _indirectHandlers.Add(mainHandlerDescriptor);
+                    AddIndirect(_indirectHandlers, _handlers, mainHandlerDescriptor);
                     break;
                 case IPostHandlerDescriptor postHandlerDescriptor:
-                    _indirectPostHandlers.Add(postHandlerDescriptor);
+                    AddIndirect(_indirectPostHandlers, _postHandlers, postHandlerDescriptor);
                     break;
-                case IPreHandlerDescriptor preHandlerDescriptor:
-                    _indirectPreHandlers.Add(preHandlerDescriptor);
+                case IPreStageHandlerDescriptor preHandlerDescriptor:
+                    AddIndirect(_indirectPreHandlers, _preHandlers, preHandlerDescriptor);
                     break;
             }
         }
-        else if (ImplementsOpenGeneric(descriptor.MessageType, MessageType))
+    }
+
+    /// <summary>
+    ///     Adds a direct descriptor and removes any indirect closure of the same generic handler over the same contract.
+    /// </summary>
+    /// <typeparam name="TDescriptor">The descriptor kind.</typeparam>
+    /// <param name="direct">The direct collection of this kind.</param>
+    /// <param name="indirect">The indirect collection of this kind.</param>
+    /// <param name="descriptor">The direct descriptor being linked.</param>
+    private static void AddDirect<TDescriptor>(List<TDescriptor> direct, List<TDescriptor> indirect, TDescriptor descriptor)
+        where TDescriptor : IHandlerDescriptor
+    {
+        indirect.RemoveAll(existing => IsSameGenericClosure(existing, descriptor));
+        direct.Add(descriptor);
+    }
+
+    /// <summary>
+    ///     Adds an indirect descriptor unless a direct closure of the same generic handler over the same contract is
+    ///     already linked.
+    /// </summary>
+    /// <typeparam name="TDescriptor">The descriptor kind.</typeparam>
+    /// <param name="indirect">The indirect collection of this kind.</param>
+    /// <param name="direct">The direct collection of this kind.</param>
+    /// <param name="descriptor">The indirect descriptor being linked.</param>
+    private static void AddIndirect<TDescriptor>(List<TDescriptor> indirect, List<TDescriptor> direct, TDescriptor descriptor)
+        where TDescriptor : IHandlerDescriptor
+    {
+        if (direct.Exists(existing => IsSameGenericClosure(existing, descriptor)))
         {
-            switch (descriptor)
+            return;
+        }
+
+        indirect.Add(descriptor);
+    }
+
+    /// <summary>
+    ///     Determines whether two descriptors are closures of one generic handler definition over one contract definition.
+    /// </summary>
+    /// <param name="first">The first descriptor.</param>
+    /// <param name="second">The second descriptor.</param>
+    /// <returns>
+    ///     <see langword="true" /> when both handler types are constructed from the same generic definition and both
+    ///     contracts are constructed from the same generic contract definition.
+    /// </returns>
+    private static bool IsSameGenericClosure(IHandlerDescriptor first, IHandlerDescriptor second)
+    {
+        return first.HandlerType.IsConstructedGenericType &&
+               second.HandlerType.IsConstructedGenericType &&
+               first.HandlerType.GetGenericTypeDefinition() == second.HandlerType.GetGenericTypeDefinition() &&
+               ContractDefinition(first.ContractType) == ContractDefinition(second.ContractType);
+    }
+
+    /// <summary>
+    ///     Gets the generic definition of a contract, or the contract itself when it is not generic.
+    /// </summary>
+    /// <param name="contractType">The contract type recorded on a descriptor.</param>
+    /// <returns>The contract's generic definition, or <paramref name="contractType" />.</returns>
+    private static Type ContractDefinition(Type contractType)
+    {
+        return contractType.IsGenericType ? contractType.GetGenericTypeDefinition() : contractType;
+    }
+
+    /// <summary>
+    ///     Rejects a main handler that produces a result when an untyped shortcut is already registered for this exact
+    ///     message.
+    /// </summary>
+    /// <param name="mainHandler">The main handler being linked.</param>
+    /// <param name="preStageHandlers">The pre-stage handlers already linked directly to this message.</param>
+    /// <exception cref="PipelineContractException">
+    ///     An untyped shortcut is registered for a message that produces a result.
+    /// </exception>
+    private void ThrowIfUntypedShortcutMeetsResult(
+        IMainHandlerDescriptor mainHandler,
+        List<IPreStageHandlerDescriptor> preStageHandlers)
+    {
+        if (!ProducesResult(mainHandler.MessageResultType))
+        {
+            return;
+        }
+
+        foreach (var preStageHandler in preStageHandlers)
+        {
+            if (IsUntypedShortcut(preStageHandler))
             {
-                case IErrorHandlerDescriptor errorHandlerDescriptor:
-                    _indirectErrorHandlers.Add(errorHandlerDescriptor);
-                    break;
-                case IMainHandlerDescriptor mainHandlerDescriptor:
-                    _indirectHandlers.Add(mainHandlerDescriptor);
-                    break;
-                case IPostHandlerDescriptor postHandlerDescriptor:
-                    _indirectPostHandlers.Add(postHandlerDescriptor);
-                    break;
-                case IPreHandlerDescriptor preHandlerDescriptor:
-                    _indirectPreHandlers.Add(preHandlerDescriptor);
-                    break;
+                throw UntypedShortcutOnResultMessage(preStageHandler, mainHandler.MessageResultType);
             }
         }
+    }
+
+    /// <summary>
+    ///     Rejects an untyped shortcut registered for this exact message when the message produces a result.
+    /// </summary>
+    /// <param name="preStageHandler">The pre-stage handler being linked.</param>
+    /// <param name="mainHandlers">The main handlers already linked directly to this message.</param>
+    /// <exception cref="PipelineContractException">
+    ///     An untyped shortcut is registered for a message that produces a result.
+    /// </exception>
+    /// <remarks>
+    ///     Both directions are checked because a handler may be registered before or after the message it handles, and
+    ///     the registry commits after every call rather than in one pass at the end.
+    /// </remarks>
+    private void ThrowIfUntypedShortcutMeetsResult(
+        IPreStageHandlerDescriptor preStageHandler,
+        List<IMainHandlerDescriptor> mainHandlers)
+    {
+        if (!IsUntypedShortcut(preStageHandler))
+        {
+            return;
+        }
+
+        foreach (var mainHandler in mainHandlers)
+        {
+            if (ProducesResult(mainHandler.MessageResultType))
+            {
+                throw UntypedShortcutOnResultMessage(preStageHandler, mainHandler.MessageResultType);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether a descriptor was discovered from the untyped shortcut contract.
+    /// </summary>
+    /// <param name="descriptor">The pre-stage descriptor to test.</param>
+    /// <returns><see langword="true" /> when the handler answers without carrying a result.</returns>
+    private static bool IsUntypedShortcut(IPreStageHandlerDescriptor descriptor)
+    {
+        return descriptor.Stage == PreStage.Shortcut
+               && descriptor.ContractType.IsGenericType
+               && descriptor.ContractType.GetGenericTypeDefinition() == UntypedShortcutContract;
+    }
+
+    /// <summary>
+    ///     Determines whether a main handler hands the caller a value.
+    /// </summary>
+    /// <param name="messageResultType">The result type recorded on the main handler descriptor.</param>
+    /// <returns><see langword="true" /> when the message produces something a shortcut would have to supply.</returns>
+    /// <remarks>
+    ///     A handler that produces nothing closes <c>IMessageHandler&lt;TMessage, TMessageResult&gt;</c> over
+    ///     <see cref="Task" />. Every other closing carries a value, whether it is a <see cref="Task{TResult}" /> or the
+    ///     <c>IAsyncEnumerable</c> of a stream query.
+    /// </remarks>
+    private static bool ProducesResult(Type messageResultType)
+    {
+        return messageResultType != typeof(Task);
+    }
+
+    /// <summary>
+    ///     Builds the error reported when an untyped shortcut is registered for a message that produces a result.
+    /// </summary>
+    /// <param name="shortcut">The offending shortcut descriptor.</param>
+    /// <param name="messageResultType">The result type the main handler produces.</param>
+    /// <returns>The exception to raise.</returns>
+    /// <remarks>
+    ///     Worded to match analyzer LB1019, which reports the same mistake at compile time. The analyzer is a warning
+    ///     and is absent from a project that does not reference the analyzer package, so registration is where the
+    ///     guarantee actually lives.
+    /// </remarks>
+    private PipelineContractException UntypedShortcutOnResultMessage(
+        IPreStageHandlerDescriptor shortcut,
+        Type messageResultType)
+    {
+        var resultName = UnwrapResultType(messageResultType).Name;
+
+        return new PipelineContractException(
+            $"Shortcut '{shortcut.HandlerType.Name}' implements the untyped shortcut contract for "
+            + $"'{MessageType.Name}', which produces '{resultName}'. The untyped answer cannot carry a result, so "
+            + $"answering would fail at dispatch. Implement IMessageShortcut<{MessageType.Name}, {resultName}> "
+            + "instead, or the axis contract that matches it.");
+    }
+
+    /// <summary>
+    ///     Unwraps the value a handler hands back from the task or sequence that carries it.
+    /// </summary>
+    /// <param name="messageResultType">The result type recorded on the main handler descriptor.</param>
+    /// <returns>The type a shortcut would have to supply.</returns>
+    private static Type UnwrapResultType(Type messageResultType)
+    {
+        return messageResultType.IsGenericType
+               && messageResultType.GetGenericTypeDefinition() == typeof(Task<>)
+            ? messageResultType.GetGenericArguments()[0]
+            : messageResultType;
     }
 
     /// <summary>

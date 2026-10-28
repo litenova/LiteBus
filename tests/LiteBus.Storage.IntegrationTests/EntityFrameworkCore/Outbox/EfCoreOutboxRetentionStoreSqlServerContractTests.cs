@@ -1,5 +1,6 @@
 using LiteBus.Storage.Testing;
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore;
 
 namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Outbox;
 
@@ -21,20 +22,21 @@ public sealed class EfCoreOutboxRetentionStoreSqlServerContractTests : OutboxRet
     public EfCoreOutboxRetentionStoreSqlServerContractTests(SqlServerFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, SqlServerFixture.DockerRequiredMessage);
     }
 
     /// <inheritdoc />
     protected override OutboxStoreContracts CreateStore()
     {
-        EfCoreSqlServerTestInfrastructure.ResetOutboxTableAsync(_fixture.ConnectionString)
+        EfCoreProviderTestInfrastructure.ResetOutboxTableAsync(EfCoreStorageProvider.SqlServer, _fixture.ConnectionString)
             .GetAwaiter()
             .GetResult();
 
-        var options = EfCoreSqlServerTestInfrastructure.OutboxStoreOptions;
+        var options = EfCoreProviderTestInfrastructure.OutboxStoreOptions(EfCoreStorageProvider.SqlServer);
 
         var store = new EfCoreOutboxStore(
             _ => Task.FromResult<IOutboxDbContext>(
-                EfCoreSqlServerTestInfrastructure.CreateOutboxContext(_fixture.ConnectionString)),
+                EfCoreProviderTestInfrastructure.CreateOutboxContext(EfCoreStorageProvider.SqlServer, _fixture.ConnectionString)),
             options);
 
         return new OutboxStoreContracts(store, store, store, store, store);

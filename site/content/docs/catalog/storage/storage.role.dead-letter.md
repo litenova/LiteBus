@@ -20,7 +20,8 @@ Both methods return `RequeueResult` with requested and actual requeue counts.
   - `visible_after` to null
   - `attempt_count` to zero
   - `lease_owner` and `lease_expires_at` to null
-  - `last_error` to null
+  - `last_error` and `error_type` to null
+  - `first_failed_at` and `dead_lettered_at` to null
 
 ## Concurrency Model
 
@@ -54,7 +55,7 @@ Both methods return `RequeueResult` with requested and actual requeue counts.
 
 ## Concrete Example
 
-An operator requeues three dead-lettered message ids. The result reports `requested = 3`, `requeued = 2` when one id is no longer in dead-letter status.
+An operator requeues three dead-lettered message ids. The result reports `requested = 3`, `requeued = 2` when one id has left dead-letter status.
 
 ## Related Docs
 

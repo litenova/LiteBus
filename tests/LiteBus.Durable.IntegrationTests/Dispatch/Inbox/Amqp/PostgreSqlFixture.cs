@@ -30,6 +30,11 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
     /// </summary>
     public NpgsqlDataSource DataSource { get; private set; } = null!;
 
+    /// <summary>
+    ///     Gets a value indicating whether the PostgreSQL container started successfully.
+    /// </summary>
+    public bool IsAvailable { get; private set; }
+
     /// <inheritdoc />
     public async Task InitializeAsync()
     {
@@ -40,12 +45,15 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         if (!string.IsNullOrWhiteSpace(connectionString))
         {
             DataSource = NpgsqlDataSource.Create(connectionString);
+            IsAvailable = true;
             return;
         }
 
-        await WaitForDockerDaemonAsync().ConfigureAwait(false);
-
-        Exception? lastException = null;
+        if (!await WaitForDockerDaemonAsync().ConfigureAwait(false))
+        {
+            IsAvailable = false;
+            return;
+        }
 
         for (var attempt = 1; attempt <= MaxAttempts; attempt++)
         {
@@ -56,12 +64,11 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
 
                 await _container.StartAsync().ConfigureAwait(false);
                 DataSource = NpgsqlDataSource.Create(_container.GetConnectionString());
+                IsAvailable = true;
                 return;
             }
-            catch (Exception exception) when (IsDockerUnavailable(exception))
+            catch (Exception exception) when (DockerTestGate.IsDockerUnavailable(exception))
             {
-                lastException = exception;
-
                 if (_container is not null)
                 {
                     await _container.DisposeAsync().ConfigureAwait(false);
@@ -75,7 +82,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
             }
         }
 
-        throw new InvalidOperationException(DockerRequiredMessage, lastException);
+        IsAvailable = false;
     }
 
     /// <inheritdoc />
@@ -102,22 +109,20 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         }
     }
 
-    private static async Task WaitForDockerDaemonAsync()
+    private static async Task<bool> WaitForDockerDaemonAsync()
     {
-        Exception? lastException = null;
-
         for (var attempt = 1; attempt <= MaxAttempts; attempt++)
         {
             try
             {
                 if (await CanConnectToDockerAsync().ConfigureAwait(false))
                 {
-                    return;
+                    return true;
                 }
             }
-            catch (Exception exception)
+            catch (Exception)
             {
-                lastException = exception;
+                // A failing probe counts as an unavailable daemon and is retried until attempts are exhausted.
             }
 
             if (attempt < MaxAttempts)
@@ -126,7 +131,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
             }
         }
 
-        throw new InvalidOperationException(DockerRequiredMessage, lastException);
+        return false;
     }
 
     private static async Task<bool> CanConnectToDockerAsync()
@@ -166,22 +171,5 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         }
 
         return process.ExitCode == 0;
-    }
-
-    private static bool IsDockerUnavailable(Exception exception)
-    {
-        for (var current = exception; current is not null; current = current.InnerException)
-        {
-            var typeName = current.GetType().FullName;
-
-            if (typeName is "DotNet.Testcontainers.Builders.DockerUnavailableException"
-                or "DotNet.Testcontainers.Guard.ArgumentException"
-                or "Docker.DotNet.DockerApiException")
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

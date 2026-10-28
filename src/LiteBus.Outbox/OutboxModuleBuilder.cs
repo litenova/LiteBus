@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -30,14 +31,14 @@ public sealed class OutboxModuleBuilder
     private IOutboxDispatcherModule? _dispatcherModule;
 
     /// <summary>
-    ///     Whether the application supplied processor options.
-    /// </summary>
-    private bool _processorOptionsExplicitlySet;
-
-    /// <summary>
     ///     The processor options supplied by the application or the framework defaults.
     /// </summary>
     private OutboxProcessorOptions _processorOptions = new();
+
+    /// <summary>
+    ///     The contract resolver registered through <see cref="UseContractResolver" />, if any.
+    /// </summary>
+    private IMessageContractResolver? _contractResolver;
 
     /// <summary>
     ///     Whether <see cref="EnableCleanup" /> was called.
@@ -60,6 +61,26 @@ public sealed class OutboxModuleBuilder
     private IOutboxStorageModule? _storageModule;
 
     /// <summary>
+    ///     Whether <see cref="StageCollectedEvents" /> was called.
+    /// </summary>
+    private bool _stageCollectedEvents;
+
+    /// <summary>
+    ///     Whether <see cref="UseAmbientTrace" /> was called.
+    /// </summary>
+    private bool _useAmbientTrace;
+
+    /// <summary>
+    ///     Whether <see cref="EnablePerHandlerDelivery" /> was called.
+    /// </summary>
+    private bool _perHandlerDelivery;
+
+    /// <summary>
+    ///     Whether <see cref="AllowPerHandlerDeliveryWithTransportDispatch" /> was called.
+    /// </summary>
+    private bool _allowPerHandlerDeliveryWithTransportDispatch;
+
+    /// <summary>
     ///     Gets the deferred contract writer. Registrations are applied to the shared
     ///     <see cref="IMessageContractRegistry" /> when the module builds.
     /// </summary>
@@ -68,7 +89,7 @@ public sealed class OutboxModuleBuilder
     /// <summary>
     ///     Gets the options controlling processor batch size, lease duration, and retry.
     /// </summary>
-    public OutboxProcessorOptions ProcessorOptions => _processorOptionsExplicitlySet || _dispatcherModule is null
+    public OutboxProcessorOptions ProcessorOptions => _processorOptions.HookFailurePolicy.HasValue || _dispatcherModule is null
         ? _processorOptions
         : _processorOptions with
         {
@@ -140,9 +161,30 @@ public sealed class OutboxModuleBuilder
         ArgumentNullException.ThrowIfNull(options);
 
         _processorOptions = options;
-        _processorOptionsExplicitlySet = true;
 
         return this;
+    }
+
+    /// <summary>
+    ///     Registers the contract resolver used to select the CLR type for contract lookup during enqueue.
+    /// </summary>
+    /// <param name="resolver">The resolver that overrides contract lookup type selection.</param>
+    /// <returns>The current builder.</returns>
+    public OutboxModuleBuilder UseContractResolver(IMessageContractResolver resolver)
+    {
+        ArgumentNullException.ThrowIfNull(resolver);
+
+        _contractResolver = resolver;
+        return this;
+    }
+
+    /// <summary>
+    ///     Collects the contract resolver registered on this builder, if any.
+    /// </summary>
+    /// <returns>The registered resolver, or <see langword="null" /> when none was registered.</returns>
+    internal IMessageContractResolver? CollectContractResolver()
+    {
+        return _contractResolver;
     }
 
     /// <summary>
@@ -157,7 +199,7 @@ public sealed class OutboxModuleBuilder
 
         if (_storageModule is not null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Outbox storage is already configured. " +
                 "Call only one of UsePostgreSqlStorage, UseEntityFrameworkCoreStorage, " +
                 "or UseInMemoryStorage.");
@@ -174,8 +216,12 @@ public sealed class OutboxModuleBuilder
     /// <param name="dispatcherModule">The dispatcher module to register as a child of the outbox module.</param>
     /// <returns>The current builder.</returns>
     /// <remarks>
-    ///     <see cref="ProcessorOptions" /> resolves the dispatcher recommendation after configuration unless the
-    ///     application supplied processor options. This makes the result independent of registration order.
+    ///     <see cref="ProcessorOptions" /> keeps an explicit <see cref="ProcessorOptions.HookFailurePolicy" /> value and
+    ///     otherwise resolves the dispatcher recommendation after configuration, independent of registration order. A
+    ///     caller-set value wins. Leaving the policy unset keeps transport dispatchers on
+    ///     <see cref="ProcessorHookFailurePolicy.CompleteDespiteHookFailure" />; overriding it with
+    ///     <see cref="ProcessorHookFailurePolicy.DeadLetter" /> dead-letters a message the broker already accepted,
+    ///     so the message is re-leased after replay and published a second time.
     /// </remarks>
     public OutboxModuleBuilder RegisterDispatcher(IOutboxDispatcherModule dispatcherModule)
     {
@@ -183,7 +229,7 @@ public sealed class OutboxModuleBuilder
 
         if (_dispatcherModule is not null)
         {
-            throw new LiteBusConfigurationException(
+            throw new DurableStorageConfigurationException(
                 "Outbox dispatcher is already configured. " +
                 "Call only one outbox dispatcher registration method such as UseInProcessDispatch or a broker-specific Use*Dispatch extension.");
         }
@@ -212,6 +258,127 @@ public sealed class OutboxModuleBuilder
     internal IPayloadEncryptor? CollectPayloadEncryptor()
     {
         return _payloadEncryptor;
+    }
+
+    /// <summary>
+    ///     Registers the default scoped domain event collector and stages collected events into the transactional outbox when a mediation completes successfully.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Handlers record consequences through <see cref="IDomainEventCollector" /> instead of publishing them
+    ///         inline. A completion handler at <see cref="HandlerPriorities.Persistence" /> drains the collector into
+    ///         <see cref="ITransactionalOutbox" /> on <see cref="MediationOutcome.Succeeded" /> only, ordered before an
+    ///         application's commit at <see cref="HandlerPriorities.UnitOfWork" />, so the staged rows join the unit of
+    ///         work that produced them. A failed mediation stages nothing.
+    ///     </para>
+    ///     <para>
+    ///         The application must register a scoped <see cref="ITransactionalOutbox" />, including the Entity Framework
+    ///         Core interceptor non-generic adapter over <see cref="ITransactionalOutbox{TContext}" />; the staging handler
+    ///         resolves it lazily and only when the drain is non-empty, so mediations that collect nothing never touch it.
+    ///         When <see cref="UseAmbientTrace" /> is also enabled, staged envelopes stamp
+    ///         <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.MessageTrace.FromAmbient" />.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder StageCollectedEvents()
+    {
+        _stageCollectedEvents = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     Stamps trace metadata from the ambient execution context onto enqueued envelopes whose items carry none.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         When an item's trace is
+    ///         <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.MessageTrace.None" />, the envelope factory
+    ///         stores <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.MessageTrace.FromAmbient" /> instead.
+    ///         An explicit item trace always wins over the ambient value, and outside a mediation the ambient read
+    ///         yields none, so the envelope is identical to one enqueued without this option.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder UseAmbientTrace()
+    {
+        _useAmbientTrace = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     Writes one envelope per subscribed main handler of each enqueued event, so every reaction gets its own retry, dead letter, and replay.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Each envelope records the full name of the handler it is addressed to, and in-process dispatch publishes
+    ///         each envelope to that handler alone. Enqueueing an event with no subscribed main handler throws
+    ///         <see cref="NoHandlerFoundException" />, matching the default in-process dispatch rule that treats an
+    ///         unhandled durable message as a failure.
+    ///     </para>
+    ///     <para>
+    ///         The trade-off is storage: one row per handler instead of one row per event. A handler added after enqueue
+    ///         does not receive already-enqueued events, and a handler removed before dispatch leaves its envelopes with
+    ///         no matching subscriber, which the dispatch <c>RequireHandler</c> option then decides. Use this only with
+    ///         in-process dispatch: broker dispatchers publish the full event per envelope, so per-handler envelopes
+    ///         would duplicate broker publication. Composition throws <see cref="DurableStorageConfigurationException" />
+    ///         when per-handler delivery meets a transport dispatcher unless
+    ///         <see cref="AllowPerHandlerDeliveryWithTransportDispatch" /> acknowledges the duplication.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder EnablePerHandlerDelivery()
+    {
+        _perHandlerDelivery = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     Acknowledges that per-handler envelopes duplicate broker publication when combined with a transport dispatcher.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     Call this only when the duplicate publication is intended, for example during a migration that replays
+    ///     per-handler rows through a broker. Without this acknowledgement, composition throws
+    ///     <see cref="DurableStorageConfigurationException" /> when <see cref="EnablePerHandlerDelivery" /> meets a
+    ///     transport dispatcher.
+    /// </remarks>
+    public OutboxModuleBuilder AllowPerHandlerDeliveryWithTransportDispatch()
+    {
+        _allowPerHandlerDeliveryWithTransportDispatch = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="StageCollectedEvents" /> was called.
+    /// </summary>
+    internal bool IsCollectedEventStagingEnabled => _stageCollectedEvents;
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="AllowPerHandlerDeliveryWithTransportDispatch" /> was called.
+    /// </summary>
+    internal bool IsPerHandlerDeliveryWithTransportDispatchAllowed => _allowPerHandlerDeliveryWithTransportDispatch;
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="EnablePerHandlerDelivery" /> was called.
+    /// </summary>
+    internal bool IsPerHandlerDeliveryEnabled => _perHandlerDelivery;
+
+    /// <summary>
+    ///     Gets the dispatcher sub-module registered on this builder, if any.
+    /// </summary>
+    internal IOutboxDispatcherModule? DispatcherModule => _dispatcherModule;
+
+    /// <summary>
+    ///     Collects the enqueue options built from the ambient trace and per-handler delivery flags.
+    /// </summary>
+    /// <returns>The enqueue options the module registers.</returns>
+    internal OutboxEnqueueOptions CollectEnqueueOptions()
+    {
+        return new OutboxEnqueueOptions
+        {
+            UseAmbientTrace = _useAmbientTrace,
+            PerHandlerDelivery = _perHandlerDelivery
+        };
     }
 
     /// <summary>

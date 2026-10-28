@@ -17,6 +17,8 @@
 | `RegisterStartupTask(Type)` | Startup manifest collection |
 | `RegisterBackgroundService(Type)` | Background service manifest collection |
 | `RegisterDiagnosticCheck(Type, string)` | Diagnostic probe manifest collection |
+| `CompositionValidations` | Cross-module rules collected during build |
+| `RegisterCompositionValidation(Action)` | Registers a rule that runs after every module has built |
 | `GetContext<T>()`, `SetContext<T>()`, `TryGetContext<T>()`, `GetOrCreateContext<T>()` | Typed context bag |
 
 ## Packages
@@ -33,6 +35,7 @@
 - Registration lists are deduplicated while preserving first registration order.
 - Startup-task types cannot be registered as background services.
 - Missing context retrieval throws `LiteBusConfigurationException`.
+- `AddLiteBus` runs every composition validation after the module loop; a custom host adapter must do the same.
 
 ## Non-Goals
 

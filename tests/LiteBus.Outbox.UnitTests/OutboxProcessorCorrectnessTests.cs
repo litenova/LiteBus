@@ -1,7 +1,6 @@
 using System.Diagnostics.Metrics;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
-using LiteBus.DurableMessaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.InMemory;
 using LiteBus.Testing;
@@ -14,18 +13,6 @@ namespace LiteBus.Outbox.UnitTests;
 public sealed class OutboxProcessorCorrectnessTests
 {
     private static readonly DateTimeOffset BaseTime = new(2026, 6, 6, 8, 0, 0, TimeSpan.Zero);
-
-    [Fact]
-    public void ResolveLeaseOwner_ShouldPreserveExplicitOwnerOrGenerateDefault()
-    {
-        OutboxProcessorFactory.ResolveLeaseOwner(new OutboxProcessorOptions { LeaseOwner = "worker-a" })
-            .Should().Be("worker-a");
-        OutboxProcessorFactory.ResolveLeaseOwner(new OutboxProcessorOptions { LeaseOwner = " " })
-            .Should().StartWith($"{Environment.MachineName}:{Environment.ProcessId}:");
-
-        var nullAct = () => OutboxProcessorFactory.ResolveLeaseOwner(null!);
-        nullAct.Should().Throw<ArgumentNullException>();
-    }
 
     [Fact]
     public void ValidateOptions_when_heartbeat_exceeds_half_lease_duration_should_throw()

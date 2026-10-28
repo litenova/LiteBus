@@ -4,7 +4,7 @@ A generic message is a message that is itself generic, such as `CreateEntityComm
 
 ## Generic Messages with Generic Handlers
 
-Generic messages and handlers use type parameters to define flexible contracts and logic. Instead of creating separate commands like `CreateProductCommand` and `CreateUserCommand`, you can create a single `CreateEntityCommand<TEntity>`.
+Generic messages and handlers use type parameters so one command and one handler cover many entity types. Instead of creating separate commands like `CreateProductCommand` and `CreateUserCommand`, you can create a single `CreateEntityCommand<TEntity>`.
 
 ## How to Implement Generic Messages
 
@@ -95,14 +95,6 @@ var userId = await _commandMediator.SendAsync(new CreateEntityCommand<User, int>
 2.  **Logging and Auditing**: A generic `LogActivityCommand<TPayload>` can be used to log different types of user activities with strongly-typed payloads.
 3.  **Data Synchronization**: A generic `SyncDataCommand<TSource, TDestination>` can handle data synchronization logic between different systems for various data types.
 
-## Best Practices for Generic Messages
-
-1.  **Register Open Generics**: Open generic types (e.g., `MyHandler<,>`) are discovered automatically by `RegisterFromAssembly`. If the handler is in a different assembly, use `module.Register(typeof(MyHandler<,>))`. LiteBus handles the rest.
-2.  **Use Constraints**: Apply generic constraints (`where T : ...`) to your messages and handlers for type safety and better IntelliSense.
-3.  **Combine with Generic Repositories**: This pattern works exceptionally well with a generic repository pattern (`IRepository<TEntity>`), as shown in the example.
-
----
-
 ## Open Generic Handlers
 
 The complementary pattern, where the handler is generic over the message type to apply one cross-cutting behavior to many messages, has its own page: [Open Generic Handlers](open-generic-handlers.md). Open generic handlers and generic messages combine: a `CreateEntityCommand<T>` processed by a `CreateEntityCommandHandler<T>` can still be logged by a `CommandLoggingPreHandler<T>` that applies to all commands.
@@ -144,5 +136,9 @@ Use a distinct name for each closed durable message. Treat each name and version
 2.  **Use Constraints**: Apply generic constraints (`where T : ...`) to messages and handlers for type safety and better IntelliSense.
 3.  **Close Durable Contracts**: Register a distinct, closed contract name and version for each durable generic message. Never register an open contract such as `ArchiveCommand<>`.
 4.  **Combine with Open Generic Handlers**: A `CreateEntityCommand<T>` handled by `CreateEntityCommandHandler<T>` can still be logged by a `CommandLoggingPreHandler<T>` that applies to all commands. See [Open Generic Handlers](open-generic-handlers.md).
+5.  **Combine with Generic Repositories**: This pattern composes with a generic repository (`IRepository<TEntity>`), as the example shows.
 
 ## Next
+
+- [Open Generic Handlers](open-generic-handlers.md) for one handler that applies across many messages
+- [Command Module](commands.md) for the pipeline these messages run through

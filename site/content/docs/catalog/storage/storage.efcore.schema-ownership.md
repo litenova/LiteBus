@@ -15,7 +15,7 @@ For inbox and outbox EF adapters:
 
 PostgreSQL schema initializers (`PostgreSql*SchemaInitializer`) are not registered for EF storage. Diagnostics `GetSchemaInfoAsync` reports expected LiteBus schema version; recorded version reflects application migration state.
 
-Column layouts mirror PostgreSQL v1 scripts (snake_case columns, filtered idempotency index, lease index, outbox topic index).
+Column layouts mirror the PostgreSQL scripts (snake_case columns, filtered idempotency index, lease index, outbox topic index): the inbox model mirrors version 1 and the outbox model mirrors version 2, including the nullable `handler` column that carries the per-handler delivery target.
 
 ## Public Surface
 
@@ -84,7 +84,7 @@ Column layouts mirror PostgreSQL v1 scripts (snake_case columns, filtered idempo
 
 | Signal | Source | Notes |
 | --- | --- | --- |
-| `GetSchemaInfoAsync` | `IInboxDiagnosticsStore` / `IOutboxDiagnosticsStore` | Reports expected LiteBus v1 layout and configured object names |
+| `GetSchemaInfoAsync` | `IInboxDiagnosticsStore` / `IOutboxDiagnosticsStore` | Reports logical store version 1 with the configured object names; the physical column layout still mirrors the PostgreSQL version (outbox version 2 with `handler`) |
 | `litebus.inbox.queue.depth` / `litebus.outbox.queue.depth` | `LiteBusInboxTelemetry` / `LiteBusOutboxTelemetry` | Requires matching schema; query failures prevent meaningful counts |
 | Application migration logs | Host deployment | Actual DDL state; LiteBus does not emit migration events |
 
@@ -107,7 +107,7 @@ No schema-specific OpenTelemetry instruments ship for EF ownership.
 - **Description**: Apply inbox model configuration to in-memory model
 - **Behavior**: `GetModelBuilderConfiguration`
 - **Expected outcome**: All v1 columns mapped with expected names and types
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InboxEntityFrameworkCoreModelTests.GetModelBuilderConfiguration_ShouldMapTenantScopedIdempotencyIndex`
 
@@ -116,7 +116,7 @@ No schema-specific OpenTelemetry instruments ship for EF ownership.
 - **Description**: Model builder with default inbox extension
 - **Behavior**: Inspect index configuration
 - **Expected outcome**: Filtered unique index on tenant plus idempotency key
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InboxEntityFrameworkCoreModelTests.GetModelBuilderConfiguration_ShouldUsePostgreSqlCanonicalDefaults`
 
@@ -125,7 +125,7 @@ No schema-specific OpenTelemetry instruments ship for EF ownership.
 - **Description**: PostgreSQL provider hint on model extension
 - **Behavior**: Configure with PostgreSQL defaults
 - **Expected outcome**: Schema and table defaults match PostgreSQL v1 scripts
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InboxEntityFrameworkCoreModelTests.GetModelBuilderConfiguration_ShouldMapCustomSchemaAndTable`
 
@@ -134,7 +134,7 @@ No schema-specific OpenTelemetry instruments ship for EF ownership.
 - **Description**: Non-default schema and table in extension call
 - **Behavior**: Custom names passed to configuration delegate
 - **Expected outcome**: Entity mapped to custom qualified table
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InboxEntityFrameworkCoreModelTests.GetModelBuilderConfiguration_ShouldMapTraceContextAsJsonbWhenProviderSpecified`
 
@@ -143,7 +143,7 @@ No schema-specific OpenTelemetry instruments ship for EF ownership.
 - **Description**: PostgreSQL provider on model extension
 - **Behavior**: Inspect trace_context column type
 - **Expected outcome**: `jsonb` column type configured
-- **Remarks**: Uses `EfCoreRelationalModelColumnTypes`; `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: Uses `EfCoreRelationalModelColumnTypes`; `LiteBus.Storage.UnitTests`
 
 #### `InboxEntityFrameworkCoreModelTests.GetModelBuilderConfiguration_ShouldLeaveTraceContextProviderNeutralByDefault`
 
@@ -152,7 +152,7 @@ No schema-specific OpenTelemetry instruments ship for EF ownership.
 - **Description**: Model extension without provider hint
 - **Behavior**: Default trace_context mapping
 - **Expected outcome**: No provider-specific column type forced
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `OutboxEntityFrameworkCoreModelTests.GetModelBuilderConfiguration_ShouldMapVersion1Columns`
 
@@ -161,7 +161,7 @@ No schema-specific OpenTelemetry instruments ship for EF ownership.
 - **Description**: Apply outbox model configuration
 - **Behavior**: `GetModelBuilderConfiguration`
 - **Expected outcome**: All v1 outbox columns mapped
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `OutboxEntityFrameworkCoreModelTests.GetModelBuilderConfiguration_ShouldMapEntityColumns`
 
@@ -170,7 +170,7 @@ No schema-specific OpenTelemetry instruments ship for EF ownership.
 - **Description**: Inspect outbox entity property mappings
 - **Behavior**: Model builder configuration
 - **Expected outcome**: Topic, payload, scheduling columns mapped
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `OutboxEntityFrameworkCoreModelTests.GetModelBuilderConfiguration_ShouldMapTraceContextAsJsonbWhenProviderSpecified`
 
@@ -179,7 +179,7 @@ No schema-specific OpenTelemetry instruments ship for EF ownership.
 - **Description**: PostgreSQL provider on outbox model extension
 - **Behavior**: Inspect trace_context column
 - **Expected outcome**: `jsonb` type configured
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.UnitTests`
+- **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `EfCoreInboxStorePostgreSqlContractTests` (Inherits `InboxStoreContractTests`)
 
@@ -188,7 +188,7 @@ No schema-specific OpenTelemetry instruments ship for EF ownership.
 - **Description**: Fixture applies EF migrations then runs full inbox contract suite
 - **Behavior**: All inherited contract tests on migrated PostgreSQL EF store
 - **Expected outcome**: Contract parity proves schema matches v1 expectations
-- **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 #### `EfCoreOutboxStorePostgreSqlContractTests` (Inherits `OutboxStoreContractTests`)
 
@@ -197,7 +197,7 @@ No schema-specific OpenTelemetry instruments ship for EF ownership.
 - **Description**: Fixture applies EF migrations then runs full outbox contract suite
 - **Behavior**: Inherited contract tests on migrated PostgreSQL EF store
 - **Expected outcome**: Contract parity proves schema matches v1 expectations
-- **Remarks**: `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
+- **Remarks**: `LiteBus.Storage.IntegrationTests`
 
 ### Untested
 

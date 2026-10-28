@@ -9,7 +9,7 @@
 
 `ModuleRegistry` implements `IModuleRegistry`. It rejects duplicate module types, computes dependency order from `IRequires<TModule>`, and throws on missing or circular dependencies.
 
-Cross-link: this runtime capability feeds [hosting.module-registry](../hosting/module-registry.md), which documents host-side consumption.
+Composite modules are expanded during registration through `ICompositeModule.DeclareChildren(...)`. This keeps child modules in the same dependency graph and ordering pass.
 
 ## Public Surface
 
@@ -22,6 +22,7 @@ Cross-link: this runtime capability feeds [hosting.module-registry](../hosting/m
 ## Packages
 
 - `LiteBus.Runtime`
+- `LiteBus.Runtime.Abstractions`
 
 ## Requires
 
@@ -33,10 +34,13 @@ Cross-link: this runtime capability feeds [hosting.module-registry](../hosting/m
 - Duplicate module type registration fails.
 - Registration after `BuildOrder()` fails.
 - Missing dependencies and cycles fail compose.
+- Dependencies are built before dependents.
 
 ## Non-Goals
 
 - DI adapter translation.
+- Dynamic module registration after host start.
+- Runtime plugin loading.
 
 ## Observability
 
@@ -58,6 +62,18 @@ No dedicated telemetry. Compose-time exceptions include explicit dependency diag
 - **Test kind**: Unit
 - **Expected outcome**: cycle detection exception
 
+#### `ModuleRegistryTests.Enumerate_WithMissingRequiredModule_ShouldThrowLiteBusConfigurationException`
+- **Test kind**: Unit
+- **Description**: registers module requiring unregistered dependency
+- **Expected outcome**: configuration exception naming missing dependency
+- **Remarks**: `tests/LiteBus.Runtime.UnitTests/ModuleRegistryTests.cs`
+
+#### `ModuleRegistryTests.Register_AfterBuildOrder_ShouldThrowLiteBusConfigurationException`
+- **Test kind**: Unit
+- **Description**: builds order and then attempts new registration
+- **Expected outcome**: configuration exception
+- **Remarks**: `tests/LiteBus.Runtime.UnitTests/ModuleRegistryTests.cs`
+
 ### Untested Use Cases
 
 | Use case | Priority | Notes |
@@ -67,3 +83,9 @@ No dedicated telemetry. Compose-time exceptions include explicit dependency diag
 ### Out-of-Scope Use Cases
 
 - Runtime graph mutation after freeze.
+- Automatic dependency injection of missing modules.
+
+## Deep Docs
+
+- [Hosted services](../../architecture/hosted-services.md)
+- [Architecture](../../architecture/README.md)

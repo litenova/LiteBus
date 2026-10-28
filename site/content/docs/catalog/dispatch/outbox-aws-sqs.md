@@ -30,6 +30,7 @@ Registers `TransportOutboxDispatchModule` with `AwsSqsTransportModule`. Processo
 - Default hook failure policy: `CompleteDespiteHookFailure`.
 - DeleteMessage on ack happens on consumer/ingress side, not on dispatch publish.
 - At-least-once downstream delivery expected.
+- FIFO queues (queue URLs ending in `.fifo`) carry `MessageDeduplicationId` and `MessageGroupId` from the publish request `DeduplicationKey` (envelope idempotency key, otherwise message id) and `MessageGroupId` (envelope tenant id, otherwise contract name); standard queues carry neither.
 
 ## Non-Goals
 
@@ -91,6 +92,10 @@ services.AddLiteBus(litebus =>
 | `ProcessPendingAsync_WhenTopicMissing_ShouldUseContractNameAsRoute` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/AwsSqs/`) |
 | `ProcessPendingAsync_WhenBrokerUnreachable_ShouldMarkFailedWithVisibleAfter` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/AwsSqs/`) |
 | `ProcessPendingAsync_WhenCircuitBreakerOpen_ShouldNotPublish` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/AwsSqs/`) |
+| `ToSendMessageRequest_FifoQueueUrl_SetsDeduplicationAndGroupIds` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
+| `ToSendMessageRequest_StandardQueueUrl_OmitsDeduplicationAndGroupIds` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
+| `ToSendMessageRequest_FifoQueueUrlWithoutFifoFields_LeavesIdsUnset` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
+| `PublishAsync_WithDuplicateDeduplicationKey_DeliversTwoMessagesInOrder` | `LiteBus.Transport.IntegrationTests` (`Aws/`, LocalStack) |
 
 ### Untested
 

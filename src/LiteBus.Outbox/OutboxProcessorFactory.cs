@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Messaging.Processing;
-using LiteBus.DurableMessaging.Abstractions.Processing;
+using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -43,20 +43,6 @@ internal static class OutboxProcessorFactory
             hooks,
             services.GetService(typeof(ILogger<PipelinedOutboxProcessor>)) as ILogger<PipelinedOutboxProcessor> ?? NullLogger<PipelinedOutboxProcessor>.Instance,
             dispatchScopeFactory);
-    }
-
-    /// <summary>
-    ///     Resolves the lease owner name for a processor instance.
-    /// </summary>
-    /// <param name="options">The processor options.</param>
-    /// <returns>The effective lease owner string.</returns>
-    public static string ResolveLeaseOwner(OutboxProcessorOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-
-        return string.IsNullOrWhiteSpace(options.LeaseOwner)
-            ? $"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}"
-            : options.LeaseOwner;
     }
 
     /// <summary>
@@ -102,7 +88,7 @@ internal static class OutboxProcessorFactory
             return service;
         }
 
-        throw new LiteBusConfigurationException(
+        throw new DurableStorageConfigurationException(
             $"Outbox processor requires {typeof(T).FullName} to be registered. " +
             "Configure outbox storage and dispatcher inside AddOutboxModule(...).");
     }

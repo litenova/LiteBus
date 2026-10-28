@@ -38,14 +38,16 @@ Typical deployment: enable processor on generic host; application code accepts c
 
 ### Configuration
 
-- **`InboxProcessorOptions`**: `BatchSize`, `LeaseDuration`, `LeaseHeartbeatInterval` (must be `<= LeaseDuration / 2`), `Retry`, `DispatcherConcurrency`, `HookFailurePolicy` (default `DeadLetter`), optional `TenantId`.
+- **`InboxProcessorOptions`**: `BatchSize` (default 20), `LeaseDuration` (default one minute), `LeaseHeartbeatInterval` (default 15 seconds; must be `<= LeaseDuration / 2`), `Retry`, `DispatcherConcurrency` (default 1), `HookFailurePolicy` (`null` by default, which the inbox builder resolves to `DeadLetter`), optional `TenantId` (`null` leases across tenants).
 - **`InboxProcessorHostOptions.PollInterval`**: Delay between passes; adaptive polling when full batches return quickly.
+
+Set `Retry.IsPermanentFailure` to dead-letter application failures that can never succeed on retry; see [Permanent Failures](lease-retry-dead-letter.md#permanent-failures).
 - Compose-time validation rejects invalid batch size and max attempts.
 
 ### Extension Points
 
 - **`IInboxDispatcher`**: Exactly one dispatcher per inbox module (in-process command mediator or transport adapter).
-- **`IInboxProcessorEnvelopeHook`**: Pre/post dispatch hooks with configurable failure policy (see processor-hooks capability).
+- **`IProcessorEnvelopeHook`** (`LiteBus.Messaging.Abstractions.Processing`): Pre/post dispatch hooks with configurable failure policy (see processor-hooks capability).
 - Custom storage implements lease and state writer roles required by the pipeline.
 
 ## Packages
@@ -66,9 +68,10 @@ Typical deployment: enable processor on generic host; application code accepts c
 ## Invariants
 
 - `IInboxProcessor` registers transient but background service holds singleton instance
+- Completion timestamps come from the processor clock, so completion times follow a configured or fake clock instead of wall-clock time
 - Per-message persist failures log and continue pass; failed envelope keeps lease until expiry
 - `LeaseHeartbeatInterval` must be `<= LeaseDuration / 2`
-- Default `HookFailurePolicy` is `DeadLetter` for inbox processors
+- `HookFailurePolicy` is `null` by default, which means the dispatcher recommendation; the inbox builder always resolves an unset policy to `DeadLetter`, and an explicit value wins
 - `TenantId` on options limits leasing to one tenant partition when set
 
 ## Non-Goals
@@ -79,80 +82,22 @@ Typical deployment: enable processor on generic host; application code accepts c
 
 ## Observability
 
-Inbox processor instrumentation uses meter `LiteBus.Inbox` (`LiteBusInboxTelemetry.MeterName`) and activity source `LiteBus.Inbox`. Register with `AddLiteBusInboxMetrics()` and `AddLiteBusInboxInstrumentation()` from `LiteBus.Inbox.Extensions.OpenTelemetry`.
+Inbox processor instrumentation uses meter `LiteBus.Inbox` (`LiteBusInboxTelemetry.MeterName`) and activity source `LiteBus.Inbox`. Register with `AddLiteBusInboxMetrics()` and `AddLiteBusInboxInstrumentation()` from `LiteBus.Inbox.Extensions.OpenTelemetry`. The [OpenTelemetry Metric Catalog](../../architecture/README.md#opentelemetry-metric-catalog) lists every public instrument name with its meter, constant and description; the table below says only what each one tells an operator.
 
-### `litebus.inbox.processor.state`
-
-- **Kind**: Observable gauge (`LiteBusInboxTelemetry.ProcessorStateInstrumentName`)
-- **When emitted**: Scrape when `IInboxProcessorControl` is registered
-- **Value**: `0` Running, `1` Paused, `2` Draining
-- **Operational note**: Non-zero state during maintenance windows is expected; stuck Paused indicates forgotten resume
-
-### `litebus.inbox.processor.passes`
-
-- **Kind**: Counter (internal name; stable in code)
-- **When emitted**: Once per completed processor pass
-- **Operational note**: Flat passes with rising queue depth indicates lease or dispatch bottleneck
-
-### `litebus.inbox.processor.succeeded`
-
-- **Kind**: Counter
-- **When emitted**: Each envelope marked completed in a pass
-- **Operational note**: Compare to `leases_acquired` for pass efficiency
-
-### `litebus.inbox.processor.failed`
-
-- **Kind**: Counter
-- **When emitted**: Each envelope marked failed (retry scheduled) in a pass
-- **Operational note**: Sustained rate may indicate handler exceptions or dispatch errors
-
-### `litebus.inbox.processor.dead_lettered`
-
-- **Kind**: Counter
-- **When emitted**: Each envelope moved to dead letter in a pass
-- **Operational note**: Alert when rate exceeds operator tolerance; inspect dead-letter queue via manager APIs
-
-### `litebus.inbox.processor.loop_errors`
-
-- **Kind**: Counter
-- **When emitted**: Background loop catches unhandled exception outside per-envelope handling
-- **Operational note**: Indicates infrastructure or store failures; investigate logs immediately
-
-### `litebus.inbox.processor.leases_acquired`
-
-- **Kind**: Counter (`LiteBusInboxTelemetry.ProcessorLeasesAcquiredInstrumentName`)
-- **When emitted**: Sum of envelopes leased at start of pass
-- **Operational note**: Zero leases with pending depth suggests visibility or tenant filter mismatch
-
-### `litebus.inbox.processor.lease_lost`
-
-- **Kind**: Counter (`LiteBusInboxTelemetry.ProcessorLeaseLostInstrumentName`)
-- **When emitted**: Lease renewal fails during dispatch; dispatch is canceled
-- **Operational note**: Correlates with long handlers or store renewal failures
-
-### `litebus.inbox.processor.persist_skipped` / `litebus.inbox.processor.persist_rejected`
-
-- **Kind**: Counter (both increment on lease-lost terminal persist skip)
-- **When emitted**: Terminal persist skipped because active lease no longer matches
-- **Operational note**: Expected under concurrent reclaim; row retries on next visibility
-
-### `litebus.inbox.processor.persist_failed`
-
-- **Kind**: Counter (`LiteBusInboxTelemetry.ProcessorPersistFailedInstrumentName`)
-- **When emitted**: Terminal persist throws after successful handler dispatch (exception is logged; pass continues)
-- **Operational note**: Row remains leased until expiry and may redispatch; pair with `litebus.inbox.processor.succeeded` and handler idempotency
-
-### `litebus.inbox.diagnostics.unavailable`
-
-- **Kind**: Counter (`LiteBusInboxTelemetry.DiagnosticsUnavailableInstrumentName`)
-- **When emitted**: Queue depth diagnostic probe fails against the backing store
-- **Operational note**: Observable `litebus.inbox.queue.depth` may be stale while this counter rises; investigate store connectivity
-
-### `litebus.inbox.processor.dispatch_duration`
-
-- **Kind**: Histogram in milliseconds (`LiteBusInboxTelemetry.ProcessorDispatchDurationInstrumentName`)
-- **When emitted**: After each envelope dispatch completes
-- **Operational note**: Tail latency drives lease duration and heartbeat tuning
+| Instrument | What it tells you |
+|---|---|
+| `litebus.inbox.processor.state` | Recorded on scrape when `IInboxProcessorControl` is registered. Non-zero state during maintenance windows is expected; stuck Paused indicates forgotten resume. |
+| `litebus.inbox.processor.passes` | Recorded once per completed processor pass. Flat passes with rising queue depth indicates lease or dispatch bottleneck. |
+| `litebus.inbox.processor.succeeded` | Recorded for each envelope marked completed in a pass. Compare to `leases_acquired` for pass efficiency. |
+| `litebus.inbox.processor.failed` | Recorded for each envelope marked failed (retry scheduled) in a pass. Sustained rate may indicate handler exceptions or dispatch errors. |
+| `litebus.inbox.processor.dead_lettered` | Recorded for each envelope moved to dead letter in a pass. Alert when rate exceeds operator tolerance; inspect dead-letter queue via manager APIs. |
+| `litebus.inbox.processor.loop_errors` | Recorded when the background loop catches an unhandled exception outside per-envelope handling. Indicates infrastructure or store failures; investigate logs immediately. |
+| `litebus.inbox.processor.leases_acquired` | Recorded as the sum of envelopes leased at the start of a pass. Zero leases with pending depth suggests visibility or tenant filter mismatch. |
+| `litebus.inbox.processor.lease_lost` | Recorded when lease renewal fails during dispatch and dispatch is canceled. Correlates with long handlers or store renewal failures. |
+| `litebus.inbox.processor.persist_skipped`, `litebus.inbox.processor.persist_rejected` | Recorded when terminal persist is skipped because the active lease no longer matches. Expected under concurrent reclaim; row retries on next visibility. |
+| `litebus.inbox.processor.persist_failed` | Recorded when terminal persist throws after successful handler dispatch (exception is logged; pass continues). Row remains leased until expiry and may redispatch; pair with `litebus.inbox.processor.succeeded` and handler idempotency. |
+| `litebus.inbox.diagnostics.unavailable` | Recorded when the queue depth diagnostic probe fails against the backing store. Observable `litebus.inbox.queue.depth` may be stale while this counter rises; investigate store connectivity. |
+| `litebus.inbox.processor.dispatch_duration` | Recorded after each envelope dispatch completes. Tail latency drives lease duration and heartbeat tuning. |
 
 ### Management Endpoints
 

@@ -3,7 +3,6 @@
     <PropertyGroup>
         <Description>Inbox, outbox, processor, and in-memory host helpers for LiteBus durable-messaging tests.</Description>
         <PackageTags>$(PackageTags);testing;inbox;outbox;durable-messaging</PackageTags>
-        <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
     <ItemGroup>

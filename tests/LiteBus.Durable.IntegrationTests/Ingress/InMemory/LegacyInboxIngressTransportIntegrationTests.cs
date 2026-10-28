@@ -37,7 +37,7 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
 
         services.AddLiteBus(registry =>
         {
-                registry.Modules.Register(new InMemoryTransportModule());
+            registry.Modules.Register(new InMemoryTransportModule());
             registry.AddMessaging(_ =>
             {
             });
@@ -67,84 +67,84 @@ public sealed class InboxIngressTransportIntegrationTests : LiteBusTestBase
 
         services.AddSingleton<TransportInboxIngressHandler>();
 
-         var provider = services.BuildServiceProvider();
-         await using (provider.ConfigureAwait(false))
-         {
-        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
-        manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
-
-        var broker = provider.GetRequiredService<InMemoryTransportBroker>();
-        var ingressConsumer = new InMemoryConsumer(broker);
-
-         var dispatchConsumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(             broker,             dispatchDestination,             dispatchReceived).ConfigureAwait(true);
-         await using (dispatchConsumer.ConfigureAwait(true))
-         {
-
-        var ingressHandler = provider.GetRequiredService<TransportInboxIngressHandler>();
-
-        await ingressConsumer.StartAsync(
-            new TransportConsumerOptions { Destination = ingressDestination },
-            async (message, cancellationToken) =>
-            {
-                await ingressHandler.AcceptAsync(message, cancellationToken).ConfigureAwait(false);
-                await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
-            }).ConfigureAwait(false);
-
-        using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
-
-        try
+        var provider = services.BuildServiceProvider();
+        await using (provider.ConfigureAwait(false))
         {
-            var publisher = provider.GetRequiredService<ITransportPublisher>();
-            var command = new ShipOrderCommand { OrderId = orderId };
-            var payload = JsonSerializer.SerializeToUtf8Bytes(command);
+            var manifest = provider.GetRequiredService<LiteBusHostManifest>();
+            manifest.BackgroundServices.Should().Contain(typeof(InboxProcessorBackgroundService));
 
-            await publisher.PublishAsync(new TransportPublishRequest
+            var broker = provider.GetRequiredService<InMemoryTransportBroker>();
+            var ingressConsumer = new InMemoryConsumer(broker);
+
+            var dispatchConsumer = await InMemoryTransportTestInfrastructure.StartReceiveOneAsync(broker, dispatchDestination, dispatchReceived).ConfigureAwait(true);
+            await using (dispatchConsumer.ConfigureAwait(true))
             {
-                Destination = ingressDestination,
-                Body = payload,
-                MessageId = messageId.ToString("D"),
-                Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
+
+                var ingressHandler = provider.GetRequiredService<TransportInboxIngressHandler>();
+
+                await ingressConsumer.StartAsync(
+                    new TransportConsumerOptions { Destination = ingressDestination },
+                    async (message, cancellationToken) =>
+                    {
+                        await ingressHandler.AcceptAsync(message, cancellationToken).ConfigureAwait(false);
+                        await message.AcceptAsync(cancellationToken).ConfigureAwait(false);
+                    }).ConfigureAwait(false);
+
+                using var runCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, runCts.Token).ConfigureAwait(false);
+
+                try
                 {
-                    [TransportHeaders.MessageId] = messageId.ToString("D"),
-                    [TransportHeaders.ContractName] = contractName,
-                    [TransportHeaders.ContractVersion] = 1
+                    var publisher = provider.GetRequiredService<ITransportPublisher>();
+                    var command = new ShipOrderCommand { OrderId = orderId };
+                    var payload = JsonSerializer.SerializeToUtf8Bytes(command);
+
+                    await publisher.PublishAsync(new TransportPublishRequest
+                    {
+                        Destination = ingressDestination,
+                        Body = payload,
+                        MessageId = messageId.ToString("D"),
+                        Headers = new Dictionary<string, object?>(StringComparer.Ordinal)
+                        {
+                            [TransportHeaders.MessageId] = messageId.ToString("D"),
+                            [TransportHeaders.ContractName] = contractName,
+                            [TransportHeaders.ContractVersion] = 1
+                        }
+                    }).ConfigureAwait(false);
+
+                    using var receiveTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                    var dispatched = await dispatchReceived.Task.WaitAsync(receiveTimeout.Token).ConfigureAwait(false);
+
+                    InMemoryTransportTestInfrastructure.ReadBody(dispatched).Should().Contain(orderId.ToString());
+
+                    InMemoryTransportTestInfrastructure.GetHeader(dispatched, TransportHeaders.MessageId)
+                        .Should().Be(messageId.ToString("D"));
+
+                    InMemoryTransportTestInfrastructure.GetHeader(dispatched, TransportHeaders.ContractName)
+                        .Should().Be(contractName);
+
+                    var store = provider.GetRequiredService<InMemoryInboxStore>();
+                    var deadline = DateTime.UtcNow.AddSeconds(5);
+
+                    while (DateTime.UtcNow < deadline)
+                    {
+                        if (store.Get(messageId).Status == InboxStatus.Completed)
+                        {
+                            break;
+                        }
+
+                        await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+                    }
+
+                    store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
                 }
-            }).ConfigureAwait(false);
-
-            using var receiveTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-            var dispatched = await dispatchReceived.Task.WaitAsync(receiveTimeout.Token).ConfigureAwait(false);
-
-            InMemoryTransportTestInfrastructure.ReadBody(dispatched).Should().Contain(orderId.ToString());
-
-            InMemoryTransportTestInfrastructure.GetHeader(dispatched, TransportHeaders.MessageId)
-                .Should().Be(messageId.ToString("D"));
-
-            InMemoryTransportTestInfrastructure.GetHeader(dispatched, TransportHeaders.ContractName)
-                .Should().Be(contractName);
-
-            var store = provider.GetRequiredService<InMemoryInboxStore>();
-            var deadline = DateTime.UtcNow.AddSeconds(5);
-
-            while (DateTime.UtcNow < deadline)
-            {
-                if (store.Get(messageId).Status == InboxStatus.Completed)
+                finally
                 {
-                    break;
+                    await ingressConsumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                    await ingressConsumer.DisposeAsync().ConfigureAwait(false);
+                    await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
                 }
-
-                await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
             }
-
-            store.Get(messageId).Status.Should().Be(InboxStatus.Completed);
-        }
-        finally
-        {
-            await ingressConsumer.StopAsync(CancellationToken.None).ConfigureAwait(false);
-            await ingressConsumer.DisposeAsync().ConfigureAwait(false);
-            await LiteBusHostedServiceExtensions.StopLiteBusHostedServicesAsync(provider, CancellationToken.None).ConfigureAwait(false);
-        }
-        }
         }
     }
 }

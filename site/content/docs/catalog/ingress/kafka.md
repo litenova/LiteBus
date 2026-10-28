@@ -9,7 +9,7 @@
 
 `UseKafkaIngress` registers `KafkaInboxIngressModule`. The module maps the topic destination, requeue policy, and shared safety record into `TransportInboxIngressOptions`. A root `KafkaTransportModule` is required.
 
-Kafka consumer offsets commit after the successful accept and acknowledgement path. The Confluent.Kafka consume loop returns one record per call, so `KafkaInboxIngressOptions` does not expose a prefetch field that the adapter cannot honor. Provider-neutral limits remain available through `Safety`.
+Kafka consumer offsets commit after the successful accept and acknowledgement path. The Confluent.Kafka consume loop returns one record per call, so `KafkaInboxIngressOptions` does not expose a prefetch field that the adapter cannot honor. Provider-neutral limits remain available through `Safety`; the enforced `Safety.MaxInFlightMessages` bound is 1.
 
 ## Beta Rationale
 
@@ -144,4 +144,4 @@ Shared broker infrastructure: `LiteBus.Transport.IntegrationTesting` (`KafkaBrok
 
 - [Kafka transport](../../integrations/kafka.md)
 - [Integration tests](../../testing/integration-tests.md) (Kafka harness notes)
-- [Feature Index: Ingress](../../reference/feature-index-v6.md)
+- [Feature Index: Ingress](../../reference/feature-index.md)

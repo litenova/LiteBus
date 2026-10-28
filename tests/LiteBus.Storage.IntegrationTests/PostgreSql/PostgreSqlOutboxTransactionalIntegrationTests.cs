@@ -26,12 +26,13 @@ public sealed class PostgreSqlOutboxTransactionalIntegrationTests : IClassFixtur
     public PostgreSqlOutboxTransactionalIntegrationTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms a rolled-back transaction removes both domain and outbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task UseExistingConnection_ShouldRollbackDomainAndOutboxTogether()
     {
         var (outboxOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(true);
@@ -39,33 +40,33 @@ public sealed class PostgreSqlOutboxTransactionalIntegrationTests : IClassFixtur
         var envelope = CreateEnvelope();
         var store = new PostgreSqlOutboxStore(_fixture.DataSource, outboxOptions);
 
-         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(true);
-         await using (connection.ConfigureAwait(true))
-         {
-         var transaction = await connection.BeginTransactionAsync().ConfigureAwait(true);
-         await using (transaction.ConfigureAwait(false))
-         {
-        var transactionalStore = store.UseExistingConnection(connection, transaction);
+        var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(true);
+        await using (connection.ConfigureAwait(true))
+        {
+            var transaction = await connection.BeginTransactionAsync().ConfigureAwait(true);
+            await using (transaction.ConfigureAwait(false))
+            {
+                var transactionalStore = store.UseExistingConnection(connection, transaction);
 
-        await InsertOrderAsync(connection, transaction, outboxOptions.SchemaName, ordersTableName, orderId, 10m).ConfigureAwait(true);
+                await InsertOrderAsync(connection, transaction, outboxOptions.SchemaName, ordersTableName, orderId, 10m).ConfigureAwait(true);
 
 
-        await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
-        await transaction.RollbackAsync().ConfigureAwait(true);
+                await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
+                await transaction.RollbackAsync().ConfigureAwait(true);
 
-        (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId))
-            .Should().Be(0);
+                (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId).ConfigureAwait(false))
+                    .Should().Be(0);
 
-        (await CountOutboxMessagesAsync(outboxOptions, envelope.Id))
-            .Should().Be(0);
-        }
+                (await CountOutboxMessagesAsync(outboxOptions, envelope.Id).ConfigureAwait(false))
+                    .Should().Be(0);
+            }
         }
     }
 
     /// <summary>
     ///     Confirms a committed transaction persists both domain and outbox rows.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task UseExistingConnection_ShouldCommitDomainAndOutboxTogether()
     {
         var (outboxOptions, ordersTableName) = await CreateTablesAsync().ConfigureAwait(true);
@@ -73,26 +74,26 @@ public sealed class PostgreSqlOutboxTransactionalIntegrationTests : IClassFixtur
         var envelope = CreateEnvelope();
         var store = new PostgreSqlOutboxStore(_fixture.DataSource, outboxOptions);
 
-         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(true);
-         await using (connection.ConfigureAwait(true))
-         {
-         var transaction = await connection.BeginTransactionAsync().ConfigureAwait(true);
-         await using (transaction.ConfigureAwait(false))
-         {
-        var transactionalStore = store.UseExistingConnection(connection, transaction);
+        var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(true);
+        await using (connection.ConfigureAwait(true))
+        {
+            var transaction = await connection.BeginTransactionAsync().ConfigureAwait(true);
+            await using (transaction.ConfigureAwait(false))
+            {
+                var transactionalStore = store.UseExistingConnection(connection, transaction);
 
-        await InsertOrderAsync(connection, transaction, outboxOptions.SchemaName, ordersTableName, orderId, 25m).ConfigureAwait(true);
+                await InsertOrderAsync(connection, transaction, outboxOptions.SchemaName, ordersTableName, orderId, 25m).ConfigureAwait(true);
 
 
-        await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
-        await transaction.CommitAsync().ConfigureAwait(true);
+                await transactionalStore.AddAsync(envelope).ConfigureAwait(true);
+                await transaction.CommitAsync().ConfigureAwait(true);
 
-        (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId))
-            .Should().Be(1);
+                (await CountOrdersAsync(outboxOptions.SchemaName, ordersTableName, orderId).ConfigureAwait(false))
+                    .Should().Be(1);
 
-        (await CountOutboxMessagesAsync(outboxOptions, envelope.Id))
-            .Should().Be(1);
-        }
+                (await CountOutboxMessagesAsync(outboxOptions, envelope.Id).ConfigureAwait(false))
+                    .Should().Be(1);
+            }
         }
     }
 
@@ -109,24 +110,24 @@ public sealed class PostgreSqlOutboxTransactionalIntegrationTests : IClassFixtur
         await PostgreSqlTestInfrastructure.EnsureOutboxSchemaAsync(_fixture.DataSource, outboxOptions).ConfigureAwait(false);
 
 
-         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
+        var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var command = connection.CreateCommand();
+            await using (command.ConfigureAwait(false))
+            {
 
-        command.CommandText =
-            $"""
+                command.CommandText =
+                    $"""
              CREATE TABLE IF NOT EXISTS "{outboxOptions.SchemaName}"."{ordersTableName}" (
                  order_id uuid NOT NULL PRIMARY KEY,
                  amount numeric NOT NULL);
              """;
 
-        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+                await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 
-        return (outboxOptions, ordersTableName);
-        }
+                return (outboxOptions, ordersTableName);
+            }
         }
     }
 
@@ -147,20 +148,20 @@ public sealed class PostgreSqlOutboxTransactionalIntegrationTests : IClassFixtur
         Guid orderId,
         decimal amount)
     {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
-        command.Transaction = transaction;
+        var command = connection.CreateCommand();
+        await using (command.ConfigureAwait(false))
+        {
+            command.Transaction = transaction;
 
-        command.CommandText =
-            $"""
+            command.CommandText =
+                $"""
              INSERT INTO "{schemaName}"."{ordersTableName}" (order_id, amount)
              VALUES (@order_id, @amount);
              """;
 
-        command.Parameters.AddWithValue("order_id", orderId);
-        command.Parameters.AddWithValue("amount", amount);
-        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+            command.Parameters.AddWithValue("order_id", orderId);
+            command.Parameters.AddWithValue("amount", amount);
+            await command.ExecuteNonQueryAsync().ConfigureAwait(false);
         }
     }
 
@@ -173,23 +174,23 @@ public sealed class PostgreSqlOutboxTransactionalIntegrationTests : IClassFixtur
     /// <returns>The number of matching rows.</returns>
     private async Task<int> CountOrdersAsync(string schemaName, string ordersTableName, Guid orderId)
     {
-         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
+        var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var command = connection.CreateCommand();
+            await using (command.ConfigureAwait(false))
+            {
 
-        command.CommandText =
-            $"""
+                command.CommandText =
+                    $"""
              SELECT COUNT(*) FROM "{schemaName}"."{ordersTableName}"
              WHERE order_id = @order_id;
              """;
 
-        command.Parameters.AddWithValue("order_id", orderId);
-        var result = await command.ExecuteScalarAsync().ConfigureAwait(false);
-        return Convert.ToInt32(result);
-        }
+                command.Parameters.AddWithValue("order_id", orderId);
+                var result = await command.ExecuteScalarAsync().ConfigureAwait(false);
+                return Convert.ToInt32(result, System.Globalization.CultureInfo.InvariantCulture);
+            }
         }
     }
 
@@ -201,23 +202,23 @@ public sealed class PostgreSqlOutboxTransactionalIntegrationTests : IClassFixtur
     /// <returns>The number of matching rows.</returns>
     private async Task<int> CountOutboxMessagesAsync(PostgreSqlOutboxStoreOptions options, Guid messageId)
     {
-         var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
-         await using (connection.ConfigureAwait(false))
-         {
-         var command = connection.CreateCommand();
-         await using (command.ConfigureAwait(false))
-         {
+        var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var command = connection.CreateCommand();
+            await using (command.ConfigureAwait(false))
+            {
 
-        command.CommandText =
-            $"""
+                command.CommandText =
+                    $"""
              SELECT COUNT(*) FROM "{options.SchemaName}"."{options.TableName}"
              WHERE message_id = @message_id;
              """;
 
-        command.Parameters.AddWithValue("message_id", messageId);
-        var result = await command.ExecuteScalarAsync().ConfigureAwait(false);
-        return Convert.ToInt32(result);
-        }
+                command.Parameters.AddWithValue("message_id", messageId);
+                var result = await command.ExecuteScalarAsync().ConfigureAwait(false);
+                return Convert.ToInt32(result, System.Globalization.CultureInfo.InvariantCulture);
+            }
         }
     }
 

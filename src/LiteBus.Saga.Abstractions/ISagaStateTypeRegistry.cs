@@ -20,6 +20,10 @@ public interface ISagaStateTypeRegistry
     /// </summary>
     /// <param name="contractName">The durable message contract name.</param>
     /// <param name="sagaDefinitionId">The saga definition identifier that owns state for the contract.</param>
+    /// <remarks>
+    ///     Module build fails when <paramref name="sagaDefinitionId" /> has no registered state type, so a misspelled
+    ///     definition identifier cannot leave the saga silently inactive.
+    /// </remarks>
     void MapContract(string contractName, string sagaDefinitionId);
 
     /// <summary>

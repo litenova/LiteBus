@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 
 namespace LiteBus.Inbox.Abstractions;
@@ -112,6 +113,74 @@ public sealed record InboxEnvelope
     public DateTimeOffset? CompletedAt { get; init; }
 
     /// <summary>
+    ///     Gets the UTC timestamp of the most recent lease, which is the last time a processor attempted the message.
+    /// </summary>
+    /// <value>
+    ///     The timestamp, or <see langword="null" /> when the message has never been leased.
+    /// </value>
+    public DateTimeOffset? LastAttemptedAt { get; init; }
+
+    /// <summary>
+    ///     Gets the UTC timestamp of the first failed attempt.
+    /// </summary>
+    /// <value>
+    ///     The timestamp, or <see langword="null" /> when no attempt has failed. It is not reset by later successes,
+    ///     so it answers how long a message struggled before it succeeded or gave up.
+    /// </value>
+    public DateTimeOffset? FirstFailedAt { get; init; }
+
+    /// <summary>
+    ///     Gets the UTC timestamp at which the message was moved to the dead-letter state.
+    /// </summary>
+    /// <value>
+    ///     The timestamp, or <see langword="null" /> when the message has not been dead-lettered. This is the field a
+    ///     dead-letter listing sorts by, and it is cleared when the message is requeued.
+    /// </value>
+    public DateTimeOffset? DeadLetteredAt { get; init; }
+
+    /// <summary>
+    ///     Gets the processor instance that most recently held the lease.
+    /// </summary>
+    /// <value>
+    ///     The lease owner, or <see langword="null" /> when the message has never been leased. Unlike
+    ///     <see cref="LeaseOwner" />, this survives the lease being released, so it still names the instance that was
+    ///     handling a message when it failed.
+    /// </value>
+    public string? LastLeaseOwner { get; init; }
+
+    /// <summary>
+    ///     Gets the CLR type name of the exception behind <see cref="LastError" />.
+    /// </summary>
+    /// <value>
+    ///     The type name, or <see langword="null" /> when the message has not failed or the failure carried no
+    ///     exception. Stored apart from <see cref="LastError" /> so failures can be grouped without parsing text.
+    /// </value>
+    public string? ErrorType { get; init; }
+
+    /// <summary>
+    ///     Returns a new envelope released from its lease without charging the attempt the lease consumed.
+    /// </summary>
+    /// <returns>
+    ///     The envelope in <see cref="InboxStatus.Pending" />, or <see cref="InboxStatus.Failed" /> when it already
+    ///     carries an error, with its lease cleared and its attempt count decremented. Visibility is unchanged.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    ///     The envelope is not in the <see cref="InboxStatus.Processing" /> state.
+    /// </exception>
+    public InboxEnvelope AsReleased()
+    {
+        EnsureStatus(InboxStatus.Processing);
+
+        return this with
+        {
+            Status = LastError is null ? InboxStatus.Pending : InboxStatus.Failed,
+            LeaseOwner = null,
+            LeaseExpiresAt = null,
+            AttemptCount = Math.Max(0, AttemptCount - 1)
+        };
+    }
+
+    /// <summary>
     ///     Returns a new envelope with an active lease and an incremented attempt count.
     /// </summary>
     /// <param name="leaseOwner">The processor instance that claimed the envelope.</param>
@@ -123,6 +192,7 @@ public sealed record InboxEnvelope
         {
             Status = InboxStatus.Processing,
             LeaseOwner = leaseOwner,
+            LastLeaseOwner = leaseOwner,
             LeaseGeneration = checked(LeaseGeneration + 1),
             LeaseExpiresAt = leaseExpiresAt,
             AttemptCount = AttemptCount + 1
@@ -132,18 +202,23 @@ public sealed record InboxEnvelope
     /// <summary>
     ///     Returns a new envelope representing successful dispatch completion.
     /// </summary>
+    /// <param name="completedAt">
+    ///     The completion timestamp, or <see langword="null" /> to leave <see cref="CompletedAt" /> unchanged for the
+    ///     store to stamp. Processors pass the processor clock so completion times stay on one clock with retention.
+    /// </param>
     /// <returns>The envelope after successful processing.</returns>
     /// <exception cref="InvalidOperationException">
     ///     The envelope is not in the <see cref="InboxStatus.Processing" /> state.
     /// </exception>
-    public InboxEnvelope AsCompleted()
+    public InboxEnvelope AsCompleted(DateTimeOffset? completedAt = null)
     {
         EnsureStatus(InboxStatus.Processing);
 
         return this with
         {
             Status = InboxStatus.Completed,
-            LastError = null
+            LastError = null,
+            CompletedAt = completedAt ?? CompletedAt
         };
     }
 
@@ -151,42 +226,53 @@ public sealed record InboxEnvelope
     ///     Returns a new envelope representing a failed dispatch attempt,
     ///     scheduling the next visibility window via <paramref name="visibleAfter" />.
     /// </summary>
-    /// <param name="error">The error captured for this attempt.</param>
+    /// <param name="failure">The failure captured for this attempt.</param>
     /// <param name="visibleAfter">The earliest UTC timestamp at which the envelope may be leased again.</param>
     /// <returns>The envelope scheduled for retry.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="failure" /> is <see langword="null" />.</exception>
     /// <exception cref="InvalidOperationException">
     ///     The envelope is not in the <see cref="InboxStatus.Processing" /> state.
     /// </exception>
-    public InboxEnvelope AsFailed(string error, DateTimeOffset? visibleAfter = null)
+    /// <remarks>
+    ///     <see cref="FirstFailedAt" /> is set only on the first failure, so it keeps naming the moment the message
+    ///     started struggling rather than the moment it last did.
+    /// </remarks>
+    public InboxEnvelope AsFailed(MessageFailure failure, DateTimeOffset? visibleAfter = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(error);
+        ArgumentNullException.ThrowIfNull(failure);
         EnsureStatus(InboxStatus.Processing);
 
         return this with
         {
             Status = InboxStatus.Failed,
             VisibleAfter = visibleAfter,
-            LastError = error
+            LastError = failure.Error,
+            ErrorType = failure.ErrorType,
+            FirstFailedAt = FirstFailedAt ?? failure.OccurredAt
         };
     }
 
     /// <summary>
     ///     Returns a new envelope moved to the dead-letter state after retries are exhausted.
     /// </summary>
-    /// <param name="reason">The reason the envelope was moved to the dead-letter state.</param>
+    /// <param name="failure">The failure that exhausted the message's attempts.</param>
     /// <returns>The dead-lettered envelope.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="failure" /> is <see langword="null" />.</exception>
     /// <exception cref="InvalidOperationException">
     ///     The envelope is not in the <see cref="InboxStatus.Processing" /> state.
     /// </exception>
-    public InboxEnvelope AsDeadLettered(string reason)
+    public InboxEnvelope AsDeadLettered(MessageFailure failure)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        ArgumentNullException.ThrowIfNull(failure);
         EnsureStatus(InboxStatus.Processing);
 
         return this with
         {
             Status = InboxStatus.DeadLettered,
-            LastError = reason
+            LastError = failure.Error,
+            ErrorType = failure.ErrorType,
+            FirstFailedAt = FirstFailedAt ?? failure.OccurredAt,
+            DeadLetteredAt = failure.OccurredAt
         };
     }
 
@@ -208,7 +294,10 @@ public sealed record InboxEnvelope
             AttemptCount = 0,
             LeaseOwner = null,
             LeaseExpiresAt = null,
-            LastError = null
+            LastError = null,
+            ErrorType = null,
+            FirstFailedAt = null,
+            DeadLetteredAt = null
         };
     }
 

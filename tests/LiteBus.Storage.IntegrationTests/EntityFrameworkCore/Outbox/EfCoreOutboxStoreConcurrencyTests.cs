@@ -1,5 +1,6 @@
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.EntityFrameworkCore;
+using LiteBus.Storage.EntityFrameworkCore;
 
 namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Outbox;
 
@@ -14,20 +15,21 @@ public sealed class EfCoreOutboxStoreConcurrencyTests : IClassFixture<PostgreSql
     public EfCoreOutboxStoreConcurrencyTests(PostgreSqlFixture fixture)
     {
         _fixture = fixture;
+        Skip.IfNot(_fixture.IsAvailable, PostgreSqlFixture.DockerRequiredMessage);
     }
 
     /// <summary>
     ///     Confirms only one concurrent terminal persist succeeds when two workers claim the same lease generation.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task PersistAsync_WhenTwoWorkersPersistSameEnvelopeConcurrently_ShouldApplyExactlyOnce()
     {
-        await EfCorePostgreSqlTestInfrastructure.ResetOutboxTableAsync(_fixture.ConnectionString).ConfigureAwait(false);
+        await EfCoreProviderTestInfrastructure.ResetOutboxTableAsync(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString).ConfigureAwait(false);
 
         var store = new EfCoreOutboxStore(
             _ => Task.FromResult<IOutboxDbContext>(
-                EfCorePostgreSqlTestInfrastructure.CreateOutboxContext(_fixture.ConnectionString)),
-            EfCorePostgreSqlTestInfrastructure.OutboxStoreOptions);
+                EfCoreProviderTestInfrastructure.CreateOutboxContext(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString)),
+            EfCoreProviderTestInfrastructure.OutboxStoreOptions(EfCoreStorageProvider.PostgreSql));
 
         var messageId = Guid.NewGuid();
         var now = new DateTimeOffset(2026, 6, 10, 12, 0, 0, TimeSpan.Zero);
@@ -68,13 +70,13 @@ public sealed class EfCoreOutboxStoreConcurrencyTests : IClassFixture<PostgreSql
 
         (firstResult.AppliedCount + secondResult.AppliedCount).Should().Be(1);
 
-         var verificationContext = EfCorePostgreSqlTestInfrastructure.CreateOutboxContext(_fixture.ConnectionString);
-         await using (verificationContext.ConfigureAwait(false))
-         {
-        var stored = await verificationContext.OutboxMessages.FindAsync(messageId).ConfigureAwait(false);
-        stored.Should().NotBeNull();
-        stored!.Status.Should().Be(OutboxStatus.Published);
-        stored.LeaseOwner.Should().BeNull();
+        var verificationContext = EfCoreProviderTestInfrastructure.CreateOutboxContext(EfCoreStorageProvider.PostgreSql, _fixture.ConnectionString);
+        await using (verificationContext.ConfigureAwait(false))
+        {
+            var stored = await verificationContext.OutboxMessages.FindAsync(messageId).ConfigureAwait(false);
+            stored.Should().NotBeNull();
+            stored!.Status.Should().Be(OutboxStatus.Published);
+            stored.LeaseOwner.Should().BeNull();
         }
     }
 }

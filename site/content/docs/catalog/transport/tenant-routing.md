@@ -37,15 +37,17 @@ Without a strategy, inbox dispatch resolves the route in this order:
 
 Without a strategy, outbox dispatch resolves the route in this order:
 
-1. `OutboxEnvelope.Topic` when non-empty.
-2. `TransportOutboxDispatcherOptions.ResolveRoute`.
+1. `TransportOutboxDispatcherOptions.ResolveRoute`.
+2. `OutboxEnvelope.Topic` when non-empty.
 3. `OutboxEnvelope.ContractName`.
+
+A `ResolveRoute` delegate that returns null or whitespace fails the dispatch: `LiteBusDispatchException` on outbox dispatch, `InboxDispatchException` on inbox dispatch. On the outbox axis an `ITenantRoutingStrategy` that returns null or whitespace fails the same way with `LiteBusDispatchException` naming the envelope.
 
 For example, a strategy can route `tenant-east` order events to `tenant-east.orders.priority` while every publish still targets the configured `orders` destination.
 
 ## Registration
 
-Register one `ITenantRoutingStrategy` in the application dependency container. `LiteBus.Inbox.Dispatch` and `LiteBus.Outbox.Dispatch` resolve it as an optional dependency. Broker-specific transport packages do not define tenant policy.
+Register one `ITenantRoutingStrategy` in the application dependency container. `LiteBus.Inbox.Dispatch` and `LiteBus.Outbox.Dispatch` resolve it as an optional dependency. Broker-specific transport packages do not define tenant policy. Outbox dispatch also accepts the strategy through `TransportOutboxDispatcherOptions.TenantRoutingStrategy`, which the outbox dispatch module registers as the resolved `ITenantRoutingStrategy`; inbox dispatch resolves the strategy from the container only.
 
 ```csharp
 public sealed class TenantRouteStrategy : ITenantRoutingStrategy

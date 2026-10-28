@@ -11,10 +11,10 @@
 
 | Concern | Source | Default behavior |
 | --- | --- | --- |
-| Identity | Broker delivery id or `litebus-message-id` when trusted | Supplied identity from broker id; deterministic GUID when id is not a GUID |
+| Identity | Broker delivery id or `litebus-message-id` when trusted | Supplied identity from broker id; GUID ids verbatim, other ids as a destination-scoped deterministic GUID |
 | Idempotency | Broker-scoped key or `litebus-idempotency-key` when trusted | `ingress:{destination}:{brokerMessageId}` |
-| Visibility | `litebus-visible-after`, `litebus-visible-after-delay` | Immediate; relative delay wins when both present |
-| Trace | `correlation-id`, `causation-id`, `litebus-trace-context` | None, correlated, workflow, or distributed variants |
+| Visibility | `litebus-visible-after`, `litebus-visible-after-delay` when trusted | Immediate unless trusted; relative delay wins when both present |
+| Trace | `correlation-id`, `causation-id`, `litebus-trace-context` (correlation falls back to the message `CorrelationId` property) | None, correlated, workflow, or distributed variants; correlation headers are always honored |
 | Tenant | `tenant-id` when trusted | Unscoped unless trusted headers enabled |
 
 Contract headers are validated separately: name required, version must be a positive integer.
@@ -23,20 +23,20 @@ Contract headers are validated separately: name required, version must be a posi
 
 1. Read contract headers (`litebus-contract-name`, `litebus-contract-version`) and validate.
 2. Resolve identity and idempotency from trusted app headers or broker delivery id.
-3. Resolve visibility from relative delay first, then absolute visible-after.
+3. Resolve visibility from relative delay first, then absolute visible-after, only when trusted; distrusted deliveries are immediately visible.
 4. Resolve trace metadata from correlation, causation, and trace-context.
 5. Resolve tenant scope only when trusted headers are enabled.
 
-Relative visibility delay takes precedence over absolute visible-after when both are present.
+Relative visibility delay takes precedence over absolute visible-after when both are present. Correlation headers are always honored, even when application headers are distrusted.
 
 ## Public Surface
 
-Internal mapper used by `TransportInboxIngressHandler`. Policy flags on `TransportInboxIngressMappingOptions` (from `TransportInboxIngressOptions`):
+Internal mapper used by `TransportInboxIngressHandler`. Policy flags on `TransportInboxIngressMappingOptions` (from `Safety` on `TransportInboxIngressOptions`):
 
 | Property | Default | Role |
 | --- | --- | --- |
-| `RequireStableIdentity` | `true` | Fail when broker delivery id is missing |
-| `TrustApplicationHeaders` | `false` | Honor app idempotency, tenant, and message id headers |
+| `Safety.RequireStableIdentity` | `true` | Fail when broker delivery id is missing |
+| `Safety.TrustApplicationHeaders` | `false` | Honor app idempotency, tenant, message id, and visibility headers |
 
 Canonical wire header names on `TransportHeaders` (`LiteBus.Transport.Abstractions`): `litebus-contract-name`, `litebus-contract-version`, `litebus-message-id`, `litebus-idempotency-key`, `litebus-visible-after`, `litebus-visible-after-delay`, `tenant-id`, `causation-id`, `litebus-trace-context`, `correlation-id`.
 
@@ -44,7 +44,7 @@ Canonical wire header names on `TransportHeaders` (`LiteBus.Transport.Abstractio
 
 | Setting | Identity default | Idempotency default | Operational effect |
 | --- | --- | --- | --- |
-| `RequireStableIdentity=true`, `TrustApplicationHeaders=false` | Broker delivery id (or deterministic GUID from broker id string) | `ingress:{destination}:{brokerMessageId}` | Stable duplicate absorption on redelivery |
+| `RequireStableIdentity=true`, `TrustApplicationHeaders=false` | Broker delivery id (GUID verbatim, other ids as a destination-scoped deterministic GUID) | `ingress:{destination}:{brokerMessageId}` | Stable duplicate absorption on redelivery |
 | `RequireStableIdentity=true`, `TrustApplicationHeaders=true` | `litebus-message-id` when valid GUID, else broker id | `litebus-idempotency-key` when present, else broker-scoped key | Upstream can control dedup key and identity |
 | `RequireStableIdentity=false`, broker id missing | Generated identity | `Idempotency.None` | No broker-scoped dedup on retry |
 
@@ -52,7 +52,7 @@ Canonical wire header names on `TransportHeaders` (`LiteBus.Transport.Abstractio
 
 Every ingress adapter uses this same mapper. Broker pages differ in test coverage depth, not in mapping rules:
 
-- AMQP: richest mapping validation via unit tests and AMQP ingress integration tests.
+- AMQP: mapping validation through unit tests and AMQP ingress integration tests. The destination segment of the broker-scoped key is the consuming queue (`AmqpReceivedMessage.QueueName`, falling back to the exchange when unknown), so two queues bound to one exchange do not share an idempotency key.
 - Kafka: no dedicated header edge-case matrix in broker Docker tests.
 - AWS SQS: partial header edge-case matrix in broker Docker tests.
 - Azure Service Bus: header edge-case matrix not yet covered in emulator ingress tests.
@@ -71,8 +71,10 @@ Every ingress adapter uses this same mapper. Broker pages differ in test coverag
 ## Invariants
 
 - Missing broker delivery id fails closed when `RequireStableIdentity` is true (default).
-- Untrusted mode ignores application idempotency and tenant headers; broker delivery id drives deduplication.
+- Untrusted mode ignores application idempotency, tenant, and visibility headers; broker delivery id drives deduplication and the message is immediately visible.
 - Broker-scoped idempotency keys include destination so the same broker id on different queues does not collide.
+- Non-GUID broker delivery ids derive destination-scoped inbox identity, so the same id on different destinations names different messages; GUID ids stay verbatim.
+- Correlation headers are always honored, even in untrusted mode.
 
 ## Non-Goals
 
@@ -99,6 +101,8 @@ Contract header validation (missing name, non-positive version) throws before ma
 | `ToInboxAcceptMetadata_WhenBrokerIdMissingAndRequired_ShouldThrow` | `LiteBus.Inbox.UnitTests` (`Ingress/`) |
 | `AcceptAsync_WhenMessageIdHeaderInvalid_ShouldLeaveInboxIdUnset` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
 | `AcceptAsync_WhenVisibleAfterHeaderInvalid_ShouldIgnoreVisibleAfter` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
+| `AcceptAsync_FromTwoQueuesBoundToOneExchange_ShouldProduceTwoRowsWithQueueScopedKeys` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
+| `AcceptAsync_WithoutQueueName_ShouldFallBackToExchange` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
 | `DuplicateMessageId_ShouldCreateSingleInboxRow` | `LiteBus.Durable.IntegrationTests` (`Ingress/InMemory/`, `Ingress/Kafka/`, `Ingress/AwsSqs/`) |
 | `DuplicateBrokerDelivery_ShouldExecuteHandlerOnce` | `LiteBus.Storage.IntegrationTests (`PostgreSql/`)` |
 | `MissingContractName_ShouldDiscardWithoutStoreWrite` | `LiteBus.Durable.IntegrationTests` (`Ingress/InMemory/`, `Ingress/Kafka/`, `Ingress/AwsSqs/`) |

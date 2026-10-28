@@ -41,12 +41,12 @@ Register the matching `Add*Transport(...)` once at the root, then register ingre
 | `ReceiveBatchSize` | 1 | Native SQS receive request size |
 | `MaxConcurrentCalls` | null | Native Azure Service Bus callback concurrency |
 | `Safety.RequireStableIdentity` | `true` | Reject deliveries without broker message id |
-| `Safety.TrustApplicationHeaders` | `false` | Honor app idempotency, identity, and tenant headers |
+| `Safety.TrustApplicationHeaders` | `false` | Honor app idempotency, identity, tenant, and visibility headers |
 | `Safety.MaxMessageBytes` | 4 MiB | Reject oversized bodies before accept |
-| `Safety.MaxInFlightMessages` | 32 | Cap concurrent LiteBus handler work |
+| `Safety.MaxInFlightMessages` | 32 | Requested cap on concurrent LiteBus handler work; enforced as 1 on AMQP, Kafka, SQS, and in-memory, and as the lower of this and `MaxConcurrentCalls` on Azure Service Bus |
 | `Safety.EnableBatchAccept` | `false` | Buffer deliveries for **`AcceptBatchAsync`** flush |
 | `Safety.BatchSize` | 10 | Deliveries per inbox store batch |
-| `Safety.BatchMaxWait` | 200 ms | Partial batch flush delay when batch accept enabled |
+| `Safety.BatchMaxWait` | 200 ms | Partial batch flush delay when batch accept enabled; must be positive when enabled |
 | `RequeueOnFailure` | `true` (broker-specific) | Transient accept failure requeue |
 | `Safety.AuthorizeDeliveryAsync` | `null` | Host callback before accept |
 
@@ -83,9 +83,9 @@ Register the matching `Add*Transport(...)` once at the root, then register ingre
 ## Invariants
 
 - Ingress uses `IInbox`, not transactional writers
-- Default maps broker delivery id to supplied identity and `ingress:{destination}:{brokerMessageId}` idempotency key
+- Default maps broker delivery id to destination-scoped supplied identity and `ingress:{destination}:{brokerMessageId}` idempotency key
 - Ack failure after accept logs `ingress.ack_failed_after_accept`; redelivery absorbed by idempotency
-- Visibility headers honored on ingress mapping
+- Visibility headers honored on ingress mapping only when `TrustApplicationHeaders` is `true`; distrusted messages are immediately visible while correlation headers are still honored
 - Kafka: manual offset commit; pair with inbox idempotency
 
 ## Non-Goals
@@ -364,9 +364,9 @@ Consumer handler failures do not increment the breaker; ack/requeue policy appli
 - **Expected outcome**: No store row
 - **Remarks**: `LiteBus.Durable.IntegrationTests` (`Ingress/Kafka/`)
 
-#### `AmqpInboxIngressModuleRegistrationTests.UseAmqpIngress_WithTransportModule_ShouldRegisterIngressHandler`
+#### `AmqpInboxIngressModuleRegistrationTests.UseAmqpIngress_WithEnabledIngressConsumer_ShouldRegisterConsumerInManifest`
 
-- **Use case**: When AMQP ingress is registered with transport module, the ingress handler is wired in DI
+- **Use case**: When AMQP ingress is registered with its consumer enabled, the manifest lists the ingress background service
 - **Test kind**: Unit
 - **Description**: Module registration wiring
 - **Behavior**: **`UseAmqpIngress`** on inbox builder

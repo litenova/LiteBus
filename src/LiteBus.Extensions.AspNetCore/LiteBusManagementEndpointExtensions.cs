@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using LiteBus.Inbox.Abstractions;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
@@ -65,6 +70,10 @@ public static partial class LiteBusManagementEndpointExtensions
         ArgumentNullException.ThrowIfNull(options.DiagnosticChecks);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.DiagnosticChecks.MaxParallelism);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.DiagnosticChecks.Timeout.Ticks);
+        if (options.DiagnosticChecks.RunTimeout is { } runTimeout)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(runTimeout.Ticks);
+        }
         if (options.DefaultDrainTimeout > options.MaxDrainTimeout)
         {
             throw new ArgumentException("DefaultDrainTimeout cannot exceed MaxDrainTimeout.", nameof(options));
@@ -127,7 +136,8 @@ public static partial class LiteBusManagementEndpointExtensions
         inboxGroup.MapGet("/processor/state", GetInboxProcessorStateAsync);
         inboxGroup.MapPost("/processor/pause", PauseInboxProcessorAsync);
         inboxGroup.MapPost("/processor/resume", ResumeInboxProcessorAsync);
-        inboxGroup.MapPost("/processor/drain", DrainInboxProcessorAsync);
+        inboxGroup.MapPost("/processor/drain", (HttpContext context, IServiceProvider services, [FromQuery] int? timeoutSeconds, CancellationToken cancellationToken) =>
+            DrainInboxProcessorAsync(context, services, timeoutSeconds, options.DefaultDrainTimeout, options.MaxDrainTimeout, cancellationToken));
     }
 
     /// <summary>
@@ -152,7 +162,8 @@ public static partial class LiteBusManagementEndpointExtensions
         outboxGroup.MapGet("/processor/state", GetOutboxProcessorStateAsync);
         outboxGroup.MapPost("/processor/pause", PauseOutboxProcessorAsync);
         outboxGroup.MapPost("/processor/resume", ResumeOutboxProcessorAsync);
-        outboxGroup.MapPost("/processor/drain", DrainOutboxProcessorAsync);
+        outboxGroup.MapPost("/processor/drain", (HttpContext context, IServiceProvider services, [FromQuery] int? timeoutSeconds, CancellationToken cancellationToken) =>
+            DrainOutboxProcessorAsync(context, services, timeoutSeconds, options.DefaultDrainTimeout, options.MaxDrainTimeout, cancellationToken));
     }
 
     /// <summary>
@@ -217,8 +228,12 @@ public static partial class LiteBusManagementEndpointExtensions
         LiteBusManagementOptions options,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(context, async () => Results.Ok(
-            await manager.QueryAsync(parameters.ToFilter(), parameters.ToPageRequest(options.MaxPageSize), cancellationToken).ConfigureAwait(false)));
+        return ExecuteAsync(context, async () =>
+        {
+            ValidateBulkRequest(parameters.MessageIds, options);
+            return Results.Ok(
+                await manager.QueryAsync(parameters.ToFilter(), parameters.ToPageRequest(options.MaxPageSize), cancellationToken).ConfigureAwait(false));
+        });
     }
 
     /// <summary>
@@ -366,7 +381,7 @@ public static partial class LiteBusManagementEndpointExtensions
         IInboxManager manager,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(context, async () => Results.Ok(await manager.RunRetentionPurgeAsync(cancellationToken).ConfigureAwait(false)));
+        return ExecuteManagementAsync(context, async () => Results.Ok(await manager.RunRetentionPurgeAsync(cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
@@ -440,15 +455,17 @@ public static partial class LiteBusManagementEndpointExtensions
     /// </summary>
     /// <param name="context">The current HTTP request context.</param>
     /// <param name="services">The request services.</param>
-    /// <param name="options">The management endpoint options.</param>
     /// <param name="timeoutSeconds">The optional drain timeout override in seconds.</param>
+    /// <param name="defaultDrainTimeout">The drain timeout applied when no override is supplied.</param>
+    /// <param name="maxDrainTimeout">The maximum drain timeout accepted for an override.</param>
     /// <param name="cancellationToken">A token used to cancel waiting for drain completion.</param>
     /// <returns>A confirmation payload or a not-found response when the processor is disabled.</returns>
     private static Task<IResult> DrainInboxProcessorAsync(
         HttpContext context,
         IServiceProvider services,
-        LiteBusManagementOptions options,
-        [FromQuery] int? timeoutSeconds,
+        int? timeoutSeconds,
+        TimeSpan defaultDrainTimeout,
+        TimeSpan maxDrainTimeout,
         CancellationToken cancellationToken)
     {
         return ExecuteAsync(context, async () =>
@@ -460,12 +477,9 @@ public static partial class LiteBusManagementEndpointExtensions
 
             var timeout = timeoutSeconds is > 0
                 ? TimeSpan.FromSeconds(timeoutSeconds.Value)
-                : options.DefaultDrainTimeout;
+                : defaultDrainTimeout;
 
-            if (timeout > options.MaxDrainTimeout)
-            {
-                throw new ArgumentOutOfRangeException(nameof(timeoutSeconds));
-            }
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(timeout, maxDrainTimeout, nameof(timeoutSeconds));
 
             await control.DrainAsync(timeout, cancellationToken).ConfigureAwait(false);
             return Results.Ok(new ProcessorStateResponse { State = control.State });
@@ -488,8 +502,12 @@ public static partial class LiteBusManagementEndpointExtensions
         LiteBusManagementOptions options,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(context, async () => Results.Ok(
-            await manager.QueryAsync(parameters.ToFilter(), parameters.ToPageRequest(options.MaxPageSize), cancellationToken).ConfigureAwait(false)));
+        return ExecuteAsync(context, async () =>
+        {
+            ValidateBulkRequest(parameters.MessageIds, options);
+            return Results.Ok(
+                await manager.QueryAsync(parameters.ToFilter(), parameters.ToPageRequest(options.MaxPageSize), cancellationToken).ConfigureAwait(false));
+        });
     }
 
     /// <summary>
@@ -637,7 +655,7 @@ public static partial class LiteBusManagementEndpointExtensions
         IOutboxManager manager,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(context, async () => Results.Ok(await manager.RunRetentionPurgeAsync(cancellationToken).ConfigureAwait(false)));
+        return ExecuteManagementAsync(context, async () => Results.Ok(await manager.RunRetentionPurgeAsync(cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
@@ -711,15 +729,17 @@ public static partial class LiteBusManagementEndpointExtensions
     /// </summary>
     /// <param name="context">The current HTTP request context.</param>
     /// <param name="services">The request services.</param>
-    /// <param name="options">The management endpoint options.</param>
     /// <param name="timeoutSeconds">The optional drain timeout override in seconds.</param>
+    /// <param name="defaultDrainTimeout">The drain timeout applied when no override is supplied.</param>
+    /// <param name="maxDrainTimeout">The maximum drain timeout accepted for an override.</param>
     /// <param name="cancellationToken">A token used to cancel waiting for drain completion.</param>
     /// <returns>A confirmation payload or a not-found response when the processor is disabled.</returns>
     private static Task<IResult> DrainOutboxProcessorAsync(
         HttpContext context,
         IServiceProvider services,
-        LiteBusManagementOptions options,
-        [FromQuery] int? timeoutSeconds,
+        int? timeoutSeconds,
+        TimeSpan defaultDrainTimeout,
+        TimeSpan maxDrainTimeout,
         CancellationToken cancellationToken)
     {
         return ExecuteAsync(context, async () =>
@@ -731,12 +751,9 @@ public static partial class LiteBusManagementEndpointExtensions
 
             var timeout = timeoutSeconds is > 0
                 ? TimeSpan.FromSeconds(timeoutSeconds.Value)
-                : options.DefaultDrainTimeout;
+                : defaultDrainTimeout;
 
-            if (timeout > options.MaxDrainTimeout)
-            {
-                throw new ArgumentOutOfRangeException(nameof(timeoutSeconds));
-            }
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(timeout, maxDrainTimeout, nameof(timeoutSeconds));
 
             await control.DrainAsync(timeout, cancellationToken).ConfigureAwait(false);
             return Results.Ok(new OutboxProcessorStateResponse { State = control.State });

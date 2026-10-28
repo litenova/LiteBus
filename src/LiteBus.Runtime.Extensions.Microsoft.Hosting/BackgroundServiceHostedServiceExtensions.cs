@@ -26,6 +26,10 @@ public static class BackgroundServiceHostedServiceExtensions
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
 
+        // The index fills in when the orchestrator factory runs, so resolve the hosted services first; a caller that
+        // asks before the host starts would otherwise find nothing registered.
+        _ = serviceProvider.GetServices<IHostedService>();
+
         return serviceProvider.GetRequiredService<BackgroundServiceHostedServiceIndex>()
             .GetHostedService<TBackgroundService>();
     }

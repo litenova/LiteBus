@@ -9,7 +9,7 @@
 
 `UseAzureServiceBusIngress` registers `AzureServiceBusInboxIngressModule`. The module maps `AzureServiceBusInboxIngressOptions` into shared transport ingress options, requires a root `AzureServiceBusTransportModule`, and registers the shared handler and consumer loop. Queue destinations use `Destination`; topic destinations also set `SubscriptionName`.
 
-Failed store writes can abandon messages for retry when `RequeueOnFailure` is true (Service Bus retry semantics via transport adapter).
+Failed store writes can abandon messages for retry when `RequeueOnFailure` is true (Service Bus retry semantics via transport adapter). The enforced handler bound is the lower of `Safety.MaxInFlightMessages` and `MaxConcurrentCalls`, which defaults to the SDK value of 1.
 
 ## Beta Rationale
 
@@ -75,7 +75,7 @@ bus.AddInbox(inbox => inbox.UseAzureServiceBusIngress(ingress =>
 ## Invariants
 
 - `Destination` and root `AddAzureServiceBusTransport(...)` are required at compose time.
-- `SubscriptionName` is required when `Destination` is a topic.
+- Set `SubscriptionName` when `Destination` is a topic.
 - `PrefetchCount` fills the Azure client cache, while `MaxConcurrentCalls` controls Azure processor callbacks. `Safety.MaxInFlightMessages` applies the final LiteBus handler cap.
 - LiteBus contract headers are required on the wire payload.
 - Beta tier per the Feature Index; applications must test broker-specific edge cases.
@@ -116,7 +116,7 @@ Service Bus ingress uses shared mapper defaults:
 | Setting | Default | Result |
 | --- | --- | --- |
 | `RequireStableIdentity` | true | Missing broker id fails closed |
-| `Safety.TrustApplicationHeaders` | false | App idempotency and tenant headers are ignored |
+| `Safety.TrustApplicationHeaders` | false | App idempotency, tenant, and visibility headers are ignored |
 | Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | Stable duplicate absorption when delivery id is stable |
 
 ## Test Coverage
@@ -149,4 +149,4 @@ Service Bus ingress uses shared mapper defaults:
 ## Deep Docs
 
 - [Azure Service Bus transport](../../integrations/azure-service-bus.md)
-- [Feature Index: Ingress](../../reference/feature-index-v6.md)
+- [Feature Index: Ingress](../../reference/feature-index.md)

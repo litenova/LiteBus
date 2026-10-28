@@ -28,6 +28,34 @@ Writers create `Pending` envelopes. Processors transition rows to `Processing`/`
 - **`GetStatusCountsAsync`**: Diagnostics query returning counts grouped by status.
 - **`DeleteCompletedOlderThanAsync` / `DeletePublishedOlderThanAsync`**: Retention purge by age cutoff.
 
+### Operational Fields
+
+Every envelope carries the forensics an operator asks for first, and every store adapter persists and returns them.
+
+| Field | Written when | Answers |
+| --- | --- | --- |
+| `LastAttemptedAt` | Each lease | When a processor last picked this up |
+| `FirstFailedAt` | The first failure only | How long the message struggled before it succeeded or gave up |
+| `DeadLetteredAt` | Dead-letter transition | When the message gave up |
+| `LastLeaseOwner` | Each lease | Which instance was handling it, and it survives the lease being released |
+| `ErrorType` | Each failure carrying an exception | What kind of failure it was, without parsing `LastError` |
+| `Handler` (outbox only) | Enqueue under per-handler delivery | Which single event handler the envelope is addressed to; `null` means broadcast |
+
+`Handler` holds the full name of the single event handler a per-handler envelope is addressed to. In-process dispatch publishes a targeted envelope with a handler predicate matching only the recorded handler. See [Per-Handler Delivery](outbox-enqueue.md#per-handler-delivery).
+
+`FirstFailedAt` is set once and is not moved by later failures, so it keeps naming the first one. `AsRequeued` clears `FirstFailedAt`, `DeadLetteredAt`, `ErrorType` and `LastError` because the message starts over, and keeps `LastAttemptedAt` and `LastLeaseOwner` as the record of what happened before.
+
+Processors build these from a `MessageFailure`, which carries the formatted error, the exception type, and the moment the attempt failed:
+
+```csharp
+envelope.AsFailed(MessageFailure.From(exception, clock.GetUtcNow()), visibleAfter);
+envelope.AsDeadLettered(MessageFailure.From(exception, clock.GetUtcNow()));
+```
+
+`MessageFailure.FromError(text, occurredAt)` covers a failure with a reason but no exception, such as a lost lease; the resulting envelope records no `ErrorType`, which is the honest answer when no exception exists.
+
+Because `IInboxManager.QueryAsync` and `IOutboxManager.QueryAsync` return envelopes, a dead-letter listing reads these fields directly from the query result instead of reading store tables.
+
 ### Registration
 
 - Storage adapters implement lease, state writer, diagnostics, and retention store roles (see durable-storage capability).
@@ -117,7 +145,7 @@ Lifecycle depth and processor state export through meter `LiteBus.Inbox` and `Li
 
 - [Architecture](../../architecture/README.md) (store roles, retention)
 - [Custom stores and dispatchers](../../extending/custom-stores-and-dispatchers.md)
-- [Operations and management](../../operations/README.md)
+- [Operations and management](../../operations/management-endpoints.md)
 
 ## Test Coverage
 
@@ -125,9 +153,8 @@ Lifecycle depth and processor state export through meter `LiteBus.Inbox` and `Li
 
 - `LiteBus.Inbox.UnitTests`
 - `LiteBus.Outbox.UnitTests`
-- `LiteBus.Storage.IntegrationTests`
-- `LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests`
-- `LiteBus.Outbox.Storage.EntityFrameworkCore.IntegrationTests`
+- `LiteBus.Storage.IntegrationTests` (`PostgreSql/`, `EntityFrameworkCore/`)
+- `LiteBus.Storage.Testing` (shared inbox/outbox store contract suites)
 
 ### Covered Use Cases
 
@@ -297,9 +324,9 @@ Lifecycle depth and processor state export through meter `LiteBus.Inbox` and `Li
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| Automatic contract upgrade of in-flight payloads | No | Not shipped |: |: |
-| Cross-axis unified envelope table | No | Separate inbox/outbox tables |: |: |
-| Operator purge of in-progress leased rows | No (by design) | Management skips active leases |: |: |
+| Automatic contract upgrade of in-flight payloads | No | Not shipped | N/A | N/A |
+| Cross-axis unified envelope table | No | Separate inbox/outbox tables | N/A | N/A |
+| Operator purge of in-progress leased rows | No (by design) | Management skips active leases | N/A | N/A |
 
 ### Out-of-Scope Use Cases
 

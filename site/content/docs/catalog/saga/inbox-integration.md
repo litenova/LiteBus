@@ -13,13 +13,13 @@ Saga integrates as a child module of inbox configuration, preserving dependency 
 
 Composition uses `AddInbox(inbox => inbox.EnableSaga(...))`. There is no top-level `AddSagaModule(...)` API.
 
-The callback must select exactly one store through `UseInMemoryStorage()` or `UsePostgreSqlStorage(...)` (see `saga.postgresql-storage`).
+The callback must select exactly one store through `UseInMemoryStorage()`, `UsePostgreSqlStorage(...)` (see `saga.postgresql-storage`), or `SagaModuleBuilder.RegisterStorage(...)` for a custom `ISagaStorageModule` (see `saga.store`).
 
 ## Public Surface
 
 | Surface | Package | Role |
 | --- | --- | --- |
-| `InboxModuleBuilder.EnableSaga(Action<SagaModuleBuilder>?)` | `LiteBus.Saga.InboxIntegration` | Main saga registration entry point on inbox builder |
+| `InboxModuleBuilder.EnableSaga(Action<SagaModuleBuilder>)` | `LiteBus.Saga.InboxIntegration` | Main saga registration entry point on inbox builder |
 | `SagaModuleBuilder.UseInMemoryStorage()` | `LiteBus.Saga` | Explicit process-local store selection |
 | `SagaModuleBuilder.UsePostgreSqlStorage(...)` | `LiteBus.Saga.Storage.PostgreSql` | Explicit durable store selection |
 | `SagaModule` | `LiteBus.Saga` | Registers hook, context, registry, and selected store |
@@ -129,7 +129,7 @@ Uses inbox processor observability; no separate manifest entry or meter for `Ena
 | --- | --- | --- | --- | --- |
 | `EnableSaga(...)` with `UseInMemoryStorage()` registers the process-local store | Yes | Composition uses sample wiring | Unit | Low |
 | Calling `EnableSaga()` twice throws or replaces registration | Yes | Not tested | Unit | Low |
-| `EnableSaga(...)` without a store fails composition | Yes | Covered by saga composition tests | Unit | Low |
+| `EnableSaga(...)` without a store fails composition | Yes | Not tested | Unit | Low |
 
 ### Out-of-Scope Use Cases
 

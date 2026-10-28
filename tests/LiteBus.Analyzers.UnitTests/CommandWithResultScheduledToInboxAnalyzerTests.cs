@@ -290,4 +290,120 @@ public sealed class CommandWithResultScheduledToInboxAnalyzerTests
             "CreateUserCommand",
             "int");
     }
+
+    /// <summary>
+    ///     Verifies that an untyped item naming a result command through <c>MessageType</c> produces LB1004.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task ResultCommandNamedThroughMessageType_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Inbox.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand<int>;
+
+                              public sealed class UserService
+                              {
+                                  public Task ScheduleAsync(IInbox inbox, object payload, CancellationToken cancellationToken)
+                                      => {|#0:inbox.AcceptAsync(new InboxAcceptItem { Message = payload, MessageType = typeof(CreateUserCommand) }, cancellationToken)|};
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<CommandWithResultScheduledToInboxAnalyzer>(
+            source,
+            DiagnosticDescriptors.CommandWithResultScheduledToInbox,
+            0,
+            "CreateUserCommand",
+            "int");
+    }
+
+    /// <summary>
+    ///     Verifies that a <c>MessageType</c> naming a result-less command wins over a result-bearing <c>Message</c> assignment.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task MessageTypeNamingVoidCommand_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Inbox.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand<int>;
+                              public sealed record ProcessPaymentCommand(int PaymentId) : ICommand;
+
+                              public sealed class UserService
+                              {
+                                  public Task ScheduleAsync(IInbox inbox, CancellationToken cancellationToken)
+                                      => inbox.AcceptAsync(new InboxAcceptItem { Message = new CreateUserCommand("Ada"), MessageType = typeof(ProcessPaymentCommand) }, cancellationToken);
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<CommandWithResultScheduledToInboxAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies that reordered named arguments still resolve to the acceptance item for LB1004.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task ResultCommandWithReorderedNamedArguments_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Inbox.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand<int>;
+
+                              public sealed class UserService
+                              {
+                                  public Task ScheduleAsync(IInbox inbox, CancellationToken cancellationToken)
+                                      => {|#0:inbox.AcceptAsync(cancellationToken: cancellationToken, item: InboxAcceptItem.From(new CreateUserCommand("Ada")))|};
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<CommandWithResultScheduledToInboxAnalyzer>(
+            source,
+            DiagnosticDescriptors.CommandWithResultScheduledToInbox,
+            0,
+            "CreateUserCommand",
+            "int");
+    }
+
+    /// <summary>
+    ///     Verifies that a result command passed through the <c>From</c> message-type overload produces LB1004.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task ResultCommandThroughFromMessageTypeOverload_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Inbox.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand<int>;
+
+                              public sealed class UserService
+                              {
+                                  public Task ScheduleAsync(IInbox inbox, CancellationToken cancellationToken)
+                                      => {|#0:inbox.AcceptAsync(InboxAcceptItem.From((object)new CreateUserCommand("Ada"), typeof(CreateUserCommand)), cancellationToken)|};
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<CommandWithResultScheduledToInboxAnalyzer>(
+            source,
+            DiagnosticDescriptors.CommandWithResultScheduledToInbox,
+            0,
+            "CreateUserCommand",
+            "int");
+    }
 }

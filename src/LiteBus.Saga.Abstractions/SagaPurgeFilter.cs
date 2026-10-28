@@ -29,4 +29,14 @@ public sealed record SagaPurgeFilter
     ///     Gets the UTC timestamp before which completed rows may be purged.
     /// </summary>
     public DateTimeOffset? CompletedBefore { get; init; }
+
+    /// <summary>
+    ///     Gets the maximum number of matching rows to delete, oldest first, or <see langword="null" /> to delete
+    ///     every match.
+    /// </summary>
+    /// <remarks>
+    ///     A filter with no predicates and no <see cref="Take" /> limit is rejected with
+    ///     <see cref="ArgumentException" />; retention jobs must scope the purge or bound it.
+    /// </remarks>
+    public int? Take { get; init; }
 }

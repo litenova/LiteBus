@@ -1,4 +1,6 @@
-# Analyzers Axis Capability Catalog
+# Analyzers
+
+Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 
 `LiteBus.Analyzers` adds compile-time rules for handler coverage, handler uniqueness, durable contract registration, inbox acceptance shape, and transactional configuration wiring. The package has no runtime dependency and can be referenced from application projects and test projects.
 
@@ -25,17 +27,23 @@
 | [analyzers.transactional-ef-interceptor](transactional-ef-interceptor.md) | Transactional EF storage missing save interceptor | GA |
 | [analyzers.transactional-inbox-dbcontext](transactional-inbox-wiring.md) | Transactional inbox store injected without DbContext | GA |
 | [analyzers.transactional-outbox-dbcontext](transactional-outbox-wiring.md) | Transactional outbox store injected without DbContext | GA |
+| [analyzers.missing-audit-declaration](audit-declaration.md) | Command or query states no audit position | GA |
+| [analyzers.untyped-shortcut-on-result-message](shortcut-contracts.md) | Untyped shortcut on a message that produces a result | GA |
+| [analyzers.missing-declaration](required-declarations.md) | Command or query states no position on a required declaration | GA |
+| [analyzers.reserved-handler-priority](reserved-handler-priority.md) | Handler priority inside the reserved range | GA |
+| [analyzers.nested-mediation-in-command-handler](nested-mediation-in-command-handler.md) | Command handler mediates another message inside its handle method | GA |
+| [analyzers.external-side-effect-in-command-handler](external-side-effect-in-command-handler.md) | Command handler injects an external side-effect type | GA |
 
-## Diagnostic Inventory (LB1001-LB1017)
+## Diagnostic Inventory (LB1001-LB1024)
 
 | ID | Severity | Category | Rule | Capability page |
 | --- | --- | --- | --- | --- |
 | `LB1001` | Error | `LiteBus.Handlers` | Duplicate `ICommandHandler<TCommand>` registrations for one command type | [handler-duplicates.md](handler-duplicates.md) |
-| `LB1002` | Reserved | N/A | Reserved for future duplicate event-handler symmetry | N/A |
+| `LB1002` | Reserved | N/A | Reserved, never shipped | N/A |
 | `LB1003` | Warning | `LiteBus.Handlers` | Query or stream query handler depends on side-effecting APIs | [query-handler-purity.md](query-handler-purity.md) |
 | `LB1004` | Error | `LiteBus.Inbox` | `ICommand<TResult>` accepted into inbox APIs | [inbox-accept-rules.md](inbox-accept-rules.md) |
 | `LB1005` | Error | `LiteBus.Handlers` | Open generic handler exposes unsupported type-parameter count | [open-generic-handlers.md](open-generic-handlers.md) |
-| `LB1006` | Reserved | N/A | Reserved, currently not implemented | N/A |
+| `LB1006` | Reserved | N/A | Reserved, never shipped | N/A |
 | `LB1007` | Warning | `LiteBus.Contracts` | Handled durable command or event has no contract attribute or registration | [contract-registration.md](contract-registration.md) |
 | `LB1008` | Error | `LiteBus.Handlers` | Command type has no main command handler | [handler-coverage.md](handler-coverage.md) |
 | `LB1009` | Error | `LiteBus.Handlers` | Query or stream query type has no main handler | [handler-coverage.md](handler-coverage.md) |
@@ -47,6 +55,13 @@
 | `LB1015` | Warning | `LiteBus.Configuration` | Transactional EF storage enforces setup without save interceptor | [transactional-ef-interceptor.md](transactional-ef-interceptor.md) |
 | `LB1016` | Warning | `LiteBus.Inbox` | Constructor injects `ITransactionalInboxStore` without `DbContext` | [transactional-inbox-wiring.md](transactional-inbox-wiring.md) |
 | `LB1017` | Warning | `LiteBus.Contracts` | `[MessageContract]` type has no explicit `Register` or `RegisterFromAssembly` | [contract-registration.md](contract-registration.md) |
+| `LB1018` | Warning (off by default) | `LiteBus.Auditing` | Command or query type states no audit position | [audit-declaration.md](audit-declaration.md) |
+| `LB1019` | Warning | `LiteBus.Handlers` | Shortcut uses the untyped contract for a message that produces a result | [shortcut-contracts.md](shortcut-contracts.md) |
+| `LB1020` | Warning (off by default) | `LiteBus.Declarations` | Command or query type states no position on a configured declaration | [required-declarations.md](required-declarations.md) |
+| `LB1021` | Warning | `LiteBus.Declarations` | `litebus_required_declarations` names a type that does not resolve | [required-declarations.md](required-declarations.md) |
+| `LB1022` | Warning | `LiteBus.Handlers` | `[HandlerPriority]` value falls inside the range LiteBus reserves for its own handlers | [reserved-handler-priority.md](reserved-handler-priority.md) |
+| `LB1023` | Warning (off by default) | `LiteBus.Handlers` | Command handler sends or publishes another message inside its handle method | [nested-mediation-in-command-handler.md](nested-mediation-in-command-handler.md) |
+| `LB1024` | Warning (off by default) | `LiteBus.Handlers` | Command handler injects an external side-effect type through its constructor | [external-side-effect-in-command-handler.md](external-side-effect-in-command-handler.md) |
 
 ## Suppression Policy
 

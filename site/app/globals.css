@@ -1,652 +1,542 @@
-@import 'tailwindcss';
-@import 'fumadocs-ui/css/neutral.css';
-@import 'fumadocs-ui/css/preset.css';
+/* LiteBus Editor theme: tokens, base styles, header, footer, status bar,
+   editor chrome, and code. Dark is the default; [data-theme="light"]
+   overrides every token. Home-only rules live in app/home.css and
+   docs-only rules in app/docs/docs.css. */
 
-:root {
-  --color-fd-primary: hsl(285, 11%, 24%);
-  --color-fd-primary-foreground: hsl(0, 0%, 100%);
-  --litebus-charcoal: #3e3643;
-  --litebus-yellow: #fdbf00;
-  --litebus-code-bg: #211d26;
-  --litebus-code-fg: #e9e6ed;
-  --litebus-code-line: rgba(255, 255, 255, 0.09);
+/* Tokens: surfaces, text, accent, logo, and C# syntax roles. */
+:root, [data-theme="dark"] {
+  color-scheme: dark;
+  /* surfaces */
+  --desk: #101115;
+  --bg: #1a1c22;
+  --side: #16181d;
+  --raised: #20232b;
+  --hover: #232733;
+  --line: #3a3f4c;
+  --line-soft: #2e323d;
+  /* text */
+  --fg: #d7dbe4;
+  --dim: #8a92a6;
+  --faint: #5f677a;
+  /* accent: the only signal colour */
+  --acc: #6ea8fe;
+  --acc-fg: #0b1730;
+  --acc-soft: rgb(110 168 254 / .12);
+  --acc-ring: rgb(110 168 254 / .55);
+  --warn: #e5c07b;
+  --logo-line: #e6e3ea;
+  --logo-route: #fdbf00;
+  /* C# semantic roles */
+  --sx-kw: #82aaff;
+  --sx-ctl: #e38cf5;
+  --sx-cls: #5ed3c3;
+  --sx-ifc: #b5e09a;
+  --sx-st: #7fd4a3;
+  --sx-attr: #5ed3c3;
+  --sx-fn: #e8d48c;
+  --sx-var: #a8d0ff;
+  --sx-fld: #a8d0ff;
+  --sx-prop: #c3cad8;
+  --sx-str: #f0a57c;
+  --sx-num: #b9e3a3;
+  --sx-com: #6f8f78;
+  --sx-pun: #9aa3b5;
+  --sx-ln: #4f5668;
+  --sx-line: rgb(255 255 255 / .035);
+  /* Outer edges: the window frame, header, status bar and the sidebar and outline edges. */
+  --frame: #3a3f4c;
+  /* type: next/font variables first, then the mock fallbacks */
+  --sans: var(--font-sans), 'Source Sans 3', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+  --mono: var(--font-mono), 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  /* Border width for every border and rule line, so all of them change together. */
+  --bw: 1.5px;
 }
 
-.dark {
-  --color-fd-primary: hsl(45, 100%, 50%);
-  --color-fd-primary-foreground: hsl(285, 11%, 18%);
-  --litebus-code-bg: #1b181f;
+/*
+ * Light theme: VS Code's default Light Modern workbench colours, with its Light+ syntax colours for code, so the light
+ * mode looks like the editor most .NET developers already use. Panels are #F8F8F8, text #3B3B3B and the accent #005FB8,
+ * as in that theme. Borders use #CCCCCC, the widget and input border of the same theme, because these pages separate
+ * regions by border more than by background.
+ */
+[data-theme="light"] {
+  color-scheme: light;
+  --desk: #eeeeee;
+  --bg: #ffffff;
+  --side: #f8f8f8;
+  --raised: #f3f3f3;
+  --hover: #f2f2f2;
+  --line: #cccccc;
+  --line-soft: #e0e0e0;
+  --fg: #3b3b3b;
+  --dim: #616161;
+  --faint: #767676;
+  --acc: #005fb8;
+  --acc-fg: #ffffff;
+  --acc-soft: rgb(0 95 184 / .08);
+  --acc-ring: rgb(0 95 184 / .45);
+  --warn: #895503;
+  --logo-line: #3b3b3b;
+  --logo-route: #fdbf00;
+  --sx-kw: #0000ff;
+  --sx-ctl: #af00db;
+  --sx-cls: #267f99;
+  --sx-ifc: #267f99;
+  --sx-st: #267f99;
+  --sx-attr: #267f99;
+  --sx-fn: #795e26;
+  --sx-var: #001080;
+  --sx-fld: #001080;
+  --sx-prop: #001080;
+  --sx-str: #a31515;
+  --sx-num: #098658;
+  --sx-com: #008000;
+  --sx-pun: #3b3b3b;
+  --sx-ln: #6e7681;
+  --sx-line: rgb(0 0 0 / .03);
+  --frame: #b3b3b3;
 }
 
+/* Base */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
 body {
-  background: var(--color-fd-background);
-  color: var(--color-fd-foreground);
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-
-/* Landing page */
-
-.litebus-home {
-  --litebus-width: 72rem;
   min-height: 100vh;
-  overflow-x: clip;
-  background: var(--color-fd-background);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--acc); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+h1, h2, h3 { margin: 0; color: var(--fg); line-height: 1.2; letter-spacing: -.02em; }
+h4, h5, h6 { margin: 0; color: var(--fg); line-height: 1.3; }
+p { margin: 0; }
+img { max-width: 100%; height: auto; }
+::selection { background: var(--acc); color: var(--acc-fg); }
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 10;
+  background: var(--fg);
+  color: var(--bg);
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+.skip-link:focus { top: 1rem; text-decoration: none; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-.litebus-home-header {
+/* Page window: full bleed below 1600px, a framed window above it. */
+.app { background: var(--bg); min-height: 100vh; display: flex; flex-direction: column; }
+.app > .grow { flex: 1; }
+.in { max-width: 1120px; margin: 0 auto; padding: 0 40px; }
+
+/* Syntax roles, as span classes on Shiki output. */
+.tk-kw { color: var(--sx-kw); }
+.tk-ctl { color: var(--sx-ctl); }
+.tk-cls { color: var(--sx-cls); }
+.tk-ifc { color: var(--sx-ifc); }
+.tk-st { color: var(--sx-st); }
+.tk-attr { color: var(--sx-attr); }
+.tk-fn { color: var(--sx-fn); }
+.tk-var { color: var(--sx-var); }
+.tk-fld { color: var(--sx-fld); font-style: italic; }
+.tk-prop { color: var(--sx-prop); }
+.tk-str { color: var(--sx-str); }
+.tk-num { color: var(--sx-num); }
+.tk-com { color: var(--sx-com); font-style: italic; }
+.tk-pun { color: var(--sx-pun); }
+
+/* Top bar */
+.top {
   position: sticky;
   top: 0;
-  z-index: 20;
-  border-bottom: 1px solid color-mix(in oklab, var(--color-fd-border) 78%, transparent);
-  background: color-mix(in oklab, var(--color-fd-background) 90%, transparent);
-  backdrop-filter: blur(14px);
-}
-
-.litebus-header-inner {
-  display: flex;
+  z-index: 5;
+  height: 52px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  width: min(var(--litebus-width), calc(100% - 3rem));
-  min-height: 4.25rem;
-  margin: 0 auto;
+  gap: 24px;
+  padding: 0 20px;
+  border-bottom: var(--bw) solid var(--frame);
+  background: var(--side);
 }
-
-.litebus-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  color: var(--color-fd-foreground);
-  font-size: 1.15rem;
-  font-weight: 760;
-  letter-spacing: -0.035em;
-  text-decoration: none;
-}
-
-.litebus-brand img {
-  width: 1.8rem;
-  height: 1.8rem;
-}
-
-.litebus-home-nav {
-  display: flex;
-  align-items: center;
-  gap: 1.7rem;
-}
-
-.litebus-home-nav a {
-  color: var(--color-fd-muted-foreground);
-  font-size: 0.9rem;
-  font-weight: 620;
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-
-.litebus-home-nav a:hover {
-  color: var(--color-fd-foreground);
-}
-
-.litebus-home-nav .nav-cta {
-  padding: 0.55rem 0.85rem;
-  border: 1px solid var(--color-fd-foreground);
-  border-radius: 0.45rem;
-  color: var(--color-fd-foreground);
-}
-
-.litebus-home-nav .nav-cta:hover {
-  background: var(--color-fd-foreground);
-  color: var(--color-fd-background);
-}
-
-.litebus-home main {
-  width: min(var(--litebus-width), calc(100% - 3rem));
-  margin: 0 auto;
-}
-
-/* Hero */
-
-.litebus-hero {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: clamp(4.5rem, 8vw, 6rem) 0 clamp(4.5rem, 8vw, 6rem);
-  text-align: center;
-}
-
-.litebus-hero-copy {
-  width: 100%;
-  max-width: 52rem;
-}
-
-.litebus-badges {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-bottom: 1.25rem;
-}
-
-.litebus-badges span {
-  padding: 0.3rem 0.65rem;
-  border: 1px solid var(--color-fd-border);
-  border-radius: 999px;
-  color: var(--color-fd-muted-foreground);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.litebus-badges span:first-child {
-  border-color: color-mix(in oklab, var(--litebus-yellow) 55%, var(--color-fd-border));
-}
-
-.litebus-hero h1 {
-  max-width: 52rem;
-  margin: 0 auto;
-  font-size: clamp(2.75rem, 4.8vw, 3.5rem);
-  font-weight: 775;
-  letter-spacing: -0.05em;
-  line-height: 1;
-}
-
-.litebus-hero-copy > p {
-  max-width: 43rem;
-  margin: 1.35rem auto 0;
-  color: var(--color-fd-muted-foreground);
-  font-size: clamp(1rem, 1.35vw, 1.1rem);
-  line-height: 1.75;
-}
-
-.litebus-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.7rem;
-  margin-top: 2rem;
-}
-
-.litebus-actions a {
+.top-l { display: flex; align-items: center; gap: 24px; min-width: 0; }
+.top-r { display: flex; justify-content: flex-end; align-items: center; gap: 4px; }
+.brand { display: inline-flex; align-items: center; gap: 9px; color: var(--fg); font-weight: 600; font-size: 15px; }
+.brand:hover { text-decoration: none; }
+.logo { width: 20px; height: 20px; flex: none; }
+.logo .o { fill: none; stroke: var(--logo-line); stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; }
+.logo .r { fill: var(--logo-route); }
+.ghm { width: 16px; height: 16px; flex: none; fill: currentColor; }
+.top-r a.gh { display: inline-flex; align-items: center; gap: 8px; }
+.tt {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.8rem;
-  padding: 0.68rem 1rem;
-  border: 1px solid var(--color-fd-border);
-  border-radius: 0.5rem;
-  color: var(--color-fd-foreground);
-  font-size: 0.9rem;
-  font-weight: 680;
-  text-decoration: none;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
+  width: 32px;
+  height: 32px;
+  margin-left: 6px;
+  padding: 0;
+  border-radius: 6px;
+  border: var(--bw) solid var(--line);
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  transition: color .12s, background-color .12s, border-color .12s;
 }
-
-.litebus-actions a.primary {
-  border-color: var(--litebus-yellow);
-  background: var(--litebus-yellow);
-  color: var(--litebus-charcoal);
+.tt:hover { color: var(--fg); background: var(--hover); border-color: var(--dim); }
+.tt svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform .3s var(--ease);
 }
-
-.litebus-actions a.primary:hover {
-  border-color: color-mix(in oklab, var(--litebus-yellow) 82%, #000);
-  background: color-mix(in oklab, var(--litebus-yellow) 82%, #000);
-}
-
-.litebus-actions a:not(.primary):hover {
-  border-color: var(--color-fd-muted-foreground);
-  background: color-mix(in oklab, var(--color-fd-muted) 70%, transparent);
-}
-
-.litebus-install {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  max-width: 100%;
-  overflow-x: auto;
-  margin: 1.35rem auto 0;
-  padding: 0.65rem 0;
-  color: var(--color-fd-muted-foreground);
-  font-family: var(--font-mono, ui-monospace, 'SFMono-Regular', 'Menlo', monospace);
-  font-size: 0.73rem;
-  line-height: 1.5;
+.tt:hover svg { transform: rotate(-20deg); }
+.tt .moon { display: none; }
+[data-theme="light"] .tt .sun { display: none; }
+[data-theme="light"] .tt .moon { display: block; }
+.nav { display: flex; gap: 2px; }
+.nav a, .top-r a {
+  color: var(--dim);
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: color .12s, background-color .12s;
   white-space: nowrap;
 }
+.nav a:hover, .top-r a:hover { color: var(--fg); background: var(--hover); text-decoration: none; }
+.nav a.on, .nav a[aria-current="page"] { color: var(--fg); }
 
-.litebus-prompt {
-  color: var(--litebus-yellow);
-  font-weight: 750;
+/* Search trigger: the .search box keeps the mock look while the real
+   SearchBox renders an input (and, later, a kbd hint) inside it. */
+.search {
+  position: relative;
+  width: 340px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 6px 0 12px;
+  border: var(--bw) solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--faint);
+  font-size: 13.5px;
+  transition: border-color .12s, color .12s;
 }
-
-.litebus-hero-code {
-  width: min(100%, 50rem);
+.search:hover, .search:focus-within { border-color: var(--acc); color: var(--dim); }
+.search > span { flex: 1; }
+.search input[type="search"] {
+  flex: 1;
   min-width: 0;
-  margin-top: clamp(2.5rem, 5vw, 3.25rem);
-  text-align: left;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  outline: none;
+}
+.search input[type="search"]::placeholder { color: var(--faint); }
+.search input[type="search"]::-webkit-search-cancel-button { display: none; }
+.search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  background: var(--raised);
+  border: var(--bw) solid var(--frame);
+  border-radius: 8px;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+.search-results li { margin: 0; }
+.search-results a { display: block; border-radius: 6px; padding: 6px 10px; color: var(--fg); font-size: 13.5px; line-height: 1.4; }
+.search-results a:hover, .search-results a[data-active="true"] { background: var(--hover); text-decoration: none; }
+.search-results b { display: block; font-weight: 600; font-size: 13.5px; }
+.search-results span { display: block; font-size: 12.5px; color: var(--dim); }
+
+kbd {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--dim);
+  border: var(--bw) solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0 5px;
+  background: var(--raised);
 }
 
-/* Code example */
+/* Shared components */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 6px;
+  background: var(--acc);
+  color: var(--acc-fg);
+  font-weight: 600;
+  font-size: 14.5px;
+  transition: filter .12s, transform .12s;
+  white-space: nowrap;
+}
+.btn:hover { text-decoration: none; filter: brightness(1.08); }
+.btn:active { transform: translateY(1px); }
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 6px;
+  border: var(--bw) solid var(--line);
+  color: var(--fg);
+  font-size: 14px;
+  transition: border-color .12s;
+}
+.btn-ghost:hover { border-color: var(--dim); text-decoration: none; }
+.copy {
+  flex: none;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--dim);
+  border: var(--bw) solid var(--line);
+  border-radius: 4px;
+  padding: 3px 9px;
+  background: var(--raised);
+  cursor: pointer;
+  transition: color .12s, border-color .12s, opacity .12s;
+}
+.copy:hover { color: var(--fg); border-color: var(--dim); text-decoration: none; }
+.ver {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--dim);
+  border: var(--bw) solid var(--line);
+  border-radius: 999px;
+  padding: 1px 9px 1px 7px;
+  white-space: nowrap;
+  transition: border-color .12s, color .12s;
+}
+.ver::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--acc); }
+.ver:hover { border-color: var(--acc); color: var(--fg); text-decoration: none; }
+.icode {
+  font-family: var(--mono);
+  font-size: .86em;
+  color: var(--fg);
+  background: var(--raised);
+  border: var(--bw) solid var(--line-soft);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.squig { text-decoration: underline wavy var(--warn); text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.kicker { font-family: var(--mono); font-size: 12px; color: var(--acc); margin-bottom: 10px; }
+.callout {
+  margin-top: 28px;
+  padding: 14px 18px;
+  border: var(--bw) solid var(--line);
+  border-left: 2px solid var(--acc);
+  border-radius: 6px;
+  background: var(--side);
+  font-size: 14.5px;
+}
+.callout p { margin: 0; }
+.callout p + p { margin-top: 6px; color: var(--dim); }
 
-.litebus-code {
+/* Editor window */
+.ed {
+  border: var(--bw) solid var(--frame);
+  border-radius: 8px;
   overflow: hidden;
-  border: 1px solid var(--litebus-code-line);
-  border-radius: 0.75rem;
-  background: var(--litebus-code-bg);
-  box-shadow: 0 1.5rem 4rem color-mix(in oklab, #000 22%, transparent);
+  background: var(--bg);
+  min-width: 0;
 }
-
-.litebus-code-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  padding: 0.7rem 0.95rem;
-  border-bottom: 1px solid var(--litebus-code-line);
-}
-
-.litebus-code-mark {
-  width: 0.52rem;
-  height: 0.52rem;
-  border-radius: 0.12rem;
-  background: var(--litebus-yellow);
-}
-
-.litebus-code-label {
-  color: #96909d;
-  font-family: var(--font-mono, ui-monospace, 'SFMono-Regular', 'Menlo', monospace);
-  font-size: 0.74rem;
-}
-
-.litebus-code pre {
-  overflow-x: auto;
-  margin: 0;
-  padding: 1.35rem 1.25rem 1.5rem;
-}
-
-.litebus-code code {
-  color: var(--litebus-code-fg);
-  font-family: var(--font-mono, ui-monospace, 'SFMono-Regular', 'Menlo', monospace);
-  font-size: clamp(0.72rem, 1vw, 0.8rem);
-  line-height: 1.82;
-  white-space: pre;
-}
-
-.tok-k {
-  color: #c795e6;
-}
-
-.tok-t {
-  color: #79baff;
-}
-
-.tok-s {
-  color: #a5df8f;
-}
-
-.tok-n {
-  color: #f0b070;
-}
-
-.tok-c {
-  color: #837d8c;
-  font-style: italic;
-}
-
-/* Capabilities */
-
-.litebus-section {
-  border-top: 1px solid var(--color-fd-border);
-  padding: clamp(5rem, 10vw, 8rem) 0;
-}
-
-.litebus-section-label {
-  display: block;
-  margin-bottom: 1rem;
-  color: var(--color-fd-muted-foreground);
-  font-size: 0.72rem;
-  font-weight: 720;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
-.litebus-section h2 {
-  margin: 0;
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 755;
-  letter-spacing: -0.048em;
-  line-height: 1.05;
-}
-
-.litebus-section-intro {
-  max-width: 42rem;
-  margin-right: auto;
-  margin-bottom: clamp(3rem, 6vw, 4.8rem);
-  margin-left: auto;
-  text-align: center;
-}
-
-.litebus-section-intro p {
-  margin: 1rem auto 0;
-  color: var(--color-fd-muted-foreground);
-  font-size: 1rem;
-  line-height: 1.7;
-}
-
-.litebus-capability-list {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.8rem;
-}
-
-.litebus-capability {
-  display: flex;
-  flex-direction: column;
-  min-height: 13.5rem;
-  padding: 1.4rem;
-  border: 1px solid var(--color-fd-border);
-  border-radius: 0.8rem;
-  background: color-mix(in oklab, var(--color-fd-card) 72%, transparent);
-}
-
-.litebus-capability-icon {
+.ed-tabs { display: flex; background: var(--side); border-bottom: var(--bw) solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.ed-tab {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  margin-bottom: 1.4rem;
-  border: 1px solid color-mix(in oklab, var(--litebus-yellow) 35%, var(--color-fd-border));
-  border-radius: 0.5rem;
-  background: color-mix(in oklab, var(--litebus-yellow) 8%, transparent);
-  color: var(--litebus-yellow);
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--faint);
+  border-right: var(--bw) solid var(--line);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .12s, background-color .12s;
 }
-
-.litebus-capability-icon svg {
-  width: 1.25rem;
-  height: 1.25rem;
+.ed-tab:hover { color: var(--dim); }
+.ed-tab::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: var(--acc);
+  transform: scaleX(0);
+  transition: transform .16s var(--ease);
 }
-
-.litebus-capability h3 {
-  margin: 0;
-  font-size: 1.02rem;
-  font-weight: 720;
-  letter-spacing: -0.02em;
-}
-
-.litebus-capability p {
-  margin: 0.7rem 0 0;
-  color: var(--color-fd-muted-foreground);
-  font-size: 0.86rem;
-  line-height: 1.62;
-}
-
-/* MediatR comparison */
-
-.litebus-mediatr {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: clamp(2.5rem, 7vw, 6rem);
-  align-items: start;
-  padding: clamp(3.5rem, 7vw, 5rem) 0;
-  border-top: 1px solid var(--color-fd-border);
-}
-
-.litebus-mediatr h2 {
-  max-width: 28rem;
-  margin: 0;
-  font-size: clamp(1.8rem, 3.2vw, 2.35rem);
-  font-weight: 750;
-  letter-spacing: -0.04em;
-  line-height: 1.08;
-}
-
-.litebus-mediatr-copy p {
-  max-width: 38rem;
-  margin: 0 0 1rem;
-  color: var(--color-fd-muted-foreground);
-  font-size: 0.94rem;
-  line-height: 1.72;
-}
-
-.litebus-mediatr-copy a {
-  color: var(--color-fd-foreground);
-  font-size: 0.84rem;
-  font-weight: 680;
-  text-decoration: underline;
-  text-decoration-color: var(--litebus-yellow);
-  text-decoration-thickness: 0.12em;
-  text-underline-offset: 0.25em;
-}
-
-/* Footer */
-
-.litebus-footer {
-  border-top: 1px solid var(--color-fd-border);
-}
-
-.litebus-footer-inner {
+.ed-tab .x { opacity: 0; font-family: var(--sans); color: var(--dim); transition: opacity .12s; }
+.ed-tab:hover .x, .ed-tab.on .x { opacity: 1; }
+.ed-tab.on { color: var(--fg); background: var(--bg); }
+.ed-tab.on::before { transform: scaleX(1); }
+.crumbs {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 3rem;
-  width: min(var(--litebus-width), calc(100% - 3rem));
-  margin: 0 auto;
-  padding: 3rem 0 3.5rem;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 16px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--faint);
+  border-bottom: var(--bw) solid var(--line-soft);
+  white-space: nowrap;
+  overflow: hidden;
 }
-
-.litebus-footer .litebus-brand {
-  font-size: 1rem;
-}
-
-.litebus-footer .litebus-brand img {
-  width: 1.45rem;
-  height: 1.45rem;
-}
-
-.litebus-footer p {
-  margin: 0.65rem 0 0;
-  color: var(--color-fd-muted-foreground);
-  font-size: 0.78rem;
-}
-
-.litebus-footer p a {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-
-.litebus-footer nav {
+.crumbs b { color: var(--dim); font-weight: 400; }
+.ed-foot {
   display: flex;
-  flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.8rem 1.4rem;
-  max-width: 34rem;
-}
-
-.litebus-footer nav a {
-  color: var(--color-fd-muted-foreground);
-  font-size: 0.82rem;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.litebus-footer nav a:hover {
-  color: var(--color-fd-foreground);
-}
-
-/* Legal and privacy */
-
-.litebus-legal {
-  max-width: 46rem;
-  margin: 0 auto;
-  padding: clamp(3rem, 7vw, 5rem) 0 clamp(2.5rem, 5vw, 4rem);
-}
-
-.litebus-legal h1 {
-  margin: 0;
-  font-size: clamp(2.2rem, 5vw, 3.2rem);
-  font-weight: 770;
-  letter-spacing: -0.04em;
-}
-
-.litebus-legal-meta {
-  margin: 0.6rem 0 2rem;
-  color: var(--color-fd-muted-foreground);
-  font-size: 0.9rem;
-}
-
-.litebus-legal h2 {
-  margin: 2.4rem 0 0.75rem;
-  font-size: 1.35rem;
-  font-weight: 720;
-  letter-spacing: -0.02em;
-}
-
-.litebus-legal p,
-.litebus-legal li {
-  color: color-mix(in oklab, var(--color-fd-foreground) 88%, var(--color-fd-muted-foreground));
-  font-size: 1rem;
-  line-height: 1.75;
-}
-
-.litebus-legal p {
-  margin: 0 0 1rem;
-}
-
-.litebus-legal ul {
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-  margin: 0 0 1rem;
-  padding-left: 1.3rem;
-}
-
-.litebus-legal a {
-  color: var(--color-fd-primary);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-
-.litebus-legal-note {
-  margin: 0 0 1rem;
-  padding: 0.85rem 1rem;
-  border: 1px dashed color-mix(in oklab, var(--litebus-yellow) 60%, var(--color-fd-border));
-  border-radius: 0.6rem;
-  background: color-mix(in oklab, var(--litebus-yellow) 8%, transparent);
-  color: var(--color-fd-muted-foreground);
-  font-size: 0.9rem;
-}
-
-/* Docs navigation brand */
-
-.litebus-nav-brand {
-  display: inline-flex;
+  gap: 18px;
+  height: 26px;
   align-items: center;
-  gap: 0.5rem;
-  font-weight: 700;
+  padding: 0 14px;
+  border-top: var(--bw) solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--faint);
 }
 
-.litebus-nav-brand img {
-  width: 1.5rem;
-  height: 1.5rem;
+/* Code: one span.line per line, line numbers from a CSS counter. */
+pre.code {
+  margin: 0;
+  padding: 14px 0 16px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--fg);
+  tab-size: 4;
 }
-
-/* Focus */
-
-.litebus-home a:focus-visible {
-  outline: 2px solid var(--litebus-yellow);
-  outline-offset: 3px;
+/* The highlighter separates line spans with newline characters; collapsing them here keeps one line per span,
+   while each line keeps its own whitespace. */
+pre.code code { display: block; min-width: max-content; counter-reset: ln; white-space: normal; }
+[data-theme="light"] pre.code { font-weight: 500; }
+.code .line { display: block; min-height: 1.65em; padding-right: 20px; white-space: pre; transition: background-color .1s; }
+.code .line:hover { background: var(--sx-line); }
+.code .line::before {
+  counter-increment: ln;
+  content: counter(ln);
+  display: inline-block;
+  width: 2.1em;
+  padding-right: .6em;
+  text-align: right;
+  color: var(--sx-ln);
+  user-select: none;
+  transition: color .1s;
 }
+.code .line:hover::before { color: var(--dim); }
 
-/* Responsive */
-
-@media (max-width: 960px) {
-  .litebus-hero {
-    padding: 4.75rem 0;
-  }
-
-  .litebus-hero-code {
-    max-width: 46rem;
-  }
-
-  .litebus-capability-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+/* Footer and status bar */
+.foot { border-top: var(--bw) solid var(--line-soft); padding: 28px 0; }
+.foot .in { display: flex; justify-content: space-between; gap: 16px 32px; flex-wrap: wrap; font-size: 13.5px; color: var(--dim); }
+.foot nav { display: flex; gap: 20px; flex-wrap: wrap; }
+.foot nav a { color: var(--dim); }
+.foot nav a:hover { color: var(--fg); }
+.status {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  height: 26px;
+  background: var(--side);
+  border-top: var(--bw) solid var(--frame);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--dim);
 }
-
-@media (max-width: 720px) {
-  .litebus-header-inner,
-  .litebus-home main,
-  .litebus-footer-inner {
-    width: min(100% - 2rem, var(--litebus-width));
-  }
-
-  .litebus-home-nav {
-    gap: 1rem;
-  }
-
-  .litebus-home-nav a:nth-child(2) {
-    display: none;
-  }
-
-  .litebus-hero {
-    padding-top: 4.5rem;
-  }
-
-  .litebus-capability {
-    min-height: 0;
-  }
-
-  .litebus-mediatr {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-  }
-
-  .litebus-footer-inner {
-    flex-direction: column;
-  }
-
-  .litebus-footer nav {
-    justify-content: flex-start;
-  }
+.status > div { display: flex; align-items: stretch; min-width: 0; overflow: hidden; }
+.status span, .status a {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  color: var(--dim);
+  white-space: nowrap;
+  transition: background-color .12s, color .12s;
 }
+.status a:hover { background: var(--hover); color: var(--fg); text-decoration: none; }
+.status .home { gap: 7px; padding: 0 12px; color: var(--fg); border-right: var(--bw) solid var(--line); }
+.status .home .logo { width: 13px; height: 13px; }
+.status a.gh { gap: 6px; }
+.status .ghm { width: 12px; height: 12px; }
 
-@media (max-width: 560px) {
-  .litebus-home-nav > a:first-child {
-    display: none;
+/* Keyframes shared by the home and docs pages. */
+@keyframes e-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes e-type { to { width: calc(67ch + 9px); } }
+@keyframes e-caret { 0%, 49% { border-right-color: var(--acc); } 50%, 100% { border-right-color: transparent; } }
+@keyframes e-write { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes e-pulse { 0% { box-shadow: 0 0 0 0 var(--acc-ring); } 70%, 100% { box-shadow: 0 0 0 7px transparent; } }
+@keyframes e-grow { 0% { transform: scaleX(0); } 40%, 100% { transform: scaleX(1); } }
+
+/* Responsive: the framed window, then the chrome breakpoints. */
+@media (min-width: 1600px) {
+  body {
+    background: var(--desk);
+    padding: 40px 0;
   }
+  .app {
+    max-width: 1480px;
+    margin: 0 auto;
+    min-height: calc(100vh - 80px);
+    border-radius: 12px;
+    overflow: hidden;
+    border: var(--bw) solid var(--frame);
+  }
+  .top { position: static; }
 }
-
-@media (max-width: 480px) {
-
-  .litebus-hero h1 {
-    font-size: 2.25rem;
-  }
-
-  .litebus-actions {
-    flex-direction: column;
-  }
-
-  .litebus-actions a {
-    width: 100%;
-  }
-
-  .litebus-install {
-    margin-top: 1rem;
-    justify-content: flex-start;
-  }
-
-  .litebus-capability-list {
-    grid-template-columns: 1fr;
-  }
+@media (max-width: 1180px) {
+  .search { width: 240px; }
+}
+@media (max-width: 860px) {
+  .top { grid-template-columns: minmax(0, 1fr) auto; }
+  .top .search { display: none; }
+}
+@media (max-width: 640px) {
+  .in { padding: 0 20px; }
+  .top { padding: 0 14px; gap: 12px; }
+  .nav a:not(:first-child), .top-r .hide-sm { display: none; }
+  .status .hide-sm { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .litebus-home * {
-    scroll-behavior: auto;
-    transition-duration: 0.01ms !important;
-  }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }

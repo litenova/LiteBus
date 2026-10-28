@@ -1,0 +1,14 @@
+{
+    "title":  "Architecture",
+    "pages":  [
+                  "README",
+                  "dependency-graph",
+                  "generated-package-inventory",
+                  "hosted-services",
+                  "mediation-design",
+                  "api-design",
+                  "handler-resolution",
+                  "decisions"
+              ]
+}
+

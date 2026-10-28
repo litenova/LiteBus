@@ -22,9 +22,19 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     private readonly SemaphoreSlim _connectionGate = new(1, 1);
 
     /// <summary>
+    ///     Tracks whether asynchronous disposal has started.
+    /// </summary>
+    private int _disposed;
+
+    /// <summary>
     ///     Gets the connection settings used to connect to the broker.
     /// </summary>
     private readonly AmqpConnectionOptions _options;
+
+    /// <summary>
+    ///     Opens a new broker connection; the RabbitMQ connection factory outside tests.
+    /// </summary>
+    private readonly Func<CancellationToken, Task<IConnection>> _connect;
 
     /// <summary>
     ///     Gets the lazily created shared connection, if one has been opened.
@@ -36,16 +46,31 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     /// </summary>
     /// <param name="options">The connection settings used to connect to the broker.</param>
     public AmqpConnectionManager(AmqpConnectionOptions options)
+        : this(options, null)
+    {
+    }
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="AmqpConnectionManager" /> class with a replaceable connect step.
+    /// </summary>
+    /// <param name="options">The connection settings used to connect to the broker.</param>
+    /// <param name="connect">
+    ///     Opens a new broker connection, or <see langword="null" /> to use the RabbitMQ connection factory built from
+    ///     <paramref name="options" />.
+    /// </param>
+    internal AmqpConnectionManager(AmqpConnectionOptions options, Func<CancellationToken, Task<IConnection>>? connect)
     {
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
         _circuitBreaker = new TransportCircuitBreaker(options.CircuitBreaker.ToTransportOptions());
+        _connect = connect ?? (cancellationToken => CreateConnectionFactory().CreateConnectionAsync(cancellationToken));
     }
 
     /// <inheritdoc />
     /// <remarks>
     ///     Broker connectivity exceptions are handled explicitly so connection failures increment the circuit breaker.
     ///     The final <see cref="Exception" /> handler records any other non-cancellation failure before rethrowing.
+    ///     Cancelled attempts release the permit so a cancelled half-open probe does not wedge the circuit.
     /// </remarks>
     public async Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default)
     {
@@ -73,13 +98,13 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
 
             try
             {
-                var factory = CreateConnectionFactory();
-                _connection = await factory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
+                _connection = await _connect(cancellationToken).ConfigureAwait(false);
                 _circuitBreaker.RecordSuccess(permit);
                 return _connection;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                _circuitBreaker.ReleasePermit(permit);
                 throw;
             }
             catch (BrokerUnreachableException)
@@ -131,6 +156,11 @@ public sealed class AmqpConnectionManager : IAmqpConnectionManager
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         await _connectionGate.WaitAsync().ConfigureAwait(false);
 
         try

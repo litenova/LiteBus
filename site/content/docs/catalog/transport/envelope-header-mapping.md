@@ -40,7 +40,6 @@ Ingress adapters perform reverse mapping with `TransportHeaderValues` and ingres
 ## Requires
 
 - `transport.canonical-headers`
-- Used by dispatch axis components that publish durable envelopes
 
 ## Invariants
 
