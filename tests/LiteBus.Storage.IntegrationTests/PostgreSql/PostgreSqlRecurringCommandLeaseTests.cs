@@ -191,9 +191,11 @@ public sealed class PostgreSqlRecurringCommandLeaseTests : IClassFixture<Postgre
 
         await provider.DisposeAsync().ConfigureAwait(false);
 
-        var act = () => dataSource.CreateConnection();
+        // Npgsql checks disposal when a connection opens, not when one is created; a live data source would fail
+        // here with a connection error instead, since nothing listens for this database.
+        var act = async () => await dataSource.OpenConnectionAsync().ConfigureAwait(false);
 
-        act.Should().Throw<ObjectDisposedException>();
+        await act.Should().ThrowAsync<ObjectDisposedException>().ConfigureAwait(false);
     }
 
     [SkippableFact]
