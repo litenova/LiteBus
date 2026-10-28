@@ -12,7 +12,7 @@
         <NuGetAudit>true</NuGetAudit>
         <NuGetAuditMode>all</NuGetAuditMode>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-        <SignAssembly Condition="Exists('$(MSBuildThisFileDirectory)..\LiteBus.snk')">true</SignAssembly>
-        <AssemblyOriginatorKeyFile Condition="Exists('$(MSBuildThisFileDirectory)..\LiteBus.snk')">$(MSBuildThisFileDirectory)..\LiteBus.snk</AssemblyOriginatorKeyFile>
+        <SignAssembly>true</SignAssembly>
+        <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)..\LiteBus.snk</AssemblyOriginatorKeyFile>
     </PropertyGroup>
 </Project>
