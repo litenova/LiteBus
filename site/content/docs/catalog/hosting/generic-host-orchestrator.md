@@ -9,22 +9,22 @@
 
 ## What It Does
 
-`LiteBusHostOrchestrator` is an internal .NET Generic Host `BackgroundService` used by both Microsoft DI and Autofac hosting bridges. On `StartAsync` it executes startup tasks sequentially. If startup succeeds, it starts background loops concurrently. The base host contract cancels loops and waits for completion during shutdown.
+`LiteBusHostOrchestrator` is an internal .NET Generic Host `BackgroundService` used by both Microsoft DI and Autofac hosting bridges. On `StartAsync` it executes startup tasks sequentially. If startup succeeds, it starts background loops concurrently. During shutdown, the Generic Host cancels the loops and waits for them to complete.
 
-Canceled loops during shutdown are treated as expected and suppressed. An unexpected loop fault calls `IHostApplicationLifetime.StopApplication()` immediately and remains faulted so the Generic Host can observe and log it.
+The orchestrator treats loops canceled during shutdown as expected and suppresses the cancellation. When a loop faults unexpectedly, the orchestrator calls `IHostApplicationLifetime.StopApplication()` immediately and keeps the faulted task so the Generic Host can observe and log it.
 
 ## Public Surface
 
 ### Registration
 
-- Orchestrator is registered by hosting bridges as one `IHostedService`.
-- Startup/background implementations are resolved from manifest type lists.
+- Hosting bridges register the orchestrator as one `IHostedService`.
+- The DI container resolves startup and background implementations from the manifest type lists.
 
 ### Behavior
 
 - Startup failure aborts host startup.
-- Background loops run concurrently with shared cancellation token.
-- Unexpected background loop failure stops the application instead of leaving the host partially active.
+- Background loops run concurrently with a shared cancellation token.
+- When a background loop fails unexpectedly, the orchestrator stops the application instead of leaving the host partially active.
 
 ## Packages
 
@@ -40,8 +40,8 @@ Canceled loops during shutdown are treated as expected and suppressed. An unexpe
 
 - Startup tasks always finish before background loops start.
 - If no background services are registered, startup still completes successfully.
-- Host stop requests linked cancellation for running loops.
-- Every unexpected loop fault is fault-bearing and triggers fail-closed host shutdown.
+- When the host stops, it requests linked cancellation for running loops.
+- Every unexpected loop fault preserves its exception and shuts the host down instead of leaving it partially running.
 
 ## Non-Goals
 
@@ -50,7 +50,7 @@ Canceled loops during shutdown are treated as expected and suppressed. An unexpe
 
 ## Observability
 
-No dedicated orchestrator telemetry is emitted. Failures surface through Generic Host background-service logging and loop-specific axis metrics.
+The orchestrator emits no dedicated telemetry. Failures surface through Generic Host background-service logging and loop-specific axis metrics.
 
 ## Test Coverage
 
@@ -60,8 +60,8 @@ No dedicated orchestrator telemetry is emitted. Failures surface through Generic
 
 - **Use case**: fail-closed startup
 - **Test kind**: Unit
-- **Description**: startup task throws before background service starts
-- **Behavior**: starts hosted services
+- **Description**: a startup task throws before the background service starts
+- **Behavior**: starts the hosted services
 - **Expected outcome**: startup failure captured and background loop remains unstarted
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/MicrosoftBackgroundServiceHostingExtensionsTests.cs`
 
@@ -69,8 +69,8 @@ No dedicated orchestrator telemetry is emitted. Failures surface through Generic
 
 - **Use case**: startup-before-loop ordering
 - **Test kind**: Unit
-- **Description**: recording startup task and ordered background service
-- **Behavior**: starts hosted services
+- **Description**: a recording startup task and an ordered background service
+- **Behavior**: starts the hosted services
 - **Expected outcome**: background loop starts after startup completion flag
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/MicrosoftBackgroundServiceHostingExtensionsTests.cs`
 
@@ -78,8 +78,8 @@ No dedicated orchestrator telemetry is emitted. Failures surface through Generic
 
 - **Use case**: Autofac bridge executes orchestrator loop path
 - **Test kind**: Unit
-- **Description**: resolves hosted service from Autofac bridge registration
-- **Behavior**: start/stop host
+- **Description**: resolves the hosted service from the Autofac bridge registration
+- **Behavior**: starts and stops the host
 - **Expected outcome**: underlying loop execution count increases
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/AutofacBackgroundServiceHostingExtensionsTests.cs`
 
@@ -105,12 +105,12 @@ No dedicated orchestrator telemetry is emitted. Failures surface through Generic
 
 | Gap | Priority | Notes |
 | --- | --- | --- |
-| Multiple simultaneous loop faults and aggregate exception logging | Low | Each fault requests shutdown; tests cover the first-fault host signal. |
+| Multiple simultaneous loop faults and aggregate exception logging | Low | Each fault requests shutdown. Tests cover the first-fault host signal. |
 
 ### Out-of-Scope Use Cases
 
 - Coordinating third-party background workloads.
 
-## Deep Docs
+## References
 
 - [Hosted services](../../architecture/hosted-services.md)

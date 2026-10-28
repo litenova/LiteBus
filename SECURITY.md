@@ -1,6 +1,6 @@
 # Security policy
 
-## Supported versions
+## Supported Versions
 
 | Version | Supported |
 | --- | --- |
@@ -8,7 +8,7 @@
 | 6.x | Security fixes only, when the fix can be applied without changing the supported runtime or persisted contract |
 | 5.x and older | No |
 
-## Reporting a vulnerability
+## Reporting a Vulnerability
 
 Do not open a public issue, discussion, or pull request for an undisclosed vulnerability. Report it privately through either channel:
 
@@ -17,7 +17,7 @@ Do not open a public issue, discussion, or pull request for an undisclosed vulne
 
 Include the affected package and version, a minimal reproduction, the impact you observed or expect, and any proposed mitigation. Do not include secrets, production payloads, or personal data.
 
-## What to expect
+## What to Expect
 
 - An acknowledgement within five working days.
 - An assessment of severity and affected versions, using the rubric in [the threat model](.oss-scanner/threat_model.md#how-you-rate-severity).
@@ -27,4 +27,4 @@ Coordinate public disclosure with the maintainers. The default disclosure window
 
 ## Scope
 
-In scope: the packages published from `src/`. Out of scope: `samples/`, `benchmarks/`, `tests/`, `scripts/`, and the documentation site in `site/`. The [threat model](.oss-scanner/threat_model.md) lists what is security-critical, where untrusted input enters, and how severity is rated.
+The scope covers the packages published from `src/`. `samples/`, `benchmarks/`, `tests/`, `scripts/`, and the documentation site in `site/` are out of scope. The [threat model](.oss-scanner/threat_model.md) lists what is security-critical, where untrusted input enters, and how severity is rated.

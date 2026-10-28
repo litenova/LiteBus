@@ -9,11 +9,11 @@
 
 ## What It Does
 
-`EventOutboxDispatcher` implements `IOutboxDispatcher`. It resolves the contract, unprotects and deserializes the payload, builds `EventMediationSettings` with trace metadata, and publishes via `IEventMediator`. Types implementing `IEvent` use the non-generic publish overload; POCO events use a cached closed-generic delegate per event type.
+`EventOutboxDispatcher` implements `IOutboxDispatcher`. It resolves the contract, unprotects and deserializes the payload, builds `EventMediationSettings` with trace metadata, and publishes through `IEventMediator`. Types that implement `IEvent` use the non-generic publish overload. POCO events use a cached closed-generic delegate per event type.
 
-Use this path when integration events should fan out to local handlers only (same service or same process) while still benefiting from durable enqueue and at-least-once processor semantics.
+Use this path when integration events should fan out to local handlers only, in the same service or process, while keeping durable enqueue and at-least-once processor semantics.
 
-A dispatched message with no registered handler fails the attempt by default (`RequireHandler = true`), which retries the message and eventually dead-letters it; set `RequireHandler = false` only when publishing to zero handlers is deliberate. An envelope that records one handler through per-handler delivery publishes to that handler alone, while pipeline observers (pre-stage, post, error, and completion stages) still run on every targeted dispatch.
+A dispatched message with no registered handler fails the attempt by default (`RequireHandler = true`). The failure retries the message and eventually dead-letters it. Set `RequireHandler = false` only when publishing to zero handlers is deliberate. An envelope that records one handler through per-handler delivery publishes to that handler alone. Pipeline observers (pre-stage, post, error, and completion stages) still run on every targeted dispatch.
 
 ## Packages
 
@@ -32,17 +32,17 @@ A dispatched message with no registered handler fails the attempt by default (`R
 
 ## Invariants
 
-- Dispatched event types must be registered with `Contracts.Register`; with the default `RequireHandler = true`, dispatch fails when no handler is registered for the event.
-- Dispatch rethrows `OperationCanceledException` when the caller token is cancelled instead of wrapping it; it wraps other non-`LiteBusDispatchException` failures in `LiteBusDispatchException` with contract context, adding registration guidance only for `MessageContractNotRegisteredException` and `NoHandlerFoundException`.
-- Default hook failure policy is `DeadLetter` (stricter than transport outbox dispatch).
-- At-least-once local publication: handlers must tolerate duplicate event delivery.
-- Per-handler envelopes match main handlers by full type name through an `EventRoutingSettings.HandlerPredicate`; when no subscribed handler matches the recorded name, the predicate matches nothing and `RequireHandler` decides whether the attempt fails or completes as published.
+- Dispatched event types must be registered with `Contracts.Register`. With the default `RequireHandler = true`, dispatch fails when no handler is registered for the event.
+- Dispatch rethrows `OperationCanceledException` when the caller token is cancelled instead of wrapping it. It wraps other non-`LiteBusDispatchException` failures in `LiteBusDispatchException` with contract context. It adds registration guidance only for `MessageContractNotRegisteredException` and `NoHandlerFoundException`.
+- The default hook failure policy is `DeadLetter`, which is stricter than transport outbox dispatch.
+- Local publication is at-least-once, so handlers must tolerate duplicate event delivery.
+- Per-handler envelopes match main handlers by full type name through an `EventRoutingSettings.HandlerPredicate`. When no subscribed handler matches the recorded name, the predicate matches nothing, and `RequireHandler` decides whether the attempt fails or completes as published.
 
 ## Non-Goals
 
-- Does not publish to external brokers.
-- Does not guarantee cross-process delivery.
-- Does not invoke command handlers.
+- It does not publish to external brokers.
+- It does not guarantee cross-process delivery.
+- It does not invoke command handlers.
 
 ## Public Surface
 
@@ -71,42 +71,42 @@ outbox.UseInProcessDispatch(dispatch => dispatch.RequireHandler = false);
 
 | Option | Default | Role |
 | --- | --- | --- |
-| `InProcessOutboxDispatchOptions.RequireHandler` | `true` | Fail the attempt when no handler is registered; `false` completes the dispatch and marks the message published without any handler having run |
+| `InProcessOutboxDispatchOptions.RequireHandler` | `true` | Fail the attempt when no handler is registered. `false` completes the dispatch and marks the message published without any handler having run |
 
 ### `EventOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)`
 
 | | |
 | --- | --- |
 | Package | `LiteBus.Outbox.Dispatch.InProcess` |
-| Flow | Resolve contract to unprotect to deserialize to build `EventMediationSettings` to publish |
+| Flow | Resolves the contract, unprotects and deserializes the payload, builds `EventMediationSettings`, and publishes |
 | `IEvent` path | `IEventMediator.PublishAsync(IEvent, settings, token)` |
-| POCO path | Cached closed-generic `PublishAsync<TEvent>` delegate per contract type |
-| Per-handler path | `EventRoutingSettings.HandlerPredicate` restricts main handlers to the recorded handler full name; an envelope without a recorded handler publishes to every subscribed handler |
-| Errors | Rethrows `LiteBusDispatchException` and caller cancellation; wraps other exceptions with contract context, with registration guidance only for `MessageContractNotRegisteredException` and `NoHandlerFoundException` |
+| POCO path | A cached closed-generic `PublishAsync<TEvent>` delegate per contract type |
+| Per-handler path | `EventRoutingSettings.HandlerPredicate` restricts main handlers to the recorded handler full name. An envelope without a recorded handler publishes to every subscribed handler |
+| Errors | Rethrows `LiteBusDispatchException` and caller cancellation. Wraps other exceptions with contract context, with registration guidance only for `MessageContractNotRegisteredException` and `NoHandlerFoundException` |
 
-Optional constructor dependency: `IOutboxPayloadProtector`.
+The optional constructor dependency is `IOutboxPayloadProtector`.
 
 ### `EventOutboxDispatchModule.Build(IModuleConfiguration)`
 
-Registers `IOutboxDispatcher` to `EventOutboxDispatcher`. Default hook failure policy remains processor default (`DeadLetter`), not transport outbox `CompleteDespiteHookFailure`.
+The method registers `IOutboxDispatcher` to `EventOutboxDispatcher`. The default hook failure policy remains the processor default (`DeadLetter`), not the transport outbox `CompleteDespiteHookFailure`.
 
 ## Observability
 
 | Signal | When |
 | --- | --- |
-| `litebus.outbox.processor.dispatch_duration` | Processor histogram around `DispatchAsync` |
-| `litebus.outbox.processor.published` / `failed` / `dead_lettered` | Terminal outcomes after dispatch and hooks |
-| Event pipeline tracing | Follows mediator/event handler instrumentation when configured; no outbox-dispatch-specific activity source |
-| No transport send span | In-process path does not touch the transport layer |
+| `litebus.outbox.processor.dispatch_duration` | A processor histogram around `DispatchAsync` |
+| `litebus.outbox.processor.published` / `failed` / `dead_lettered` | The terminal outcomes after dispatch and hooks |
+| Event pipeline tracing | It follows mediator and event handler instrumentation when configured. There is no outbox-dispatch-specific activity source |
+| No transport send span | The in-process path does not touch the transport layer |
 
 Register outbox processor metrics through `AddLiteBusOutboxMetrics()`.
 
 ## Analyzers
 
 - **LB1007** / **LB1017**: Contract registration for published event types.
-- **LB1014**: Processor without dispatcher.
+- **LB1014**: A processor without a dispatcher.
 
-## Deep Docs
+## References
 
 - [Outbox.md](../../reliable-messaging/outbox.md)
 - [Event-Module.md](../../concepts/events.md)
@@ -140,8 +140,8 @@ Register outbox processor metrics through `AddLiteBusOutboxMetrics()`.
 
 ### Untested
 
-- Explicit assertion for non-LiteBus failure wrapping into `LiteBusDispatchException`.
-- EF Core outbox adapter end-to-end coverage in dispatch suites.
+- An explicit assertion for non-LiteBus failure wrapping into `LiteBusDispatchException`.
+- EF Core outbox adapter end-to-end coverage in the dispatch suites.
 
 ### Out-of-Scope
 

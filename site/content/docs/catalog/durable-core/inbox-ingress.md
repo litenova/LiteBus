@@ -5,11 +5,11 @@
 
 ## Summary
 
-Consume external broker deliveries and accept them into inbox storage with broker-scoped idempotency and configurable safety defaults.
+Inbox ingress consumes deliveries from an external broker and accepts them into inbox storage. Each delivery gets broker-scoped idempotency, and safety options control which deliveries the consumer accepts.
 
 ## What It Does
 
-Ingress extensions register a background consumer that maps `TransportMessage` to `InboxAcceptItem` and calls `IInbox.AcceptAsync`. On successful store accept, ingress acknowledges the broker delivery. Transient failures may requeue when `RequeueOnFailure` is enabled; poison messages discard per ingress policy. Ingress does not execute handlers; the inbox processor does that later.
+Ingress extensions register a background consumer that maps each `TransportMessage` to an `InboxAcceptItem` and calls `IInbox.AcceptAsync`. After the store accepts the message, ingress acknowledges the broker delivery. When `RequeueOnFailure` is enabled, the consumer requeues deliveries that fail transiently, and it discards poison messages under the ingress ack policy. Ingress never executes handlers; the inbox processor runs them later.
 
 ## Public Surface
 
@@ -23,14 +23,14 @@ Ingress extensions register a background consumer that maps `TransportMessage` t
 | `UseAwsSqsIngress(configure)` | `LiteBus.Inbox.Ingress.AwsSqs` | Beta |
 | `UseAzureServiceBusIngress(configure)` | `LiteBus.Inbox.Ingress.AzureServiceBus` | Beta |
 
-Register the matching `Add*Transport(...)` once at the root, then register ingress inside **`AddInbox(...)`**. Each ingress extension adds its feature child and background service to the host manifest; it does not own broker connectivity.
+Register the matching `Add*Transport(...)` once at the root, then register ingress inside **`AddInbox(...)`**. Each ingress extension adds its feature child and background service to the host manifest. Broker connectivity stays with the root transport.
 
 ### Core Types
 
-- **`TransportInboxIngressConsumer`**: Background loop; maps deliveries, calls accept, applies ack policy
-- **`TransportInboxIngressHandler`**: Maps **`TransportMessage`** to **`InboxAcceptItem`** and invokes **`IInbox`**
-- **`TransportInboxIngressMapper`**: Header and identity mapping (idempotency, visibility, tenant, trace)
-- **`IngressAckPolicy`**: Classifies exceptions for requeue vs discard
+- **`TransportInboxIngressConsumer`**: The background loop that maps each delivery, calls accept, and applies the ack policy.
+- **`TransportInboxIngressHandler`**: Maps each **`TransportMessage`** to an **`InboxAcceptItem`** and accepts it through **`IInbox`**.
+- **`TransportInboxIngressMapper`**: Maps headers and identity to idempotency, visibility, tenant, and trace metadata.
+- **`IngressAckPolicy`**: Classifies exceptions as requeue or discard.
 
 ### Configuration (`TransportInboxIngressOptions`)
 
@@ -41,29 +41,29 @@ Register the matching `Add*Transport(...)` once at the root, then register ingre
 | `ReceiveBatchSize` | 1 | Native SQS receive request size |
 | `MaxConcurrentCalls` | null | Native Azure Service Bus callback concurrency |
 | `Safety.RequireStableIdentity` | `true` | Reject deliveries without broker message id |
-| `Safety.TrustApplicationHeaders` | `false` | Honor app idempotency, identity, tenant, and visibility headers |
+| `Safety.TrustApplicationHeaders` | `false` | Honor application idempotency, identity, tenant, and visibility headers |
 | `Safety.MaxMessageBytes` | 4 MiB | Reject oversized bodies before accept |
-| `Safety.MaxInFlightMessages` | 32 | Requested cap on concurrent LiteBus handler work; enforced as 1 on AMQP, Kafka, SQS, and in-memory, and as the lower of this and `MaxConcurrentCalls` on Azure Service Bus |
-| `Safety.EnableBatchAccept` | `false` | Buffer deliveries for **`AcceptBatchAsync`** flush |
+| `Safety.MaxInFlightMessages` | 32 | The requested cap on concurrent LiteBus handler work. AMQP, Kafka, SQS, and in-memory enforce it as 1, and Azure Service Bus enforces the lower of this value and `MaxConcurrentCalls` |
+| `Safety.EnableBatchAccept` | `false` | Buffers deliveries for an **`AcceptBatchAsync`** flush |
 | `Safety.BatchSize` | 10 | Deliveries per inbox store batch |
-| `Safety.BatchMaxWait` | 200 ms | Partial batch flush delay when batch accept enabled; must be positive when enabled |
-| `RequeueOnFailure` | `true` (broker-specific) | Transient accept failure requeue |
+| `Safety.BatchMaxWait` | 200 ms | How long a partial batch waits before it flushes when batch accept is enabled. The value must be positive |
+| `RequeueOnFailure` | `true` (broker-specific) | Requeues transient accept failures |
 | `Safety.AuthorizeDeliveryAsync` | `null` | Host callback before accept |
 
 ### Runtime Path
 
-1. Consumer receives **`TransportMessage`**
-2. Optional **`Safety.AuthorizeDeliveryAsync`** runs
-3. Mapper builds **`InboxAcceptItem`** with broker-scoped identity and idempotency (see idempotency capability)
-4. **`IInbox.AcceptAsync`** or **`AcceptBatchAsync`** writes to singleton store (not transactional writer)
-5. On success, broker **`AcceptAsync`** acknowledges delivery
-6. Ack failure after accept: log, increment **`ingress.ack_failed_after_accept`**, requeue for idempotent redelivery
+1. The consumer receives a **`TransportMessage`**
+2. The optional **`Safety.AuthorizeDeliveryAsync`** callback runs
+3. The mapper builds an **`InboxAcceptItem`** with broker-scoped identity and idempotency (see idempotency capability)
+4. **`IInbox.AcceptAsync`** or **`AcceptBatchAsync`** writes to the singleton store, not to a transactional writer
+5. On success, the consumer acknowledges the delivery through the broker **`AcceptAsync`**
+6. When the ack fails after accept, the consumer logs the failure, increments **`ingress.ack_failed_after_accept`**, and requeues the delivery so the broker redelivers it into the idempotent accept
 
 ### Extension Points
 
-- **`AuthorizeDeliveryAsync`**: Application authorization before deserialization and accept
-- Custom broker adapters implement ingress handler wiring in **`LiteBus.Inbox.Ingress.*`** packages
-- Opt out: **`DisableIngressConsumer`** flag on module registration (see PostgreSQL module registration tests)
+- **`AuthorizeDeliveryAsync`**: Runs application authorization before deserialization and accept.
+- Custom broker adapters implement their ingress handler wiring in **`LiteBus.Inbox.Ingress.*`** packages.
+- To opt out, set the **`DisableIngressConsumer`** flag on module registration (see PostgreSQL module registration tests).
 
 ## Packages
 
@@ -75,24 +75,24 @@ Register the matching `Add*Transport(...)` once at the root, then register ingre
 
 ## Requires
 
-- Inbox module with storage registered
-- Matching root transport registered through `Add*Transport(...)`
-- `IInbox` singleton store (auto-commit path)
-- Contract registration for ingested message types
+- Register an inbox module with storage.
+- Register the matching root transport through `Add*Transport(...)`.
+- Use the `IInbox` singleton store on its auto-commit path.
+- Register contracts for every ingested message type.
 
 ## Invariants
 
 - Ingress uses `IInbox`, not transactional writers
-- Default maps broker delivery id to destination-scoped supplied identity and `ingress:{destination}:{brokerMessageId}` idempotency key
-- Ack failure after accept logs `ingress.ack_failed_after_accept`; redelivery absorbed by idempotency
-- Visibility headers honored on ingress mapping only when `TrustApplicationHeaders` is `true`; distrusted messages are immediately visible while correlation headers are still honored
-- Kafka: manual offset commit; pair with inbox idempotency
+- By default, ingress maps the broker delivery id to a destination-scoped supplied identity and an `ingress:{destination}:{brokerMessageId}` idempotency key
+- After an ack failure that follows a successful accept, the consumer records `ingress.ack_failed_after_accept`, and the idempotent accept absorbs the redelivery
+- Ingress mapping honors visibility headers only when `TrustApplicationHeaders` is `true`. Messages with distrusted headers stay immediately visible, but the mapper still honors their correlation headers
+- Kafka uses manual offset commits, so pair it with inbox idempotency
 
 ## Non-Goals
 
 - Outbox ingress (events enter via application enqueue)
 - HTTP webhook ingress (planned)
-- Executing handlers at ingress boundary
+- Executing handlers at the ingress boundary
 
 ## Observability
 
@@ -102,40 +102,40 @@ Register the matching `Add*Transport(...)` once at the root, then register ingre
 | --- | --- | --- | --- |
 | `ingress.ack_failed_after_accept` | `LiteBusInboxIngressTelemetry.AckFailedAfterAcceptInstrumentName` | `LiteBus.Inbox` | Counter |
 
-- **When incremented**: Broker **`AcceptAsync`** throws after **`IInbox`** accept succeeded
+- **When incremented**: The broker **`AcceptAsync`** call throws after the **`IInbox`** accept succeeded
 - **Recording site**: **`TransportInboxIngressTelemetry.RecordAckFailedAfterAccept()`** in **`TransportInboxIngressConsumer`**
 - **Registration**: `AddLiteBusInboxMetrics()` from `LiteBus.Inbox.Extensions.OpenTelemetry`
-- **Log companion**: EventId 3004 (`AckFailedAfterAccept`); consumer requeues so idempotent accept absorbs redelivery
+- **Log companion**: EventId 3004 (`AckFailedAfterAccept`). The consumer requeues so the idempotent accept absorbs the redelivery
 
 ### Transport Process Tracing
 
 - **Activity**: `process {destination}` on activity source `LiteBus.Transport`
-- **When started**: Per delivery in `TransportConsumerHandlerInvoker`
+- **When started**: Once per delivery in `TransportConsumerHandlerInvoker`
 - **Registration**: `AddLiteBusTransportInstrumentation()`
 
 ### Circuit Breaker (Shared Transport)
 
-| Instrument | Tag | When relevant |
+| Instrument | Tag | Condition |
 | --- | --- | --- |
 | `litebus.transport.circuit_breaker.open` | `litebus.transport.broker` | Root transport breaker blocks connection open |
-| `litebus.transport.circuit_breaker.failure_count` | `litebus.transport.broker` | Rising failures before open |
+| `litebus.transport.circuit_breaker.failure_count` | `litebus.transport.broker` | Failures rising before the breaker opens |
 
-Consumer handler failures do not increment the breaker; ack/requeue policy applies instead.
+Consumer handler failures do not feed the breaker. The ack/requeue policy handles them instead.
 
 ### Operational Logs (No Public Meter)
 
 | Event | When emitted |
 | --- | --- |
-| Poison discard | Malformed JSON, unknown contract, oversize body |
-| Requeue decision | Transient store or ack failure when **`RequeueOnFailure`** enabled |
-| Missing stable identity | **`RequireStableIdentity`** violation before accept |
+| Poison discard | A malformed JSON body, an unknown contract, or an oversize body |
+| Requeue decision | A transient store or ack failure when **`RequeueOnFailure`** is enabled |
+| Missing stable identity | A **`RequireStableIdentity`** violation before accept |
 
-## Deep Docs
+## References
 
-- [Inbox](../../reliable-messaging/inbox.md) (ingress section)
+- [Inbox](../../reliable-messaging/inbox.md) (the ingress section)
 - [Inbox AMQP ingress](../../integrations/inbox-amqp-ingress.md)
-- [Reliable messaging semantics](../../reliable-messaging/semantics.md) (broker ack table)
-- [Architecture](../../architecture/README.md) (ingress axis)
+- [Reliable messaging semantics](../../reliable-messaging/semantics.md) (the broker ack table)
+- [Architecture](../../architecture/README.md) (the ingress axis)
 - [Ingress telemetry](../ingress/telemetry.md)
 
 ## Test Coverage
@@ -181,7 +181,7 @@ Consumer handler failures do not increment the breaker; ack/requeue policy appli
 - **Test kind**: Unit
 - **Description**: Records the callback message instance and cancellation token
 - **Behavior**: Authorization succeeds, then deserialization and store acceptance continue
-- **Expected outcome**: Callback runs once with the original arguments; one pending inbox row is written
+- **Expected outcome**: The callback runs once with the original arguments, and one pending inbox row is written
 - **Remarks**: `LiteBus.Inbox.UnitTests` (`Ingress/`)
 
 #### `TransportInboxIngressConsumerTests.HandleDeliveryAsync_WhenAuthorizationRejects_ShouldDiscardWithoutAccept`
@@ -190,7 +190,7 @@ Consumer handler failures do not increment the breaker; ack/requeue policy appli
 - **Test kind**: Unit
 - **Description**: The host callback throws `InboxIngressException` with requeue-on-failure enabled
 - **Behavior**: Shared acknowledgement policy classifies the rejection as terminal
-- **Expected outcome**: No inbox accept or broker acknowledgement; one negative acknowledgement without requeue
+- **Expected outcome**: No inbox accept or broker acknowledgement, and one negative acknowledgement without requeue
 - **Remarks**: `LiteBus.Inbox.UnitTests` (`Ingress/`)
 
 #### `TransportInboxIngressConsumerTests.HandleDeliveryAsync_WhenAckFailsAfterAccept_ShouldNotDiscard`
@@ -217,7 +217,7 @@ Consumer handler failures do not increment the breaker; ack/requeue policy appli
 - **Test kind**: Unit
 - **Description**: Contract validation at ingress edge
 - **Behavior**: Accept without contract header
-- **Expected outcome**: Exception; no store write
+- **Expected outcome**: Exception, and no store write
 - **Remarks**: `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`)
 
 #### `TransportInboxIngressMapperTests.ToInboxAcceptMetadata_ShouldMapOptionalHeadersWhenTrusted`
@@ -352,7 +352,7 @@ Consumer handler failures do not increment the breaker; ack/requeue policy appli
 - **Test kind**: Integration
 - **Description**: Header edge case on in-memory ingress
 - **Behavior**: Delivery without contract header
-- **Expected outcome**: Discarded; no row
+- **Expected outcome**: Discarded, and no row
 - **Remarks**: `LiteBus.Durable.IntegrationTests` (`Ingress/InMemory/`)
 
 #### `KafkaInboxIngressFailureIntegrationTests.UnknownContract_ShouldNotWriteToStore`
@@ -369,8 +369,8 @@ Consumer handler failures do not increment the breaker; ack/requeue policy appli
 - **Use case**: When AMQP ingress is registered with its consumer enabled, the manifest lists the ingress background service
 - **Test kind**: Unit
 - **Description**: Module registration wiring
-- **Behavior**: **`UseAmqpIngress`** on inbox builder
-- **Expected outcome**: Ingress handler registered
+- **Behavior**: **`UseAmqpIngress`** on the inbox builder
+- **Expected outcome**: The ingress handler is registered
 - **Remarks**: `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`)
 
 #### `PostgreSqlModuleRegistrationTests.DisableIngressConsumer_ShouldNotRegisterIngressHostedService`

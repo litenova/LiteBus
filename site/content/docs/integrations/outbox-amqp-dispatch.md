@@ -1,6 +1,6 @@
 # Outbox AMQP Dispatch
 
-`outbox.UseAmqpDispatch(...)` from `LiteBus.Outbox.Dispatch.Amqp` publishes leased outbox envelopes to an AMQP 0.9.1 broker. Register the shared transport once at the root.
+`outbox.UseAmqpDispatch(...)`, from `LiteBus.Outbox.Dispatch.Amqp`, publishes leased outbox envelopes to an AMQP 0.9.1 broker. Register the shared transport once at the root.
 
 ## When to Use It
 
@@ -28,7 +28,7 @@ builder.Services.AddLiteBus(builder =>
 });
 ```
 
-`UseAmqpDispatch` requires the root AMQP transport module and only configures durable envelope routing. Register exactly one dispatcher per outbox: a second dispatcher registration throws `LiteBusConfigurationException`.
+`UseAmqpDispatch` requires the root AMQP transport module and only configures durable envelope routing. Register exactly one dispatcher per outbox, because a second dispatcher registration throws `LiteBusConfigurationException`.
 
 ## Routing
 
@@ -46,7 +46,14 @@ OutboxEnqueueMetadata.Immediate with
 }
 ```
 
-`PublicationTarget.Topic`, `PublicationTarget.Exchange`, and `PublicationTarget.Queue` each store their name on the envelope topic column. The dispatcher resolves the route from the tenant routing strategy when one is registered, otherwise from a configured `ResolveRoute` delegate, otherwise from the topic, otherwise from the contract name, and the AMQP publisher sends the destination as the exchange with the route as the routing key.
+`PublicationTarget.Topic`, `PublicationTarget.Exchange`, and `PublicationTarget.Queue` each store their name on the envelope topic column. The dispatcher resolves the route from the first of these that applies:
+
+1. The tenant routing strategy, when one is registered.
+2. A configured `ResolveRoute` delegate.
+3. The topic.
+4. The contract name.
+
+The AMQP publisher sends the destination as the exchange with the route as the routing key.
 
 ## Wire Format
 
@@ -54,6 +61,6 @@ The message body is the persisted JSON payload. Transport headers carry `litebus
 
 ## Failure Behavior
 
-Publish failures throw to `PipelinedOutboxProcessor`. The processor records retry visibility or dead-letter state. Consumers must be idempotent.
+Publish failures propagate to `PipelinedOutboxProcessor`. The processor records retry visibility or dead-letter state. Consumers must be idempotent.
 
 See [AMQP Transport](amqp.md).

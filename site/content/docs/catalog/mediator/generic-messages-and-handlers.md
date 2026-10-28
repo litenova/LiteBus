@@ -3,14 +3,14 @@
 - **ID**: `mediator.generic-messages`
 - **Name**: Generic messages and handlers
 - **Maturity**: GA
-- **Summary**: Supports generic command/query/event message shapes with closed handlers resolved per concrete type.
+- **Summary**: Supports generic command, query, and event message shapes with closed handlers resolved per concrete type.
 - **Guide**: [Generic messages and handlers](../../concepts/generic-messages-and-handlers.md)
 
 ## What It Does
 
-LiteBus supports generic message contracts such as `CreateEntityCommand<TEntity, TKey>` and matching closed handlers. The registry stores exact descriptors for closed message types, so handlers for `GetByIdQuery<Order>` and `GetByIdQuery<Customer>` remain independent. Open constructed handler shapes use a generic-definition descriptor as a fallback when no exact closed descriptor exists.
+LiteBus supports generic message contracts such as `CreateEntityCommand<TEntity, TKey>` and matching closed handlers. The registry stores exact descriptors for closed message types, so handlers for `GetByIdQuery<Order>` and `GetByIdQuery<Customer>` remain independent. When no exact closed descriptor exists, open constructed handler shapes use a generic-definition descriptor as a fallback.
 
-This enables shared behavior and reduced duplication for repeated CRUD or projection patterns while keeping typed handler contracts.
+Generic messages share behavior and reduce duplication for repeated CRUD or projection patterns while keeping typed handler contracts.
 
 ## Public Surface
 
@@ -30,7 +30,7 @@ public sealed class GetByIdQueryHandler<TEntity> : IQueryHandler<GetByIdQuery<TE
 | `ICommand<TResult>` with generic message type | Generic command contract |
 | `IQuery<TResult>` / `IStreamQuery<TResult>` with generic message type | Generic query contract |
 | `IEvent` or typed plain event with generic payload | Generic event contract |
-| `RegisterFromAssembly(...)` on semantic builders | Registers generic messages/handlers discovered in assembly |
+| `RegisterFromAssembly(...)` on semantic builders | Registers the generic messages and handlers discovered in the assembly |
 | `IMessageReader.Find(Type)` | Resolves an exact closed descriptor before an open generic-definition fallback |
 
 ## Packages
@@ -47,10 +47,10 @@ public sealed class GetByIdQueryHandler<TEntity> : IQueryHandler<GetByIdQuery<TE
 
 ## Invariants
 
-- Generic message handlers must still satisfy single-handler rule for command/query.
+- Generic message handlers must still satisfy the single-handler rule for commands and queries.
 - Generic constraints control valid concrete message-handler combinations.
 - Closed generic handler registrations never share a direct message descriptor.
-- Open generic definitions remain fallback templates for compatible closed messages.
+- Open generic definitions serve as fallback templates for compatible closed messages.
 
 ## Non-Goals
 
@@ -88,7 +88,7 @@ Operational alternatives:
 - Durable contract migration strategy for many closed generic message variants.
 - Compile-time code generation for generic mediator contracts.
 
-## Deep Docs
+## References
 
 - [Generic messages and handlers](../../concepts/generic-messages-and-handlers.md)
 - [Open generic handlers](../../concepts/open-generic-handlers.md)

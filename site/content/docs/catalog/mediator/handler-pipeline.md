@@ -21,9 +21,17 @@ Direct and indirect handlers run in a fixed order:
 - Error: indirect then direct.
 - Completion: one pass over the merged direct and indirect sets, ordered by `[HandlerPriority]` then registration sequence.
 
-The pre stage is four framework-ordered stages, not one. Guards run first and refuse through `Verdict`; validators run next and report failures through `Validity`; shortcuts run third and answer through `Shortcut` or `Shortcut<TResult>`, or deny through `Shortcut.Deny` when the refusal can only be decided at the shortcut stage; plain pre-handlers run last and cannot stop the pipeline by returning. Priority orders handlers inside a stage and never reorders the stages, so a globally registered shortcut cannot answer ahead of a message-specific guard, and a malformed message cannot claim an idempotency key. Guards and shortcuts stop at the first decision; the validator stage runs every validator and collects their failures. A refusal with no registered `IMessageRefusalMapper<TMessage, TMessageResult>` raises `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException`, both excluded from the recoverable filter so error handlers never see a decision as a fault. `LiteBusMessageDeniedException` carries `DeniedBy` and `LiteBusMessageInvalidException` carries `RejectedBy`, and each message names the handler that decided it. A shortcut denial ends the mediation exactly as a guard denial does: completion handlers observe `Denied`, error handlers do not run, and a registered refusal mapper applies. Any stage may call `IExecutionContext.SuppressPostHandlers()` to skip the remaining post-handlers without changing the outcome.
+The pre stage is four framework-ordered stages, not one. Guards run first and refuse through `Verdict`. Validators run next and report failures through `Validity`. Shortcuts run third and answer through `Shortcut` or `Shortcut<TResult>`, or deny through `Shortcut.Deny` when the refusal can only be decided at the shortcut stage. Plain pre-handlers run last and cannot stop the pipeline by returning.
 
-A fault raised after the decision stages can still end as a refusal: `IFaultRefusalClassifier` entries registered with `MessageModuleBuilder.UseFaultRefusalClassifier` recognize the fault and name the refusal the mediation ends as instead. See [Fault refusal classification](fault-refusal-classification.md).
+Priority orders handlers inside a stage and never reorders the stages, so a globally registered shortcut cannot answer ahead of a message-specific guard, and a malformed message cannot claim an idempotency key. Guards and shortcuts stop at the first decision, while the validator stage runs every validator and collects their failures.
+
+A refusal with no registered `IMessageRefusalMapper<TMessage, TMessageResult>` raises `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException`. Both are excluded from the recoverable filter, so error handlers never see a decision as a fault. `LiteBusMessageDeniedException` carries `DeniedBy` and `LiteBusMessageInvalidException` carries `RejectedBy`, and each names the handler that decided it.
+
+A shortcut denial ends the mediation exactly as a guard denial does. Completion handlers observe `Denied`, error handlers do not run, and a registered refusal mapper applies.
+
+Any stage may call `IExecutionContext.SuppressPostHandlers()` to skip the remaining post-handlers without changing the outcome.
+
+A fault raised after the decision stages can still end as a refusal. `IFaultRefusalClassifier` entries registered with `MessageModuleBuilder.UseFaultRefusalClassifier` recognize the fault and name the refusal the mediation ends as. See [Fault refusal classification](fault-refusal-classification.md).
 
 The completion stage runs in a `finally` inside the ambient execution scope, so it observes success, an early answer, a denial, a validation failure, a fault, and cancellation alike. It is the only stage guaranteed to run, and it is not cancellable.
 
@@ -43,26 +51,26 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | API | Role |
 | --- | --- |
 | `IMessagePreHandler<TMessage>` | Pre stage contract |
-| `IMessageGuard<TMessage>` | Guard stage contract; refuses the message |
-| `IMessageValidator<TMessage>` | Validator stage contract; reports the message malformed |
+| `IMessageGuard<TMessage>` | Guard stage contract. Refuses the message |
+| `IMessageValidator<TMessage>` | Validator stage contract. Reports the message malformed |
 | `IMessageRefusalMapper<TMessage, TResult>` | Turns a refusal into the value the caller receives |
 | `IMessageShortcut<TMessage>` / `IMessageShortcut<TMessage, TResult>` | Shortcut stage contracts that may answer without the handler |
 | `Verdict` | Allow or deny, with a reason and an optional code |
 | `Validity` / `ValidationFailure` | Valid, or the failures a validator reported |
-| `ThrowingValidator<TMessage, TException>` | Migration adapter over a validator body that reports failure by throwing; axis forms are `ThrowingCommandValidator` and `ThrowingQueryValidator` |
-| `Refusal` | The outcome, reason, and code handed to a refusal mapper. `Refusal.Denied` or `Refusal.Invalid`, never anything else |
-| `Shortcut` / `Shortcut<TResult>` | `None` to carry on, `Answer` with a reason, a code, and, when the message produces one, a result, or `Deny` with a reason and a code |
+| `ThrowingValidator<TMessage, TException>` | Migration adapter over a validator body that reports failure by throwing. Axis forms are `ThrowingCommandValidator` and `ThrowingQueryValidator` |
+| `Refusal` | The outcome, reason, and code handed to a refusal mapper. Only `Refusal.Denied` or `Refusal.Invalid` |
+| `Shortcut` / `Shortcut<TResult>` | `None` to carry on, `Answer` with a reason, a code, and a result when the message produces one, or `Deny` with a reason and a code |
 | `IFaultRefusalClassifier` / `MessageModuleBuilder.UseFaultRefusalClassifier` | Turns a fault raised after the decision stages into the refusal the mediation ends as |
-| `MediationExceptionFilters.IsRefusal` / `IsRetryableDispatchException` / `IsCallerCancellation` | Classifies a decision apart from a fault, a fault worth retrying, and the caller cancelling inside a wrapper |
-| `PreStage` | `Guard`, `Validator`, `Shortcut`, `PreHandler`; the framework-fixed stage order. Covers the pre stage only |
+| `MediationExceptionFilters.IsRefusal` / `IsRetryableDispatchException` / `IsCallerCancellation` | Distinguish a decision from a fault, recognize a fault worth retrying, and recognize the caller cancelling inside a wrapper |
+| `PreStage` | `Guard`, `Validator`, `Shortcut`, `PreHandler` in the framework-fixed stage order. Covers the pre stage only |
 | `PipelineDecision` | What a pre-stage handler reported: `Continue`, or a stop carrying the outcome, reason, result, and `DecidedBy` |
-| `LiteBusMessageDeniedException` | Raised when a refusal supplies no result for the caller; carries `DeniedBy` naming the guard |
-| `LiteBusMessageInvalidException` | Raised for a validation failure; carries `RejectedBy` naming the validator |
+| `LiteBusMessageDeniedException` | Raised when a refusal supplies no result for the caller. Carries `DeniedBy` naming the guard |
+| `LiteBusMessageInvalidException` | Raised for a validation failure. Carries `RejectedBy` naming the validator |
 | `IAsyncMessageHandler<TMessage>` / `IAsyncMessageHandler<TMessage, TResult>` | Main handler contracts |
 | `IMessagePostHandler<TMessage, TResult>` | Post stage contract |
 | `IStreamQueryPostHandler<TQuery, TQueryResult>` | Post stage contract for stream queries |
 | `IQueryRefusalMapper<TQuery, TQueryResult>` | Refusal mapper for single-result queries |
-| `IStreamQueryRefusalMapper<TQuery, TQueryResult>` | Refusal mapper for stream queries, mapping to `IAsyncEnumerable<T>` semantics (events have no mapper: a refusal there always raises) |
+| `IStreamQueryRefusalMapper<TQuery, TQueryResult>` | Refusal mapper for stream queries, mapping to `IAsyncEnumerable<T>` semantics. Events have no mapper, so a refusal there always raises |
 | `MessageModuleBuilder.UseTelemetry(MediationTelemetryOptions)` | Selects which mediation telemetry is recorded |
 | `IExecutionContext.SuppressPostHandlers()` | Skips the post-handlers that have not run yet |
 | `IMessageErrorHandler<TMessage, TResult>` | Error stage contract |
@@ -80,10 +88,10 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | `SingleAsyncHandlerMediationStrategy<TMessage, TResult>` | Single main handler orchestration |
 | `SingleStreamHandlerMediationStrategy<TMessage, TResult>` | Stream query orchestration |
 | `AsyncBroadcastMediationStrategy<TMessage>` | Event broadcast orchestration |
-| `MessageContextExtensions.RunAsyncPreStages/RunAsyncPostHandlers/RunAsyncErrorHandlers/RunAsyncCompletionHandlers` | Stage execution helpers, in the `LiteBus.Messaging` assembly |
+| `MessageContextExtensions.RunAsyncPreStages/RunAsyncPostHandlers/RunAsyncErrorHandlers/RunAsyncCompletionHandlers` | Stage execution helpers in the `LiteBus.Messaging` assembly |
 | `MessageContextExtensions.ResolveRefusalResult<TMessageResult>` | Applies the registered refusal mapper, or raises when none covers the message |
-| `PipelineDispatch` | Delegate bound at registration to the closed contract a handler was discovered from, and `StageFor` |
-| `PipelineContracts` | The one table declaring every dispatchable contract, its family, its invoker, and its stage |
+| `PipelineDispatch` | Delegate bound at registration to the closed contract a handler was discovered from, plus `StageFor` |
+| `PipelineContracts` | The single table declaring every dispatchable contract with its family, invoker, and stage |
 | `IPreStageHandlerDescriptor.Stage` | The stage that runs a discovered pre-stage handler |
 | `IMessageDependencies.HasPreStageHandlers` | Whether a stage holds any handler, so an empty one costs nothing |
 | `IRefusalMapperDescriptor` | A registered refusal mapper and the result type it produces |
@@ -102,29 +110,29 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 
 ## Invariants
 
-- Single-handler strategies resolve one main handler at the winning level: direct handlers first, an indirect (base-type) handler only when no direct handler survives filtering.
+- Single-handler strategies resolve one main handler at the winning level. Direct handlers come first, and an indirect (base-type) handler applies only when no direct handler survives filtering.
 - Post-handler result override uses `executionContext.MessageResult`.
 - Recoverable exceptions route to error handlers with the caller's explicit cancellation token.
-- A fault the recoverable filter excludes bypasses the error stage but is still recorded before completion runs: completion observes `Failed` with the exception, or `Canceled` for a cancellation, never `Succeeded` for a mediation that threw.
+- A fault the recoverable filter excludes bypasses the error stage but is still recorded before completion runs. Completion observes `Failed` with the exception, or `Canceled` for a cancellation, and never `Succeeded` for a mediation that threw.
 - Error handlers suppress the original exception only by setting their shared context outcome to `Handled`.
-- A fault an error handler recovered completes as `Failed` with no recorded exception, which distinguishes it from a fault that propagated; a completion-handler fault on that path propagates instead of being suppressed.
-- On a result-bearing message, an error handler that sets `Handled` without a usable `HandledResult` recovers the message and the caller receives the default value (`null` for a reference type). A global error handler cannot know the result type, so this is how it absorbs a fault; a handler with a fallback value sets `HandledResult`.
+- A fault an error handler recovered completes as `Failed` with no recorded exception, which distinguishes it from a fault that propagated. A completion-handler fault on that path propagates instead of being suppressed.
+- On a result-bearing message, an error handler that sets `Handled` without a usable `HandledResult` recovers the message and the caller receives the default value (`null` for a reference type). A global error handler cannot know the result type, so this is how it absorbs a fault. A handler with a fallback value sets `HandledResult`.
 - Event broadcast may execute handlers concurrently based on event execution settings.
 - Completion handlers run exactly once per mediation, on every outcome path.
-- Completion handlers cannot change the outcome; the context is read-only.
+- Completion handlers cannot change the outcome. The context is read-only.
 - `EvaluateAsync` runs the guard and validator stages only. A shortcut and a pre-handler act rather than decide, so an evaluation cannot claim an idempotency key or do a pre-handler's work.
 - `TrySendAsync` and `TryQueryAsync` return a refusal as a value and still throw a genuine fault, which is the line the pipeline already draws between a decision and a fault.
-- `Reason` and `Code` mean the same thing on `Verdict`, `Shortcut`, `PipelineDecision`, `MessageCompletionContext`, `MediationResult` and `MediationDecision`: prose for a person, and a value a later stage can switch on.
-- Completion handlers receive `CancellationToken.None`; the stage runs to the end on every path.
-- A completion handler that throws while an exception is ending the mediation has its fault attached to that exception under `MediationExceptionData.SuppressedCompletionFaults`, and propagates otherwise.
+- `Reason` and `Code` mean the same thing on `Verdict`, `Shortcut`, `PipelineDecision`, `MessageCompletionContext`, `MediationResult`, and `MediationDecision`: prose for a person, and a value a later stage can switch on.
+- Completion handlers receive `CancellationToken.None`, and the stage runs to the end on every path.
+- When a completion handler throws while an exception is ending the mediation, its fault is attached to that exception under `MediationExceptionData.SuppressedCompletionFaults`. Otherwise it propagates.
 - Stream completion fires on enumerator disposal, so an unenumerated stream produces no completion record.
 - A refusal mapper's stream is enumerated through the same runner as the handler's stream, so a fault in it is offered to the error stage and the ambient scope wraps every advance.
-- Only a guard, a validator, or a shortcut can stop the pipeline; `Answered`, `Denied`, and `Invalid` all mean the main handler never ran.
+- Only a guard, a validator, or a shortcut can stop the pipeline. `Answered`, `Denied`, and `Invalid` all mean the main handler never ran.
 - A denial is not routed to error handlers and is not reported as `Faulted`.
 - Suppressing post-handlers reports `MediationOutcome.Succeeded`, because the main handler ran.
-- A shortcut that answers a result-returning message must supply a result of the expected type, or mediation throws `LiteBusConfigurationException`. Analyzer rule `LB1019` reports a shortcut that used the untyped contract for such a message. A guard has no such duty, so the untyped guard is correct everywhere. A denial carries no result and is resolved through a mapper, so denying a result message is safe through either shortcut contract, although direct registration of the untyped contract on a result message is still rejected.
-- A shortcut denial reports `Denied` exactly like a guard denial: `TrySendAsync` reports it as a value, `SendAsync` raises `LiteBusMessageDeniedException` naming the shortcut in `DeniedBy`, completion handlers observe it, error handlers skip it, and a registered refusal mapper applies. Anything a guard could decide belongs to a guard, which runs first.
-- One class may implement pipeline contracts for several message types; each dispatch reaches the contract recorded in its descriptor.
+- A shortcut that answers a result-returning message must supply a result of the expected type, or mediation throws `LiteBusConfigurationException`. Analyzer rule `LB1019` reports a shortcut that used the untyped contract for such a message. A guard has no such duty, so the untyped guard is correct everywhere. A denial carries no result and is resolved through a mapper, so denying a result message is safe through either shortcut contract. Direct registration of the untyped contract on a result message is still rejected.
+- A shortcut denial reports `Denied` exactly like a guard denial. `TrySendAsync` reports it as a value, `SendAsync` raises `LiteBusMessageDeniedException` naming the shortcut in `DeniedBy`, completion handlers observe it, error handlers skip it, and a registered refusal mapper applies. Anything a guard could decide belongs to a guard, which runs first.
+- One class may implement pipeline contracts for several message types. Each dispatch reaches the contract recorded in its descriptor.
 
 ## Non-Goals
 
@@ -134,7 +142,7 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 
 ## Observability
 
-Mediation telemetry is recorded by default and exported through `LiteBus.Messaging.Extensions.OpenTelemetry` (`AddLiteBusMediationInstrumentation`, `AddLiteBusMediationMetrics`). Names live on `LiteBusMediationTelemetry` (`LiteBus.Mediation` source and meter) and are stable consumer contract:
+Mediation telemetry is recorded by default and exported through `LiteBus.Messaging.Extensions.OpenTelemetry` (`AddLiteBusMediationInstrumentation`, `AddLiteBusMediationMetrics`). Names live on `LiteBusMediationTelemetry` (`LiteBus.Mediation` source and meter) and form a stable consumer contract:
 
 | Instrument | Default | Records |
 | --- | --- | --- |
@@ -143,7 +151,7 @@ Mediation telemetry is recorded by default and exported through `LiteBus.Messagi
 | `litebus.mediation.decisions` | On | Decision counter tagged by stage (`litebus.stage`) and handler (`litebus.decided_by`) |
 | `litebus.mediation.stage.duration` | Off | Per-stage duration histogram (`StageMetrics`) |
 
-One span per mediation is on by default; per-stage spans are opt-in (`StageSpans`). Select both through `MessageModuleBuilder.UseTelemetry(new MediationTelemetryOptions { StageSpans = true, StageMetrics = true })`. Only a `Failed` outcome sets the error status; denials and validation refusals keep a success status so error views show faults only.
+One span per mediation is on by default, and per-stage spans are opt-in (`StageSpans`). Select both through `MessageModuleBuilder.UseTelemetry(new MediationTelemetryOptions { StageSpans = true, StageMetrics = true })`. Only a `Failed` outcome sets the error status. Denials and validation refusals keep a success status, so error views show faults only.
 
 Operational alternatives:
 - Add application logs in pre/post/error handlers.
@@ -208,7 +216,7 @@ Operational alternatives:
 - Broker transport ingress/dispatch pipelines.
 - Durable inbox/outbox processor pipeline behaviors.
 
-## Deep Docs
+## References
 
 - [The handler pipeline](../../concepts/handler-pipeline.md)
 - [Execution context](../../concepts/execution-context.md)

@@ -38,7 +38,7 @@ These methods subscribe to public constants from `LiteBusInboxTelemetry`.
 
 ## Invariants
 
-- Extension methods validate null builders.
+- The extension methods reject null builders.
 - Metric and activity source names are stable consumer contracts.
 
 ## Non-Goals
@@ -48,7 +48,7 @@ These methods subscribe to public constants from `LiteBusInboxTelemetry`.
 
 ## Observability
 
-Registers inbox source/meter only. Actual instrument emission comes from inbox runtime components.
+These methods register the inbox source and meter only. The inbox runtime components emit the actual instruments.
 
 ## Test Coverage
 
@@ -58,7 +58,7 @@ Registers inbox source/meter only. Actual instrument emission comes from inbox r
 
 - **Use case**: stable telemetry contract names
 - **Test kind**: Integration
-- **Description**: validates public constants on inbox telemetry type
+- **Description**: validates the public constants on the inbox telemetry type
 - **Behavior**: reads constant values
 - **Expected outcome**: source and meter names match expected stable values
 - **Remarks**: `tests/LiteBus.Extensions.IntegrationTests/OpenTelemetry/LiteBusInboxOpenTelemetryIntegrationTests.cs`
@@ -67,8 +67,8 @@ Registers inbox source/meter only. Actual instrument emission comes from inbox r
 
 - **Use case**: tracing registration scope
 - **Test kind**: Integration
-- **Description**: builds tracer provider with inbox instrumentation extension
-- **Behavior**: starts activity from inbox source and unrelated source
+- **Description**: builds the tracer provider with the inbox instrumentation extension
+- **Behavior**: starts activity from the inbox source and an unrelated source
 - **Expected outcome**: inbox activity is captured, unrelated source activity is not
 - **Remarks**: `tests/LiteBus.Extensions.IntegrationTests/OpenTelemetry/LiteBusInboxOpenTelemetryIntegrationTests.cs`
 
@@ -76,8 +76,8 @@ Registers inbox source/meter only. Actual instrument emission comes from inbox r
 
 - **Use case**: metrics registration scope
 - **Test kind**: Integration
-- **Description**: builds meter provider with inbox metrics extension and meter listener
-- **Behavior**: records inbox metric from inbox meter
+- **Description**: builds the meter provider with the inbox metrics extension and a meter listener
+- **Behavior**: records an inbox metric from the inbox meter
 - **Expected outcome**: listener observes inbox meter name
 - **Remarks**: `tests/LiteBus.Extensions.IntegrationTests/OpenTelemetry/LiteBusInboxOpenTelemetryIntegrationTests.cs`
 
@@ -85,13 +85,13 @@ Registers inbox source/meter only. Actual instrument emission comes from inbox r
 
 | Gap | Priority | Notes |
 | --- | --- | --- |
-| End-to-end exporter payload shape for inbox metrics and traces | Low | Exporters are application-owned and not tested in-repo. |
+| End-to-end exporter payload shape for inbox metrics and traces | Low | Exporters are application-owned and not tested in this repository. |
 
 ### Out-of-Scope Use Cases
 
 - OTLP endpoint lifecycle and retention policy.
 
-## Deep Docs
+## References
 
 - [Hosted services](../../architecture/hosted-services.md)
 - [Architecture](../../architecture/README.md)

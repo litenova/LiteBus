@@ -54,9 +54,9 @@ builder.Services.AddLiteBus(builder =>
 | `correlation_id`, `causation_id`, `tenant_id` | Optional metadata |
 | `trace_context` | Optional distributed trace payload (`jsonb` on PostgreSQL) |
 
-Operators query `last_error`, `error_type`, `last_lease_owner`, and the forensic timestamps; processors use `status`, `visible_after`, `lease_expires_at`, and `lease_generation`.
+Operators query `last_error`, `error_type`, `last_lease_owner`, and the forensic timestamps. Processors use `status`, `visible_after`, `lease_expires_at`, and `lease_generation`.
 
-Indexes: unique filtered index on `(tenant_id, idempotency_key)`; composite index on `(status, visible_after, lease_expires_at, created_at)` for eligibility; chronological index `IX_LiteBus_Inbox_CreatedAt` for ordered lease scans. Null or whitespace `tenant_id` values normalize to an empty string for idempotency scope.
+The indexes are a unique filtered index on `(tenant_id, idempotency_key)`, a composite index on `(status, visible_after, lease_expires_at, created_at)` for eligibility, and a chronological index `IX_LiteBus_Inbox_CreatedAt` for ordered lease scans. Null or whitespace `tenant_id` values normalize to an empty string for idempotency scope.
 
 Override names with `EntityFrameworkCoreInboxStoreOptions`:
 
@@ -116,9 +116,9 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 | MySQL / MariaDB | `Pomelo.EntityFrameworkCore.MySql` | Current connection database | `TEXT` |
 | SQLite | `Microsoft.EntityFrameworkCore.Sqlite` | None | `TEXT` |
 
-When the provider argument is omitted, LiteBus leaves payload and trace columns for application-owned fluent configuration. PostgreSQL tables created from LiteBus scripts use `text` for `payload` and `jsonb` for `trace_context`; the EF model must use the same types when it shares those tables.
+When the provider argument is omitted, LiteBus leaves payload and trace columns for application-owned fluent configuration. PostgreSQL tables created from LiteBus scripts use `text` for `payload` and `jsonb` for `trace_context`. The EF model must use the same types when it shares those tables.
 
-Optional lease override when inference from the active `DbContext` is not enough:
+Set an optional lease override when inference from the active `DbContext` is not enough:
 
 ```csharp
 options.UseOptions(new EntityFrameworkCoreInboxStoreOptions
@@ -136,9 +136,9 @@ options.UseOptions(new EntityFrameworkCoreInboxStoreOptions
 | `ReturnExisting` (default) | Returns the existing receipt with `InboxAcceptOutcome.AlreadyAccepted`. |
 | `Strict` | Throws `IdempotencyConflictException` before `SaveChanges`, but only when the conflicting row differs. A byte-identical replay returns the existing receipt. |
 
-`Strict` compares message id, contract name, contract version, payload, idempotency key, correlation id, causation id, and tenant id. Rows that match on all eight fields return the stored receipt; any difference throws.
+`Strict` compares message id, contract name, contract version, payload, idempotency key, correlation id, causation id, and tenant id. Rows that match on all eight fields return the stored receipt. Any difference throws.
 
-The `LiteBusInboxSaveChangesInterceptor` path does not dedupe at accept time. A duplicate `(tenant_id, idempotency_key)` pair in the same `SaveChanges` batch surfaces as a `DbUpdateException` from the unique index and aborts the caller transaction.
+The `LiteBusInboxSaveChangesInterceptor` path does not deduplicate at accept time. A duplicate `(tenant_id, idempotency_key)` pair in the same `SaveChanges` batch surfaces as a `DbUpdateException` from the unique index and aborts the caller transaction.
 
 ## Alignment with PostgreSQL `CurrentSchemaVersion`
 
@@ -148,13 +148,13 @@ Generate the complete current model into a new table when an existing table has 
 
 ## Processing Notes
 
-`EfCoreInboxStore` uses EF for writes and state updates. Leasing uses provider-specific skip-locked SQL for PostgreSQL (`FOR UPDATE SKIP LOCKED`), SQL Server (`UPDLOCK`, `READPAST`, `ROWLOCK`), and MySQL (`FOR UPDATE SKIP LOCKED` inside a `READ COMMITTED` transaction). MySQL migrations must include `IX_LiteBus_Inbox_CreatedAt`; the lease query selects this index to avoid range locks and deadlocks during ordered concurrent claims.
+`EfCoreInboxStore` uses EF for writes and state updates. Leasing uses provider-specific skip-locked SQL for PostgreSQL (`FOR UPDATE SKIP LOCKED`), SQL Server (`UPDLOCK`, `READPAST`, `ROWLOCK`), and MySQL (`FOR UPDATE SKIP LOCKED` inside a `READ COMMITTED` transaction). MySQL migrations must include `IX_LiteBus_Inbox_CreatedAt`. The lease query selects this index to avoid range locks and deadlocks during ordered concurrent claims.
 
 SQLite is supported through a file-backed database. Model configuration stores every durable `DateTimeOffset` as UTC ticks so eligibility filters and chronological queries remain server-side. SQLite allows one writer at a time, so the store wraps each claim in a serializable transaction. Use PostgreSQL, SQL Server, or MySQL when concurrent write throughput exceeds that constraint.
 
 The in-memory EF provider uses a process lock for unit tests.
 
-Register storage and a dispatcher before `EnableInboxProcessor()`; module build fails when the processor is enabled without a dispatcher. Schema initializers from the PostgreSQL package do not apply to EF storage.
+Register storage and a dispatcher before `EnableInboxProcessor()`. Module build fails when the processor is enabled without a dispatcher. Schema initializers from the PostgreSQL package do not apply to EF storage.
 
 ## Related Docs
 

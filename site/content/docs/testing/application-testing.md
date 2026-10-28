@@ -1,12 +1,12 @@
 # Testing LiteBus
 
-Handlers take dependencies through constructors, so a test calls the handler method directly with doubles, and integration tests run the wired pipeline through a real service provider. This page covers both levels: unit tests for handler logic, host-based tests for the mediation pipeline and durable processors, and the test-double packages LiteBus ships. It assumes you have read [Getting Started](../getting-started/README.md).
+LiteBus handlers take dependencies through constructors, so a test can call the handler method directly with doubles, while integration tests run the wired pipeline through a real service provider. This page covers both levels: unit tests for handler logic, host-based tests for the mediation pipeline and durable processors, and the test-double packages LiteBus ships. It assumes you have read [Getting Started](../getting-started/README.md).
 
 ## Unit Testing Handlers
 
-Handlers take dependencies through constructors, so a test calls the handler method directly with doubles. LiteBus infrastructure is not needed to test handler logic.
+LiteBus infrastructure is not needed to test handler logic. Construct the handler with doubles and call its method directly.
 
-### Example: Unit Testing a Command Handler
+### Unit Testing a Command Handler
 
 Given a command handler that creates a product:
 
@@ -72,7 +72,7 @@ This same approach applies to pre-handlers, post-handlers, and error handlers.
 
 To test the entire mediation pipeline, including pre-handlers, the main handler, and post-handlers, you can use an in-memory test setup.
 
-### Example: Integration Testing a Command Pipeline
+### Integration Testing a Command Pipeline
 
 Consider a pipeline with a validator (pre-handler) and a notifier (post-handler).
 
@@ -132,7 +132,7 @@ public class CommandIntegrationTests
 
 Keep the `Mock<IEventMediator>` in a field for `Verify` and register its `.Object`. The container holds an `IEventMediator` instance, so resolving `Mock<IEventMediator>` from the provider throws. Alternatively, use the recording `TestEventMediator` from `LiteBus.Testing.Mediation` and assert against its `Events` collection.
 
-## Testing Code That Uses Mediators
+## Testing Code that Uses Mediators
 
 When testing a class that depends on a mediator (e.g., a controller), you can mock the mediator interface to isolate the class from the LiteBus pipeline.
 
@@ -167,10 +167,10 @@ public async Task ProductsController_Create_ShouldReturnCreatedResult()
 | Double | Records | Returns |
 | --- | --- | --- |
 | `TestCommandMediator` | `Commands` for `SendAsync` and `TrySendAsync`; `Evaluated` for `EvaluateAsync` | `default(TCommandResult)` for result sends; `MediationResult.Succeeded()` for `TrySendAsync`; `MediationDecision.Allowed` for `EvaluateAsync` |
-| `TestQueryMediator` | `Queries` for `QueryAsync`, `StreamAsync`, and `TryQueryAsync`; `Evaluated` for `EvaluateAsync` | `NextResult` cast to the query result type, consumed once per call; a stub of the wrong type throws `InvalidCastException` |
+| `TestQueryMediator` | `Queries` for `QueryAsync`, `StreamAsync`, and `TryQueryAsync`; `Evaluated` for `EvaluateAsync` | `NextResult` cast to the query result type, consumed once per call. A stub of the wrong type throws `InvalidCastException` |
 | `TestEventMediator` | `Events` for both `PublishAsync` overloads | Nothing to return |
 
-Each double has a `Clear` method that empties its recordings. All doubles are thread-safe and their recording properties return snapshots, so concurrent sends are all recorded and a held reference never observes later messages. `NextResult` is single-use: each query, stream, or tried query consumes it, so stub it before every call. Use them when the test asserts that a message was sent, not what the pipeline did with it:
+Each double has a `Clear` method that empties its recordings. All doubles are thread-safe and their recording properties return snapshots, so concurrent sends are all recorded and a held reference never observes later messages. `NextResult` is single-use. Each query, stream, or tried query consumes it, so stub it before every call. Use them when the test asserts that a message was sent, not what the pipeline did with it:
 
 ```csharp
 var commands = new TestCommandMediator();
@@ -185,7 +185,7 @@ A recording double runs no guards, so `EvaluateAsync` can only answer that nothi
 
 ## Integration Testing with Open Generic Handlers
 
-Open generic handlers can be verified in integration tests the same way as any other pipeline handler. The key is to register the open generic alongside concrete handlers and assert that it participates in the pipeline.
+Open generic handlers can be verified in integration tests the same way as any other pipeline handler. Register the open generic alongside concrete handlers and assert that it participates in the pipeline.
 
 ```csharp
 public class OpenGenericHandlerIntegrationTests
@@ -279,7 +279,7 @@ If you build a `MessageRegistry` manually in a test (not through `AddLiteBus`), 
 
 ## Testing Durable Messaging
 
-Inbox and outbox tests follow the same pattern: register the core module, InMemory or PostgreSQL storage, a dispatcher, then drive acceptance or enqueue followed by `ProcessPendingAsync` on the processor.
+Inbox and outbox tests follow the same pattern. Register the core module, InMemory or PostgreSQL storage, and a dispatcher, then drive acceptance or enqueue followed by `ProcessPendingAsync` on the processor.
 
 ### Inbox Processor Test
 
@@ -340,7 +340,7 @@ var store = new InMemoryInboxStore();
 services.AddInboxStoreRoles(store);
 ```
 
-Use the same pattern with `AddOutboxStoreRoles` for outbox tests. Shared contract suites in `LiteBus.Storage.Testing` inherit `InboxStoreContractTests` and `OutboxStoreContractTests` to validate leasing, retry visibility, dead-letter, and lease reclaim across store implementations.
+Use the same pattern with `AddOutboxStoreRoles` for outbox tests. To validate leasing, retry visibility, dead-letter, and lease reclaim across store implementations, inherit `InboxStoreContractTests` and `OutboxStoreContractTests` from the shared contract suites in `LiteBus.Storage.Testing`.
 
 ### Inbox and Outbox Test Host
 
@@ -383,7 +383,7 @@ Assert.Equal(InboxStatus.Completed, envelope.Status);
 
 ### Testing the Outbox Without a Database
 
-`AddTestTransactionalOutbox` binds one shared `TestOutboxStore` to every outbox role and registers an in-memory `ITransactionalOutbox`, so application tests enqueue through the transactional API and drive the processor without a database. Call it after `AddLiteBus` so the test roles win over module registrations, resolve the transactional outbox from a scope, then run `DrainOutboxAsync` to publish everything pending in one call without polling waits:
+`AddTestTransactionalOutbox` binds one shared `TestOutboxStore` to every outbox role and registers an in-memory `ITransactionalOutbox`, so application tests enqueue through the transactional API and drive the processor without a database. Call it after `AddLiteBus` so the test roles take precedence over module registrations. Then resolve the transactional outbox from a scope and run `DrainOutboxAsync` to publish everything pending in one call without polling waits:
 
 ```csharp
 var store = new TestOutboxStore();
@@ -423,7 +423,7 @@ Assert.Equal(3, scripted.GetAttemptCount("orders.placed"));
 Assert.Equal(OutboxStatus.Published, store.Get(paymentReceipt.Id).Status);
 ```
 
-`ScriptedOutboxDispatcher` fails scripted contract names while the rest dispatch normally: `FailNext` fails the next N dispatches of one contract, `FailAlways` fails every dispatch until cleared, `GetAttemptCount` reports per-contract attempts, and `AttemptedEnvelopes` and `DispatchedEnvelopes` record what the processor tried. Without an inner dispatcher, unscripted dispatches succeed and are recorded; pass an inner dispatcher to decorate a real transport and prove retry, backoff, and dead-letter transitions against it. A canceled dispatch throws `OperationCanceledException` without consuming a script or touching inner.
+`ScriptedOutboxDispatcher` fails scripted contract names while the rest dispatch normally. `FailNext` fails the next N dispatches of one contract, `FailAlways` fails every dispatch until cleared, `GetAttemptCount` reports per-contract attempts, and `AttemptedEnvelopes` and `DispatchedEnvelopes` record what the processor tried. Without an inner dispatcher, unscripted dispatches succeed and are recorded. Pass an inner dispatcher to decorate a real transport and prove retry, backoff, and dead-letter transitions against it. A canceled dispatch throws `OperationCanceledException` without consuming a script or calling the inner dispatcher.
 
 A fixed test dispatcher module is application-owned glue, written once per test project:
 
@@ -452,7 +452,7 @@ StoreSchemaContract.AssertCompatible(
     new StoreSchemaExpectation { Component = "outbox", ExpectedVersion = 1, RecordedVersion = 1 });
 ```
 
-Three limits apply. The in-memory transactional outbox writes immediately because there is no transaction to enlist in, so it proves enqueue and processor behavior, not rollback. A drain stops when a pass leases nothing, so rows hidden behind a retry backoff need a manual clock advance plus another drain; a drain that still leases after `maxPasses` throws `InvalidOperationException`. The schema assertion checks component, version, and pinned schema and table names only, because `StoreSchemaInfo` exposes no column list. Inbox twins exist: `DrainInboxAsync`, the `IInboxDiagnosticsStore` overload of `AssertCompatibleAsync`, and `AddTestTransactionalInbox`, which binds one shared `TestInboxStore` to every inbox role plus an in-memory `ITransactionalInbox`.
+Three limits apply. The in-memory transactional outbox writes immediately because there is no transaction to enlist in, so it proves enqueue and processor behavior, not rollback. A drain stops when a pass leases nothing, so rows hidden behind a retry backoff need a manual clock advance plus another drain. A drain that still leases after `maxPasses` throws `InvalidOperationException`. The schema assertion checks component, version, and pinned schema and table names only, because `StoreSchemaInfo` exposes no column list. The inbox has matching helpers: `DrainInboxAsync`, the `IInboxDiagnosticsStore` overload of `AssertCompatibleAsync`, and `AddTestTransactionalInbox`, which binds one shared `TestInboxStore` to every inbox role plus an in-memory `ITransactionalInbox`.
 
 ### Transport Publisher Double
 
@@ -479,7 +479,7 @@ It has no consume loop and no acknowledgement semantics. Tests for ingress behav
 
 ### Host Lifecycle Helpers
 
-`LiteBusHostedServiceExtensions`, from `LiteBus.Testing.Hosting`, drives the generic host adapters in tests without building a host. `StartLiteBusHostedServicesAsync` starts every registered `IHostedService`, not only LiteBus ones; `StopLiteBusHostedServicesAsync` stops them in reverse registration order. `GetInboxProcessorHostedService` resolves the adapter that runs the inbox processor loop, and `AssertBackgroundServices` compares the manifest background services against expected implementation types and throws `InvalidOperationException` with an expected-versus-actual diff on mismatch:
+`LiteBusHostedServiceExtensions`, from `LiteBus.Testing.Hosting`, drives the generic host adapters in tests without building a host. `StartLiteBusHostedServicesAsync` starts every registered `IHostedService`, not only LiteBus ones. `StopLiteBusHostedServicesAsync` stops them in reverse registration order. `GetInboxProcessorHostedService` resolves the adapter that runs the inbox processor loop, and `AssertBackgroundServices` compares the manifest background services against expected implementation types and throws `InvalidOperationException` with an expected-versus-actual diff on mismatch:
 
 ```csharp
 await LiteBusHostedServiceExtensions.StartLiteBusHostedServicesAsync(provider, CancellationToken.None);
@@ -515,7 +515,7 @@ services.AddLiteBus(builder =>
 timeProvider.Advance(TimeSpan.FromMinutes(2));
 ```
 
-Registering the clock directly with `services.AddSingleton<TimeProvider>(timeProvider)` does not work: module composition registers its own `TimeProvider` binding, so a directly registered clock never reaches writers or lease checks. `InboxOutboxTestHost.Create` applies this builder pattern for its `timeProvider` argument.
+Registering the clock directly with `services.AddSingleton<TimeProvider>(timeProvider)` does not work. Module composition registers its own `TimeProvider` binding, so a directly registered clock never reaches writers or lease checks. `InboxOutboxTestHost.Create` applies this builder pattern for its `timeProvider` argument.
 
 See [Testing](README.md) for InMemory processor recipes and quick CI filters. For the complete integration test map (projects, Docker setup, scenario matrices), see [Integration Tests](integration-tests.md).
 
@@ -543,12 +543,12 @@ dotnet test LiteBus.slnx --filter "FullyQualifiedName!~PostgreSql"
 
 Each level needs a different LiteBus package:
 
-1.  **Handler logic**: call the handler method directly with test doubles for its constructor dependencies. No LiteBus package is needed.
-2.  **One message's pipeline**: run `MediationHarness` from `LiteBus.Testing.Mediation` over supplied handler instances to assert stages, outcomes, and decisions.
-3.  **Wired mediator**: build a real provider with `AddLiteBus` and send through `ICommandMediator`, `IQueryMediator`, or `IEventMediator` to prove registration, lifetimes, and stage composition.
-4.  **Durable processors**: register InMemory storage with `UseInProcessDispatch` and drive `AcceptAsync` or `EnqueueAsync` followed by `ProcessPendingAsync`. Inherit the shared store contract suites in `LiteBus.Storage.Testing` when validating a custom store.
-5.  **Repositories behind handlers**: use the EF Core InMemory provider or a Testcontainers database so integration tests stay isolated.
-6.  **`WebApplicationFactory`**: register LiteBus modules inside each factory's `ConfigureTestServices` so handler discovery uses that factory's own `IMessageRegistry` instance.
+1.  Test handler logic by calling the handler method directly with test doubles for its constructor dependencies. No LiteBus package is needed.
+2.  Test one message's pipeline by running `MediationHarness` from `LiteBus.Testing.Mediation` over supplied handler instances, and assert stages, outcomes, and decisions.
+3.  Test the wired mediator by building a real provider with `AddLiteBus` and sending through `ICommandMediator`, `IQueryMediator`, or `IEventMediator`, to prove registration, lifetimes, and stage composition.
+4.  Test durable processors by registering InMemory storage with `UseInProcessDispatch` and driving `AcceptAsync` or `EnqueueAsync` followed by `ProcessPendingAsync`. When validating a custom store, inherit the shared store contract suites in `LiteBus.Storage.Testing`.
+5.  Test repositories behind handlers with the EF Core InMemory provider or a Testcontainers database, so integration tests stay isolated.
+6.  For `WebApplicationFactory`, register LiteBus modules inside each factory's `ConfigureTestServices`, so handler discovery uses that factory's own `IMessageRegistry` instance.
 
 ## Next
 

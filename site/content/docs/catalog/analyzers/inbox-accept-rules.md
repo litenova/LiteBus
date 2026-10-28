@@ -11,9 +11,9 @@
 
 `LB1004` reports when:
 
-- Invocation target is `AcceptAsync` or `AcceptBatchAsync`.
-- Receiver type is `IInbox`, `ITransactionalInbox`, `ITransactionalInbox<TContext>`, or a type implementing any of them.
-- Message type implements `ICommand<TResult>`.
+- The invocation target is `AcceptAsync` or `AcceptBatchAsync`.
+- The receiver type is `IInbox`, `ITransactionalInbox`, `ITransactionalInbox<TContext>`, or a type implementing any of them.
+- The message type implements `ICommand<TResult>`.
 
 Batch detection includes:
 
@@ -21,7 +21,7 @@ Batch detection includes:
 - `InboxAcceptItem<T>` and `InboxAcceptItem.From(...)` item shapes.
 - Explicit generic calls such as `AcceptAsync<CreateUserCommand>(...)`.
 
-Untyped items resolve through `MessageType = typeof(X)` when present, else through the `Message` assignment, mirroring the runtime contract lookup. Arguments match parameters by name, so reordered named arguments resolve correctly. Batches that are not inline at the call site, such as a method result, a parameter, or a field, are statically opaque and stay silent, because their element type is always `InboxAcceptItem`.
+An untyped item resolves through `MessageType = typeof(X)` when that property is present, and through the `Message` assignment otherwise, mirroring the runtime contract lookup. Arguments match parameters by name, so reordered named arguments resolve correctly. A batch that is not inline at the call site, such as a method result, a parameter, or a field, stays silent, because the analyzer cannot see past its static element type of `InboxAcceptItem`.
 
 ## Bad Example
 
@@ -63,8 +63,8 @@ public sealed class PaymentService
 
 ## Suppression Guidance
 
-- Do not suppress for production code paths, convert stored commands to result-less `ICommand`.
-- If a result is required immediately, send with `ICommandMediator` instead of storing through inbox.
+- Do not suppress this rule on production code paths. Convert stored commands to result-less `ICommand` instead.
+- If a result is required immediately, send with `ICommandMediator` instead of storing through the inbox.
 - Keep any suppression local to migrations where old message contracts cannot be changed yet.
 
 ## Test Coverage

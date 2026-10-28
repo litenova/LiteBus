@@ -9,9 +9,9 @@
 
 ## What It Does
 
-`LiteBus.Extensions.Diagnostics.HealthChecks` registers `LiteBusHealthCheck` that executes manifest probes using `DiagnosticCheckRunner`. The option `FailHealthWhenNoProbes` controls whether empty probe lists report degraded or healthy. `DiagnosticChecks` configures the timeout and maximum parallel probe count.
+The `LiteBus.Extensions.Diagnostics.HealthChecks` package registers `LiteBusHealthCheck`, which runs the manifest probes through `DiagnosticCheckRunner`. The option `FailHealthWhenNoProbes` controls whether an empty probe list reports degraded or healthy. `DiagnosticChecks` sets the per-probe timeout and the maximum number of probes that run at the same time.
 
-The health check maps aggregated diagnostic status into ASP.NET health statuses and includes probe details in health data payload.
+The health check maps aggregated diagnostic status into ASP.NET health statuses and includes probe details in the health data payload.
 
 ## Public Surface
 
@@ -24,7 +24,7 @@ The health check maps aggregated diagnostic status into ASP.NET health statuses 
 - `LiteBusHealthCheckOptions.FailHealthWhenNoProbes` (default `true`)
 - `LiteBusHealthCheckOptions.DiagnosticChecks.Timeout` (default 5 seconds per probe)
 - `LiteBusHealthCheckOptions.DiagnosticChecks.MaxParallelism` (default 4)
-- `LiteBusHealthCheckOptions.DiagnosticChecks.RunTimeout` (default `null`, deriving the worst-case budget from probe count, parallelism, and timeout)
+- `LiteBusHealthCheckOptions.DiagnosticChecks.RunTimeout` (default `null`, which derives the worst-case budget from probe count, parallelism, and timeout)
 
 ### Consumer Contracts
 
@@ -55,9 +55,9 @@ The health check maps aggregated diagnostic status into ASP.NET health statuses 
 
 - Health check data contains a `probes` array with per-probe name, status, description, and data.
 - Aggregate mapping:
-  - all healthy -> healthy
-  - any unhealthy -> unhealthy
-  - degraded-only or fail-on-empty path -> degraded
+  - all healthy maps to healthy
+  - any unhealthy maps to unhealthy
+  - degraded-only or the fail-on-empty path maps to degraded
 
 ## Test Coverage
 
@@ -103,12 +103,12 @@ The health check maps aggregated diagnostic status into ASP.NET health statuses 
 
 | Gap | Priority | Notes |
 | --- | --- | --- |
-| Custom health check registration name collisions | Low | Extension accepts custom name but collision behavior relies on ASP.NET health-check registry. |
+| Custom health check registration name collisions | Low | The extension accepts a custom name, but collision behavior relies on the ASP.NET health-check registry. |
 
 ### Out-of-Scope Use Cases
 
 - Prometheus/Grafana dashboards for health checks.
 
-## Deep Docs
+## References
 
 - [Diagnostics and health](../../operations/diagnostics-and-health.md)

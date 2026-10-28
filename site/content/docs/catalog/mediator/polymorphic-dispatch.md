@@ -9,11 +9,11 @@
 ## What It Does
 
 Polymorphic dispatch uses `ActualTypeOrFirstAssignableTypeMessageResolveStrategy`:
-1. Try exact type (or generic type definition for constructed generics).
+1. Try the exact type (or the generic type definition for constructed generics).
 2. Otherwise pick the most-derived assignable descriptor.
-3. Throw `AmbiguousMessageResolveException` when multiple assignable descriptors share top depth.
+3. Throw `AmbiguousMessageResolveException` when multiple assignable descriptors share the top depth.
 
-Pipeline stages also run indirect handlers for assignable base/interface types. This enables cross-cutting behavior on shared marker interfaces while preserving strict single-handler rules for command/query main handlers.
+Pipeline stages also run indirect handlers for assignable base and interface types. That enables cross-cutting behavior on shared marker interfaces while preserving the strict single-handler rules for command and query main handlers.
 
 ## Public Surface
 
@@ -31,8 +31,8 @@ public sealed class BasePolymorphicCommandHandler : ICommandHandler<BasePolymorp
 | API | Role |
 | --- | --- |
 | `ActualTypeOrFirstAssignableTypeMessageResolveStrategy` | Descriptor resolution strategy |
-| `AmbiguousMessageResolveException` | Ambiguous polymorphic match guard; `Candidates` names the registered types that tied |
-| Indirect handler collections on message descriptors | Base/interface pre, post, error, and main handler linkage |
+| `AmbiguousMessageResolveException` | Ambiguous polymorphic match guard. `Candidates` names the registered types that tied for the top depth |
+| Indirect handler collections on message descriptors | Linkage for base and interface pre, post, error, and main handlers |
 
 ## Packages
 
@@ -47,10 +47,10 @@ public sealed class BasePolymorphicCommandHandler : ICommandHandler<BasePolymorp
 
 ## Invariants
 
-- Exact descriptor match wins before assignable candidates.
+- An exact descriptor match wins over assignable candidates.
 - Ambiguous highest-depth assignable candidates throw instead of choosing arbitrarily.
 - Single-handler mediators still enforce one main handler after polymorphic resolution.
-- Metadata and audit reads follow the same resolution: an unregistered runtime type reads the metadata of the descriptor it mediates through.
+- Metadata and audit reads follow the same resolution. An unregistered runtime type reads the metadata of the descriptor it mediates through.
 - Generic message resolution normalizes by generic type definition first.
 
 ## Non-Goals
@@ -88,7 +88,7 @@ Operational alternatives:
 - Automatic ambiguity conflict resolution policies.
 - Runtime descriptor ranking configuration.
 
-## Deep Docs
+## References
 
 - [Polymorphic dispatch](../../concepts/polymorphic-dispatch.md)
 - [The handler pipeline](../../concepts/handler-pipeline.md)

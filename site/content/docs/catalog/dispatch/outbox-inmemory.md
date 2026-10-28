@@ -9,7 +9,7 @@
 
 ## What It Does
 
-`AddInMemoryTransport()` registers `InMemoryTransportModule` at the root. `UseInMemoryDispatch` on `OutboxModuleBuilder` registers shared transport outbox dispatch as a feature bridge. This simulates broker publication for integration tests and sample multi-module hosts running in one process.
+`AddInMemoryTransport()` registers `InMemoryTransportModule` at the root. `UseInMemoryDispatch` on `OutboxModuleBuilder` registers the shared transport outbox dispatch as a feature bridge. This simulates broker publication for integration tests and for sample multi-module hosts that run in one process.
 
 ## Packages
 
@@ -27,14 +27,14 @@
 
 ## Invariants
 
-- Default hook failure policy: `CompleteDespiteHookFailure`.
-- Same at-least-once processor semantics as broker outbox dispatch.
-- Destination name must align with consumer/InMemory ingress configuration in tests.
+- The default hook failure policy is `CompleteDespiteHookFailure`.
+- It has the same at-least-once processor semantics as broker outbox dispatch.
+- The destination name must align with the consumer or InMemory ingress configuration in tests.
 
 ## Non-Goals
 
-- Not a production message bus.
-- Does not provide cross-process delivery.
+- It is not a production message bus.
+- It does not provide cross-process delivery.
 
 ## Public Surface
 
@@ -56,21 +56,21 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `OutboxModuleBuilder.UseInMemoryDispatch(Action<TransportOutboxDispatcherOptions>? configure = null)` | Registers outbox transport dispatcher that requires the root in-memory transport |
-| `TransportOutboxDispatchModule<TTransportModule>.DefaultHookFailurePolicy` | Defaults to `CompleteDespiteHookFailure` |
-| `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | Shared outbox publish flow over in-process channel transport |
+| `OutboxModuleBuilder.UseInMemoryDispatch(Action<TransportOutboxDispatcherOptions>? configure = null)` | Registers the outbox transport dispatcher, which requires the root in-memory transport |
+| `TransportOutboxDispatchModule<TTransportModule>.DefaultHookFailurePolicy` | The policy defaults to `CompleteDespiteHookFailure` |
+| `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | The shared outbox publish flow over the in-process channel transport |
 
 ## Observability
 
 | Signal | Detail |
 | --- | --- |
-| `send {destination}` | In-memory publisher span per simulated broker send |
-| `litebus.outbox.processor.published` / `failed` | Terminal store outcomes |
-| `litebus.outbox.processor.persist_skipped` | Relevant when testing at-least-once republication scenarios |
+| `send {destination}` | An in-memory publisher span per simulated broker send |
+| `litebus.outbox.processor.published` / `failed` | The terminal store outcomes |
+| `litebus.outbox.processor.persist_skipped` | It supports tests of at-least-once republication scenarios |
 
-`InMemoryOutboxAtLeastOnceIntegrationTests` documents crash-between-publish-and-persist behavior at the processor layer.
+`InMemoryOutboxAtLeastOnceIntegrationTests` documents the crash-between-publish-and-persist behavior at the processor layer.
 
-## Deep Docs
+## References
 
 - [Outbox.md](../../reliable-messaging/outbox.md)
 - [Integration-Tests.md](../../testing/integration-tests.md)
@@ -88,9 +88,9 @@ services.AddLiteBus(litebus =>
 
 ### Untested
 
-- Hook failure path with `CompleteDespiteHookFailure`.
+- The hook failure path with `CompleteDespiteHookFailure`.
 - Tenant routing strategy and route resolver overrides.
-- Cross-process outbox to inbox topology (adapter is in-process only).
+- A cross-process outbox to inbox topology. The adapter is in-process only.
 
 ### Out-of-Scope
 

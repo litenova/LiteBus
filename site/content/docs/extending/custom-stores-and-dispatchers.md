@@ -4,11 +4,11 @@ The inbox and outbox modules define storage as narrow interfaces and ship Postgr
 
 ## Custom Stores and Transactional Writes
 
-You do not reimplement contract resolution or serialization. Implement the store roles and let callers use `IInboxEnvelopeFactory` / `IOutboxEnvelopeFactory` with `StoreBoundTransactionalInbox` / `StoreBoundTransactionalOutbox`, or expose `ITransactionalInboxStore` / `ITransactionalOutboxStore` that writes inside the caller's transaction without committing independently.
+You do not reimplement contract resolution or serialization. Implement the store roles. Let callers use `IInboxEnvelopeFactory` / `IOutboxEnvelopeFactory` with `StoreBoundTransactionalInbox` / `StoreBoundTransactionalOutbox`, or expose `ITransactionalInboxStore` / `ITransactionalOutboxStore` that writes inside the caller's transaction without committing independently.
 
-Participation patterns and registration examples: [Transactional messaging writes](../reliable-messaging/transactional-writes.md).
+Participation patterns and registration examples are on [Transactional messaging writes](../reliable-messaging/transactional-writes.md).
 
-## Why the Roles Are Split
+## Role Separation
 
 Acceptance code, the leasing processor, and result recording are separated so callers depend on minimal surfaces. A single class may implement all roles against one table, which is what built-in stores do.
 
@@ -51,7 +51,7 @@ Register built-in dispatchers through nested `Use*` extensions:
 | Inbox | `UseInProcessDispatch()`: `LiteBus.Inbox.Dispatch.InProcess` | Root `AddAmqpTransport(...)` plus `UseAmqpDispatch(...)`: `LiteBus.Inbox.Dispatch.Amqp`; root `AddInMemoryTransport()` plus `UseInMemoryDispatch(...)`: `LiteBus.Inbox.Dispatch.InMemory` |
 | Outbox | `UseInProcessDispatch()`: `LiteBus.Outbox.Dispatch.InProcess` | Root `AddAmqpTransport(...)` plus `UseAmqpDispatch(...)`: `LiteBus.Outbox.Dispatch.Amqp`; root `AddInMemoryTransport()` plus `UseInMemoryDispatch(...)`: `LiteBus.Outbox.Dispatch.InMemory` |
 
-Throw when dispatch fails; the processor records retry or dead-letter state from the exception.
+Throw when dispatch fails. The processor records retry or dead-letter state from the exception.
 
 ## Registering Custom Implementations
 
@@ -67,15 +67,15 @@ builder.AddInbox(inbox =>
 });
 ```
 
-## Guarantees Your Implementation Must Hold
+## Implementation Guarantees
 
-- **Idempotent append.** Repeated idempotency key returns the existing row.
-- **Atomic lease.** Two workers must never hold the same row at once.
-- **Reclaimable expiry.** Expired leases become claimable again.
-- **Generation fence.** Every acquisition increments a monotonic generation. Renewal and terminal persistence require owner plus generation.
-- **Lease release.** Implement `ILeaseRenewable.ReleaseLeaseAsync`: return the row to `Pending` (or `Failed` when it already carries an error) with the lease cleared, `AttemptCount` decremented, and visibility unchanged. The default returns `false`, in which case a shutdown or drain still spends an attempt.
-- **Authoritative clock.** Relational implementations calculate eligibility and expiry from database time, not the caller's wall clock.
-- **Terminal persist.** `PersistAsync` returns explicit outcomes when lease is lost (see `PersistResult`).
+- **Idempotent append** means a repeated idempotency key returns the existing row.
+- **Atomic lease** means two workers never hold the same row at once.
+- **Reclaimable expiry** means expired leases become claimable again.
+- **Generation fencing** increments a monotonic generation on every acquisition. Renewal and terminal persistence require the owner plus the generation.
+- **Lease release** implements `ILeaseRenewable.ReleaseLeaseAsync`: it returns the row to `Pending` (or `Failed` when it already carries an error) with the lease cleared, `AttemptCount` decremented, and visibility unchanged. The default returns `false`, in which case a shutdown or drain still spends an attempt.
+- **Authoritative clock** means relational implementations calculate eligibility and expiry from database time, not the caller's wall clock.
+- **Terminal persistence** returns explicit outcomes from `PersistAsync` when the lease is lost (see `PersistResult`).
 
 ## Next
 

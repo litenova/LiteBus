@@ -6,7 +6,7 @@ For the ambient-transaction route, see [Transactional Messaging Writes](../relia
 
 ## Install
 
-Reference `LiteBus.Outbox`, `LiteBus.Outbox.Storage.PostgreSql`, and `LiteBus.Outbox.Storage.Marten`. Your application already references Marten for `AddMarten`; the storage package targets the same database through the shared PostgreSQL schema helpers.
+Reference `LiteBus.Outbox`, `LiteBus.Outbox.Storage.PostgreSql`, and `LiteBus.Outbox.Storage.Marten`. Your application already references Marten for `AddMarten`. The storage package targets the same database through the shared PostgreSQL schema helpers.
 
 ## Register
 
@@ -33,7 +33,7 @@ services.AddLiteBus(builder =>
 });
 ```
 
-LiteBus does not register Marten: the application calls `AddMarten` against the same database as the outbox, and the writer resolves the scoped `IDocumentSession` from the current scope. `UseMartenTransactionalOutbox()` cannot be combined with `EnableAmbientTransactionProvider()`: both register `ITransactionalOutbox`, so module build throws `OutboxPostgreSqlStorageConfigurationException` when both are configured.
+LiteBus does not register Marten. The application calls `AddMarten` against the same database as the outbox, and the writer resolves the scoped `IDocumentSession` from the current scope. `UseMartenTransactionalOutbox()` cannot be combined with `EnableAmbientTransactionProvider()`. Both register `ITransactionalOutbox`, so module build throws `OutboxPostgreSqlStorageConfigurationException` when both are configured.
 
 ## Enqueue in a Marten Session
 
@@ -46,7 +46,7 @@ await transactionalOutbox.EnqueueAsync(
 await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 ```
 
-The handler and the writer resolve the same scoped session, so the document and the outbox row commit in one `SaveChangesAsync`. Disposing the session without saving stores neither. Processors publish from the singleton PostgreSQL store on their own connections; only the enqueue path goes through the session.
+The handler and the writer resolve the same scoped session, so the document and the outbox row commit in one `SaveChangesAsync`. Disposing the session without saving stores neither. Processors publish from the singleton PostgreSQL store on their own connections. Only the enqueue path goes through the session.
 
 ## Idempotency
 
@@ -54,7 +54,7 @@ The writer resolves duplicates before queueing because the queued insert ends wi
 
 ## Choosing Between the Queued Writer and the Ambient Transaction
 
-| Your setup | Use |
+| Setup | Use |
 | --- | --- |
 | One Marten session serves reads and writes; the application owns no transaction | This package: `UseMartenTransactionalOutbox()` queues the insert on the session |
 | The application owns the transaction (middleware or unit of work) and Marten joins it | [Ambient provider](../reliable-messaging/transactional-writes.md#postgresql-ambient-provider): `EnableAmbientTransactionProvider()` plus `SessionOptions.ForTransaction` |
@@ -63,7 +63,7 @@ Both paths write the same 18 columns through the schema-owned insert. The differ
 
 ## Limitations
 
-Staged rows are invisible until `SaveChangesAsync` commits. A concurrent insert of the same id or key that wins the race is absorbed by `ON CONFLICT DO NOTHING`, so the receipt then says `Enqueued` though the other row was kept. Every enqueue performs one extra read for the idempotency lookup on a separate connection. Marten must target the same database as the outbox. Marten assemblies are not strong-named.
+Staged rows are invisible until `SaveChangesAsync` commits. A concurrent insert of the same id or key that wins the race is absorbed by `ON CONFLICT DO NOTHING`, so the receipt then says `Enqueued`, though the other row was kept. Every enqueue performs one extra read for the idempotency lookup on a separate connection. Marten must target the same database as the outbox. Marten assemblies are not strong-named.
 
 ## Related Docs
 

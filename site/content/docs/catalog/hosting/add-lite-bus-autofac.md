@@ -9,7 +9,7 @@
 
 ## What It Does
 
-`ContainerBuilder.AddLiteBus(...)` is the Autofac composition entry point. Its `Action<ILiteBusBuilder>` callback builds module order, executes module `Build(...)`, publishes `LiteBusHostManifest`, and wires diagnostic/background hosting bridges for Autofac. Advanced callers register custom modules through `builder.Modules` inside the same callback.
+`ContainerBuilder.AddLiteBus(...)` is the Autofac composition entry point. Its `Action<ILiteBusBuilder>` callback resolves the module build order and runs each module's `Build(...)`. It then publishes `LiteBusHostManifest` and wires the diagnostic and background hosting bridges for Autofac. Advanced callers register custom modules through `builder.Modules` inside the same callback.
 
 The adapter also registers an `IServiceProvider` wrapper so factory registrations can resolve dependencies during composition.
 
@@ -21,15 +21,15 @@ The adapter also registers an `IServiceProvider` wrapper so factory registration
 
 ### Registration
 
-- Registers `LiteBusHostManifest` as Autofac single instance.
+- Registers `LiteBusHostManifest` as a single instance in Autofac.
 - Applies `RegisterDiagnosticChecks(...)` from `LiteBus.Runtime.Extensions.Autofac.Hosting`.
 - Applies `RegisterBackgroundServices(...)` from `LiteBus.Runtime.Extensions.Autofac.Hosting`.
-- Registers `IServiceProvider` adapter backed by Autofac `ILifetimeScope`.
+- Registers an `IServiceProvider` adapter backed by Autofac `ILifetimeScope`.
 - Registers one Autofac-backed `IMessageDispatchScopeFactory` for mediation and durable processor scopes.
 
 ### Configuration
 
-- `Action<ILiteBusBuilder>` for package-owned `Add*` feature extensions and advanced `builder.Modules` access.
+- An `Action<ILiteBusBuilder>` callback carrying package-owned `Add*` feature extensions and advanced `builder.Modules` access.
 
 ## Packages
 
@@ -45,8 +45,8 @@ The adapter also registers an `IServiceProvider` wrapper so factory registration
 ## Invariants
 
 - A second `AddLiteBus` call on the same container builder throws `ModuleCompositionException`.
-- Duplicate module registration throws configuration exception.
-- Manifest output is created once and registered as singleton in the Autofac container.
+- Duplicate module registration throws a configuration exception.
+- The manifest is created once and registered as a singleton in the Autofac container.
 - Each dispatch opens and disposes a child lifetime scope.
 
 ## Non-Goals
@@ -57,7 +57,7 @@ The adapter also registers an `IServiceProvider` wrapper so factory registration
 
 ## Observability
 
-No direct telemetry is emitted by this composition API. Probe and metrics behavior is handled by downstream hosting and telemetry capabilities.
+This composition API emits no telemetry directly. Downstream hosting and telemetry capabilities handle probe and metric behavior.
 
 ## Test Coverage
 
@@ -76,7 +76,7 @@ No direct telemetry is emitted by this composition API. Probe and metrics behavi
 
 - **Use case**: Autofac AddLiteBus publishes host manifest including diagnostic checks
 - **Test kind**: Unit
-- **Description**: registers inbox module with in-memory storage and diagnostic check
+- **Description**: registers the inbox module with in-memory storage and a diagnostic check
 - **Behavior**: resolves `LiteBusHostManifest` from Autofac container
 - **Expected outcome**: manifest contains expected diagnostic check name
 - **Remarks**: `tests/LiteBus.Extensions.UnitTests/Autofac/AutofacIntegrationTests.cs`
@@ -85,7 +85,7 @@ No direct telemetry is emitted by this composition API. Probe and metrics behavi
 
 - **Use case**: base Autofac composition registers host manifest even without durable modules
 - **Test kind**: Unit
-- **Description**: composes message module only
+- **Description**: composes the message module only
 - **Behavior**: checks `LiteBusHostManifest` registration
 - **Expected outcome**: manifest registration exists
 - **Remarks**: `tests/LiteBus.Extensions.UnitTests/Autofac/AutofacHostManifestTests.cs`
@@ -94,15 +94,15 @@ No direct telemetry is emitted by this composition API. Probe and metrics behavi
 
 | Gap | Priority | Notes |
 | --- | --- | --- |
-| Very large Autofac module graphs with deep dependency chains | Low | Core ordering is covered by module registry tests. |
-| Autofac composition with all hosting extensions enabled in one integration host | Medium | Covered by pieces, not one end-to-end host test. |
+| Very large Autofac module graphs with deep dependency chains | Low | Module registry tests cover core ordering. |
+| Autofac composition with all hosting extensions enabled in one integration host | Medium | Covered in part, but not by one end-to-end host test. |
 
 ### Out-of-Scope Use Cases
 
 - Per-request authorization policy mapping for HTTP endpoints.
 - Health endpoint behavior outside ASP.NET Core health and management bridges.
 
-## Deep Docs
+## References
 
 - [Hosted services](../../architecture/hosted-services.md)
 - [Dependency graph](../../architecture/dependency-graph.md)

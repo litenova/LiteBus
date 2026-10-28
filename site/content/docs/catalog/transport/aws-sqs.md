@@ -3,19 +3,19 @@
 - **ID**: `transport.aws-sqs`
 - **Name**: AWS SQS transport
 - **Maturity**: Beta
-- **Summary**: Amazon SQS adapter with long-poll consume, visibility-timeout requeue, and canonical header mapping.
+- **Summary**: Amazon SQS adapter that consumes with long polling, requeues through visibility timeouts, and maps canonical headers.
 
 ## What It Does
 
-`AwsSqsTransportModule` composes `SqsPublisher` and `SqsConsumer` on `Amazon.SQS`. Publish targets queue URL in `Destination`; `Route` is stored as message attribute because SQS has no routing-key concept.
+`AwsSqsTransportModule` composes `SqsPublisher` and `SqsConsumer`, built on `Amazon.SQS`. To publish, the adapter sends to the queue URL in `Destination`. It stores `Route` as a message attribute, because SQS has no routing-key concept.
 
-`SqsConsumer` reads `ApproximateReceiveCount` and uses `SqsRequeueBackoff` to calculate visibility timeout when handlers call `ReturnToQueueAsync`. The publisher is a singleton and consumers are transient.
+`SqsConsumer` reads `ApproximateReceiveCount` and uses `SqsRequeueBackoff` to calculate the visibility timeout when handlers call `ReturnToQueueAsync`. The publisher is a singleton and consumers are transient.
 
-Beta tier note: this adapter is production-oriented but remains Beta while the project keeps broader broker soak coverage focused on AMQP.
+This adapter is built for production use but remains Beta while the project's broader broker soak coverage stays focused on AMQP.
 
 ## FIFO Queues
 
-On queue URLs ending in `.fifo`, the mapper copies `TransportPublishRequest.MessageGroupId` to `MessageGroupId` and `TransportPublishRequest.DeduplicationKey` to `MessageDeduplicationId`; standard queues carry neither field. Outbox dispatch fills both on every publish: the group is the envelope tenant id, otherwise the contract name, and the deduplication key is the envelope idempotency key, otherwise the message id.
+On queue URLs ending in `.fifo`, the mapper copies `TransportPublishRequest.MessageGroupId` to `MessageGroupId` and `TransportPublishRequest.DeduplicationKey` to `MessageDeduplicationId`. Standard queues carry neither field. Outbox dispatch fills both fields on every publish. The group is the envelope tenant id, or the contract name when the envelope carries no tenant id. The deduplication key is the envelope idempotency key, or the message id when the envelope carries no idempotency key.
 
 ## Public Surface
 
@@ -39,7 +39,7 @@ On queue URLs ending in `.fifo`, the mapper copies `TransportPublishRequest.Mess
 | `ServiceUrl` | `null` | LocalStack or custom endpoint |
 | `AccessKey` | `null` | Explicit credential key |
 | `SecretKey` | `null` | Explicit credential secret |
-| `ConnectivityCheckQueueUrl` | `null` | Queue URL read by the readiness probe; missing reports degraded |
+| `ConnectivityCheckQueueUrl` | `null` | Queue URL read by the readiness probe. A missing value reports degraded |
 | `LongPollWaitTimeSeconds` | `20` | Long-poll interval |
 | `VisibilityTimeoutSeconds` | `30` | Receive visibility timeout |
 | `RequeueVisibilityTimeoutSeconds` | `30` | Base requeue timeout |
@@ -70,15 +70,15 @@ On queue URLs ending in `.fifo`, the mapper copies `TransportPublishRequest.Mess
 
 ## Invariants
 
-- One transport broker adapter per process.
+- Only one transport broker adapter runs in a process.
 - SQS-safe UTF-8 text is sent as a plain body. Invalid UTF-8 and code points outside the SQS body ranges are base64 encoded with `litebus-content-encoding=base64`.
 - SQS allows ten message attributes. When route, content type, durable metadata, and caller headers would exceed that limit, non-reserved headers are serialized into the `litebus-headers` attribute and expanded on receive.
 - Mapper-owned attributes such as `litebus-content-encoding`, `litebus-message-id`, `correlation-id`, `litebus-route`, and `content-type` override conflicting caller values.
 - Redelivery hint uses `ApproximateReceiveCount > 1`.
 - A message without system attributes counts as a first delivery when requeue backoff is computed.
-- A received message whose body cannot be decoded or whose packed headers are malformed is deleted as poison and skipped, so one bad delivery cannot stall the loop; the delete is best-effort and a failed delete leaves the message for redelivery.
-- `StopAsync` completes without throwing when the consume loop faulted; the terminal failure propagates from `WaitUntilStoppedAsync` before and after `StopAsync`.
-- FIFO fields apply only on `.fifo` queue URLs; a standard queue ignores `MessageGroupId` and `DeduplicationKey`.
+- A received message whose body cannot be decoded, or whose packed headers are malformed, is deleted as poison and skipped, so one bad delivery cannot stall the loop. The delete is best-effort, so a failed delete leaves the message for redelivery.
+- `StopAsync` completes without throwing when the consume loop faulted. The terminal failure propagates from `WaitUntilStoppedAsync` before and after `StopAsync`.
+- FIFO fields apply only on `.fifo` queue URLs. A standard queue ignores `MessageGroupId` and `DeduplicationKey`.
 
 ## Non-Goals
 
@@ -107,7 +107,7 @@ On queue URLs ending in `.fifo`, the mapper copies `TransportPublishRequest.Mess
 
 - Diagnostic check id: `transport.sqs.connectivity`
 - The probe requests only `QueueArn` from `ConnectivityCheckQueueUrl` through `GetQueueAttributes`.
-- Grant `sqs:GetQueueAttributes` on the target queue. Missing target configuration reports degraded.
+- Grant `sqs:GetQueueAttributes` on the target queue. When the target is not configured, the probe reports degraded.
 - See the [AWS SDK for .NET v4 SQS client contract](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/SQS/TSQSClient.html).
 
 ## Test Coverage
@@ -149,7 +149,7 @@ On queue URLs ending in `.fifo`, the mapper copies `TransportPublishRequest.Mess
 - SNS fan-out orchestration.
 - Cross-account queue policy automation.
 
-## Deep Docs
+## References
 
 - [Aws-Sqs-Transport.md](../../integrations/aws-sqs.md)
 - [Architecture.md](../../architecture/README.md)

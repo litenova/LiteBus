@@ -3,12 +3,13 @@
 - **ID**: `storage.role.diagnostics`
 - **Name**: Diagnostics store role
 - **Maturity**: GA
-- **Summary**: Status counts, per-contract failure summaries, and schema metadata for operators, health probes, and queue depth metrics.
+- **Summary**: Reports status counts, per-contract failure summaries, and schema metadata for operators, health probes, and queue depth metrics.
 
 ## What It Does
 
-`IInboxDiagnosticsStore` and `IOutboxDiagnosticsStore` expose `GetStatusCountsAsync` and `GetSchemaInfoAsync`. Counts feed OpenTelemetry observable gauges (`litebus.inbox.queue.depth`, `litebus.outbox.queue.depth`) tagged by status. Schema info reports table schema version, store component, and configured object names for management endpoints and operator tooling.
-`IOutboxDiagnosticsStore` also exposes `GetFailureSummaryAsync`, which returns one row per contract name and version that has `Failed` or `DeadLettered` messages, with per-status counts plus the latest error text and attempt time, so health probes can separate messages that fail on every attempt from a backlog that is merely slow.
+`IInboxDiagnosticsStore` and `IOutboxDiagnosticsStore` expose `GetStatusCountsAsync` and `GetSchemaInfoAsync`. Counts feed OpenTelemetry observable gauges (`litebus.inbox.queue.depth`, `litebus.outbox.queue.depth`) tagged by status.
+
+`IOutboxDiagnosticsStore` also exposes `GetFailureSummaryAsync`, which returns one row per contract name and version that has `Failed` or `DeadLettered` messages, with per-status counts plus the latest error text and attempt time. Health probes use it to separate messages that fail on every attempt from a backlog that is only slow. Schema information reports the table schema version, the store component, and the configured object names for management endpoints and operator tooling.
 
 ## Public Surface
 
@@ -20,7 +21,7 @@
 | `IOutboxDiagnosticsStore` | Outbox status counts and schema metadata |
 | `InboxStatusCounts` / `OutboxStatusCounts` | Per-status row totals |
 | `OutboxFailureSummary` | Per-contract failing counts with the latest error and attempt time |
-| Schema info DTOs | Component, expected and recorded version, object names |
+| Schema info DTOs | Component, expected and recorded versions, and object names |
 
 ### Invocation
 
@@ -32,18 +33,18 @@
 
 ### Registration
 
-- Operations composite on singleton store; OpenTelemetry packages register gauge observers that call diagnostics store at scrape time.
+- The operations composite sits on the singleton store. OpenTelemetry packages register gauge observers that call the diagnostics store at scrape time.
 
 ### Configuration
 
 | Option surface | Purpose |
 | --- | --- |
-| Store options | Schema and table names reflected in `GetSchemaInfoAsync` |
-| OpenTelemetry host registration | `AddLiteBusInboxMetrics()` / `AddLiteBusOutboxMetrics()` required for gauges |
+| Store options | Schema and table names, reflected in `GetSchemaInfoAsync` |
+| OpenTelemetry host registration | Host registration of `AddLiteBusInboxMetrics()` / `AddLiteBusOutboxMetrics()`, required for gauges |
 
 ### Extension Points
 
-- Custom stores must return live counts (not indefinitely cached) and schema info matching configured object names.
+- Custom stores must return live counts (not indefinitely cached) and schema information matching the configured object names.
 
 ## Packages
 
@@ -56,20 +57,20 @@
 
 ## Requires
 
-- Operations composite store registered
-- For PostgreSQL schema probes: `storage.postgresql.schema-management` diagnostic checks (separate from counts)
+- A registered operations composite store
+- For PostgreSQL schema probes, the `storage.postgresql.schema-management` diagnostic checks, which are separate from counts
 
 ## Invariants
 
-- Status counts reflect store truth at query time (not cached indefinitely).
-- Schema info for PostgreSQL reports the recorded version from `litebus_schema_versions` against the expected `CurrentSchemaVersion` (inbox 1, outbox 2).
+- Status counts reflect the store truth at query time. They are not cached indefinitely.
+- For PostgreSQL, schema information reports the recorded version from `litebus_schema_versions` against the expected `CurrentSchemaVersion` (inbox 1, outbox 2).
 - EF Core and InMemory stores report logical store version 1 with the configured object names.
 
 ## Non-Goals
 
-- Does not replace per-message failure drill-down (query role + management APIs).
-- Does not replace PostgreSQL `ValidateAsync` drift detection.
-- Does not emit broker connectivity diagnostics.
+- It does not replace per-message failure drill-down (query role and management APIs).
+- It does not replace PostgreSQL `ValidateAsync` drift detection.
+- It does not emit broker connectivity diagnostics.
 
 ## Observability
 
@@ -83,9 +84,9 @@
 | `inbox.postgresql.schema` / `outbox.postgresql.schema` | `IDiagnosticCheck` | Schema drift detection (PostgreSQL adapters) |
 | Management `GET` schema info | `GetSchemaInfoAsync` | Human-readable schema version and object names |
 
-Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOutboxTelemetry`; renames are breaking changes.
+Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOutboxTelemetry`. Renames are breaking changes.
 
-## Deep Docs
+## Further Reading
 
 - [Architecture: OpenTelemetry metric catalog](../../architecture/README.md#opentelemetry-metric-catalog)
 - [Hosted services: Diagnostic probes](../../architecture/hosted-services.md)
@@ -98,8 +99,8 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 
 - **Use case**: Group inbox status counts by status
 - **Test kind**: Contract
-- **Description**: Store rows in multiple statuses then query counts
-- **Behavior**: `GetStatusCountsAsync`
+- **Description**: Stores rows in multiple statuses, then queries counts
+- **Behavior**: Runs `GetStatusCountsAsync`
 - **Expected outcome**: Counts match rows per status bucket
 - **Remarks**: `LiteBus.Storage.Testing`; inherited by all inbox backends
 
@@ -107,8 +108,8 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 
 - **Use case**: Group outbox status counts by status
 - **Test kind**: Contract
-- **Description**: Store rows in multiple statuses then query counts
-- **Behavior**: `GetStatusCountsAsync`
+- **Description**: Stores rows in multiple statuses, then queries counts
+- **Behavior**: Runs `GetStatusCountsAsync`
 - **Expected outcome**: Counts match rows per status bucket
 - **Remarks**: Inherited by PostgreSQL, EF, and InMemory outbox suites
 
@@ -116,17 +117,17 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 
 - **Use case**: Group failing outbox messages by contract
 - **Test kind**: Contract
-- **Description**: Seed failed and dead-lettered rows for two contracts, then query the failure summary
-- **Behavior**: `GetFailureSummaryAsync`
-- **Expected outcome**: One row per failing contract with its `Failed` and `DeadLettered` counts
+- **Description**: Seeds failed and dead-lettered rows for two contracts, then queries the failure summary
+- **Behavior**: Runs `GetFailureSummaryAsync`
+- **Expected outcome**: Each failing contract gets one row with its `Failed` and `DeadLettered` counts
 - **Remarks**: Inherited by PostgreSQL, EF, and InMemory outbox suites
 
 #### `OutboxStoreContractTests.GetFailureSummaryAsync_WithTwoFailuresForOneContract_ShouldReportMostRecentError`
 
 - **Use case**: Report the latest error per failing contract
 - **Test kind**: Contract
-- **Description**: Fail one contract's messages twice with different errors, then query the failure summary
-- **Behavior**: `GetFailureSummaryAsync`
+- **Description**: Fails one contract's messages twice with different errors, then queries the failure summary
+- **Behavior**: Runs `GetFailureSummaryAsync`
 - **Expected outcome**: `LastError` is the error of the most recently attempted failing message
 - **Remarks**: Inherited by PostgreSQL, EF, and InMemory outbox suites
 
@@ -134,9 +135,9 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 
 - **Use case**: Report nothing when no message is failing
 - **Test kind**: Contract
-- **Description**: Query the failure summary on a store with no failed or dead-lettered rows
-- **Behavior**: `GetFailureSummaryAsync`
-- **Expected outcome**: An empty list
+- **Description**: Queries the failure summary on a store with no failed or dead-lettered rows
+- **Behavior**: Runs `GetFailureSummaryAsync`
+- **Expected outcome**: The summary is an empty list
 - **Remarks**: Inherited by PostgreSQL, EF, and InMemory outbox suites
 
 #### `InMemoryInboxGetAllFilterTests.GetAll_WithStatusAndContractName_ShouldFilterResults`
@@ -144,8 +145,8 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Use case**: Filter InMemory inbox diagnostics via GetAll
 - **Test kind**: Unit
 - **Description**: InMemory test helper filters by status and contract
-- **Behavior**: `GetAll` with status and contract name predicates
-- **Expected outcome**: Filtered subset returned
+- **Behavior**: Runs `GetAll` with status and contract name predicates
+- **Expected outcome**: The filtered subset is returned
 - **Remarks**: `LiteBus.Storage.UnitTests`; test-only surface
 
 #### `InMemoryOutboxGetAllFilterTests.GetAll_WithStatusAndContractName_ShouldFilterResults`
@@ -153,17 +154,17 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 - **Use case**: Filter InMemory outbox diagnostics via GetAll
 - **Test kind**: Unit
 - **Description**: InMemory test helper filters by status and contract
-- **Behavior**: `GetAll` with predicates
-- **Expected outcome**: Filtered subset returned
+- **Behavior**: Runs `GetAll` with predicates
+- **Expected outcome**: The filtered subset is returned
 - **Remarks**: `LiteBus.Storage.UnitTests`; test-only surface
 
 ### Untested
 
-- Dedicated `GetSchemaInfoAsync` contract tests on each adapter (schema info exercised indirectly via management and PostgreSQL diagnostic checks).
-- OpenTelemetry queue depth gauge registration and scrape values (hosting axis OpenTelemetry packages).
+- Dedicated `GetSchemaInfoAsync` contract tests on each adapter. Schema information is exercised indirectly through management and PostgreSQL diagnostic checks.
+- OpenTelemetry queue depth gauge registration and scrape values in the hosting axis OpenTelemetry packages.
 
 ### Out-of-Scope
 
-- Per-message failure history beyond the latest error per contract (query role and management APIs).
-- PostgreSQL `ValidateAsync` drift detection (schema-management capability).
+- Per-message failure history beyond the latest error per contract, which belongs to the query role and management APIs.
+- PostgreSQL `ValidateAsync` drift detection, which belongs to the schema-management capability.
 - Broker connectivity diagnostics.

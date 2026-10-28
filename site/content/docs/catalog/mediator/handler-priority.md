@@ -10,12 +10,14 @@
 
 `[HandlerPriority(int)]` sets handler priority. Lower numbers run first. For equal priority values, registration sequence is the tie-breaker.
 
-In command/query single-handler flows, priority affects pre and post handler ordering. In event broadcast flows, handlers are grouped by priority and executed according to:
+In command and query single-handler flows, priority affects pre and post handler ordering. In event broadcast flows, handlers are grouped by priority and executed according to:
 - `PriorityGroupsConcurrencyMode`
 - `HandlersWithinSamePriorityConcurrencyMode`
 - `HandlerFaultMode`
 
-`HandlerPriorities` reserves a priority window for handlers shipped by LiteBus, so ordering against them is a documented guarantee. Application handlers belong below `ReservedFloor` (`1_000_000`), where an unannotated handler already sits at `Default` (`0`), or at or above `ReservedCeiling` (`2_000_000`); `UnitOfWork` (`ReservedCeiling + 100`) is the commit position for completion handlers. The named LiteBus stages inside the window are `Persistence` (`ReservedFloor + 100`) and `Observability` (`ReservedFloor + 200`), and only those two may be reordered relative to each other between releases. Analyzer rule `LB1022` reports an application value inside the window.
+`HandlerPriorities` reserves a priority window for handlers shipped by LiteBus, so ordering against them is a documented guarantee. Application handlers belong below `ReservedFloor` (`1_000_000`), where an unannotated handler already sits at `Default` (`0`), or at or above `ReservedCeiling` (`2_000_000`). `UnitOfWork` (`ReservedCeiling + 100`) is the commit position for completion handlers.
+
+The named LiteBus stages inside the window are `Persistence` (`ReservedFloor + 100`) and `Observability` (`ReservedFloor + 200`), and only those two may be reordered relative to each other between releases. Analyzer rule `LB1022` reports an application value inside the window.
 
 ## Public Surface
 
@@ -52,13 +54,13 @@ public sealed class ValidateOrderPreHandler : ICommandPreHandler<PlaceOrderComma
 
 ## Invariants
 
-- Default priority is `0` when attribute is absent.
-- Application handlers belong below `ReservedFloor` or at or above `ReservedCeiling`; the floor itself is reserved and the ceiling itself is the first value above the window.
+- Default priority is `0` when the attribute is absent.
+- Application handlers belong below `ReservedFloor` or at or above `ReservedCeiling`. The floor itself is reserved, and the ceiling itself is the first value above the window.
 - The band from `ReservedCeiling` up to `UnitOfWork` holds application infrastructure that runs after every LiteBus handler and still before the commit.
-- Priority orders handlers inside a stage and never reorders the stages; in the completion stage it is the only ordering rule across the merged direct and indirect sets.
-- Lower priority executes first in sequential group mode.
+- Priority orders handlers inside a stage and never reorders the stages. In the completion stage it is the only ordering rule across the merged direct and indirect sets.
+- Lower priorities execute first in sequential group mode.
 - Parallel group mode removes strict cross-priority completion ordering.
-- Both fault modes wait for already-started parallel tasks. `ContinueAndAggregate` runs every handler in the group and combines the failures, while `PropagateFirst` stops the group and surfaces one failure. The mode never carries across priority groups. When every collected failure is cancellation, `ContinueAndAggregate` rethrows `OperationCanceledException` instead of aggregating; mixed cancellation and faults still aggregate.
+- Both fault modes wait for already-started parallel tasks. `ContinueAndAggregate` runs every handler in the group and combines the failures, while `PropagateFirst` stops the group and surfaces one failure. The mode never carries across priority groups. When every collected failure is cancellation, `ContinueAndAggregate` rethrows `OperationCanceledException` instead of aggregating. Mixed cancellation and faults still aggregate.
 
 ## Non-Goals
 
@@ -100,7 +102,7 @@ Operational alternatives:
 - OS thread priority changes.
 - External scheduler integration.
 
-## Deep Docs
+## References
 
 - [Event module](../../concepts/events.md)
 - [The handler pipeline](../../concepts/handler-pipeline.md)

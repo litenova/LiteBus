@@ -3,11 +3,11 @@
 - **ID**: `ingress.safety-options`
 - **Name**: Ingress safety and authorization options
 - **Maturity**: GA
-- **Summary**: Configures provider-neutral body, identity, authorization, admission, and batch limits for every ingress adapter.
+- **Summary**: This record configures provider-neutral body, identity, authorization, admission, and batch limits for every ingress adapter.
 
 ## Purpose and Scope
 
-Every broker-specific ingress record exposes one `TransportInboxIngressSafetyOptions` value through its `Safety` property. The adapter preserves that record when it creates `TransportInboxIngressOptions`. Broker destinations and native receive controls remain on their adapter records because those settings do not share semantics.
+Every broker-specific ingress record exposes one `TransportInboxIngressSafetyOptions` value through its `Safety` property. The adapter preserves that record when it creates `TransportInboxIngressOptions`. Broker destinations and native receive controls stay on their adapter records, because each broker defines them differently.
 
 For example, an SQS service can request 10 messages per receive call while keeping LiteBus handler admission at one:
 
@@ -37,26 +37,26 @@ ingress.UseOptions(new AwsSqsInboxIngressOptions
 | `TransportInboxIngressOptions.DurableDestination` | false | Make a declared AMQP queue durable |
 | `TransportInboxIngressOptions.RequeueOnFailure` | true | Requeue transient accept failures |
 | `TransportInboxIngressOptions.Safety` | default safety record | Provider-neutral ingress safety settings |
-| `Safety.MaxMessageBytes` | 4 MiB | Reject oversized bodies before deserialize; zero disables the limit |
+| `Safety.MaxMessageBytes` | 4 MiB | Reject oversized bodies before deserialization, with zero disabling the limit |
 | `Safety.RequireStableIdentity` | true | Fail when broker delivery id is missing |
 | `Safety.TrustApplicationHeaders` | false | Honor application idempotency, tenant, message id, and visibility headers |
-| `Safety.AuthorizeDeliveryAsync` | null | Host callback before deserialize and accept |
-| `Safety.MaxInFlightMessages` | 32 | Requested cap on concurrent LiteBus delivery handlers; the enforced bound is 1 except on Azure Service Bus, where the lower of this value and `MaxConcurrentCalls` applies |
+| `Safety.AuthorizeDeliveryAsync` | null | Host callback before deserialization and accept |
+| `Safety.MaxInFlightMessages` | 32 | Requested cap on concurrent LiteBus delivery handlers. The enforced bound is 1, except on Azure Service Bus, where the lower of this value and `MaxConcurrentCalls` applies |
 | `Safety.EnableBatchAccept` | false | Enable buffered inbox batch accepts |
 | `Safety.BatchSize` | 10 | Deliveries stored in one inbox batch |
 | `Safety.BatchMaxWait` | 200 ms | Partial batch flush delay |
 
-Each ingress module calls `Safety.Validate()` during composition. Negative message limits or wait durations, zero batch sizes, and zero maximum-in-flight values fail before the host starts. `EnableBatchAccept` with `BatchMaxWait` of zero fails as well, because a zero wait never flushes partial batches. AWS also rejects `ReceiveBatchSize` outside 1 through 10. Azure rejects negative prefetch and non-positive `MaxConcurrentCalls`.
+Each ingress module calls `Safety.Validate()` during composition. Negative message limits or wait durations, zero batch sizes, and zero maximum-in-flight values fail composition before the host starts. `EnableBatchAccept` with `BatchMaxWait` of zero fails as well, because a zero wait never flushes partial batches. AWS also rejects `ReceiveBatchSize` outside 1 through 10. Azure rejects negative prefetch and non-positive `MaxConcurrentCalls`.
 
 ## Broker Option Parity
 
 | Broker options type | Shared `Safety` | Native receive control | Destination declaration |
 | --- | --- | --- | --- |
 | `AmqpInboxIngressOptions` | yes | `PrefetchCount` | queue declare and durable flags |
-| `KafkaInboxIngressOptions` | yes | none; the consume loop reads one record at a time | no |
+| `KafkaInboxIngressOptions` | yes | none, because the consume loop reads one record at a time | no |
 | `AwsSqsInboxIngressOptions` | yes | `ReceiveBatchSize` | no |
 | `AzureServiceBusInboxIngressOptions` | yes | `PrefetchCount`, `MaxConcurrentCalls` | no |
-| `InMemoryInboxIngressOptions` | yes | none; the adapter runs one handler at a time | no |
+| `InMemoryInboxIngressOptions` | yes | none, because the adapter runs one handler at a time | no |
 
 ## Public Surface
 
@@ -78,13 +78,13 @@ Each ingress module calls `Safety.Validate()` during composition. Negative messa
 - `Safety.AuthorizeDeliveryAsync` exceptions follow the same requeue and discard path as store failures.
 - `Safety.MaxMessageBytes` is checked before deserialization.
 - `Safety.TrustApplicationHeaders` stays false unless the broker binding authenticates upstream publishers.
-- `Safety.RequireStableIdentity=true` and broker message ids provide deterministic duplicate absorption across retries.
-- `Safety.MaxInFlightMessages` is independent from broker prefetch, receive batch size, and native callback concurrency.
-- Raising `Safety.MaxInFlightMessages` above 1 does not parallelize AMQP, Kafka, AWS SQS, or in-memory ingress; those adapters run one handler at a time.
+- With `Safety.RequireStableIdentity=true`, broker message ids absorb duplicates deterministically across retries.
+- `Safety.MaxInFlightMessages` is independent of broker prefetch, receive batch size, and native callback concurrency.
+- Raising `Safety.MaxInFlightMessages` above 1 does not parallelize AMQP, Kafka, AWS SQS, or in-memory ingress. Those adapters run one handler at a time.
 
 ## Non-Goals
 
-- Authentication framework integration. The host supplies `AuthorizeDeliveryAsync`.
+- Authentication framework integration, which the host supplies as `AuthorizeDeliveryAsync`.
 - Per-tenant broker bindings.
 - Store retention or dead-letter tuning.
 
@@ -92,7 +92,7 @@ Each ingress module calls `Safety.Validate()` during composition. Negative messa
 
 | Option violation | Observable signal |
 | --- | --- |
-| `Safety.MaxMessageBytes` exceeded | Exception before store; consumer discards or requeues per `ingress.ack-policy` |
+| `Safety.MaxMessageBytes` exceeded | An exception before the store. The consumer discards or requeues per `ingress.ack-policy` |
 | Missing broker id when stable identity is required | `InboxIngressException` from the mapper |
 | `Safety.AuthorizeDeliveryAsync` rejection | The same ack policy path as a store failure |
 | Invalid numeric bound | Composition exception before background services start |
@@ -109,9 +109,9 @@ Each ingress module calls `Safety.Validate()` during composition. Negative messa
 | `AzureServiceBusIngress_WithInvalidMaxConcurrentCalls_ShouldRejectComposition` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
 | `InMemoryIngress_WithInvalidMaxInFlightMessages_ShouldRejectComposition` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
 
-Live broker authorization rejection coverage remains limited to AMQP. Shared mapping and composition propagation are covered for all five ingress builders.
+Only AMQP covers live broker authorization rejection. All five ingress builders cover shared mapping and composition propagation.
 
-## Deep Docs
+## References
 
 - [Inbox ingress options](../../reliable-messaging/inbox.md)
 - [Batch accept](batch-accept.md)

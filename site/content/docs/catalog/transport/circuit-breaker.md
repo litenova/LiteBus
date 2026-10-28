@@ -3,19 +3,19 @@
 - **ID**: `transport.circuit-breaker`
 - **Name**: Transport circuit breaker
 - **Maturity**: GA
-- **Summary**: Destination-scoped publisher breakers that reject broker calls during a bounded failure interval.
+- **Summary**: Destination-scoped publisher circuit breakers that reject broker calls while a bounded failure interval lasts.
 
 ## What It Does
 
-Transport modules register one `ITransportCircuitBreakerRegistry`. Each publisher resolves a stable breaker by destination. For example, a failed Kafka topic does not block publication to a healthy topic, and a failed AMQP exchange does not stop ingress consumption.
+Transport modules register one `ITransportCircuitBreakerRegistry`. Each publisher resolves a stable circuit breaker by destination. For example, a failed Kafka topic does not block publication to a healthy topic, and a failed AMQP exchange does not stop ingress consumption.
 
-`TransportCircuitBreaker` opens after the configured number of consecutive broker failures. It measures the break duration with `TimeProvider` monotonic timestamps. After that duration, `AcquirePermit` admits one half-open recovery probe and rejects sibling callers. The caller supplies that permit to `RecordSuccess` or `RecordFailure` after the operation completes.
+`TransportCircuitBreaker` opens after the configured number of consecutive broker failures. It measures the break duration with `TimeProvider` monotonic timestamps. After that duration, `AcquirePermit` admits one half-open recovery probe and rejects the other callers. The caller supplies that permit to `RecordSuccess` or `RecordFailure` after the operation completes.
 
-Permits carry an opaque circuit generation. A late success from an operation admitted before a sibling opened the circuit cannot close the newer circuit generation. A successful recovery probe closes the circuit; a failed recovery probe starts a new break duration.
+Permits carry an opaque circuit generation. A late success from an operation admitted before another caller opened the circuit cannot close the newer circuit generation. A successful recovery probe closes the circuit. A failed recovery probe starts a new break duration.
 
-Ingress does not read or update publisher circuits. Consumer adapters use their SDK recovery behavior plus the supervised LiteBus restart loop. AMQP connection creation retains a separate connection breaker because publishers and consumers use one physical connection.
+Ingress does not read or update publisher circuits. Consumer adapters use their SDK recovery behavior and the supervised LiteBus restart loop. AMQP connection creation uses a separate connection breaker because publishers and consumers share one physical connection.
 
-Publishers record documented broker SDK exceptions. Caller cancellation and unexpected application exceptions are traced and rethrown without changing broker resilience state.
+Publishers record documented broker SDK exceptions. The publisher traces caller cancellation and unexpected application exceptions and rethrows them without changing broker resilience state.
 
 ## Public Surface
 
@@ -32,9 +32,9 @@ Publishers record documented broker SDK exceptions. Caller cancellation and unex
 | `ITransportCircuitBreakerRegistry` | `IsAnyOpen`, `FailureCount` | Aggregate publisher state for metrics |
 | `TransportCircuitBreaker` | implementation | Default breaker |
 | `TransportCircuitBreakerRegistry` | implementation | Concurrent publisher-scope registry |
-| `TransportCircuitBreakerOptions` | `FailureThreshold`, `BreakDuration` | Breaker tuning (defaults 5 failures and 30 seconds) |
+| `TransportCircuitBreakerOptions` | `FailureThreshold`, `BreakDuration` | Circuit-breaker tuning (defaults 5 failures and 30 seconds) |
 | `TransportCircuitBreakerOpenException` | exception type | Open-circuit failure |
-| `AmqpCircuitBreakerOptions` | AMQP option | AMQP-specific breaker options holder (same 5-failure and 30-second defaults) |
+| `AmqpCircuitBreakerOptions` | AMQP option | AMQP-specific circuit-breaker options holder (same 5-failure and 30-second defaults) |
 
 ## Packages
 
@@ -48,11 +48,11 @@ Publishers record documented broker SDK exceptions. Caller cancellation and unex
 
 ## Invariants
 
-- Breaker is disabled when `FailureThreshold == 0`.
+- The breaker is disabled when `FailureThreshold == 0`.
 - A positive threshold requires a positive `BreakDuration`; invalid values fail during construction.
 - An open rejection does not extend the break duration.
 - Only one caller enters half-open state after the break duration.
-- Outcomes from an older permit generation cannot mutate current circuit state.
+- Outcomes from an older permit generation cannot change current circuit state.
 - Publisher state is isolated by exact destination values.
 - Ingress does not update publisher failure state.
 - Shared metric names remain on `LiteBusTransportTelemetry` constants.
@@ -124,7 +124,7 @@ Broker tag values set by module registration:
 
 - Automatic broker failover.
 
-## Deep Docs
+## References
 
 - [metrics.md](metrics.md)
 - [Architecture.md](../../architecture/README.md)

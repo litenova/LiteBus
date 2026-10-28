@@ -2,19 +2,19 @@
 
 **Production tier: GA**
 
-This page defines the delivery guarantees. [Ordering and Concurrency Guarantees](ordering.md) defines the concurrency properties, and [Message States](../operations/message-states.md) defines the operator states and alerts.
+LiteBus durable messaging delivers each message at-least-once under leases. This page defines the delivery guarantees, idempotency rules, and broker behavior.
 
-Deep reference for delivery guarantees, idempotency, and broker behavior in LiteBus. For registration and package layout, start with [Reliable Messaging](README.md). For atomic domain and inbox/outbox writes, see [Transactional Messaging Writes](transactional-writes.md).
+[Ordering and Concurrency Guarantees](ordering.md) defines the concurrency properties, and [Message States](../operations/message-states.md) defines the operator states and alerts. For registration and package layout, start with [Reliable Messaging](README.md). For atomic domain and inbox/outbox writes, see [Transactional Messaging Writes](transactional-writes.md).
 
 ## At-Least-Once
 
-LiteBus durable paths persist before execution (inbox) or before broker publish completes terminal state (outbox). A worker may therefore run the same logical message more than once after crash, lease expiry, or broker redelivery.
+LiteBus durable paths persist before execution (inbox) or before broker publish completes terminal state (outbox). After a crash, lease expiry, or broker redelivery, a worker may therefore run the same logical message more than once.
 
 Applications must make handlers **idempotent** or deduplicate using:
 
-* `InboxAcceptMetadata.Idempotency` / `OutboxEnqueueMetadata.Idempotency` (`Idempotency.Keyed`)
-* Natural keys in domain stores
-* Broker message IDs where consumers support dedup
+- `InboxAcceptMetadata.Idempotency` / `OutboxEnqueueMetadata.Idempotency` (`Idempotency.Keyed`)
+- Natural keys in domain stores
+- Broker message IDs where consumers support deduplication
 
 ## Inbox Accept vs Execute
 
@@ -23,25 +23,29 @@ Applications must make handlers **idempotent** or deduplicate using:
 | Accept | `IInbox.AcceptAsync` | Row visible in store (Pending) |
 | Execute | `PipelinedInboxProcessor` + dispatcher | Terminal status after successful dispatch |
 
-Accept is durable once the store transaction commits. Execution is at-least-once under lease.
+Once the store transaction commits, Accept is durable. Execution is at-least-once under a lease.
 
 ## Outbox Enqueue vs Publish
 
 | Step | API | Committed when |
 | --- | --- | --- |
-| Enqueue | `IOutbox.EnqueueAsync` | Row in store (often same UoW as domain change) |
+| Enqueue | `IOutbox.EnqueueAsync` | Row in store (often same unit of work as domain change) |
 | Publish | Processor + `IOutboxDispatcher` | Terminal Published/Failed/DeadLettered |
 
-Transactional outbox: enqueue in the same database transaction as domain entities. EF uses the save-changes interceptor; PostgreSQL uses `ITransactionalOutbox` with ambient provider or manual bind. See [Transactional messaging writes](transactional-writes.md) and [Domain events and unit of work](domain-events-and-unit-of-work.md).
+With the transactional outbox, enqueue in the same database transaction as domain entities. EF Core uses the save-changes interceptor. PostgreSQL uses `ITransactionalOutbox` with ambient provider or manual bind. See [Transactional Messaging Writes](transactional-writes.md) and [Domain Events and Unit of Work](domain-events-and-unit-of-work.md).
 
 ## Lease Recovery
 
-Processors lease batches with `lease_owner` and `lease_expires_at`. Heartbeat renews leases during long handlers. When lease expires:
+Processors lease batches with `lease_owner` and `lease_expires_at`. During long handlers, heartbeat renews leases. When a lease expires:
 
-* Another worker may lease the same row
-* Terminal persist uses conditional update (`lease_owner` match) to avoid overwriting a newer attempt
+- Another worker may lease the same row
+- Terminal persist uses conditional update (`lease_owner` match) to avoid overwriting a newer attempt
 
-PostgreSQL and EF Core stores use atomic conditional persist. When the processor cancels a dispatch itself during shutdown, it releases the lease through `ILeaseRenewable.ReleaseLeaseAsync`, returning the row to `Pending` (or `Failed` when it already carries an error) with the attempt count decremented instead of spending an attempt; the InMemory, PostgreSQL, and EF Core inbox and outbox stores implement it. Drain never cancels dispatch: the final pass runs with the uncancelled host token, so in-flight messages complete and persist normally.
+PostgreSQL and EF Core stores use atomic conditional persist.
+
+When the processor cancels a dispatch itself during shutdown, it releases the lease through `ILeaseRenewable.ReleaseLeaseAsync`. The release returns the row to `Pending` (or `Failed` when it already carries an error) with the attempt count decremented, instead of spending an attempt. The InMemory, PostgreSQL, and EF Core inbox and outbox stores implement the method.
+
+Drain never cancels dispatch. The final pass runs with the uncancelled host token, so in-flight messages complete and persist normally.
 
 ## Drain Before Stop
 
@@ -51,18 +55,18 @@ Hosted services run `IBackgroundService` processor loops. On shutdown:
 2. In-flight dispatches complete (subject to cancellation token policy)
 3. `HonorShutdownTokenOnPersist` on processor options controls whether cancel aborts terminal persist (default: complete persist)
 
-See [Hosted services](../architecture/hosted-services.md) and [Production runbook](../operations/runbook.md).
+See [Hosted Services](../architecture/hosted-services.md) and [Production Runbook](../operations/runbook.md).
 
 ## Broker Ingress Ack Policy
 
 | Broker | Commit/ack timing | Failure before accept |
 | --- | --- | --- |
-| Kafka | Offset commit on ack | Seek back; no commit |
+| Kafka | Offset commit on ack | Seek back without committing |
 | AMQP | BasicAck after accept | Nack requeue or reject |
 | SQS | Delete on ack | Visibility timeout extension |
 | Azure | Complete/abandon per SDK | Abandon for retry |
 
-Ingress logs `ingress.ack_failed_after_accept` when ack fails after successful accept; broker may redeliver (at-least-once).
+Ingress logs `ingress.ack_failed_after_accept` when ack fails after successful accept. The broker may then redeliver (at-least-once).
 
 ## Schema Version 1
 
@@ -73,8 +77,8 @@ PostgreSQL inbox, outbox, and saga tables use schema version **1**. The create s
 | Concern | Direct mediation | Durable inbox/outbox |
 | --- | --- | --- |
 | Crash safety | None | Store + processor |
-| Ordering | Handler pipeline order | FIFO-like by `created_at`; no strict order for ties, retries, or multiple workers |
-| Duplicates | None | Possible; idempotency required |
+| Ordering | Handler pipeline order | FIFO-like by `created_at`, with no strict order for ties, retries, or multiple workers |
+| Duplicates | None | Possible, requiring idempotency |
 | Cross-service | Single process | Storage + optional broker |
 
 ## Tests
@@ -82,10 +86,10 @@ PostgreSQL inbox, outbox, and saga tables use schema version **1**. The create s
 | Scenario | Location |
 | --- | --- |
 | Contract store semantics | `LiteBus.Storage.Testing` |
-| Concurrent lease / persist | PostgreSQL + EF integration tests |
+| Concurrent lease / persist | PostgreSQL + EF Core integration tests |
 | Ingress requeue | Broker ingress requeue scenarios in `tests/LiteBus.Durable.IntegrationTests/Ingress/` |
 
 ## Related Docs
 
-* [Inbox](inbox.md), [Outbox](outbox.md)
-* [Custom stores and dispatchers](../extending/custom-stores-and-dispatchers.md)
+- [Inbox](inbox.md), [Outbox](outbox.md)
+- [Custom Stores and Dispatchers](../extending/custom-stores-and-dispatchers.md)

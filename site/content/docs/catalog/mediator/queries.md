@@ -8,11 +8,9 @@
 
 ## What It Does
 
-`IQueryMediator` supports:
-- `QueryAsync` for `IQuery<TResult>`.
-- `StreamAsync` for `IStreamQuery<TResult>`.
+`IQueryMediator` supports `QueryAsync` for `IQuery<TResult>` and `StreamAsync` for `IStreamQuery<TResult>`.
 
-Both paths use single-handler mediation. They share pre, post, and error stages with commands. Stream queries use `SingleStreamHandlerMediationStrategy`, so the handler returns `IAsyncEnumerable<T>` and pipeline stages still run around that flow.
+Both paths use single-handler mediation. They share the pre, post, and error stages with commands. Stream queries use `SingleStreamHandlerMediationStrategy`, so the handler returns `IAsyncEnumerable<T>` while the pipeline stages still run around the stream.
 
 ## Public Surface
 
@@ -36,7 +34,7 @@ var dto = await queryMediator.QueryAsync(new GetProductQuery(id), cancellationTo
 | `IQueryMediator.StreamAsync<TResult>(...)` | Execute stream query |
 | `IQueryHandler<TQuery, TResult>` | Main handler for `IQuery<TResult>` |
 | `IStreamQueryHandler<TQuery, TResult>` | Main handler for stream query |
-| `IQueryMediator.TryQueryAsync` / `IQueryMediator.EvaluateAsync` | Refusal as a `MediationResult<TResult>` value; guard and validator evaluation as a `MediationDecision` |
+| `IQueryMediator.TryQueryAsync` / `IQueryMediator.EvaluateAsync` | Returns a refusal as a `MediationResult<TResult>` value, and evaluates guards and validators as a `MediationDecision` |
 | `IQueryGuard<TQuery>` / `IQueryValidator<TQuery>` / `IQueryShortcut<TQuery, TQueryResult>` / `IStreamQueryShortcut<TQuery, TQueryResult>` / `IQueryPreHandler<TQuery>` | Decision and pre stages, in framework-fixed order |
 | `IQueryPostHandler<TQuery>` / `IQueryPostHandler<TQuery, TResult>` | Post stage |
 | `IStreamQueryPostHandler<TQuery, TResult>` | Post stage for stream queries |
@@ -63,8 +61,8 @@ var dto = await queryMediator.QueryAsync(new GetProductQuery(id), cancellationTo
 
 - One main query handler must resolve after routing filters, at the winning level (direct, else indirect).
 - `QueryAsync` and `StreamAsync` throw `ArgumentNullException` for `null` query arguments.
-- A shortcut that stops a stream query yields the stream it answered with, which may be an empty sequence; post-handlers do not run.
-- Query handlers are intended for side-effect free reads.
+- A shortcut that stops a stream query yields the stream it answered with, which may be an empty sequence. Post-handlers do not run.
+- Query handlers are intended for side-effect-free reads.
 
 ## Non-Goals
 
@@ -74,7 +72,7 @@ var dto = await queryMediator.QueryAsync(new GetProductQuery(id), cancellationTo
 
 ## Observability
 
-Query mediation is covered by the shared `LiteBus.Mediation` activity source and meter: one span per mediation plus duration, count, and decision instruments, with per-stage spans and metrics opt-in through `MessageModuleBuilder.UseTelemetry`. See [Handler pipeline](handler-pipeline.md) for the instrument table.
+Query mediation is covered by the shared `LiteBus.Mediation` activity source and meter, which record one span per mediation plus duration, count, and decision instruments. Per-stage spans and metrics are opt-in through `MessageModuleBuilder.UseTelemetry`. See [Handler pipeline](handler-pipeline.md) for the instrument table.
 
 Operational alternatives:
 - Instrument application query handlers directly.
@@ -104,7 +102,7 @@ Operational alternatives:
 - Durable read model refresh and outbox/inbox-backed projections.
 - External broker query response patterns.
 
-## Deep Docs
+## References
 
 - [Query module](../../concepts/queries.md)
 - [The handler pipeline](../../concepts/handler-pipeline.md)

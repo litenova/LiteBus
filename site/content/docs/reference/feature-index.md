@@ -1,6 +1,6 @@
 # Feature Index
 
-Quick map from capability to documentation and primary packages. For install commands, see the [Documentation Index](../index.md). For the full cross-axis inventory, see [Capability Catalog](capability-catalog.md).
+This index maps each LiteBus capability to its documentation and primary packages. For install commands, see the [Documentation Index](../index.md). For the full cross-axis inventory, see [Capability Catalog](capability-catalog.md).
 
 ## Mediator
 
@@ -64,13 +64,13 @@ Quick map from capability to documentation and primary packages. For install com
 | InMemory | `LiteBus.Inbox.Storage.InMemory` | `LiteBus.Outbox.Storage.InMemory` |
 | Marten | - | `LiteBus.Outbox.Storage.Marten` |
 
-Shared PostgreSQL primitives: `LiteBus.Storage.PostgreSql`.
+`LiteBus.Storage.PostgreSql` holds the shared PostgreSQL primitives.
 
-Command idempotency stores: `LiteBus.Commands.Storage.PostgreSql` ([PostgreSQL idempotency store](../integrations/commands-postgresql-idempotency-store.md)) and `LiteBus.Commands.Storage.Marten` ([Marten unit of work, idempotency, and audit](../integrations/commands-marten.md)).
+The command idempotency stores are `LiteBus.Commands.Storage.PostgreSql` ([PostgreSQL idempotency store](../integrations/commands-postgresql-idempotency-store.md)) and `LiteBus.Commands.Storage.Marten` ([Marten unit of work, idempotency, and audit](../integrations/commands-marten.md)).
 
 ## Dispatch
 
-Broker dispatch adapters ship for every transport package. The [Capability Catalog](capability-catalog.md) records the maturity tier for each transport, dispatch, and ingress capability.
+A broker dispatch adapter exists for every transport package. The [Capability Catalog](capability-catalog.md) records the maturity tier for each transport, dispatch, and ingress capability.
 
 | Path | Inbox | Outbox |
 | --- | --- | --- |
@@ -91,7 +91,7 @@ Broker dispatch adapters ship for every transport package. The [Capability Catal
 | Kafka | Beta | `LiteBus.Inbox.Ingress.Kafka` |
 | InMemory | GA (testing) | `LiteBus.Inbox.Ingress.InMemory` |
 
-Transport platform: `LiteBus.Transport.*`. Kafka transport is GA; AWS SQS and Azure Service Bus transport are Beta.
+The transport platform is `LiteBus.Transport.*`. Kafka transport is GA, while AWS SQS and Azure Service Bus transport are Beta.
 
 ## Hosting and Operations
 
@@ -110,7 +110,7 @@ Transport platform: `LiteBus.Transport.*`. Kafka transport is GA; AWS SQS and Az
 
 ## Analyzers
 
-See [Analyzers](analyzers.md) for LB1001-LB1024; LB1002 and LB1006 are reserved and never shipped. Highlights:
+See [Analyzers](analyzers.md) for LB1001-LB1024. LB1002 and LB1006 are reserved and never shipped. Highlights:
 
 | Rule | Topic |
 | --- | --- |
@@ -119,7 +119,7 @@ See [Analyzers](analyzers.md) for LB1001-LB1024; LB1002 and LB1006 are reserved 
 | LB1014-LB1017 | Processor without dispatcher, transactional EF interceptor, transactional inbox DbContext, explicit contract registration |
 | LB1018 | Message states no audit position |
 | LB1019 | Untyped shortcut on a message that produces a result |
-| LB1020 / LB1021 | Message states no position on a required declaration; required declaration type not found |
+| LB1020 / LB1021 | A message states no position on a required declaration, or a required declaration type is not found |
 | LB1022 | `[HandlerPriority]` value inside the range LiteBus reserves for its own handlers |
 | LB1023 | Command handler sends or publishes another message through a mediator inside its handle method |
 | LB1024 | Command handler injects an external side-effect type through its constructor |

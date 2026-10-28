@@ -1,6 +1,6 @@
 # External Side Effect in Command Handler
 
-LB1024 reports command handlers that inject an external side-effect type through their constructor, because acting on the outside world before the commit leaves effects the unit of work cannot roll back.
+A command handler runs inside a unit of work that ends at the commit, so a call to the outside world from the handler leaves effects the commit cannot roll back. LB1024 reports command handlers that inject an external side-effect type through their constructor.
 
 ## Header
 
@@ -17,12 +17,12 @@ LB1024 reports command handlers that inject an external side-effect type through
 - `ICommandHandler<TCommand, TResult>`
 - `IAsyncMessageHandler<TMessage>`, `IAsyncMessageHandler<TMessage, TResult>`, or `IMessageHandler<TMessage, TResult>` whose message type is a command
 
-It reports a public constructor parameter whose type is the forbidden type, derives from it, or implements it. Private constructors are skipped, matching the transactional-constructor rules. The default forbidden types are:
+It reports a public constructor parameter whose type is the forbidden type, derives from it, or implements it. Private constructors are skipped, as in the transactional-constructor rules. The default forbidden types are:
 
 - `System.Net.Http.HttpClient`
 - `System.Net.Http.IHttpClientFactory`
 
-Set `litebus.LB1024.forbidden_types` in `.editorconfig` to a comma-separated list of metadata names to replace the defaults; a configured value that names nothing reports nothing. Names that do not resolve are ignored. Only constructor parameters are reported.
+To replace the defaults, set `litebus.LB1024.forbidden_types` in `.editorconfig` to a comma-separated list of metadata names. A configured value that names nothing reports nothing. Names that do not resolve are ignored. Only constructor parameters are reported.
 
 Enable the rule with `dotnet_diagnostic.LB1024.severity = warning` in `.editorconfig`.
 

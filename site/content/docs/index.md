@@ -8,36 +8,36 @@ LiteBus provides command, query, and event mediation for .NET applications. Hand
 
 These pages describe the current LiteBus release, shown beside the navigation.
 
-## Why LiteBus Exists
+## Purpose
 
 A mediator removes the direct call between the code that wants work done and the code that does it, so cross-cutting steps such as validation, auditing, and idempotency attach in one place instead of at every call site.
 
-LiteBus types the three reasons to send a message separately: a command intends one state change, a query reads state and returns a result, and an event reports a fact to zero or more listeners.
+LiteBus types the three reasons to send a message separately. A command intends one state change, a query reads state and returns a result, and an event reports a fact to zero or more listeners.
 
 When a message has to survive a restart, the inbox accepts it durably and runs it under a lease, the outbox records it beside domain data and publishes it after commit, and sagas keep correlated state across dispatches. Each axis ships as opt-in packages, so a service references only what it runs.
 
-## What You Get
+## Capabilities
 
 You register the mediators first, then add durability only where you need it.
 
-- Mediation for commands, queries, and events through ordered pipelines with guards, validators, shortcuts, post-handlers, error handlers, and completion handlers. Per-mediation state travels in the execution context. Start with [Commands](concepts/commands.md), [Queries](concepts/queries.md), [Events](concepts/events.md), and [The Handler Pipeline](concepts/handler-pipeline.md).
-- Durable execution and publication: the [inbox](reliable-messaging/inbox.md) accepts commands and runs them under a lease, the [outbox](reliable-messaging/outbox.md) records events beside domain data and publishes them after commit, and [sagas](reliable-messaging/saga.md) keep correlated state across dispatches. [Transactional writes](reliable-messaging/transactional-writes.md) commit domain and message rows together.
-- Storage, transport, dispatch, and ingress adapters in per-concern packages: five transports (RabbitMQ through AMQP, Kafka, AWS SQS, Azure Service Bus, and in-memory) and three store families (PostgreSQL, Entity Framework Core, and in-memory). See [Storage](reference/feature-index.md#storage) and [Ingress](reference/feature-index.md#ingress). [PostgreSQL schema management](integrations/postgresql-schema-management.md) covers migration-owned DDL.
-- Operations support: the host [manifest](architecture/hosted-services.md) for startup tasks, background loops, and diagnostic probes, [diagnostics and health](operations/diagnostics-and-health.md) endpoints, the [production runbook](operations/runbook.md), and Roslyn [analyzers](reference/analyzers.md) that catch registration and inbox mistakes at compile time.
+- Commands, queries, and events are mediated through ordered pipelines with guards, validators, shortcuts, post-handlers, error handlers, and completion handlers. Per-mediation state travels in the execution context. Start with [Commands](concepts/commands.md), [Queries](concepts/queries.md), [Events](concepts/events.md), and [The Handler Pipeline](concepts/handler-pipeline.md).
+- For durable execution and publication, the [inbox](reliable-messaging/inbox.md) accepts commands and runs them under a lease, the [outbox](reliable-messaging/outbox.md) records events beside domain data and publishes them after commit, and [sagas](reliable-messaging/saga.md) keep correlated state across dispatches. [Transactional writes](reliable-messaging/transactional-writes.md) commit domain and message rows together.
+- Storage, transport, dispatch, and ingress adapters ship in per-concern packages. There are five transports (RabbitMQ through AMQP, Kafka, AWS SQS, Azure Service Bus, and in-memory) and three store families (PostgreSQL, Entity Framework Core, and in-memory). See [Storage](reference/feature-index.md#storage) and [Ingress](reference/feature-index.md#ingress). [PostgreSQL schema management](integrations/postgresql-schema-management.md) covers migration-owned DDL.
+- Operations support comes from the host [manifest](architecture/hosted-services.md) for startup tasks, background loops, and diagnostic probes, [diagnostics and health](operations/diagnostics-and-health.md) endpoints, the [production runbook](operations/runbook.md), and Roslyn [analyzers](reference/analyzers.md) that catch registration and inbox mistakes at compile time.
 
 ## What It Costs
 
-Each promise below holds only with the named registration. Details live on [Limits and Opt-in Boundaries](reference/limits.md).
+Each promise below holds only with the named registration. [Limits and Opt-in Boundaries](reference/limits.md) has the details.
 
-- Mediation alone persists nothing: a process crash mid-handler loses the work. Durable delivery needs a store adapter and a processor host on each axis that must survive one. See [Mediation Alone Persists Nothing](reference/limits.md#mediation-alone-persists-nothing).
-- One transport module per composition: registering a second broker transport fails composition with an error naming both modules. See [One Transport Module per Composition](reference/limits.md#one-transport-module-per-composition).
-- Saga duplicate suppression covers only the latest applied message: an older redelivery can run its handler again after a newer message advances the row. Handlers with external side effects need their own idempotency. See [Saga Duplicate Suppression Covers the Latest Message](reference/limits.md#saga-duplicate-suppression-covers-the-latest-message).
-- Lease visibility follows the database clock on stores that have one; the request timestamps are the fallback for stores without one. Clock skew larger than a retry delay changes the retry schedule. See [Lease Visibility Follows the Database Clock](reference/limits.md#lease-visibility-follows-the-database-clock).
-- `Safety.MaxInFlightMessages` above 1 takes effect only on Azure Service Bus ingress; the AMQP, Kafka, SQS, and in-memory adapters enforce 1. See [Concurrency Bounds Differ per Adapter](reference/limits.md#concurrency-bounds-differ-per-adapter).
+- Mediation alone persists nothing. A process crash mid-handler loses the work. Durable delivery needs a store adapter and a processor host on each axis that must survive one. See [Mediation Alone Persists Nothing](reference/limits.md#mediation-alone-persists-nothing).
+- One transport module is allowed per composition. Registering a second broker transport fails composition with an error naming both modules. See [One Transport Module per Composition](reference/limits.md#one-transport-module-per-composition).
+- Saga duplicate suppression covers only the latest applied message. An older redelivery can run its handler again after a newer message advances the row. Handlers with external side effects need their own idempotency. See [Saga Duplicate Suppression Covers the Latest Message](reference/limits.md#saga-duplicate-suppression-covers-the-latest-message).
+- Lease visibility follows the database clock on stores that have one. The request timestamps are the fallback for stores without one. Clock skew larger than a retry delay changes the retry schedule. See [Lease Visibility Follows the Database Clock](reference/limits.md#lease-visibility-follows-the-database-clock).
+- `Safety.MaxInFlightMessages` above 1 takes effect only on Azure Service Bus ingress. The AMQP, Kafka, SQS, and in-memory adapters enforce 1. See [Concurrency Bounds Differ per Adapter](reference/limits.md#concurrency-bounds-differ-per-adapter).
 
 ## Words These Pages Use
 
-Each word below names one thing across these pages. The [Glossary](reference/glossary.md) is the full list, and it wins where a page and a type name disagree.
+Each word below names one thing across these pages. The [Glossary](reference/glossary.md) is the full list, and it takes precedence where a page and a type name disagree.
 
 | Word | Meaning |
 | --- | --- |
@@ -54,7 +54,7 @@ Each word below names one thing across these pages. The [Glossary](reference/glo
 | [Dispatcher](reference/glossary.md#reliable-messaging-entry-points) | The component that runs or publishes a leased envelope. |
 | [Ingress](reference/glossary.md) | A broker consumer that accepts deliveries into the inbox. |
 
-## Find the Page for Your Question
+## Page Guide
 
 Pick the row that matches your task.
 
@@ -83,11 +83,11 @@ Pick the row that matches your task.
 
 ## Requirements
 
-You need the .NET 10 SDK and working C#.
+You need the .NET 10 SDK and working knowledge of C#.
 
-You need one DI container adapter: the Microsoft.Extensions.DependencyInjection or Autofac extension packages for the modules you use.
+You need one DI container adapter. That means the Microsoft.Extensions.DependencyInjection or Autofac extension packages for the modules you use.
 
-For durable messaging, you need one store adapter and one enabled processor per axis you run; the exact boundary is on [Limits and Opt-in Boundaries](reference/limits.md).
+For durable messaging, you need one store adapter and one enabled processor per axis you run. The exact boundary is on [Limits and Opt-in Boundaries](reference/limits.md).
 
 If you upgrade from the stable release, read the [v7 migration guide](migration/v7.md) before changing registration or storage code.
 

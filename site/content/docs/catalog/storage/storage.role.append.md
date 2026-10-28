@@ -1,7 +1,7 @@
 # Append Store Role
 
 - **ID**: `storage.role.append`
-- **Summary**: Writes inbox acceptance rows and outbox enqueue rows, including idempotency behavior.
+- **Summary**: Writes inbox acceptance rows and outbox enqueue rows, with idempotency behavior.
 
 ## Interface Methods
 
@@ -14,30 +14,30 @@
 
 ## SQL Behavior
 
-- PostgreSQL append uses insert with `ON CONFLICT DO NOTHING`.
-- When conflict occurs, the adapter returns the existing row with `AlreadyAccepted` or `AlreadyEnqueued` instead of creating a duplicate.
-- Tenant-scoped idempotency is enforced by filtered unique index on `(tenant_id, idempotency_key)`.
+- On PostgreSQL, append inserts with `ON CONFLICT DO NOTHING`.
+- When a conflict occurs, the adapter returns the existing row with `AlreadyAccepted` or `AlreadyEnqueued` instead of creating a duplicate.
+- A filtered unique index on `(tenant_id, idempotency_key)` enforces tenant-scoped idempotency.
 - Batch append preserves request ordering in the returned append-result list. A later slot that duplicates an earlier slot reports the existing outcome.
 - Strict identical replay compares tenants through normalized values, so a null request tenant matches a stored empty-string unscoped row and returns the existing outcome instead of throwing.
-- Entity Framework batch recovery reinserts rows still missing after a unique violation and chains the database error as the inner exception when the retry also fails; non-unique failures are rethrown instead of reported as existing rows.
-- Outbox rows addressed to one handler by per-handler delivery store the handler full name in the `handler` column; stores persist it as an opaque value and return it on lease and query.
+- Entity Framework batch recovery reinserts rows still missing after a unique violation and chains the database error as the inner exception when the retry also fails. Non-unique failures are rethrown instead of reported as existing rows.
+- Outbox rows addressed to one handler by per-handler delivery store the handler full name in the `handler` column. Stores persist it as an opaque value and return it on lease and query.
 
 ## Concurrency Model
 
-- Concurrent append calls are safe because primary key and idempotency unique indexes resolve duplicates.
-- Batch append still applies dedup behavior per envelope slot.
-- Transactional mode can bind writes to caller transaction (manual or ambient participant).
+- Concurrent append calls are safe, because the primary key and idempotency unique indexes resolve duplicates.
+- Batch append still applies deduplication behavior per envelope slot.
+- Transactional mode can bind writes to the caller transaction through a manual or ambient participant.
 
 ## Index Interaction
 
-- `message_id` primary key prevents duplicate message identifiers.
-- Inbox and outbox idempotency unique indexes enforce per-tenant dedup.
-- Outbox topic index is append-adjacent because `topic` is written at append time for publish routing.
+- The `message_id` primary key prevents duplicate message identifiers.
+- Inbox and outbox idempotency unique indexes enforce per-tenant deduplication.
+- The outbox topic index relates to append, because `topic` is written at append time for publish routing.
 
 ## Observability
 
-- No dedicated append counter at storage layer.
-- Append impact appears in queue-depth gauges on next diagnostics pass:
+- The storage layer has no dedicated append counter.
+- Appends appear in the queue-depth gauges on the next diagnostics pass:
   - `litebus.inbox.queue.depth`
   - `litebus.outbox.queue.depth`
 
@@ -50,13 +50,13 @@
 
 ### `LiteBus.Storage.IntegrationTests` (`PostgreSql/`)
 
-- `PostgreSqlInboxStoreTests` and `PostgreSqlOutboxStoreTests`: append contract parity.
-- `PostgreSqlTransactionalWritersIntegrationTests`: ambient and manual transactional append.
-- `PostgreSqlReliableMessagingEndToEndTests`: append-to-process flow with duplicate delivery scenario.
+- `PostgreSqlInboxStoreTests` and `PostgreSqlOutboxStoreTests` verify append contract parity.
+- `PostgreSqlTransactionalWritersIntegrationTests` covers ambient and manual transactional append.
+- `PostgreSqlReliableMessagingEndToEndTests` covers the append-to-process flow with a duplicate delivery scenario.
 
 ## Concrete Example
 
-When a command with the same tenant and idempotency key is accepted twice, the second append call returns `InboxAppendResult(firstEnvelope, AlreadyAccepted)`. Processor logic then sees one pending message, not two.
+When a command with the same tenant and idempotency key is accepted twice, the second append call returns `InboxAppendResult(firstEnvelope, AlreadyAccepted)`. The processor then sees one pending message, not two.
 
 ## Related Docs
 

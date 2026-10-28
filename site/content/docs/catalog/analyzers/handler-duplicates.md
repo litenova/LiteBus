@@ -11,14 +11,14 @@
 
 ### LB1001 (Duplicate Command Handler)
 
-Reports when two or more handlers are registered for one command message type in the command pipeline:
+The rule reports when two or more handlers are registered for one command message type in the command pipeline:
 
 - `ICommandHandler<TCommand>`
 - `ICommandHandler<TCommand, TResult>`
 
 ### LB1010 (Duplicate Query Handler)
 
-Reports when two or more handlers are registered for one query type in either pipeline:
+The rule reports when two or more handlers are registered for one query type in either pipeline:
 
 - Query pipeline: `IQueryHandler<TQuery, TResult>`
 - Stream query pipeline: `IStreamQueryHandler<TQuery, TResult>`
@@ -65,7 +65,7 @@ public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
 
 ## Suppression Guidance
 
-- Do not suppress by default, this rule prevents runtime `MultipleHandlerFoundException` style ambiguity.
+- Do not suppress this rule by default. It prevents the runtime `MultipleHandlerFoundException` ambiguity of two handlers for one message.
 - If multiple handlers are intentional, split responsibilities into pre, post, or error handlers, or use event handlers.
 - Keep one main handler per command and one per query type.
 

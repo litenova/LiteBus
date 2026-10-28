@@ -3,11 +3,11 @@
 - **ID**: `runtime.message-registry`
 - **Name**: Message and handler type registry
 - **Maturity**: GA
-- **Summary**: Registers message and handler CLR types, builds descriptors, and supports open-generic handler expansion.
+- **Summary**: The registry registers message and handler CLR types, builds descriptors, and supports open-generic handler expansion.
 
 ## What It Does
 
-`MessageRegistry` implements `IMessageRegistry` (`IMessageWriter` and `IMessageReader`). It keeps exact message descriptor lookup, ordered handler descriptors, and open-generic handler templates that are closed against concrete messages.
+`MessageRegistry` implements `IMessageRegistry` (`IMessageWriter` and `IMessageReader`). It provides exact message descriptor lookup and ordered handler descriptors, and holds open-generic handler templates that are closed over concrete messages.
 
 ## Public Surface
 
@@ -34,16 +34,16 @@
 ## Invariants
 
 - Duplicate type registration is idempotent.
-- Generic message types are normalized for lookup.
-- Unsupported open-generic handler shapes fail fast.
+- The registry normalizes generic message types for lookup.
+- Registering an unsupported open-generic handler shape throws.
 
 ## Non-Goals
 
-- Persisted registry storage.
+- Storing the registry in persistent storage.
 
 ## Observability
 
-No dedicated telemetry.
+The registry emits no telemetry.
 
 ## Test Coverage
 
@@ -51,22 +51,22 @@ No dedicated telemetry.
 
 #### `MessageRegistryTests.Register_OpenGenericHandler_ShouldLinkToExistingConcreteMessageType`
 - **Test kind**: Unit
-- **Expected outcome**: open generic handler is closed and linked
+- **Expected outcome**: the registry closes and links the open generic handler
 
 #### `MessageRegistryTests.Register_ConcreteMessageAfterOpenGenericHandler_ShouldLinkOpenGenericHandler`
 - **Test kind**: Unit
-- **Expected outcome**: later concrete message receives closed handler
+- **Expected outcome**: a later concrete message receives the closed handler
 
 #### `MessageRegistryTests.Find_ExactType_ShouldReturnDescriptorInConstantTime`
 - **Test kind**: Unit
-- **Expected outcome**: exact descriptor lookup works
+- **Expected outcome**: exact descriptor lookup returns the descriptor
 
 ### Untested Use Cases
 
 | Use case | Priority | Notes |
 | --- | --- | --- |
-| High-contention concurrent registrations | Medium | Locking exists, contention profile untested |
+| High-contention concurrent registrations | Medium | Locking exists but the contention profile is untested |
 
 ### Out-of-Scope Use Cases
 
-- Open-generic handlers with more than two type parameters.
+- Supporting open-generic handlers with more than two type parameters.

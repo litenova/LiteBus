@@ -6,7 +6,7 @@ LiteBus is a maintainer-owned open-source library. AI tools may assist developme
 
 The LiteBus Git history starts on [December 4, 2020](https://github.com/litenova/LiteBus/commit/f6d7ed2e532d6fa4c382b63038c057b8ff1da54d). The repository adopted the LiteBus name on [March 17, 2021](https://github.com/litenova/LiteBus/commit/74ca271c8586bed75f71e0055e5853d3a7a9cf91). Both dates precede the [GitHub Copilot technical preview](https://github.blog/news-insights/product-news/introducing-github-copilot-ai-pair-programmer/) from June 2021 and the [public release of ChatGPT](https://openai.com/index/chatgpt/) from November 2022.
 
-The mediator implementation was already under active development before public generative coding assistants. Current development continues that codebase; generated output is not treated as project authority.
+The mediator implementation was already under active development before public generative coding assistants appeared. Current development continues that codebase, and generated output is not treated as project authority.
 
 ## Maintainer Responsibility
 

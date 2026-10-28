@@ -10,7 +10,7 @@
 
 The application implements `IUnitOfWork`, whose single `CommitAsync` method commits the work the handler staged, and registers it with `UseUnitOfWork<TUnitOfWork>` on the command or query module builder. LiteBus resolves it from the mediation scope and calls it once per mediation that ended with `MediationOutcome.Succeeded`, from a completion handler at `HandlerPriorities.UnitOfWork`. That position runs after every LiteBus completion handler, so a record the audit writer staged at `HandlerPriorities.Observability` is part of the same commit.
 
-The commit does not belong in a post-handler: a post-handler never runs when the main handler throws, so a commit placed there cannot decide anything about a failure, and everything LiteBus writes afterwards lands outside the transaction. The completion stage runs on every path, so the shipped handler gates on the outcome instead: a denial, a validation failure, a shortcut answer, a fault, and a cancellation all end without committing. A shortcut answer does not commit even though it reports success, because the main handler never ran and staged nothing.
+The commit does not belong in a post-handler. A post-handler never runs when the main handler throws, so a commit placed there cannot gate on a failure, and everything LiteBus writes afterwards lands outside the transaction. The completion stage runs on every path, so the shipped handler gates on the outcome instead. A denial, a validation failure, a shortcut answer, a fault, and a cancellation all end without committing. A shortcut answer does not commit even though it reports success, because the main handler never ran and staged nothing.
 
 ## Public Surface
 
@@ -37,11 +37,11 @@ registry.AddCommands(commands => commands
 
 | API | Role |
 | --- | --- |
-| `IUnitOfWork.CommitAsync(CancellationToken)` | Commits the work the mediation staged; the token is `CancellationToken.None` because the completion stage is not cancellable |
+| `IUnitOfWork.CommitAsync(CancellationToken)` | Commits the work the mediation staged. The token is `CancellationToken.None` because the completion stage is not cancellable |
 | `CommandModuleBuilder.UseUnitOfWork<TUnitOfWork>()` | Registers the commit for the command axis |
 | `QueryModuleBuilder.UseUnitOfWork<TUnitOfWork>()` | Registers the commit for the query axis |
 | `HandlerPriorities.UnitOfWork` | The commit position, above `ReservedCeiling` and after the audit writer |
-| `MartenUnitOfWork` | Shipped commit over the scoped Marten session, from `LiteBus.Commands.Storage.Marten` |
+| `MartenUnitOfWork` | The shipped commit over the scoped Marten session, from `LiteBus.Commands.Storage.Marten` |
 
 ## Packages
 
@@ -59,9 +59,9 @@ registry.AddCommands(commands => commands
 ## Invariants
 
 - `CommitAsync` runs once per mediation that ended `Succeeded`, and never for a denial, a validation failure, a shortcut answer, a fault, or a cancellation.
-- LiteBus never opens or owns the transaction; the application opens it, stages work into it, and this commit closes it, while releasing uncommitted work stays the implementation's own concern.
-- Calling `UseUnitOfWork` twice on one builder throws `LiteBusConfigurationException`; registering it on commands and queries with different types is allowed, with each axis committing its own, but one type is preferred so the shared `IUnitOfWork` service resolves unambiguously.
-- The implementation registers scoped, as itself plus a first-wins `IUnitOfWork` mapping.
+- LiteBus never opens or owns the transaction. The application opens it, stages work into it, and this commit closes it, while releasing uncommitted work stays the implementation's own concern.
+- Calling `UseUnitOfWork` twice on one builder throws `LiteBusConfigurationException`. Registering it on commands and queries with different types is allowed, with each axis committing its own, but one type is preferred so the shared `IUnitOfWork` service resolves unambiguously.
+- The implementation registers as scoped, as itself plus a first-wins `IUnitOfWork` mapping.
 - A commit that throws fails the mediation with that exception, so a concurrency conflict reaches the caller instead of silently losing the write.
 
 ## Non-Goals
@@ -112,7 +112,7 @@ Operational alternatives:
 - ORM session lifetime management outside the mediation scope.
 - Distributed transaction protocols.
 
-## Deep Docs
+## References
 
 - [Domain events and unit of work](../../reliable-messaging/domain-events-and-unit-of-work.md)
 - [Auditing](../../concepts/auditing.md)

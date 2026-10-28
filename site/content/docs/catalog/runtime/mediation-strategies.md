@@ -3,15 +3,15 @@
 - **ID**: `runtime.mediation-strategies`
 - **Name**: Pluggable mediation strategies
 - **Maturity**: GA
-- **Summary**: Defines strategy contracts and default single-main-handler task and stream strategies.
+- **Summary**: The runtime defines the strategy contracts and the default strategies: single-main-handler strategies for task and stream results.
 
 ## What It Does
 
-Strategies implementing `IMessageMediationStrategy<TMessage,TResult>` control pre, main, post, error, and completion handler execution. In the shipped execution strategies, the completion stage runs in a `finally`, so each one reports an outcome even when the pipeline aborts, fails, or is cancelled. Runtime ships single-main-handler strategies for `Task`, `Task<T>`, and `IAsyncEnumerable<T>`.
+Strategies implementing `IMessageMediationStrategy<TMessage,TResult>` control pre, main, post, error, and completion handler execution. In the execution strategies LiteBus ships, the completion stage runs in a `finally` block, so every run reports an outcome even when the pipeline aborts, fails, or is cancelled. The runtime ships single-main-handler strategies for `Task`, `Task<T>`, and `IAsyncEnumerable<T>`.
 
-Decision evaluation is a strategy, not a mediation. `DecisionEvaluationMediationStrategy<TMessage>` implements `IMessageMediationStrategy<TMessage, Task<MediationDecision>>` for the `Evaluate` methods: it runs guards then validators in the fixed order and stops, so no shortcut claims a key, no pre-handler or main handler runs, the completion stage does not fire, and no audit record is produced. A fault a refusal classifier recognizes is reported as the refusal the message would end as when actually sent.
+Decision evaluation is a strategy, not a mediation. `DecisionEvaluationMediationStrategy<TMessage>` implements `IMessageMediationStrategy<TMessage, Task<MediationDecision>>` for the `Evaluate` methods. It runs guards, then validators, in that fixed order, and then stops. No shortcut claims a key, no pre-handler or main handler runs, the completion stage does not run, and no audit record is produced. A fault that a refusal classifier recognizes is reported as the refusal the message would end with if actually sent.
 
-Event fan-out uses `AsyncBroadcastMediationStrategy`, covered by [mediator.events](../mediator/events.md).
+Event fan-out uses `AsyncBroadcastMediationStrategy`, which [mediator.events](../mediator/events.md) covers.
 
 ## Public Surface
 
@@ -36,17 +36,17 @@ Event fan-out uses `AsyncBroadcastMediationStrategy`, covered by [mediator.event
 
 ## Invariants
 
-- Direct main handlers are preferred over indirect handlers.
-- Zero or multiple main handlers fail with explicit exceptions.
-- Recoverable exceptions invoke error handlers.
+- The resolver prefers direct main handlers over indirect handlers.
+- When zero or multiple main handlers match, resolution throws an explicit exception.
+- When a handler throws a recoverable exception, the pipeline invokes error handlers.
 
 ## Non-Goals
 
-- Built-in parallel multi-main-handler strategies.
+- Parallel strategies with multiple main handlers built into the runtime.
 
 ## Observability
 
-No dedicated strategy telemetry.
+Strategies emit no telemetry.
 
 ## Test Coverage
 
@@ -54,22 +54,22 @@ No dedicated strategy telemetry.
 
 #### `MediationCorrectnessTests.Send_Command_ShouldRetainAmbientScopeUntilHandlerContinuationCompletes`
 - **Test kind**: Unit
-- **Expected outcome**: strategy preserves ambient execution semantics
+- **Expected outcome**: the strategy preserves ambient execution semantics
 
 #### `PostHandlerResultOverrideTests.Send_CommandWithMultiplePostHandlers_LastWriteWins`
 - **Test kind**: Unit
-- **Expected outcome**: post-handler override semantics are respected
+- **Expected outcome**: the pipeline respects post-handler override semantics
 
 #### `MediationScopeRetentionTests.Mediate_stream_result_retains_dispatch_scope_until_enumeration_completes`
 - **Test kind**: Unit
-- **Expected outcome**: stream strategy retains scope through enumeration
+- **Expected outcome**: the stream strategy retains the scope through enumeration
 
 ### Untested Use Cases
 
 | Use case | Priority | Notes |
 | --- | --- | --- |
-| Custom non-task result wrappers | Medium | Contract supports custom strategies, default suite targets shipped ones |
+| Custom non-task result wrappers | Medium | The contract supports custom strategies, but the default suite targets the shipped ones |
 
 ### Out-of-Scope Use Cases
 
-- Parallel fan-out strategy implementation in core runtime package.
+- A parallel fan-out strategy implemented in the core runtime package.

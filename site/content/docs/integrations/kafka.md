@@ -1,6 +1,6 @@
 # Kafka Transport
 
-`LiteBus.Transport.Kafka` publishes and consumes through Kafka with the `Confluent.Kafka` SDK. Inbox and outbox adapters compose it independently: installing the Kafka transport does not pull AMQP or AWS SDKs.
+LiteBus connects to Kafka through `LiteBus.Transport.Kafka`, which publishes and consumes with the `Confluent.Kafka` SDK. The inbox and outbox adapters compose it independently, so installing the Kafka transport does not pull AMQP or AWS SDKs.
 
 **Production tier: GA** (transport platform and dispatch). **Kafka ingress is Beta**; see the [Feature Index](../reference/feature-index.md).
 
@@ -13,7 +13,7 @@
 | `LiteBus.Outbox.Dispatch.Kafka` | Outbound event publish from outbox processor |
 | `LiteBus.Inbox.Ingress.Kafka` | Broker intake into `IInbox.AcceptAsync` |
 
-Add inbox or outbox core and a storage package alongside the transport. Durable processing needs a store and a processor host; the transport alone persists nothing. See [Dependency Graph](../architecture/dependency-graph.md).
+Install inbox or outbox core and a storage package alongside the transport. Durable processing needs a store and a processor host. The transport alone persists nothing. See [Dependency Graph](../architecture/dependency-graph.md).
 
 ## Registration
 
@@ -63,11 +63,11 @@ Register exactly one dispatcher per inbox or outbox: a second dispatcher registr
 | | `SeekFailureBackoffMultiplier` | 2.0 | Per-offset failure multiplier |
 | `KafkaInboxIngressOptions` | `Destination` | `""` (required) | Topic the ingress consumer subscribes to |
 | | `RequeueOnFailure` | `true` | Seek back on transient accept failure |
-| | `Safety.MaxInFlightMessages` | `32` requested | Enforced bound is 1: the Kafka adapter runs one handler at a time |
+| | `Safety.MaxInFlightMessages` | `32` requested | The enforced bound is 1, because the Kafka adapter runs one handler at a time. |
 
-The producer timeout and retry settings affect dispatch only; they do not change the ingress consume loop. For the defaults behind the `null` values, see the [Confluent.Kafka .NET client documentation](https://docs.confluent.io/kafka-clients/dotnet/current/overview.html).
+The producer timeout and retry settings affect dispatch only. They do not change the ingress consume loop. For the defaults behind the `null` values, see the [Confluent.Kafka .NET client documentation](https://docs.confluent.io/kafka-clients/dotnet/current/overview.html).
 
-LiteBus does not expose a Kafka `PrefetchCount` setting. The Confluent.Kafka .NET consume loop returns records one at a time from the client's background fetch queue. Kafka fetch tuning remains in `KafkaTransportOptions` or the underlying client configuration when a supported option is added.
+LiteBus does not expose a Kafka `PrefetchCount` setting. The Confluent.Kafka .NET consume loop returns records one at a time from the client's background fetch queue. Kafka fetch tuning remains in `KafkaTransportOptions` or the underlying client configuration for when a supported option is added.
 
 ## Ingress
 
@@ -75,11 +75,18 @@ LiteBus does not expose a Kafka `PrefetchCount` setting. The Confluent.Kafka .NE
 
 The offset is committed only after `TransportMessage.AcceptAsync` succeeds. On transient accept failure with `RequeueOnFailure = true`, `ReturnToQueueAsync` seeks the consumer back to the failed offset before the next consume, with the seek backoff schedule from `KafkaTransportOptions` (`SeekFailureBackoffInitial`, `SeekFailureBackoffMax`, `SeekFailureBackoffMultiplier`). Poison failures (unknown contract, oversize body, malformed payload) are never requeued.
 
-Each consumer instance owns a dedicated Confluent client: starting a second subscription does not replace the first, and consumers that share `ConsumerGroupId` coordinate as one group. `StopAsync` closes the owned client so group membership is released promptly instead of lingering until the session timeout. When the consume loop faults, `StopAsync` completes without throwing and the terminal failure propagates from `WaitUntilStoppedAsync`.
+Each consumer instance owns a dedicated Confluent client. Starting a second subscription does not replace the first, and consumers that share `ConsumerGroupId` coordinate as one group. `StopAsync` closes the owned client so group membership is released promptly instead of lingering until the session timeout. When the consume loop faults, `StopAsync` completes without throwing and the terminal failure propagates from `WaitUntilStoppedAsync`.
 
-A transient poll error backs off for one second and resumes polling; only a fatal client error faults the loop. A requeue seek that fails transiently, for example when a rebalance revokes the partition, retries with the seek backoff schedule until it succeeds or shutdown cancels it.
+After a transient poll error, the consumer backs off for one second and resumes polling. Only a fatal client error faults the loop. A requeue seek that fails transiently, for example when a rebalance revokes the partition, retries with the seek backoff schedule until it succeeds or shutdown cancels it.
 
-`Safety` carries the provider-neutral limits: `MaxMessageBytes` (default 4 MiB) rejects oversize bodies before deserialization, `RequireStableIdentity` (default `true`) requires a stable broker delivery id, `TrustApplicationHeaders` (default `false`) keeps application headers from overriding broker identity and tenant metadata, and `AuthorizeDeliveryAsync` optionally authorizes each delivery before accept. The enforced handler concurrency is 1: raising `Safety.MaxInFlightMessages` alone does not parallelize the Kafka adapter.
+`Safety` carries the provider-neutral limits:
+
+- `MaxMessageBytes` (default 4 MiB) rejects oversize bodies before deserialization.
+- `RequireStableIdentity` (default `true`) requires a stable broker delivery id.
+- `TrustApplicationHeaders` (default `false`) keeps application headers from overriding broker identity and tenant metadata.
+- `AuthorizeDeliveryAsync` optionally authorizes each delivery before accept.
+
+The enforced handler concurrency is 1, so raising `Safety.MaxInFlightMessages` alone does not parallelize the Kafka adapter.
 
 ## Guarantees and Non-Guarantees
 
@@ -95,9 +102,9 @@ On transient ingress failure, `ReturnToQueueAsync` seeks the consumer to the fai
 
 | Symptom | Check | Action |
 | --- | --- | --- |
-| Same message reprocessed repeatedly | Consumer lag, seek backoff logs | Fix root accept/dispatch failure; verify idempotency |
-| Consumer stuck on one offset | Repeated seek at same partition/offset | Inspect store availability; increase backoff cap if broker pressure |
-| No ingress | Topic name, group id, ACLs | Confirm `Destination` topic exists; reset group if needed |
+| Same message reprocessed repeatedly | Consumer lag, seek backoff logs | Fix the root accept or dispatch failure and verify idempotency |
+| Consumer stuck on one offset | Repeated seek at same partition/offset | Inspect store availability and increase the backoff cap if the broker is under pressure |
+| No ingress | Topic name, group id, ACLs | Confirm the `Destination` topic exists and reset the group if needed |
 | `transport.kafka.connectivity` unhealthy | Bootstrap reachability, TLS/SASL, cluster ACLs | Fix broker access; tune `ConnectivityCheckTimeout` only when network latency requires it |
 
 Monitor consumer lag, seek retry rate, and inbox/outbox row counts. See [Production Runbook](../operations/runbook.md).

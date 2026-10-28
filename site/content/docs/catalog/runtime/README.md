@@ -1,8 +1,8 @@
 # Runtime
 
-Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+This page is a contributor contract reference. If you use LiteBus, start with [the documentation overview](../../index.md).
 
-LiteBus runtime capabilities define the compose-time module graph and the in-process messaging engine used by mediator, durable, transport, and hosting axes. Runtime and messaging stay container-neutral and host-neutral by design.
+The LiteBus runtime holds the compose-time module graph and the in-process messaging engine that the mediator, durable, transport, and hosting layers build on. The runtime and messaging layers stay container-neutral and host-neutral.
 
 ## Axis Scope
 
@@ -16,7 +16,7 @@ LiteBus runtime capabilities define the compose-time module graph and the in-pro
 
 | Package | Dependency role | Purpose |
 | --- | --- | --- |
-| `LiteBus.Runtime.Abstractions` | Platform contracts | Module, registry, dependency, dispatch-scope, and runtime exception contracts |
+| `LiteBus.Runtime.Abstractions` | Platform contracts | Contracts for modules, registries, dependencies, dispatch scopes, and runtime exceptions |
 | `LiteBus.Runtime` | Core implementation | Default module registry, module configuration, dependency registry, and advanced builder |
 | `LiteBus.Messaging.Abstractions` | Mediation contracts | Messaging contracts, descriptors, and mediation requests |
 | `LiteBus.Messaging` | Core implementation | Message module, mediator engine, registries, serializer, and metadata mapper |

@@ -1,8 +1,8 @@
 # Transport
 
-Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+This section is the contributor contract reference for transport. If you use LiteBus to send and receive messages, start with [the documentation overview](../../index.md).
 
-LiteBus transport is the broker-facing publish and consume axis. Dispatch and ingress call transport contracts (`ITransportPublisher`, `IMessageConsumer`) but own durable storage, leasing, and processor policy.
+LiteBus transport is the broker-facing publish and consume axis. Dispatch and ingress call the transport contracts (`ITransportPublisher`, `IMessageConsumer`), while durable storage, leasing, and processor policy stay with dispatch and ingress.
 
 ## Role in LiteBus
 
@@ -91,7 +91,7 @@ Transport circuit breaker metrics are emitted on meter `LiteBus.Transport` and t
 
 Broker tag values are `amqp`, `kafka`, `sqs`, `azure_service_bus`, and `inmemory`.
 
-## Deep Docs
+## References
 
 | Topic | Location |
 | --- | --- |

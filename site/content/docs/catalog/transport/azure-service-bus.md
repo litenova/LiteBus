@@ -3,13 +3,13 @@
 - **ID**: `transport.azure-service-bus`
 - **Name**: Azure Service Bus transport
 - **Maturity**: Beta
-- **Summary**: Azure Service Bus adapter with explicit message settlement and canonical property mapping.
+- **Summary**: Azure Service Bus adapter that settles messages explicitly and maps canonical properties.
 
 ## What It Does
 
-`AzureServiceBusTransportModule` registers `AzureServiceBusPublisher` and `AzureServiceBusConsumer` using `Azure.Messaging.ServiceBus`. Publish maps `Destination` to queue or topic and maps `Route` to `Subject`. The request `MessageId` is optional and is copied only when supplied. Consume uses peek-lock with `AutoCompleteMessages = false` and explicit settlement delegates. The publisher is a singleton and consumers are transient; publisher disposal waits at most five seconds for sender links to close.
+`AzureServiceBusTransportModule` registers `AzureServiceBusPublisher` and `AzureServiceBusConsumer` using `Azure.Messaging.ServiceBus`. To publish, the adapter maps `Destination` to a queue or topic and maps `Route` to `Subject`. The request `MessageId` is optional and is copied only when supplied. To consume, it uses peek-lock with `AutoCompleteMessages = false` and explicit settlement delegates. The publisher is a singleton and consumers are transient. Publisher disposal waits at most five seconds for sender links to close.
 
-Beta tier note: adapter behavior is validated in durable integration tests, with optional live-connection coverage kept separate from emulator coverage.
+Adapter behavior is validated in durable integration tests. Optional live-connection coverage stays separate from emulator coverage.
 
 ## Public Surface
 
@@ -31,7 +31,7 @@ Beta tier note: adapter behavior is validated in durable integration tests, with
 | --- | --- | --- |
 | `ConnectionString` | required | Service Bus connection |
 | `ClientId` | `null` | Service Bus client identifier |
-| `ConnectivityCheckTarget` | `null` | Queue or subscription peeked by readiness; missing reports degraded |
+| `ConnectivityCheckTarget` | `null` | Queue or subscription peeked by readiness. A missing value reports degraded |
 | `ConsumerErrorRetryInterval` | `5s` | Base restart delay after processor errors |
 | `ConsumerErrorRetryMaxInterval` | `1m` | Max restart delay |
 
@@ -88,7 +88,7 @@ Beta tier note: adapter behavior is validated in durable integration tests, with
 - Diagnostic check id: `transport.azure_service_bus.connectivity`
 - `AzureServiceBusQueueDiagnosticTarget` peeks a queue.
 - `AzureServiceBusSubscriptionDiagnosticTarget` peeks a topic subscription.
-- The peek does not lock or settle messages. Grant entity listen permission. Missing target configuration reports degraded.
+- The peek does not lock or settle messages. Grant entity listen permission. When no target is configured, the probe reports degraded.
 - See the [`PeekMessagesAsync` contract](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusreceiver.peekmessagesasync?view=azure-dotnet).
 
 ## Test Coverage
@@ -122,7 +122,7 @@ Beta tier note: adapter behavior is validated in durable integration tests, with
 - Event Hubs and non-Service Bus SDKs.
 - Automatic topology management.
 
-## Deep Docs
+## References
 
 - [Azure-Service-Bus-Transport.md](../../integrations/azure-service-bus.md)
 - [Architecture.md](../../architecture/README.md)

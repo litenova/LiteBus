@@ -1,12 +1,12 @@
 # Testing
 
-This page covers testing LiteBus applications: the mediation harness for testing one message's pipeline, in-memory storage for fast processor tests, shared contract suites for custom adapters, and the durable transport integration matrix.
+LiteBus applications are tested at several levels: one message's pipeline through the mediation harness, processors through in-memory storage, custom adapters through shared contract suites, and broker paths through the durable transport integration matrix. This page covers each level.
 
 For the contributor reference (executor inventory, folder layout, fixtures, environment variables, coverage matrices, and the coverage gate), see [Integration Tests](integration-tests.md).
 
 ## Testing One Message's Pipeline
 
-`MediationHarness`, from `LiteBus.Testing.Mediation`, runs the shipped pipeline over handler instances the test builds. No host, no container, no database:
+`MediationHarness`, from `LiteBus.Testing.Mediation`, runs the shipped pipeline over handler instances the test builds. It needs no host, container, or database:
 
 ```csharp
 var result = await MediationHarness.For<CloseOrganizationCommand>()
@@ -20,7 +20,7 @@ result.MainHandlerRan.Should().BeFalse();
 
 `StagesRun` records the stages that ran in order. Stages with no registered handler are skipped and absent from the list.
 
-`MediationHarnessResult` also carries `Reason`, `Code`, `Failures`, `Value`, and `MainHandlerRan`, with `IsSuccess`, `IsDenied` and `IsInvalid` for the common assertions. `MainHandlerRan` is separate from the outcome because it is the question a test of a guard is actually asking.
+`MediationHarnessResult` also carries `Reason`, `Code`, `Failures`, `Value`, and `MainHandlerRan`, with `IsSuccess`, `IsDenied` and `IsInvalid` for the common assertions. `MainHandlerRan` is separate from the outcome because that is the question a test of a guard asks.
 
 | Member | Use |
 | --- | --- |
@@ -47,7 +47,7 @@ The InMemory storage packages implement all store roles in one thread-safe class
 
 ## Shared Transport Contract Tests
 
-`LiteBus.Transport.Testing` is a packable xUnit test-support package for transport adapter authors. Derive from `TransportContractTests` and return an isolated `TransportContractContext` for each scenario. The inherited suite verifies payload and metadata round trips, explicit redelivery, and pre-publication cancellation. LiteBus runs it against the in-memory adapter and RabbitMQ; third-party adapters should run it against their real broker in CI.
+`LiteBus.Transport.Testing` is a packable xUnit test-support package for transport adapter authors. Derive from `TransportContractTests` and return an isolated `TransportContractContext` for each scenario. The inherited suite verifies payload and metadata round trips, explicit redelivery, and pre-publication cancellation. LiteBus runs it against the in-memory adapter and RabbitMQ. Third-party adapters should run it against their real broker in CI.
 
 ## PostgreSQL Integration Tests
 
@@ -72,7 +72,9 @@ services.AddLiteBus(builder =>
 
 ## Durable Transport Integration Tests
 
-`LiteBus.Durable.IntegrationTests` (`tests/LiteBus.Durable.IntegrationTests/`) is the unified broker matrix for InMemory, Kafka, AWS SQS, Azure Service Bus (emulator plus optional live namespace), and AMQP. Tests are grouped in `Ingress/`, `Dispatch/Inbox/`, `Dispatch/Outbox/`, and `Registration/` subfolders by broker. Fast InMemory wire tests are tagged `TransportFast`. Kafka, LocalStack, and AMQP scenarios use `TransportDocker`. Azure emulator and optional live tests use `TransportAzure`. Registration smoke (`Registration/BrokerDispatchIngressRegistrationTests.cs`) has no category trait and runs in the final Integration Tests CI batch.
+`LiteBus.Durable.IntegrationTests` (`tests/LiteBus.Durable.IntegrationTests/`) is the unified broker matrix for InMemory, Kafka, AWS SQS, Azure Service Bus (emulator plus optional live namespace), and AMQP. Tests are grouped in `Ingress/`, `Dispatch/Inbox/`, `Dispatch/Outbox/`, and `Registration/` subfolders by broker. Fast InMemory wire tests are tagged `TransportFast`.
+
+Kafka, LocalStack, and AMQP scenarios use `TransportDocker`. Azure emulator and optional live tests use `TransportAzure`. Registration smoke (`Registration/BrokerDispatchIngressRegistrationTests.cs`) has no category trait and runs in the final Integration Tests CI batch.
 
 The sample composition smoke test (`LiteBusV6CompositionSmokeTests`) lives in `LiteBus.Runtime.UnitTests`, not in the durable matrix.
 
@@ -89,7 +91,7 @@ Scenario matrices, the project map, fixtures, and environment variables live in 
 - `InboxStorageException` (store capacity and persistence rejections)
 - `InvalidOperationException`, `ArgumentException`, `FormatException`, `JsonException`
 
-All other failures honor `RequeueOnFailure` (default `true`). Unit coverage: `LiteBus.Inbox.UnitTests/Ingress/TransportInboxIngressConsumerTests.cs`.
+All other failures honor `RequeueOnFailure` (default `true`). Unit coverage lives in `LiteBus.Inbox.UnitTests/Ingress/TransportInboxIngressConsumerTests.cs`.
 
 ### CI Filters
 

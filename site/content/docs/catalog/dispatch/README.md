@@ -1,10 +1,10 @@
 # Dispatch
 
-Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+This section is the contributor contract reference for the dispatch axis. If you use LiteBus in an application, start with [the documentation overview](../../index.md) instead.
 
-Dispatch adapters turn a leased durable envelope into a side effect. Inbox processors call `IInboxDispatcher.DispatchAsync`; outbox processors call `IOutboxDispatcher.DispatchAsync`. The processor persists outcome state after dispatch returns or throws.
+Dispatch adapters turn a leased durable envelope into a side effect. When an inbox processor leases a row, it calls `IInboxDispatcher.DispatchAsync`, and when an outbox processor leases a row, it calls `IOutboxDispatcher.DispatchAsync`. The processor persists outcome state after dispatch returns or throws.
 
-The dispatch axis sits between durable processing and execution targets. It never accepts new messages, never owns store schema, and never decides retry budgets. Those responsibilities belong to ingress, storage, and durable core capabilities.
+The dispatch axis sits between durable processing and execution targets. It never accepts new messages, never owns store schema, and never decides retry budgets. Ingress accepts new messages, storage owns the schema, and durable core capabilities decide retry budgets.
 
 ## Axis Overview
 
@@ -22,7 +22,7 @@ Outbox storage lease
      -> transport publish with canonical headers
 ```
 
-Register exactly one dispatcher per inbox or outbox module. Processor background services fail at startup when no dispatcher is registered (LB1014 at compile time when the pattern is detectable).
+Register exactly one dispatcher per inbox or outbox module. When no dispatcher is registered, processor background services fail at startup. The LB1014 analyzer reports the missing dispatcher at compile time when the pattern is detectable.
 
 ## Dependency Diagram
 
@@ -77,10 +77,10 @@ Primary test projects referenced across capability pages:
 
 | Project | Folders | Role |
 | --- | --- | --- |
-| `LiteBus.Durable.IntegrationTests` | `Dispatch/Inbox/*`, `Dispatch/Outbox/*`, `Registration/` | Broker dispatch end-to-end and registration matrix |
-| `LiteBus.Inbox.UnitTests` | `Dispatch/`, `Dispatch/InProcess/` | Inbox dispatcher and mapper unit coverage |
-| `LiteBus.Outbox.UnitTests` | `Dispatch/`, `Dispatch/InProcess/` | Outbox dispatcher and mapper unit coverage |
-| `LiteBus.Storage.IntegrationTests` | `PostgreSql/` | Durable chain behavior through PostgreSQL storage |
+| `LiteBus.Durable.IntegrationTests` | `Dispatch/Inbox/*`, `Dispatch/Outbox/*`, `Registration/` | Covers broker dispatch from end to end and the registration matrix |
+| `LiteBus.Inbox.UnitTests` | `Dispatch/`, `Dispatch/InProcess/` | Unit tests for the inbox dispatcher and mappers |
+| `LiteBus.Outbox.UnitTests` | `Dispatch/`, `Dispatch/InProcess/` | Unit tests for the outbox dispatcher and mappers |
+| `LiteBus.Storage.IntegrationTests` | `PostgreSql/` | Exercises the durable chain against PostgreSQL storage |
 
 ## Related Docs
 

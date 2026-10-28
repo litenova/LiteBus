@@ -7,11 +7,11 @@
 
 ## What It Does
 
-`PipelinedInboxProcessor` and `PipelinedOutboxProcessor` are the processor implementations. Each pass leases a batch, fans work to `DispatcherConcurrency` workers, renews leases on a heartbeat interval, and calls `DispatchAsync` on the registered dispatcher. Dispatch failures throw; the processor maps exceptions to `Failed` or `DeadLettered` store state according to retry policy.
+`PipelinedInboxProcessor` and `PipelinedOutboxProcessor` are the processor implementations. Each pass leases a batch, fans work out to `DispatcherConcurrency` workers, renews leases on a heartbeat interval, and calls `DispatchAsync` on the registered dispatcher. Dispatch failures throw. The processor maps exceptions to `Failed` or `DeadLettered` store state according to the retry policy.
 
-Background services register through the module manifest when `EnableInboxProcessor()` or `EnableOutboxProcessor()` runs. Startup fails if no dispatcher is registered. Each dispatched message resolves `IInboxDispatcher` or `IOutboxDispatcher` from a per-message scope so scoped handlers (for example `DbContext`) are isolated.
+Calling `EnableInboxProcessor()` or `EnableOutboxProcessor()` registers the background services through the module manifest. If no dispatcher is registered, startup fails. For each message, the processor resolves `IInboxDispatcher` or `IOutboxDispatcher` from a per-message scope, so scoped handlers (for example `DbContext`) stay isolated.
 
-Hook failure policies differ by dispatcher type. Transport outbox dispatch defaults to `CompleteDespiteHookFailure`; in-process outbox and inbox processors default to `DeadLetter` when after-dispatch hooks fail.
+Hook failure policies differ by dispatcher type. Transport outbox dispatch defaults to `CompleteDespiteHookFailure`. In-process outbox and inbox processors default to `DeadLetter` when after-dispatch hooks fail.
 
 ## Packages
 
@@ -31,17 +31,17 @@ Hook failure policies differ by dispatcher type. Transport outbox dispatch defau
 
 ## Invariants
 
-- At-least-once dispatch: crash between external side effect and terminal persist can produce duplicates.
-- Outbox processors dispatch before terminal published state is persisted; broker ack without persist can republish on lease reclaim.
-- Per-message dispatch failures do not abort sibling workers in the same pass; pass-level abort applies to leasing and shutdown cancellation.
-- A dispatch the processor cancels during shutdown, a drain, or a lease loss is released through `ILeaseRenewable.ReleaseLeaseAsync` with its attempt refunded instead of recorded as a failure; the release runs on its own 5-second budget and falls back to lease expiry when it fails or times out.
-- In-flight rows may remain `Processing` until lease expiry on graceful shutdown unless drained.
+- Dispatch is at-least-once. A crash between the external side effect and the terminal persist can produce duplicates.
+- Outbox processors dispatch before the terminal published state is persisted. A broker acknowledgment without the matching persist means the message is republished on lease reclaim.
+- Per-message dispatch failures do not abort sibling workers in the same pass. Pass-level abort applies to leasing and shutdown cancellation.
+- A dispatch the processor cancels during shutdown, a drain, or a lease loss is released through `ILeaseRenewable.ReleaseLeaseAsync` with its attempt refunded instead of being recorded as a failure. The release runs on its own 5-second budget and falls back to lease expiry when it fails or times out.
+- On graceful shutdown, in-flight rows may remain `Processing` until lease expiry unless drained.
 
 ## Non-Goals
 
-- Does not implement exactly-once side effects or two-phase publish acknowledgment.
-- Does not choose the dispatcher implementation (registration is explicit).
-- Does not return handler results to the original accept/enqueue caller.
+- It does not implement exactly-once side effects or two-phase publish acknowledgment.
+- It does not choose the dispatcher implementation. Registration is explicit.
+- It does not return handler results to the original accept or enqueue caller.
 
 ## Public Surface
 
@@ -59,61 +59,61 @@ inbox.EnableInboxProcessor();
 | | |
 | --- | --- |
 | Package | `LiteBus.Inbox.Abstractions` |
-| Called by | `PipelinedInboxProcessor` via per-message DI scope |
-| Contract | Throw on failure; processor records retry or dead-letter |
+| Called by | `PipelinedInboxProcessor` through a per-message DI scope |
+| Contract | Throws on failure so the processor records a retry or dead-letter |
 
 ### `IOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)`
 
 | | |
 | --- | --- |
 | Package | `LiteBus.Outbox.Abstractions` |
-| Called by | `PipelinedOutboxProcessor` via per-message DI scope |
-| Contract | Throw on failure; processor records retry or dead-letter |
+| Called by | `PipelinedOutboxProcessor` through a per-message DI scope |
+| Contract | Throws on failure so the processor records a retry or dead-letter |
 
 ### `PipelinedInboxProcessor` / `PipelinedOutboxProcessor`
 
 | Member | Role |
 | --- | --- |
-| `ProcessPendingAsync(CancellationToken)` | One processor pass: lease batch, dispatch workers, persist outcomes |
-| Constructor options | `InboxProcessorOptions` / `OutboxProcessorOptions` |
+| `ProcessPendingAsync(CancellationToken)` | Runs one processor pass, leasing a batch, running dispatch workers, and persisting outcomes |
+| Constructor options | `InboxProcessorOptions` or `OutboxProcessorOptions` |
 
 Key options affecting dispatch coupling:
 
 | Option | Role |
 | --- | --- |
-| `DispatcherConcurrency` | Parallel dispatch workers per pass |
+| `DispatcherConcurrency` | The number of parallel dispatch workers per pass |
 | `LeaseHeartbeatInterval` | Lease renewal during slow dispatch |
-| `HookFailurePolicy` | Terminal state when after-dispatch hooks fail |
-| `HonorShutdownTokenOnPersist` | Whether persist honors shutdown token (duplicate-dispatch trade-off) |
+| `HookFailurePolicy` | The terminal state when after-dispatch hooks fail |
+| `HonorShutdownTokenOnPersist` | Whether persist honors the shutdown token (a duplicate-dispatch trade-off) |
 
 ### `IProcessorEnvelopeHook`
 
-Before/after hooks around each leased envelope (saga, custom). Hook failures interact with `HookFailurePolicy` and `IOutboxDispatcherModule.DefaultHookFailurePolicy` on transport outbox modules.
+These hooks run before and after each leased envelope (saga and custom hooks). Hook failures interact with `HookFailurePolicy` and with `IOutboxDispatcherModule.DefaultHookFailurePolicy` on transport outbox modules.
 
 ## Observability
 
 | Signal | Name | When |
 | --- | --- | --- |
 | Inbox processor state | `litebus.inbox.processor.state` (Running, Paused, Draining) | Processor lifecycle transitions |
-| Outbox processor state | `litebus.outbox.processor.state` | Same for outbox |
-| Pass counters | `litebus.inbox.processor.passes`, `litebus.outbox.processor.passes` | Each processor pass start |
-| Success counters | `litebus.inbox.processor.succeeded`, `litebus.outbox.processor.published` | Terminal success after dispatch + hooks |
-| Failure counters | `litebus.inbox.processor.failed`, `litebus.outbox.processor.failed` | Dispatch or hook failure with retry scheduled |
-| Dead-letter counters | `litebus.inbox.processor.dead_lettered`, `litebus.outbox.processor.dead_lettered` | Max attempts or hook dead-letter policy |
-| Loop errors | `litebus.inbox.processor.loop_errors`, `litebus.outbox.processor.loop_errors` | Unexpected pass-level exceptions |
-| Dispatch duration | `litebus.inbox.processor.dispatch_duration`, `litebus.outbox.processor.dispatch_duration` | Histogram around each `DispatchAsync` invocation |
-| Lease lost | `litebus.inbox.processor.lease_lost`, `litebus.outbox.processor.lease_lost` | Heartbeat renewal failure cancels in-flight dispatch |
-| Lease released | EventId `3011` (Debug) | Cancelled dispatch returned to the queue with its attempt refunded |
-| Lease release failed | EventId `3012` (Warning) | Release failed or timed out; the lease expires and the row is reclaimed with the attempt counted |
+| Outbox processor state | `litebus.outbox.processor.state` | The same for outbox |
+| Pass counters | `litebus.inbox.processor.passes`, `litebus.outbox.processor.passes` | At each processor pass start |
+| Success counters | `litebus.inbox.processor.succeeded`, `litebus.outbox.processor.published` | Terminal success after dispatch and hooks |
+| Failure counters | `litebus.inbox.processor.failed`, `litebus.outbox.processor.failed` | A dispatch or hook failure with a retry scheduled |
+| Dead-letter counters | `litebus.inbox.processor.dead_lettered`, `litebus.outbox.processor.dead_lettered` | Maximum attempts or the hook dead-letter policy |
+| Loop errors | `litebus.inbox.processor.loop_errors`, `litebus.outbox.processor.loop_errors` | On unexpected pass-level exceptions |
+| Dispatch duration | `litebus.inbox.processor.dispatch_duration`, `litebus.outbox.processor.dispatch_duration` | A histogram around each `DispatchAsync` invocation |
+| Lease lost | `litebus.inbox.processor.lease_lost`, `litebus.outbox.processor.lease_lost` | A heartbeat renewal failure cancels the in-flight dispatch |
+| Lease released | EventId `3011` (Debug) | A cancelled dispatch returned to the queue with its attempt refunded |
+| Lease release failed | EventId `3012` (Warning) | The release failed or timed out, so the lease expires and the row is reclaimed with the attempt counted |
 | Transport send | `send {destination}` activity | Emitted by the concrete transport publisher during processor-driven dispatch |
 
-No separate OpenTelemetry meter on `IInboxDispatcher` implementations; all dispatch-axis processor telemetry flows through inbox/outbox processor meters.
+There is no separate OpenTelemetry meter on `IInboxDispatcher` implementations. All dispatch-axis processor telemetry flows through the inbox and outbox processor meters.
 
 ## Analyzers
 
-- **LB1014**: Processor enabled without dispatcher in the same builder scope.
+- **LB1014**: A processor enabled without a dispatcher in the same builder scope.
 
-## Deep Docs
+## References
 
 - [Architecture.md: Processor pipeline](../../architecture/README.md#processor-pipeline)
 - [Inbox.md](../../reliable-messaging/inbox.md)
@@ -147,4 +147,4 @@ No separate OpenTelemetry meter on `IInboxDispatcher` implementations; all dispa
 
 - Exactly-once side effects or two-phase publish acknowledgment
 - Automatic dispatcher selection (registration is explicit)
-- Returning handler or mediator results to the original accept/enqueue caller
+- Returning handler or mediator results to the original accept or enqueue caller

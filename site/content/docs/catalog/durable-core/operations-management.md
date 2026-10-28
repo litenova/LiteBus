@@ -5,11 +5,11 @@
 
 ## Summary
 
-Provides typed inbox and outbox management, retention, processor control, diagnostics, and optional ASP.NET Core routes.
+LiteBus operations and management gives operators typed control over the durable inbox and outbox: message queries, retention, processor control, diagnostics, and optional ASP.NET Core routes.
 
 ## What It Does
 
-`IInboxManager` and `IOutboxManager` expose operator operations without exposing storage adapter types. Each manager delegates to the operations and retention roles implemented by the selected store.
+`IInboxManager` and `IOutboxManager` offer operator operations while keeping storage adapter types out of the API. Each manager delegates to the operations and retention roles that the selected store implements.
 
 Processor controls are separate contracts. `IInboxProcessorControl` and `IOutboxProcessorControl` pause leasing, resume work, report state, and run a bounded drain pass. Hosts can use these contracts directly or expose them through `LiteBus.Extensions.AspNetCore`.
 
@@ -28,8 +28,12 @@ Processor controls are separate contracts. `IInboxProcessorControl` and `IOutbox
 | Retention status | `GetRetentionStatusAsync` | `GetRetentionStatusAsync` | Returns the latest run outcome |
 | Run retention | `RunRetentionPurgeAsync` | `RunRetentionPurgeAsync` | Deletes terminal rows older than the configured retention period |
 
-Query and purge APIs accept `InboxMessageFilter` or `OutboxMessageFilter`. Filters can select identifiers, statuses, contract names, trace fields, tenants, and creation-time bounds. Page requests use opaque keyset cursors returned by the previous page. Inbox queries reject a `PageSize` above `InboxMessagePageRequest.MaxPageSize` (1000) with `ArgumentOutOfRangeException`; the default page size is 50.
-`IOutboxManager.GetFailureSummaryAsync` returns one `OutboxFailureSummary` row per contract name and version that has `Failed` or `DeadLettered` messages, ordered by `LastFailedAt` descending and then by contract name, or an empty list when nothing is failing. Each row carries `ContractName`, `ContractVersion`, `FailedCount` (awaiting retry), `DeadLetteredCount` (needing an operator replay), `LastError` and `LastErrorType` from the most recently attempted failing message of the contract, and `LastFailedAt` (its `LastAttemptedAt`, `null` when none has been attempted). Health probes report unhealthy when any contract has `DeadLetteredCount > 0` or a `FailedCount` whose `LastFailedAt` is recent.
+Query and purge APIs accept `InboxMessageFilter` or `OutboxMessageFilter`. Filters can select identifiers, statuses, contract names, trace fields, tenants, and creation-time bounds. Page requests use opaque keyset cursors returned by the previous page. Inbox queries reject a `PageSize` above `InboxMessagePageRequest.MaxPageSize` (1000) with `ArgumentOutOfRangeException`. The default page size is 50.
+`IOutboxManager.GetFailureSummaryAsync` returns one `OutboxFailureSummary` row for each contract name and version with `Failed` or `DeadLettered` messages. The call returns rows ordered by `LastFailedAt` descending and then by contract name. It returns an empty list when nothing is failing.
+
+Each row holds `ContractName`, `ContractVersion`, `FailedCount` for messages awaiting retry, and `DeadLetteredCount` for messages needing an operator replay. It also holds `LastError` and `LastErrorType` from the most recently attempted failing message of the contract, and `LastFailedAt` from its `LastAttemptedAt` (`null` when none has been attempted).
+
+A health probe built on this summary reports unhealthy when any contract has `DeadLetteredCount > 0`, or when a `FailedCount` has a `LastFailedAt` inside the window the probe defines. The sample below shows such a probe.
 
 ```csharp
 var summary = await outboxManager.GetFailureSummaryAsync(cancellationToken).ConfigureAwait(false);
@@ -47,11 +51,13 @@ return unhealthy ? HealthCheckResult.Unhealthy("Outbox failures.") : HealthCheck
 | `IInboxProcessorControl` | `PauseAsync`, `ResumeAsync`, `DrainAsync` | Running, paused, draining |
 | `IOutboxProcessorControl` | `PauseAsync`, `ResumeAsync`, `DrainAsync` | Running, paused, draining |
 
-Pause waits for the active pass before blocking new leases. Resume opens the processor gate. Drain processes currently available work once and then stops new passes, subject to a caller-supplied timeout.
+Pause waits for the active pass to finish before it blocks new leases. Resume allows new leases again. Drain processes the currently available work once and then stops new passes, within a caller-supplied timeout.
 
 ## Retention
 
-Inbox retention deletes completed rows. Outbox retention deletes published rows. The corresponding cleanup host options select the retention period and background loop interval. A null retention period disables deletion while leaving status inspection available. A zero or negative period fails host validation. Manual retention differs by axis: inbox `RunRetentionPurgeAsync` returns 0 when retention is null or non-positive, while outbox `RunRetentionPurgeAsync` throws `OutboxManagementException`.
+Inbox retention deletes completed rows. Outbox retention deletes published rows. The corresponding cleanup host options select the retention period and background loop interval.
+
+A null retention period disables deletion while leaving status inspection available. Host validation rejects a zero or negative period. Manual retention differs by axis. Inbox `RunRetentionPurgeAsync` returns 0 when retention is null or non-positive, while outbox `RunRetentionPurgeAsync` throws `OutboxManagementException`.
 
 Each manager records the latest retention run timestamp, deleted-row count, and failure message through its retention coordinator. Manual and hosted retention use the same coordinator state.
 
@@ -83,9 +89,9 @@ The default prefix is `/litebus`. Inbox and outbox route groups are independent.
 
 ## Requires
 
-- One inbox or outbox storage adapter that implements the matching operations roles.
-- Processor registration for pause, resume, state, or drain operations.
-- Cleanup host registration only when periodic retention is required.
+- Use one inbox or outbox storage adapter that implements the matching operations roles.
+- Register a processor for pause, resume, state, or drain operations.
+- Register the cleanup host only when periodic retention is required.
 
 ## Safety Rules
 
@@ -118,10 +124,10 @@ Management endpoints do not define a separate meter. ASP.NET Core request teleme
 
 ## Non-Goals
 
-- Cross-region replication control.
-- Built-in role or identity management.
-- Direct broker consumer administration.
-- A unified manager that hides inbox and outbox semantics.
+- This capability does not provide cross-region replication control.
+- This capability does not provide built-in role or identity management.
+- This capability does not provide direct broker consumer administration.
+- This capability does not provide a unified manager that hides inbox and outbox semantics.
 
 ## Test Coverage
 
@@ -131,24 +137,24 @@ Management endpoints do not define a separate meter. ASP.NET Core request teleme
 | --- | --- |
 | `InboxManagerOperationsTests` | Query, missing get, status counts, schema, paged dead-letter replay, purge safety, retention success, and retention failure |
 | `OutboxManagerOperationsTests` | The equivalent outbox manager contract |
-| `OutboxManagerOperationsTests.GetFailureSummaryAsync_ReturnsStoreRows` | Manager failure summary delegates to the operations store |
+| `OutboxManagerOperationsTests.GetFailureSummaryAsync_ReturnsStoreRows` | The manager failure summary delegates to the operations store |
 | `OutboxStoreContractTests.GetFailureSummaryAsync_WithFailedAndDeadLetteredContracts_ShouldGroupCountsByContract` | Per-contract failing counts across store backends |
-| `OutboxStoreContractTests.GetFailureSummaryAsync_WithTwoFailuresForOneContract_ShouldReportMostRecentError` | Latest error wins within one contract |
+| `OutboxStoreContractTests.GetFailureSummaryAsync_WithTwoFailuresForOneContract_ShouldReportMostRecentError` | The store reports the latest error within one contract |
 | `OutboxStoreContractTests.GetFailureSummaryAsync_WhenNothingIsFailing_ShouldReturnEmpty` | Empty summary when nothing is failing |
-| `InboxStoreContractTests.QueryAsync_ShouldFilterAndPageByCreatedAt` | Store adapters satisfy filter and keyset pagination behavior |
+| `InboxStoreContractTests.QueryAsync_ShouldFilterAndPageByCreatedAt` | Store adapters honor filter and keyset pagination behavior |
 | `InboxStoreContractTests.PurgeAsync_ShouldDeleteMatchingRows` | Store purge honors typed predicates |
 | `InboxProcessorControlTests` | Pause, resume, and drain behavior on the concrete inbox processor control |
 | `OutboxProcessorControlTests` | Pause, resume, and drain behavior on the concrete outbox processor control |
 | `PostgreSqlInboxHostingIntegrationTests.CleanupBackgroundService_ShouldPurgeCompletedRowsPastRetention` | Hosted PostgreSQL inbox retention deletes eligible rows |
-| `ManagementEndpointAuthorizationIntegrationTests` | ASP.NET Core authentication and named-policy behavior |
+| `ManagementEndpointAuthorizationIntegrationTests` | Covers ASP.NET Core authentication and named-policy behavior |
 | `ManagementEndpointPostgreSqlIntegrationTests` | HTTP query, purge, and diagnostic routes use PostgreSQL-backed managers |
-| `ManagementEndpointOperationsTests` | Inbox and outbox route binding, processor controls, missing axes, and custom prefixes |
+| `ManagementEndpointOperationsTests` | Covers inbox and outbox route binding, processor controls, missing axes, and custom prefixes |
 | `LiteBusHealthCheckIntegrationTests` | Manifest diagnostic checks map to ASP.NET Core health status |
 
 ### Untested Use Cases
 
-- Long-running operator requests canceled by a disconnected HTTP client.
-- Management endpoint HTTP 500 response content after an unexpected adapter exception.
+- How long-running operator requests behave when a disconnected HTTP client cancels them.
+- What the management endpoint returns in an HTTP 500 response after an unexpected adapter exception.
 
 ### Out-of-Scope Use Cases
 
@@ -156,7 +162,7 @@ Management endpoints do not define a separate meter. ASP.NET Core request teleme
 - Multi-cluster processor federation.
 - Built-in identity provider configuration.
 
-## Deep Docs
+## References
 
 - [Operations and Management](../../operations/management-endpoints.md)
 - [ASP.NET Core Management Endpoints](../hosting/aspnet-management-endpoints.md)

@@ -2,18 +2,18 @@
 
 Thank you for helping improve LiteBus. Start with the architecture guide and package dependency graph before changing a public surface.
 
-## Development workflow
+## Development Workflow
 
 1. Fork the repository and create a focused branch.
 2. Make the smallest change that proves the behavior.
 3. Add or update tests at the narrowest useful level.
 4. Update XML documentation for every changed source member and update the relevant docs.
-5. Run `dotnet build LiteBus.slnx --configuration Release` and `dotnet test LiteBus.slnx --configuration Release --no-build`.
+5. Run `dotnet build LiteBus.slnx --configuration Release` and `dotnet test LiteBus.slnx --configuration Release --no-build`. The integration suites start PostgreSQL, SQL Server, MySQL, and broker emulators in containers, so they need Docker.
 6. Open a pull request.
 
 Keep package roles and opt-in dependency boundaries intact. If a change needs a new dependency edge or a breaking API, explain the trade-off in the pull request before implementation.
 
-## Pull requests
+## Pull Requests
 
 Use one theme per pull request. Do not include credentials, broker dumps, or customer data in issues, commits, or test fixtures.
 
@@ -23,8 +23,8 @@ The repository's CI checks build, tests, documentation, package validation, benc
 
 ## Releases
 
-CI (`.github/workflows/ci.yml`) runs every gate once per commit pushed to `main` or a version branch, with the test suites sharded across parallel jobs. Pushing a `v*` tag runs the release workflow (`.github/workflows/release.yml`), which reruns no tests: it publishes only a commit whose CI run succeeded, waiting for that run if it is still going. Push the branch first, then the tag.
+CI (`.github/workflows/ci.yml`) runs every gate once per commit pushed to `main` or a version branch, with the test suites sharded across parallel jobs. Pushing a `v*` tag runs the release workflow (`.github/workflows/release.yml`), which reruns no tests. It publishes only a commit whose CI run succeeded, and it waits for that run when it is still going. Push the branch first, then the tag.
 
-A major line is developed on its own branch named after it, such as `v7`, and merges to `main` when it is ready to be the stable release. Pre-release tags may be cut from that branch: a pre-release is only resolvable by a caller who asks for one, so it does not change what an existing consumer gets. A stable tag must be reachable from `main`, and the release workflow rejects one that is not, because a stable release is what NuGet resolves without an opt-in and what the documentation site deploys from.
+A major line is developed on its own branch named after it, such as `v7`, and merges to `main` when it is ready to be the stable release. Pre-release tags may be cut from that branch. A pre-release is only resolvable by a caller who asks for one, so it does not change what an existing consumer gets. A stable tag must be reachable from `main`, and the release workflow rejects one that is not, because a stable release is what NuGet resolves without an opt-in and what the documentation site deploys from.
 
-Notes come from the Changelog. The first preview of a version and its stable release both publish that version's own section, so each describes the whole line. Every later preview publishes its own `## v7.0.0-preview.N` section instead, holding only what changed since the preview before it, because someone moving from one preview to the next wants the difference rather than the notes they already read. A delta section links the cumulative one, so the whole line stays one click away.
+Notes come from the Changelog. The first preview of a version and its stable release both publish that version's own section, so each describes the whole line. Every later preview publishes its own `## v7.0.0-preview.N` section instead, holding only what changed since the preview before it, because someone moving from one preview to the next wants the difference rather than the notes they already read. A delta section links the cumulative one, so readers reach the whole line from any delta section.

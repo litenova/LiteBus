@@ -12,9 +12,9 @@
 
 ## SQL Behavior
 
-- Inbox retention filter: `status = completed AND COALESCE(completed_at, created_at) < cutoff`.
-- Outbox retention filter: `status = published AND COALESCE(published_at, created_at) < cutoff`.
-- Deletes are hard deletes and return affected row count.
+- The inbox retention filter is `status = completed AND COALESCE(completed_at, created_at) < cutoff`.
+- The outbox retention filter is `status = published AND COALESCE(published_at, created_at) < cutoff`.
+- Deletes are hard deletes and return the affected row count.
 
 ## Concurrency Model
 
@@ -23,28 +23,28 @@
 
 ## Index Interaction
 
-- Retention does not define a dedicated index in v1 schema.
-- Lease index still supports mixed workloads because active-row scans and retention deletes run concurrently.
+- Retention defines no dedicated index in the v1 schema.
+- The lease index still supports mixed workloads, because active-row scans and retention deletes run concurrently.
 
 ## Observability
 
 - Cleanup error counters:
   - `litebus.inbox.cleanup.errors`
   - `litebus.outbox.cleanup.errors`
-- Queue-depth gauges show reduced completed/published counts after cleanup cycles.
+- Queue-depth gauges show reduced completed and published counts after cleanup cycles.
 
 ## Test Coverage
 
 ### `LiteBus.Storage.UnitTests`
 
-- `InboxRetentionStoreContractTests`: eligible delete, no-op delete, and completion-time precedence.
-- `OutboxRetentionStoreContractTests`: eligible delete, no-op delete, and publication-time precedence.
+- `InboxRetentionStoreContractTests` covers eligible delete, no-op delete, and completion-time precedence.
+- `OutboxRetentionStoreContractTests` covers eligible delete, no-op delete, and publication-time precedence.
 - InMemory outbox retention tests verify idempotency index entries are also removed.
 
 ### `LiteBus.Storage.IntegrationTests` (`PostgreSql/`)
 
-- PostgreSQL retention contract suites for inbox and outbox.
-- Hosted cleanup integration verifies periodic purge through cleanup background service.
+- PostgreSQL retention contract suites cover inbox and outbox.
+- Hosted cleanup integration tests verify periodic purge through the cleanup background service.
 - EF PostgreSQL and SQL Server retention contract suites verify cross-provider parity.
 
 ## Concrete Example

@@ -9,9 +9,9 @@
 
 ## What It Does
 
-`CommandInboxDispatcher` implements `IInboxDispatcher`. It resolves the contract, unprotects and deserializes the payload, verifies the message implements `ICommand`, and sends through the command mediator. Mediation settings mark inbox replay via `InboxExecutionContextKeys.IsInboxExecution` and copy trace metadata from the envelope.
+`CommandInboxDispatcher` implements `IInboxDispatcher`. It resolves the contract, unprotects and deserializes the payload, verifies the message implements `ICommand`, and sends the message through the command mediator. The mediation settings record the inbox replay in `InboxExecutionContextKeys.IsInboxExecution` and copy trace metadata from the envelope.
 
-This is the default inbox dispatch path for monolithic services: accept into storage (or via ingress), then run handlers locally when the processor leases the row. No external broker is involved on the dispatch hop.
+This is the default inbox dispatch path for monolithic services. The application accepts messages into storage, directly or through ingress. Handlers then run locally when the processor leases the row. No external broker is involved on the dispatch hop.
 
 ## Packages
 
@@ -30,16 +30,16 @@ This is the default inbox dispatch path for monolithic services: accept into sto
 
 ## Invariants
 
-- Only `ICommand` payloads succeed; other contract types throw `InvalidOperationException`.
-- Commands with results (`ICommand<TResult>`) must not be accepted into inbox (LB1004); dispatch assumes fire-and-forget command shape at accept time.
-- After-dispatch hook failures default to dead-letter even when dispatch succeeded.
-- At-least-once: handler must be idempotent or use accept-time idempotency keys.
+- Only `ICommand` payloads succeed. Other contract types throw `InvalidOperationException`.
+- Commands with results (`ICommand<TResult>`) must not be accepted into the inbox (LB1004). Dispatch assumes the fire-and-forget command shape at accept time.
+- By default, after-dispatch hook failures dead-letter the envelope even when dispatch succeeded.
+- Delivery is at-least-once, so a handler must be idempotent or use accept-time idempotency keys.
 
 ## Non-Goals
 
-- Does not publish to external brokers (use transport inbox dispatch).
-- Does not dispatch events through `IEventMediator` (planned separately; see Roadmap).
-- Does not return command results to the accept caller.
+- It does not publish to external brokers. Use transport inbox dispatch for that.
+- It does not dispatch events through `IEventMediator`. That is planned separately (see Roadmap).
+- It does not return command results to the accept caller.
 
 ## Public Surface
 
@@ -67,33 +67,33 @@ services.AddLiteBus(litebus =>
 | | |
 | --- | --- |
 | Package | `LiteBus.Inbox.Dispatch.InProcess` |
-| Flow | Resolve contract to unprotect to deserialize to verify `ICommand` to build `CommandMediationSettings` to `ICommandMediator.SendAsync` |
-| Mediation items set | `InboxExecutionContextKeys.IsInboxExecution`, `MessageId`, `ContractName`, and trace metadata via `MessageProcessorDiagnostics.ApplyTraceMetadata` |
+| Flow | Resolves the contract, unprotects and deserializes the payload, verifies `ICommand`, builds `CommandMediationSettings`, and calls `ICommandMediator.SendAsync` |
+| Mediation items set | `InboxExecutionContextKeys.IsInboxExecution`, `MessageId`, `ContractName`, and trace metadata copied through `MessageProcessorDiagnostics.ApplyTraceMetadata` |
 
-Optional constructor dependency: `IInboxPayloadProtector` for encrypted payloads.
+An optional constructor dependency, `IInboxPayloadProtector`, unprotects encrypted payloads.
 
 ### `CommandInboxDispatchModule.Build(IModuleConfiguration)`
 
-Registers `IInboxDispatcher` to `CommandInboxDispatcher`. Registering a second dispatcher on the same builder throws `DurableStorageConfigurationException` from `InboxModuleBuilder.RegisterDispatcher`.
+The method registers `IInboxDispatcher` to `CommandInboxDispatcher`. Registering a second dispatcher on the same builder throws `DurableStorageConfigurationException` from `InboxModuleBuilder.RegisterDispatcher`.
 
 ## Observability
 
 | Signal | When |
 | --- | --- |
-| `litebus.inbox.processor.dispatch_duration` | Processor histogram around `DispatchAsync` |
-| `litebus.inbox.processor.succeeded` / `failed` / `dead_lettered` | After dispatch and terminal persist |
-| Command pipeline tracing | Follows mediator instrumentation when command module registers handlers with diagnostic hooks; no inbox-dispatch-specific activity source |
-| No transport send span | In-process path does not touch the transport layer |
+| `litebus.inbox.processor.dispatch_duration` | A processor histogram around `DispatchAsync` |
+| `litebus.inbox.processor.succeeded` / `failed` / `dead_lettered` | After dispatch and the terminal persist |
+| Command pipeline tracing | It follows mediator instrumentation when the command module registers handlers with diagnostic hooks. There is no inbox-dispatch-specific activity source |
+| No transport send span | The in-process path does not touch the transport layer |
 
-Register inbox processor metrics through `AddLiteBusInboxMetrics()`. Command-specific spans depend on application or future mediator OpenTelemetry packages.
+Register inbox processor metrics through `AddLiteBusInboxMetrics()`. Command-specific spans depend on the application or on future mediator OpenTelemetry packages.
 
 ## Analyzers
 
-- **LB1004**: Result commands cannot be accepted into inbox.
+- **LB1004**: Result commands cannot be accepted into the inbox.
 - **LB1007** / **LB1017**: Contract registration for handled command types.
-- **LB1014**: Processor without dispatcher.
+- **LB1014**: A processor without a dispatcher.
 
-## Deep Docs
+## References
 
 - [Inbox.md](../../reliable-messaging/inbox.md)
 - [Command Inbox Patterns](../durable-core/command-inbox-patterns.md)
@@ -123,6 +123,6 @@ Register inbox processor metrics through `AddLiteBusInboxMetrics()`. Command-spe
 
 ### Out-of-Scope
 
-- Publishing to external brokers (transport inbox dispatch)
-- Dispatching events through `IEventMediator` on the inbox axis (planned separately)
+- Publishing to external brokers, which transport inbox dispatch covers
+- Dispatching events through `IEventMediator` on the inbox axis, which is planned separately
 - Returning command results to the accept caller

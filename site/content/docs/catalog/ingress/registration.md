@@ -3,11 +3,11 @@
 - **ID**: `ingress.registration`
 - **Name**: Inbox ingress registration
 - **Maturity**: GA
-- **Summary**: Registers broker-specific ingress as an inbox child module through `Use*Ingress` extensions on `InboxModuleBuilder`.
+- **Summary**: This capability registers broker-specific ingress as an inbox child module through `Use*Ingress` extensions on `InboxModuleBuilder`.
 
 ## Purpose and Scope
 
-Ingress adapters implement `IInboxIngressModule` and register through `InboxModuleBuilder.RegisterIngress`. Each `Use*Ingress` extension adds an ingress child that maps broker-specific options into shared `TransportInboxIngressOptions`, registers `TransportInboxIngressHandler`, and optionally registers `TransportInboxIngressConsumer` as a manifest background service. Broker connectivity is registered separately through a root `Add*Transport(...)` extension.
+Ingress adapters implement `IInboxIngressModule` and register through `InboxModuleBuilder.RegisterIngress`. Each `Use*Ingress` extension adds an ingress child. The child maps broker-specific options into shared `TransportInboxIngressOptions`, registers `TransportInboxIngressHandler`, and optionally registers `TransportInboxIngressConsumer` as a manifest background service. Broker connectivity is registered separately through a root `Add*Transport(...)` extension.
 
 ## Registration Flow
 
@@ -39,7 +39,7 @@ flowchart TD
 | `UseAwsSqsIngress(Action<AwsSqsInboxIngressModuleBuilder>)` | `LiteBus.Inbox.Ingress.AwsSqs` |
 | `UseInMemoryIngress(Action<InMemoryInboxIngressModuleBuilder>)` | `LiteBus.Inbox.Ingress.InMemory` |
 
-Broker module builders expose `UseOptions`, `DisableIngressConsumer()`, and `HostOptions` / `ConfigureHost` where applicable. Shared services registered by every ingress module: `TransportInboxIngressHandler`, `TransportInboxIngressOptions`, optional `TransportInboxIngressConsumer` as manifest background service.
+Broker module builders expose `UseOptions`, `DisableIngressConsumer()`, and `HostOptions` or `ConfigureHost` where applicable. Every ingress module registers the same shared services: `TransportInboxIngressHandler`, `TransportInboxIngressOptions`, and optionally `TransportInboxIngressConsumer` as a manifest background service.
 
 ## Broker Registration Matrix
 
@@ -59,15 +59,15 @@ Broker module builders expose `UseOptions`, `DisableIngressConsumer()`, and `Hos
 
 ## Requires
 
-- `durable-core.inbox-acceptance` (inbox core and storage; documented in durable-core catalog)
+- `durable-core.inbox-acceptance` (inbox core and storage, documented in the durable-core catalog)
 - Matching root `transport.*` consumer
-- Registered message contracts for payloads ingress deserializes (`runtime.contract-registry` or explicit `Contracts.Register`)
+- Registered message contracts for the payloads ingress deserializes (`runtime.contract-registry` or explicit `Contracts.Register`)
 
 ## Invariants
 
 - Ingress registers inside `AddInbox`, not as a top-level module shortcut.
 - Duplicate registration of the same module type throws at compose time (composite module rules).
-- One explicit root transport registration per process; ingress does not select or bootstrap a broker.
+- Each process has one explicit root transport registration. Ingress does not select or bootstrap a broker.
 - Ingress accepts through `IInbox`, not `ITransactionalInbox` (no ambient transaction at the broker edge).
 - Compose-time destination validation happens before any background service registration.
 
@@ -84,12 +84,12 @@ Ingress registration does not define new instruments. The root transport module 
 | Kind | Name | When emitted | Registration |
 | --- | --- | --- | --- |
 | Gauge | `litebus.transport.circuit_breaker.open` | At least one publisher circuit is open or half-open | `AddLiteBusTransportMetrics()` or broker OpenTelemetry package |
-| Gauge | `litebus.transport.circuit_breaker.failure_count` | Current failures summed across publisher circuits | same |
+| Gauge | `litebus.transport.circuit_breaker.failure_count` | Current failures summed across publisher circuits | Same as above |
 | Tag | `litebus.transport.broker` | `amqp`, `kafka`, `sqs`, `azure_service_bus`, `inmemory` | on breaker gauges |
 
-Ingress-specific counter `ingress.ack_failed_after_accept` is recorded at runtime by `ingress.transport-consumer`, not at registration. See `ingress.telemetry`.
+The `ingress.transport-consumer` records the `ingress.ack_failed_after_accept` counter at runtime, not at registration. See `ingress.telemetry`.
 
-No ingress registration activities or log events. Consumer restart and ack-failure logs emit from `TransportInboxIngressConsumer` at runtime.
+Registration emits no activities or log events. Consumer restart and ack-failure logs come from `TransportInboxIngressConsumer` at runtime.
 
 ## Test Coverage
 
@@ -116,7 +116,7 @@ No ingress registration activities or log events. Consumer restart and ack-failu
 - Registering ingress without inbox storage.
 - Kitchen-sink transport registration across every broker SDK.
 
-## Deep Docs
+## References
 
 - [Inbox: Ingress](../../reliable-messaging/inbox.md)
 - [Dependency graph](../../architecture/dependency-graph.md)

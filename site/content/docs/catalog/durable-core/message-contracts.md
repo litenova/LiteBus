@@ -5,50 +5,52 @@
 
 ## Summary
 
-Every persisted envelope carries a stable contract name and version so storage, dispatch, and cross-service evolution do not depend on CLR type names alone.
+A durable message contract gives every persisted envelope a stable name and version, so storage, dispatch, and cross-service evolution do not depend on CLR type names alone.
 
 ## What It Does
 
-Module builders register message types in `IMessageContractRegistry` with explicit name and version, or apply `[MessageContract]` and call `RegisterFromAssembly`. Writers resolve contracts at accept/enqueue time; dispatchers deserialize using stored contract metadata. Closed generic types require per-closed-shape registration. Analyzers enforce registration coverage in production code.
+Module builders register each message type in `IMessageContractRegistry` with an explicit name and version. They can also apply `[MessageContract]` to message types and call `RegisterFromAssembly` to register them in bulk. Writers resolve the contract when they accept or enqueue a message, and dispatchers deserialize the payload with the contract metadata stored on the envelope.
+
+Each closed generic shape needs its own registration entry. Analyzers check that handled message types in production code have registration.
 
 ## Public Surface
 
 ### Consumer Contracts
 
-- **`IMessageContractRegistry`**: Runtime singleton for contract resolution and compose-time registration. Implements `IContractWriter` (module builders) and `IContractReader` (dispatchers, envelope factories).
-- **`IContractWriter` / `IContractReader`**: Split views of the registry for configuration vs runtime lookup.
-- **`[MessageContract("name", version)]`**: Declares stable contract identity on message types for assembly scan and runtime on-demand resolution.
-- **`MessageContract`**: Resolved name, version, and CLR type returned from `GetContract(Type)`.
-- **`MessageContractNotRegisteredException`**: Thrown when accept/enqueue or factory paths cannot resolve a registered contract for the message type.
+- **`IMessageContractRegistry`**: The runtime singleton for contract resolution and compose-time registration. It implements `IContractWriter` for module builders and `IContractReader` for dispatchers and envelope factories.
+- **`IContractWriter` / `IContractReader`**: These interfaces expose separate views of the registry, one for configuration-time registration and one for runtime lookup.
+- **`[MessageContract("name", version)]`**: An attribute that declares the stable contract identity of a message type for assembly scans and on-demand runtime resolution.
+- **`MessageContract`**: This is the resolved name, version, and CLR type that `GetContract(Type)` returns.
+- **`MessageContractNotRegisteredException`**: When accept, enqueue, or factory paths cannot resolve a registered contract for the message type, they throw this exception.
 
 ### Invocation
 
-- **`GetContract(Type messageType)`**: Runtime lookup used by envelope factories and dispatchers. Resolves explicit registrations only and throws `MessageContractNotRegisteredException` for unregistered types.
-- **`TryGetContract(Type messageType)`**: Non-throwing lookup that falls back to `[MessageContract]` on the type when no explicit registration exists.
-- **`Register<TMessage>(string name, int version = 1)`**: Compose-time registration on inbox or outbox module builder `Contracts` surface.
-- **`RegisterFromAssembly(Assembly assembly)`**: Batch registration of attributed types from an assembly.
+- **`GetContract(Type messageType)`**: This is the runtime lookup that envelope factories and dispatchers use. It resolves explicit registrations only, and it throws `MessageContractNotRegisteredException` for unregistered types.
+- **`TryGetContract(Type messageType)`**: This lookup does not throw. When no explicit registration exists, it falls back to `[MessageContract]` on the type.
+- **`Register<TMessage>(string name, int version = 1)`**: Call this at compose time through the `Contracts` surface of the inbox or outbox module builder to register a message type.
+- **`RegisterFromAssembly(Assembly assembly)`**: Call this to register every attributed message type in an assembly in one call.
 
-Contract lookup at accept/enqueue always uses `message.GetType()`, not only the generic type parameter on typed overloads. The outbox envelope factory consults an optional `IMessageContractResolver` (registered with `OutboxModuleBuilder.UseContractResolver`); `DeclaredTypeMessageContractResolver` resolves from the declared parameter type instead of the runtime instance type. When none is registered, writers use the runtime message instance type.
+When writers accept or enqueue a message, contract lookup always uses `message.GetType()`, not only the generic type parameter on typed overloads. The outbox envelope factory consults an optional `IMessageContractResolver`, registered with `OutboxModuleBuilder.UseContractResolver`. `DeclaredTypeMessageContractResolver` resolves from the declared parameter type instead of the runtime instance type. When no resolver is registered, writers use the runtime message instance type.
 
 ### Registration
 
-- **`inbox.Contracts.Register<T>(name, version)`** or **`outbox.Contracts.Register<T>(name, version)`** inside the matching module builder.
-- **`messaging.Contracts.RegisterFromAssembly(...)`** inside `AddMessaging`, or the equivalent `Contracts` surface on an axis module builder.
-- **`[MessageContract]`** on message types plus either explicit register or assembly scan (LB1017 enforces attributed types are registered).
+- Call **`inbox.Contracts.Register<T>(name, version)`** or **`outbox.Contracts.Register<T>(name, version)`** inside the matching module builder.
+- Call **`messaging.Contracts.RegisterFromAssembly(...)`** inside `AddMessaging`, or use the equivalent `Contracts` surface on an axis module builder.
+- Apply **`[MessageContract]`** to message types and register them explicitly or by assembly scan, since LB1017 reports attributed types that have neither.
 
-Register before first accept/enqueue of each message type. Closed generic shapes each need their own registration entry.
+Register each message type before the first accept or enqueue of that type. Each closed generic shape needs its own registration entry.
 
 ### Configuration
 
-- Per-type: contract **name** (stable string stored in envelope rows) and **version** (positive integer for evolution).
-- No module-level options bag; contract identity lives on each registration or attribute.
-- Payload encryption leaves contract name and version plaintext in storage (see payload-encryption capability).
+- Each registration carries a contract **name**, the stable string stored in envelope rows, and a **version**, the positive integer used for evolution.
+- There is no module-level options object. Contract identity lives on each registration or attribute.
+- Payload encryption leaves the contract name and version as plaintext in storage. See the payload-encryption capability for details.
 
 ### Extension Points
 
-- Application defines message types and chooses contract names/versions for cross-service compatibility.
-- Custom storage and dispatch adapters consume stored contract metadata; they do not define alternate registration APIs.
-- Analyzer rules LB1007 (handled durable types without registration) and LB1017 (attributed types without register/scan) extend compile-time coverage.
+- The application defines message types and chooses contract names and versions for cross-service compatibility.
+- Custom storage and dispatch adapters consume the stored contract metadata. They do not define alternate registration APIs.
+- Analyzer rules LB1007 and LB1017 extend compile-time coverage. LB1007 covers handled durable types without registration, and LB1017 covers attributed types without an explicit register call or assembly scan.
 
 ## Packages
 
@@ -60,22 +62,22 @@ Register before first accept/enqueue of each message type. Closed generic shapes
 
 ## Requires
 
-- Registration before first accept/enqueue of each message type
-- Unique stable names per persisted contract version
-- Handler registration for inbox command types
+- Register each message type before its first accept or enqueue.
+- Give each persisted contract version a unique stable name.
+- Register handlers for inbox command types.
 
 ## Invariants
 
-- Open generic contract definitions are rejected
-- Contract name and version persist in envelope rows; payload encryption leaves them plaintext
-- Persisted envelopes outlive deploying assembly versions; plan contract evolution carefully
-- LB1007 warns handled durable types without registration; LB1017 warns attributed types without explicit register or assembly scan
+- Configuration rejects open generic contract definitions.
+- The contract name and version persist in envelope rows, and payload encryption leaves them as plaintext.
+- Persisted envelopes outlive each deployed assembly version. Plan contract evolution carefully.
+- LB1007 warns about handled durable types without registration, and LB1017 warns about attributed types without an explicit register call or assembly scan.
 
 ## Non-Goals
 
-- Automatic contract migration or payload upgrader hooks (upgrader hooks for in-flight envelopes are planned on [Roadmap](../../roadmap/README.md))
-- JSON Schema export CLI (a contract catalog CLI with JSON Schema export is planned on [Roadmap](../../roadmap/README.md))
-- CLR assembly-qualified names as persisted identity
+- This capability does not provide automatic contract migration or payload upgrader hooks. Upgrader hooks for in-flight envelopes are planned (see [Roadmap](../../roadmap/README.md)).
+- This capability does not provide a JSON Schema export CLI. A contract catalog CLI with JSON Schema export is planned (see [Roadmap](../../roadmap/README.md)).
+- This capability does not use CLR assembly-qualified names as persisted identity.
 
 ## Observability
 
@@ -84,22 +86,22 @@ Contract resolution failures surface as typed exceptions at accept, enqueue, or 
 ### Contract Resolution Failures
 
 - **Kind**: Exception (no dedicated meter)
-- **When emitted**: `GetContract` fails at accept/enqueue (`MessageContractNotRegisteredException`) or dispatch cannot map stored name/version to a registered type
-- **Operational note**: Alert on sustained contract-not-registered exceptions at API, ingress, or processor boundaries; indicates missing registration or deployment skew
+- **When emitted**: `GetContract` fails at accept or enqueue with `MessageContractNotRegisteredException`, or dispatch cannot map a stored name and version to a registered type
+- **Operational note**: Alert on sustained contract-not-registered exceptions at API, ingress, or processor boundaries. They indicate missing registration or deployment skew.
 
 ### Diagnostics Queries
 
 - **Kind**: Management store queries (not OpenTelemetry)
-- **When used**: `IInboxManager` / `IOutboxManager` and diagnostics stores filter or group by contract name where supported
-- **Operational note**: Use contract name filters when investigating failed or dead-lettered rows with unknown contract metadata
+- **When used**: `IInboxManager` / `IOutboxManager` and diagnostics stores filter or group by contract name where the store supports it
+- **Operational note**: When investigating failed or dead-lettered rows with unknown contract metadata, use contract name filters.
 
 ### Transport Wire Mapping
 
-- **Kind**: Envelope headers on dispatch/ingress (see transport-envelope-mapping capability)
-- **When emitted**: Dispatch maps contract name and version to canonical transport headers; ingress reads them before accept
-- **Operational note**: Missing contract headers at ingress fail before store write (no orphan rows)
+- **Kind**: Envelope headers on dispatch and ingress (see the transport-envelope-mapping capability)
+- **When emitted**: Dispatch maps the contract name and version to canonical transport headers, and ingress reads them before accept.
+- **Operational note**: When contract headers are missing at ingress, accept fails before the store write, so no orphan rows remain.
 
-## Deep Docs
+## References
 
 - [Inbox](../../reliable-messaging/inbox.md) (contract section)
 - [Analyzers](../../reference/analyzers.md)
@@ -119,11 +121,11 @@ Contract resolution failures surface as typed exceptions at accept, enqueue, or 
 
 #### `InboxEnvelopeFactoryTests.CreateAsync_should_match_inbox_writer_fields`
 
-- **Use case**: When the envelope factory resolves a registered contract, stored fields match the writer insert shape
+- **Use case**: When the envelope factory resolves a registered contract, the stored fields match the shape of the writer insert
 - **Test kind**: Unit
 - **Description**: In-memory inbox with explicit contract registration
-- **Behavior**: `CreateAsync` on envelope factory for a registered message type
-- **Expected outcome**: Contract name and version on envelope match registration
+- **Behavior**: `CreateAsync` on the envelope factory for a registered message type
+- **Expected outcome**: The contract name and version on the envelope match the registration
 - **Remarks**: `LiteBus.Inbox.UnitTests`
 
 #### `OutboxTests.Register_ShouldRejectOpenGenericDurableContracts`
@@ -131,16 +133,16 @@ Contract resolution failures surface as typed exceptions at accept, enqueue, or 
 - **Use case**: When registration targets an open generic message type, configuration fails
 - **Test kind**: Unit
 - **Description**: Outbox module builder contract registration
-- **Behavior**: `Contracts.Register` on open generic definition
-- **Expected outcome**: Configuration failure; open generic rejected
+- **Behavior**: `Contracts.Register` called on an open generic definition
+- **Expected outcome**: Configuration fails because the open generic is rejected.
 - **Remarks**: `LiteBus.Outbox.UnitTests`
 
 #### `InboxProcessorEdgeCaseTests.AcceptAsync_WhenContractNotRegistered_ShouldThrowMessageContractNotRegisteredException`
 
-- **Use case**: When accept runs without contract registration, resolution fails before store write
+- **Use case**: When accept runs without contract registration, resolution fails before the store write
 - **Test kind**: Unit
-- **Description**: Accept of unregistered message type
-- **Behavior**: `IInbox.AcceptAsync` without `Contracts.Register`
+- **Description**: Accept of an unregistered message type
+- **Behavior**: `IInbox.AcceptAsync` called without a prior `Contracts.Register`
 - **Expected outcome**: `MessageContractNotRegisteredException`
 - **Remarks**: `LiteBus.Inbox.UnitTests`
 
@@ -149,45 +151,45 @@ Contract resolution failures surface as typed exceptions at accept, enqueue, or 
 - **Use case**: When a stored row references an unknown contract name, the processor marks it failed
 - **Test kind**: Unit
 - **Description**: In-memory store row with unresolvable contract name
-- **Behavior**: `ProcessPendingAsync` dispatch/deserialize path
-- **Expected outcome**: Row transitions to failed status
+- **Behavior**: The dispatch and deserialize path of `ProcessPendingAsync`
+- **Expected outcome**: The row transitions to failed status
 - **Remarks**: `LiteBus.Inbox.UnitTests`
 
 #### `EfCoreInboxProcessorUnknownContractEndToEndTests.ProcessPendingAsync_WhenContractIsUnknown_ShouldMarkFailedInDatabase`
 
-- **Use case**: When EF-backed storage holds an unknown contract, processor failure persists in the database
+- **Use case**: When EF-backed storage holds an unknown contract, the processor records the failure in the database
 - **Test kind**: Integration
-- **Description**: EF Core inbox store with invalid contract metadata on row
-- **Behavior**: Full processor pass through EF store
-- **Expected outcome**: Failed status in database
+- **Description**: EF Core inbox store with invalid contract metadata on the row
+- **Behavior**: A full processor pass through the EF store
+- **Expected outcome**: The row has failed status in the database
 - **Remarks**: `LiteBus.Inbox.Storage.EntityFrameworkCore.IntegrationTests`
 
 #### `AmqpInboxIngressFailureTests.UnknownContract_ShouldNackWithoutRequeueAndSkipStore`
 
-- **Use case**: When ingress receives a payload with an unregistered contract, no row is written and the broker message is nacked
+- **Use case**: When ingress receives a payload with an unregistered contract, it writes no row and nacks the broker message
 - **Test kind**: Integration
 - **Description**: AMQP ingress with unregistered contract header
 - **Behavior**: Ingress accept path before store append
-- **Expected outcome**: No inbox row; nack without requeue
+- **Expected outcome**: No inbox row is written, and the message is nacked without requeue.
 - **Remarks**: `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`)
 
 #### `CommandWithResultScheduledToInboxAnalyzerTests.ExplicitGenericAcceptAsyncWithCommandResult_ProducesDiagnostic`
 
-- **Use case**: When a command-with-result type is accepted to inbox, analyzer LB1004 reports a diagnostic
+- **Use case**: When a command-with-result type is accepted to the inbox, analyzer LB1004 reports a diagnostic
 - **Test kind**: Analyzer
-- **Description**: Source with `AcceptAsync` on `ICommand<TResult>` type
+- **Description**: Source code that calls `AcceptAsync` on an `ICommand<TResult>` type
 - **Behavior**: Analyzer compilation pass
-- **Expected outcome**: LB1004 diagnostic emitted
+- **Expected outcome**: The analyzer emits an LB1004 diagnostic
 - **Remarks**: `LiteBus.Analyzers.Tests`
 
 #### `MissingMessageContractRegistrationAnalyzerTests` (Suite)
 
 - **Use case**: When a handled durable message type lacks contract registration, analyzer LB1007 reports a diagnostic
 - **Test kind**: Analyzer
-- **Description**: Multiple cases for inbox/outbox handlers without `Contracts.Register` or assembly scan
+- **Description**: Multiple cases for inbox and outbox handlers without `Contracts.Register` or an assembly scan
 - **Behavior**: Analyzer compilation pass on handler registrations
-- **Expected outcome**: LB1007 diagnostic per uncovered type
-- **Remarks**: `LiteBus.Analyzers.Tests`; multiple test methods in file
+- **Expected outcome**: The analyzer emits an LB1007 diagnostic per uncovered type
+- **Remarks**: `LiteBus.Analyzers.Tests`, with multiple test methods in the file
 
 #### `ExplicitMessageContractRegistrationAnalyzerTests` (Suite)
 
@@ -195,41 +197,41 @@ Contract resolution failures surface as typed exceptions at accept, enqueue, or 
 - **Test kind**: Analyzer
 - **Description**: Attributed message type without matching register invocation
 - **Behavior**: Analyzer matches only `IContractWriter` / `IMessageContractRegistry` `Register` calls
-- **Expected outcome**: LB1017 diagnostic
+- **Expected outcome**: The analyzer emits an LB1017 diagnostic
 - **Remarks**: `LiteBus.Analyzers.Tests`
 
 #### `InboxTransportEnvelopeMapperTests.BuildHeaders_ShouldMapAllMetadataFields`
 
-- **Use case**: When dispatch maps an inbox envelope to transport headers, contract fields appear on the wire
+- **Use case**: When dispatch maps an inbox envelope to transport headers, the contract fields appear on the wire
 - **Test kind**: Unit
 - **Description**: Transport envelope mapper for inbox dispatch
-- **Behavior**: `BuildHeaders` with registered contract metadata
-- **Expected outcome**: Contract name and version in canonical headers
+- **Behavior**: `BuildHeaders` called with registered contract metadata
+- **Expected outcome**: The contract name and version appear in the canonical headers
 - **Remarks**: `LiteBus.Inbox.UnitTests` (`Dispatch/`)
 
 #### `ContractVersionEvolutionTests.ProcessPendingAsync_WithTwoContractVersions_ShouldDispatchEachRegisteredShape`
 
-- **Use case**: Two versions of one stable contract name remain processable during a rolling contract transition
+- **Use case**: The processor handles two versions of one stable contract name during a rolling contract transition
 - **Test kind**: Component integration
-- **Description**: Registers version 1 and version 2 against distinct CLR command shapes, then accepts both into one inbox
+- **Description**: The test registers version 1 and version 2 against distinct CLR command shapes, then accepts both into one inbox
 - **Behavior**: The processor resolves each stored name-version pair, deserializes the matching shape, and invokes its handler
-- **Expected outcome**: Both handlers run; both envelopes complete while retaining contract versions 1 and 2
+- **Expected outcome**: Both handlers run, and both envelopes complete while retaining contract versions 1 and 2.
 - **Remarks**: `LiteBus.Inbox.UnitTests`
 
 #### `AmqpInboxIngressHandlerTests.AcceptAsync_WhenContractHeaderMissing_ShouldThrow`
 
-- **Use case**: When ingress cannot resolve contract from broker headers, accept fails before store write
+- **Use case**: When ingress cannot resolve the contract from broker headers, accept fails before the store write
 - **Test kind**: Unit
 - **Description**: AMQP ingress handler with missing contract header
-- **Behavior**: Ingress contract resolution at accept boundary
-- **Expected outcome**: Exception before store append
+- **Behavior**: Ingress contract resolution at the accept boundary
+- **Expected outcome**: Accept fails before the store append.
 - **Remarks**: `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`)
 
 ### Untested Use Cases
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| `RegisterFromAssembly` discovers all assembly types | Yes | Covered indirectly in analyzer tests | Analyzer | Low |
+| `RegisterFromAssembly` discovers all assembly types | Yes | Covered indirectly by analyzer tests | Analyzer | Low |
 | Contract name collision across assemblies | Yes | No durable-specific collision test | Unit | Low |
 
 ### Out-of-Scope Use Cases

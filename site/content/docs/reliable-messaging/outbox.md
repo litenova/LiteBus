@@ -1,16 +1,16 @@
 # Outbox
 
-The outbox stores events for publication after a state change commits, so publication is atomic with the committed state change: a rolled-back change publishes nothing, and a committed change keeps its stored event for later publication. This page is the contract and registration reference for the neutral outbox core.
+The outbox stores events for publication after a state change commits, so publication is atomic with the committed state change. A rolled-back change publishes nothing. A committed change keeps its stored event for later publication. This page is the contract and registration reference for the transport-neutral outbox core.
 
 > **This page is for** developers who publish events that must survive a process crash.
 >
 > **After reading it** you can register contracts, storage, dispatch, and the processor for reliable publication. For the durable overview, start with [Reliable Messaging](README.md).
 
-If your command handler must enqueue events in the same database transaction as domain persistence, read [Transactional messaging writes](transactional-writes.md) before choosing between `IOutbox` and `ITransactionalOutbox`.
+If your command handler must enqueue events in the same database transaction as domain persistence, read [Transactional Messaging Writes](transactional-writes.md) before choosing between `IOutbox` and `ITransactionalOutbox`.
 
 ## Core Module
 
-`LiteBus.Outbox` is transport-neutral orchestration only. It registers:
+`LiteBus.Outbox` is only transport-neutral orchestration. It registers:
 
 | Service | Implementation | Role |
 | --- | --- | --- |
@@ -22,7 +22,7 @@ Storage and dispatch register inside `AddOutbox` through `Use*` extensions.
 
 ## Contract
 
-Use `IOutbox.EnqueueAsync` when a message must survive process failure and be published after the surrounding state change commits.
+When a message must survive process failure and be published after the surrounding state change commits, use `IOutbox.EnqueueAsync`.
 
 ```csharp
 public sealed record OrderSubmittedIntegrationEvent
@@ -42,9 +42,9 @@ var receipt = await outbox.EnqueueAsync(
     cancellationToken).ConfigureAwait(false);
 ```
 
-`receipt.Outcome` is `Enqueued` when the store inserted a row and `AlreadyEnqueued` when a duplicate message ID or tenant-scoped idempotency key resolved to an existing row. The receipt confirms storage, not broker publication.
+When the store inserts a row, `receipt.Outcome` is `Enqueued`. When a duplicate message ID or tenant-scoped idempotency key resolves to an existing row, it is `AlreadyEnqueued`. The receipt confirms storage, not broker publication.
 
-Under `IdempotencyConflictMode.Strict`, an identical replay still returns the existing row; only a conflicting submission whose id, contract, payload, topic, handler, keys, correlation, causation, or tenant differs throws `IdempotencyConflictException`.
+Under `IdempotencyConflictMode.Strict`, an identical replay still returns the existing row. Only a conflicting submission whose id, contract, payload, topic, handler, keys, correlation, causation, or tenant differs throws `IdempotencyConflictException`.
 
 Register each stored message type in `IMessageContractRegistry` with a stable name and version, or apply `[MessageContract]` and call `RegisterFromAssembly` during module configuration.
 
@@ -71,11 +71,11 @@ var item = OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.ScheduledAfter(
 var receipt = await outbox.EnqueueAsync(item, cancellationToken).ConfigureAwait(false);
 ```
 
-Compose concerns with `with` on the metadata record when one factory is not enough, as the lead example shows.
+When one factory is not enough, compose concerns with `with` on the metadata record, as the first example shows.
 
 ### Propagating Trace from the Incoming Message
 
-When a handler runs inside a mediation that replayed a stored envelope, `FromAmbient` stamps the new event with the incoming trace instead of leaving it untraced: the causation id becomes the incoming message id, the correlation id carries over (or falls back to the incoming message id when the incoming envelope had none), and an ambient distributed trace context is preserved.
+When a handler runs inside a mediation that replayed a stored envelope, `FromAmbient` stamps the new event with the incoming trace instead of leaving it untraced. The causation id becomes the incoming message id. The correlation id carries over. When the incoming envelope had no correlation id, it falls back to the incoming message id. An ambient distributed trace context is preserved.
 
 ```csharp
 var item = OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.FromAmbient(
@@ -84,11 +84,15 @@ var item = OutboxEnqueueItem<OrderSubmittedIntegrationEvent>.FromAmbient(
 var receipt = await outbox.EnqueueAsync(item, cancellationToken).ConfigureAwait(false);
 ```
 
-This is explicit and opt-in: nothing reads ambient state unless the caller calls `FromAmbient`. Outside a mediation the item is identical to `From(message)`, with `Trace` set to `MessageTrace.None`. Only trace metadata is propagated; tenant, visibility, and identity keep their `Immediate` defaults. `InboxAcceptItem<TMessage>.FromAmbient` is the inbox twin for handlers that accept a follow-up command. A `MessageTrace.Distributed` context must be valid JSON text such as `{"traceparent":"00-..."}`; anything else throws `ArgumentException` at creation on every provider, so pass a JSON object instead of a raw traceparent string.
+This is explicit and opt-in. Unless the caller calls `FromAmbient`, nothing reads ambient state. Outside a mediation, the item is identical to `From(message)`, with `Trace` set to `MessageTrace.None`.
+
+Only trace metadata is propagated. Tenant, visibility, and identity keep their `Immediate` defaults. `InboxAcceptItem<TMessage>.FromAmbient` is the inbox counterpart for handlers that accept a follow-up command.
+
+A `MessageTrace.Distributed` context must be valid JSON text such as `{"traceparent":"00-..."}`. Anything else throws `ArgumentException` at creation on every provider. Pass a JSON object instead of a raw traceparent string.
 
 ### Ambient Trace Option
 
-`UseAmbientTrace` applies `FromAmbient` semantics to every enqueue whose item trace is `MessageTrace.None`, so handlers that enqueue inside a mediation propagate trace without calling `FromAmbient` on each item.
+`UseAmbientTrace` applies `FromAmbient` semantics to every enqueue whose item trace is `MessageTrace.None`. Handlers that enqueue inside a mediation then propagate trace without calling `FromAmbient` on each item.
 
 ```csharp
 builder.AddOutbox(outbox =>
@@ -98,7 +102,9 @@ builder.AddOutbox(outbox =>
 });
 ```
 
-An explicit item trace always wins over the ambient value: the option only fills in `None`. Outside a mediation the ambient read yields none, so the envelope is identical to one enqueued without the option. Collected domain events staged through `StageCollectedEvents` stamp ambient trace under the same option.
+An explicit item trace always wins over the ambient value. The option only fills in `None`.
+
+Outside a mediation, the ambient read yields none. The envelope is then identical to one enqueued without the option. Collected domain events staged through `StageCollectedEvents` stamp ambient trace under the same option.
 
 ### Publication Targets
 
@@ -106,16 +112,18 @@ An explicit item trace always wins over the ambient value: the option only fills
 
 | Variant | Meaning |
 | --- | --- |
-| `PublicationTarget.ContractDefault` | Derive the transport target from the stored contract name and module configuration |
+| `PublicationTarget.ContractDefault` | Transport target derived from the stored contract name and module configuration |
 | `PublicationTarget.Topic(name)` | Explicit topic or channel stored with the envelope |
 | `PublicationTarget.Exchange(name)` | Explicit AMQP exchange name stored with the envelope |
 | `PublicationTarget.Queue(name)` | Explicit AMQP queue name stored with the envelope |
 
-All three explicit variants persist to the envelope topic column at enqueue time; dispatchers resolve the transport destination from that stored hint. `Exchange` and `Queue` name AMQP concepts, so prefer `Topic` on non-AMQP transports. Broker-specific destination mapping lives in the dispatch guides under [Integrations](../integrations/amqp.md).
+All 3 explicit variants persist to the envelope topic column at enqueue time. Dispatchers resolve the transport destination from that stored hint.
+
+`Exchange` and `Queue` name AMQP concepts. Prefer `Topic` on non-AMQP transports. For broker-specific destination mapping, see the dispatch guides under [Integrations](../integrations/amqp.md).
 
 ### Batch Writers
 
-`EnqueueBatchAsync` enqueues heterogeneous events in one store round trip. Build each entry with the untyped `OutboxEnqueueItem`, which carries an explicit runtime type for contract lookup. Receipts return in the same order as the input items.
+`EnqueueBatchAsync` enqueues heterogeneous events in one store round trip. Build each entry with the untyped `OutboxEnqueueItem`. It carries an explicit runtime type for contract lookup. The method returns receipts in the same order as the input items.
 
 ```csharp
 IReadOnlyList<OutboxEnqueueItem> items =
@@ -131,7 +139,7 @@ IReadOnlyList<OutboxEnqueueItem> items =
 IReadOnlyList<OutboxReceipt> receipts = await outbox.EnqueueBatchAsync(items, cancellationToken).ConfigureAwait(false);
 ```
 
-`ITransactionalOutbox` and `ITransactionalOutbox<TContext>` expose the same `EnqueueBatchAsync` shape; on those paths the batch stages inside the caller transaction and commits atomically with it. See [Transactional messaging writes](transactional-writes.md).
+`ITransactionalOutbox` and `ITransactionalOutbox<TContext>` expose the same `EnqueueBatchAsync` shape. On those paths, the batch stages inside the caller transaction and commits atomically with it. See [Transactional Messaging Writes](transactional-writes.md).
 
 ## Registration (Nested Builder Only)
 
@@ -157,7 +165,7 @@ services.AddLiteBus(builder =>
 
 ## Processor Options
 
-`OutboxProcessorOptions` inherits the shared durable settings. The processor reads them when the processor instance is created.
+`OutboxProcessorOptions` inherits the shared durable settings. The processor reads them at creation.
 
 | Option | Default | Role |
 | --- | --- | --- |
@@ -166,12 +174,14 @@ services.AddLiteBus(builder =>
 | `DispatcherConcurrency` | `1` | Parallel dispatch workers per pass; keep `1` when arrival order matters |
 | `LeaseHeartbeatInterval` | 15 seconds | Lease renewal cadence during dispatch; zero disables renewal |
 | `Retry` | `new RetryOptions()` | Retry policy; see [Retry and Dead Letter](#retry-and-dead-letter) |
-| `LeaseOwner` | Generated | Owner written on leased rows; defaults to machine name, process id, and a random suffix |
+| `LeaseOwner` | Generated | Owner on leased rows, defaulting to machine name, process id, and a random suffix |
 | `TenantId` | `null` | When set, leases only that tenant partition; `null` leases all tenants |
 | `HonorShutdownTokenOnPersist` | `false` | Whether terminal persist observes the shutdown token |
-| `HookFailurePolicy` | Dispatcher default | `null` keeps the dispatcher recommendation; an explicit value overrides it |
+| `HookFailurePolicy` | Dispatcher default | `null` keeps the dispatcher recommendation, and an explicit value overrides it |
 
-`LeaseHeartbeatInterval` must be less than or equal to half of `LeaseDuration`; processor construction throws `ArgumentOutOfRangeException` otherwise. Larger batches reduce store round trips but hold more leases during dispatch. Longer leases tolerate slow handlers but delay recovery after a worker crash. See [Ordering and Concurrency Guarantees](ordering.md) before raising `DispatcherConcurrency`.
+`LeaseHeartbeatInterval` must be less than or equal to half of `LeaseDuration`. Processor construction throws `ArgumentOutOfRangeException` otherwise.
+
+Larger batches reduce store round trips but hold more leases during dispatch. Longer leases tolerate slow handlers but delay recovery after a worker crash. Before raising `DispatcherConcurrency`, see [Ordering and Concurrency Guarantees](ordering.md).
 
 ## Processor Host Options
 
@@ -193,7 +203,7 @@ outbox.EnableOutboxProcessor(host =>
 });
 ```
 
-See [Hosted services](../architecture/hosted-services.md) for how processor loops bind to the generic host.
+See [Hosted Services](../architecture/hosted-services.md) for how processor loops bind to the generic host.
 
 ## Retention Cleanup
 
@@ -213,11 +223,15 @@ outbox.EnableCleanup(cleanup =>
 | `Interval` | 1 hour | Delay between cleanup passes; must be greater than zero |
 | `Retention` | `null` | How long published rows are kept; `null` disables deletion |
 
-When `Retention` is `null`, the loop exits without deleting rows, so calling `EnableCleanup` without setting `Retention` retains everything. `IOutboxManager.RunRetentionPurgeAsync` runs the same purge on demand and returns the deleted row count; unlike the inbox manager, it throws `OutboxManagementException` when retention is unset. `IOutboxManager.GetRetentionStatusAsync` reports the configured policy and the most recent cleanup outcome.
+When `Retention` is `null`, the loop exits without deleting rows, so calling `EnableCleanup` without setting `Retention` retains everything.
+
+`IOutboxManager.RunRetentionPurgeAsync` runs the same purge on demand and returns the deleted row count. Unlike the inbox manager, it throws `OutboxManagementException` when retention is unset. `IOutboxManager.GetRetentionStatusAsync` reports the configured policy and the most recent cleanup outcome.
 
 ## Processing Versus Publishing
 
-Inbox and outbox use asymmetric naming on purpose. Inbox acceptance (`AcceptAsync`) only stores a command, and processing happens later in `PipelinedInboxProcessor`. Outbox enqueue (`EnqueueAsync`) only stores an event, and publication happens later in `PipelinedOutboxProcessor` when a dispatcher calls `IEventMediator` or an external broker. Do not call `PublishAsync` directly for cross-process notifications that must commit with application state.
+Inbox and outbox use asymmetric naming on purpose. Inbox acceptance (`AcceptAsync`) only stores a command. Processing happens later in `PipelinedInboxProcessor`.
+
+Outbox enqueue (`EnqueueAsync`) only stores an event. When a dispatcher calls `IEventMediator` or an external broker, publication happens later in `PipelinedOutboxProcessor`. For cross-process notifications that must commit with application state, do not call `PublishAsync` directly.
 
 ## Dispatch (`Use*` Extensions)
 
@@ -230,19 +244,19 @@ Inbox and outbox use asymmetric naming on purpose. Inbox acceptance (`AcceptAsyn
 | `UseKafkaDispatch(...)` | `LiteBus.Outbox.Dispatch.Kafka` | Publish through the root Kafka transport |
 | `UseInMemoryDispatch(...)` | `LiteBus.Outbox.Dispatch.InMemory` | Publish through in-memory transport (tests, local pipelines) |
 
-Register exactly one dispatcher per outbox module.
+Register exactly 1 dispatcher per outbox module.
 
 ## Tenant Routing and Contract Resolution
 
-Set an `ITenantRoutingStrategy` on the transport dispatcher options to compute the transport route from tenant metadata before topic and route delegate fallbacks. The strategy is a transport concern, so it lives on `TransportOutboxDispatcherOptions` in `LiteBus.Outbox.Dispatch` rather than on the outbox builder:
+To compute the transport route from tenant metadata before topic and route delegate fallbacks, set an `ITenantRoutingStrategy` on the transport dispatcher options. The strategy is a transport concern. Set it on `TransportOutboxDispatcherOptions` in `LiteBus.Outbox.Dispatch`, not on the outbox builder:
 
 ```csharp
 outbox.UseAmqpDispatch(options => options.TenantRoutingStrategy = new TenantRouteStrategy());
 ```
 
-The strategy receives the envelope tenant id, contract name, and topic hint, and its return value becomes the transport publish route. Without a strategy, the dispatcher uses `ResolveRoute` when set, otherwise the envelope topic when present, otherwise the contract name.
+The strategy receives the envelope tenant id, contract name, and topic hint. Its return value becomes the transport publish route. Without a strategy, the dispatcher falls back in order: `ResolveRoute` when set, then the envelope topic when present, then the contract name.
 
-Register an `IMessageContractResolver` to select the CLR type used for contract lookup during enqueue instead of the runtime instance type:
+To select the CLR type used for contract lookup during enqueue instead of the runtime instance type, register an `IMessageContractResolver`:
 
 ```csharp
 outbox.UseContractResolver(new DeclaredTypeMessageContractResolver());
@@ -260,7 +274,7 @@ When no resolver is registered, writers use the runtime message instance type fo
 
 ### In-Memory Store
 
-Process-local store for unit tests and local development. Thread-safe within one process. Register storage and a dispatcher before `EnableOutboxProcessor()`; module build fails when the processor is enabled without a dispatcher.
+The in-memory store is process-local, for unit tests and local development. It is thread-safe within one process. Before `EnableOutboxProcessor()`, register storage and a dispatcher. When the processor is enabled without a dispatcher, module build fails.
 
 ### PostgreSQL Store
 
@@ -287,11 +301,11 @@ builder.AddOutbox(outbox =>
 });
 ```
 
-`EnsureSchemaCreationOnStartup` defaults to `true`, so a plain `UsePostgreSqlStorage` call creates schema at startup. Migration-owned production deployments must set it to `false` via `UseOptions` and keep `ValidateSchemaCreationOnStartup` (`true`) so startup validates instead of creating. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md) for creation and validation.
+`EnsureSchemaCreationOnStartup` defaults to `true`, so a plain `UsePostgreSqlStorage` call creates the schema at startup. Migration-owned production deployments must set it to `false` via `UseOptions`. Keep `ValidateSchemaCreationOnStartup` (`true`), so startup validates instead of creating. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md) for creation and validation.
 
 PostgreSQL outbox schema version **1** stores opaque payload text and includes `lease_generation` and the nullable `handler` target used by per-handler delivery. The schema manager requires the complete current shape.
 
-Pass the same `NpgsqlDataSource` instance to inbox and outbox when both use one database. See [Transactional messaging writes](transactional-writes.md).
+When inbox and outbox use one database, pass the same `NpgsqlDataSource` instance to both. See [Transactional Messaging Writes](transactional-writes.md).
 
 ### Transactional Writes (Domain + Outbox)
 
@@ -301,11 +315,11 @@ Default `IOutbox.EnqueueAsync` commits immediately through the singleton store. 
 | --- | --- |
 | Ingress, tools, fire-and-forget enqueue | `IOutbox` |
 | Command handler plus EF `DbContext` | `ITransactionalOutbox<TContext>`: [Outbox EF Core storage](../integrations/outbox-ef-core-storage.md) |
-| Command handler plus PostgreSQL (Marten, Dapper, ADO.NET) | `ITransactionalOutbox`: [Transactional messaging writes](transactional-writes.md) |
+| Command handler plus PostgreSQL (Marten, Dapper, ADO.NET) | `ITransactionalOutbox`: [Transactional Messaging Writes](transactional-writes.md) |
 
 ### Domain Event Staging
 
-`StageCollectedEvents` registers the default scoped `IDomainEventCollector` and a completion handler that drains the collector into `ITransactionalOutbox` when a mediation completes successfully, ordered at `HandlerPriorities.Persistence` before the application's commit at `HandlerPriorities.UnitOfWork`, so staged rows join the unit of work that produced them.
+`StageCollectedEvents` registers the default scoped `IDomainEventCollector` and a completion handler. When a mediation completes successfully, the handler drains the collector into `ITransactionalOutbox`. It runs at `HandlerPriorities.Persistence`, before the application's commit at `HandlerPriorities.UnitOfWork`. The staged rows therefore join the unit of work that produced them.
 
 ```csharp
 builder.AddOutbox(outbox =>
@@ -319,24 +333,30 @@ builder.AddOutbox(outbox =>
 collector.Collect(new OrderPlacedIntegrationEvent { OrderId = order.Id });
 ```
 
-Staging runs only on `MediationOutcome.Succeeded`: a failed mediation stages nothing. The staging handler resolves `ITransactionalOutbox` lazily and only when the drain is non-empty, so mediations that collect nothing never touch it. The application must register a scoped non-generic `ITransactionalOutbox` (the ambient PostgreSQL provider, the Entity Framework Core interceptor adapter, or the Marten writer); collecting events without one fails staging with a descriptive error. Entity Framework Core registers the non-generic adapter over `ITransactionalOutbox<TContext>` only when `EnableSaveChangesInterceptor()` is set. When `UseAmbientTrace` is also enabled, staged envelopes stamp ambient trace. See [Domain events and unit of work](domain-events-and-unit-of-work.md) for the aggregate and transaction-boundary pattern.
+Staging runs only on `MediationOutcome.Succeeded`. A failed mediation stages nothing. The staging handler resolves `ITransactionalOutbox` lazily, only when the drain is non-empty. Mediations that collect nothing therefore never touch it.
 
-EF registration, interceptor setup, and duplicate-idempotency behavior on the transactional path live in [Outbox Entity Framework Core Storage](../integrations/outbox-ef-core-storage.md).
+The application must register a scoped non-generic `ITransactionalOutbox` (the ambient PostgreSQL provider, the Entity Framework Core interceptor adapter, or the Marten writer). Collecting events without one fails staging with a descriptive error. Entity Framework Core registers the non-generic adapter over `ITransactionalOutbox<TContext>` only when `EnableSaveChangesInterceptor()` is set.
+
+When `UseAmbientTrace` is also enabled, staged envelopes stamp ambient trace. See [Domain Events and Unit of Work](domain-events-and-unit-of-work.md) for the aggregate and transaction-boundary pattern.
+
+For EF registration, interceptor setup, and duplicate-idempotency behavior on the transactional path, see [Outbox Entity Framework Core Storage](../integrations/outbox-ef-core-storage.md).
 
 ## Delivery Semantics
 
-Outbox publication is at-least-once. `PipelinedOutboxProcessor` dispatches through `IOutboxDispatcher` before it persists terminal published state. A crash or `PersistAsync` failure after a successful broker publish leaves the row leased or pending and the processor retries, which can duplicate publication downstream. Consumers must deduplicate or handle retries idempotently (for example with `MessageId`, `IdempotencyKey`, or broker deduplication headers).
+Outbox publication is at-least-once. `PipelinedOutboxProcessor` dispatches through `IOutboxDispatcher` before it persists terminal published state.
+
+A crash or `PersistAsync` failure after a successful broker publish leaves the row leased or pending. The processor then retries, which can duplicate publication downstream. Consumers must deduplicate or handle retries idempotently (for example with `MessageId`, `IdempotencyKey`, or broker deduplication headers).
 
 LiteBus does not implement a two-phase publish acknowledgment in which a broker acknowledgement token is persisted before terminal state. Treat external side effects as idempotent, or wrap dispatch in a custom `IOutboxDispatcher` that records an outbox-side acknowledgement before returning success.
 
-A crash between broker publish and terminal persist therefore re-publishes on retry (the `tests/LiteBus.Durable.IntegrationTests/Dispatch/Outbox/InMemory` suite covers this path).
+After a crash between broker publish and terminal persist, the processor re-publishes on retry (the `tests/LiteBus.Durable.IntegrationTests/Dispatch/Outbox/InMemory` suite covers this path).
 
 `HonorShutdownTokenOnPersist` on `OutboxProcessorOptions` mirrors the inbox option (default `false` uses `CancellationToken.None` on terminal persist).
 
 ## Processing Flow
 
 1. Application code enqueues through `IOutbox.EnqueueAsync` or `ITransactionalOutbox.EnqueueAsync` (when domain and outbox must share one transaction).
-2. The writer resolves contract name and version.
+2. The writer resolves the contract name and version.
 3. The writer serializes and stores an outbox envelope.
 4. `PipelinedOutboxProcessor` leases due messages.
 5. The processor calls `IOutboxDispatcher.DispatchAsync` for each message.
@@ -351,7 +371,7 @@ A crash between broker publish and terminal persist therefore re-publishes on re
 | `IOutboxStateWriter` | `IOutboxProcessor` | Persist published, failed, or dead-lettered envelopes |
 | `IOutboxDeadLetterStore` | Operator tooling | Requeue dead-lettered messages |
 | `IOutboxRetentionStore` | Cleanup services | Delete published messages past retention |
-| `IOutboxDiagnosticsStore` | Operators | Status counts |
+| `IOutboxDiagnosticsStore` | Operators | Report status counts |
 
 ## In-Process Dispatch
 
@@ -361,9 +381,9 @@ A crash between broker publish and terminal persist therefore re-publishes on re
 outbox.UseInProcessDispatch();
 ```
 
-A dispatched message with no registered handler fails the attempt by default, so it retries and eventually dead-letters rather than being marked `Published`. An immediate `PublishAsync` treats zero subscribers as a silent no-op, which is defensible when the caller can see there are none. A durable dispatch has no such caller, so the two axes deliberately disagree.
+A dispatched message with no registered handler fails the attempt by default. The attempt then retries and eventually dead-letters, rather than being marked `Published`. An immediate `PublishAsync` treats 0 subscribers as a silent no-op, which is defensible when the caller can see there are none. A durable dispatch has no such caller, so the two axes deliberately disagree.
 
-The default fails the attempt when no handler is registered: a durable dispatch with no subscriber would otherwise mark the row `Published` without effect. With `RequireHandler = false`, if the assembly holding the handlers is never scanned by `AddEvents`, every outbox message is leased, dispatched, and marked `Published` without leaving the process, and the backlog reads zero throughout.
+When no handler is registered, the default fails the attempt. A durable dispatch with no subscriber would otherwise mark the row `Published` without effect. With `RequireHandler = false`, if the assembly holding the handlers is never scanned by `AddEvents`, every outbox message is leased, dispatched, and marked `Published` without leaving the process. The backlog reads 0 throughout.
 
 ```csharp
 // Only when publishing to zero handlers is a state the application deliberately allows.
@@ -377,7 +397,7 @@ outbox.UseInProcessDispatch(dispatch => dispatch.RequireHandler = false);
 
 ### Per-Handler Delivery
 
-`EnablePerHandlerDelivery` writes one envelope per subscribed main handler of each enqueued event instead of one envelope per event, so each reaction gets its own retry, dead letter, and replay: a failing reaction retries alone while the healthy reactions publish.
+`EnablePerHandlerDelivery` writes 1 envelope per subscribed main handler of each enqueued event, instead of 1 envelope per event. Each reaction then gets its own retry, dead letter, and replay. While the healthy reactions publish, a failing reaction retries alone.
 
 ```csharp
 builder.AddOutbox(outbox =>
@@ -388,9 +408,19 @@ builder.AddOutbox(outbox =>
 });
 ```
 
-Each envelope records the full name of the handler it is addressed to in the `Handler` column, and dispatch publishes each envelope to that main handler alone while pipeline observers (pre-stage, post, error, and completion stages) still run on every targeted dispatch. Enqueueing an event with no subscribed main handler throws `NoHandlerFoundException`, matching the default `RequireHandler` rule. A caller idempotency key is derived per handler as `{key}:{handler}`, and a caller-supplied message identifier derives deterministic per-handler identifiers, so a retried enqueue resolves to the same rows. The whole fan-out of one enqueue persists in one batch call, so a mid-fan-out failure never leaves a partial set behind. The returned receipt describes the first per-handler envelope in handler-name order; batch receipts flatten one per envelope in item order.
+Each envelope records the full name of the handler it is addressed to in the `Handler` column. Dispatch publishes each envelope to that main handler alone. Pipeline observers (pre-stage, post, error, and completion stages) still run on every targeted dispatch.
 
-The trade-off is storage: one row per handler instead of one row per event. A handler added after enqueue does not receive already-enqueued events, and a handler removed before dispatch leaves its envelopes with no matching subscriber, which `RequireHandler` then decides. Use per-handler delivery only with in-process dispatch: broker dispatchers publish the full event per envelope, so per-handler envelopes would duplicate broker publication. Composition throws `DurableStorageConfigurationException` when per-handler delivery meets a transport dispatcher unless `AllowPerHandlerDeliveryWithTransportDispatch` acknowledges the duplication.
+Enqueueing an event with no subscribed main handler throws `NoHandlerFoundException`. This matches the default `RequireHandler` rule.
+
+The envelope factory derives a caller idempotency key per handler as `{key}:{handler}`. From a caller-supplied message identifier, it derives deterministic per-handler identifiers. A retried enqueue therefore resolves to the same rows.
+
+The whole fan-out of one enqueue persists in one batch call, so a mid-fan-out failure never leaves a partial set behind. The returned receipt describes the first per-handler envelope in handler-name order. Batch receipts flatten 1 per envelope in item order.
+
+The trade-off is storage. Per-handler delivery writes 1 row per handler instead of 1 row per event.
+
+A handler added after enqueue does not receive already-enqueued events. A handler removed before dispatch leaves its envelopes with no matching subscriber. `RequireHandler` then decides those envelopes.
+
+Use per-handler delivery only with in-process dispatch. Broker dispatchers publish the full event per envelope, so per-handler envelopes would duplicate broker publication. When per-handler delivery meets a transport dispatcher, composition throws `DurableStorageConfigurationException`, unless `AllowPerHandlerDeliveryWithTransportDispatch` acknowledges the duplication.
 
 ## Retry and Dead Letter
 
@@ -410,7 +440,7 @@ outbox.UseProcessorOptions(new OutboxProcessorOptions
 });
 ```
 
-`RetryOptions` defaults apply when no retry policy is set:
+When no retry policy is set, `RetryOptions` defaults apply:
 
 | Option | Default | Role |
 | --- | --- | --- |
@@ -420,13 +450,15 @@ outbox.UseProcessorOptions(new OutboxProcessorOptions
 | `Backoff` | `Exponential` | `Fixed`, `Exponential`, or `Schedule` |
 | `UseJitter` | `true` | Applies a random +-20% factor to the calculated delay |
 
-With the defaults, the four retry delays before jitter are 5, 10, 20, and 40 seconds: each step doubles `InitialDelay` and the 5 minute cap never binds. Jitter multiplies each delay by a factor between 0.8 and 1.2 and the result stays bounded by `MaxDelay`.
+With the defaults, the 4 retry delays before jitter are 5, 10, 20, and 40 seconds. Each step doubles `InitialDelay`. The 5 minute cap never binds.
+
+Jitter multiplies each delay by a factor between 0.8 and 1.2. The result stays bounded by `MaxDelay`.
 
 `Retry.MaxAttempts` counts dispatch attempts recorded on the leased envelope. Requeue operations through `IOutboxManager.RequeueAsync` return `RequeueResult { Requested, Requeued }`.
 
 ### Explicit Retry Schedules
 
-`RetryBackoff.Fixed` and `RetryBackoff.Exponential` derive every delay from `InitialDelay` under the `MaxDelay` cap. That cannot express a window that starts inside a minute and still reaches days. Exponential from one minute reaches roughly four hours by the ninth attempt. Stretching the tail to a week also pushes the first few retries hours apart.
+`RetryBackoff.Fixed` and `RetryBackoff.Exponential` derive every delay from `InitialDelay` under the `MaxDelay` cap. That derivation cannot express a window that starts inside a minute and still reaches days. Exponential from 1 minute reaches roughly 4 hours by the 9th attempt. Stretching the tail to a week also pushes the first few retries hours apart.
 
 `RetryBackoff.Schedule` takes the ladder directly:
 
@@ -452,23 +484,27 @@ Retry = new RetryOptions
 | Rule | Behavior |
 | --- | --- |
 | Attempt past the end of the ladder | Repeats the last entry rather than failing or wrapping |
-| `MaxDelay` | Does not clamp ladder entries; the ladder is the policy |
+| `MaxDelay` | Does not clamp ladder entries, because the ladder is the policy |
 | `UseJitter` | Still applies, bounded by the ladder entry rather than by `MaxDelay` |
 | Empty `Delays` with `Backoff = Schedule` | Refused at composition, not at the first failure |
 | `Delays` with any other backoff | Ignored |
 
-`Delays` is validated when the module builds. A misconfigured ladder fails at boot rather than on the first failure.
+The module validates `Delays` at build. A misconfigured ladder fails at boot rather than on the first failure.
 
-After-dispatch hook failures follow `HookFailurePolicy` on `OutboxProcessorOptions`. The property defaults to `null`, which keeps the dispatcher recommendation; set an explicit value to override it. Registration order does not matter: a batch-only `UseProcessorOptions` call keeps the transport default.
+After-dispatch hook failures follow `HookFailurePolicy` on `OutboxProcessorOptions`. The property defaults to `null`, which keeps the dispatcher recommendation. Set an explicit value to override it.
+
+Registration order does not matter. A batch-only `UseProcessorOptions` call keeps the transport default.
 
 | Dispatcher | Default `HookFailurePolicy` | Behavior after successful publish |
 | --- | --- | --- |
 | Transport (`UseAmqpDispatch`, `UseInMemoryDispatch`, and siblings) | `CompleteDespiteHookFailure` | Logs the hook error and persists published state without re-publishing |
 | In-process (`UseInProcessDispatch`) | `DeadLetter` | Moves the row to dead letter without re-publishing |
 
-Set `HookFailurePolicy = ProcessorHookFailurePolicy.DeadLetter` on transport dispatchers when hook side effects must block terminal completion. Overriding the transport default dead-letters a message the broker already accepted. The message is re-leased after replay and published a second time. Set `HookFailurePolicy = ProcessorHookFailurePolicy.CompleteDespiteHookFailure` on in-process dispatch when hook persistence should not undo a successful handler publication.
+When hook side effects must block terminal completion, set `HookFailurePolicy = ProcessorHookFailurePolicy.DeadLetter` on transport dispatchers. Overriding the transport default dead-letters a message the broker already accepted. The processor re-leases it after replay and publishes it a second time.
 
-Transport dispatchers (`UseAmqpDispatch`, `UseAwsSqsDispatch`, and siblings) accept `ValidatePayloadBeforeDispatch` on their options. When `false` (default), invalid JSON is not deserialized before publish; when `true`, deserialization runs before the transport call so corrupt payloads fail fast without broker side effects.
+When hook persistence should not undo a successful handler publication, set `HookFailurePolicy = ProcessorHookFailurePolicy.CompleteDespiteHookFailure` on in-process dispatch.
+
+Transport dispatchers (`UseAmqpDispatch`, `UseAwsSqsDispatch`, and siblings) accept `ValidatePayloadBeforeDispatch` on their options. When `false` (default), invalid JSON is not deserialized before publish. When `true`, deserialization runs before the transport call, so corrupt payloads fail fast without broker side effects.
 
 Batch enqueue expands items through `IOutboxEnvelopeFactory.CreateManyAsync` in parallel and persists the flattened envelopes in one batch.
 

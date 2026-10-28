@@ -1,6 +1,6 @@
 # Command Module
 
-A command asks LiteBus to change state through exactly one handler. This page shows you how to define a command, handle it, validate it, send it, and defer it for later execution.
+A command is a request for LiteBus to change state through exactly one handler. This page explains how to define a command, handle it, validate it, send it, and defer it for later execution.
 
 > **This page is for** developers who write command handlers.
 >
@@ -16,7 +16,9 @@ public sealed record CreateProductCommand(string Name, decimal Price) : ICommand
 
 You pick one of two contracts. Use `ICommand` when the caller only needs success or failure. Use `ICommand<TResult>` when the caller needs a value back, most often the identity of something just created. Model commands as immutable records or classes with `init`-only properties so no step can change them after construction.
 
-Two rules define a command. It is handled by exactly one handler, and it expresses an intent to change something. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level survives: direct handlers win whenever any survive, and handlers registered for a base type apply only when no direct handler does. Both exceptions name the runtime type of the message, even when the non-generic `SendAsync` erased it to `ICommand`. Name commands as imperatives, such as `CreateProductCommand` or `CancelSubscriptionCommand`.
+Two rules define a command. It is handled by exactly one handler, and it expresses an intent to change something. When no handler survives filtering, mediation throws `NoHandlerFoundException`. When more than one handler at the winning level survives, mediation throws `MultipleHandlerFoundException`. Whenever any direct handler survives, direct handlers win. Handlers registered for a base type apply only when no direct handler does.
+
+Both exceptions name the runtime type of the message, even when the non-generic `SendAsync` erased it to `ICommand`. Name commands as imperatives, such as `CreateProductCommand` or `CancelSubscriptionCommand`.
 
 Returning a value from a state-changing command is a deliberate exception to strict CQS. LiteBus allows it because returning a generated id from the same call avoids forcing a follow-up query. Keep the returned value small. A command is not a query.
 
@@ -43,9 +45,9 @@ public sealed class UpdateStockLevelCommandHandler : ICommandHandler<UpdateStock
 | `ICommand` | `ICommandHandler<TCommand>` | `Task HandleAsync(TCommand, CancellationToken)` |
 | `ICommand<TResult>` | `ICommandHandler<TCommand, TResult>` | `Task<TResult> HandleAsync(TCommand, CancellationToken)` |
 
-The handler holds the business logic and is the one place a command runs. Inject dependencies through the constructor. Handlers resolve from the container per mediation, so a scoped dependency such as a database context works as expected inside a request scope.
+The handler holds the business logic and is the one place a command runs. Inject dependencies through the constructor. Handlers resolve from the container per mediation, so a scoped dependency such as a database context resolves once for each mediation.
 
-## Validate Before You Handle
+## Command Validation
 
 ```csharp
 public sealed class CreateProductValidator : ICommandValidator<CreateProductCommand>
@@ -60,11 +62,11 @@ public sealed class CreateProductValidator : ICommandValidator<CreateProductComm
 }
 ```
 
-A validator answers whether a command is well formed and nothing else. Return `Validity.Valid` when nothing is wrong and `Validity.Invalid` with each failure you found. Every validator runs and LiteBus collects the failures, so the caller sees all of them at once. A failed validation reports `MediationOutcome.Invalid` and never reaches the main handler.
+A validator answers whether a command is well formed and nothing else. Return `Validity.Valid` when nothing is wrong and `Validity.Invalid` with each failure you found. Every validator runs. LiteBus collects the failures, so the caller sees all of them at once. A failed validation reports `MediationOutcome.Invalid` and never reaches the main handler.
 
-Use `ICommandPreHandler<TCommand>` with `PreHandleAsync` for checks that act rather than judge shape, such as confirming a name is still unique. Throwing in a pre-handler stops the pipeline before any state changes.
+Use `ICommandPreHandler<TCommand>` with `PreHandleAsync` for checks that need current state rather than the command's own shape, such as confirming a name is still unique. Throwing in a pre-handler stops the pipeline before any state changes.
 
-## React After You Handle
+## Reactions After Handling
 
 ```csharp
 public sealed class PublishProductCreated : ICommandPostHandler<CreateProductCommand, ProductDto>
@@ -82,7 +84,7 @@ public sealed class PublishProductCreated : ICommandPostHandler<CreateProductCom
 }
 ```
 
-A post-handler runs after the main handler returns successfully and receives the command plus its result. Use it to publish a follow-up event or refresh a cache. Two shapes exist: `ICommandPostHandler<TCommand, TResult>` receives the typed result and `ICommandPostHandler<TCommand>` receives it as `object?`.
+A post-handler runs after the main handler returns successfully, and it receives the command plus its result. Use it to publish a follow-up event or refresh a cache. `ICommandPostHandler<TCommand, TResult>` receives the typed result, and `ICommandPostHandler<TCommand>` receives it as `object?`.
 
 ```csharp
 public sealed class LogPaymentFailure : ICommandErrorHandler<ProcessPaymentCommand>
@@ -101,7 +103,9 @@ public sealed class LogPaymentFailure : ICommandErrorHandler<ProcessPaymentComma
 }
 ```
 
-An error-handler runs when any stage throws. By default the outcome stays `MessageErrorOutcome.Unhandled` and LiteBus rethrows the original exception with its stack trace intact. Set `context.Outcome` to `MessageErrorOutcome.Handled` to recover, and for a result-bearing command also set `context.HandledResult` to the fallback value the caller receives. A `Handled` outcome without a usable `HandledResult` on a result-bearing command does not recover: LiteBus rethrows the original exception with its stack preserved.
+An error handler runs when any stage throws. By default the outcome stays `MessageErrorOutcome.Unhandled` and LiteBus rethrows the original exception with its stack trace intact. Set `context.Outcome` to `MessageErrorOutcome.Handled` to recover. For a result-bearing command, also set `context.HandledResult` to the fallback value the caller receives.
+
+A `Handled` outcome without a usable `HandledResult` on a result-bearing command does not recover. LiteBus rethrows the original exception with its stack trace intact.
 
 ## Send a Command
 
@@ -123,7 +127,7 @@ Task SendAsync(ICommand command, CommandMediationSettings? commandMediationSetti
 Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command, CommandMediationSettings? commandMediationSettings = null, CancellationToken cancellationToken = default);
 ```
 
-Pass `CommandMediationSettings` to filter handlers per call with tags or a predicate, or to carry context items through the pipeline. See [Handler Filtering](handler-filtering.md). When a refusal is a routine branch rather than a fault, call `TrySendAsync` and read the outcome value instead of catching. When you need to ask whether a command would be permitted without running it, call `EvaluateAsync`. See [Refusal as a Value](handler-pipeline.md#refusal-as-a-value).
+Pass `CommandMediationSettings` to filter handlers per call with tags or a predicate, or to carry context items through the pipeline. See [Handler Filtering](handler-filtering.md). When a refusal is a routine branch rather than a fault, call `TrySendAsync` and read the outcome value instead of catching an exception. To check whether a command would be permitted without running it, call `EvaluateAsync`. See [Refusal as a Value](handler-pipeline.md#refusal-as-a-value).
 
 ## Defer a Command to the Inbox
 
@@ -138,11 +142,11 @@ var receipt = await inbox.AcceptAsync(
     cancellationToken);
 ```
 
-`SendAsync` runs the command now in the current process. `IInbox.AcceptAsync` stores it instead and returns a receipt, and a processor runs it later with at-least-once delivery. Defer only commands without a result: a stored command runs with no caller waiting for a value. Make deferred handlers safe to run twice, keyed on an idempotency value. The stores, dispatch adapters, and the processor are covered on [Inbox](../reliable-messaging/inbox.md).
+`SendAsync` runs the command now in the current process. `IInbox.AcceptAsync` stores it instead and returns a receipt. A processor runs it later with at-least-once delivery. Defer only commands without a result, because a stored command runs with no caller waiting for a value. Make deferred handlers safe to run twice by keying them on an idempotency value. See [Inbox](../reliable-messaging/inbox.md) for the stores, dispatch adapters, and the processor.
 
 ## Details
 
-- The full stage order, including guards, shortcuts, global versus specific handlers, and refusal mapping, lives on [The Handler Pipeline](handler-pipeline.md). That page is authoritative when this page and that page seem to differ.
+- See [The Handler Pipeline](handler-pipeline.md) for the full stage order, including guards, shortcuts, global versus specific handlers, and refusal mapping. That page is authoritative when the two pages seem to differ.
 - Keep commands to one business action, define them as immutable messages, and reject bad input in validators and pre-handlers before the main handler runs.
 
 ## Next

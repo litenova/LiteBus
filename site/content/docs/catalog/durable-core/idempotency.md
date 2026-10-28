@@ -5,46 +5,46 @@
 
 ## Summary
 
-Collapse duplicate accept and enqueue attempts at store insert time using message identity and tenant-scoped idempotency keys.
+Acceptance idempotency removes duplicate accept and enqueue attempts at insert time. The store compares message identity and tenant-scoped idempotency keys, and returns the existing row instead of inserting a second one.
 
 ## What It Does
 
-Writers persist optional idempotency keys with envelopes. On duplicate `(tenant_id, idempotency_key)` or duplicate `message_id`, stores return the existing row with `AlreadyAccepted` or `AlreadyEnqueued`. Transactional EF writers resolve existing rows in `ReturnExisting` mode; `Strict` mode leaves the conflict for `SaveChanges` to reject. Ingress generates broker-scoped idempotency keys from delivery ids. Handlers remain responsible for idempotent side effects because processing is still at-least-once.
+Writers store an optional idempotency key with each envelope. When a duplicate `(tenant_id, idempotency_key)` pair or a duplicate `message_id` reaches the store, the store returns the existing row with `AlreadyAccepted` or `AlreadyEnqueued` instead of inserting a second row. On the transactional EF path, writers in `ReturnExisting` mode resolve the existing row before staging, while writers in `Strict` mode stage the conflicting envelope and let `SaveChanges` reject the unit of work. Ingress builds broker-scoped idempotency keys from broker delivery ids. Handlers must still keep their own side effects idempotent, because the processor delivers each message at least once.
 
 ## Public Surface
 
 ### Metadata Value Objects
 
-- **`Idempotency.None`**: No insert-time deduplication key. Duplicate rows are possible when callers retry without a key.
-- **`Idempotency.Keyed(string Key, IdempotencyConflictMode ConflictMode = ReturnExisting)`**: Application-defined key stored with the envelope. `ReturnExisting` returns the prior row; `Strict` throws `IdempotencyConflictException`.
-- **`Idempotency.FromCommandKey(string? suffix = null, IdempotencyConflictMode conflictMode = ReturnExisting)`**: Builds keyed idempotency from the key the in-flight command was granted. Reads the `ClaimedIdempotencyKey` the idempotency shortcut recorded in `IExecutionContext.Data`; an optional suffix lets one command key several envelopes distinctly (`{key}:{suffix}`). Throws `InvalidOperationException` outside a keyed command mediation instead of inventing a key, and `ArgumentException` for a blank suffix.
-- **`MessageIdentity.Generated`**: Writer assigns a new message id at accept or enqueue time.
-- **`MessageIdentity.Supplied(Guid)`**: Caller-supplied message id; collisions deduplicate like idempotency keys.
-- **`InboxAcceptMetadata.Idempotency` / `OutboxEnqueueMetadata.Idempotency`**: Per-message idempotency variant on writer metadata records.
-- **`InboxAcceptOutcome.AlreadyAccepted`**: Receipt outcome when the store returned an existing row instead of inserting.
-- **`OutboxEnqueueOutcome.AlreadyEnqueued`**: Receipt outcome when the outbox store returned an existing row instead of inserting.
+- **`Idempotency.None`**: Stores no insert-time deduplication key with the envelope, so a retried call without a key can insert a duplicate row.
+- **`Idempotency.Keyed(string Key, IdempotencyConflictMode ConflictMode = ReturnExisting)`**: Stores an application-defined key with the envelope. When a duplicate arrives, `ReturnExisting` returns the prior row and `Strict` throws `IdempotencyConflictException`.
+- **`Idempotency.FromCommandKey(string? suffix = null, IdempotencyConflictMode conflictMode = ReturnExisting)`**: Builds keyed idempotency from the key granted to the in-flight command. It reads the `ClaimedIdempotencyKey` that the idempotency shortcut recorded in `IExecutionContext.Data`. An optional suffix lets one command give several envelopes distinct keys (`{key}:{suffix}`). Outside a keyed command mediation it throws `InvalidOperationException` instead of inventing a key, and it throws `ArgumentException` for a blank suffix.
+- **`MessageIdentity.Generated`**: The writer assigns a new message id at accept or enqueue time.
+- **`MessageIdentity.Supplied(Guid)`**: A caller-supplied message id. When the id collides with an existing row, the store deduplicates it the same way it deduplicates idempotency keys.
+- **`InboxAcceptMetadata.Idempotency` / `OutboxEnqueueMetadata.Idempotency`**: Carries the per-message idempotency variant on writer metadata records.
+- **`InboxAcceptOutcome.AlreadyAccepted`**: The receipt reports this outcome when the store returns an existing row instead of inserting.
+- **`OutboxEnqueueOutcome.AlreadyEnqueued`**: The receipt reports this outcome when the outbox store returns an existing row instead of inserting.
 
 ### Writer Invocation
 
 - Set idempotency on **`InboxAcceptItem`** / **`OutboxEnqueueItem`** metadata, or use **`InboxAcceptItem<T>.WithIdempotency(message, key)`** / **`OutboxEnqueueItem<T>.WithIdempotency(message, key)`** sugar helpers.
-- Combine with **`TenantScope.Isolated(tenantId)`** so keys deduplicate per tenant, not globally.
+- Combine the key with **`TenantScope.Isolated(tenantId)`** so the store deduplicates keys within each tenant instead of across all tenants.
 - Read **`InboxReceipt.Outcome`** or **`OutboxReceipt.Outcome`** to distinguish the first append from a duplicate.
 
 ### Ingress Defaults
 
-- When **`TransportInboxIngressOptions.Safety.RequireStableIdentity`** is true (default), ingress maps broker delivery id to **`MessageIdentity.Supplied`** and **`Idempotency.Keyed($"ingress:{destination}:{brokerMessageId}")`** unless **`Safety.TrustApplicationHeaders`** allows a **`litebus-idempotency-key`** override.
-- Missing broker id with **`RequireStableIdentity`** throws before store write.
+- When **`TransportInboxIngressOptions.Safety.RequireStableIdentity`** is true (the default), ingress maps the broker delivery id to **`MessageIdentity.Supplied`** and to **`Idempotency.Keyed($"ingress:{destination}:{brokerMessageId}")`**. When **`Safety.TrustApplicationHeaders`** allows a **`litebus-idempotency-key`** override, that header value replaces the generated key.
+- When the broker id is missing and **`RequireStableIdentity`** is set, the mapper throws before writing to the store.
 
 ### Store and Transactional Behavior
 
-- Non-transactional **`IInbox`** / **`IOutbox`**: duplicate key or message ID returns the existing envelope with **`AlreadyAccepted`** or **`AlreadyEnqueued`**.
-- Transactional EF path: `ReturnExisting` resolves a tracked, pending, or persisted duplicate before staging. `Strict` stages the conflicting envelope so **`SaveChanges`** rejects the unit of work.
+- On the non-transactional **`IInbox`** / **`IOutbox`** path, the store answers a duplicate key or message id with the existing envelope and **`AlreadyAccepted`** or **`AlreadyEnqueued`**.
+- On the transactional EF path, a writer in `ReturnExisting` mode resolves a tracked, pending, or persisted duplicate before staging. A writer in `Strict` mode stages the conflicting envelope, so **`SaveChanges`** rejects the unit of work.
 - All built-in stores enforce tenant-scoped unique constraints on idempotency keys.
 
 ### Extension Points
 
-- Custom stores implement append-role dedup in **`AddAsync`** / **`AddBatchAsync`** and return **`InboxAppendResult`** / **`OutboxAppendResult`** for each input slot (storage axis).
-- Application HTTP layers map client **`Idempotency-Key`** headers to **`Idempotency.Keyed`** (application-owned; no framework middleware).
+- A custom store deduplicates in its append role: **`AddAsync`** / **`AddBatchAsync`** return one **`InboxAppendResult`** / **`OutboxAppendResult`** per input slot (storage axis).
+- Application HTTP layers map client **`Idempotency-Key`** headers to **`Idempotency.Keyed`** (application-owned, with no framework middleware).
 
 ## Packages
 
@@ -57,60 +57,60 @@ Writers persist optional idempotency keys with envelopes. On duplicate `(tenant_
 
 ## Requires
 
-- Explicit keyed idempotency for application-level dedup (not automatic)
-- Tenant scope when isolating keys per tenant
-- Idempotent handlers for execution and publication duplicates
+- Set keyed idempotency explicitly for application-level deduplication; the store does not deduplicate automatically.
+- Set a tenant scope when keys must stay isolated per tenant.
+- Write idempotent handlers, because execution and publication can still deliver duplicates.
 
 ## Invariants
 
-- Idempotency keys scoped per tenant; different tenants may reuse the same key string
-- Null or whitespace tenant normalizes to empty string
-- Completed inbox rows remain deduplicated on repeat accept with same key
-- Idempotency keys live in inbox and outbox metadata
-- Transactional EF in `Strict` mode: duplicate key fails entire `SaveChanges` (no silent dedup; `ReturnExisting` resolves the duplicate before staging instead)
+- Idempotency keys are scoped per tenant, so different tenants may reuse the same key string
+- A null or whitespace tenant counts as the empty string
+- When an accept repeats the key of a completed inbox row, the store still returns the existing row instead of inserting
+- Callers set idempotency keys on inbox and outbox metadata records
+- In transactional EF `Strict` mode, a duplicate key fails the entire `SaveChanges`, with no silent deduplication. In `ReturnExisting` mode the writer resolves the duplicate before staging instead
 
 ## Non-Goals
 
-- Mediation idempotency, which is a separate shipped capability: `IdempotencyDeclaration` with `IIdempotencyStore` answers a replayed command without running the handler again (see [Idempotency](../../concepts/idempotency.md)); this page covers insert-time deduplication only
-- Cross-service deduplication without application keys
+- Mediation idempotency is a separate capability: `IdempotencyDeclaration` with `IIdempotencyStore` answers a replayed command without running the handler again (see [Idempotency](../../concepts/idempotency.md)). This page covers insert-time deduplication only
+- The store cannot deduplicate across services unless the application supplies keys
 
 ## Observability
 
-No dedicated idempotency meter. Duplicate accepts are success paths, not errors.
+Idempotency has no dedicated meter. The store treats duplicate accepts as successful outcomes, not errors.
 
 ### Writer and Receipt Path
 
 - **Kind**: Return value only (no counter)
-- **When emitted**: Store returns existing row for duplicate message id or tenant-scoped idempotency key
+- **When emitted**: The store returns the existing row for a duplicate message id or tenant-scoped idempotency key
 - **Signal**: **`InboxAcceptOutcome.AlreadyAccepted`** on **`InboxReceipt`**
-- **Operational note**: Do not alert on **`AlreadyAccepted`**; rising rate may indicate client retries or ingress redelivery (expected when idempotency is configured)
+- **Operational note**: Do not alert on **`AlreadyAccepted`**. A rising rate points to client retries or ingress redelivery, which the idempotent accept absorbs by design
 
 ### Queue Depth (Indirect)
 
 - **Instrument**: `litebus.inbox.queue.depth` / `litebus.outbox.queue.depth` (`LiteBusInboxTelemetry.QueueDepthInstrumentName`, `LiteBusOutboxTelemetry.QueueDepthInstrumentName`)
-- **Kind**: Observable gauge tagged by `litebus.inbox.status` / `litebus.outbox.status`
-- **When emitted**: Periodic scrape after processor registration
-- **Operational note**: Ingress dedup prevents duplicate pending rows; depth stays flat on broker redelivery
+- **Kind**: An observable gauge tagged by `litebus.inbox.status` / `litebus.outbox.status`
+- **When emitted**: A periodic scrape after processor registration
+- **Operational note**: Ingress deduplication prevents duplicate pending rows, so depth stays flat on broker redelivery
 
 ### Ingress Redelivery Absorption
 
 - **Instrument**: `ingress.ack_failed_after_accept` (`LiteBusInboxIngressTelemetry.AckFailedAfterAcceptInstrumentName`)
 - **Kind**: Counter on meter `LiteBus.Inbox`
-- **When incremented**: Broker ack fails after store accept succeeded; redelivery hits idempotent accept
+- **When incremented**: The broker ack fails after the store accept succeeded, so the broker redelivers into the idempotent accept
 - **Registration**: `AddLiteBusInboxMetrics()` from `LiteBus.Inbox.Extensions.OpenTelemetry`
-- **Operational note**: Pair with logs EventId 3004 (`AckFailedAfterAccept`); redelivery should not create a second row
+- **Operational note**: Correlate with EventId 3004 (`AckFailedAfterAccept`) in the logs. The redelivery must not create a second row
 
 ### Strict Mode and Transactional Failures
 
 - **Kind**: Exception + failed transaction (no idempotency-specific metric)
-- **When emitted**: **`IdempotencyConflictMode.Strict`** conflict, or EF duplicate key on transactional accept
-- **Operational note**: Alert on sustained strict-conflict or SaveChanges abort rate at the writer boundary
+- **When emitted**: A conflict in **`IdempotencyConflictMode.Strict`** mode, or an EF duplicate key on transactional accept
+- **Operational note**: Alert on a sustained rate of strict conflicts or SaveChanges aborts at the writer boundary
 
-## Deep Docs
+## References
 
-- [Inbox](../../reliable-messaging/inbox.md) (idempotency, ingress defaults)
+- [Inbox](../../reliable-messaging/inbox.md) (how idempotency and ingress defaults work)
 - [Reliable messaging semantics](../../reliable-messaging/semantics.md)
-- [Idempotency](../../concepts/idempotency.md) (mediation idempotency: declarations, idempotency store, `FromCommandKey` source)
+- [Idempotency](../../concepts/idempotency.md) (mediation idempotency, including declarations, the idempotency store, and the `FromCommandKey` source)
 
 ## Test Coverage
 
@@ -130,7 +130,7 @@ No dedicated idempotency meter. Duplicate accepts are success paths, not errors.
 - **Test kind**: Unit
 - **Description**: Two accepts with **`Idempotency.Keyed(...)`** on the same tenant
 - **Behavior**: Second **`AcceptAsync`** with duplicate key
-- **Expected outcome**: Existing receipt returned; no duplicate row
+- **Expected outcome**: Existing receipt returned, and no duplicate row
 - **Remarks**: `LiteBus.Inbox.UnitTests`
 
 #### `InboxAcceptOutcomeTests.AcceptAsync_WhenDuplicateIdempotencyKey_ShouldReturnAlreadyAcceptedOutcome`
@@ -157,7 +157,7 @@ No dedicated idempotency meter. Duplicate accepts are success paths, not errors.
 - **Test kind**: Contract
 - **Description**: Tenant isolation within a single partition
 - **Behavior**: Second insert with same tenant-scoped key
-- **Expected outcome**: Existing row returned; single row in store
+- **Expected outcome**: Existing row returned, and a single row in store
 - **Remarks**: Store contract suite
 
 #### `OutboxStoreContractTests.AddAsync_ShouldReturnExistingMessageForDuplicateIdempotencyKey`
@@ -190,7 +190,7 @@ No dedicated idempotency meter. Duplicate accepts are success paths, not errors.
 #### `InMemoryIngressIdempotencyIntegrationTests.DuplicateMessageId_ShouldCreateSingleInboxRow` (Kafka Broker)
 
 - **Use case**: When Kafka redelivers the same message id, ingress deduplication prevents duplicate rows
-- **Test kind**: Integration (broker-neutral ingress module; Kafka Docker suite does not duplicate this scenario)
+- **Test kind**: Integration (the ingress module is broker-neutral, and the Kafka Docker suite does not duplicate this scenario)
 - **Description**: In-memory ingress path exercises the same accept deduplication as broker ingress
 - **Behavior**: Duplicate publish with stable message id
 - **Expected outcome**: Single inbox row
@@ -220,7 +220,7 @@ No dedicated idempotency meter. Duplicate accepts are success paths, not errors.
 - **Test kind**: Integration
 - **Description**: EF Core transactional inbox with conflicting duplicate
 - **Behavior**: **`SaveChangesAsync`** after duplicate keyed accept in same transaction
-- **Expected outcome**: Transaction fails; silent dedup not applied
+- **Expected outcome**: The transaction fails, and silent deduplication is not applied
 - **Remarks**: `LiteBus.Storage.IntegrationTests` (`EntityFrameworkCore/Inbox/`)
 
 #### `InboxAcceptOutcomeTests.AcceptAsync_WhenStrictIdempotencyConflicts_ShouldThrow`
@@ -246,7 +246,7 @@ No dedicated idempotency meter. Duplicate accepts are success paths, not errors.
 - **Use case**: When a broker redelivers after successful accept, deduplication limits handler execution to one call
 - **Test kind**: Integration
 - **Description**: PostgreSQL store plus ingress redelivery simulation
-- **Behavior**: Duplicate broker delivery through accept dedup then processor pass
+- **Behavior**: A duplicate broker delivery through accept deduplication, then a processor pass
 - **Expected outcome**: Handler invoked once
 - **Remarks**: `LiteBus.Storage.IntegrationTests (`PostgreSql/`)
 
@@ -257,7 +257,7 @@ No dedicated idempotency meter. Duplicate accepts are success paths, not errors.
 - **Description**: `Idempotency.FromCommandKey()` inside a keyed command mediation
 - **Behavior**: Key factory reads the recorded `ClaimedIdempotencyKey`
 - **Expected outcome**: Keyed idempotency with the claimed key value
-- **Remarks**: `LiteBus.Mediator.UnitTests`; companion tests cover the conflict mode, the suffix form, and the throws outside a keyed mediation
+- **Remarks**: `LiteBus.Mediator.UnitTests`. Companion tests cover the conflict mode, the suffix form, and the throws outside a keyed mediation
 
 #### `CommandKeyIdempotencyTests.Inside_an_undeclared_command_FromCommandKey_throws`
 
@@ -265,15 +265,15 @@ No dedicated idempotency meter. Duplicate accepts are success paths, not errors.
 - **Test kind**: Unit
 - **Description**: `Idempotency.FromCommandKey()` inside a command with no idempotency declaration
 - **Behavior**: Key factory with no recorded claim
-- **Expected outcome**: `InvalidOperationException`; no generated fallback that would make every delivery look distinct
+- **Expected outcome**: `InvalidOperationException`, with no generated fallback that would make every delivery look distinct
 - **Remarks**: `LiteBus.Mediator.UnitTests``
 
 ### Untested Use Cases
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| Mediation idempotency record store | Yes | Shipped as `IIdempotencyStore`; covered on the mediation axis, not here | N/A | N/A |
-| Client HTTP Idempotency-Key header mapping | Yes | `WithIdempotencyKey` endpoint filter; covered on the ASP.NET Core axis, not here | N/A | N/A |
+| Mediation idempotency record store | Yes | Shipped as `IIdempotencyStore` and covered on the mediation axis, not here | N/A | N/A |
+| Client HTTP Idempotency-Key header mapping | Yes | `WithIdempotencyKey` endpoint filter, covered on the ASP.NET Core axis, not here | N/A | N/A |
 
 ### Out-of-Scope Use Cases
 

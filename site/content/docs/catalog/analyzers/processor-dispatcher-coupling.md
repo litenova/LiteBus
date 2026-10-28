@@ -5,15 +5,14 @@
 - **ID**: `analyzers.processor-dispatcher-coupling`
 - **Diagnostic**: `LB1014` (Error)
 - **Maturity**: GA
-- **Summary**: Reports inbox or outbox module configuration that enables processor background execution without dispatcher registration in the same configuration scope.
+- **Summary**: Reports inbox or outbox module configuration that enables processor background execution without registering a dispatcher in the same configuration scope.
 
 ## Trigger Conditions
 
 `LB1014` reports when:
 
-- Invocation is `EnableInboxProcessor()` on `InboxModuleBuilder`, or
-- Invocation is `EnableOutboxProcessor()` on `OutboxModuleBuilder`,
-- and no dispatcher registration call is discovered in the same enclosing scope (anonymous callback, method, or constructor).
+- The invocation is `EnableInboxProcessor()` on `InboxModuleBuilder`, or `EnableOutboxProcessor()` on `OutboxModuleBuilder`.
+- No dispatcher registration call appears in the same enclosing scope (anonymous callback, method, or constructor).
 
 Recognized dispatcher registrations:
 
@@ -25,7 +24,7 @@ Recognized dispatcher registrations:
 - `UseKafkaDispatch`
 - `RegisterDispatcher`
 
-Dispatcher calls are recognized for direct builder methods and extension methods targeting inbox or outbox module builders.
+The rule recognizes dispatcher calls on direct builder methods and on extension methods that target the inbox or outbox module builders.
 
 ## Bad Example
 
@@ -52,9 +51,9 @@ registry.AddOutboxModule(outbox =>
 
 ## Suppression Guidance
 
-- Prefer registering dispatcher in the same callback where processor is enabled.
-- If dispatcher registration is intentionally split to another method, keep a narrow suppression at processor enablement call and document the paired registration.
-- Do not suppress for missing dispatch modules, processor execution without dispatcher is invalid at runtime.
+- Register the dispatcher in the same callback where the processor is enabled.
+- If the dispatcher registration is intentionally split into another method, keep a narrow suppression at the processor enablement call and document the paired registration.
+- Do not suppress a missing dispatch module. Processor execution without a dispatcher is invalid at runtime.
 
 ## Test Coverage
 

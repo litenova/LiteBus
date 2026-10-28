@@ -30,7 +30,7 @@ Ingress adapters perform reverse mapping with `TransportHeaderValues` and ingres
 | `TenantId` (`string?`) | `TransportHeaders.TenantId` | `tenant-id` | string | Written only when not null or whitespace |
 | `TraceContext` (`string?`) | `TransportHeaders.TraceContext` | `litebus-trace-context` | string | Written only when not null or whitespace |
 | `IdempotencyKey` (`string?`) | `TransportHeaders.IdempotencyKey` | `litebus-idempotency-key` | string | Written only when not null or whitespace |
-| `VisibleAfter` (`DateTimeOffset?`) | `TransportHeaders.VisibleAfter` | `litebus-visible-after` | string | Written only when set; format `O` with invariant culture |
+| `VisibleAfter` (`DateTimeOffset?`) | `TransportHeaders.VisibleAfter` | `litebus-visible-after` | string | Written only when set, in format `O` with invariant culture |
 
 ## Packages
 
@@ -44,7 +44,7 @@ Ingress adapters perform reverse mapping with `TransportHeaderValues` and ingres
 ## Invariants
 
 - Required headers (`message-id`, `contract-name`, `contract-version`) are always written.
-- Optional headers are omitted instead of written with null values.
+- Optional headers are omitted instead of being written with null values.
 - `VisibleAfter` uses ISO-8601 round-trip format (`"O"`).
 
 ## Non-Goals
@@ -56,7 +56,7 @@ Ingress adapters perform reverse mapping with `TransportHeaderValues` and ingres
 ## Observability
 
 - Mapped message and correlation values flow into `send {destination}` span attributes through adapter mapping.
-- `litebus-trace-context` preserves distributed trace context payload for ingress-side continuation.
+- `litebus-trace-context` carries the distributed trace context payload so ingress can continue the trace.
 
 ## Test Coverage
 
@@ -81,7 +81,7 @@ Ingress adapters perform reverse mapping with `TransportHeaderValues` and ingres
 - Ingress-side header interpretation and validation policy.
 - Envelope body serialization.
 
-## Deep Docs
+## References
 
 - [canonical-headers.md](canonical-headers.md)
 - [Architecture.md](../../architecture/README.md)

@@ -3,11 +3,11 @@
 - **ID**: `runtime.module-registry`
 - **Name**: Module registry and build order
 - **Maturity**: GA
-- **Summary**: Registers modules, expands composites, computes topological order, and freezes after `BuildOrder()`.
+- **Summary**: The registry registers modules, expands composites, computes the topological order, and freezes after `BuildOrder()`.
 
 ## What It Does
 
-`ModuleRegistry` implements `IModuleRegistry`. It rejects duplicate module types, computes dependency order from `IRequires<TModule>`, and throws on missing or circular dependencies.
+`ModuleRegistry` implements `IModuleRegistry`. It rejects duplicate module types, computes dependency order from `IRequires<TModule>`, and throws when dependencies are missing or circular.
 
 Composite modules are expanded during registration through `ICompositeModule.DeclareChildren(...)`. This keeps child modules in the same dependency graph and ordering pass.
 
@@ -31,20 +31,20 @@ Composite modules are expanded during registration through `ICompositeModule.Dec
 
 ## Invariants
 
-- Duplicate module type registration fails.
-- Registration after `BuildOrder()` fails.
-- Missing dependencies and cycles fail compose.
+- Registering a duplicate module type throws.
+- Registering after `BuildOrder()` throws.
+- Composition fails on missing dependencies and dependency cycles.
 - Dependencies are built before dependents.
 
 ## Non-Goals
 
-- DI adapter translation.
-- Dynamic module registration after host start.
-- Runtime plugin loading.
+- Translating registrations for DI adapters.
+- Registering modules dynamically after the host starts.
+- Loading plugins at run time.
 
 ## Observability
 
-No dedicated telemetry. Compose-time exceptions include explicit dependency diagnostics.
+The registry emits no telemetry. Compose-time exceptions include explicit dependency diagnostics.
 
 ## Test Coverage
 
@@ -52,26 +52,26 @@ No dedicated telemetry. Compose-time exceptions include explicit dependency diag
 
 #### `ModuleRegistryTests.Register_DuplicateModuleType_ShouldThrowLiteBusConfigurationException`
 - **Test kind**: Unit
-- **Expected outcome**: duplicate module type is rejected
+- **Expected outcome**: the registry rejects the duplicate module type
 
 #### `ModuleRegistryTests.Enumerate_WithDependencyChain_ShouldOrderDependenciesFirst`
 - **Test kind**: Unit
-- **Expected outcome**: dependency-first order
+- **Expected outcome**: dependencies build before their dependents
 
 #### `ModuleRegistryTests.Enumerate_WithCircularDependency_ShouldThrowLiteBusConfigurationException`
 - **Test kind**: Unit
-- **Expected outcome**: cycle detection exception
+- **Expected outcome**: the registry throws the cycle detection exception
 
 #### `ModuleRegistryTests.Enumerate_WithMissingRequiredModule_ShouldThrowLiteBusConfigurationException`
 - **Test kind**: Unit
-- **Description**: registers module requiring unregistered dependency
-- **Expected outcome**: configuration exception naming missing dependency
+- **Description**: The test registers a module that requires an unregistered dependency
+- **Expected outcome**: the registry throws a configuration exception that names the missing dependency
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/ModuleRegistryTests.cs`
 
 #### `ModuleRegistryTests.Register_AfterBuildOrder_ShouldThrowLiteBusConfigurationException`
 - **Test kind**: Unit
-- **Description**: builds order and then attempts new registration
-- **Expected outcome**: configuration exception
+- **Description**: The test builds the order and then attempts a new registration
+- **Expected outcome**: the registry throws a configuration exception
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/ModuleRegistryTests.cs`
 
 ### Untested Use Cases
@@ -82,10 +82,10 @@ No dedicated telemetry. Compose-time exceptions include explicit dependency diag
 
 ### Out-of-Scope Use Cases
 
-- Runtime graph mutation after freeze.
-- Automatic dependency injection of missing modules.
+- Mutating the graph at run time after it freezes.
+- Injecting missing modules automatically.
 
-## Deep Docs
+## Further Reading
 
 - [Hosted services](../../architecture/hosted-services.md)
 - [Architecture](../../architecture/README.md)

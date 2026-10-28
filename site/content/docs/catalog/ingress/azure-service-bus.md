@@ -3,20 +3,20 @@
 - **ID**: `ingress.azure-service-bus`
 - **Name**: Azure Service Bus inbox ingress
 - **Maturity**: Beta
-- **Summary**: Consumes Azure Service Bus queues or subscriptions and accepts messages into the inbox.
+- **Summary**: This adapter consumes Azure Service Bus queues or subscriptions and accepts messages into the inbox.
 
 ## Purpose and Scope
 
-`UseAzureServiceBusIngress` registers `AzureServiceBusInboxIngressModule`. The module maps `AzureServiceBusInboxIngressOptions` into shared transport ingress options, requires a root `AzureServiceBusTransportModule`, and registers the shared handler and consumer loop. Queue destinations use `Destination`; topic destinations also set `SubscriptionName`.
+`UseAzureServiceBusIngress` registers `AzureServiceBusInboxIngressModule`. The module maps `AzureServiceBusInboxIngressOptions` into the shared transport ingress options and requires a root `AzureServiceBusTransportModule`. It registers the shared handler and consumer loop. Queue destinations use `Destination`, while topic destinations also set `SubscriptionName`.
 
-Failed store writes can abandon messages for retry when `RequeueOnFailure` is true (Service Bus retry semantics via transport adapter). The enforced handler bound is the lower of `Safety.MaxInFlightMessages` and `MaxConcurrentCalls`, which defaults to the SDK value of 1.
+When `RequeueOnFailure` is true, failed store writes abandon messages for retry, using Service Bus retry semantics through the transport adapter. The enforced handler bound is the lower of `Safety.MaxInFlightMessages` and `MaxConcurrentCalls`, which defaults to the SDK value of 1.
 
 ## Beta Rationale
 
-Service Bus ingress is Beta because ingress flow is stable but matrix depth is narrower than AMQP:
+Service Bus ingress is Beta because the ingress flow is stable but its test matrix covers less than the AMQP matrix:
 
-- Duplicate MessageId and full header edge-case matrices are missing in emulator ingress tests.
-- Requeue-off poison drain matrix is not covered.
+- Emulator ingress tests have no duplicate MessageId matrix or full header edge-case matrix.
+- No tests cover the requeue-off poison drain matrix.
 - Broker option surface is intentionally narrower than AMQP.
 
 ## Public Surface
@@ -75,10 +75,10 @@ bus.AddInbox(inbox => inbox.UseAzureServiceBusIngress(ingress =>
 ## Invariants
 
 - `Destination` and root `AddAzureServiceBusTransport(...)` are required at compose time.
-- Set `SubscriptionName` when `Destination` is a topic.
+- When `Destination` is a topic, set `SubscriptionName`.
 - `PrefetchCount` fills the Azure client cache, while `MaxConcurrentCalls` controls Azure processor callbacks. `Safety.MaxInFlightMessages` applies the final LiteBus handler cap.
 - LiteBus contract headers are required on the wire payload.
-- Beta tier per the Feature Index; applications must test broker-specific edge cases.
+- The Feature Index lists this adapter as Beta tier, so applications must test broker-specific edge cases.
 - Identity and idempotency default to broker-scoped values (`Safety.RequireStableIdentity=true`, `Safety.TrustApplicationHeaders=false`).
 
 ## Non-Goals
@@ -95,7 +95,7 @@ bus.AddInbox(inbox => inbox.UseAzureServiceBusIngress(ingress =>
 | --- | --- |
 | `ingress.ack_failed_after_accept` | Complete/abandon fails after inbox accept |
 
-Meter `LiteBus.Inbox` via `AddLiteBusInboxMetrics()`.
+The meter is `LiteBus.Inbox`, registered through `AddLiteBusInboxMetrics()`.
 
 ### Transport Tracing and Metrics
 
@@ -103,11 +103,11 @@ Meter `LiteBus.Inbox` via `AddLiteBusInboxMetrics()`.
 | --- | --- | --- |
 | `process {destination}` activity | `servicebus` | `AddLiteBusTransportInstrumentation()` |
 | `litebus.transport.circuit_breaker.open` | `azure_service_bus` | Transport metrics from the root adapter |
-| `litebus.transport.circuit_breaker.failure_count` | `azure_service_bus` | same |
+| `litebus.transport.circuit_breaker.failure_count` | `azure_service_bus` | Same as above |
 
 ### Structured Logs
 
-EventId 3002, 3003, 3004 from `TransportInboxIngressLogMessages` on shared consumer.
+The shared consumer logs EventId 3002, 3003, and 3004 from `TransportInboxIngressLogMessages`.
 
 ## Identity, Idempotency, and Trusted Headers
 
@@ -115,9 +115,9 @@ Service Bus ingress uses shared mapper defaults:
 
 | Setting | Default | Result |
 | --- | --- | --- |
-| `RequireStableIdentity` | true | Missing broker id fails closed |
+| `RequireStableIdentity` | true | A missing broker id fails closed |
 | `Safety.TrustApplicationHeaders` | false | App idempotency, tenant, and visibility headers are ignored |
-| Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | Stable duplicate absorption when delivery id is stable |
+| Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | Duplicate deliveries are absorbed when the delivery id is stable |
 
 ## Test Coverage
 
@@ -134,11 +134,11 @@ Service Bus ingress uses shared mapper defaults:
 
 ### Untested
 
-- Header edge cases (missing contract name, wrong version, invalid message id) on Service Bus emulator.
+- Header edge cases on the Service Bus emulator (missing contract name, wrong version, invalid message id).
 - `RequeueOnFailure = false` poison message drain.
 - Prefetch and lock duration tuning under load.
-- Duplicate MessageId idempotency matrix for ingress on emulator.
-- Ack-failed-after-accept metric assertion in emulator suite.
+- Duplicate MessageId idempotency matrix for ingress on the emulator.
+- Ack-failed-after-accept metric assertion in the emulator suite.
 
 ### Out-of-Scope
 
@@ -146,7 +146,7 @@ Service Bus ingress uses shared mapper defaults:
 - AMQP or Kafka ingress in the same package.
 - Built-in Service Bus dead-letter administration.
 
-## Deep Docs
+## References
 
 - [Azure Service Bus transport](../../integrations/azure-service-bus.md)
 - [Feature Index: Ingress](../../reference/feature-index.md)

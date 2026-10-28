@@ -1,8 +1,8 @@
 # Ordering and Concurrency Guarantees
 
-This page defines the concurrency properties. [Reliable Messaging Semantics](semantics.md) defines the delivery guarantees, and [Message States](../operations/message-states.md) defines the operator states and alerts.
+LiteBus durable messaging guarantees at-least-once execution under leases, not ordered execution. This page names the exact property or option behind each ordering-related behavior, so callers know what holds, when it holds, and what to build themselves.
 
-LiteBus durable messaging guarantees at-least-once execution under leases, not ordered execution. This page names the exact property or option behind each ordering-related behavior, so callers know what holds, when it holds, and what to build themselves. For delivery semantics start with [Reliable Messaging Semantics](semantics.md). For the full contract, see [Envelope Lifecycle](../catalog/durable-core/envelope-lifecycle.md).
+This page defines the concurrency properties. [Reliable Messaging Semantics](semantics.md) defines the delivery guarantees, and [Message States](../operations/message-states.md) defines the operator states and alerts. For delivery semantics, start with [Reliable Messaging Semantics](semantics.md). For the full contract, see [Envelope Lifecycle](../catalog/durable-core/envelope-lifecycle.md).
 
 ## Guarantee Table
 
@@ -24,7 +24,7 @@ LiteBus durable messaging guarantees at-least-once execution under leases, not o
 
 ## Batch Order Is Claim Order, Not Completion Order
 
-One pass leases up to `ProcessorOptions.BatchSize` due rows (default `20`) and dispatches them through at most `ProcessorOptions.DispatcherConcurrency` parallel workers (default `1`). Keep the default when the downstream consumer is sensitive to arrival order:
+One pass leases up to `ProcessorOptions.BatchSize` due rows (default `20`) and dispatches them through at most `ProcessorOptions.DispatcherConcurrency` parallel workers (default `1`). When the downstream consumer is sensitive to arrival order, keep the default:
 
 ```csharp
 outbox.UseProcessorOptions(new OutboxProcessorOptions
@@ -35,19 +35,27 @@ outbox.UseProcessorOptions(new OutboxProcessorOptions
 });
 ```
 
-This serializes dispatch starts within one pass; completion order still varies with retries, reclaimed leases, and additional processor instances. When strict per-key order matters across workers, partition the work before LiteBus (one tenant per processor via `ProcessorOptions.TenantId`) or serialize on the saga correlation for state updates, and make the consumer idempotent because at-least-once redelivery still duplicates.
+That configuration serializes dispatch starts within one pass. Completion order still varies with retries, reclaimed leases, and additional processor instances.
+
+When strict per-key order matters across workers, partition the work before LiteBus (one tenant per processor via `ProcessorOptions.TenantId`) or serialize on the saga correlation for state updates. Make the consumer idempotent, because at-least-once redelivery still duplicates.
 
 ## Tenancy Partitions Leases, Not Order
 
-Setting `ProcessorOptions.TenantId` restricts one processor instance to one tenant partition. Use it to isolate noisy tenants or to pin a tenant to a serial (`DispatcherConcurrency = 1`) processor. It does not order tenants relative to each other, and rows without a matching tenant are invisible to that instance, so every tenant still needs a processor that leases it.
+Setting `ProcessorOptions.TenantId` restricts one processor instance to one tenant partition. Use it to isolate noisy tenants or to pin a tenant to a serial (`DispatcherConcurrency = 1`) processor. It does not order tenants relative to each other. Rows without a matching tenant are invisible to that instance, so every tenant still needs a processor that leases it.
 
 ## Saga Serialization Is Per Correlation and Per Host
 
-The `SagaProcessorHook` gate serializes only dispatches that share tenant, saga definition, and `CorrelationId`, and only within one host process. Across hosts, correctness comes from `ISagaStore` version checks: concurrent saves throw `SagaConcurrencyException`, and completion reloads and retries. Handlers keyed by `SagaCorrelation` therefore see serial state transitions per instance on one host, and optimistic-concurrency failures instead of silent overwrites everywhere else. Different correlations never block each other. See [Saga](saga.md) for registration and the state model.
+The `SagaProcessorHook` gate serializes only dispatches that share tenant, saga definition, and `CorrelationId`, and only within one host process.
 
-## Transports Preserve Nothing By Default
+Across hosts, correctness comes from `ISagaStore` version checks. Concurrent saves throw `SagaConcurrencyException`. Completion reloads and retries.
 
-LiteBus transport dispatch maps an envelope to `Destination` plus `Route` (tenant strategy, then `ResolveRoute`, then the outbox topic, then the contract name) and publishes. No dispatcher option selects a Kafka partition, an SQS FIFO group, or a Service Bus session, and ingress concurrency (`TransportConsumerOptions.MaxInFlightMessages`, default `32`, plus `MaxConcurrentCalls` and `ReceiveBatchSize` where the broker supports them) redelivers into `IInbox.AcceptAsync` concurrently. Applications that need broker-ordered intake must configure broker-side ordering (partition keys, FIFO queues, sessions) in their own topology and keep consumer concurrency at one per ordered unit; LiteBus records whatever arrives as unordered `Pending` rows.
+Handlers keyed by `SagaCorrelation` therefore see serial state transitions per instance on one host. Everywhere else, they see optimistic-concurrency failures instead of silent overwrites. Different correlations never block each other. See [Saga](saga.md) for registration and the state model.
+
+## Transports Preserve Nothing by Default
+
+LiteBus transport dispatch maps an envelope to `Destination` plus `Route` (tenant strategy, then `ResolveRoute`, then the outbox topic, then the contract name) and publishes. No dispatcher option selects a Kafka partition, an SQS FIFO group, or a Service Bus session. Ingress concurrency (`TransportConsumerOptions.MaxInFlightMessages`, default `32`, plus `MaxConcurrentCalls` and `ReceiveBatchSize` where the broker supports them) redelivers into `IInbox.AcceptAsync` concurrently.
+
+Applications that need broker-ordered intake must configure broker-side ordering (partition keys, FIFO queues, sessions) in their own topology and keep consumer concurrency at 1 per ordered unit. LiteBus records whatever arrives as unordered `Pending` rows.
 
 ## Next
 

@@ -5,13 +5,13 @@
 - **ID**: `hosting.startup-tasks`
 - **Name**: One-shot startup tasks
 - **Maturity**: GA
-- **Summary**: Manifest contract for startup work that must complete before any background loop starts.
+- **Summary**: The manifest contract for startup work that must complete before any background loop starts.
 
 ## What It Does
 
 `IStartupTask` defines one method, `RunAsync(CancellationToken)`. Modules register startup task types during composition. The host orchestrator runs each task in order during `StartAsync`, then starts background loops only if all startup tasks succeed.
 
-Common uses include schema ensure and validation for PostgreSQL-backed inbox and outbox storage.
+Common uses include ensuring and validating the schema for PostgreSQL-backed inbox and outbox storage.
 
 ## Public Surface
 
@@ -40,7 +40,7 @@ Common uses include schema ensure and validation for PostgreSQL-backed inbox and
 
 - Startup tasks execute sequentially in registration order.
 - Startup failure prevents background loops from starting.
-- Startup task types are deduplicated by first registration.
+- Duplicate startup task types are removed, keeping the first registration.
 
 ## Non-Goals
 
@@ -49,8 +49,8 @@ Common uses include schema ensure and validation for PostgreSQL-backed inbox and
 
 ## Observability
 
-- Failures propagate from host startup and fail closed.
-- No dedicated startup-task meter is emitted by hosting core.
+- Failures propagate to host startup, which fails closed.
+- The hosting core emits no dedicated startup-task meter.
 
 ## Test Coverage
 
@@ -60,8 +60,8 @@ Common uses include schema ensure and validation for PostgreSQL-backed inbox and
 
 - **Use case**: duplicate startup task registration deduplication
 - **Test kind**: Unit
-- **Description**: registers same startup type twice
-- **Behavior**: inspects startup task manifest list
+- **Description**: registers the same startup type twice
+- **Behavior**: inspects the startup task manifest list
 - **Expected outcome**: one entry in first registration order
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/ModuleConfigurationTests.cs`
 
@@ -70,7 +70,7 @@ Common uses include schema ensure and validation for PostgreSQL-backed inbox and
 - **Use case**: startup failure blocks loop startup
 - **Test kind**: Unit
 - **Description**: one failing startup task and one background service
-- **Behavior**: starts hosted service
+- **Behavior**: starts the hosted service
 - **Expected outcome**: startup exception is raised and background loop does not start
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/MicrosoftBackgroundServiceHostingExtensionsTests.cs`
 
@@ -78,8 +78,8 @@ Common uses include schema ensure and validation for PostgreSQL-backed inbox and
 
 - **Use case**: startup-before-loop ordering
 - **Test kind**: Unit
-- **Description**: recording startup task sets completion flag
-- **Behavior**: starts hosted service and observes loop state
+- **Description**: a recording startup task sets the completion flag
+- **Behavior**: starts the hosted service and observes loop state
 - **Expected outcome**: loop starts only after startup flag is set
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/MicrosoftBackgroundServiceHostingExtensionsTests.cs`
 
@@ -88,14 +88,14 @@ Common uses include schema ensure and validation for PostgreSQL-backed inbox and
 | Gap | Priority | Notes |
 | --- | --- | --- |
 | Full Generic Host startup with multiple startup tasks across several modules | Medium | Current tests focus on bridge and orchestrator behavior. |
-| Automatic retry policy for failed startup tasks | Low | Not implemented in hosting core. |
+| Automatic retry policy for failed startup tasks | Low | Hosting core does not implement it. |
 
 ### Out-of-Scope Use Cases
 
 - Continuous processing loops (`IBackgroundService`).
 - Application DDL migration policy beyond startup task hooks.
 
-## Deep Docs
+## References
 
 - [Hosted services](../../architecture/hosted-services.md)
 - [PostgreSQL schema management](../../integrations/postgresql-schema-management.md)

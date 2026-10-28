@@ -11,9 +11,9 @@
 
 `LB1013` reports when:
 
-- Named type has a public constructor.
-- Constructor has a parameter implementing or equal to `ITransactionalOutboxStore`.
-- Constructor has no parameter type that is or inherits from the Entity Framework Core `DbContext` (`Microsoft.EntityFrameworkCore`).
+- A named type declares a public constructor.
+- The constructor declares a parameter that implements or equals `ITransactionalOutboxStore`.
+- The constructor declares no parameter whose type is the Entity Framework Core `DbContext` (`Microsoft.EntityFrameworkCore`) or inherits from it.
 
 ## Bad Example
 
@@ -30,7 +30,7 @@ public sealed class OrderService
 
 Expected diagnostic:
 
-- `LB1013` on constructor declaration.
+- `LB1013` on the constructor declaration.
 
 ## Good Example
 
@@ -53,7 +53,7 @@ public sealed class OrderService
 ## Suppression Guidance
 
 - Keep outbox enqueue and domain persistence in the same EF unit of work.
-- Suppress only for adapter layers that intentionally resolve `DbContext` through factory or ambient scope and cannot express it in constructor parameters.
+- Suppress only for adapter layers that intentionally resolve `DbContext` through a factory or an ambient scope and cannot express it in constructor parameters.
 - Include a comment describing the alternate transaction boundary.
 
 ## Test Coverage
@@ -66,5 +66,5 @@ Source: `tests/LiteBus.Analyzers.UnitTests/TransactionalOutboxWithoutDbContextAn
 
 Untested in this suite:
 
-- Positive path where constructor includes `DbContext`.
-- Multi-constructor types where one constructor is valid and one is invalid.
+- The positive path, where the constructor includes `DbContext`.
+- Types with multiple constructors where one is valid and one is invalid.

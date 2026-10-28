@@ -1,6 +1,6 @@
 # Reliability Roadmap
 
-This roadmap covers planned reliability, provider parity, operations, NativeAOT, and release-quality work. The listed items are not current LiteBus guarantees until their implementation and documentation are merged.
+LiteBus reliability work covers provider parity, recovery, operations, NativeAOT, and release quality. This roadmap lists that planned work. None of it is a current LiteBus guarantee until its implementation and documentation are merged.
 
 Independent package boundaries remain a design constraint. Applications must be able to select one durable axis, broker, and store without installing unrelated SDKs.
 
@@ -15,7 +15,7 @@ Independent package boundaries remain a design constraint. Applications must be 
 
 ### Lease Operations
 
-The current processor assigns monotonically increasing inbox and outbox lease generations, checks owner and generation during renewal and terminal persistence, uses database clocks for relational leases, and reports skipped terminal writes through `PersistResult`.
+The current processor assigns monotonically increasing inbox and outbox lease generations and checks owner and generation during renewal and terminal persistence. It uses database clocks for relational leases and reports skipped terminal writes through `PersistResult`.
 
 - Add operator-facing lease history without using configured worker labels as metric dimensions.
 - Evaluate explicit graceful-shutdown lease release for work that has not started dispatch.
@@ -32,7 +32,7 @@ The current processor assigns monotonically increasing inbox and outbox lease ge
 ### Versioned Payload Protection
 
 - Define an encrypted payload envelope with algorithm, key identifier, nonce, authentication tag, and associated-data contract.
-- Fail closed on context mismatch and provide a migration tool for stored encrypted envelopes.
+- Fail closed on context mismatch. Provide a migration tool for stored encrypted envelopes.
 - Add key rotation, ciphertext-size, and redacted-diagnostic cases to provider conformance suites.
 
 ## Priority 1: Provider and Transport Parity
@@ -62,7 +62,7 @@ The current ingress API separates provider-neutral admission limits from broker 
 ### Source Generation and Trimming
 
 - Add an optional source generator for message contracts and handler descriptors.
-- Keep reflection registration as a supported path and annotate reflection-heavy APIs for trimming.
+- Keep reflection registration as a supported path. Annotate reflection-heavy APIs for trimming.
 - Add NativeAOT smoke builds for the mediator, in-memory durable path, and one broker adapter.
 
 ### Host Composition
@@ -93,4 +93,11 @@ The current ingress API separates provider-neutral admission limits from broker 
 
 ## Completion Criteria
 
-The roadmap is complete when lease and saga correctness suites pass across supported stores, provider capability matrices are published, messaging telemetry is stable, release artifacts include SBOM and provenance attestations, NativeAOT smoke builds pass, and a clean consumer sample installs only its required packages.
+The roadmap is complete when all of these hold:
+
+- Lease and saga correctness suites pass across supported stores.
+- Provider capability matrices are published.
+- Messaging telemetry is stable.
+- Release artifacts include SBOM and provenance attestations.
+- NativeAOT smoke builds pass.
+- A clean consumer sample installs only its required packages.

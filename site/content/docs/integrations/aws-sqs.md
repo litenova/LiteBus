@@ -1,6 +1,6 @@
 # AWS SQS Transport
 
-`LiteBus.Transport.AwsSqs` publishes and consumes through Amazon SQS, using long-poll receive for intake. LiteBus validates the adapter with LocalStack in CI; live AWS account soak is not a GA gate.
+LiteBus connects to Amazon SQS through `LiteBus.Transport.AwsSqs`, which publishes and consumes with long-poll receive for intake. LiteBus validates the adapter with LocalStack in CI. A soak test against a live AWS account is not required before GA.
 
 **Production tier: Beta**
 
@@ -13,7 +13,7 @@
 | `LiteBus.Outbox.Dispatch.AwsSqs` | Outbox processor publish to SQS |
 | `LiteBus.Inbox.Ingress.AwsSqs` | SQS intake into `IInbox.AcceptAsync` |
 
-Add inbox or outbox core and a storage package alongside the transport. Durable processing needs a store and a processor host; the transport alone persists nothing.
+Install inbox or outbox core and a storage package alongside the transport. Durable processing needs a store and a processor host. The transport alone persists nothing.
 
 ## Registration
 
@@ -53,7 +53,7 @@ builder.AddInbox(inbox =>
 
 Register exactly one dispatcher per inbox or outbox: a second dispatcher registration throws `LiteBusConfigurationException`.
 
-When both `Region` and `ServiceUrl` are `null`, the AWS SDK resolves the region from environment variables, the shared configuration file, or instance metadata. A set `ServiceUrl` takes precedence over `Region`, and no AWS region resolution is required. A failure to resolve a region surfaces as `AwsSqsTransportConfigurationException` without recording a circuit-breaker failure.
+When both `Region` and `ServiceUrl` are `null`, the AWS SDK resolves the region from environment variables, the shared configuration file, or instance metadata. When `ServiceUrl` is set, it takes precedence over `Region`, and no AWS region resolution is required. A failure to resolve a region surfaces as `AwsSqsTransportConfigurationException` without recording a circuit-breaker failure.
 
 ## Options Reference
 
@@ -64,7 +64,7 @@ When both `Region` and `ServiceUrl` are `null`, the AWS SDK resolves the region 
 | | `AccessKey` | `null` | Explicit credential. `null` uses the SDK credential chain. |
 | | `SecretKey` | `null` | Explicit credential. `null` uses the SDK credential chain. |
 | | `LongPollWaitTimeSeconds` | 20 | Receive wait time |
-| | `ConnectivityCheckQueueUrl` | `null` | Queue whose ARN is read for readiness; missing reports degraded |
+| | `ConnectivityCheckQueueUrl` | `null` | Queue whose ARN is read for readiness. Without a target, health reports degraded. |
 | | `VisibilityTimeoutSeconds` | 30 | Initial visibility on receive |
 | | `RequeueVisibilityTimeoutSeconds` | 30 | Base timeout on nack/requeue |
 | | `MaxRequeueVisibilityTimeoutSeconds` | 900 | Backoff cap |
@@ -73,12 +73,12 @@ When both `Region` and `ServiceUrl` are `null`, the AWS SDK resolves the region 
 | | `PollBackoffMultiplier` | 2.0 | Multiplier per consecutive full-batch failure |
 | `AwsSqsInboxIngressOptions` | `Destination` | `""` (required) | Queue URL the ingress consumer receives from |
 | | `RequeueOnFailure` | `true` | Change visibility vs delete on failure |
-| | `ReceiveBatchSize` | 1 | Messages requested per receive call; valid range is 1 through 10 |
-| | `Safety.MaxInFlightMessages` | `32` requested | Enforced bound is 1: the SQS adapter runs one handler at a time |
+| | `ReceiveBatchSize` | 1 | Messages requested per receive call. Valid range is 1 through 10. |
+| | `Safety.MaxInFlightMessages` | `32` requested | The enforced bound is 1, because the SQS adapter runs one handler at a time. |
 
 `ReceiveBatchSize` maps directly to `ReceiveMessageRequest.MaxNumberOfMessages`. Module composition rejects values outside the [AWS SDK for .NET v4 range of 1 through 10](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/SQS/TReceiveMessageRequest.html) instead of silently clamping them.
 
-While a handler runs, visibility is extended once per half of `VisibilityTimeoutSeconds`, so a long handler keeps its receipt handle alive.
+While a handler runs, the consumer extends visibility once every half of `VisibilityTimeoutSeconds`, so a long handler keeps its receipt handle alive.
 
 The root transport registers `transport.sqs.connectivity`. Configure `ConnectivityCheckQueueUrl` and grant `sqs:GetQueueAttributes` on that queue. The probe requests only `QueueArn` through the current [AWS SDK for .NET v4 SQS client](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/SQS/TSQSClient.html). Without a target, health reports degraded because creating an SDK client does not verify broker access.
 
@@ -86,9 +86,16 @@ The root transport registers `transport.sqs.connectivity`. Configure `Connectivi
 
 `UseAwsSqsIngress` long-polls the `Destination` queue URL and accepts each message through `IInbox.AcceptAsync`. The registration sample above shows the full setup.
 
-`ReceiveBatchSize` controls how many messages each receive call requests (1 through 10). The message is deleted only after the accept succeeds. On transient accept failure with `RequeueOnFailure = true`, `ReturnToQueueAsync` changes the message visibility with exponential backoff (`RequeueVisibilityTimeoutSeconds`, `RequeueBackoffMultiplier`, `MaxRequeueVisibilityTimeoutSeconds`); with `RequeueOnFailure = false`, the message is deleted and the failure drains as poison. Poison failures (unknown contract, oversize body, malformed payload) are never requeued.
+`ReceiveBatchSize` controls how many messages each receive call requests (1 through 10). The message is deleted only after the accept succeeds. On transient accept failure with `RequeueOnFailure = true`, `ReturnToQueueAsync` changes the message visibility with exponential backoff (`RequeueVisibilityTimeoutSeconds`, `RequeueBackoffMultiplier`, `MaxRequeueVisibilityTimeoutSeconds`). With `RequeueOnFailure = false`, the message is deleted and the failure drains as poison. Poison failures (unknown contract, oversize body, malformed payload) are never requeued.
 
-`Safety` carries the provider-neutral limits: `MaxMessageBytes` (default 4 MiB) rejects oversize bodies before deserialization, `RequireStableIdentity` (default `true`) requires a stable broker delivery id, `TrustApplicationHeaders` (default `false`) keeps application headers from overriding broker identity and tenant metadata, and `AuthorizeDeliveryAsync` optionally authorizes each delivery before accept. The enforced handler concurrency is 1: raising `Safety.MaxInFlightMessages` alone does not parallelize the SQS adapter.
+`Safety` carries the provider-neutral limits:
+
+- `MaxMessageBytes` (default 4 MiB) rejects oversize bodies before deserialization.
+- `RequireStableIdentity` (default `true`) requires a stable broker delivery id.
+- `TrustApplicationHeaders` (default `false`) keeps application headers from overriding broker identity and tenant metadata.
+- `AuthorizeDeliveryAsync` optionally authorizes each delivery before accept.
+
+The enforced handler concurrency is 1, so raising `Safety.MaxInFlightMessages` alone does not parallelize the SQS adapter.
 
 A message without SQS system attributes counts as a first delivery when requeue backoff is computed. When the consume loop faults, `StopAsync` completes without throwing and the terminal failure propagates from `WaitUntilStoppedAsync`.
 
@@ -96,9 +103,9 @@ A message without SQS system attributes counts as a first delivery when requeue 
 
 SQS message bodies are strings. LiteBus uses strict UTF-8 decoding and the SQS Unicode ranges before sending a plain body. Invalid UTF-8 and disallowed control bytes are base64-encoded with a `litebus-content-encoding: base64` message attribute, preserving the original bytes. Correlation identifiers use the canonical `correlation-id` header (`TransportHeaders.CorrelationId`).
 
-SQS permits ten message attributes per message. LiteBus keeps mapper-owned route, content type, identifier, correlation, and encoding attributes separate. When the complete header set would exceed ten attributes, the remaining headers are serialized into `litebus-headers`; ingress expands that attribute before contract mapping.
+SQS permits ten message attributes per message. LiteBus keeps mapper-owned route, content type, identifier, correlation, and encoding attributes separate. When the complete header set would exceed ten attributes, the remaining headers are serialized into `litebus-headers`. Ingress expands that attribute before contract mapping.
 
-A received message whose body cannot be decoded (an invalid body with the `base64` marker) or whose packed `litebus-headers` attribute is malformed can never be processed, so the consumer deletes it and continues with the next delivery instead of faulting the loop.
+Some received messages can never be processed: a body that cannot be decoded (an invalid body with the `base64` marker) or a malformed packed `litebus-headers` attribute. The consumer deletes such a message and continues with the next delivery instead of faulting the loop.
 
 ## Guarantees and Non-Guarantees
 
@@ -109,14 +116,14 @@ A received message whose body cannot be decoded (an invalid body with the `base6
 | Binary-safe bodies via base64 encoding | Arbitrary binary without encoding attribute on legacy publishers |
 | Poison drain when `RequeueOnFailure = false` | Cross-region failover |
 
-Handler exceptions propagate to ingress, which applies `RequeueOnFailure` through `ReturnToQueueAsync` or `DiscardAsync`. The SQS consumer does not auto-requeue on handler throw.
+Handler exceptions propagate to ingress, which applies `RequeueOnFailure` through `ReturnToQueueAsync` or `DiscardAsync`. The SQS consumer does not requeue automatically when a handler throws.
 
 ## Operations
 
 | Symptom | Action |
 | --- | --- |
-| Messages invisible too long after failure | Lower `RequeueVisibilityTimeoutSeconds` for faster retry; check DLQ policy |
-| Poll stalls after repeated failures | Inspect `PollBackoffMax`; fix store/accept errors |
+| Messages invisible too long after failure | Lower `RequeueVisibilityTimeoutSeconds` for faster retry and check the DLQ policy |
+| Poll stalls after repeated failures | Inspect `PollBackoffMax` and fix store and accept errors |
 | LocalStack tests skip | Start Docker; see [Integration Tests](../testing/integration-tests.md) |
 | `transport.sqs.connectivity` degraded (missing target) | Configure `ConnectivityCheckQueueUrl` with narrow attribute-read permission |
 

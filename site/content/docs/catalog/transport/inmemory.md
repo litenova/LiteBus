@@ -3,17 +3,17 @@
 - **ID**: `transport.inmemory`
 - **Name**: In-memory transport
 - **Maturity**: GA
-- **Summary**: In-process channel broker used for fast tests and local workflows while preserving transport contracts.
+- **Summary**: In-process channel broker for fast tests and local workflows that keeps the transport contracts of external brokers.
 
 ## What It Does
 
-`InMemoryTransportModule` registers `InMemoryTransportBroker`, `InMemoryPublisher`, and `InMemoryConsumer`. Messages are queued by destination inside process memory and delivered through the same `TransportMessage` contract used by external brokers.
+`InMemoryTransportModule` registers `InMemoryTransportBroker`, `InMemoryPublisher`, and `InMemoryConsumer`. Messages are queued by destination in process memory and delivered through the same `TransportMessage` contract used by external brokers.
 
-Each destination admits at most `InMemoryTransportOptions.DestinationCapacity` unsettled deliveries, including queued and currently handled messages. The default is 1024. When the limit is reached, `PublishAsync` waits asynchronously until a delivery settles or the caller cancels. A full destination waits for capacity with `BoundedChannelFullMode.Wait` ([.NET channels guidance](https://learn.microsoft.com/en-us/dotnet/core/extensions/channels)); the transport does not drop old or new writes.
+Each destination admits at most `InMemoryTransportOptions.DestinationCapacity` unsettled deliveries, including queued and currently handled messages. The default is 1024. When the limit is reached, `PublishAsync` waits asynchronously until a delivery settles or the caller cancels. A full destination waits for capacity with `BoundedChannelFullMode.Wait` ([.NET channels guidance](https://learn.microsoft.com/en-us/dotnet/core/extensions/channels)). The transport does not drop old or new writes.
 
-Ack behavior is explicit. `AcceptAsync` and `DiscardAsync` release the delivery's capacity reservation. `ReturnToQueueAsync` re-enqueues with `Redelivered = true` and retains the reservation, so a waiting publisher cannot take the only slot and deadlock redelivery. The consumer runs one handler at a time regardless of the requested `MaxInFlightMessages`.
+Ack behavior is explicit. `AcceptAsync` and `DiscardAsync` release the delivery's capacity reservation. `ReturnToQueueAsync` re-enqueues with `Redelivered = true` and keeps the reservation, so a waiting publisher cannot take the only slot and deadlock the redelivery. The consumer runs one handler at a time regardless of the requested `MaxInFlightMessages`.
 
-`InMemoryTransportBroker` implements `IDisposable` and completes its destination channels on dispose; the consumer's `StopAsync` and `WaitUntilStoppedAsync` complete after the channel is closed. The publisher is a singleton and consumers are transient.
+`InMemoryTransportBroker` implements `IDisposable` and completes its destination channels on dispose. The consumer's `StopAsync` and `WaitUntilStoppedAsync` complete after the channel is closed. The publisher is a singleton and consumers are transient.
 
 ```csharp
 bus.AddInMemoryTransport(new InMemoryTransportOptions
@@ -47,11 +47,11 @@ bus.AddInMemoryTransport(new InMemoryTransportOptions
 
 ## Invariants
 
-- Transport is process-local and not durable.
+- The transport is process-local and not durable.
 - Destination capacity is positive, applies independently to every destination, and is validated during composition.
-- Full destinations wait for capacity; the transport does not drop old or new writes.
-- Redelivery happens through explicit `ReturnToQueueAsync`, the exception path through invoker behavior, or a handler that returns without settling.
-- A handler that returns successfully without settling is returned to the destination with `Redelivered = true` instead of dropped.
+- Full destinations wait for capacity. The transport does not drop old or new writes.
+- Redelivery happens when the handler calls `ReturnToQueueAsync` explicitly, when the invoker requeues after an exception, or when a handler returns without settling.
+- A handler that returns successfully without settling is returned to the destination with `Redelivered = true` instead of being dropped.
 - Shared transport metrics are tagged `inmemory`.
 
 ## Non-Goals
@@ -108,7 +108,7 @@ bus.AddInMemoryTransport(new InMemoryTransportOptions
 - Cross-process transport behavior.
 - Persistence and restart recovery.
 
-## Deep Docs
+## References
 
 - [Architecture.md](../../architecture/README.md)
 - [Integration-Tests.md](../../testing/integration-tests.md)

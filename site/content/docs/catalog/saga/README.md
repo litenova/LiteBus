@@ -1,10 +1,10 @@
 # Saga
 
-Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+A saga in LiteBus keeps workflow state across correlated inbox commands, so a multi-step workflow can load its state before a command handler runs and save it after the handler succeeds. This page is a reference for contributors. It gives the package map, the composition recipe, the capability pages, and the test coverage for that feature. Readers using LiteBus start with [the documentation overview](../../index.md).
 
-LiteBus saga support is an Extension tier feature. It adds correlated state persistence around inbox command dispatch through `IProcessorEnvelopeHook` and `ISagaContext`.
+LiteBus saga support is an Extension tier feature. It loads correlated state before inbox command dispatch and saves it after dispatch, through `IProcessorEnvelopeHook` and `ISagaContext`.
 
-Saga registration is composed from the inbox axis. Register saga through `builder.AddInbox(inbox => inbox.EnableSaga(...))` and select exactly one store in the saga callback. There is no public top-level `AddSagaModule(...)` API.
+You compose saga registration from the inbox axis. Register saga through `builder.AddInbox(inbox => inbox.EnableSaga(...))`. In the saga callback, select exactly one store. There is no public top-level `AddSagaModule(...)` API.
 
 ## Lifecycle
 
@@ -68,9 +68,9 @@ services.AddLiteBus(builder =>
 
 | Test executor | Project and path | Coverage focus |
 | --- | --- | --- |
-| Unit | `tests/LiteBus.Storage.UnitTests/Saga/` | Hook phases, same-correlation scope isolation, registry resolution, in-memory concurrency, query, purge, and schema bootstrap |
-| Integration | `tests/LiteBus.Storage.IntegrationTests/PostgreSql/` | End-to-end inbox plus saga plus PostgreSQL, orchestration depth, compensation, optimistic concurrency, connection ownership |
-| Composition smoke | `tests/LiteBus.Runtime.UnitTests/Runtime/Composition/` | `EnableSaga` composition wiring and correlated state persistence |
+| Unit | `tests/LiteBus.Storage.UnitTests/Saga/` | Hook phases, scope isolation for dispatches that share one correlation, registry resolution, in-memory concurrency, query, purge, and schema bootstrap |
+| Integration | `tests/LiteBus.Storage.IntegrationTests/PostgreSql/` | End-to-end inbox with saga on PostgreSQL, orchestration depth, compensation, optimistic concurrency, and connection ownership |
+| Composition smoke | `tests/LiteBus.Runtime.UnitTests/Runtime/Composition/` | Composition wiring for `EnableSaga` and correlated state persistence |
 
 ## Key Gaps Documented
 
@@ -81,9 +81,9 @@ services.AddLiteBus(builder =>
 | Built-in scheduler, timeout orchestration, compensation DSL | Not implemented |
 | EF Core saga store adapter | Not implemented |
 | Automatic correlation id generation | Not implemented |
-| Saga metrics and tracing | Not implemented; use inbox processor signals, there are no saga-specific instruments |
+| Saga metrics and tracing | Not implemented. Use inbox processor signals. There are no saga-specific instruments |
 
-## Deep Docs
+## References
 
 - [Architecture](../../architecture/README.md)
 - [Dependency graph](../../architecture/dependency-graph.md)

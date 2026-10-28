@@ -8,9 +8,9 @@
 
 ## What It Does
 
-A command declares the key that identifies it through `IIdempotencyDefinition<TMessage>`, and `CommandModuleBuilder.EnableIdempotency()` registers two shortcuts and one completion handler that claim the key before the handler runs and settle it after: applied on success, released on anything else, so a transient failure does not turn the retry into a false repeat. The shortcut stage runs after guards and validators, so an unauthorized or malformed command cannot claim a key. Commands declaring nothing are ignored, so one call covers the axis and only declaring commands pay for it.
+A command declares the key that identifies it through `IIdempotencyDefinition<TMessage>`. `CommandModuleBuilder.EnableIdempotency()` registers two shortcuts and one completion handler that claim the key before the handler runs and settle it after. A key is marked applied on success and released on anything else, so a transient failure does not turn the retry into a false repeat. The shortcut stage runs after guards and validators, so an unauthorized or malformed command cannot claim a key. Commands declaring nothing are ignored, so one call covers the axis and only commands that declare a key take on the cost.
 
-A claim meets one of four answers from the `IIdempotencyStore`. `Granted` runs the message and `AlreadyCompleted` answers the repeat from the stored record. `InFlight` denies a delivery whose key another delivery still holds, and `FingerprintMismatch` denies a repeat whose fingerprint differs from the stored one; both end the mediation as `Denied`, so `TrySendAsync` returns the denial and `SendAsync` raises `LiteBusMessageDeniedException`. The denial carries a machine-readable code from `IdempotencyRefusalCodes`: `idempotency.in-flight` for a claim still running, `idempotency.fingerprint-mismatch` for a key reused with different content.
+A claim meets one of four answers from the `IIdempotencyStore`. `Granted` runs the message, and `AlreadyCompleted` answers the repeat from the stored record. `InFlight` denies a delivery whose key another delivery still holds, and `FingerprintMismatch` denies a repeat whose fingerprint differs from the stored one. Both end the mediation as `Denied`, so `TrySendAsync` returns the denial and `SendAsync` raises `LiteBusMessageDeniedException`. The denial carries a machine-readable code from `IdempotencyRefusalCodes`: `idempotency.in-flight` for a claim still running, and `idempotency.fingerprint-mismatch` for a key reused with different content.
 
 ## Public Surface
 
@@ -40,13 +40,13 @@ services.AddLiteBus(registry =>
 | `IdempotencyDeclaration.KeyedBy<TMessage>(selector)` | Projects the key from the message with a pure selector |
 | `IdempotencyDeclaration.KeyedByContext()` | Declares a key a guard supplies through `SuppliedIdempotencyKey` when the key cannot be projected from the message |
 | `IdempotencyDeclaration.WithFingerprint<TMessage>(selector)` | Projects a content fingerprint alongside the key, so a reused key with different content is denied rather than replayed |
-| `IdempotencyDeclaration.Scope` / `ReplayResult` | Key-space prefix defaulting to the message full type name; whether a repeat replays the serialized result of the first attempt |
-| `SuppliedIdempotencyKey` | The context-supplied key a guard hands forward through `IExecutionContext.Data` |
-| `IIdempotencyStore` | Remembers applied keys: `TryClaimAsync`, `CompleteAsync(key, claimToken, payload, ct)`, `ReleaseAsync(key, claimToken, ct)` |
+| `IdempotencyDeclaration.Scope` / `ReplayResult` | Key-space prefix defaulting to the message full type name, and whether a repeat replays the serialized result of the first attempt |
+| `SuppliedIdempotencyKey` | The context-supplied key a guard passes forward through `IExecutionContext.Data` |
+| `IIdempotencyStore` | Remembers applied keys through `TryClaimAsync`, `CompleteAsync(key, claimToken, payload, ct)`, and `ReleaseAsync(key, claimToken, ct)` |
 | `IdempotencyClaim` / `IdempotencyClaimOutcome` | The store answer: `Granted(claimToken)`, `AlreadyCompleted`, `InFlight`, `FingerprintMismatch` |
 | `IdempotencyRefusalCodes` | `idempotency.in-flight` and `idempotency.fingerprint-mismatch` denial codes |
 | `CommandModuleBuilder.EnableIdempotency()` | Registers the claiming shortcuts and the settling completion handler at `HandlerPriorities.Persistence` |
-| `Idempotency.FromCommandKey(suffix, conflictMode)` | Keys a staged outbox envelope by the in-flight command's claimed key |
+| `Idempotency.FromCommandKey(suffix, conflictMode)` | Derives the key of a staged outbox envelope from the in-flight command's claimed key |
 | `IdempotencyConfigurationException` | Reports a blank key, a blank explicit scope, a missing context key, or another declaration mistake |
 | `IdempotencyStoreDiagnosticCheck` | Probe reporting `litebus.idempotency.store` |
 
@@ -68,21 +68,21 @@ services.AddLiteBus(registry =>
 
 ## Invariants
 
-- Only the mediation that was granted the key settles it; a mediation that never claimed settles nothing, so it can never delete another delivery's in-flight claim. Every grant carries a claim token fenced into the stored row, and the store completes or releases only while the stored claim still carries it, so a late settle after a takeover is a no-op and completing a key the caller does not hold stores nothing.
-- A `Succeeded` mediation marks the key applied, with the serialized result when `ReplayResult` is set; an `Answered` mediation releases a key this mediation claimed; `Denied` and `Invalid` settle nothing; `Failed` and `Canceled` release the key so the retry runs.
-- A repeat of a result-producing command without `ReplayResult` raises `PipelineContractException` naming the fix rather than inventing a default answer. A grant without a token and any unrecognized store outcome raise `PipelineContractException` naming the store instead of running the handler without a recorded claim.
+- Only the mediation that was granted the key settles it. A mediation that never claimed settles nothing, so it can never delete another delivery's in-flight claim. Every grant carries a claim token fenced into the stored row, and the store completes or releases only while the stored claim still carries it, so a late settle after a takeover is a no-op, and completing a key the caller does not hold stores nothing.
+- A `Succeeded` mediation marks the key applied, with the serialized result when `ReplayResult` is set. An `Answered` mediation releases a key this mediation claimed. `Denied` and `Invalid` settle nothing. `Failed` and `Canceled` release the key so the retry runs.
+- A repeat of a result-producing command without `ReplayResult` raises `PipelineContractException` naming the fix rather than inventing a default answer. A grant without a token, and any unrecognized store outcome, raise `PipelineContractException` naming the store instead of running the handler without a recorded claim.
 - A blank key raises `IdempotencyConfigurationException` rather than being used, because every message with a blank key would share one key space. A non-null blank `Scope` is rejected the same way.
-- A message declared with `KeyedByContext()` that reaches the shortcut with no key in context raises `IdempotencyConfigurationException` naming the message type.
-- The shortcut records the grant as a `ClaimedIdempotencyKey` carrying the claim token and the replay decision, and the completion handler settles from that record without resolving again, so the derivation runs once per mediation and a handler-mutated message cannot fail settlement.
-- The stored key defaults to the message full type name scope, escapes tenant, scope, and key segments before joining, and prefixes the mediation tenant when the mediation carries one. A command declared with `KeyedByContext()` that replays results sets a fingerprint with `WithFingerprint`, so a different request reusing a predictable key is denied rather than answered with the stored result.
+- When a message declared with `KeyedByContext()` reaches the shortcut with no key in context, it raises `IdempotencyConfigurationException` naming the message type.
+- The shortcut records the grant as a `ClaimedIdempotencyKey` carrying the claim token and the replay decision, and the completion handler settles from that record without resolving again. The derivation runs once per mediation, and a handler-mutated message cannot fail settlement.
+- The stored key is scoped to the message full type name by default. Tenant, scope, and key segments are escaped before joining, and the mediation tenant is prefixed when the mediation carries one. A command declared with `KeyedByContext()` that replays results sets a fingerprint with `WithFingerprint`, so a different request reusing a predictable key is denied rather than answered with the stored result.
 - An unsettled claim is taken over with a new token by a new caller once it is older than the store's claim timeout, five minutes by default on the shipped stores. The timeout must be positive and is rejected with `ArgumentOutOfRangeException` at build time.
-- `FromCommandKey` throws `InvalidOperationException` outside a keyed command's mediation and rejects a blank suffix, so a key is never invented silently.
+- Outside a keyed command's mediation, `FromCommandKey` throws `InvalidOperationException`, and it rejects a blank suffix, so a key is never invented silently.
 
 ## Non-Goals
 
 - Durable envelope deduplication, which the inbox and outbox axes own with their own idempotency metadata.
-- Key expiry for applied keys; retention is a storage job the application owns.
-- A production store in the core packages; the in-memory store is a test double that forgets on restart and knows only its own process.
+- Key expiry for applied keys. Retention is a storage job the application owns.
+- A production store in the core packages. The in-memory store is a test double that forgets on restart and knows only its own process.
 
 ## Observability
 
@@ -148,14 +148,14 @@ Operational alternatives:
 ### Untested
 
 - Claim takeover while the first claimant is still settling, where both sides race the timeout boundary.
-- Fingerprint comparison for very large message projections and store payload limits.
+- Fingerprint comparison for very large message projections, and store payload limits.
 
 ### Out-of-Scope
 
 - Durable inbox and outbox deduplication behavior.
 - Store schema management for the PostgreSQL idempotency tables.
 
-## Deep Docs
+## References
 
 - [In-process idempotency](../../concepts/idempotency.md)
 - [The handler pipeline](../../concepts/handler-pipeline.md)

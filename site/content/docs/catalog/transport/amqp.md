@@ -7,11 +7,11 @@
 
 ## What It Does
 
-`AmqpTransportModule` composes `AmqpPublisher`, `AmqpConsumer`, and `AmqpConnectionManager` on top of `RabbitMQ.Client`. Publish uses exchange (`Destination`) plus routing key (`Route`). Consume binds to queue settings from `TransportConsumerOptions` and projects each delivery into `TransportMessage`.
+`AmqpTransportModule` composes `AmqpPublisher`, `AmqpConsumer`, and `AmqpConnectionManager`, built on `RabbitMQ.Client`. To publish, the adapter sends to an exchange (`Destination`) with a routing key (`Route`). To consume, it binds a queue using settings from `TransportConsumerOptions` and converts each delivery into a `TransportMessage`.
 
-AMQP registration includes a transport connectivity diagnostic check and shared transport circuit-breaker metrics tagged with broker value `amqp`.
+Registering the AMQP transport adds a transport connectivity diagnostic check and the shared transport circuit-breaker metrics, tagged with broker value `amqp`.
 
-RabbitMQ's default exchange has an empty name and routes directly to the queue named by the routing key. LiteBus scopes its publisher circuit by named exchange, or by routing key for the default exchange, so one unavailable default-exchange queue does not reject publications to another queue.
+RabbitMQ's default exchange has an empty name and routes directly to the queue named by the routing key. LiteBus scopes each publisher circuit by named exchange, or by routing key for the default exchange, so an unavailable queue behind the default exchange trips only its own circuit and does not reject publications to other queues.
 
 ## Public Surface
 
@@ -41,7 +41,7 @@ RabbitMQ's default exchange has an empty name and routes directly to the queue n
 | `AmqpConnectionOptions` | `ClientProvidedName` | `null` | Connection name visible in broker UI |
 | `AmqpConnectionOptions` | `AutomaticRecoveryEnabled` | `true` | Client recovery toggle |
 | `AmqpConnectionOptions` | `NetworkRecoveryInterval` | `5s` | Reconnect interval |
-| `AmqpConnectionOptions` | `CircuitBreaker` | `new()` | AMQP breaker threshold and duration |
+| `AmqpConnectionOptions` | `CircuitBreaker` | `new()` | AMQP circuit-breaker threshold and duration |
 | `AmqpConsumerOptions` | `QueueName` | required | Queue to consume |
 | `AmqpConsumerOptions` | `PrefetchCount` | `1` | Unacked delivery window |
 | `AmqpConsumerOptions` | `MaxInFlightMessages` | `32` | Concurrent handler limit for typed `IAmqpConsumer` subscriptions, matching the generic consumer path |
@@ -72,16 +72,16 @@ RabbitMQ's default exchange has an empty name and routes directly to the queue n
 
 ## Invariants
 
-- AMQP is exclusive per process; adding a second broker module fails standard duplicate-service composition validation.
+- AMQP is exclusive per process. Adding a second broker module fails the standard duplicate-service composition validation.
 - `TransportMessage` ack delegates map directly to `basic.ack` and `basic.nack`.
 - Circuit breaker and metrics register once per module configuration using broker tag `amqp`.
 - Publisher circuits use the named exchange as their scope. The empty-name default exchange uses its queue routing key.
-- A mandatory publication the broker returns as unroutable throws `AmqpMessageReturnedException` without recording a broker circuit failure; non-mandatory publications still succeed and drop.
+- A mandatory publication that the broker returns as unroutable throws `AmqpMessageReturnedException` without recording a broker circuit failure. A non-mandatory publication to an unroutable address still succeeds, and the broker drops the message.
 - A cancelled connection attempt releases its circuit breaker permit, so the next attempt past the break duration is admitted as the recovery probe.
-- The publisher is a singleton and the consumer is transient; a failed consumer start releases its channel and can be retried.
-- Consumed `TransportMessage.Destination` is the queue the message was consumed from (`AmqpReceivedMessage.QueueName`), falling back to the exchange when the consumer did not track it.
-- Each delivery settles at most once: a repeat acknowledgement for the same delivery is ignored, and the failure-path requeue is skipped when the handler already settled.
-- A second `StartAsync` throws `InvalidOperationException`, and the `StartAsync` token cancels startup only; `StopAsync` ends the subscription and cancels in-flight handlers.
+- The publisher is a singleton and the consumer is transient. A failed consumer start releases its channel and can be retried.
+- On a consumed message, `TransportMessage.Destination` is the queue the message arrived from (`AmqpReceivedMessage.QueueName`), falling back to the exchange when the consumer did not track the queue.
+- Each delivery settles at most once. A repeat acknowledgement for the same delivery is ignored, and the failure-path requeue is skipped when the handler already settled the delivery.
+- A second `StartAsync` call throws `InvalidOperationException`. The token passed to `StartAsync` cancels startup only. `StopAsync` ends the subscription and cancels in-flight handlers.
 
 ## Non-Goals
 
@@ -155,7 +155,7 @@ RabbitMQ's default exchange has an empty name and routes directly to the queue n
 - Multi-broker failover.
 - Production topology automation beyond queue declaration flags.
 
-## Deep Docs
+## References
 
 - [Amqp-Transport.md](../../integrations/amqp.md)
 - [Architecture.md](../../architecture/README.md)

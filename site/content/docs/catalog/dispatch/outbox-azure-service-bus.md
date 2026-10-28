@@ -9,7 +9,7 @@
 
 ## What It Does
 
-Registers shared `TransportOutboxDispatcher` with Azure Service Bus transport. Outbox processor publication targets a queue or topic configured in `TransportOutboxDispatcherOptions.DefaultDestination`. Subject/route follows outbox topic metadata or contract name fallback.
+This extension registers the shared `TransportOutboxDispatcher` with the Azure Service Bus transport. Outbox processor publication targets the queue or topic configured in `TransportOutboxDispatcherOptions.DefaultDestination`. The subject or route follows the outbox topic metadata, falling back to the contract name.
 
 ## Packages
 
@@ -27,14 +27,14 @@ Registers shared `TransportOutboxDispatcher` with Azure Service Bus transport. O
 
 ## Invariants
 
-- Default hook failure policy: `CompleteDespiteHookFailure`.
+- The default hook failure policy is `CompleteDespiteHookFailure`.
 - At-least-once publication semantics match other transport outbox adapters.
-- Abandon/requeue behavior applies on consumer side when downstream uses Service Bus ingress.
+- Abandon and requeue behavior applies on the consumer side when downstream uses Service Bus ingress.
 
 ## Non-Goals
 
-- Does not implement Service Bus sessions or duplicate detection configuration.
-- Does not batch multiple outbox rows into one Service Bus message.
+- It does not implement Service Bus sessions or duplicate detection configuration.
+- It does not batch multiple outbox rows into one Service Bus message.
 
 ## Public Surface
 
@@ -62,9 +62,9 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `OutboxModuleBuilder.UseAzureServiceBusDispatch(Action<TransportOutboxDispatcherOptions>)` | Registers outbox transport dispatcher that requires the root Azure Service Bus transport |
-| `TransportOutboxDispatchModule.DefaultHookFailurePolicy` | Defaults to `CompleteDespiteHookFailure` |
-| `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | Publishes outbox envelope with canonical headers |
+| `OutboxModuleBuilder.UseAzureServiceBusDispatch(Action<TransportOutboxDispatcherOptions>)` | Registers the outbox transport dispatcher, which requires the root Azure Service Bus transport |
+| `TransportOutboxDispatchModule.DefaultHookFailurePolicy` | The policy defaults to `CompleteDespiteHookFailure` |
+| `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | Publishes the outbox envelope with canonical headers |
 
 `AzureServiceBusTransportOptions`:
 
@@ -79,12 +79,12 @@ services.AddLiteBus(litebus =>
 
 | Signal | Detail |
 | --- | --- |
-| `send {destination}` | Service Bus send span with destination and subject route |
+| `send {destination}` | Service Bus send span with the destination and subject route |
 | `litebus.transport.circuit_breaker.*` | Tag `azure_service_bus` |
-| `litebus.outbox.processor.published` / `failed` / `dead_lettered` | Processor terminal counters |
-| `litebus.outbox.processor.dispatch_duration` | Histogram including Service Bus SDK send time |
+| `litebus.outbox.processor.published` / `failed` / `dead_lettered` | The processor terminal counters |
+| `litebus.outbox.processor.dispatch_duration` | A histogram including the Service Bus SDK send time |
 
-## Deep Docs
+## References
 
 - [Outbox.md](../../reliable-messaging/outbox.md)
 - [Integration-Tests.md](../../testing/integration-tests.md)
@@ -101,8 +101,8 @@ services.AddLiteBus(litebus =>
 
 ### Untested
 
-- `CompleteDespiteHookFailure` path with after-dispatch hook failure.
-- Unreachable namespace and breaker-open dispatch behavior.
+- The `CompleteDespiteHookFailure` path with after-dispatch hook failure.
+- The unreachable namespace and breaker-open dispatch behavior.
 - Session and duplicate detection interactions.
 
 ### Out-of-Scope

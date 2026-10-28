@@ -1,6 +1,6 @@
 # Inbox AMQP Ingress
 
-AMQP inbox ingress consumes commands from a broker queue and accepts them into the inbox store through `IInbox.AcceptAsync`. Pair with inbox storage, one dispatcher, and `EnableInboxProcessor`.
+AMQP inbox ingress consumes commands from a broker queue and accepts them into the inbox store through `IInbox.AcceptAsync`. Pair it with inbox storage, one dispatcher, and `EnableInboxProcessor`.
 
 RabbitMQ and LavinMQ both implement AMQP 0.9.1. `LiteBus.Transport.Amqp` connects to either broker.
 

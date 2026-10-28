@@ -9,7 +9,7 @@
 
 ## What It Does
 
-The extension registers `TransportInboxDispatchModule` with `AzureServiceBusTransportModule`. `DefaultDestination` maps to queue or topic name; route maps to subject. Behavior follows the shared transport inbox dispatcher with Azure-specific ack semantics on the consumer side (ingress or remote workers).
+The extension registers `TransportInboxDispatchModule` with `AzureServiceBusTransportModule`. `DefaultDestination` holds the queue or topic name, and the route becomes the subject. Dispatch behaves as the shared transport inbox dispatcher describes. Azure-specific acknowledgment semantics apply on the consumer side, in ingress or in remote workers.
 
 ## Packages
 
@@ -27,14 +27,14 @@ The extension registers `TransportInboxDispatchModule` with `AzureServiceBusTran
 
 ## Invariants
 
-- One Azure Service Bus transport module per composition.
-- Publish path uses Service Bus message properties for LiteBus headers.
-- Consumer reconnect uses exponential backoff in `AzureServiceBusConsumer` (transport layer).
+- A composition holds no more than one Azure Service Bus transport module.
+- The publish path carries LiteBus headers in Service Bus message properties.
+- The consumer reconnects with exponential backoff in `AzureServiceBusConsumer`. The transport layer owns that behavior.
 
 ## Non-Goals
 
-- Does not manage Service Bus entity creation (application or infrastructure responsibility).
-- Does not consume messages (ingress axis for intake).
+- It does not manage Service Bus entity creation, because that is an application or infrastructure responsibility.
+- It does not consume messages, because the ingress axis owns intake.
 
 ## Public Surface
 
@@ -62,8 +62,8 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `InboxModuleBuilder.UseAzureServiceBusDispatch(Action<TransportInboxDispatcherOptions>)` | Registers inbox transport dispatcher that requires the root Azure Service Bus transport |
-| `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | Shared publish flow for inbox leases |
+| `InboxModuleBuilder.UseAzureServiceBusDispatch(Action<TransportInboxDispatcherOptions>)` | Registers the inbox transport dispatcher, which requires the root Azure Service Bus transport |
+| `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | The shared publish flow for inbox leases |
 
 `AzureServiceBusTransportOptions`:
 
@@ -78,14 +78,14 @@ services.AddLiteBus(litebus =>
 
 | Signal | Detail |
 | --- | --- |
-| `send {destination}` | Queue or topic name, subject route, message id, and `messaging.system=servicebus` |
+| `send {destination}` | The queue or topic name, the subject route, the message id, and `messaging.system=servicebus` |
 | `litebus.transport.circuit_breaker.*` | Broker tag `azure_service_bus` |
-| `litebus.inbox.processor.dispatch_duration` | Full dispatch including Service Bus send |
-| `process {destination}` | Ingress path only, not dispatch |
+| `litebus.inbox.processor.dispatch_duration` | The full dispatch, including the Service Bus send |
+| `process {destination}` | It appears on the ingress path only, never on dispatch |
 
-Optional live-namespace tests in `AzureServiceBusOptionalIntegrationTests` when env vars are configured.
+The optional live-namespace tests in `AzureServiceBusOptionalIntegrationTests` run when the environment variables are configured.
 
-## Deep Docs
+## References
 
 - [Architecture.md: Transport resilience matrix](../../architecture/README.md#transport-resilience-capability-matrix)
 - [Integration-Tests.md](../../testing/integration-tests.md)
@@ -102,11 +102,11 @@ Optional live-namespace tests in `AzureServiceBusOptionalIntegrationTests` when 
 
 ### Untested
 
-- Dispatch failure path with unreachable namespace in dispatch-specific suite.
-- Circuit-breaker-open behavior for inbox Azure dispatch.
+- The dispatch failure path with an unreachable namespace in the dispatch-specific suite.
+- The circuit-breaker-open behavior for inbox Azure dispatch.
 - Tenant routing strategy override coverage.
 
 ### Out-of-Scope
 
-- Service Bus entity creation and IAM (application or infrastructure)
-- Consuming messages (`ingress.inbox.azure-service-bus`)
+- Service Bus entity creation and IAM (an application or infrastructure responsibility)
+- Consuming messages (see `ingress.inbox.azure-service-bus`)

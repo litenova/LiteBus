@@ -3,28 +3,30 @@
 - **ID**: `saga.handler-context`
 - **Name**: Handler saga context
 - **Maturity**: Extension
-- **Summary**: Injected ambient API for command handlers to read and mutate correlated saga state during inbox dispatch.
+- **Summary**: An injected ambient API lets command handlers read and mutate correlated saga state during inbox dispatch.
 
 ## What It Does
 
-`ISagaContext` is the handler-facing surface for saga. When a saga scope is active, handlers call `GetState<TState>()` to read the current snapshot, `SetState(state)` to replace state for post-dispatch save, and `Complete()` to mark the workflow terminal after dispatch succeeds. Reading state never marks the scope changed; the hook compares the serialized state with the snapshot taken at load, so in-place mutations of the returned instance persist without `SetState`, and a dispatch that only reads state saves nothing.
+`ISagaContext` is the handler-facing surface for saga. When a saga scope is active, handlers call `GetState<TState>()` to read the current snapshot. They call `SetState(state)` to replace the state for the post-dispatch save. They call `Complete()` to mark the workflow terminal after dispatch succeeds.
 
-`IsActive` is false when the envelope has no correlation, the contract is unmapped, the saga instance is already completed, or the message was already applied (redelivery marker match). The handler still runs for a new message on a completed saga; `IsActive` false only disables saga state access, so handlers should guard mutations with `IsActive`.
+Reading state never marks the scope as changed. In-place mutations of the returned instance persist without `SetState`, because the hook compares the serialized state with the snapshot taken at load. A dispatch that only reads state saves nothing.
 
-`SagaExecutionContext` implements `ISagaContext` as a singleton with one scope per durable message ID. The persisted saga key remains `SagaCorrelation`; the message key only isolates active dispatch snapshots in memory. The same singleton instance serves the processor hook and handlers.
+When the envelope has no correlation, the contract is unmapped, the saga instance is already completed, or the message was already applied (redelivery marker match), `IsActive` is false. The handler still runs for a new message on a completed saga. A false `IsActive` only disables saga state access, so handlers should guard mutations with `IsActive`.
 
-Saga handlers are standard `ICommandHandler<TCommand>` implementations with optional `ISagaContext` injection.
+`SagaExecutionContext` implements `ISagaContext` as a singleton with one scope per durable message id. The persisted saga key remains `SagaCorrelation`. The message key only isolates active dispatch snapshots in memory. The same singleton instance serves the processor hook and handlers.
+
+Saga handlers are standard `ICommandHandler<TCommand>` implementations that optionally inject `ISagaContext`.
 
 ## Public Surface
 
 | Surface | Package | Role |
 | --- | --- | --- |
-| `ISagaContext.IsActive` | `LiteBus.Saga.Abstractions` | Indicates if current dispatch has an active saga scope |
-| `ISagaContext.Correlation` | `LiteBus.Saga.Abstractions` | Active `SagaCorrelation`, null when inactive |
-| `ISagaContext.GetState<TState>()` | `LiteBus.Saga.Abstractions` | Reads active state snapshot, throws when inactive |
-| `ISagaContext.SetState<TState>(...)` | `LiteBus.Saga.Abstractions` | Marks state dirty for `AfterDispatchAsync` persistence |
-| `ISagaContext.Complete()` | `LiteBus.Saga.Abstractions` | Marks scope for completion persist path |
-| `SagaExecutionContext` registration | `LiteBus.Saga` | Singleton context exposed as `ISagaContext` by `SagaModule` |
+| `ISagaContext.IsActive` | `LiteBus.Saga.Abstractions` | Tells whether the current dispatch has an active saga scope |
+| `ISagaContext.Correlation` | `LiteBus.Saga.Abstractions` | The active `SagaCorrelation`, null when inactive |
+| `ISagaContext.GetState<TState>()` | `LiteBus.Saga.Abstractions` | Reads the active state snapshot and throws when inactive |
+| `ISagaContext.SetState<TState>(...)` | `LiteBus.Saga.Abstractions` | Marks state dirty for persistence in `AfterDispatchAsync` |
+| `ISagaContext.Complete()` | `LiteBus.Saga.Abstractions` | Marks the scope for the completion persist path |
+| `SagaExecutionContext` registration | `LiteBus.Saga` | Singleton context exposed as `ISagaContext`, registered by `SagaModule` |
 
 ## Packages
 
@@ -33,34 +35,34 @@ Saga handlers are standard `ICommandHandler<TCommand>` implementations with opti
 
 ## Requires
 
-- `saga.processor-hook` (activates scope)
-- `saga.inbox-command-scope` (re-attaches scope in nested mediation scope)
-- Command module and inbox dispatch
+- `saga.processor-hook`, which activates the scope.
+- `saga.inbox-command-scope`, which re-attaches the scope in the nested mediation scope.
+- The command module and inbox dispatch.
 
 ## Invariants
 
-- `GetState`, `SetState`, and `Complete` throw when no scope is active.
-- Do not combine `Complete()` with state changes in the same dispatch, either through `SetState()` or through in-place mutation of the `GetState()` instance; persist final state on one message and complete on a later correlated message.
-- Handlers must be idempotent under at-least-once inbox redelivery; always read current state before mutating.
-- State types must be `class` with parameterless constructor (`new()` constraint).
+- When no scope is active, `GetState`, `SetState`, and `Complete` throw.
+- Do not combine `Complete()` with state changes in the same dispatch, either through `SetState()` or through in-place mutation of the `GetState()` instance. Persist final state on one message and complete on a later correlated message.
+- Handlers must be idempotent under at-least-once inbox redelivery. Always read current state before mutating.
+- State types must be a `class` with a parameterless constructor (the `new()` constraint).
 
 ## Non-Goals
 
-- Does not expose saga store directly to handlers (use `ISagaContext` only).
-- Does not auto-advance workflow steps or schedule timers.
-- Not available on outbox handlers or non-inbox mediator calls.
+- The saga does not expose the store directly to handlers. Use `ISagaContext` only.
+- The saga does not auto-advance workflow steps or schedule timers.
+- The context is not available on outbox handlers or non-inbox mediator calls.
 
 ## Observability
 
-No meters, activities, or structured logging on `ISagaContext` itself.
+`ISagaContext` itself has no meters, activities, or structured logging.
 
-**What to use instead**
+Use the following instead:
 
-- Application logging inside handlers when `IsActive` is false unexpectedly.
-- Inbox processor metrics for redelivery counts when handlers are not idempotent.
-- Store `QueryAsync` for inspecting persisted state after dispatch.
+- Add application logging inside handlers when `IsActive` is false unexpectedly.
+- Use inbox processor metrics for redelivery counts when handlers are not idempotent.
+- Use the store `QueryAsync` to inspect persisted state after dispatch.
 
-## Deep Docs
+## References
 
 - [Architecture](../../architecture/README.md)
 - [processor-hook](processor-hook.md)
@@ -72,78 +74,78 @@ No meters, activities, or structured logging on `ISagaContext` itself.
 
 #### `SagaProcessorHookTests.ProcessPendingAsync_PersistsSagaStateAfterSuccessfulDispatch`
 
-- **Use case**: Handler reads and mutates state through `ISagaContext` during inbox dispatch.
+- **Use case**: The handler reads and mutates state through `ISagaContext` during inbox dispatch.
 - **Test kind**: Unit
-- **Description**: `SagaMutatingDispatcher` handler checks `IsActive`, calls `GetState`/`SetState`.
-- **Behavior**: In-process inbox dispatch with active saga scope.
-- **Expected outcome**: Persisted state reflects handler increment.
+- **Description**: The `SagaMutatingDispatcher` handler checks `IsActive` and calls `GetState` and `SetState`.
+- **Behavior**: Inbox dispatch runs in-process with an active saga scope.
+- **Expected outcome**: The persisted state reflects the handler increment.
 - **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
 
 #### `SagaPureReadTests.AfterDispatchAsync_WhenDispatchOnlyReadsState_SkipsSave`
 
-- **Use case**: Observing state through `GetState` without changing it performs no save.
+- **Use case**: A handler that observes state through `GetState` without changing it performs no save.
 - **Test kind**: Unit
-- **Description**: Handler reads the snapshot and returns it unchanged.
-- **Behavior**: Snapshot comparison finds no changes after dispatch.
-- **Expected outcome**: No save and no row created for the new saga.
+- **Description**: The handler reads the snapshot and returns it unchanged.
+- **Behavior**: After dispatch, the serialized state matches the load snapshot.
+- **Expected outcome**: The hook saves nothing and creates no row for the new saga.
 - **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
 
 #### `SagaPureReadTests.AfterDispatchAsync_WhenStateChangesInPlace_PersistsWithoutSetState`
 
-- **Use case**: Mutating the `GetState` instance in place persists without `SetState`.
+- **Use case**: When the handler mutates the `GetState` instance in place, the change persists without `SetState`.
 - **Test kind**: Unit
-- **Description**: Handler sets a property on the returned state object.
+- **Description**: The handler sets a property on the returned state object.
 - **Behavior**: The serialized state differs from the load snapshot, so the hook saves.
 - **Expected outcome**: The stored row carries the mutation at version 1.
 - **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
 
 #### `PostgreSqlSagaInboxEndToEndTests.ProcessPendingAsync_with_EnableSaga_should_persist_state_in_postgresql`
 
-- **Use case**: Handler context works with PostgreSQL-backed saga store.
+- **Use case**: The handler context persists state through the PostgreSQL-backed saga store.
 - **Test kind**: Integration
 - **Description**: `AdvanceOrderSagaCommandHandler` uses `ISagaContext` in full composition.
-- **Behavior**: Single correlated command dispatch.
-- **Expected outcome**: PostgreSQL row matches handler mutation.
+- **Behavior**: The test dispatches a single correlated command.
+- **Expected outcome**: The PostgreSQL row matches the handler mutation.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
 
 #### `PostgreSqlSagaOrchestrationDepthTests.ProcessPendingAsync_two_workflow_steps_should_advance_single_saga_instance`
 
-- **Use case**: Handler context accumulates state across two correlated dispatches.
+- **Use case**: The handler context accumulates state across two correlated dispatches.
 - **Test kind**: Integration
-- **Description**: Multi-step workflow handler mutates flags and step counter.
-- **Behavior**: Two inbox messages, same correlation.
-- **Expected outcome**: Final state has both workflow flags and `Step == 2`.
+- **Description**: The multi-step workflow handler mutates flags and the step counter.
+- **Behavior**: Two inbox messages share the same correlation.
+- **Expected outcome**: The final state has both workflow flags and `Step == 2`.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
 
 #### `PostgreSqlSagaOrchestrationDepthTests.ProcessPendingAsync_when_capture_fails_compensation_should_restore_prior_saga_state`
 
-- **Use case**: Handler failure leaves context mutations unpersisted; compensation handler rolls back via context.
+- **Use case**: A handler failure leaves context mutations unpersisted. The compensation handler rolls back through the context.
 - **Test kind**: Integration
-- **Description**: Failure gate on capture; compensate command clears inventory flag.
-- **Behavior**: Handler throws before hook save; later handler uses context for rollback.
-- **Expected outcome**: Prior saga version restored then compensated flag set.
+- **Description**: A failure gate blocks capture. The compensate command clears the inventory flag.
+- **Behavior**: The handler throws before the hook saves. A later handler uses the context for rollback.
+- **Expected outcome**: The prior saga version is restored, then the compensated flag is set.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
 
 #### `PostgreSqlSagaOrchestrationDepthTests.ProcessPendingAsync_parallel_workers_should_preserve_single_saga_version_increment`
 
-- **Use case**: Handlers remain idempotent under concurrent dispatch on same correlation.
+- **Use case**: Handlers remain idempotent under concurrent dispatch on the same correlation.
 - **Test kind**: Integration
-- **Description**: Increment handler with artificial delay under parallel processors.
-- **Behavior**: Each handler reads current step before incrementing.
-- **Expected outcome**: Final step count 1 or 2 with matching store version.
+- **Description**: The increment handler runs with an artificial delay under parallel processors.
+- **Behavior**: Each handler reads the current step before incrementing.
+- **Expected outcome**: The final step count is 1 or 2 with a matching store version.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
 
 #### `LiteBusV6CompositionSmokeTests.AddV6CompositionSmoke_ShouldPersistSagaStateAcrossCorrelatedCommands`
 
 - **Use case**: Sample handlers use injected `ISagaContext` across correlated commands.
 - **Test kind**: Composition
-- **Description**: Sample `AdvanceOrderSagaCommandHandler`.
-- **Behavior**: Two correlated accepts processed sequentially.
-- **Expected outcome**: `Step == 2`.
+- **Description**: The test uses the sample `AdvanceOrderSagaCommandHandler`.
+- **Behavior**: The test processes two correlated accepts sequentially.
+- **Expected outcome**: The state reaches `Step == 2`.
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/Runtime/Composition/`.
 
 ### Out-of-Scope Use Cases
 
-- `ISagaContext` on outbox handlers or direct mediator calls.
-- Automatic workflow advancement or timer scheduling.
-- Direct `ISagaStore` access from handlers.
+- Using `ISagaContext` on outbox handlers or direct mediator calls.
+- Advancing workflows automatically or scheduling timers.
+- Handlers accessing `ISagaStore` directly.

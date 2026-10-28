@@ -15,7 +15,7 @@ The analyzer reports when a concrete `ICommand` or `ICommand<TResult>` type has 
 
 - No `ICommandHandler<TCommand>` or `ICommandHandler<TCommand, TResult>` for the type.
 - No handler registered for a base command type that is assignable from the concrete type.
-- No supported open generic main command handler that closes for the type (an arity-2 handler binds the message's declared result type and covers only messages that declare one).
+- No supported open generic main command handler closes for the type. An arity-2 handler binds the message's declared result type, so it covers only messages that declare one.
 
 ### LB1009 (Missing Query Handler)
 
@@ -24,9 +24,9 @@ The analyzer reports when a concrete query type has no matching main query handl
 - `IQuery<TResult>` requires `IQueryHandler<TQuery, TResult>`.
 - `IStreamQuery<TResult>` requires `IStreamQueryHandler<TQuery, TResult>`.
 - Stream queries are checked against stream query handlers, not regular query handlers.
-- No supported open generic main handler that closes for the type (an arity-2 handler binds the message's declared result type and covers only messages that declare one).
+- No supported open generic main handler closes for the type. An arity-2 handler binds the message's declared result type, so it covers only messages that declare one.
 
-Message candidates are scoped to the analyzed assembly: a message from a referenced assembly is never reported, while handlers from eligible referenced assemblies still satisfy coverage. A handler that lives in a dependent project stays invisible; co-locate it with the message or suppress the diagnostic. See [Analyzers](../../reference/analyzers.md).
+Message candidates are scoped to the analyzed assembly. A message from a referenced assembly is never reported, but handlers from eligible referenced assemblies still satisfy coverage. A handler that lives in a dependent project stays invisible, so co-locate it with the message or suppress the diagnostic. See [Analyzers](../../reference/analyzers.md).
 
 ## Bad Example
 

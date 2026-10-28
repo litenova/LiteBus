@@ -21,4 +21,4 @@ public sealed class CustomTransportContractTests : TransportContractTests
 }
 ```
 
-The inherited suite verifies payload and metadata round trips, explicit redelivery, and pre-publication cancellation. Run the suite against a real broker in CI; an in-memory substitute does not validate broker acknowledgement or header behavior.
+The inherited suite verifies payload and metadata round trips, explicit redelivery, and pre-publication cancellation. Run the suite against a real broker in CI. An in-memory substitute does not validate broker acknowledgement or header behavior.

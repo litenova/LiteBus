@@ -3,11 +3,11 @@
 - **ID**: `runtime.contract-registry`
 - **Name**: Message contract registry
 - **Maturity**: GA
-- **Summary**: Maps message CLR types to stable contract name/version pairs and supports reverse lookup.
+- **Summary**: The registry maps message CLR types to stable contract names and versions, and maps stored contract keys back to message types.
 
 ## What It Does
 
-`MessageContractRegistry` implements `IMessageContractRegistry` (`IContractWriter` and `IContractReader`). It supports explicit registration, assembly scanning via `[MessageContract]`, and reverse type lookup from stored contract keys.
+`MessageContractRegistry` implements `IMessageContractRegistry` (`IContractWriter` and `IContractReader`). It supports explicit registration, assembly scanning for types marked with `[MessageContract]`, and lookup of message types from stored contract keys.
 
 ## Public Surface
 
@@ -16,7 +16,7 @@
 | `Register<TMessage>(string, int)` | Explicit generic contract registration |
 | `Register(Type, string, int)` | Runtime type registration |
 | `AddFromAssembly(Assembly)` | Attribute-driven registration |
-| `RegisterFromAssembly(Assembly)` | Extension on `IContractWriter` and `IMessageContractRegistry`; delegates to `AddFromAssembly` |
+| `RegisterFromAssembly(Assembly)` | Extension on `IContractWriter` and `IMessageContractRegistry` that delegates to `AddFromAssembly` |
 | `GetContract(Type)` / `TryGetContract(Type)` | Type-to-contract lookup |
 | `GetMessageType(string, int)` / `TryGetMessageType(string, int)` | Contract-to-type lookup |
 
@@ -32,16 +32,16 @@
 ## Invariants
 
 - Contract version defaults to 1 and must be positive.
-- Explicit registration rejects open generic message types; assembly scanning skips them.
-- Conflicting type or key mappings fail fast.
+- Explicit registration rejects open generic message types. Assembly scanning skips them.
+- When a type or key mapping conflicts with an existing one, registration throws.
 
 ## Non-Goals
 
-- Contract schema migration tooling.
+- Tools that migrate contract schemas.
 
 ## Observability
 
-No dedicated telemetry. Contract conflicts throw contract-specific exceptions.
+The registry emits no telemetry. Contract conflicts throw contract-specific exceptions.
 
 ## Test Coverage
 
@@ -49,22 +49,22 @@ No dedicated telemetry. Contract conflicts throw contract-specific exceptions.
 
 #### `MessageContractRegistryTests.AddFromAssembly_ShouldRegisterAttributedClosedTypes`
 - **Test kind**: Unit
-- **Expected outcome**: attributed closed message types are registered
+- **Expected outcome**: the registry registers the attributed closed message types
 
 #### `MessageContractRegistryTests.TryGetContract_WhenAttributePresent_ShouldRegisterOnDemand`
 - **Test kind**: Unit
-- **Expected outcome**: attributed type can self-register on lookup
+- **Expected outcome**: an attributed type registers itself on lookup
 
 #### `LiteBusBuilderTests.AddLiteBus_WithMessagingContracts_ShouldRegisterContractsInResolvedRegistry`
 - **Test kind**: Unit
-- **Expected outcome**: messaging-builder contract registrations are applied
+- **Expected outcome**: the builder applies the messaging contract registrations
 
 ### Untested Use Cases
 
 | Use case | Priority | Notes |
 | --- | --- | --- |
-| High-contention registration and lookup | Medium | Locking exists, contention tests are limited |
+| High-contention registration and lookup | Medium | Locking exists but contention tests are limited |
 
 ### Out-of-Scope Use Cases
 
-- External schema registry synchronization.
+- Synchronizing with an external schema registry.

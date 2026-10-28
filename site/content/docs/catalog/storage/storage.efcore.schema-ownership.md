@@ -3,7 +3,7 @@
 - **ID**: `storage.efcore.schema-ownership`
 - **Name**: EF Core schema ownership
 - **Maturity**: GA
-- **Summary**: Documents the EF Core storage contract where applications own all DDL through EF migrations. LiteBus supplies model configuration helpers but never runs migrations or startup schema ensure.
+- **Summary**: With EF Core storage, applications own all DDL through EF migrations. LiteBus supplies model configuration helpers but never runs migrations or ensures the schema at startup.
 
 ## What It Does
 
@@ -13,9 +13,9 @@ For inbox and outbox EF adapters:
 2. Align `EntityFrameworkCoreInboxStoreOptions` and `EntityFrameworkCoreOutboxStoreOptions` schema and table names with fluent configuration.
 3. Generate and apply EF migrations as part of normal application deployment.
 
-PostgreSQL schema initializers (`PostgreSql*SchemaInitializer`) are not registered for EF storage. Diagnostics `GetSchemaInfoAsync` reports expected LiteBus schema version; recorded version reflects application migration state.
+PostgreSQL schema initializers (`PostgreSql*SchemaInitializer`) are not registered for EF storage. Diagnostics `GetSchemaInfoAsync` reports the expected LiteBus schema version. The recorded version reflects application migration state.
 
-Column layouts mirror the PostgreSQL scripts (snake_case columns, filtered idempotency index, lease index, outbox topic index): the inbox model mirrors version 1 and the outbox model mirrors version 2, including the nullable `handler` column that carries the per-handler delivery target.
+Column layouts mirror the PostgreSQL scripts: snake_case columns, the filtered idempotency index, the lease index, and the outbox topic index. The inbox model mirrors version 1 and the outbox model mirrors version 2, including the nullable `handler` column that carries the per-handler delivery target.
 
 ## Public Surface
 
@@ -26,7 +26,7 @@ Column layouts mirror the PostgreSQL scripts (snake_case columns, filtered idemp
 | `InboxEntityFrameworkCoreModelExtensions.GetModelBuilderConfiguration` | Inbox entity, indexes, column types |
 | `OutboxEntityFrameworkCoreModelExtensions.GetModelBuilderConfiguration` | Outbox entity, indexes, column types |
 | `InboxMessageEntity` / `OutboxMessageEntity` | Mapped persistence entities |
-| `EfCoreRelationalModelColumnTypes` | Provider-appropriate JSON column types |
+| `EfCoreRelationalModelColumnTypes` | JSON column types for each provider |
 | `EntityFrameworkCoreInboxStoreOptions` / `EntityFrameworkCoreOutboxStoreOptions` | Schema and table naming |
 | `IInboxDbContext` / `IOutboxDbContext` | DbContext marker interfaces |
 
@@ -54,7 +54,7 @@ Column layouts mirror the PostgreSQL scripts (snake_case columns, filtered idemp
 ### Extension Points
 
 - Applications own all migration files and deployment order.
-- Custom column names require aligned options and fluent overrides (not recommended; breaks contract tests).
+- Custom column names require aligned options and fluent overrides. This is not recommended because it breaks contract tests.
 
 ## Packages
 
@@ -66,31 +66,31 @@ Column layouts mirror the PostgreSQL scripts (snake_case columns, filtered idemp
 
 ## Requires
 
-- EF Core migrations pipeline in the application
-- Matching options between LiteBus registration and `OnModelCreating`
+- An EF Core migrations pipeline in the application
+- Options that match between LiteBus registration and `OnModelCreating`
 
 ## Invariants
 
-- Mismatch between options and fluent config causes runtime query failures or drift exceptions on diagnostics.
+- A mismatch between options and fluent config causes runtime query failures or drift exceptions on diagnostics.
 - LiteBus never calls `Database.Migrate()` or `EnsureCreated()`.
 
 ## Non-Goals
 
-- Rendering EF migrations from LiteBus CLI
-- Automatic sync from PostgreSQL embedded SQL to EF model
-- Shared metadata table `litebus_schema_versions` on EF (PostgreSQL Npgsql path only)
+- Rendering EF migrations from a LiteBus CLI
+- Automatic sync from PostgreSQL embedded SQL to the EF model
+- A shared metadata table `litebus_schema_versions` on EF (PostgreSQL Npgsql path only)
 
 ## Observability
 
 | Signal | Source | Notes |
 | --- | --- | --- |
-| `GetSchemaInfoAsync` | `IInboxDiagnosticsStore` / `IOutboxDiagnosticsStore` | Reports logical store version 1 with the configured object names; the physical column layout still mirrors the PostgreSQL version (outbox version 2 with `handler`) |
-| `litebus.inbox.queue.depth` / `litebus.outbox.queue.depth` | `LiteBusInboxTelemetry` / `LiteBusOutboxTelemetry` | Requires matching schema; query failures prevent meaningful counts |
-| Application migration logs | Host deployment | Actual DDL state; LiteBus does not emit migration events |
+| `GetSchemaInfoAsync` | `IInboxDiagnosticsStore` / `IOutboxDiagnosticsStore` | Reports logical store version 1 with the configured object names. The physical column layout still mirrors the PostgreSQL version (outbox version 2 with `handler`) |
+| `litebus.inbox.queue.depth` / `litebus.outbox.queue.depth` | `LiteBusInboxTelemetry` / `LiteBusOutboxTelemetry` | Requires a matching schema. Query failures prevent meaningful counts |
+| Application migration logs | Host deployment | The actual DDL state. LiteBus does not emit migration events |
 
 No schema-specific OpenTelemetry instruments ship for EF ownership.
 
-## Deep Docs
+## References
 
 - [Inbox Entity Framework Core storage](../../integrations/inbox-ef-core-storage.md)
 - [Outbox Entity Framework Core storage](../../integrations/outbox-ef-core-storage.md)

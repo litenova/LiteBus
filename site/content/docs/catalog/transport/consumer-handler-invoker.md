@@ -3,20 +3,20 @@
 - **ID**: `transport.consumer-handler-invoker`
 - **Name**: Consumer handler invoker
 - **Maturity**: GA
-- **Summary**: Wrapper that executes raw transport handlers and requeues deliveries when non-cancellation exceptions escape.
+- **Summary**: Wrapper that runs raw transport handlers and requeues a delivery when an exception other than cancellation escapes the handler.
 
 ## What It Does
 
-`TransportConsumerHandlerInvoker.InvokeAsync` runs a `TransportMessage` handler in a guarded boundary:
+`TransportConsumerHandlerInvoker.InvokeAsync` runs a `TransportMessage` handler inside a guard that decides what happens to the delivery:
 
-- it starts one `process {destination}` consumer activity around the handler;
-- if handler succeeds, invoker does not auto-ack;
-- if handler throws while host is not stopping, invoker calls `ReturnToQueueAsync`;
-- if cancellation is requested for shutdown, `OperationCanceledException` propagates.
+- It starts one `process {destination}` consumer activity around the handler.
+- When the handler succeeds, the invoker does not acknowledge automatically.
+- When the handler throws while the host is not stopping, the invoker calls `ReturnToQueueAsync`.
+- When cancellation is requested for shutdown, `OperationCanceledException` propagates.
 
 This behavior applies to raw `IMessageConsumer` hosts. Inbox ingress modules use their own ingestion policy and can discard poison messages based on validation and storage outcomes.
 
-Consumer adapters retain the active consume task until `WaitUntilStoppedAsync` returns. Unexpected loop faults therefore reach the host supervision boundary instead of being reported only as a clean stop. Shutdown cancellation remains a normal completion path.
+Consumer adapters keep the active consume task until `WaitUntilStoppedAsync` returns. Unexpected loop faults therefore reach the host supervision boundary instead of being reported only as a clean stop. Shutdown cancellation remains a normal completion path.
 
 AMQP consumers copy the broker delivery body before invoking application code. RabbitMQ delivery buffers are owned by the client callback and must not be retained after the callback returns.
 
@@ -38,9 +38,9 @@ AMQP consumers copy the broker delivery body before invoking application code. R
 
 ## Invariants
 
-- Success path requires explicit ack by handler (`AcceptAsync`, `DiscardAsync`, or `ReturnToQueueAsync`).
-- Non-cancellation exceptions trigger requeue at invoker boundary.
-- Shutdown cancellation does not trigger explicit requeue from invoker.
+- On the success path, the handler acknowledges explicitly with `AcceptAsync`, `DiscardAsync`, or `ReturnToQueueAsync`.
+- Exceptions other than cancellation trigger a requeue at the invoker boundary.
+- Shutdown cancellation does not trigger an explicit requeue from the invoker.
 - Handler failures set error status and `error.type` on the process activity before requeue.
 
 ## Non-Goals
@@ -78,7 +78,7 @@ AMQP consumers copy the broker delivery body before invoking application code. R
 - Durable inbox poison and idempotency policy.
 - Broker-native dead-letter automation.
 
-## Deep Docs
+## References
 
 - [manual-acknowledgement.md](manual-acknowledgement.md)
 - [Architecture.md](../../architecture/README.md)

@@ -1,8 +1,8 @@
 # Analyzers
 
-Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+`LiteBus.Analyzers` provides compile-time rules for handler coverage, handler uniqueness, durable contract registration, inbox acceptance shape, and transactional configuration wiring. The package has no runtime dependency, so application projects and test projects can both reference it.
 
-`LiteBus.Analyzers` adds compile-time rules for handler coverage, handler uniqueness, durable contract registration, inbox acceptance shape, and transactional configuration wiring. The package has no runtime dependency and can be referenced from application projects and test projects.
+This page is the contributor contract reference for the rule inventory. Readers using LiteBus start with [the documentation overview](../../index.md).
 
 ```xml
 <PackageReference Include="LiteBus.Analyzers" PrivateAssets="all" />
@@ -69,7 +69,7 @@ Contributor contract reference. Readers using LiteBus start with [the documentat
 - Suppress only for intentional deviations that have explicit code review approval.
 - Keep suppression scope narrow (`#pragma warning disable <ID>` around one block, then restore).
 
-## Deep Docs
+## References
 
 - [Analyzers.md](../../reference/analyzers.md)
 - [Capability-Catalog.md](../../reference/capability-catalog.md)

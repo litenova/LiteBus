@@ -6,11 +6,11 @@ The inbox stores commands for deferred execution by a background processor, so w
 >
 > **After reading it** you can register contracts, storage, dispatch, and the processor for deferred execution. For the durable overview, start with [Reliable Messaging](README.md).
 
-If acceptance must happen in the same database transaction as domain persistence, see [Transactional messaging writes](transactional-writes.md).
+If acceptance must happen in the same database transaction as domain persistence, see [Transactional Messaging Writes](transactional-writes.md).
 
 ## Contract
 
-Use `IInbox.AcceptAsync` when the caller should receive an acceptance receipt instead of waiting for handler execution. The inbox is a durable command queue: acceptance stores work, and `PipelinedInboxProcessor` executes it with at-least-once semantics.
+When the caller should receive an acceptance receipt instead of waiting for handler execution, use `IInbox.AcceptAsync`. The inbox is a durable command queue. Acceptance stores work. `PipelinedInboxProcessor` executes it with at-least-once semantics.
 
 ```csharp
 public sealed record ProcessPaymentCommand(Guid PaymentId, decimal Amount) : ICommand;
@@ -41,15 +41,15 @@ public sealed record InboxReceipt
 }
 ```
 
-When `Outcome` is `AlreadyAccepted`, the store returned an existing row for the supplied message id or tenant-scoped idempotency key. Deduplication applies regardless of row status: a repeat accept with the same key returns the stored envelope, including `Completed` rows, without re-executing the handler.
+When `Outcome` is `AlreadyAccepted`, the store returns an existing row for the supplied message id or tenant-scoped idempotency key. Deduplication applies regardless of row status. A repeat accept with the same key returns the stored envelope, including `Completed` rows, without re-executing the handler.
 
-Under `IdempotencyConflictMode.Strict`, an identical replay still returns the existing row; only a conflicting submission whose id, contract name and version, payload, idempotency key, correlation, causation, or tenant differs throws `IdempotencyConflictException`.
+Under `IdempotencyConflictMode.Strict`, an identical replay still returns the existing row. Only a conflicting submission whose id, contract name and version, payload, idempotency key, correlation, causation, or tenant differs throws `IdempotencyConflictException`.
 
-A supplied message id that already exists for another tenant always throws `IdempotencyConflictException`, regardless of conflict mode. Supplied ids are global, so derive them per tenant or keep them unguessable.
+When a supplied message id already exists for another tenant, the store always throws `IdempotencyConflictException`, regardless of conflict mode. Supplied ids are global. Derive them per tenant or keep them unguessable.
 
 Start from `InboxAcceptMetadata.Immediate with { ... }` (or the factories below) rather than building metadata with uninitialized required fields.
 
-Use a query or read model when a caller needs the final state later. Deferred execution runs through `InboxAcceptMetadata.Visibility` (`MessageVisibility.At` or `MessageVisibility.After`). The writer surface has no separate scheduler interface.
+When a caller needs the final state later, use a query or read model. Deferred execution runs through `InboxAcceptMetadata.Visibility` (`MessageVisibility.At` or `MessageVisibility.After`). The writer surface has no separate scheduler interface.
 
 ### Item Factories
 
@@ -75,7 +75,7 @@ var item = InboxAcceptItem<ProcessPaymentCommand>.ScheduledAfter(
 var receipt = await inbox.AcceptAsync(item, cancellationToken).ConfigureAwait(false);
 ```
 
-Compose concerns with `with` on the metadata record when one factory is not enough, as the lead example shows.
+When one factory is not enough, compose concerns with `with` on the metadata record, as the first example shows.
 
 ### Ambient Trace Opt-In
 
@@ -90,11 +90,15 @@ builder.AddInbox(inbox =>
 });
 ```
 
-When enabled and an accepted item's `Metadata.Trace` is `MessageTrace.None`, the envelope factory stamps `MessageTrace.FromAmbient()`: the causation id becomes the incoming message id when the mediation replayed a stored envelope, the correlation id carries over (or falls back to the incoming message id when the ambient correlation id is absent), and an ambient distributed trace context is preserved. An explicit trace always wins, and outside a mediation the factory result is `None` as before. Only trace metadata is propagated; tenant, visibility, and identity keep the item's values.
+When enabled and an accepted item's `Metadata.Trace` is `MessageTrace.None`, the envelope factory stamps `MessageTrace.FromAmbient()`. When the mediation replayed a stored envelope, the causation id becomes the incoming message id. The correlation id carries over. When the ambient correlation id is absent, it falls back to the incoming message id. An ambient distributed trace context is preserved.
+
+An explicit trace always wins. Outside a mediation, the factory result is `None`, as without the option.
+
+The factory propagates only trace metadata. Tenant, visibility, and identity keep the item's values.
 
 ### Batch Writers
 
-`AcceptBatchAsync` accepts heterogeneous messages in one store round trip. Build each entry with the untyped `InboxAcceptItem`, which carries an explicit runtime type for contract lookup. Receipts return in the same order as the input items.
+`AcceptBatchAsync` accepts heterogeneous messages in one store round trip. Build each entry with the untyped `InboxAcceptItem`. It carries an explicit runtime type for contract lookup. The method returns receipts in the same order as the input items.
 
 ```csharp
 IReadOnlyList<InboxAcceptItem> items =
@@ -106,11 +110,11 @@ IReadOnlyList<InboxAcceptItem> items =
 IReadOnlyList<InboxReceipt> receipts = await inbox.AcceptBatchAsync(items, cancellationToken).ConfigureAwait(false);
 ```
 
-`ITransactionalInbox` and `ITransactionalInbox<TContext>` expose the same `AcceptBatchAsync` shape; on those paths the batch stages inside the caller transaction and commits atomically with it. See [Transactional messaging writes](transactional-writes.md).
+`ITransactionalInbox` and `ITransactionalInbox<TContext>` expose the same `AcceptBatchAsync` shape. On those paths, the batch stages inside the caller transaction and commits atomically with it. See [Transactional Messaging Writes](transactional-writes.md).
 
 ## Core Module
 
-`LiteBus.Inbox` registers orchestration only:
+`LiteBus.Inbox` registers only orchestration:
 
 | Service | Implementation | Role |
 | --- | --- | --- |
@@ -145,13 +149,15 @@ services.AddLiteBus(builder =>
 });
 ```
 
-Register every stored message type in `IMessageContractRegistry` with a stable name and version. Register explicitly on the inbox or messaging builder, or use `RegisterFromAssembly`. Analyzers split contract coverage: **LB1007** warns on handled durable types without `[MessageContract]` or registration, and **LB1017** warns on `[MessageContract]` types without explicit `Contracts.Register` or assembly scan. See [Analyzers](../reference/analyzers.md).
+Register every stored message type in `IMessageContractRegistry` with a stable name and version. Register explicitly on the inbox or messaging builder, or use `RegisterFromAssembly`.
 
-Closed generic types work when each closed shape is registered. Open generic contracts are rejected.
+Analyzers split contract coverage. **LB1007** warns on handled durable types without `[MessageContract]` or registration. **LB1017** warns on `[MessageContract]` types without explicit `Contracts.Register` or assembly scan. See [Analyzers](../reference/analyzers.md).
+
+When each closed shape is registered, closed generic types work. The module rejects open generic contracts.
 
 ## Processor Options
 
-`InboxProcessorOptions` inherits the shared durable settings. The processor reads them when the processor instance is created.
+`InboxProcessorOptions` inherits the shared durable settings. The processor reads them at creation.
 
 | Option | Default | Role |
 | --- | --- | --- |
@@ -160,12 +166,14 @@ Closed generic types work when each closed shape is registered. Open generic con
 | `DispatcherConcurrency` | `1` | Parallel dispatch workers per pass; keep `1` when arrival order matters |
 | `LeaseHeartbeatInterval` | 15 seconds | Lease renewal cadence during dispatch; zero disables renewal |
 | `Retry` | `new RetryOptions()` | Retry policy; see [Retry and Dead Letter](#retry-and-dead-letter) |
-| `LeaseOwner` | Generated | Owner written on leased rows; defaults to machine name, process id, and a random suffix |
+| `LeaseOwner` | Generated | Owner on leased rows, defaulting to machine name, process id, and a random suffix |
 | `TenantId` | `null` | When set, leases only that tenant partition; `null` leases all tenants |
 | `HonorShutdownTokenOnPersist` | `false` | Whether terminal persist observes the shutdown token |
 | `HookFailurePolicy` | `DeadLetter` | Inbox hardcodes dead letter when dispatch succeeded but an after-dispatch hook threw |
 
-`LeaseHeartbeatInterval` must be less than or equal to half of `LeaseDuration`; processor construction throws `ArgumentOutOfRangeException` otherwise. Larger batches reduce store round trips but hold more leases during dispatch. Longer leases tolerate slow handlers but delay recovery after a worker crash. See [Ordering and Concurrency Guarantees](ordering.md) before raising `DispatcherConcurrency`.
+`LeaseHeartbeatInterval` must be less than or equal to half of `LeaseDuration`. Processor construction throws `ArgumentOutOfRangeException` otherwise.
+
+Larger batches reduce store round trips but hold more leases during dispatch. Longer leases tolerate slow handlers but delay recovery after a worker crash. Before raising `DispatcherConcurrency`, see [Ordering and Concurrency Guarantees](ordering.md).
 
 ## Processor Host Options
 
@@ -187,7 +195,7 @@ inbox.EnableInboxProcessor(host =>
 });
 ```
 
-See [Hosted services](../architecture/hosted-services.md) for how processor loops bind to the generic host.
+See [Hosted Services](../architecture/hosted-services.md) for how processor loops bind to the generic host.
 
 ## Retention Cleanup
 
@@ -207,7 +215,9 @@ inbox.EnableCleanup(cleanup =>
 | `Interval` | 1 hour | Delay between cleanup passes; must be greater than zero |
 | `Retention` | `null` | How long completed rows are kept; `null` disables deletion |
 
-When `Retention` is `null`, the loop exits without deleting rows, so calling `EnableCleanup` without setting `Retention` retains everything. `IInboxManager.RunRetentionPurgeAsync` runs the same purge on demand and returns the deleted row count; it returns `0` when retention is unset. `IInboxManager.GetRetentionStatusAsync` reports the configured policy and the most recent cleanup outcome. Completion timestamps come from the processor clock, so retention cutoffs compare against the same clock that stamped the rows.
+When `Retention` is `null`, the loop exits without deleting rows, so calling `EnableCleanup` without setting `Retention` retains everything.
+
+`IInboxManager.RunRetentionPurgeAsync` runs the same purge on demand and returns the deleted row count. When retention is unset, it returns `0`. `IInboxManager.GetRetentionStatusAsync` reports the configured policy and the most recent cleanup outcome. Completion timestamps come from the processor clock, so retention cutoffs compare against the same clock that stamped the rows.
 
 ## Storage (`Use*` Extensions)
 
@@ -221,7 +231,7 @@ The writer persists through `IInboxStore`. `AddAsync` returns `InboxAppendResult
 
 ### Schema Version 1
 
-PostgreSQL inbox schema version **1** stores opaque payload text and includes `lease_generation`. The schema manager requires the complete current shape. Historical table replacement and data-mapping procedures live in the [Migration Guide](../migration/v6.md).
+PostgreSQL inbox schema version **1** stores opaque payload text and includes `lease_generation`. The schema manager requires the complete current shape. For historical table replacement and data-mapping procedures, see the [Migration Guide](../migration/v6.md).
 
 ### Transactional Writes (Domain + Inbox)
 
@@ -231,9 +241,9 @@ Default `IInbox.AcceptAsync` commits immediately through the singleton store. Br
 | --- | --- |
 | Ingress, edge accept, standalone storage | `IInbox` |
 | Command handler plus EF `DbContext` | `ITransactionalInbox<TContext>`: [Inbox EF Core storage](../integrations/inbox-ef-core-storage.md) |
-| Command handler plus PostgreSQL (Marten, Dapper, ADO.NET) | `ITransactionalInbox`: [Transactional messaging writes](transactional-writes.md) |
+| Command handler plus PostgreSQL (Marten, Dapper, ADO.NET) | `ITransactionalInbox`: [Transactional Messaging Writes](transactional-writes.md) |
 
-On the transactional EF path, a duplicate `message_id` or `(tenant_id, idempotency_key)` fails `SaveChanges` and rolls back the whole unit of work. Sharing a `DbContext` transaction gives no silent idempotent accept.
+On the transactional EF path, a duplicate `message_id` or `(tenant_id, idempotency_key)` fails `SaveChanges` and rolls back the whole unit of work. Sharing a `DbContext` transaction does not produce a silent idempotent accept.
 
 ## Dispatch (`Use*` Extensions)
 
@@ -246,20 +256,26 @@ On the transactional EF path, a duplicate `message_id` or `(tenant_id, idempoten
 | `UseKafkaDispatch(...)` | `LiteBus.Inbox.Dispatch.Kafka` | Publish through the root Kafka transport |
 | `UseInMemoryDispatch(...)` | `LiteBus.Inbox.Dispatch.InMemory` | Publish through in-memory transport (tests, local pipelines) |
 
-Without a registered dispatcher, module build fails when the processor is enabled.
+When the processor is enabled without a registered dispatcher, module build fails.
 
 ## Ingress
 
-Broker ingress extensions (`UseAmqpIngress`, `UseAzureServiceBusIngress`, `UseAwsSqsIngress`, `UseKafkaIngress`, `UseInMemoryIngress`) consume messages into `IInbox.AcceptAsync`. Register the matching `Add*Transport(...)` extension once at the root; ingress does not own broker connectivity.
+Broker ingress extensions (`UseAmqpIngress`, `UseAzureServiceBusIngress`, `UseAwsSqsIngress`, `UseKafkaIngress`, `UseInMemoryIngress`) consume messages into `IInbox.AcceptAsync`. Register the matching `Add*Transport(...)` extension once at the root. Ingress does not own broker connectivity.
 
-The accept-path contract is the same on every broker: ingress maps the broker delivery id to `MessageIdentity.Supplied` and a broker-scoped `Idempotency.Keyed` value (`ingress:{destination}:{brokerMessageId}`), so broker redelivery after a successful store accept does not create duplicate inbox rows. Non-GUID broker delivery ids also scope the derived identity to the ingress destination, so the same delivery id on two ingress sources maps to two inbox rows when tables are shared. Ingress honors `litebus-visible-after` (absolute ISO-8601) and `litebus-visible-after-delay` (relative `TimeSpan` or tick count) only when the broker binding is authenticated and `Safety.TrustApplicationHeaders` is `true`; relative delay takes precedence when both headers are present, and distrusted messages are immediately visible. Application idempotency and tenant headers apply only under the same trust setting, while correlation headers are always honored.
+The accept-path contract is the same on every broker. Ingress maps the broker delivery id to `MessageIdentity.Supplied` and a broker-scoped `Idempotency.Keyed` value (`ingress:{destination}:{brokerMessageId}`). Broker redelivery after a successful store accept therefore does not create duplicate inbox rows.
 
-Safety options, prefetch tuning, and acknowledgement policy are broker-specific. See the [AMQP](../integrations/amqp.md), [Kafka](../integrations/kafka.md), [AWS SQS](../integrations/aws-sqs.md), and [Azure Service Bus](../integrations/azure-service-bus.md) guides, and [Reliable Messaging Semantics](semantics.md) for the acknowledgement table.
+Non-GUID broker delivery ids also scope the derived identity to the ingress destination. When tables are shared, the same delivery id on two ingress sources therefore maps to two inbox rows.
+
+Ingress honors `litebus-visible-after` (absolute ISO-8601) and `litebus-visible-after-delay` (relative `TimeSpan` or tick count) only when the broker binding is authenticated and `Safety.TrustApplicationHeaders` is `true`. When both headers are present, relative delay takes precedence. Distrusted messages are immediately visible.
+
+Application idempotency and tenant headers apply only under the same trust setting. Correlation headers are always honored.
+
+Safety options, prefetch tuning, and acknowledgement policy are broker-specific. For broker specifics, see the [AMQP](../integrations/amqp.md), [Kafka](../integrations/kafka.md), [AWS SQS](../integrations/aws-sqs.md), and [Azure Service Bus](../integrations/azure-service-bus.md) guides. For the acknowledgement table, see [Reliable Messaging Semantics](semantics.md).
 
 ## Processing Flow
 
-1. Application code accepts a message through `IInbox.AcceptAsync` in the same transaction as the state change when possible.
-2. The writer resolves contract name and version from `message.GetType()`.
+1. When possible, application code accepts a message through `IInbox.AcceptAsync` in the same transaction as the state change.
+2. The writer resolves the contract name and version from `message.GetType()`.
 3. The writer serializes the message and stores an `InboxEnvelope`.
 4. `PipelinedInboxProcessor` leases due envelopes.
 5. The processor calls `IInboxDispatcher.DispatchAsync` for each envelope inside a per-message DI scope.
@@ -267,20 +283,26 @@ Safety options, prefetch tuning, and acknowledgement policy are broker-specific.
 
 ## Delivery Semantics
 
-Inbox processing is at-least-once, not exactly-once. A handler may run more than once after worker crash, lease expiry, heartbeat loss, or broker redelivery. Use `InboxAcceptMetadata.Idempotency` (`Idempotency.Keyed`) for insert-time deduplication, and write idempotent handlers for side effects.
+Inbox processing is at-least-once, not exactly-once. After a worker crash, lease expiry, heartbeat loss, or broker redelivery, a handler may run more than once. Use `InboxAcceptMetadata.Idempotency` (`Idempotency.Keyed`) for insert-time deduplication. Write idempotent handlers for side effects.
 
 `HonorShutdownTokenOnPersist` on `InboxProcessorOptions` controls terminal persist cancellation:
 
 | Value | Behavior |
 | --- | --- |
-| `false` (default) | Terminal `PersistAsync` receives `CancellationToken.None`. Shutdown may block until persist completes; lower risk of duplicate dispatch if persist is interrupted. |
-| `true` | Terminal persist receives the shutdown token. Faster drain on host stop; higher risk of duplicate dispatch if persist is canceled mid-write. |
+| `false` (default) | Terminal `PersistAsync` receives `CancellationToken.None`. Shutdown may block until persist completes, with lower risk of duplicate dispatch when persist is interrupted. |
+| `true` | Terminal persist receives the shutdown token. The host stops faster, with higher risk of duplicate dispatch when persist is canceled mid-write. |
 
-On graceful shutdown, a dispatch the processor cancels is released through `ILeaseRenewable.ReleaseLeaseAsync`. The row returns to `Pending` (or `Failed` when it already carries an error) with its lease cleared, its attempt count decremented, and its visibility unchanged. The cancellation does not spend an attempt. The release runs under a 5 second budget and logs EventId 3011 at Debug. When it fails, EventId 3012 is logged at Warning and the lease expires, so a later pass reclaims the row. When lease heartbeat renewal fails during dispatch, the processor persists a retryable `Failed` outcome instead of leaving the row in `Processing`. Drain never cancels dispatch: a drain runs one final pass with the uncancelled host token, so in-flight messages complete and persist normally.
+On graceful shutdown, the processor releases a dispatch it cancels through `ILeaseRenewable.ReleaseLeaseAsync`. The row returns to `Pending`, or to `Failed` when it already carries an error. The release clears its lease, decrements its attempt count, and leaves its visibility unchanged. The cancellation does not spend an attempt. The release runs under a 5 second budget and logs EventId 3011 at Debug.
+
+When the release fails, the processor logs EventId 3012 at Warning. The lease then expires, so a later pass reclaims the row.
+
+When lease heartbeat renewal fails during dispatch, the processor persists a retryable `Failed` outcome instead of leaving the row in `Processing`.
+
+Drain never cancels dispatch. A drain runs one final pass with the uncancelled host token, so in-flight messages complete and persist normally.
 
 ## Saga Orchestration
 
-Saga integrates through `inbox.EnableSaga(...)` from `LiteBus.Saga.InboxIntegration`. Saga hooks implement `IProcessorEnvelopeHook` from `LiteBus.DurableMessaging.Abstractions`; the inbox core maps `InboxEnvelope` through an adapter. Saga does not reference inbox types on its public surface.
+Saga integrates through `inbox.EnableSaga(...)` from `LiteBus.Saga.InboxIntegration`. Saga hooks implement `IProcessorEnvelopeHook` from `LiteBus.DurableMessaging.Abstractions`. The inbox core maps `InboxEnvelope` through an adapter. Saga does not reference inbox types on its public surface.
 
 ```csharp
 inbox.EnableSaga(saga =>
@@ -308,7 +330,7 @@ inbox.UseProcessorOptions(new InboxProcessorOptions
 });
 ```
 
-`RetryOptions` defaults apply when no retry policy is set:
+When no retry policy is set, `RetryOptions` defaults apply:
 
 | Option | Default | Role |
 | --- | --- | --- |
@@ -318,13 +340,17 @@ inbox.UseProcessorOptions(new InboxProcessorOptions
 | `Backoff` | `Exponential` | `Fixed`, `Exponential`, or `Schedule` |
 | `UseJitter` | `true` | Applies a random +-20% factor to the calculated delay |
 
-With the defaults, the four retry delays before jitter are 5, 10, 20, and 40 seconds: each step doubles `InitialDelay` and the 5 minute cap never binds. Jitter multiplies each delay by a factor between 0.8 and 1.2 and the result stays bounded by `MaxDelay`.
+With the defaults, the 4 retry delays before jitter are 5, 10, 20, and 40 seconds. Each step doubles `InitialDelay`. The 5 minute cap never binds.
 
-`Retry.MaxAttempts` counts dispatch attempts recorded on the leased envelope. When `AttemptCount` reaches `MaxAttempts` on failure, the processor moves the row to `DeadLettered`. Requeue operations through `IInboxManager.RequeueAsync` return `RequeueResult { Requested, Requeued }` so operators can see how many identifiers were not in the dead-letter state. Stores with a database clock use the database clock for lease visibility checks. `InboxLeaseRequest.Now` and `LeaseRenewalRequest.RequestedExpiresAt` are the fallback for stores without one.
+Jitter multiplies each delay by a factor between 0.8 and 1.2. The result stays bounded by `MaxDelay`.
+
+`Retry.MaxAttempts` counts dispatch attempts recorded on the leased envelope. When `AttemptCount` reaches `MaxAttempts` on failure, the processor moves the row to `DeadLettered`. Requeue operations through `IInboxManager.RequeueAsync` return `RequeueResult { Requested, Requeued }` so operators can see how many identifiers are not in the dead-letter state.
+
+Stores with a database clock use it for lease visibility checks. `InboxLeaseRequest.Now` and `LeaseRenewalRequest.RequestedExpiresAt` are the fallback for stores without one.
 
 ### Explicit Retry Schedules
 
-`RetryBackoff.Fixed` and `RetryBackoff.Exponential` derive every delay from `InitialDelay` under the `MaxDelay` cap. That cannot express a window that starts inside a minute and still reaches days. Exponential from one minute reaches roughly four hours by the ninth attempt. Stretching the tail to a week also pushes the first few retries hours apart.
+`RetryBackoff.Fixed` and `RetryBackoff.Exponential` derive every delay from `InitialDelay` under the `MaxDelay` cap. That derivation cannot express a window that starts inside a minute and still reaches days. Exponential from 1 minute reaches roughly 4 hours by the 9th attempt. Stretching the tail to a week also pushes the first few retries hours apart.
 
 `RetryBackoff.Schedule` takes the ladder directly:
 
@@ -350,26 +376,28 @@ Retry = new RetryOptions
 | Rule | Behavior |
 | --- | --- |
 | Attempt past the end of the ladder | Repeats the last entry rather than failing or wrapping |
-| `MaxDelay` | Does not clamp ladder entries; the ladder is the policy |
+| `MaxDelay` | Does not clamp ladder entries, because the ladder is the policy |
 | `UseJitter` | Still applies, bounded by the ladder entry rather than by `MaxDelay` |
 | Empty `Delays` with `Backoff = Schedule` | Refused at composition, not at the first failure |
 | `Delays` with any other backoff | Ignored |
 
-`Delays` is validated when the module builds. A misconfigured ladder fails at boot rather than on the first failure.
+The module validates `Delays` at build. A misconfigured ladder fails at boot rather than on the first failure.
 
-After-dispatch hook failures default to dead-lettering even when dispatch succeeded. Set `HookFailurePolicy = ProcessorHookFailurePolicy.CompleteDespiteHookFailure` on `InboxProcessorOptions` when hook persistence should not undo a successful handler run. The inbox default applies to transport dispatchers too: inbox AMQP or Kafka dispatch plus a hook failure dead-letters a message the broker already accepted, and the message is re-leased after replay and published a second time.
+Even when dispatch succeeded, after-dispatch hook failures default to dead-lettering. When hook persistence should not undo a successful handler run, set `HookFailurePolicy = ProcessorHookFailurePolicy.CompleteDespiteHookFailure` on `InboxProcessorOptions`.
+
+The inbox default applies to transport dispatchers too. Inbox AMQP or Kafka dispatch plus a hook failure dead-letters a message the broker already accepted. The processor re-leases it after replay and publishes it a second time.
 
 ## In-Memory Store Note
 
-`UseInMemoryStorage()` uses one process-wide lock for store mutations. It fits unit tests and single-process demos, not multi-worker production simulation. Prefer PostgreSQL or EF Core storage when validating lease contention across workers.
+`UseInMemoryStorage()` uses one process-wide lock for store mutations. It fits unit tests and single-process demos, not multi-worker production simulation. When validating lease contention across workers, prefer PostgreSQL or EF Core storage.
 
 ## Dual-Hop Topology
 
-Ingress accepts into the inbox store; dispatch adapters publish leased envelopes to a broker for remote execution. Document both hops in runbooks: broker ingress idempotency (stable delivery id) is independent from inbox processor at-least-once execution.
+Ingress accepts into the inbox store. Dispatch adapters publish leased envelopes to a broker for remote execution. Document both hops in runbooks. Broker ingress idempotency (stable delivery id) is independent from inbox processor at-least-once execution.
 
 ## Processor Lifetime Note
 
-`IInboxProcessor` registers as transient, but `InboxProcessorBackgroundService` holds one processor instance for the process lifetime so `LeaseOwner` stays stable. This is intentional.
+`IInboxProcessor` registers as transient. `InboxProcessorBackgroundService` holds one processor instance for the process lifetime, so `LeaseOwner` stays stable. This is intentional.
 
 ## Next
 

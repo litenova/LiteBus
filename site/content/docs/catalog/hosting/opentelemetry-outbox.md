@@ -38,7 +38,7 @@ These methods subscribe to public constants from `LiteBusOutboxTelemetry`.
 
 ## Invariants
 
-- Extension methods validate null builders.
+- The extension methods reject null builders.
 - Meter and activity source names are stable contract values.
 
 ## Non-Goals
@@ -47,7 +47,7 @@ These methods subscribe to public constants from `LiteBusOutboxTelemetry`.
 
 ## Observability
 
-Registers outbox source/meter only. Instrument emission happens in outbox runtime package.
+These methods register the outbox source and meter only. Instrument emission happens in the outbox runtime package.
 
 ## Test Coverage
 
@@ -57,7 +57,7 @@ Registers outbox source/meter only. Instrument emission happens in outbox runtim
 
 - **Use case**: stable outbox telemetry constant names
 - **Test kind**: Integration
-- **Description**: checks public outbox telemetry constants
+- **Description**: checks the public outbox telemetry constants
 - **Behavior**: reads `ActivitySourceName` and `MeterName`
 - **Expected outcome**: values match expected constants
 - **Remarks**: `tests/LiteBus.Extensions.IntegrationTests/OpenTelemetry/LiteBusOutboxOpenTelemetryIntegrationTests.cs`
@@ -66,8 +66,8 @@ Registers outbox source/meter only. Instrument emission happens in outbox runtim
 
 - **Use case**: tracing registration scope for outbox source
 - **Test kind**: Integration
-- **Description**: builds tracer provider with outbox instrumentation
-- **Behavior**: starts activity from outbox and unrelated source
+- **Description**: builds the tracer provider with outbox instrumentation
+- **Behavior**: starts activity from the outbox source and an unrelated source
 - **Expected outcome**: outbox activity is captured, unrelated is ignored
 - **Remarks**: `tests/LiteBus.Extensions.IntegrationTests/OpenTelemetry/LiteBusOutboxOpenTelemetryIntegrationTests.cs`
 
@@ -75,8 +75,8 @@ Registers outbox source/meter only. Instrument emission happens in outbox runtim
 
 - **Use case**: outbox meter registration scope
 - **Test kind**: Integration
-- **Description**: builds meter provider with outbox metrics extension
-- **Behavior**: emits one counter from outbox meter
+- **Description**: builds the meter provider with the outbox metrics extension
+- **Behavior**: emits one counter from the outbox meter
 - **Expected outcome**: listener observes outbox meter
 - **Remarks**: `tests/LiteBus.Extensions.IntegrationTests/OpenTelemetry/LiteBusOutboxOpenTelemetryIntegrationTests.cs`
 
@@ -84,13 +84,13 @@ Registers outbox source/meter only. Instrument emission happens in outbox runtim
 
 | Gap | Priority | Notes |
 | --- | --- | --- |
-| End-to-end exporter payload format for outbox telemetry | Low | Export pipeline is app-owned. |
+| End-to-end exporter payload format for outbox telemetry | Low | The export pipeline is application-owned. |
 
 ### Out-of-Scope Use Cases
 
 - Managed dashboard packaging.
 
-## Deep Docs
+## References
 
 - [Hosted services](../../architecture/hosted-services.md)
 - [Architecture](../../architecture/README.md)

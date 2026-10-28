@@ -48,7 +48,7 @@ Activity names include the destination, for example `send orders` and `process c
 | `litebus.transport.circuit_breaker.failure_recorded` | Counter | None | `LiteBusTransportTelemetry.CircuitBreakerFailureRecordedInstrumentName` |
 | `litebus.transport.circuit_breaker.opened` | Counter | None | `LiteBusTransportTelemetry.CircuitBreakerOpenedInstrumentName` |
 
-Built-in modules use broker tag values `amqp`, `kafka`, `sqs`, `azure_service_bus`, and `inmemory`. `AddLiteBusAmqpMetrics()` subscribes the shared meter; it does not create an AMQP-only meter.
+Built-in modules use broker tag values `amqp`, `kafka`, `sqs`, `azure_service_bus`, and `inmemory`. `AddLiteBusAmqpMetrics()` subscribes the shared meter. It does not create an AMQP-only meter.
 
 ## Package Boundaries
 
@@ -64,7 +64,7 @@ Built-in modules use broker tag values `amqp`, `kafka`, `sqs`, `azure_service_bu
 - The tracing extension subscribes `LiteBus.Transport` and ignores an unrelated source.
 - The metrics extension exposes instruments from the `LiteBus.Transport` meter to a provider.
 
-Circuit breaker measurements and disposal behavior are covered by `TransportObservableMetricsTests`.
+`TransportObservableMetricsTests` covers circuit breaker measurements and disposal behavior.
 
 ## Related Documentation
 

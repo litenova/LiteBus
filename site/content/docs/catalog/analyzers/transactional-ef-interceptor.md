@@ -5,7 +5,7 @@
 - **ID**: `analyzers.transactional-ef-interceptor`
 - **Diagnostic**: `LB1015` (Warning)
 - **Maturity**: GA
-- **Summary**: Reports transactional EF inbox or outbox storage configuration that calls `EnforceTransactionalSetup()` without `EnableSaveChangesInterceptor()` in the same scope.
+- **Summary**: Reports transactional EF inbox or outbox storage configuration that calls `EnforceTransactionalSetup()` without calling `EnableSaveChangesInterceptor()` in the same scope.
 
 ## Trigger Conditions
 
@@ -14,7 +14,7 @@
 - Invocation matches `EnforceTransactionalSetup()` on:
   - `EfCoreInboxStorageModuleBuilder`, or
   - `EfCoreOutboxStorageModuleBuilder`.
-- No `EnableSaveChangesInterceptor()` invocation on the same axis (inbox or outbox) is found in the same enclosing callback or method scope.
+- The same enclosing callback or method scope holds no `EnableSaveChangesInterceptor()` invocation on the same axis (inbox or outbox).
 
 ## Bad Example
 
@@ -46,7 +46,7 @@ public static void Configure(EfCoreInboxStorageModuleBuilder builder)
 ## Suppression Guidance
 
 - Prefer adding interceptor enablement rather than suppressing.
-- Suppress only if interceptor registration occurs in generated or external configuration and cannot be represented in same scope.
+- Suppress only when interceptor registration happens in generated or external configuration that cannot appear in the same scope.
 - Keep suppression near the affected configuration block.
 
 ## Test Coverage

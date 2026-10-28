@@ -1,29 +1,27 @@
 # Durable Core
 
-Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+LiteBus durable messaging stores commands and events before it runs or publishes them. Background processors then replay the stored messages with at-least-once delivery, using leases, retries, and operator tooling. This catalog is the reference for contributors to that axis. It maps each capability to its public surface, packages, invariants, observability, and test coverage. Readers using LiteBus start with [the documentation overview](../../index.md).
 
-LiteBus durable messaging persists commands and events before execution or publication, then replays them through background processors with at-least-once delivery, leases, retries, and operator tooling. This catalog maps each capability to its public surface, packages, invariants, observability, and test coverage.
+The scope covers the inbox, the outbox, reliable semantics, transactional writes, domain events, command-inbox patterns, the envelope lifecycle, processors, lease, retry, and dead-letter handling, idempotency, and scheduling metadata. Broker-specific transport guides sit outside this axis. The dispatch and ingress capabilities here describe how durable core connects to transport adapters.
 
-**Scope:** inbox, outbox, reliable semantics, transactional writes, domain events, command-inbox patterns, envelope lifecycle, processors, lease/retry/dead-letter, idempotency, and scheduling metadata. Broker-specific transport guides live outside this axis; dispatch and ingress capabilities here describe how durable core connects to transport adapters.
-
-**Catalog sections (per capability file):**
+Each capability file has the following sections:
 
 | Section | Content |
 | --- | --- |
 | **Public surface** | Consumer contracts, invocation, registration, configuration, and extension points |
-| **Observability** | Per-instrument detail: name, kind, when emitted, tags, enablement, operational notes |
-| **Test coverage** | One block per automated test method (use case, kind, description, behavior, outcome, remarks); untested and out-of-scope gaps remain as tables |
+| **Observability** | For each instrument, the name, kind, when it is emitted, tags, enablement, and operational notes |
+| **Test coverage** | One block per automated test method, with its use case, kind, description, behavior, outcome, and remarks. Untested and out-of-scope gaps appear as tables |
 
-**Test coverage research:** Tests under `tests/LiteBus.Inbox.UnitTests`, `tests/LiteBus.Outbox.UnitTests`, `tests/LiteBus.Durable.IntegrationTests` (`Ingress/`, `Dispatch/`, `Registration/`), `tests/LiteBus.Enterprise*`, and `tests/LiteBus.Storage*`.
+The test coverage sections draw on tests under `tests/LiteBus.Inbox.UnitTests`, `tests/LiteBus.Outbox.UnitTests`, `tests/LiteBus.Durable.IntegrationTests` (`Ingress/`, `Dispatch/`, `Registration/`), `tests/LiteBus.Enterprise*`, and `tests/LiteBus.Storage*`.
 
-**Maturity legend**
+The maturity column uses these tiers:
 
 | Tier | Meaning |
 | --- | --- |
-| GA | Production-ready; stable public contract |
-| Beta | Shipped; exercise in non-critical paths first |
+| GA | Production-ready, with a stable public contract |
+| Beta | Shipped. Try it in non-critical paths first |
 | Extension | Optional package on top of durable core |
-| Planned | Documented on [Roadmap](../../roadmap/README.md); not shipped |
+| Planned | Documented on [Roadmap](../../roadmap/README.md) but not shipped |
 
 ## Capabilities
 
@@ -50,7 +48,7 @@ LiteBus durable messaging persists commands and events before execution or publi
 | [durable-core.tenant-scoping](tenant-scoping.md) | Tenant scoping | GA |
 | [durable-core.processor-hooks](processor-hooks.md) | Processor envelope hooks | GA / Extension (Saga) |
 
-## Deep Docs
+## References
 
 | Topic | Doc |
 | --- | --- |

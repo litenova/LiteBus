@@ -8,9 +8,9 @@
 
 ## What It Does
 
-`ICommandMediator` sends command messages through `SingleAsyncHandlerMediationStrategy`. Commands resolve one main handler after routing filters are applied: direct handlers win, and an indirect (base-type) handler applies only when no direct handler survives. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level (direct, else indirect) survives. Both exceptions name the runtime message type, even when a non-generic overload erased it to `ICommand`.
+`ICommandMediator` sends command messages through `SingleAsyncHandlerMediationStrategy`. Commands resolve one main handler after routing filters are applied. Direct handlers win, and an indirect (base-type) handler applies only when no direct handler survives. Mediation throws `NoHandlerFoundException` when no handler survives filtering, and `MultipleHandlerFoundException` when more than one handler at the winning level (direct, else indirect) survives. Both exceptions name the runtime message type, even when a non-generic overload erased it to `ICommand`.
 
-Commands support both void (`ICommand`) and result (`ICommand<TResult>`) flows. A guard, a validator, or a shortcut can stop execution before the handler runs, as a refusal, a report that the message is malformed, or an early answer. Post-handlers can observe results, and result post-handlers can replace the returned value through `AmbientExecutionContext.Current.MessageResult`.
+Commands support both void (`ICommand`) and result (`ICommand<TResult>`) flows. A guard, a validator, or a shortcut can stop execution before the handler runs, with a refusal, a report that the message is malformed, or an early answer. Post-handlers can observe results, and post-handlers on result commands can replace the returned value through `AmbientExecutionContext.Current.MessageResult`.
 
 ## Public Surface
 
@@ -32,7 +32,7 @@ var id = await commandMediator.SendAsync(new CreateProductCommand("keyboard"), c
 | `ICommand<TResult>` | Result command contract |
 | `ICommandMediator.SendAsync(ICommand, CommandMediationSettings?, CancellationToken)` | Send void command |
 | `ICommandMediator.SendAsync<TResult>(ICommand<TResult>, CommandMediationSettings?, CancellationToken)` | Send result command |
-| `ICommandMediator.TrySendAsync` / `ICommandMediator.EvaluateAsync` | Refusal as a `MediationResult` value; guard and validator evaluation as a `MediationDecision` |
+| `ICommandMediator.TrySendAsync` / `ICommandMediator.EvaluateAsync` | Returns a refusal as a `MediationResult` value, and evaluates guards and validators as a `MediationDecision` |
 | `ICommandHandler<TCommand>` | Main handler for void command |
 | `ICommandHandler<TCommand, TResult>` | Main handler for result command |
 | `ICommandGuard<TCommand>` / `ICommandValidator<TCommand>` / `ICommandShortcut<TCommand>` / `ICommandShortcut<TCommand, TCommandResult>` / `ICommandPreHandler<TCommand>` | Decision and pre stages, in framework-fixed order |
@@ -59,7 +59,7 @@ var id = await commandMediator.SendAsync(new CreateProductCommand("keyboard"), c
 
 - One main handler must resolve for each command after routing filters, at the winning level (direct, else indirect).
 - `ArgumentNullException` is thrown for `null` commands.
-- A shortcut that answers a result-returning command must supply the result, which `ICommandShortcut<TCommand, TCommandResult>` makes a compile-time requirement; using the untyped contract instead throws `LiteBusConfigurationException`. A guard carries no such duty, so `ICommandGuard<TCommand>` fits every command.
+- A shortcut that answers a result-returning command must supply the result, which `ICommandShortcut<TCommand, TCommandResult>` makes a compile-time requirement. Using the untyped contract instead throws `LiteBusConfigurationException`. A guard carries no such duty, so `ICommandGuard<TCommand>` fits every command.
 - Post-handler result override applies to result commands only.
 
 ## Non-Goals
@@ -70,7 +70,7 @@ var id = await commandMediator.SendAsync(new CreateProductCommand("keyboard"), c
 
 ## Observability
 
-Command mediation is covered by the shared `LiteBus.Mediation` activity source and meter: one span per mediation plus duration, count, and decision instruments, with per-stage spans and metrics opt-in through `MessageModuleBuilder.UseTelemetry`. See [Handler pipeline](handler-pipeline.md) for the instrument table.
+Command mediation is covered by the shared `LiteBus.Mediation` activity source and meter, which record one span per mediation plus duration, count, and decision instruments. Per-stage spans and metrics are opt-in through `MessageModuleBuilder.UseTelemetry`. See [Handler pipeline](handler-pipeline.md) for the instrument table.
 
 Operational alternatives:
 - Use application logging in command handlers and pipeline handlers.
@@ -101,7 +101,7 @@ Operational alternatives:
 - Durable acceptance semantics (`IInbox.AcceptAsync`) and retry/dead-letter behavior.
 - Broker-backed command dispatch and ingress adapters.
 
-## Deep Docs
+## References
 
 - [Command module](../../concepts/commands.md)
 - [The handler pipeline](../../concepts/handler-pipeline.md)
