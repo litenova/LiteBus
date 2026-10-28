@@ -506,7 +506,7 @@ Before adding a project:
 ## Build and repo hygiene
 
 - Run `dotnet build LiteBus.slnx` after `src/` edits.
-- Strong-named assemblies: `InternalsVisibleTo` must include the solution public key (see `src/Directory.Build.props`).
+- Strong-named assemblies: `LiteBus.snk` is committed and every build signs with it; strong naming is assembly identity, not a security boundary. `InternalsVisibleTo` must include the solution public key (`$(LiteBusPublicKey)` in `src/Directory.Build.props`). Never change the key: it is part of every published assembly identity.
 - Central package versions: add NuGet packages to `src/Directory.Packages.props`, not inline in csproj files.
 - New test projects using xUnit attributes: add `GlobalUsings.cs` with `global using Xunit;` when the project has no other global usings for xUnit.
 

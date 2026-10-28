@@ -29,9 +29,13 @@
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
         <NuGetAudit>true</NuGetAudit>
         <NuGetAuditMode>all</NuGetAuditMode>
-        <!-- For Signing -->
-        <SignAssembly Condition="Exists('$(MSBuildThisFileDirectory)..\LiteBus.snk')">true</SignAssembly>
-        <AssemblyOriginatorKeyFile Condition="Exists('$(MSBuildThisFileDirectory)..\LiteBus.snk')">$(MSBuildThisFileDirectory)..\LiteBus.snk</AssemblyOriginatorKeyFile>
+        <!--
+            Strong naming gives the assemblies a stable identity only; it is not a security boundary, and .NET 10 never
+            validates the signature. The key pair is committed, as Microsoft's library guidance recommends, so every
+            build (forks and security scanners included) signs with the same identity as the published packages.
+        -->
+        <SignAssembly>true</SignAssembly>
+        <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)..\LiteBus.snk</AssemblyOriginatorKeyFile>
         <!--
             The public key every LiteBus assembly is signed with. InternalsVisibleTo across signed assemblies has to
             name it, so it lives here rather than being repeated at every grant.

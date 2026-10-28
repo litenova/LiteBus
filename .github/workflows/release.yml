@@ -195,12 +195,6 @@ jobs:
       - name: Restore
         run: dotnet restore LiteBus.slnx --locked-mode
 
-      - name: Decode Strong Name Key
-        uses: ./.github/actions/strong-name-key
-        with:
-          key: ${{ secrets.STRONG_NAME_KEY }}
-          required: 'true'
-
       - name: Build
         run: dotnet build LiteBus.slnx --configuration Release --no-restore /p:Version=${{ needs.verify.outputs.version }} /p:ContinuousIntegrationBuild=true
 

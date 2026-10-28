@@ -13,8 +13,8 @@
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
         <NuGetAudit>true</NuGetAudit>
         <NuGetAuditMode>all</NuGetAuditMode>
-        <SignAssembly Condition="Exists('$(MSBuildThisFileDirectory)..\LiteBus.snk')">true</SignAssembly>
-        <AssemblyOriginatorKeyFile Condition="Exists('$(MSBuildThisFileDirectory)..\LiteBus.snk')">$(MSBuildThisFileDirectory)..\LiteBus.snk</AssemblyOriginatorKeyFile>
+        <SignAssembly>true</SignAssembly>
+        <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)..\LiteBus.snk</AssemblyOriginatorKeyFile>
     </PropertyGroup>
 
     <ItemGroup Condition="'$(ManagePackageVersionsCentrally)' == 'true'">

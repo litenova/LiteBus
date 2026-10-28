@@ -16,7 +16,7 @@ RUN curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
     && bash /tmp/dotnet-install.sh --jsonfile /src/global.json --install-dir /usr/share/dotnet \
     && rm /tmp/dotnet-install.sh
 
-# The strong-name key is a CI secret and is not in the repository, so this build is unsigned, the same as a fork build.
+# LiteBus.snk is committed, so this build signs the assemblies with the same identity as the published packages.
 RUN dotnet restore LiteBus.slnx \
     && dotnet build LiteBus.slnx --no-restore -c Debug
 
