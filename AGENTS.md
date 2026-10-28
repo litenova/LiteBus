@@ -12,16 +12,6 @@ Package inventories, registration recipes, and feature-specific detail live in `
 - **Suggest guide updates.** When repeated overrides, new patterns, or outdated docs show a rule no longer fits, recommend a concrete edit to `AGENTS.md` or the relevant `site/content/docs/` file. The user decides whether to adopt it.
 - **Prefer dialogue over deadlock.** A short question beats a long assumption. If confirmation is unclear, ask once with options rather than blocking on rigid compliance.
 
-## Describing LiteBus
-
-Prose style (punctuation, line wrapping, casing, tone, sourcing) follows the global writing rules the agent already has; this repository adds none of its own. The points below are facts about LiteBus that those rules cannot supply.
-
-- Readers are experienced .NET developers who already understand messaging, CQS, DDD, and dependency injection.
-- Describe LiteBus as command, query, and event mediation, with optional inbox, outbox, saga, storage, transport, hosting, and observability modules. Say `in-process mediator` only when process locality is the subject, and then say that handlers execute in the caller's process.
-- Name durable behavior exactly: persisted inbox acceptance, transactional outbox enqueueing, lease-based processing, and the configured storage or transport adapter. Durable processing requires a selected store and processor host; mediation alone does not persist messages.
-- When comparing LiteBus with MediatR, lead with the licensing difference and the semantic command, query, and event model. Keep `IRequest` replacement details in migration documentation, not landing-page copy. Verify and cite current external licensing claims.
-- The license policy: LiteBus is MIT licensed, open source, free for commercial use, and will remain free.
-
 ## XML documentation (required)
 
 All C# under `src/` must use XML documentation comments (`///`) on every construct, including `private` and `internal` members. This applies to shipping libraries consumers reference and to internal implementation details agents maintain.
