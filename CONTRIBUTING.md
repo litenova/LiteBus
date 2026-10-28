@@ -8,7 +8,7 @@ Thank you for helping improve LiteBus. Start with the architecture guide and pac
 2. Make the smallest change that proves the behavior.
 3. Add or update tests at the narrowest useful level.
 4. Update XML documentation for every changed source member and update the relevant docs.
-5. Run `dotnet build LiteBus.slnx --configuration Release` and `dotnet test LiteBus.slnx --configuration Release --no-build`.
+5. Run `dotnet build LiteBus.slnx --configuration Release` and `dotnet test LiteBus.slnx --configuration Release --no-build`. The integration suites start PostgreSQL, SQL Server, MySQL, and broker emulators in containers, so they need Docker.
 6. Open a pull request.
 
 Keep package roles and opt-in dependency boundaries intact. If a change needs a new dependency edge or a breaking API, explain the trade-off in the pull request before implementation.
