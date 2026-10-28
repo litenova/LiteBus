@@ -1,8 +1,8 @@
 # Mediator
 
-Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+This section is the contributor contract reference for the mediator axis. Readers using LiteBus start with [the documentation overview](../../index.md).
 
-The mediator axis provides in-process command, query, and event mediation on top of the shared message module. It covers semantic contracts (`ICommand`, `IQuery<T>`, `IEvent`), pipeline stages (guard/validator/shortcut/pre/main/post/error/completion), routing filters, handler priority, declarative message metadata, audit records, authorization positions, command idempotency, unit-of-work commits, fault refusal classification, and execution context behavior.
+The mediator axis provides in-process command, query, and event mediation on top of the shared message module. It covers the semantic contracts (`ICommand`, `IQuery<T>`, `IEvent`) and the pipeline stages around them: guard, validator, shortcut, pre, main, post, error, and completion. It also covers routing filters, handler priority, declarative message metadata, audit records, authorization positions, command idempotency, unit-of-work commits, fault refusal classification, and execution context behavior.
 
 ## Capability Index
 
@@ -32,8 +32,8 @@ The mediator axis provides in-process command, query, and event mediation on top
 
 | Package | Role |
 | --- | --- |
-| `LiteBus.Messaging` | Core message mediator, registry, resolve and pipeline infrastructure |
-| `LiteBus.Messaging.Abstractions` | Shared handler attributes, execution context, mediation contracts |
+| `LiteBus.Messaging` | Core message mediator, with the registry, resolve, and pipeline infrastructure |
+| `LiteBus.Messaging.Abstractions` | Shared handler attributes, the execution context, and the mediation contracts |
 | `LiteBus.Commands` + `LiteBus.Commands.Abstractions` | Command mediator and command semantics |
 | `LiteBus.Queries` + `LiteBus.Queries.Abstractions` | Query mediator and stream query semantics |
 | `LiteBus.Events` + `LiteBus.Events.Abstractions` | Event mediator and broadcast semantics |
@@ -53,7 +53,7 @@ The mediator axis provides in-process command, query, and event mediation on top
 | `LiteBus.Mediator.UnitTests` (`FaultRefusals`) | Fault refusal classification tests |
 | `LiteBus.Mediator.UnitTests` (`HandledAt`) | Mediation start instant tests |
 
-## Deep Docs
+## References
 
 - [Command module](../../concepts/commands.md)
 - [Query module](../../concepts/queries.md)

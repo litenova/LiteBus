@@ -9,7 +9,7 @@
 
 ## What It Does
 
-Registers `TransportOutboxDispatchModule<TTransportModule>` with `KafkaTransportModule`. Outbox processor produces records to the configured topic with key from the resolver, topic metadata, or contract name. Payload and headers follow the same mapping as other transport outbox adapters.
+This extension registers `TransportOutboxDispatchModule<TTransportModule>` with `KafkaTransportModule`. The outbox processor produces records to the configured topic, with the key from the resolver, the topic metadata, or the contract name. The payload and headers follow the same mapping as other transport outbox adapters.
 
 ## Packages
 
@@ -27,14 +27,14 @@ Registers `TransportOutboxDispatchModule<TTransportModule>` with `KafkaTransport
 
 ## Invariants
 
-- Default hook failure policy: `CompleteDespiteHookFailure`.
-- At-least-once: consumers must deduplicate using headers or business logic.
-- No broker-level deduplication of republished outbox rows after processor crash.
+- The default hook failure policy is `CompleteDespiteHookFailure`.
+- Delivery is at-least-once, so consumers must deduplicate using headers or business logic.
+- The broker does not deduplicate republished outbox rows after a processor crash.
 
 ## Non-Goals
 
-- Does not use Kafka idempotent producer settings as outbox exactly-once guarantee.
-- Does not consume from topics.
+- It does not use Kafka idempotent producer settings as an outbox exactly-once guarantee.
+- It does not consume from topics.
 
 ## Public Surface
 
@@ -61,24 +61,24 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `OutboxModuleBuilder.UseKafkaDispatch(Action<TransportOutboxDispatcherOptions>)` | Registers outbox transport dispatcher that requires the root Kafka transport |
-| `TransportOutboxDispatchModule<TTransportModule>.DefaultHookFailurePolicy` | Defaults to `CompleteDespiteHookFailure` |
-| `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | Publishes outbox payload and headers to Kafka |
+| `OutboxModuleBuilder.UseKafkaDispatch(Action<TransportOutboxDispatcherOptions>)` | Registers the outbox transport dispatcher, which requires the root Kafka transport |
+| `TransportOutboxDispatchModule<TTransportModule>.DefaultHookFailurePolicy` | The policy defaults to `CompleteDespiteHookFailure` |
+| `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | Publishes the outbox payload and headers to Kafka |
 
-Route resolution: tenant strategy, then resolver, then envelope `Topic`, then contract name.
+Route resolution tries the tenant strategy first, then the resolver, then the envelope `Topic`, then the contract name.
 
 ## Observability
 
 | Signal | Detail |
 | --- | --- |
-| `send {destination}` | Topic destination, `messaging.kafka.message.key`, and message id attributes |
+| `send {destination}` | The topic destination, `messaging.kafka.message.key`, and message id attributes |
 | `litebus.transport.circuit_breaker.open` / `failure_count` | Tag `litebus.transport.broker="kafka"` |
-| `litebus.outbox.processor.published` / `failed` | Terminal outcomes after Kafka publish attempt |
-| `litebus.outbox.processor.dispatch_duration` | Includes producer send latency |
+| `litebus.outbox.processor.published` / `failed` | The terminal outcomes after the Kafka publish attempt |
+| `litebus.outbox.processor.dispatch_duration` | It includes producer send latency |
 
-Failure paths increment circuit breaker when broker is unreachable (`KafkaDispatchFailureIntegrationTests`).
+Failure paths increment the circuit breaker when the broker is unreachable (`KafkaDispatchFailureIntegrationTests`).
 
-## Deep Docs
+## References
 
 - [Outbox.md](../../reliable-messaging/outbox.md)
 - [Architecture.md: Kafka at-least-once semantics](../../architecture/README.md#kafka-at-least-once-semantics)
@@ -97,9 +97,9 @@ Failure paths increment circuit breaker when broker is unreachable (`KafkaDispat
 
 ### Untested
 
-- After-dispatch hook failure path with `CompleteDespiteHookFailure`.
-- Tenant route strategy branch and custom resolver branch.
-- Idempotent producer settings as an exactly-once guarantee, which is outside dispatch guarantees.
+- The after-dispatch hook failure path with `CompleteDespiteHookFailure`.
+- The tenant route strategy branch and the custom resolver branch.
+- Idempotent producer settings as an exactly-once guarantee, which is outside the dispatch guarantees.
 
 ### Out-of-Scope
 

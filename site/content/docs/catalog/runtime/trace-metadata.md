@@ -3,11 +3,11 @@
 - **ID**: `runtime.trace-metadata`
 - **Name**: Trace metadata and propagation
 - **Maturity**: GA
-- **Summary**: Represents durable trace metadata via `MessageTrace` variants and stable execution-context keys via `MessageTraceContextKeys`.
+- **Summary**: This capability represents durable trace metadata through `MessageTrace` variants and stable execution-context keys through `MessageTraceContextKeys`.
 
 ## What It Does
 
-Runtime captures correlation and distributed tracing fields in durable envelopes and mediation context:
+The runtime captures correlation and distributed tracing fields in durable envelopes and the mediation context:
 
 - `MessageTrace` variants: `None`, `Correlated`, `Workflow`, `Distributed`
 - `MessageTraceContextKeys`: correlation, causation, tenant, and trace-context item keys
@@ -16,7 +16,9 @@ Runtime captures correlation and distributed tracing fields in durable envelopes
 
 ## Ambient Trace
 
-`InboxModuleBuilder.UseAmbientTrace()` and `OutboxModuleBuilder.UseAmbientTrace()` stamp envelopes that carry no explicit trace with the trace of the message being handled, through `MessageTrace.FromAmbient()`. The factory reads the ambient correlation id, causation id, and distributed trace context; the incoming message id stored by inbox dispatchers becomes the causation id and doubles as the correlation id when the ambient correlation id is absent. The variant follows envelope precedence: `Distributed` when a trace context is present alongside correlation and causation, otherwise `Workflow` when both ids are known, otherwise `Correlated` when only the correlation id is known, otherwise `None`. Outside a mediation, or with nothing usable in context, the envelope stays untraced. An explicit item trace always wins over the ambient value. Per-call stamping without the module opt-in uses `InboxAcceptItem<TMessage>.FromAmbient(message)` and `OutboxEnqueueItem<TEvent>.FromAmbient(message)`.
+`InboxModuleBuilder.UseAmbientTrace()` and `OutboxModuleBuilder.UseAmbientTrace()` stamp envelopes that carry no explicit trace with the trace of the message being handled, through `MessageTrace.FromAmbient()`. The factory reads the ambient correlation id, causation id, and distributed trace context. The incoming message id stored by inbox dispatchers becomes the causation id, and doubles as the correlation id when the ambient correlation id is absent.
+
+The variant follows envelope precedence. It is `Distributed` when a trace context is present alongside correlation and causation, `Workflow` when both ids are known, `Correlated` when only the correlation id is known, and `None` otherwise. Outside a mediation, or with nothing usable in context, the envelope stays untraced. An explicit item trace always takes precedence over the ambient value. Per-call stamping without the module opt-in uses `InboxAcceptItem<TMessage>.FromAmbient(message)` and `OutboxEnqueueItem<TEvent>.FromAmbient(message)`.
 
 ## Public Surface
 
@@ -48,16 +50,16 @@ Runtime captures correlation and distributed tracing fields in durable envelopes
 
 - No-trace state is represented by `MessageTrace.None.Instance`.
 - Distributed trace shape carries correlation, causation, and trace payload.
-- Malformed trace context never prevents message processing; tracing ignores it and continues without a remote parent.
-- An explicit trace wins over the ambient value; without the opt-in, untraced items stay untraced.
+- Malformed trace context never prevents message processing. Tracing ignores it and continues without a remote parent.
+- An explicit trace takes precedence over the ambient value. Without the opt-in, untraced items stay untraced.
 
 ## Non-Goals
 
-- Telemetry exporter configuration.
+- Configuring telemetry exporters.
 
 ## Observability
 
-Runtime trace metadata feeds outer transport and OpenTelemetry layers; core runtime emits no trace-specific meter.
+Runtime trace metadata feeds the outer transport and OpenTelemetry layers. The core runtime emits no trace-specific meter.
 
 ## Test Coverage
 
@@ -89,8 +91,8 @@ Runtime trace metadata feeds outer transport and OpenTelemetry layers; core runt
 
 | Use case | Priority | Notes |
 | --- | --- | --- |
-| Direct mapper round-trip tests for trace columns | Medium | Mapper logic is source-verified; explicit direct tests are limited |
+| Direct mapper round-trip tests for trace columns | Medium | Mapper logic is source-verified. Explicit direct tests are limited. |
 
 ### Out-of-Scope Use Cases
 
-- Runtime generation of trace IDs.
+- Generating trace IDs at run time.

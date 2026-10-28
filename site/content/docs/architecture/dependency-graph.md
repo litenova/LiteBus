@@ -10,7 +10,7 @@ Historical package and API names live in the [v6 Migration Guide](../migration/v
 
 ## Dependency Roles
 
-Each role describes dependency direction and package purpose. Roles are not numeric layers, and feature axes stay independent of the role assigned to a package. The role table below is the normative dependency summary: [Generated Package Inventory](generated-package-inventory.md) records every evaluated shipping project reference and direct package reference, and documentation CI rejects a stale inventory.
+Each role describes dependency direction and package purpose. Roles are not numeric layers, and feature axes stay independent of the role assigned to a package. The role table below is the normative dependency summary. [Generated Package Inventory](generated-package-inventory.md) records every evaluated shipping project reference and direct package reference, and documentation CI rejects a stale inventory.
 
 | Role | Package examples | Allowed project dependencies | Allowed direct package dependencies |
 | --- | --- | --- | --- |
@@ -24,7 +24,7 @@ Each role describes dependency direction and package purpose. Roles are not nume
 | Consumer tooling | `LiteBus.Analyzers`, `LiteBus.Testing.*` | Any role needed by that narrowly scoped tool | Analyzer or test-support packages |
 | Aggregate | `LiteBus` | Contract and core implementation roles | BCL only |
 
-`ArchitectureDependencyPolicyTests` parses every project under `src/` and fails on a missing role, a forbidden reference direction, a storage, dispatch, or ingress adapter that crosses concerns, or an unapproved package reference. Technology-family checks walk the complete project-reference closure, so a broker SDK cannot enter an adapter through a shared project. Update the matrix and the test together when you introduce a new architectural role or SDK family.
+`ArchitectureDependencyPolicyTests` parses every project under `src/` and fails on a missing role, a forbidden reference direction, a storage, dispatch, or ingress adapter that crosses concerns, or an unapproved package reference. Technology-family checks traverse the complete project-reference closure, so a broker SDK cannot enter an adapter through a shared project. When you introduce a new architectural role or SDK family, update the matrix and the test together.
 
 Only the `LiteBus` aggregate meta-package bundles core mediators and durable messaging. Storage, dispatch, ingress, broker transports, and OpenTelemetry remain opt-in.
 
@@ -100,15 +100,15 @@ Host adapters
   *.Extensions.OpenTelemetry / Extensions.AspNetCore / Extensions.Diagnostics.HealthChecks
 ```
 
-`LiteBus.Runtime` depends only on `Runtime.Abstractions`. `ILiteBusBuilder` exposes only `Modules`; feature packages add the normal `AddMessaging`, `AddCommands`, `AddQueries`, `AddEvents`, `AddInbox`, and `AddOutbox` extensions, and `IModuleRegistry` remains available for advanced composition.
+`LiteBus.Runtime` depends only on `Runtime.Abstractions`. `ILiteBusBuilder` exposes only `Modules`. Feature packages add the normal `AddMessaging`, `AddCommands`, `AddQueries`, `AddEvents`, `AddInbox`, and `AddOutbox` extensions, and `IModuleRegistry` remains available for advanced composition.
 
 Shared transports are root modules. Dispatch and ingress modules declare `IRequires<TTransportModule>` and never create an implicit broker module. Storage, dispatch, and ingress modules also declare their parent inbox or outbox requirement where the type system permits it. The module registry validates the complete graph before any module builds.
 
-Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactory`. Core packages depend only on that contract and fail composition when no factory is present. A manual host can opt in to `RootMessageDispatchScopeFactory` explicitly. EF Core storage uses `IDbContextFactory<TContext>` through adapter-owned operation factories and does not create container scopes inside stores.
+Microsoft DI and Autofac adapters each register one `IMessageDispatchScopeFactory`. Core packages depend only on that contract. When no factory is present, composition fails. A manual host can opt in to `RootMessageDispatchScopeFactory` explicitly. EF Core storage uses `IDbContextFactory<TContext>` through adapter-owned operation factories and does not create container scopes inside stores.
 
 ## Package Table
 
-The Direct project references and Direct package references columns repeat [Generated Package Inventory](generated-package-inventory.md), which `scripts/Get-PackageInventory.ps1` writes from evaluated MSBuild metadata. The Role column follows the Dependency Roles matrix above. Documentation CI set-compares every row with the inventory, so update the reference cells only by regenerating the inventory.
+The Direct project references and Direct package references columns repeat [Generated Package Inventory](generated-package-inventory.md), which `scripts/Get-PackageInventory.ps1` writes from evaluated MSBuild metadata. The Role column follows the Dependency Roles matrix above. Documentation CI compares every row with the inventory as sets, so update the reference cells only by regenerating the inventory.
 
 | Package | Role | Direct project references | Direct package references |
 | --- | --- | --- | --- |
@@ -219,7 +219,7 @@ Per-module `*.Extensions.Microsoft.DependencyInjection` and `*.Extensions.Autofa
 | `*.Extensions.OpenTelemetry` | Matching core package (`Inbox`, `Outbox`, or `Transport`) | Storage, dispatch, ingress |
 | `LiteBus.Analyzers` | Roslyn | runtime libraries |
 
-Shared storage technology packages contain only invariants that are identical across durable axes. `LiteBus.Storage.PostgreSql` owns schema mechanics, database-clock access, and idempotency resolution; `LiteBus.Storage.EntityFrameworkCore` owns provider resolution, relational lease execution, and common durable operations. Inbox and outbox adapters retain their own tables, row mappings, lifecycle transitions, and public contracts. Similar-looking transition code remains axis-owned when sharing it would couple independent semantics or require a cross-axis abstraction.
+Shared storage technology packages contain only invariants that are identical across durable axes. `LiteBus.Storage.PostgreSql` owns schema mechanics, database-clock access, and idempotency resolution. `LiteBus.Storage.EntityFrameworkCore` owns provider resolution, relational lease execution, and common durable operations. Inbox and outbox adapters retain their own tables, row mappings, lifecycle transitions, and public contracts. When sharing it would couple independent semantics or require a cross-axis abstraction, similar-looking transition code remains axis-owned.
 
 Additional rules:
 
@@ -227,7 +227,7 @@ Additional rules:
 - Core inbox and outbox modules register writers and processors only. They do not register dispatchers.
 - Processor background services validate that exactly one dispatcher is registered.
 - Stable contracts use names and versions, not assembly-qualified CLR names.
-- Closed generic messages are supported when each closed type is registered. Open generic contracts are rejected.
+- When each closed type is registered, closed generic messages are supported. Open generic contracts are rejected.
 
 ## Registration Reference
 
@@ -374,7 +374,7 @@ Test-only packages live under `tests/Directory.Packages.props`.
 | `Testcontainers.LocalStack` | AWS SQS transport integration tests |
 | `Npgsql` | PostgreSQL integration tests |
 
-PostgreSQL and AMQP integration tests require Docker. CI skips them gracefully when Docker is unavailable.
+PostgreSQL and AMQP integration tests require Docker. When Docker is unavailable, CI skips them without failing.
 
 ## Next
 

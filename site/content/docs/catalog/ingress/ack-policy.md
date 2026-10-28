@@ -3,40 +3,42 @@
 - **ID**: `ingress.ack-policy`
 - **Name**: Requeue and Discard Policy
 - **Maturity**: GA
-- **Summary**: Decides whether a failed delivery returns to the broker queue or is discarded after inbox accept errors.
+- **Summary**: The ack policy decides whether a failed delivery returns to the broker queue or is discarded after inbox accept errors.
 
 ## Purpose and Scope
 
-`IngressAckPolicy` is the shared decision point used by `TransportInboxIngressConsumer` after a handler or store failure. It decides if the consumer calls `ReturnToQueueAsync` or `DiscardAsync`.
+`IngressAckPolicy` is the shared decision point used by `TransportInboxIngressConsumer` after a handler or store failure. It decides whether the consumer calls `ReturnToQueueAsync` or `DiscardAsync`.
 
-This page covers classification semantics only. Broker-specific dead-letter routing is outside ingress.
+This page covers only how the policy classifies failures. Broker-specific dead-letter routing is handled outside ingress.
 
 ## Public Surface
 
 | API | Role |
 | --- | --- |
-| `IngressAckPolicy.ShouldRequeue(Exception, bool requeueOnFailure)` | Classify failure for requeue vs discard |
-| `IngressAckPolicy.UnwrapException(Exception)` | Unwrap reflection wrappers before classification |
-| `TransportInboxIngressOptions.RequeueOnFailure` | Broker-level toggle (when false, all failures discard) |
+| `IngressAckPolicy.ShouldRequeue(Exception, bool requeueOnFailure)` | Classifies a failure as requeue or discard |
+| `IngressAckPolicy.UnwrapException(Exception)` | Unwraps reflection wrappers before classification |
+| `TransportInboxIngressOptions.RequeueOnFailure` | Broker-level toggle that discards all failures when false |
 
 ## Classification Rules
 
-### Step 1: Apply Global Switch
+The policy applies these checks in order.
 
-When `RequeueOnFailure` is `false`, every failure path discards.
+### Global Switch
 
-### Step 2: Unwrap Outer Exception Wrappers
+When `RequeueOnFailure` is `false`, the consumer discards on every failure path.
+
+### Outer Exception Unwrapping
 
 `IngressAckPolicy.UnwrapException` removes:
 
 - `TargetInvocationException`
 - `AggregateException` with one inner exception
 
-This keeps policy behavior stable when handlers are invoked through reflection boundaries.
+This keeps policy behavior stable when reflection invokes the handlers.
 
-### Step 3: Match Terminal (Non-Requeue) Exception Families
+### Terminal Exception Families
 
-These types are always treated as poison or configuration errors and discard when requeue is enabled:
+When requeue is enabled, the policy still treats these types as poison or configuration errors, and the consumer discards them:
 
 - `MessageContractNotRegisteredException`
 - `InboxDispatchException`
@@ -49,7 +51,9 @@ These types are always treated as poison or configuration errors and discard whe
 - `JsonException`
 - `OperationCanceledException`
 
-The match walks the inner-exception chain, so a malformed payload wrapped in `MessageSerializationException` discards instead of requeueing forever. Any other exception type requeues when `RequeueOnFailure` is `true`. Cancellation is never requeued. When the ingress token is cancelled, the consumer rethrows `OperationCanceledException` before settlement, so the delivery stays unacknowledged and the broker redelivers it instead of the offset being committed without a store write.
+The policy walks the inner-exception chain, so a malformed payload wrapped in `MessageSerializationException` discards instead of requeueing forever. Any other exception type requeues when `RequeueOnFailure` is `true`.
+
+Cancellation is never requeued. When the ingress token is cancelled, the consumer rethrows `OperationCanceledException` before settlement, so the delivery stays unacknowledged and the broker redelivers it. The offset is not committed without a store write.
 
 ## Packages
 
@@ -58,26 +62,26 @@ The match walks the inner-exception chain, so a malformed payload wrapped in `Me
 ## Requires
 
 - `ingress.transport-consumer`
-- Transport message `ReturnToQueueAsync` / `DiscardAsync` implementations per broker
+- Transport message `ReturnToQueueAsync` and `DiscardAsync` implementations per broker
 
 ## Invariants
 
-- Successful accept always attempts ack; ack failure is handled separately (requeue for idempotent retry).
-- Policy applies to authorization callback failures the same as store failures.
-- `RequeueOnFailure = false` drains poison messages instead of infinite requeue loops.
-- A cancelled acceptance is never settled: the consumer rethrows before ack, requeue, or discard.
+- Successful accept always attempts ack. Ack failure is handled separately, with requeue for idempotent retry.
+- Authorization callback failures follow the same policy as store failures.
+- With `RequeueOnFailure = false`, poison messages drain instead of looping through infinite requeues.
+- A cancelled acceptance is never settled. The consumer rethrows before ack, requeue, or discard.
 
 ## Broker Behavior Notes
 
-`IngressAckPolicy` itself is broker-neutral. Broker adapters differ in how `ReturnToQueueAsync` and `DiscardAsync` map to native semantics:
+The policy itself is broker-neutral. Each broker adapter maps `ReturnToQueueAsync` and `DiscardAsync` to its own native operations:
 
 | Broker | Requeue path | Discard path |
 | --- | --- | --- |
 | AMQP | Nack with requeue | Nack or reject without requeue |
-| Kafka | Offset left uncommitted and redelivered | Offset committed without store write |
-| AWS SQS | Message returned by visibility timeout / explicit retry path | Message deleted without store write |
+| Kafka | Offset left uncommitted, so the broker redelivers it | Offset committed without store write |
+| AWS SQS | Message returned through visibility timeout or the explicit retry path | Message deleted without store write |
 | Azure Service Bus | Message abandoned for redelivery | Message dead-lettered through the transport adapter |
-| InMemory | Re-enqueue in channel | Drop from in-memory queue |
+| InMemory | Re-enqueued in the channel | Dropped from the in-memory queue |
 
 ## Non-Goals
 
@@ -87,15 +91,15 @@ The match walks the inner-exception chain, so a malformed payload wrapped in `Me
 
 ## Observability
 
-No ack-policy-specific metrics or activities. Outcomes are visible indirectly:
+The policy has no metrics or activities of its own. Its outcomes are visible indirectly:
 
 | Outcome | Signal |
 | --- | --- |
-| Discard (no requeue) | Broker message removed or nacked without requeue; no inbox row for poison paths |
-| Requeue | `ReturnToQueueAsync` on transport message; broker redelivers |
+| Discard (no requeue) | Broker message removed or nacked without requeue, with no inbox row for poison paths |
+| Requeue | `ReturnToQueueAsync` on transport message, followed by broker redelivery |
 | Ack after success | `AcceptAsync` on transport message |
 
-Consumer logs and broker telemetry reflect discard vs requeue; `ingress.ack_failed_after_accept` applies only when accept succeeded but ack failed (separate path from policy classification).
+Consumer logs and broker telemetry reflect discard versus requeue. `ingress.ack_failed_after_accept` applies only when accept succeeded but ack failed, which is a separate path from policy classification.
 
 ## Test Coverage
 
@@ -124,11 +128,11 @@ Consumer logs and broker telemetry reflect discard vs requeue; `ingress.ack_fail
 
 ### Untested
 
-- `TargetInvocationException` and single-inner `AggregateException` unwrapping in integration scenarios.
-- Every non-requeue exception type listed in policy (`InboxDispatchException`, `InboxStorageException`, and similar) exercised on a live broker.
-- Kafka explicit requeue-off drain behavior.
-- Azure Service Bus explicit requeue-off drain behavior.
-- AMQP explicit requeue-off poison drain behavior (called out in ingress matrix).
+- Unwrapping of `TargetInvocationException` and single-inner `AggregateException` in integration scenarios.
+- Every non-requeue exception type in the policy (`InboxDispatchException`, `InboxStorageException`, and similar), exercised on a live broker.
+- Explicit requeue-off drain behavior on Kafka.
+- Explicit requeue-off drain behavior on Azure Service Bus.
+- Explicit requeue-off poison drain behavior on AMQP (called out in the ingress matrix).
 
 ### Out-of-Scope
 
@@ -136,7 +140,7 @@ Consumer logs and broker telemetry reflect discard vs requeue; `ingress.ack_fail
 - Inbox processor retry policy (processor axis).
 - Custom exception taxonomy plug-in at runtime.
 
-## Deep Docs
+## References
 
 - [AMQP transport: Guarantees](../../integrations/amqp.md)
 - [Reliable messaging semantics](../../reliable-messaging/semantics.md)

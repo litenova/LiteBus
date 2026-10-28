@@ -3,11 +3,13 @@
 - **ID**: `runtime.dispatch-scopes`
 - **Name**: Per-mediation DI scopes
 - **Maturity**: GA
-- **Summary**: Creates isolated service-provider scopes per mediation call through `IMessageDispatchScopeFactory`.
+- **Summary**: Each mediation call runs in an isolated service-provider scope created through `IMessageDispatchScopeFactory`.
 
 ## What It Does
 
-The Microsoft DI and Autofac adapters each register one container-specific `IMessageDispatchScopeFactory`. `MessageModule` requires that contract and does not inspect a container or silently fall back to the root provider. `MessageMediator` creates one dispatch scope per call and retains it through async completion. Manual hosts may explicitly register `RootMessageDispatchScopeFactory` when root-provider resolution is intentional.
+The Microsoft DI and Autofac adapters each register one container-specific `IMessageDispatchScopeFactory`. `MessageModule` requires that contract: it never looks for a container itself and never falls back to the root provider on its own.
+
+`MessageMediator` creates one dispatch scope per call and retains it until async work completes. A manual host that intends root-provider resolution registers `RootMessageDispatchScopeFactory` explicitly.
 
 ## Public Surface
 
@@ -34,18 +36,18 @@ The Microsoft DI and Autofac adapters each register one container-specific `IMes
 
 ## Invariants
 
-- One dispatch scope per mediation operation.
-- Scoped provider is disposed on scope dispose.
-- Missing scope-factory composition fails before the container is used.
+- Each mediation operation creates one dispatch scope.
+- Disposing the scope disposes the scoped provider.
+- Composition without a scope factory fails before the container is used.
 - Explicit root dispatch does not dispose the root container.
 
 ## Non-Goals
 
-- Cross-message shared scopes.
+- Sharing one scope across messages.
 
 ## Observability
 
-No dedicated scope metric.
+The runtime exposes no metric for dispatch scopes.
 
 ## Test Coverage
 
@@ -53,18 +55,18 @@ No dedicated scope metric.
 
 #### `MediationScopeRetentionTests.Mediate_delayed_task_retains_dispatch_scope_until_task_completes`
 - **Test kind**: Unit
-- **Expected outcome**: scope retained until delayed task completion
+- **Expected outcome**: the mediator retains the scope until the delayed task completes
 
 #### `MediationScopeRetentionTests.Mediate_stream_result_retains_dispatch_scope_until_enumeration_completes`
 - **Test kind**: Unit
-- **Expected outcome**: scope retained for full stream enumeration
+- **Expected outcome**: the mediator retains the scope for the full stream enumeration
 
 ### Untested Use Cases
 
 | Use case | Priority | Notes |
 | --- | --- | --- |
-| Manual-host root opt-in across a complete mediator pipeline | Medium | The explicit factory is unit-covered; host-specific composition remains application-owned |
+| Manual-host root opt-in across a complete mediator pipeline | Medium | The explicit factory is unit-covered, but host-specific composition remains application-owned |
 
 ### Out-of-Scope Use Cases
 
-- Nested scope orchestration in core runtime.
+- Orchestrating nested scopes in the core runtime.

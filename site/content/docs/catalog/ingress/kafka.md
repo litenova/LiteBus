@@ -3,20 +3,20 @@
 - **ID**: `ingress.kafka`
 - **Name**: Kafka inbox ingress
 - **Maturity**: Beta
-- **Summary**: Consumes Kafka topics and accepts records into the inbox through shared transport ingress.
+- **Summary**: This adapter consumes Kafka topics and accepts records into the inbox through shared transport ingress.
 
 ## Purpose and Scope
 
-`UseKafkaIngress` registers `KafkaInboxIngressModule`. The module maps the topic destination, requeue policy, and shared safety record into `TransportInboxIngressOptions`. A root `KafkaTransportModule` is required.
+`UseKafkaIngress` registers `KafkaInboxIngressModule`. The module maps the topic destination, the requeue policy, and the shared safety record into `TransportInboxIngressOptions`. A root `KafkaTransportModule` is required.
 
-Kafka consumer offsets commit after the successful accept and acknowledgement path. The Confluent.Kafka consume loop returns one record per call, so `KafkaInboxIngressOptions` does not expose a prefetch field that the adapter cannot honor. Provider-neutral limits remain available through `Safety`; the enforced `Safety.MaxInFlightMessages` bound is 1.
+Kafka consumer offsets commit after the accept and acknowledgement path succeeds. The Confluent.Kafka consume loop returns one record per call, so `KafkaInboxIngressOptions` has no prefetch field the adapter could not honor. Provider-neutral limits remain available through `Safety`, and the enforced `Safety.MaxInFlightMessages` bound is 1.
 
 ## Beta Rationale
 
-Kafka ingress is marked Beta because the core intake path is stable, but parity coverage is still narrower than AMQP in two areas:
+Kafka ingress is Beta because its core intake path is stable but its parity coverage is narrower than AMQP in two areas:
 
 - Kafka-specific offset and group behavior requires more live-provider coverage.
-- Matrix depth parity (header edge-case and requeue-off matrices are intentionally incomplete in broker Docker tests).
+- Matrix depth parity is still missing, because the header edge-case and requeue-off matrices are intentionally incomplete in broker Docker tests.
 
 ## Public Surface
 
@@ -68,12 +68,12 @@ inbox.UseKafkaIngress(ingress =>
 
 - `Destination` (topic) and a root Kafka transport are required at compose time.
 - Consumer group and offset semantics follow `KafkaTransportOptions` (transport axis).
-- Idempotency uses broker record identifiers mapped through shared header mapping when present.
+- When present, broker record identifiers feed idempotency through shared header mapping.
 - Identity and idempotency default to broker-scoped values (`Safety.RequireStableIdentity=true`, `Safety.TrustApplicationHeaders=false`).
 
 ## Non-Goals
 
-- GA production tier declaration. The current tier is Beta in the Feature Index.
+- GA production tier declaration (the current tier is Beta in the Feature Index).
 - Full parity with AMQP ingress option surface on the Kafka builder.
 - Kafka outbox ingress (outbox uses dispatch).
 
@@ -85,7 +85,7 @@ inbox.UseKafkaIngress(ingress =>
 | --- | --- |
 | `ingress.ack_failed_after_accept` | Offset commit / ack fails after inbox accept |
 
-Meter `LiteBus.Inbox` via `AddLiteBusInboxMetrics()`.
+The meter is `LiteBus.Inbox`, registered through `AddLiteBusInboxMetrics()`.
 
 ### Transport Tracing and Metrics
 
@@ -96,7 +96,7 @@ Meter `LiteBus.Inbox` via `AddLiteBusInboxMetrics()`.
 
 ### Structured Logs
 
-EventId 3002, 3003, 3004 from shared ingress consumer (`TransportInboxIngressLogMessages`).
+Structured logs come from the shared ingress consumer (`TransportInboxIngressLogMessages`) as EventId 3002, 3003, and 3004.
 
 ## Identity, Idempotency, and Headers
 
@@ -104,9 +104,9 @@ Kafka ingress inherits shared mapper defaults:
 
 | Setting | Default | Result |
 | --- | --- | --- |
-| `RequireStableIdentity` | true | Missing broker delivery id fails closed |
+| `RequireStableIdentity` | true | A missing broker delivery id fails closed |
 | `Safety.TrustApplicationHeaders` | false | Broker id drives identity and idempotency key |
-| Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | Duplicate redelivery can absorb into existing inbox row |
+| Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | A duplicate redelivery can absorb into the existing inbox row |
 
 `KafkaInboxIngressOptions.Safety` exposes the same trust, authorization, admission, and batch settings as the other ingress adapters.
 
@@ -123,24 +123,24 @@ Kafka ingress inherits shared mapper defaults:
 | `TransientAcceptFailure_ShouldRedeliverSameOffsetWithoutRestart` | `LiteBus.Durable.IntegrationTests` (`Ingress/Kafka/`) |
 | `InboxIngressExtensions_ShouldRegisterIngressServices` (Kafka case) | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
 
-Shared broker infrastructure: `LiteBus.Transport.IntegrationTesting` (`KafkaBrokerHost`, Redpanda default, `KafkaIngressTestSupport`).
+The shared broker infrastructure is `LiteBus.Transport.IntegrationTesting` (`KafkaBrokerHost`, Redpanda default, `KafkaIngressTestSupport`).
 
 ### Untested (Kafka Docker; Covered Elsewhere)
 
 - Duplicate MessageId idempotency (`LiteBus.Durable.IntegrationTests/Ingress/InMemory/`).
 - Header edge cases (missing contract name, wrong version, invalid MessageId) (`Ingress/InMemory/`).
-- `RequeueOnFailure = false` poison drain and explicit on/off pair (`Ingress/InMemory/`, `Ingress/AwsSqs/`).
+- `RequeueOnFailure = false` poison drain and explicit coverage of both requeue modes (`Ingress/InMemory/`, `Ingress/AwsSqs/`).
 - `KafkaInboxIngressModuleBuilder.ConfigureHost` retry interval tuning under live broker load.
 - Offset commit failure after accept with `ingress.ack_failed_after_accept` metric assertion.
-- Azure and AWS style header edge-case parity inside Kafka broker suite itself.
+- Azure- and AWS-style header edge-case parity inside the Kafka broker suite itself.
 
 ### Out-of-Scope
 
-- GA production tier declaration. The current tier is Beta in the Feature Index.
+- GA production tier declaration (the current tier is Beta in the Feature Index).
 - Full parity with AMQP ingress option surface on the Kafka builder.
 - Kafka outbox ingress (outbox uses dispatch).
 
-## Deep Docs
+## References
 
 - [Kafka transport](../../integrations/kafka.md)
 - [Integration tests](../../testing/integration-tests.md) (Kafka harness notes)

@@ -1,10 +1,10 @@
 # Extending
 
-LiteBus modules, mediation strategies, and message resolution are extension points: a new module introduces a message type with its own contracts and mediation logic, composed through `ILiteBusBuilder` like the shipped modules. This page builds a Notification module, then shows custom strategies and resolution.
+LiteBus modules, mediation strategies, and message resolution are extension points. A new module introduces a message type with its own contracts and mediation logic, composed through `ILiteBusBuilder` like the shipped modules. This page builds a Notification module, then shows custom strategies and resolution.
 
 ## Creating Custom Modules
 
-A custom module introduces a new type of message with its own contracts and mediation logic. The example below defines a Notification module with its own contracts and mediation logic.
+A custom module introduces a new type of message with its own contracts and mediation logic. The example below defines a Notification module.
 
 ### Define Abstractions
 
@@ -29,7 +29,7 @@ public interface INotificationMediator
 
 ### Implement the Module Logic
 
-Create the `IModule` implementation, a builder, and the mediator. Custom mediators on `IMessageMediator` use `MessageMediationRequest<TMessage, TResult>`; pass `CancellationToken` to `Mediate`, not inside the request bag. Historical API mappings are documented in the [Migration Guide](../migration/v6.md).
+Create the `IModule` implementation, a builder, and the mediator. Custom mediators on `IMessageMediator` use `MessageMediationRequest<TMessage, TResult>`. Pass `CancellationToken` to `Mediate`, not inside the request bag. Historical API mappings are documented in the [Migration Guide](../migration/v6.md).
 
 ```csharp
 // The mediator that will orchestrate the process
@@ -117,7 +117,7 @@ public static class ModuleRegistryExtensions
 }
 ```
 
-The application still calls `AddMessaging(...)`. The graph validates `IRequires<MessageModule>` after the callback, independent of declaration order. A semantic abstraction should describe notifications and handlers only; do not expose registration-only marker interfaces through domain contracts.
+The application still calls `AddMessaging(...)`. The graph validates `IRequires<MessageModule>` after the callback, independent of declaration order. A semantic abstraction should describe notifications and handlers only. Do not expose registration-only marker interfaces through domain contracts.
 
 ## Custom Mediation Strategies
 
@@ -168,9 +168,9 @@ Change how LiteBus finds handlers for a message by implementing `IMessageResolve
 
 ## Best Practices for Extensibility
 
-1.  **Build on `IMessageMediator`**: custom mediators delegate the core mediation logic to the built-in `IMessageMediator` and provide only the custom strategy and options.
-2.  **Follow existing patterns**: model custom modules and extensions on the shipped command, query, and event modules for consistent registration and discovery.
-3.  **Register module services**: the `IModule` implementation registers every service the module needs with the `IDependencyRegistry`.
+1.  Build custom mediators on `IMessageMediator`: delegate the core mediation logic to it and provide only the custom strategy and options.
+2.  Model custom modules and extensions on the shipped command, query, and event modules, so registration and discovery stay consistent.
+3.  Register every service the module needs with the `IDependencyRegistry` from the `IModule` implementation.
 
 ## Next
 

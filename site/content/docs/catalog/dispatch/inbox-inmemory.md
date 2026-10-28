@@ -27,14 +27,14 @@
 
 ## Invariants
 
-- Thread-safe within one process; not cross-process.
-- Requeue on failed consume re-enqueues on the channel (transport invoker).
-- Same header mapping as broker transports.
+- It is thread-safe within one process, but it does not work across processes.
+- When a consume fails, the requeue re-enqueues the message on the channel. The transport invoker owns that behavior.
+- It uses the same header mapping as the broker transports.
 
 ## Non-Goals
 
-- Not for production cross-host messaging.
-- Does not survive process restarts.
+- It is not for production cross-host messaging.
+- It does not survive process restarts.
 
 ## Public Surface
 
@@ -56,21 +56,21 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `InboxModuleBuilder.UseInMemoryDispatch(Action<TransportInboxDispatcherOptions>? configure = null)` | Registers inbox transport dispatcher that requires the root in-memory transport |
-| `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | Shared publish logic over in-process channel transport |
+| `InboxModuleBuilder.UseInMemoryDispatch(Action<TransportInboxDispatcherOptions>? configure = null)` | Registers the inbox transport dispatcher, which requires the root in-memory transport |
+| `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | The shared publish logic over the in-process channel transport |
 
 ## Observability
 
 | Signal | Detail |
 | --- | --- |
-| `send {destination}` | Emitted by `InMemoryPublisher` with destination and route tags |
-| `process {destination}` | Paired ingress/consumer in the same process |
-| `litebus.transport.circuit_breaker.*` | Tag `inmemory`; standalone breaker registered by InMemory transport |
-| `litebus.inbox.processor.*` | Standard processor metrics |
+| `send {destination}` | The `InMemoryPublisher` emits it with destination and route tags |
+| `process {destination}` | The paired ingress or consumer in the same process |
+| `litebus.transport.circuit_breaker.*` | Tag `inmemory`. The InMemory transport registers a standalone breaker |
+| `litebus.inbox.processor.*` | The standard processor metrics |
 
-Activities remain available for test assertions even without external OTLP export.
+The activities remain available for test assertions even without external OTLP export.
 
-## Deep Docs
+## References
 
 - [Integration-Tests.md](../../testing/integration-tests.md)
 
@@ -86,8 +86,8 @@ Activities remain available for test assertions even without external OTLP expor
 
 ### Untested
 
-- Inbox dispatch failure and retry path beyond persist-skipped scenario.
-- Custom route resolver and tenant route strategy branches.
+- The inbox dispatch failure and retry path beyond the persist-skipped scenario.
+- The custom route resolver and tenant route strategy branches.
 - Cross-process delivery, which the in-memory adapter does not support.
 
 ### Out-of-Scope

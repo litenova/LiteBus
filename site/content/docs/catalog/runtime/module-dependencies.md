@@ -3,11 +3,11 @@
 - **ID**: `runtime.module-dependencies`
 - **Name**: Module dependency ordering
 - **Maturity**: GA
-- **Summary**: Uses `IRequires<TModule>` and `ModuleDescriptor.Create` to build dependency edges.
+- **Summary**: Dependency edges come from `IRequires<TModule>` markers, read through `ModuleDescriptor.Create`.
 
 ## What It Does
 
-Modules declare dependencies by implementing `IRequires<TModule>`. Descriptor creation reflects these markers and provides dependency sets for topological sort.
+Modules declare dependencies by implementing `IRequires<TModule>`. Descriptor creation reads these markers and provides dependency sets for the topological sort.
 
 ## Public Surface
 
@@ -30,15 +30,15 @@ Modules declare dependencies by implementing `IRequires<TModule>`. Descriptor cr
 ## Invariants
 
 - Dependencies are exact module types.
-- Multiple `IRequires<>` markers are supported.
+- A module can implement multiple `IRequires<>` markers.
 
 ## Non-Goals
 
-- Optional dependency negotiation.
+- Negotiating optional dependencies.
 
 ## Observability
 
-No direct telemetry; errors surface during registry ordering.
+Dependency tracking emits no telemetry. Errors surface during registry ordering.
 
 ## Test Coverage
 
@@ -46,11 +46,11 @@ No direct telemetry; errors surface during registry ordering.
 
 #### `ModuleRegistryTests.ModuleDescriptor_Create_ShouldCollectIRequiresDependencies`
 - **Test kind**: Unit
-- **Expected outcome**: dependency set matches markers
+- **Expected outcome**: the dependency set matches the markers
 
 #### `ModuleRegistryTests.Enumerate_WithMissingRequiredModule_ShouldThrowLiteBusConfigurationException`
 - **Test kind**: Unit
-- **Expected outcome**: missing dependency is rejected
+- **Expected outcome**: the registry rejects the missing dependency
 
 ### Untested Use Cases
 
@@ -60,4 +60,4 @@ No direct telemetry; errors surface during registry ordering.
 
 ### Out-of-Scope Use Cases
 
-- Versioned dependency constraints.
+- Constraints on dependency versions.

@@ -1,8 +1,8 @@
 # Operations
 
-LiteBus operations cover the management HTTP endpoints, diagnostics and health probes, message states, the production runbook, security and tenancy, performance, and troubleshooting. Start here to find the page for your task.
+LiteBus operations cover running LiteBus in production. That means mapping management routes, wiring health probes, reading message states, draining processors before deploys, and triaging failures. This page lists each task with the page that covers it.
 
-## Find Your Task
+## Task Index
 
 | Task | Page |
 | --- | --- |
@@ -16,8 +16,8 @@ LiteBus operations cover the management HTTP endpoints, diagnostics and health p
 
 ## Control Processors
 
-Processor loops support pause, resume, and drain through `IInboxProcessorControl` and `IOutboxProcessorControl`. The management HTTP endpoints wrap these contracts, so automation can use either surface: POST to `/litebus/inbox/processor/drain` before a deploy, or inject the control interface and call `DrainAsync` from application code. See [Production Runbook](runbook.md) for the drain procedure and [Management Endpoints](management-endpoints.md) for the route inventory.
+You pause, resume, and drain processor loops through `IInboxProcessorControl` and `IOutboxProcessorControl`. The management HTTP endpoints wrap these contracts. When you drain from automation, post to `/litebus/inbox/processor/drain` before a deploy. When you drain from application code, inject the control interface and call `DrainAsync`. The [Production Runbook](runbook.md) gives the drain procedure. [Management Endpoints](management-endpoints.md) lists every route.
 
 ## Limits
 
-Mediation alone persists nothing. Durable processing needs a store and a processor host on each axis you run, and the management routes for an axis return 404 when that axis is not registered. Probes and meters are opt-in per package: register at least one `IDiagnosticCheck` before relying on health, and add the matching `*.Extensions.OpenTelemetry` package before expecting metrics.
+Mediation alone persists nothing. Durable processing needs a store and a processor host on each axis you run. The management routes for an axis return 404 when that axis is not registered. Probes and meters are opt-in per package. Register at least one `IDiagnosticCheck` before relying on health, and add the matching `*.Extensions.OpenTelemetry` package before expecting metrics.

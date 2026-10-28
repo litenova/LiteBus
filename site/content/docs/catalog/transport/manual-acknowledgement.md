@@ -3,21 +3,21 @@
 - **ID**: `transport.manual-acknowledgement`
 - **Name**: Manual acknowledgement model
 - **Maturity**: GA
-- **Summary**: Every inbound delivery exposes explicit accept, discard, and requeue operations mapped to broker-specific ack semantics.
+- **Summary**: Every inbound delivery exposes explicit accept, discard, and requeue operations, and each adapter maps them to its broker's acknowledgement API.
 
 ## What It Does
 
-`TransportMessage` wraps broker acknowledgement as three user-facing methods. `AcceptAsync` signals successful processing. `DiscardAsync` rejects without requeue (delete, complete without retry, or dead-letter depending on broker). `ReturnToQueueAsync` rejects with requeue so the broker redelivers the message. Adapters supply `AckAsync` and `NackAsync(requeue)` delegates through `TransportConsumerAckHandlers`.
+`TransportMessage` wraps broker acknowledgement as three user-facing methods. `AcceptAsync` signals successful processing. `DiscardAsync` rejects without requeue (delete, complete without retry, or dead-letter depending on the broker). `ReturnToQueueAsync` rejects with requeue so the broker redelivers the message. Adapters supply `AckAsync` and `NackAsync(requeue)` delegates through `TransportConsumerAckHandlers`.
 
-Each adapter maps these calls to its native API. The Architecture resilience matrix documents the minimum behavior per provider.
+Each adapter maps these calls to its native API. The resilience matrix in the architecture documentation records the minimum behavior per provider.
 
 | Provider | Accept | Requeue | Notes |
 | --- | --- | --- | --- |
-| AMQP | `basic.ack` | `basic.nack` requeue | Channel shutdown stops consumer |
+| AMQP | `basic.ack` | `basic.nack` requeue | Channel shutdown stops the consumer |
 | InMemory | Remove from channel | Re-enqueue | In-process only |
 | Azure Service Bus | `CompleteMessage` | `AbandonMessage` | Exponential processor restart on errors |
 | AWS SQS | `DeleteMessage` | `ChangeMessageVisibility` with backoff | Uses receive count when present |
-| Kafka | Offset commit | Seek to failed offset | Offset committed on accept or discard; only requeue seeks without committing |
+| Kafka | Offset commit | Seek to failed offset | Offset committed on accept or discard. Only requeue seeks without committing |
 
 ## Public Surface
 
@@ -41,9 +41,9 @@ Each adapter maps these calls to its native API. The Architecture resilience mat
 
 ## Invariants
 
-- Handlers that return without calling an ack method leave deliveries unacknowledged; broker behavior varies (peek-lock renewal, visibility timeout, or uncommitted Kafka offset). The in-memory adapter returns an unsettled delivery to the destination with `Redelivered = true` instead of dropping it, so a missing settle never loses the delivery silently.
-- Raw `IMessageConsumer` hosts have no LiteBus redelivery cap at the transport layer; poison handling requires `DiscardAsync`, broker DLQ policy, or inbox ingress.
-- Kafka commits offset on `AcceptAsync` or `DiscardAsync`; only `ReturnToQueueAsync` seeks back without committing before the next read.
+- Handlers that return without calling an ack method leave deliveries unacknowledged. Broker behavior varies (peek-lock renewal, visibility timeout, or uncommitted Kafka offset). The in-memory adapter returns an unsettled delivery to the destination with `Redelivered = true` instead of dropping it, so a missing settle never loses the delivery silently.
+- Raw `IMessageConsumer` hosts have no LiteBus redelivery cap at the transport layer. Poison handling requires `DiscardAsync`, broker DLQ policy, or inbox ingress.
+- Kafka commits the offset on `AcceptAsync` or `DiscardAsync`. Only `ReturnToQueueAsync` seeks back without committing before the next read.
 
 ## Non-Goals
 
@@ -53,9 +53,9 @@ Each adapter maps these calls to its native API. The Architecture resilience mat
 
 ## Observability
 
-- `TransportMessage.Redelivered` surfaces on Azure Service Bus when `DeliveryCount > 1`.
+- On Azure Service Bus, `TransportMessage.Redelivered` is set when `DeliveryCount > 1`.
 - Process spans record destination, message id, and redelivery state when tracing is enabled.
-- No dedicated ack success/failure counters at the transport layer.
+- The transport layer keeps no dedicated counters for ack success or failure.
 
 ## Test Coverage
 
@@ -88,7 +88,7 @@ Each adapter maps these calls to its native API. The Architecture resilience mat
 - Exactly-once delivery at the broker.
 - Automatic ack on successful handler return.
 
-## Deep Docs
+## References
 
 - [Architecture.md](../../architecture/README.md) (Transport resilience capability matrix, Poison message handling)
 - [Kafka-Transport.md](../../integrations/kafka.md) (offset and seek semantics)

@@ -5,11 +5,11 @@
 - **ID**: `hosting.autofac-hosting-bridge`
 - **Name**: Autofac hosting bridge
 - **Maturity**: GA
-- **Summary**: Maps manifest task/check descriptors to Autofac singleton registrations and one orchestrator `IHostedService`.
+- **Summary**: Maps manifest task and check descriptors to Autofac singleton registrations and one orchestrator `IHostedService`.
 
 ## What It Does
 
-The Autofac hosting bridge mirrors Microsoft hosting behavior:
+The Autofac hosting bridge provides the same behavior as the Microsoft hosting bridge:
 
 - `RegisterDiagnosticChecks(...)` registers unique probe types as singletons.
 - `RegisterBackgroundServices(...)` registers startup and background service types as singletons and creates one `LiteBusHostOrchestrator` as `IHostedService`.
@@ -33,7 +33,7 @@ The Autofac hosting bridge mirrors Microsoft hosting behavior:
 ## Invariants
 
 - Duplicate types are deduplicated before registration.
-- All registered startup/background implementations are singletons.
+- All registered startup and background implementations are singletons.
 - One orchestrator hosted service is registered for LiteBus-managed loops.
 
 ## Non-Goals
@@ -43,7 +43,7 @@ The Autofac hosting bridge mirrors Microsoft hosting behavior:
 
 ## Observability
 
-No bridge-specific telemetry. Runtime behavior is visible through the same diagnostics, management endpoints, and axis-specific metrics.
+The bridge emits no telemetry of its own. The same diagnostics, management endpoints, and axis-specific metrics show runtime behavior.
 
 ## Test Coverage
 
@@ -53,8 +53,8 @@ No bridge-specific telemetry. Runtime behavior is visible through the same diagn
 
 - **Use case**: duplicate registration deduplication
 - **Test kind**: Unit
-- **Description**: registers same background type twice
-- **Behavior**: resolves hosted services from container
+- **Description**: registers the same background type twice
+- **Behavior**: resolves the hosted services from the container
 - **Expected outcome**: one hosted service registration
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/AutofacBackgroundServiceHostingExtensionsTests.cs`
 
@@ -62,7 +62,7 @@ No bridge-specific telemetry. Runtime behavior is visible through the same diagn
 
 - **Use case**: null guard
 - **Test kind**: Unit
-- **Description**: invokes extension with null builder
+- **Description**: invokes the extension with a null builder
 - **Behavior**: registration call
 - **Expected outcome**: argument null exception
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/AutofacBackgroundServiceHostingExtensionsTests.cs`
@@ -71,8 +71,8 @@ No bridge-specific telemetry. Runtime behavior is visible through the same diagn
 
 - **Use case**: orchestrator execution through Autofac bridge
 - **Test kind**: Unit
-- **Description**: registers one background service and resolves hosted services
-- **Behavior**: start and stop host
+- **Description**: registers one background service and resolves the hosted services
+- **Behavior**: starts and stops the host
 - **Expected outcome**: background execute count increments
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/AutofacBackgroundServiceHostingExtensionsTests.cs`
 
@@ -80,12 +80,12 @@ No bridge-specific telemetry. Runtime behavior is visible through the same diagn
 
 | Gap | Priority | Notes |
 | --- | --- | --- |
-| Dedicated tests for diagnostic-check registration dedup path in Autofac bridge | Low | Covered by composition tests that resolve manifest and checks. |
+| Dedicated tests for diagnostic-check registration dedup path in Autofac bridge | Low | Composition tests that resolve the manifest and checks cover it. |
 
 ### Out-of-Scope Use Cases
 
 - ASP.NET endpoint and auth mapping.
 
-## Deep Docs
+## References
 
 - [Hosted services](../../architecture/hosted-services.md)

@@ -3,13 +3,13 @@
 - **ID**: `transport.kafka`
 - **Name**: Kafka transport
 - **Maturity**: GA
-- **Summary**: Kafka adapter built on `Confluent.Kafka` with manual offset commit and seek-based redelivery.
+- **Summary**: Kafka adapter built on `Confluent.Kafka` that commits offsets manually and redelivers by seeking.
 
 ## What It Does
 
-`KafkaTransportModule` registers `KafkaPublisher` and `KafkaConsumer` behind transport contracts. Publish maps `Destination` to topic and `Route` to record key. Consume disables auto-commit and only commits on `AcceptAsync`. The publisher is a singleton over one shared producer that is flushed once when the container is disposed; consumers are transient. Resolve `ITransportPublisher` to publish; the module does not register the bare Confluent producer.
+`KafkaTransportModule` registers `KafkaPublisher` and `KafkaConsumer` behind the transport contracts. To publish, the adapter maps `Destination` to a topic and `Route` to the record key. To consume, it disables auto-commit and only commits on `AcceptAsync`. The publisher is a singleton over one shared producer that is flushed once when the container is disposed. Consumers are transient. Resolve `ITransportPublisher` to publish. The module does not register the bare Confluent producer.
 
-`KafkaConsumer.StartAsync` starts the consume loop on the thread pool and returns, because the Confluent `Consume` call blocks until a record arrives. When handlers call `ReturnToQueueAsync`, the adapter seeks to the consumed offset and applies configurable exponential backoff via `KafkaSeekBackoff`. Each consumer owns a dedicated `IConsumer<string, byte[]>`: the client holds single-subscription state and is not thread-safe, so the module registers it as transient and a client is never shared across consumers. `StopAsync` closes the owned client for a prompt group leave, and `DisposeAsync` disposes it.
+`KafkaConsumer.StartAsync` starts the consume loop on the thread pool and returns, because the Confluent `Consume` call blocks until a record arrives. When handlers call `ReturnToQueueAsync`, the adapter seeks to the consumed offset and applies configurable exponential backoff through `KafkaSeekBackoff`. Each consumer owns a dedicated `IConsumer<string, byte[]>`. The client holds single-subscription state and is not thread-safe, so the module registers it as transient and never shares one client across consumers. `StopAsync` closes the owned client for a prompt group leave, and `DisposeAsync` disposes it.
 
 ## Public Surface
 
@@ -32,9 +32,9 @@
 | `BootstrapServers` | required | Kafka bootstrap server list |
 | `ClientId` | `null` | Producer and consumer client id |
 | `ConsumerGroupId` | `litebus-transport` | Kafka consumer group |
-| `MessageTimeoutMs` | `null` | Producer message timeout; `null` leaves the Confluent default |
-| `MessageSendMaxRetries` | `null` | Producer send retries; `null` leaves the Confluent default, a set value must be positive |
-| `SocketTimeoutMs` | `null` | Producer socket timeout; `null` leaves the Confluent default, a set value must be positive |
+| `MessageTimeoutMs` | `null` | Producer message timeout. `null` leaves the Confluent default |
+| `MessageSendMaxRetries` | `null` | Producer send retries. `null` leaves the Confluent default, and a set value must be positive |
+| `SocketTimeoutMs` | `null` | Producer socket timeout. `null` leaves the Confluent default, and a set value must be positive |
 | `ConnectivityCheckTimeout` | `5s` | Cluster description request timeout |
 | `SeekFailureBackoffInitial` | `250ms` | Initial seek retry delay |
 | `SeekFailureBackoffMax` | `30s` | Max seek retry delay |
@@ -60,13 +60,13 @@
 
 ## Invariants
 
-- Consumer auto-commit is disabled.
+- The consumer disables auto-commit.
 - Offset progression happens only through explicit ack delegates.
-- Ordering guarantee is partition-scoped, not topic-scoped.
-- Each producer option maps only its own Confluent field; unset options leave Confluent defaults in place.
-- A transient consume error backs off one second and resumes polling; only a fatal client error faults the loop.
-- A requeue seek that fails transiently retries with the seek backoff schedule until it succeeds or shutdown cancels it; only a fatal error escapes to fault the loop, and the nack honors its `CancellationToken`.
-- `StopAsync` completes without throwing when the consume loop faulted; the terminal failure propagates from `WaitUntilStoppedAsync` before and after `StopAsync`.
+- The ordering guarantee is partition-scoped, not topic-scoped.
+- Each producer option maps only its own Confluent field. Unset options leave Confluent defaults in place.
+- A transient consume error backs off one second and resumes polling. Only a fatal client error faults the loop.
+- A requeue seek that fails transiently retries with the seek backoff schedule until it succeeds or shutdown cancels it. Only a fatal error escapes to fault the loop. The requeue honors its `CancellationToken`.
+- `StopAsync` completes without throwing when the consume loop faulted. The terminal failure propagates from `WaitUntilStoppedAsync` before and after `StopAsync`.
 
 ## Non-Goals
 
@@ -135,7 +135,7 @@
 - Exactly-once Kafka transactions.
 - Automatic topic creation policy for production.
 
-## Deep Docs
+## References
 
 - [Kafka-Transport.md](../../integrations/kafka.md)
 - [Architecture.md](../../architecture/README.md)

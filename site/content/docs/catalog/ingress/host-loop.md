@@ -3,19 +3,19 @@
 - **ID**: `ingress.host-loop`
 - **Name**: Host loop and consumer enablement
 - **Maturity**: GA
-- **Summary**: Controls whether the ingress consumer runs as manifest background work and how it restarts after faults.
+- **Summary**: This capability controls whether the ingress consumer runs as manifest background work and how it restarts after faults.
 
 ## Purpose and Scope
 
-Ingress modules register `TransportInboxIngressConsumer` through `IModuleConfiguration.RegisterBackgroundService` when the module builder leaves `EnableIngressConsumer` true (default). `TransportInboxIngressHostOptions` controls runtime behavior:
+When the module builder leaves `EnableIngressConsumer` true (the default), ingress modules register `TransportInboxIngressConsumer` through `IModuleConfiguration.RegisterBackgroundService`. `TransportInboxIngressHostOptions` controls runtime behavior:
 
 | Property | Default | Role |
 | --- | --- | --- |
 | `Enabled` | true | Skip the consumer loop when false |
-| `RetryPollInterval` | 5 seconds | Delay before restarting after transport faults; zero still waits `MinimumRestartDelay` (1 second) |
-| `MinimumRestartDelay` | 1 second | Floor between restarts, so a zero interval cannot hot-loop |
+| `RetryPollInterval` | 5 seconds | Delay before restarting after transport faults. A zero value still waits `MinimumRestartDelay` (1 second) |
+| `MinimumRestartDelay` | 1 second | Minimum delay between restarts, which stops a zero interval from looping without delay |
 
-Module builders expose `DisableIngressConsumer()` to register handler services without starting the subscription loop (custom consume paths or tests). Kafka builder also exposes `ConfigureHost(Action<TransportInboxIngressHostOptions>)`.
+Module builders expose `DisableIngressConsumer()` for handler-only registration without the subscription loop, used by custom consume paths or tests. The Kafka builder also exposes `ConfigureHost(Action<TransportInboxIngressHostOptions>)`.
 
 ## Lifecycle Flow
 
@@ -42,7 +42,7 @@ flowchart TD
 | `TransportInboxIngressHostOptions.RetryPollInterval` | Delay before restarting after transport faults (default 5 s) |
 | `AmqpInboxIngressModuleBuilder.HostOptions` | AMQP host tuning |
 | `KafkaInboxIngressModuleBuilder.ConfigureHost(Action<TransportInboxIngressHostOptions>)` | Kafka host tuning |
-| `IModuleConfiguration.RegisterBackgroundService(Type)` | Registers `TransportInboxIngressConsumer` when consumer enabled |
+| `IModuleConfiguration.RegisterBackgroundService(Type)` | Registers `TransportInboxIngressConsumer` when the consumer is enabled |
 
 ## Packages
 
@@ -58,8 +58,8 @@ flowchart TD
 
 - Background services start after startup tasks complete (host orchestrator ordering).
 - Disabling the consumer still registers `TransportInboxIngressHandler` for manual accept scenarios.
-- Ingress does not register `IHostedService` directly; it uses manifest indirection.
-- Retry behavior is infinite until cancellation, with delay controlled by `RetryPollInterval` floored at `MinimumRestartDelay` (1 second); cancellation during the delay breaks the loop cleanly.
+- Ingress never registers `IHostedService` directly. It registers through the manifest instead.
+- Retries continue until cancellation, with the delay controlled by `RetryPollInterval` and floored at `MinimumRestartDelay` (1 second). Cancellation during the delay breaks the loop cleanly.
 
 ## Broker Parity
 
@@ -83,10 +83,10 @@ All adapters register the same `TransportInboxIngressConsumer` type when enabled
 
 | Signal | When emitted |
 | --- | --- |
-| EventId 3002, Warning, `IngressRestarting` | Consumer loop fault; restart scheduled after `RetryPollInterval` |
+| EventId 3002, Warning, `IngressRestarting` | Consumer loop fault, with restart scheduled after `RetryPollInterval` |
 | Manifest `BackgroundServices` | `typeof(TransportInboxIngressConsumer)` when consumer enabled |
 
-No host-loop-specific metrics. Background services start after startup tasks complete (host orchestrator). Disabling the consumer (`DisableIngressConsumer`) removes the manifest entry but leaves handler services for manual accept.
+The host loop has no metrics of its own. Background services start after startup tasks complete (host orchestrator). Disabling the consumer (`DisableIngressConsumer`) removes the manifest entry but leaves handler services for manual accept.
 
 ## Test Coverage
 
@@ -102,9 +102,9 @@ End-to-end tests assert `TransportInboxIngressConsumer` on the host manifest whe
 
 ### Untested
 
-- `TransportInboxIngressHostOptions.RetryPollInterval` restart after transport fault (EventId 3002 path).
-- `TransportInboxIngressHostOptions.Enabled = false` at registration time.
-- `KafkaInboxIngressModuleBuilder.ConfigureHost` host tuning.
+- Restart after a transport fault through `TransportInboxIngressHostOptions.RetryPollInterval` (EventId 3002 path).
+- Setting `TransportInboxIngressHostOptions.Enabled = false` at registration time.
+- Host tuning through `KafkaInboxIngressModuleBuilder.ConfigureHost`.
 - Kafka ingress host start/stop without hanging under rapid broker recycle.
 - Explicit restart timing assertions for SQS and Service Bus adapters.
 
@@ -114,7 +114,7 @@ End-to-end tests assert `TransportInboxIngressConsumer` on the host manifest whe
 - Dynamic hot reload of destination names without rebuild.
 - Broker connectivity health probes (`IDiagnosticCheck`).
 
-## Deep Docs
+## References
 
 - [Hosted services: AMQP inbox ingress](../../architecture/hosted-services.md)
 - [Hosted services: Manual execution](../../architecture/hosted-services.md)

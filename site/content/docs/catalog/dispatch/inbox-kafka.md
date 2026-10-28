@@ -9,9 +9,9 @@
 
 ## What It Does
 
-Registers `TransportInboxDispatchModule` with `KafkaTransportModule`. `DefaultDestination` is the topic; route is the record key (defaults via contract name or custom resolver). Kafka transport uses manual offset commit on consume; dispatch publish does not commit offsets.
+This extension registers `TransportInboxDispatchModule` with `KafkaTransportModule`. `DefaultDestination` is the topic, and the route is the record key. The key defaults to the contract name or comes from a custom resolver. The Kafka transport commits offsets manually on consume, and dispatch publish does not commit offsets.
 
-Pair Kafka dispatch with inbox idempotency and idempotent handlers. Kafka has no queue-style lease equivalent on the broker.
+Pair Kafka dispatch with inbox idempotency and idempotent handlers, because Kafka has no broker-side equivalent of a queue lease.
 
 ## Packages
 
@@ -29,14 +29,14 @@ Pair Kafka dispatch with inbox idempotency and idempotent handlers. Kafka has no
 
 ## Invariants
 
-- Consumer offset commit happens on ingress/consume path, not dispatch.
-- Failed consume records seek back for in-session retry (transport behavior).
-- Handlers must tolerate redelivery after rebalance or uncommitted offsets.
+- The consumer commits offsets on the ingress or consume path, never on dispatch.
+- Failed consume records seek back for an in-session retry. The transport layer owns that behavior.
+- Handlers must tolerate redelivery after a rebalance or uncommitted offsets.
 
 ## Non-Goals
 
-- Does not implement Kafka transactions for consume-process-produce loops.
-- Does not manage topic creation or schema registry.
+- It does not implement Kafka transactions for consume-process-produce loops.
+- It does not manage topic creation or the schema registry.
 
 ## Public Surface
 
@@ -64,8 +64,8 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `InboxModuleBuilder.UseKafkaDispatch(Action<TransportInboxDispatcherOptions>)` | Registers inbox transport dispatcher that requires the root Kafka transport |
-| `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | Publishes inbox lease payload and headers to Kafka |
+| `InboxModuleBuilder.UseKafkaDispatch(Action<TransportInboxDispatcherOptions>)` | Registers the inbox transport dispatcher, which requires the root Kafka transport |
+| `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | Publishes the inbox lease payload and headers to Kafka |
 
 `KafkaTransportOptions`:
 
@@ -73,10 +73,10 @@ services.AddLiteBus(litebus =>
 | --- | --- | --- |
 | `BootstrapServers` | required | Kafka bootstrap server list |
 | `ClientId` | `null` | Producer and consumer client id |
-| `ConsumerGroupId` | `litebus-transport` | Group id for transport consumer side |
+| `ConsumerGroupId` | `litebus-transport` | Group id for the transport consumer side |
 | `MessageTimeoutMs` | `null` | Producer local message timeout override |
-| `SocketTimeoutMs` | `null` | Socket timeout override; positive when set, otherwise the librdkafka default |
-| `MessageSendMaxRetries` | `null` | Producer send retry override; positive when set, otherwise the librdkafka default |
+| `SocketTimeoutMs` | `null` | Positive socket timeout override, or the librdkafka default when unset |
+| `MessageSendMaxRetries` | `null` | Positive producer send retry override, or the librdkafka default when unset |
 | `SeekFailureBackoffInitial` | `00:00:00.250` | Initial seek retry delay |
 | `SeekFailureBackoffMax` | `00:00:30` | Max seek retry delay |
 | `SeekFailureBackoffMultiplier` | `2.0` | Seek retry multiplier |
@@ -85,14 +85,14 @@ services.AddLiteBus(litebus =>
 
 | Signal | Detail |
 | --- | --- |
-| `send {destination}` | Tags include topic as `messaging.destination.name`, record key as `messaging.kafka.message.key` |
+| `send {destination}` | Tags include the topic as `messaging.destination.name` and the record key as `messaging.kafka.message.key` |
 | `litebus.transport.circuit_breaker.*` | Broker tag `kafka` |
-| `process {destination}` | Not emitted on dispatch; consumer/ingress path only |
-| `litebus.inbox.processor.*` | Standard inbox processor counters and dispatch duration histogram |
+| `process {destination}` | Dispatch does not emit it. It appears on the consumer or ingress path only |
+| `litebus.inbox.processor.*` | The standard inbox processor counters and dispatch duration histogram |
 
 Register Kafka transport metrics through `AddLiteBusTransportMetrics()` from `LiteBus.Transport.Extensions.OpenTelemetry`.
 
-## Deep Docs
+## References
 
 - [Architecture.md: Kafka at-least-once semantics](../../architecture/README.md#kafka-at-least-once-semantics)
 
@@ -107,9 +107,9 @@ Register Kafka transport metrics through `AddLiteBusTransportMetrics()` from `Li
 
 ### Untested
 
-- Inbox dispatch failure on unreachable brokers.
+- Inbox dispatch failure when brokers are unreachable.
 - Route override and tenant route strategy coverage.
-- Kafka transaction usage, which is not part of current dispatcher contracts.
+- Kafka transaction usage, which the current dispatcher contracts do not cover.
 
 ### Out-of-Scope
 

@@ -3,7 +3,7 @@
 - **ID**: `runtime.modules`
 - **Name**: Module contract
 - **Maturity**: GA
-- **Summary**: Defines compose-time module behavior through `IModule` and parent-child expansion through `ICompositeModule`.
+- **Summary**: This capability defines compose-time module behavior through `IModule` and parent-child expansion through `ICompositeModule`.
 
 ## What It Does
 
@@ -27,16 +27,16 @@ Runtime modules are the composition unit for LiteBus. Each module implements `IM
 
 ## Invariants
 
-- `Build` runs after ordered module graph creation.
-- Composite children are declared during registration, not build.
+- `Build` runs after the ordered module graph is created.
+- Composite children are declared during registration, not during build.
 
 ## Non-Goals
 
-- Runtime host orchestration.
+- Orchestrating the runtime host.
 
 ## Observability
 
-No dedicated metrics. Registration failures surface as configuration exceptions.
+Modules emit no metrics. Registration failures surface as configuration exceptions.
 
 ## Test Coverage
 
@@ -60,4 +60,4 @@ No dedicated metrics. Registration failures surface as configuration exceptions.
 
 ### Out-of-Scope Use Cases
 
-- Runtime module hot-reload.
+- Hot-reloading modules at run time.

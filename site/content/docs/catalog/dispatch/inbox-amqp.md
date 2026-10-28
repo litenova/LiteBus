@@ -7,9 +7,9 @@
 
 ## What It Does
 
-`AddAmqpTransport(...)` registers the horizontal AMQP infrastructure once at the root. `InboxModuleBuilder.UseAmqpDispatch(...)` wires only `TransportInboxDispatchModule`, which requires that root module. The inbox processor keeps the durable lease and retry behavior, but the dispatch step publishes to AMQP instead of calling local command handlers.
+`AddAmqpTransport(...)` registers the horizontal AMQP infrastructure once at the root. `InboxModuleBuilder.UseAmqpDispatch(...)` registers only `TransportInboxDispatchModule`, which requires that root module. The inbox processor keeps the durable lease and retry behavior, but the dispatch step publishes to AMQP instead of calling local command handlers.
 
-Common deployment shape is a producer service with inbox storage and processor enabled, plus a separate worker service that consumes the queue and accepts into its own inbox. Because the processor acknowledges completion only after store persist, this path is at-least-once.
+The common deployment pairs a producer service, which runs inbox storage and the processor, with a separate worker service that consumes the queue and accepts messages into its own inbox. The processor records completion only after it persists the outcome to the store, so this path delivers each message at least once.
 
 ## Public Surface
 
@@ -42,33 +42,33 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `InboxModuleBuilder.UseAmqpDispatch(Action<TransportInboxDispatcherOptions>)` | Registers transport inbox dispatcher that requires the root AMQP transport |
-| `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | Resolves route, maps headers, publishes through `ITransportPublisher` |
+| `InboxModuleBuilder.UseAmqpDispatch(Action<TransportInboxDispatcherOptions>)` | Registers the transport inbox dispatcher, which requires the root AMQP transport |
+| `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | Resolves the route, maps the headers, and publishes through `ITransportPublisher` |
 
 `TransportInboxDispatcherOptions`:
 
 | Property | Default | Role |
 | --- | --- | --- |
-| `DefaultDestination` | `""` | Exchange name (`""` targets default direct exchange) |
-| `ContentType` | `application/json` | MIME value written to publish request |
+| `DefaultDestination` | `""` | Exchange name (`""` uses the default direct exchange) |
+| `ContentType` | `application/json` | MIME value written to the publish request |
 | `Persistent` | `true` | Requests broker-persistent delivery |
-| `Mandatory` | `true` | Fails publish with `AmqpMessageReturnedException` when message is unroutable |
-| `ResolveRoute` | `null` | Route override delegate per envelope |
-| `ValidatePayloadBeforeDispatch` | `false` | Deserializes payload before publish to detect contract mismatch |
+| `Mandatory` | `true` | Fails the publish with `AmqpMessageReturnedException` when the message is unroutable |
+| `ResolveRoute` | `null` | Per-envelope route override delegate |
+| `ValidatePayloadBeforeDispatch` | `false` | Deserializes the payload before publish to detect a contract mismatch |
 
 `AmqpConnectionOptions`:
 
 | Property | Default | Role |
 | --- | --- | --- |
-| `Uri` | `null` | Full AMQP URI, overrides host/port/credentials when set |
+| `Uri` | `null` | Full AMQP URI that overrides the host, port, and credentials when set |
 | `HostName` | `localhost` | Broker host name |
 | `Port` | `5672` | Broker port |
 | `VirtualHost` | `/` | AMQP virtual host |
 | `UserName` / `Password` | `guest` / `guest` | Broker credentials |
-| `ClientProvidedName` | `null` | Connection display name in broker UI |
-| `AutomaticRecoveryEnabled` | `true` | Enables RabbitMQ client reconnect |
+| `ClientProvidedName` | `null` | Connection display name shown in the broker UI |
+| `AutomaticRecoveryEnabled` | `true` | Enables reconnect in the RabbitMQ client |
 | `NetworkRecoveryInterval` | `00:00:05` | Delay between reconnect attempts |
-| `CircuitBreaker` | configured object | Separate connection and per-exchange publisher breaker thresholds |
+| `CircuitBreaker` | configured object | Separate thresholds for the connection breaker and the per-exchange publisher breakers |
 
 ## Packages
 
@@ -88,16 +88,16 @@ services.AddLiteBus(litebus =>
 ## Invariants
 
 - Only one `IInboxDispatcher` can be registered in an inbox module builder scope.
-- `TransportInboxDispatchModule<AmqpTransportModule>` requires the root AMQP transport module, so composition fails when `AddAmqpTransport` is missing and no dispatch runs without an `ITransportPublisher`.
+- `TransportInboxDispatchModule<AmqpTransportModule>` requires the root AMQP transport module. Composition fails when `AddAmqpTransport` is missing, so no dispatch runs without an `ITransportPublisher`.
 - Route resolution order is tenant strategy, then `ResolveRoute`, then `ContractName`.
-- Processor semantics remain at-least-once, AMQP publish success alone does not mark completion.
-- A mandatory publication the broker returns as unroutable throws `AmqpMessageReturnedException`, so the envelope stays leased and retries instead of being silently dropped.
+- Processor semantics stay at-least-once. A successful AMQP publish alone does not mark the envelope complete.
+- A mandatory publication the broker returns as unroutable throws `AmqpMessageReturnedException`, so the envelope stays leased and is retried instead of being silently dropped.
 
 ## Non-Goals
 
-- AMQP queue consumption and accept semantics (handled by `ingress.amqp`).
+- AMQP queue consumption and accept semantics, which the `ingress.amqp` capability handles.
 - Combining in-process and AMQP dispatch on the same inbox module.
-- Broker-side queue topology management beyond publishing to configured destination and route.
+- Broker-side queue topology management beyond publishing to the configured destination and route.
 
 ## Observability
 
@@ -126,15 +126,15 @@ Register transport signals with `AddLiteBusAmqpMetrics()` and processor signals 
 
 ### Untested
 
-- Explicit inbox dispatch failure path when broker is unreachable.
-- Custom route resolver and tenant routing strategy branches.
+- The explicit inbox dispatch failure path when the broker is unreachable.
+- The custom route resolver and tenant routing strategy branches.
 
 ### Out-of-Scope
 
 - Queue consumer ack and retry semantics.
 - Exchange and binding provisioning lifecycle.
 
-## Deep Docs
+## References
 
 - [Inbox](../../reliable-messaging/inbox.md)
 - [Outbox](../../reliable-messaging/outbox.md)

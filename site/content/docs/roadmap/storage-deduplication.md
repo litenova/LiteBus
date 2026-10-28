@@ -8,7 +8,7 @@
 
 The current storage packages contain **folder-level** shared helpers under `src/LiteBus.Storage.EntityFrameworkCore/Stores/` and `src/LiteBus.Storage.PostgreSql/Stores/`. Inbox and outbox adapters still carry large, parallel implementations (`PostgreSqlInboxStore`, `PostgreSqlOutboxStore`, `EfCoreInboxStore`, `EfCoreOutboxStore`).
 
-This roadmap item tracks a **deep dedup**: collapse the shared lease, persist, batch idempotency, and query paths into generic relational store cores, while axis-specific packages remain thin typed facades and public store interfaces stay unchanged.
+This roadmap item tracks a **deep dedup**. The shared lease, persist, batch idempotency, and query paths collapse into generic relational store cores, while axis-specific packages remain thin typed facades and public store interfaces stay unchanged.
 
 ## Problem
 
@@ -19,11 +19,11 @@ This roadmap item tracks a **deep dedup**: collapse the shared lease, persist, b
 | Duplicate orchestration remains above the line-reduction target | Reviewers cannot apply one storage correctness fix to both axes |
 | Contract tests pass per adapter | Correctness is proven, but implementation drift risk grows with each broker or provider addition |
 
-The processor implementation in `LiteBus.Messaging/Processing/` uses the target structure: **one engine, two thin shells**.
+The processor implementation in `LiteBus.Messaging/Processing/` uses the target structure, **one engine, two thin shells**.
 
 ## Goal
 
-Introduce internal generic store cores (working names below) inside existing layer-3 packages: **no new NuGet package IDs**:
+Introduce internal generic store cores (working names below) inside existing layer-3 packages, with **no new NuGet package IDs**:
 
 ```text
 LiteBus.Storage.PostgreSql/Stores/
@@ -57,9 +57,9 @@ Follow [Dependency graph](../architecture/dependency-graph.md) dependency role r
 | Rule | Application |
 | --- | --- |
 | Technology adapters | Generic cores live in `LiteBus.Storage.PostgreSql` and `LiteBus.Storage.EntityFrameworkCore` only |
-| Feature bridges | Inbox/outbox storage packages reference the matching technology adapter; they supply axis-specific mappers and table options |
-| Abstractions stay abstract | Store interfaces remain in `*.Abstractions`; mappers implement internal ports, not broker SDK types on public API |
-| Tests prove behavior | `LiteBus.Storage.Testing` contract bases must pass unchanged; add concurrent persist and batch idempotency regressions if cores move |
+| Feature bridges | Inbox/outbox storage packages reference the matching technology adapter, and they supply axis-specific mappers and table options |
+| Abstractions stay abstract | Store interfaces remain in `*.Abstractions`. Mappers implement internal ports, not broker SDK types on public API. |
+| Tests prove behavior | `LiteBus.Storage.Testing` contract bases must pass unchanged. Add concurrent persist and batch idempotency regressions if cores move. |
 
 ## Proposed Architecture
 
@@ -105,7 +105,7 @@ Define small internal ports in the technology adapter, implemented by axis mappe
 | `IRelationalLeasePolicy` | Status names for in-flight, terminal transitions, lease column names |
 | `IRelationalStoreOptions` | Table name, schema, tenant filter hooks |
 
-PostgreSQL and EF paths share **orchestration** (lease batch, persist with owner guard, requeue, retention queries); they do not share SQL text or EF entity types.
+PostgreSQL and EF paths share **orchestration** (lease batch, persist with owner guard, requeue, retention queries). They do not share SQL text or EF entity types.
 
 ## Phased Delivery
 
@@ -116,7 +116,7 @@ PostgreSQL and EF paths share **orchestration** (lease batch, persist with owner
 3. Run full `InboxStoreContractTests` and `OutboxStoreContractTests` on PostgreSQL adapters.
 4. Target **>=50% line reduction** in the two PostgreSQL store files.
 
-**Estimate:** one focused PR; Docker PostgreSQL integration required in CI.
+This phase is one focused PR, and CI needs Docker PostgreSQL for integration.
 
 ### Phase 2: EF Core Core
 
@@ -125,7 +125,7 @@ PostgreSQL and EF paths share **orchestration** (lease batch, persist with owner
 3. Extend concurrent persist contract tests to both axes after refactor.
 4. Extend the MySQL store contract suites (`EfCoreInboxStoreMySqlContractTests`, `EfCoreOutboxStoreMySqlContractTests`, which run against `mysql:8.4` or `LITEBUS_TEST_MYSQL_CONNECTION_STRING`) with concurrent persist coverage after the refactor.
 
-**Estimate:** one PR; depends on Phase 1 patterns.
+This phase is one PR and follows the Phase 1 patterns.
 
 ### Phase 3: Documentation and Graph
 
@@ -138,28 +138,28 @@ PostgreSQL and EF paths share **orchestration** (lease batch, persist with owner
 | Criterion | Measure |
 | --- | --- |
 | No public API breaks | Same NuGet IDs, interfaces, and module builder methods |
-| Line reduction | >=50% fewer lines in inbox+outbox PG store files; >=40% in EF store files |
+| Line reduction | >=50% fewer lines in the inbox and outbox PG store files, and >=40% in the EF store files |
 | Contract parity | All storage contract tests pass for InMemory, PostgreSQL, EF (PostgreSQL + SQL Server where applicable) |
 | Correctness preserved | Atomic terminal persist (`lease_owner` + in-flight guard), batch idempotency, NOTIFY work signal unchanged |
 | Single fix path | One change in relational core fixes both axes (demonstrate with a controlled bugfix or shared metric) |
-| Role compliance | No technology adapter references a feature bridge; generic parameters and internal mapper contracts point in the allowed direction |
+| Role compliance | No technology adapter references a feature bridge. Generic parameters and internal mapper contracts point in the allowed direction. |
 
 ## Risks and Mitigations
 
 | Risk | Mitigation |
 | --- | --- |
-| Generic abstraction leaks axis semantics | Keep status/terminal mapping in axis mappers; core only orchestrates |
-| EF provider differences (SQL Server, MySQL, SQLite) | Keep provider-specific lease SQL in existing `Leasing/` folder; core delegates |
-| Large PR hard to review | Ship Phase 1 (PG) and Phase 2 (EF) separately; no behavior change commits mixed with moves |
-| Test flakiness during move | Run contract tests after each extraction step; avoid renaming public test hooks |
+| Generic abstraction leaks axis semantics | Keep status/terminal mapping in axis mappers, and the core only orchestrates |
+| EF provider differences (SQL Server, MySQL, SQLite) | Keep provider-specific lease SQL in the existing `Leasing/` folder, and the core delegates |
+| Large PR hard to review | Ship Phase 1 (PG) and Phase 2 (EF) separately, with no behavior-change commits mixed with moves |
+| Test flakiness during move | Run contract tests after each extraction step, and avoid renaming public test hooks |
 
 ## Relationship to Other Work
 
 | Item | Relationship |
 | --- | --- |
 | [Messaging/Processing structure](../architecture/README.md) | Current example of the same "folder not package" pattern |
-| [Storage integration suites](../testing/integration-tests.md) | Behavioral foundation for this roadmap; not a substitute for shared implementation |
-| SQL Server storage adapters | Future packages; should consume relational EF core once it exists |
+| [Storage integration suites](../testing/integration-tests.md) | Behavioral foundation for this roadmap, not a substitute for shared implementation |
+| SQL Server storage adapters | Future packages that should consume the relational EF core once it exists |
 
 ## When to Schedule
 

@@ -1,8 +1,8 @@
 # Storage
 
-Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+This section is a contributor reference for the storage packages that give inbox and outbox flows durable persistence. If you build applications on LiteBus, start with [the documentation overview](../../index.md).
 
-The storage axis covers durable persistence for inbox and outbox flows. Technology-adapter packages own shared PostgreSQL and EF Core primitives, while feature bridges implement storage roles for each durable axis.
+Technology-adapter packages hold the shared PostgreSQL and EF Core primitives, and feature bridges implement the storage roles for each durable axis.
 
 ## Axis Role
 
@@ -67,13 +67,13 @@ The storage axis covers durable persistence for inbox and outbox flows. Technolo
 ## Test Projects
 
 - `LiteBus.Storage.UnitTests`
-  - role contracts, PostgreSQL utility tests, transactional participant behavior, and module dependency validation.
+  - Covers role contracts, PostgreSQL utilities, transactional participant behavior, and module dependency validation.
 - `LiteBus.Storage.IntegrationTests`
-  - `PostgreSql/` suite for inbox/outbox store contracts, schema scripts, schema drift, work signal, end-to-end processor behavior, and transactional write integration.
+  - Covers the `PostgreSql/` suite: inbox/outbox store contracts, schema scripts, schema drift, work signal, end-to-end processor behavior, and transactional write integration.
 
 ## Related Main Documentation
 
-These topics are also documented in main docs:
+These topics are also covered in the main documentation:
 
 - [Inbox EntityFrameworkCore Storage](../../integrations/inbox-ef-core-storage.md)
 - [Outbox EntityFrameworkCore Storage](../../integrations/outbox-ef-core-storage.md)

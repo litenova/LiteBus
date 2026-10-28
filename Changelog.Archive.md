@@ -1,81 +1,81 @@
 # Changelog Archive
 
-Release notes for LiteBus v6.0.2 and earlier. Releases from v7.0.0 on are in [Changelog.md](Changelog.md).
+This archive holds the release notes for LiteBus v6.0.2 and earlier. Releases from v7.0.0 on are in [Changelog.md](Changelog.md).
 
 ## v6.0.2
 
-Patch release for .NET 10. Public APIs, persistence schemas, and transport behavior are unchanged.
+This is a patch release for .NET 10. Public APIs, persistence schemas, and transport behavior are unchanged.
 
 ### Fixed
 
-- Publishing an event through a base-typed or interface-typed reference now invokes handlers registered for the concrete event type. `IEventMediator.PublishAsync(IEvent, ...)` and the `PublishAsync(@event, cancellationToken)` extension erase the event to `IEvent`, and because handler contracts are contravariant, `AsyncBroadcastMediationStrategy<TMessage>` matched only handlers registered for the erased type and skipped the rest without raising an error. Handlers whose contract does not close over the compile-time message type are now dispatched through the non-generic handler entry point, which routes to the closed contract the handler implements. This also restores in-process outbox dispatch, which publishes every `IEvent` through the non-generic overload.
+- Publishing an event through a base-typed or interface-typed reference now invokes the handlers registered for the concrete event type. Both `IEventMediator.PublishAsync(IEvent, ...)` and the `PublishAsync(@event, cancellationToken)` extension pass the event with the static type `IEvent`. Because handler contracts are contravariant, `AsyncBroadcastMediationStrategy<TMessage>` matched only the handlers registered for that static type and skipped the rest without raising an error. Handlers whose contract is not closed over the compile-time message type now go through the non-generic handler entry point, which routes to the closed contract the handler implements. This also restores in-process outbox dispatch, which publishes every `IEvent` through the non-generic overload.
 
 ## v6.0.1
 
-Documentation and policy maintenance release for .NET 10. Public APIs, persistence schemas, and transport behavior are unchanged.
+This is a documentation and policy maintenance release for .NET 10. Public APIs, persistence schemas, and transport behavior are unchanged.
 
 ### Added
 
 - `AI_POLICY.md` documents the project's history before public generative coding assistants and defines review, disclosure, provenance, and verification requirements for AI-assisted contributions.
-- Repository writing guidance for technical documentation, API descriptions, and capability comparisons.
+- The repository now includes writing guidance for technical documentation, API descriptions, and capability comparisons.
 
 ### Changed
 
 - The root README now focuses on command, query, and event mediation, durable messaging, a compact command example, and direct documentation links.
-- Non-migration documentation describes the current LiteBus API and behavior without release-transition narratives. Historical API, package, and database transitions remain in the migration guides.
+- Non-migration documentation describes the current LiteBus API and behavior, without narrating how past releases changed them. Historical API, package, and database transitions remain in the migration guides.
 - The roadmap lists planned work without a version-specific roadmap page.
 - Documentation edit links target the `main` branch.
 
 ### Fixed
 
-- PostgreSQL schema drift diagnostics describe an incompatible current schema contract without assuming that an existing table belongs to a specific LiteBus release.
+- PostgreSQL schema drift diagnostics now report an incompatible current schema contract without assuming that an existing table belongs to a specific LiteBus release.
 
 ## v6.0.0
 
-Major release for **.NET 10** (`net10.0` only). Applications upgrading from v5 must adopt nested module builders, `AcceptAsync` / `EnqueueAsync`, pipelined processors, and the new durable messaging contracts. PostgreSQL schemas begin at version 1 in this release and do not mutate LiteBus v5 tables automatically. Follow the [Migration Guide v6](https://litebus.io/docs/migration/v6) for the API, package, hosting, and database upgrade paths.
+This is a major release for **.NET 10** (`net10.0` only). Applications upgrading from v5 must adopt nested module builders, `AcceptAsync` / `EnqueueAsync`, pipelined processors, and the new durable messaging contracts. PostgreSQL schemas begin at version 1 in this release and do not mutate LiteBus v5 tables automatically. Follow the [Migration Guide v6](https://litebus.io/docs/migration/v6) to upgrade the API, packages, hosting, and database.
 
 ### Added
 
-- Role-based project and package dependency policy enforced by `ArchitectureDependencyPolicyTests`.
-- Root `Add*Transport` composition extensions for AMQP, Kafka, AWS SQS, Azure Service Bus, and in-memory transports.
-- Container-specific dispatch-scope lifecycle coverage for Autofac.
-- Axis-specific append results and outbox enqueue outcomes so receipts distinguish new rows from idempotent replays.
-- File-backed SQLite and MySQL 8.4 provider contract matrices for both Entity Framework Core durable stores.
-- Published `LiteBus.Transport.Testing` xUnit conformance tests for third-party transport adapter authors.
-- Evaluated package inventory, source-linked compiled snippets, test-symbol discovery, and semantic documentation gates.
-- Shared durable-store contract cases for empty batches, mixed terminal outcomes, complete filters, dead-letter replay, and strict idempotency conflicts.
-- Broker readiness diagnostics for Kafka, AWS SQS, and Azure Service Bus, including live emulator coverage for each configured target.
-- Concern-specific `LiteBus.Testing.Mediation`, `LiteBus.Testing.Transport`, `LiteBus.Testing.DurableMessaging`, and `LiteBus.Testing.Hosting` packages.
+- The repository enforces a role-based project and package dependency policy through `ArchitectureDependencyPolicyTests`.
+- Root `Add*Transport` composition extensions cover AMQP, Kafka, AWS SQS, Azure Service Bus, and in-memory transports.
+- Dispatch-scope lifecycle coverage includes the Autofac container.
+- Axis-specific append results and outbox enqueue outcomes distinguish new rows from idempotent replays in receipts.
+- Provider contract matrices cover file-backed SQLite and MySQL 8.4 for both Entity Framework Core durable stores.
+- Third-party transport adapter authors can use the published `LiteBus.Transport.Testing` xUnit conformance tests.
+- The repository has an evaluated package inventory, source-linked compiled snippets, test-symbol discovery, and semantic documentation gates.
+- Shared durable-store contract cases cover empty batches, mixed terminal outcomes, complete filters, dead-letter replay, and strict idempotency conflicts.
+- Broker readiness diagnostics cover Kafka, AWS SQS, and Azure Service Bus, including live emulator coverage for each configured target.
+- This release adds the concern-specific `LiteBus.Testing.Mediation`, `LiteBus.Testing.Transport`, `LiteBus.Testing.DurableMessaging`, and `LiteBus.Testing.Hosting` packages.
 
-- `IInboxEnvelopeFactory` / `IOutboxEnvelopeFactory` shared by auto-commit writers, store-bound transactional writers, and EF interceptors.
-- Non-generic `ITransactionalInbox` / `ITransactionalOutbox` with `StoreBoundTransactionalInbox` / `StoreBoundTransactionalOutbox`.
-- PostgreSQL `CreateTransactionalStore`, `EnableAmbientTransactionProvider()`, and `IPostgreSqlTransactionProvider` for ambient participation.
-- Writer item/metadata model: `InboxAcceptItem`, `InboxAcceptMetadata`, `OutboxEnqueueItem`, `OutboxEnqueueMetadata`, and shared durable value objects in `LiteBus.Messaging.Abstractions.DurableMessaging`.
-- [Transactional messaging writes](https://litebus.io/docs/reliable-messaging/transactional-writes) scenario guide.
-- `LiteBus.Testing` package with `Test*` mediators, inbox/outbox test doubles, and assertion helpers.
-- `ICompositeModule` and nested `InboxModuleBuilder` / `OutboxModuleBuilder` with `UsePostgreSqlStorage`, `UseEntityFrameworkCoreStorage`, `UseInMemoryStorage`, `UseInProcessDispatch`, `UseAmqpDispatch`, and `UseAmqpIngress`.
-- Contract registry split: `IContractWriter` / `IContractReader` on `IMessageContractRegistry`; durable runtime depends on read surface only.
-- Message registry split: `IMessageWriter` / `IMessageReader` with O(1) `Find`; per-`IModuleConfiguration` registry instance (no `Clear()` or `MessageRegistryAccessor`).
-- Manifest hosting: `IStartupTask`, `IBackgroundService`, `IDiagnosticCheck` via `IModuleConfiguration`; generic host bridges in `LiteBus.Runtime.Extensions.*.Hosting`.
-- PostgreSQL storage with v6 version 1 create scripts, indexes, an optional LISTEN/NOTIFY trigger, and `GetCreateScript`, `EnsureAsync`, and `ValidateAsync`. No automatic conversion exists from v5.
-- EF Core and InMemory inbox/outbox storage; `LiteBus.Storage.Testing` contract harnesses.
-- Transport platform: `LiteBus.Transport.Amqp`, Kafka, `LiteBus.Transport.AwsSqs`, Azure Service Bus, InMemory; inbox/outbox dispatch and AMQP ingress packages.
-- `PipelinedInboxProcessor` / `PipelinedOutboxProcessor` with batch terminal updates, OpenTelemetry meters, retention cleanup, dead-letter replay APIs.
-- Transactional outbox: `LiteBusOutboxSaveChangesInterceptor`, `ITransactionalOutbox<TContext>`, aligned PostgreSQL connection and EF `UseExistingDbContext` participation APIs.
-- `LiteBus.Analyzers` rules LB1001, LB1003, LB1004, LB1005, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1013, LB1014 (processor without dispatcher), LB1015-LB1016 (transactional EF/interceptor and DbContext), LB1017 (explicit contract registration for attributed types). See [Analyzers](https://litebus.io/docs/reference/analyzers).
-- Saga inbox integration (`inbox.EnableSaga()`), payload encryption hooks, tenant lease filters, management and health extensions.
-- Failure-mode coverage for real worker process termination, Generic Host drain during active dispatch, broker-backed shutdown persistence policy, and per-message scoped `DbContext` isolation.
-- Repository-owned docs corpus under `site/content/docs/` with [Documentation Index](https://litebus.io/docs), [Migration Guide v6](https://litebus.io/docs/migration/v6), [v6 feature index](https://litebus.io/docs/reference/feature-index-v6), and [Capability catalog](https://litebus.io/docs/reference/capability-catalog).
+- `IInboxEnvelopeFactory` / `IOutboxEnvelopeFactory` are shared by auto-commit writers, store-bound transactional writers, and EF interceptors.
+- Non-generic `ITransactionalInbox` / `ITransactionalOutbox` are available with `StoreBoundTransactionalInbox` / `StoreBoundTransactionalOutbox`.
+- PostgreSQL provides `CreateTransactionalStore`, `EnableAmbientTransactionProvider()`, and `IPostgreSqlTransactionProvider` for participation in ambient transactions.
+- The writer item/metadata model adds `InboxAcceptItem`, `InboxAcceptMetadata`, `OutboxEnqueueItem`, `OutboxEnqueueMetadata`, and shared durable value objects in `LiteBus.Messaging.Abstractions.DurableMessaging`.
+- The documentation includes the [Transactional messaging writes](https://litebus.io/docs/reliable-messaging/transactional-writes) scenario guide.
+- The `LiteBus.Testing` package provides `Test*` mediators, inbox/outbox test doubles, and assertion helpers.
+- `ICompositeModule` and nested `InboxModuleBuilder` / `OutboxModuleBuilder` support `UsePostgreSqlStorage`, `UseEntityFrameworkCoreStorage`, `UseInMemoryStorage`, `UseInProcessDispatch`, `UseAmqpDispatch`, and `UseAmqpIngress`.
+- The contract registry is split into `IContractWriter` / `IContractReader` on `IMessageContractRegistry`. The durable runtime depends only on the read surface.
+- The message registry is split into `IMessageWriter` / `IMessageReader` with O(1) `Find`. Each `IModuleConfiguration` gets its own registry instance, with no `Clear()` or `MessageRegistryAccessor`.
+- Manifest hosting provides `IStartupTask`, `IBackgroundService`, and `IDiagnosticCheck` through `IModuleConfiguration`, with generic host bridges in `LiteBus.Runtime.Extensions.*.Hosting`.
+- PostgreSQL storage ships v6 version 1 create scripts, indexes, an optional LISTEN/NOTIFY trigger, and `GetCreateScript`, `EnsureAsync`, and `ValidateAsync`. No automatic conversion exists from v5.
+- EF Core and InMemory inbox/outbox storage are available, with `LiteBus.Storage.Testing` contract harnesses.
+- The transport platform includes `LiteBus.Transport.Amqp`, Kafka, `LiteBus.Transport.AwsSqs`, Azure Service Bus, and InMemory, with inbox/outbox dispatch and AMQP ingress packages.
+- `PipelinedInboxProcessor` / `PipelinedOutboxProcessor` provide batch terminal updates, OpenTelemetry meters, retention cleanup, and dead-letter replay APIs.
+- The transactional outbox provides `LiteBusOutboxSaveChangesInterceptor`, `ITransactionalOutbox<TContext>`, and aligned participation APIs for PostgreSQL connections and EF `UseExistingDbContext`.
+- `LiteBus.Analyzers` includes rules LB1001, LB1003, LB1004, LB1005, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1013, LB1014 (processor without dispatcher), LB1015-LB1016 (transactional EF/interceptor and DbContext), and LB1017 (explicit contract registration for attributed types). See [Analyzers](https://litebus.io/docs/reference/analyzers).
+- Saga inbox integration (`inbox.EnableSaga()`) is available, with payload encryption hooks, tenant lease filters, and management and health extensions.
+- Failure-mode coverage includes real worker process termination, Generic Host drain during active dispatch, broker-backed shutdown persistence policy, and per-message scoped `DbContext` isolation.
+- The repository owns its docs corpus under `site/content/docs/`, with [Documentation Index](https://litebus.io/docs), [Migration Guide v6](https://litebus.io/docs/migration/v6), [v6 feature index](https://litebus.io/docs/reference/feature-index-v6), and [Capability catalog](https://litebus.io/docs/reference/capability-catalog).
 
 ### Changed
 
 - Error handlers now receive `MessageErrorContext<TMessage, TResult>` plus the caller's explicit cancellation token. The typed context shares handled outcome and fallback result state with the mediation pipeline.
-- `ILiteBusBuilder` moved to `LiteBus.Runtime.Abstractions` and now exposes only `Modules`; feature packages provide `AddMessaging`, `AddCommands`, `AddQueries`, `AddEvents`, `AddInbox`, and `AddOutbox`.
+- `ILiteBusBuilder` moved to `LiteBus.Runtime.Abstractions` and now exposes only `Modules`. Feature packages provide `AddMessaging`, `AddCommands`, `AddQueries`, `AddEvents`, `AddInbox`, and `AddOutbox`.
 - `LiteBus.Orchestration.Abstractions` became `LiteBus.DurableMessaging.Abstractions`, which owns shared durable metadata, retry, lease, processor, and hook contracts.
 - Inbox and outbox implementation services and module builders moved from abstractions into their core packages.
-- Microsoft DI and Autofac adapters now own dispatch-scope creation. Missing scope composition fails, while root provider dispatch requires explicit `RootMessageDispatchScopeFactory` registration.
-- EF Core inbox and outbox stores use adapter-owned `IDbContextFactory<TContext>` operation contexts.
-- Saga storage is selected exactly once inside `EnableSaga(...)`; in-memory storage is no longer an implicit fallback.
+- Microsoft DI and Autofac adapters now own dispatch-scope creation. Composition without scope configuration fails, while root provider dispatch requires explicit `RootMessageDispatchScopeFactory` registration.
+- EF Core inbox and outbox stores use `IDbContextFactory<TContext>` operation contexts owned by the adapter.
+- Saga storage is selected exactly once inside `EnableSaga(...)`. In-memory storage is no longer an implicit fallback.
 - Module dependency validation uses composite ownership and `IRequires<TModule>` without registration markers or dependency-registry scans during `Build()`.
 - Outbox processor option precedence is independent of configuration call order.
 - PostgreSQL inbox, outbox, and saga schemas start at version 1. Validation checks required column types as well as columns, indexes, and metadata.
@@ -87,35 +87,35 @@ Major release for **.NET 10** (`net10.0` only). Applications upgrading from v5 m
 - ASP.NET Core health checks and the management health route expose shared per-probe timeout and parallelism limits. The `AddLiteBus()` health registration carries both `litebus` and `ready` tags.
 - `LiteBus.Testing` is now a framework-neutral base package. Mediator, transport, durable, and host helpers no longer impose unrelated dependency graphs, Newtonsoft.Json, or an assertion library on consumers.
 
-- Package layout: `LiteBus.Storage.PostgreSql`, `LiteBus.Inbox.Storage.*`, `LiteBus.Outbox.Storage.*`, `LiteBus.Transport.Amqp`, `*.Dispatch.InProcess`.
-- Neutral inbox/outbox naming: `litebus_inbox_messages.message_id`, `InboxEnvelope`, `OutboxEnvelope`, message-neutral processor and store XML.
+- The package layout uses `LiteBus.Storage.PostgreSql`, `LiteBus.Inbox.Storage.*`, `LiteBus.Outbox.Storage.*`, `LiteBus.Transport.Amqp`, and `*.Dispatch.InProcess`.
+- Inbox/outbox naming is neutral, using `litebus_inbox_messages.message_id`, `InboxEnvelope`, `OutboxEnvelope`, and message-neutral processor and store XML.
 - `IEventMediator.PublishAsync` is the sole in-process event API.
-- `MessageContractAttribute` lives in `LiteBus.Messaging.Abstractions`; explicit `Contracts.Register` recommended for durable types.
-- Module configuration throws when two modules register the same service type with different bindings.
-- PostgreSQL store options default `EnsureSchemaCreationOnStartup = true`; optional validate-only startup for migration-owned DDL.
+- `MessageContractAttribute` lives in `LiteBus.Messaging.Abstractions`. Explicit `Contracts.Register` is recommended for durable types.
+- When two modules register the same service type with different bindings, module configuration throws.
+- PostgreSQL store options now default to `EnsureSchemaCreationOnStartup = true`. Deployments where migrations own the DDL can use optional validate-only startup.
 - Analyzer LB1004 targets `IInbox.AcceptAsync`, `AcceptBatchAsync`, `ITransactionalInbox`, and `InboxAcceptItem` rather than scheduler APIs.
-- Saga: per-dispatch `AsyncLocal` scope, `SagaDefinitionId` and tenant-scoped primary keys, versioned `SagaCompleteItem`, dirty-conflict propagation and completion-only retry in `SagaProcessorHook`, `ISagaStore.QueryAsync` / `PurgeAsync`, removed `ISaga<TState>`.
+- Saga now uses a per-dispatch `AsyncLocal` scope, `SagaDefinitionId` and tenant-scoped primary keys, a versioned `SagaCompleteItem`, dirty-conflict propagation and completion-only retry in `SagaProcessorHook`, and `ISagaStore.QueryAsync` / `PurgeAsync`. `ISaga<TState>` is removed.
 - **v5 to v6 API migration:** see [Migration Guide v6](https://litebus.io/docs/migration/v6) for the legacy-to-v6 inventory.
 
 ### Removed
 
-- The duplicate `AddLiteBus(Action<IModuleRegistry>)` overloads from the Microsoft DI and Autofac adapters. Use the single `Action<ILiteBusBuilder>` callback and access `builder.Modules` for custom module registration.
-- Preview-only PostgreSQL v6 migration scripts and schema versions. The released inbox, outbox, and saga shapes each use one complete version 1 create script.
-- The redundant `PostgreSql*Schema.CreateIfNotExistsAsync` aliases. Use `EnsureAsync` for application-managed startup checks or `ValidateAsync` when deployment tooling owns DDL.
-- The AMQP-specific header alias, circuit-breaker wrapper, and exception. AMQP now uses the shared transport headers and destination-scoped circuit-breaker contracts directly.
-- The legacy AWS SQS correlation-header fallback. All transport adapters now read and write the canonical `TransportHeaders.CorrelationId` key.
-- Unused GitVersion configuration. CI and release workflows take their package version from the build or release tag.
-- The release-workflow call to a removed documentation script. Release validation now uses the repository's active documentation and site checks.
+- Removed the duplicate `AddLiteBus(Action<IModuleRegistry>)` overloads from the Microsoft DI and Autofac adapters. Use the single `Action<ILiteBusBuilder>` callback and access `builder.Modules` for custom module registration.
+- Removed the preview-only PostgreSQL v6 migration scripts and schema versions. The released inbox, outbox, and saga shapes each use one complete version 1 create script.
+- Removed the redundant `PostgreSql*Schema.CreateIfNotExistsAsync` aliases. Use `EnsureAsync` for application-managed startup checks or `ValidateAsync` when deployment tooling owns DDL.
+- Removed the AMQP-specific header alias, circuit-breaker wrapper, and exception. AMQP now uses the shared transport headers and destination-scoped circuit-breaker contracts directly.
+- Removed the legacy AWS SQS correlation-header fallback. All transport adapters now read and write the canonical `TransportHeaders.CorrelationId` key.
+- Removed the unused GitVersion configuration. CI and release workflows take their package version from the build or release tag.
+- Removed the release-workflow call to a removed documentation script. Release validation now uses the repository's active documentation and site checks.
 
 ### Fixed
 
 - Typed error handlers can suppress a recoverable exception and return a fallback result without reimplementing an untyped synchronous interface. The runtime no longer discards their explicit cancellation token.
-- Event parallel fault-mode documentation now matches runtime behavior: already-started sibling tasks settle before either one failure or an aggregate is surfaced, and sibling cancellation is never implied.
-- The shared Generic Host orchestrator now runs as a supervised `BackgroundService`. An unexpected LiteBus background loop fault requests application shutdown immediately instead of leaving the host alive without that workload.
+- Event parallel fault-mode documentation now matches runtime behavior. Already-started sibling tasks settle before the mediator surfaces either one failure or an aggregate exception, and one sibling's failure never cancels the others.
+- The shared Generic Host orchestrator now runs as a supervised `BackgroundService`. When a LiteBus background loop faults unexpectedly, the orchestrator requests application shutdown immediately instead of leaving the host alive without that workload.
 - Closed generic handler registrations retain independent descriptors instead of colliding on one open generic definition.
 - Inbox and outbox leases use a monotonic generation fence. Renewal and terminal persistence reject stale generations, including when the same configured owner reacquires an expired row.
 - Direct PostgreSQL and relational EF Core leasing use the database clock for eligibility, expiry, and renewal so an application clock offset cannot claim future-visible work or extend a lease incorrectly.
-- Inbox and outbox receipts now report exact message-ID and tenant-scoped idempotency replays as `AlreadyAccepted` or `AlreadyEnqueued` instead of inferring the outcome from envelope equality.
+- Inbox and outbox receipts now report replays detected by exact message ID or tenant-scoped idempotency as `AlreadyAccepted` or `AlreadyEnqueued` instead of inferring the outcome from envelope equality.
 - MySQL EF leasing now binds nullable tenant filters with a typed provider parameter, reloads the actual identifier column, and claims disjoint ordered batches without range-lock starvation or update deadlocks.
 - SQLite EF leasing and operator queries now translate timestamp comparisons and ordering instead of failing on `DateTimeOffset` expressions.
 - Analyzer LB1004 now finds result-bearing commands in inbox batches expressed through local variables, arrays, target-typed lists, parenthesized or cast expressions, and collection spreads.
@@ -126,49 +126,49 @@ Major release for **.NET 10** (`net10.0` only). Applications upgrading from v5 m
 - AMQP publishers now accept RabbitMQ's empty-name default exchange and scope its circuit by routing key. An already canceled publish stops before circuit lookup or broker access.
 - ASP.NET management failures now return stable problem details with a request trace identifier. Exception messages remain in structured host logs and are not returned to management clients.
 
-- InMemory outbox lease expiry handling for null lease timestamps.
-- EF inbox/outbox modules register one singleton store for writer, lease, and state roles.
-- PostgreSQL advisory lock keys use independent stable hashes.
-- EF in-memory/SQLite leasing filters pending rows before `Take`.
-- Thread-safe outbox dispatcher recording for deterministic background processor tests.
+- InMemory outbox lease expiry now handles null lease timestamps.
+- EF inbox/outbox modules now register one singleton store for writer, lease, and state roles.
+- PostgreSQL advisory lock keys now use independent stable hashes.
+- EF in-memory/SQLite leasing now filters pending rows before `Take`.
+- Outbox dispatcher recording is now thread-safe, so background processor tests are deterministic.
 - Saga dirty-state conflicts no longer reload and persist stale handler snapshots after a concurrent version advance.
-- Transport CI result isolation and skipped-test detection for current VSTest TRX output; live Azure tests use a separate opt-in category.
+- Transport CI now isolates results and detects skipped tests for current VSTest TRX output. Live Azure tests use a separate opt-in category.
 
-### Breaking changes
+### Breaking Changes
 
 - `IMessageMediator.MediateAsync<TMessage, TResult>` was removed because task-returning strategies produced a nested `Task<Task>` API. Call `Mediate<TMessage, Task>` or `Mediate<TMessage, Task<TResult>>` and await its returned task.
 - `IMessageErrorHandler.HandleError` and scalar `HandleErrorAsync` overloads were replaced by typed-context asynchronous methods. The obsolete `IMessageErrorHandler<TMessage, TResult>` marker and `LegacyErrorHandlerSupport` were removed.
 - `IMessageTransport` was renamed to `ITransportPublisher`.
 - `IRegistrableCommandConstruct`, `IRegistrableQueryConstruct`, and `IRegistrableEventConstruct` were removed.
 - `OutboxEnvelope.AsPublished` now requires the publication timestamp.
-- Broker dispatch and ingress adapters require one matching root transport module; broker connection settings were removed from ingress options and dispatch overloads.
+- Broker dispatch and ingress adapters require one matching root transport module. Broker connection settings were removed from ingress options and dispatch overloads.
 - `LeaseRenewalRequest` now carries `LeaseGeneration`, `LeaseDuration`, and `RequestedExpiresAt` so relational stores can calculate expiry from their database clock while in-memory stores retain deterministic clock control.
 - PostgreSQL v6 starts each component at schema version 1 because no v6 schema was released before 6.0.0. v5 tables require replacement or an application-owned data migration.
 - Transport modules register `ITransportCircuitBreakerRegistry` instead of one process-wide `ITransportCircuitBreaker`. Custom publisher constructors now receive the registry, and the broad `TransportPublishFailurePolicy` classification API was removed. Circuit adapters call `AcquirePermit()` and pass the returned `TransportCircuitBreakerPermit` to `RecordSuccess` or `RecordFailure`.
-- `TransportConsumerOptions.MaxConcurrentMessages` was renamed to `MaxConcurrentCalls`; `ReceiveBatchSize` and `MaxInFlightMessages` were added. `AwsSqsInboxIngressOptions.PrefetchCount` became `ReceiveBatchSize`; Kafka and in-memory ingress removed `PrefetchCount`. Provider-neutral ingress properties now live under each adapter's `Safety` record, including AMQP trust and batch settings.
-- AWS SQS and Azure Service Bus root transport modules now register connectivity probes. Configure `ConnectivityCheckQueueUrl` or `ConnectivityCheckTarget`; otherwise the registered probe reports degraded instead of claiming an unopened SDK client is healthy.
-- `IInboxStore` and `IOutboxStore` append methods return `InboxAppendResult` and `OutboxAppendResult`. The redundant typed `IOutbox.EnqueueBatchAsync<TEvent>` overload is removed; use the non-generic item batch overload.
-- EF application migrations must add `IX_LiteBus_Inbox_CreatedAt` and `IX_LiteBus_Outbox_CreatedAt`. Existing SQLite tables must convert durable timestamp columns to UTC ticks stored as `INTEGER`.
+- `TransportConsumerOptions.MaxConcurrentMessages` was renamed to `MaxConcurrentCalls`. `ReceiveBatchSize` and `MaxInFlightMessages` were added. `AwsSqsInboxIngressOptions.PrefetchCount` became `ReceiveBatchSize`. Kafka and in-memory ingress removed `PrefetchCount`. Provider-neutral ingress properties are now grouped under each adapter's `Safety` record, including AMQP trust and batch settings.
+- AWS SQS and Azure Service Bus root transport modules now register connectivity probes. Configure `ConnectivityCheckQueueUrl` or `ConnectivityCheckTarget`. Otherwise the registered probe reports degraded instead of claiming an unopened SDK client is healthy.
+- `IInboxStore` and `IOutboxStore` append methods return `InboxAppendResult` and `OutboxAppendResult`. The redundant typed `IOutbox.EnqueueBatchAsync<TEvent>` overload is removed. Use the non-generic item batch overload.
+- EF application migrations must add `IX_LiteBus_Inbox_CreatedAt` and `IX_LiteBus_Outbox_CreatedAt`. In existing SQLite tables, convert durable timestamp columns to UTC ticks stored as `INTEGER`.
 
-- **Target framework:** `net10.0` only (.NET 8 and 9 dropped).
-- **Writer APIs:** `IInbox.AcceptAsync` and `IOutbox.EnqueueAsync` replace `AddAsync` / scheduler aliases. Removed `InboxOptions`, `OutboxOptions`, `IInboxScheduler`, and `IOutboxScheduler`. Deferred visibility uses `MessageVisibility` on `*Metadata`. No obsolete shims.
-- **Writer construction:** removed `InboxAcceptItems` and `OutboxEnqueueItems` companion types. Build items with static factories on `InboxAcceptItem` / `OutboxEnqueueItem` (`From`, `WithTopic`, `WithIdempotency`, and related helpers).
+- **Target framework:** the target is `net10.0` only (.NET 8 and 9 dropped).
+- **Writer APIs:** `IInbox.AcceptAsync` and `IOutbox.EnqueueAsync` replace `AddAsync` / scheduler aliases. `InboxOptions`, `OutboxOptions`, `IInboxScheduler`, and `IOutboxScheduler` are removed. Deferred visibility uses `MessageVisibility` on `*Metadata`. There are no obsolete shims.
+- **Writer construction:** `InboxAcceptItems` and `OutboxEnqueueItems` companion types are removed. Build items with static factories on `InboxAcceptItem` / `OutboxEnqueueItem` (`From`, `WithTopic`, `WithIdempotency`, and related helpers).
 - **In-process dispatch:** `UseInProcessDispatch()` replaces flat `AddInboxInProcessDispatcher` / event publisher dispatch paths.
-- **Processors:** pipelined processors only; sequential legacy loops removed.
-- **PostgreSQL schema:** version **1** DDL for inbox, outbox, and saga. Drain and replace v5 tables or run a reviewed application-owned data migration; no `GetUpgradeScript` path exists from v5 shapes.
+- **Processors:** only pipelined processors remain. Sequential legacy loops are removed.
+- **PostgreSQL schema:** inbox, outbox, and saga use version **1** DDL. Drain and replace v5 tables or run a reviewed application-owned data migration. No `GetUpgradeScript` path exists from v5 shapes.
 - **Store roles:** `IInboxTerminalStateStore`, retention, and diagnostics interfaces replace monolithic state stores.
-- **Registry:** process-wide `MessageRegistry` and `Clear()` removed; one registry per module configuration.
-- **Removed APIs:** `IEventPublisher`, `IIdempotentCommand`, v5 `ICommandScheduler` / `AddCommandInboxModule` aliases, `ISagaHandler<TCommand,TState>` (use `ISagaContext` in command handlers). See [Saga](https://litebus.io/docs/reliable-messaging/saga).
-- **Registration:** flat storage/dispatch/ingress registrars removed; compose inside `AddInboxModule` / `AddOutboxModule` only.
-- **Composition packages:** removed `LiteBus.Extensions.All`. Use the per-module Microsoft DI packages or the `LiteBus.Extensions.Microsoft.DependencyInjection` aggregate package.
+- **Registry:** the process-wide `MessageRegistry` and `Clear()` are removed. There is one registry per module configuration.
+- **Removed APIs:** `IEventPublisher`, `IIdempotentCommand`, v5 `ICommandScheduler` / `AddCommandInboxModule` aliases, and `ISagaHandler<TCommand,TState>` are removed (use `ISagaContext` in command handlers). See [Saga](https://litebus.io/docs/reliable-messaging/saga).
+- **Registration:** flat storage/dispatch/ingress registrars are removed. Compose inside `AddInboxModule` / `AddOutboxModule` only.
+- **Composition packages:** `LiteBus.Extensions.All` is removed. Use the per-module Microsoft DI packages or the `LiteBus.Extensions.Microsoft.DependencyInjection` aggregate package.
 
 ### Docs
 
-- Imported the documentation into the main repository and removed the GitHub wiki submodule.
-- Added [Documentation Index](https://litebus.io/docs) as the canonical manual entry point.
-- Added a compile-checked application sample covering command, query, event, inbox, and outbox composition.
-- Added repository checks for relative links, plain ASCII typography, trailing whitespace, and writing-rule phrases.
-- Added release checks for benchmark discovery, package metadata, symbol packages, and changelog-derived release notes.
+- This release imports the documentation into the main repository and removes the GitHub wiki submodule.
+- The [Documentation Index](https://litebus.io/docs) is the canonical manual entry point.
+- A compile-checked application sample covers command, query, event, inbox, and outbox composition.
+- Repository checks cover relative links, plain ASCII typography, trailing whitespace, and writing-rule phrases.
+- Release checks cover benchmark discovery, package metadata, symbol packages, and changelog-derived release notes.
 
 ## v5.0.0
 
@@ -182,12 +182,12 @@ Major release for **.NET 10** (`net10.0` only). Applications upgrading from v5 m
 - Durable outbox stores now expose `IOutboxMessageWriter`, `IOutboxMessageLeaseStore`, and `IOutboxMessageStateStore` instead of one broad store contract.
 - Stable outbox message ids now come from `OutboxOptions.MessageId`.
 - Event handler predicates now apply to both `PublishAsync(IEvent, settings)` and `PublishAsync<TEvent>(TEvent, settings)`.
-- Message descriptor resolution failures now throw `MessageDescriptorNotFoundException` with lookup details.
+- When message descriptor resolution fails, it throws `MessageDescriptorNotFoundException` with lookup details.
 - Message registry namespace filtering now skips only `System` and `System.*` namespaces.
-- Unsupported open generic handler shapes now throw `UnsupportedOpenGenericHandlerException`.
+- Unsupported open generic handler shapes now fail with `UnsupportedOpenGenericHandlerException`.
 - Durable contract registration now supports closed generic message types and rejects open generic message types.
-- Persisted contract registration and resolution now use `IMessageContractRegistry` only (`Register`, `GetContract`, `GetMessageType`).
-- Closed generic messages with concrete handlers now resolve the registered handler type without closing it again.
+- Persisted contract registration and resolution now use only `IMessageContractRegistry` (`Register`, `GetContract`, `GetMessageType`).
+- For closed generic messages with concrete handlers, resolution now returns the registered handler type without closing it again.
 - The repository now uses `LiteBus.slnx` instead of `LiteBus.sln`.
 - CI workflows now restore, build, and test `LiteBus.slnx`, and report Docker availability before PostgreSQL Testcontainers tests.
 
@@ -196,7 +196,7 @@ Major release for **.NET 10** (`net10.0` only). Applications upgrading from v5 m
 - Added `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox`, and `LiteBus.Inbox.Storage.PostgreSql`.
 - Added `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox`, and `LiteBus.Outbox.Storage.PostgreSql`.
 - Added raw Npgsql inbox and outbox stores with leasing, retry visibility, dead-letter state, and Testcontainers coverage.
-- Added canonical `.sql` schema files in `LiteBus.Storage.PostgreSql`, `LiteBus.Inbox.Storage.PostgreSql`, and `LiteBus.Outbox.Storage.PostgreSql` for copy-paste migration ownership.
+- Added canonical `.sql` schema files in `LiteBus.Storage.PostgreSql`, `LiteBus.Inbox.Storage.PostgreSql`, and `LiteBus.Outbox.Storage.PostgreSql` that migration owners can copy into their own migrations.
 - Added `IPostgreSqlSchemaLogger` to `LiteBus.Storage.PostgreSql` (Npgsql-only dependency) for optional schema operation logging.
 - Added `PostgreSqlInboxSchema` / `PostgreSqlOutboxSchema` APIs: `GetCreateScript`, `GetUpgradeScript`, `EnsureAsync`, and `ValidateAsync`.
 - Added `LiteBus.Inbox.Storage.PostgreSql.Extensions.Microsoft.Hosting` and `LiteBus.Outbox.Storage.PostgreSql.Extensions.Microsoft.Hosting` for opt-in schema bootstrap on generic host startup.
@@ -209,21 +209,21 @@ Major release for **.NET 10** (`net10.0` only). Applications upgrading from v5 m
 
 - Removed the v4 attribute-based command inbox API and related command inbox abstractions.
 - Removed `LiteBus.Commands.Extensions.Microsoft.Hosting` because it was tied to the old inbox host.
-- Removed `LiteBus.Inbox.Extensions.Autofac` and `LiteBus.Outbox.Extensions.Autofac` because hosting registration lives in the Microsoft hosting extension packages (Autofac apps use the same hosting modules through the runtime adapter).
-- Removed `IIdentifiedIntegrationEvent`; event identity now belongs to outbox envelope options.
-- Removed inbox/outbox processor host interfaces and `UseProcessorHost`; hosting is configured through `AddInboxProcessorHosting` / `AddOutboxProcessorHosting` on the hosting extension packages.
-- Removed `IMessageContractRegistrar`; contract registration is part of `IMessageContractRegistry`.
+- Removed `LiteBus.Inbox.Extensions.Autofac` and `LiteBus.Outbox.Extensions.Autofac` because the Microsoft hosting extension packages provide the hosting registration (Autofac apps use the same hosting modules through the runtime adapter).
+- Removed `IIdentifiedIntegrationEvent`. Event identity is now part of outbox envelope options.
+- Removed inbox/outbox processor host interfaces and `UseProcessorHost`. Hosting is configured through `AddInboxProcessorHosting` / `AddOutboxProcessorHosting` on the hosting extension packages.
+- Removed `IMessageContractRegistrar`. Contract registration is part of `IMessageContractRegistry`.
 
-### Changed (hosting)
+### Changed (Hosting)
 
 - Moved inbox and outbox processor hosting out of core modules into separate extension packages with self-contained `BackgroundService` loops.
-- Core inbox/outbox modules now register processors only; they no longer reference Microsoft hosting or health-check packages.
+- Core inbox/outbox modules now register only processors. They no longer reference Microsoft hosting or health-check packages.
 
 ### Docs
 
 - Added v5 reliability roadmap, domain event and unit-of-work guidance, and architecture decision records.
-- Updated command inbox docs for explicit scheduling semantics, storage metadata, retry, dead-letter, and idempotency guidance.
-- Added durable outbox docs for writer, processor, dispatcher, PostgreSQL storage, and transaction boundaries.
+- Updated the command inbox docs on explicit scheduling semantics, storage metadata, retry, dead-letter, and idempotency.
+- Added durable outbox docs on the writer, processor, dispatcher, PostgreSQL storage, and transaction boundaries.
 - Added [PostgreSQL Schema Management](https://litebus.io/docs/integrations/postgresql-schema-management) covering migration-owned DDL, explicit bootstrap, opt-in host bootstrap, multi-instance safety, and future upgrade paths.
 - Added architecture, dependency graph, and v5 migration docs.
 - Added a cookbook recipe for PostgreSQL inbox and outbox registration with processor hosting.
@@ -236,113 +236,112 @@ Major release for **.NET 10** (`net10.0` only). Applications upgrading from v5 m
 ### Notes
 
 - Inbox and outbox processors deliver **at-least-once** semantics. Handlers and dispatch targets must be idempotent, or you must enforce idempotency with application keys such as `CommandScheduleOptions.IdempotencyKey` and `OutboxOptions.MessageId`.
-- v5 ships durable storage for **PostgreSQL only** (`LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.Storage.PostgreSql`). Entity Framework Core and SQL Server store packages shipped in **v6** (`LiteBus.Inbox.Storage.EntityFrameworkCore`, `LiteBus.Outbox.Storage.EntityFrameworkCore`); dedicated SQL Server Npgsql-style packages remain on the [Roadmap](https://litebus.io/docs/roadmap).
+- v5 ships durable storage for **PostgreSQL only** (`LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.Storage.PostgreSql`). Entity Framework Core and SQL Server store packages shipped in **v6** (`LiteBus.Inbox.Storage.EntityFrameworkCore`, `LiteBus.Outbox.Storage.EntityFrameworkCore`). Dedicated SQL Server Npgsql-style packages remain on the [Roadmap](https://litebus.io/docs/roadmap).
 
 ## v4.4.0
 
 ### Added
 
-- **Post-Handler Result Override:** Post-handlers can now override the result returned to the caller by writing a replacement value to `AmbientExecutionContext.Current.MessageResult`. The mediator reads this property after the post-handler chain completes and returns it in place of the main handler result when non-null. Last write wins when multiple post-handlers write to this property. Applies to commands with results and queries. Void commands and events are unaffected.
+- **Post-Handler Result Override:** Post-handlers can now override the result returned to the caller by writing a replacement value to `AmbientExecutionContext.Current.MessageResult`. The mediator reads this property after the post-handler chain completes. When it is non-null, the mediator returns it in place of the main handler result. Last write wins when multiple post-handlers write to this property. This applies to commands with results and queries. Void commands and events are unaffected.
 
 ### Improved
 
-- **Testing Docs (`WebApplicationFactory` isolation):** Added a dedicated wiki section documenting the `MessageRegistryAccessor.Instance.Clear()` workaround required when using `WebApplicationFactory` in integration tests. Without this call the static `MessageRegistry` retains stale handler registrations across tests in the same process, causing intermittent `InvalidOperationException` failures on CI.
+- **Testing Docs (`WebApplicationFactory` isolation):** Added a dedicated wiki section on the `MessageRegistryAccessor.Instance.Clear()` workaround, which integration tests using `WebApplicationFactory` must call. Without this call, the static `MessageRegistry` retains stale handler registrations across tests in the same process, causing intermittent `InvalidOperationException` failures on CI.
 
 ### Updated
 
-- **Dependencies:** Bumped `Microsoft.Extensions.*` packages to 10.0.8, `Microsoft.SourceLink.GitHub` to 10.0.300, `Microsoft.NET.Test.Sdk` to 18.5.1, and `coverlet.*` to 10.0.1.
+- **Dependencies:** Updated `Microsoft.Extensions.*` packages to 10.0.8, `Microsoft.SourceLink.GitHub` to 10.0.300, `Microsoft.NET.Test.Sdk` to 18.5.1, and `coverlet.*` to 10.0.1.
 - **CI:** Updated `softprops/action-gh-release` from v2 to v3 (Node 24 runtime).
 
 ## v4.3.0
 
 ### Added
 
-- **Open Generic Handler Support:** LiteBus now supports open generic pre-handlers, post-handlers, and error handlers (e.g., `MyPreHandler<T> : ICommandPreHandler<T> where T : ICommand`). When registered, LiteBus automatically closes the generic for every concrete message type that satisfies its constraints at startup. This enables cross-cutting concerns like logging, validation, metrics, and authorization to be implemented once and applied universally, without modifying existing messages or handlers. Registration order does not matter. All standard C# generic constraints (interface, class, struct, new()) are fully respected.
+- **Open Generic Handler Support:** LiteBus supports open generic pre-handlers, post-handlers, and error handlers (e.g., `MyPreHandler<T> : ICommandPreHandler<T> where T : ICommand`). At startup, LiteBus automatically closes each registered generic for every concrete message type that satisfies its constraints. You can implement a cross-cutting concern such as logging, validation, metrics, or authorization once and apply it to every message type, without modifying existing messages or handlers. Registration order does not matter. LiteBus respects all standard C# generic constraints (interface, class, struct, new()).
 
 ## v4.2.0
 
 ### Added
 
-- **Event Contextual Data:** Added the `Items` property back to `EventMediationSettings`, allowing contextual data to be passed through the event mediation pipeline, similar to commands and queries.
+- **Event Contextual Data:** The `Items` property is available on `EventMediationSettings` again, so you can pass contextual data through the event mediation pipeline as with commands and queries.
 
 ### Improved
 
-- **.NET 10 Support:** Added support for .NET 10 across all relevant projects.
-- **Developer Experience:** Made assembly signing conditional on the existence of the `LiteBus.snk` file. This simplifies the build process for contributors who fork the repository, as they no longer need to generate a strong name key to build the project locally.
+- **.NET 10 Support:** This release adds .NET 10 support.
+- **Developer Experience:** The build now signs assemblies only when the `LiteBus.snk` file exists. Contributors who fork the repository no longer need to generate a strong name key to build the project locally.
 
 ## v4.1.0
 
 ### Added
 
-- **Type-Safe Stream Query Post-Handler:** Introduced the new `IStreamQueryPostHandler<TQuery, TQueryResult>` interface. This provides a strongly-typed post-handler for stream queries, giving access to the original query and the `IAsyncEnumerable<TQueryResult>` result stream, aligning its design with regular command and query post-handlers.
+- **Type-Safe Stream Query Post-Handler:** The new `IStreamQueryPostHandler<TQuery, TQueryResult>` interface defines a strongly-typed post-handler for stream queries. It gives access to the original query and the `IAsyncEnumerable<TQueryResult>` result stream. Its design matches regular command and query post-handlers.
 
 ### Fixed
 
-- **Stream Query Context Preservation:** Fixed a bug in the stream query mediation strategy where the `AmbientExecutionContext` was lost during stream enumeration. This prevented stream handlers from accessing the context (e.g., `Items` collection) in logic that executed after yielding all results, and also prevented stream post-handlers from accessing the context. The context is now correctly preserved throughout the entire streaming lifecycle.
+- **Stream Query Context Preservation:** Fixed a bug in the stream query mediation strategy where the `AmbientExecutionContext` was lost during stream enumeration. Stream handlers running logic after yielding all results could not access the context (e.g., the `Items` collection), and neither could stream post-handlers. The context is now preserved throughout the streaming lifecycle.
 
 ## v4.0.0
 
-This is a major release with a fundamental architectural redesign to decouple the library from specific Dependency Injection (DI) containers, introduce a durable Command Inbox, and provide advanced control over event mediation.
+This is a major release that decouples the library from specific Dependency Injection (DI) containers, introduces a durable Command Inbox, and adds explicit priority, concurrency, and filtering controls to event mediation.
 
 ### Features
 
-- **Dependency Injection Abstraction (`LiteBus.Runtime`):** The entire library has been refactored to be DI-agnostic, introducing a new runtime layer. This decouples the core logic from any specific DI container and allows for integrations via a lightweight adapter pattern.
-- **Autofac Support:** Added first-class integration with Autofac via the new `LiteBus.Extensions.Autofac` package and its companions.
+- **Dependency Injection Abstraction (`LiteBus.Runtime`):** The library is DI-agnostic, with a new runtime layer. The core logic no longer depends on any specific DI container, and integrations connect through an adapter pattern.
+- **Autofac Support:** Added integration with Autofac through the new `LiteBus.Extensions.Autofac` package and its companion packages.
 - **Durable Command Inbox:** Introduced the v4 command inbox feature for deferred command execution. This API was replaced in v5 by the explicit `ICommandScheduler` and inbox processor contracts.
-- **Advanced Event Mediation:** Overhauled event mediation with explicit priority, concurrency, and filtering controls:
-- The new `[HandlerPriority]` attribute replaces `[HandlerOrder]` for defining execution priority.
+- **Advanced Event Mediation:** Event mediation has explicit priority, concurrency, and filtering controls:
+- The new `[HandlerPriority]` attribute defines execution priority, replacing `[HandlerOrder]`.
 - Added configurable concurrency for both priority groups (`PriorityGroupsConcurrencyMode`) and handlers within the same group (`HandlersWithinSamePriorityConcurrencyMode`).
-- Enhanced `HandlerPredicate` that receives a full `IHandlerDescriptor` for advanced filtering logic based on handler type, priority, tags, and message type.
+- `HandlerPredicate` now receives a full `IHandlerDescriptor`, for filtering logic based on handler type, priority, tags, and message type.
 
 ### Improvements
 
 - **Simplified Module Registration:** The `AddCommandModule`, `AddEventModule`, and `AddQueryModule` extensions now automatically register the core `MessageModule`, reducing boilerplate configuration.
-- **Registration-Independent Message Registry:** The internal `MessageRegistry` has been re-engineered for improved performance and correctness, ensuring handlers are correctly associated with messages regardless of registration order.
-- **API Clarity:** Renamed several properties for better intent, such as `Order` to `Priority` on descriptors and `Handlers` to `MainHandlers` on `IMessageDependencies`.
-- **Testability:** Added `IMessageRegistry.Clear()` to allow resetting the registry state, which is useful in test environments.
+- **Registration-Independent Message Registry:** The internal `MessageRegistry` was re-engineered for performance and correctness. Handlers are now associated with messages regardless of registration order.
+- **API Clarity:** Several properties were renamed to express their intent, such as `Order` to `Priority` on descriptors and `Handlers` to `MainHandlers` on `IMessageDependencies`.
+- **Testability:** `IMessageRegistry.Clear()` now resets the registry state for test environments.
 
 ### Breaking Changes
 
-- **Project Structure & NuGet Packages:** The project structure and package names have been completely refactored. You must update your `.csproj` files to reference the new packages (e.g., `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Commands.Extensions.Microsoft.DependencyInjection`).
+- **Project Structure & NuGet Packages:** The project structure and package names have been refactored. You must update your `.csproj` files to reference the new packages (e.g., `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Commands.Extensions.Microsoft.DependencyInjection`).
 - **DI Registration API:** The `AddLiteBus` registration process is now part of the new DI-specific extension packages. Module registration extensions (`AddCommandModule`, etc.) have moved to their respective core namespaces (e.g., `LiteBus.Commands`).
 - **Attribute Renaming:** `[HandlerOrder]` has been replaced by `[HandlerPriority]`. The `Order` property on `IHandlerDescriptor` is now `Priority`.
 - **Mediation Settings `Items` Key:** The key type for the `Items` dictionary on `CommandMediationSettings`, `QueryMediationSettings`, and `ExecutionContext` has been changed from `object` to `string`.
-- **`EventMediationSettings` Redesign:** The structure of `EventMediationSettings` has been completely changed to support the new priority and concurrency features. The `Filters` property is now `Routing`, and a new `Execution` property has been added.
+- **`EventMediationSettings` Redesign:** The structure of `EventMediationSettings` has been changed to support the new priority and concurrency features. The `Filters` property is now `Routing`, and a new `Execution` property has been added.
 - **`IMessageDependencies` Renaming:** The `Handlers` and `IndirectHandlers` properties have been renamed to `MainHandlers` and `IndirectMainHandlers`, respectively. This affects custom mediation strategies.
 
-> **Note:** Due to the large architectural changes, please refer to the **v4 Migration Guide** in the release
-> notes for detailed instructions on upgrading your project.
+> **Note:** Because of the architectural changes, see the **v4 Migration Guide** in the release notes for detailed upgrade instructions.
 
 ## v3.1.0
 
-- **Added**: Support for passing contextual metadata through the mediation pipeline. The `CommandMediationSettings`, `QueryMediationSettings`, and `EventMediationSettings` now include an `Items` dictionary ( `IDictionary<object, object?>`) that can be used to pass data to all handlers (pre-handlers, main handlers, post-handlers, and error-handlers) via `AmbientExecutionContext.Current.Items`.
+- **Added**: You can pass contextual metadata through the mediation pipeline. The `CommandMediationSettings`, `QueryMediationSettings`, and `EventMediationSettings` include an `Items` dictionary (`IDictionary<object, object?>`) that passes data to all handlers (pre-handlers, main handlers, post-handlers, and error handlers) through `AmbientExecutionContext.Current.Items`.
 
 ## v3.0.0
 
-- **Breaking Change**: All LiteBus assemblies are now strong-named to support usage in enterprise applications and projects that require signed dependencies. This is a breaking change that requires a major version update.
+- **Breaking Change**: All LiteBus assemblies are strong-named, so enterprise applications and projects that require signed dependencies can reference them.
 
 ## v2.2.3
 
-- **Fixed**: Remove extra DI container registration
+- **Fixed**: This release removes an extra DI container registration.
 
 ## v2.2.2
 
-- **Fixed**: DI container registration now properly filters out interfaces and abstract classes during service registration. Previously, `RegisterFromAssembly()` would cause DI container errors when trying to register non-instantiable types. LiteBus message registry continues to accept all types to support polymorphic dispatch, but only concrete classes are registered with the DI container.
+- **Fixed**: DI container registration now filters out interfaces and abstract classes. Previously, `RegisterFromAssembly()` caused DI container errors by trying to register non-instantiable types. The LiteBus message registry still accepts all types to support polymorphic dispatch, but only concrete classes are registered with the DI container.
 
 ## v2.2.1
 
-- **Fixed**: Support for record structs as message types (commands, queries, events). Previously record structs couldn't be registered due to a type filtering condition that only allowed class types.
-- **Improved**: Message registration to handle all non-System types, allowing for greater flexibility in message definitions.
+- **Fixed**: Record structs couldn't be registered because a type filtering condition only allowed class types. They now work as message types (commands, queries, events).
+- **Improved**: Message registration now accepts all non-System types, so you can use any non-System type in message definitions.
 
 ## v2.2.0
 
-- **Added**: Support for incremental registration allowing for breaking down LiteBus configuration in different parts of the application.
+- **Added**: Incremental registration lets you break down LiteBus configuration across different parts of the application.
 
 ## v2.1.0
 
-- **Added**: .NET 9 support while maintaining backward compatibility with .NET 8
-- **Updated**: All dependencies to their latest .NET 9 compatible versions
-- **Improved**: Multi-targeting build process for both .NET 8 and .NET 9
+- **Added**: This release adds .NET 9 support and stays backward compatible with .NET 8.
+- **Updated**: All dependencies are now at their latest .NET 9 compatible versions.
+- **Improved**: The multi-targeting build process now covers both .NET 8 and .NET 9.
 
 ## v2.0.0
 
@@ -350,41 +349,41 @@ This is a major release with a fundamental architectural redesign to decouple th
 
 ## v1.1.0
 
-- Add `IQueryValidator`
+- Added `IQueryValidator`.
 
 ## v1.0.0
 
-- Added: Comprehensive wiki documentation
-- Added: Source Link support for improved debugging
-- Added: Automated release workflow with GitVersion integration
-- Added: Handler tags for contextual scenario handling
-- Changed: Updated repository structure for the supported .NET project layout
-- Improved: Code documentation and examples
-- Fixed: Various minor issues from previous versions
+- Added comprehensive wiki documentation.
+- Added Source Link support for improved debugging.
+- Added an automated release workflow with GitVersion integration.
+- Added handler tags for contextual scenario handling.
+- Changed the repository structure to the supported .NET project layout.
+- Improved code documentation and examples.
+- Fixed minor issues from previous versions.
 
 ## v0.25.1
 
-- Add `ICommandValidator`
+- Added `ICommandValidator`.
 
 ## v0.25.0
 
-- Enable `Nullable` for all projects.
+- Enabled `Nullable` for all projects.
 
 ## v0.24.4
 
-- Improve XML comments in the codebase.
+- Improved XML comments in the codebase.
 
 ## v0.24.3
 
-- Don't throw error by default if no handlers were found for plain event message types
+- If no handlers are found for plain event message types, no error is thrown by default.
 
 ## v0.24.2
 
-- Allow aborting the execution of handlers by calling `Abort` on the execution context.
+- You can now abort handler execution by calling `Abort` on the execution context.
 
 ## v0.24.1
 
-- Add `Tags` to `IExecutionContext`.
+- Added `Tags` to `IExecutionContext`.
 
 ## v0.24.0
 
@@ -392,42 +391,42 @@ This is a major release with a fundamental architectural redesign to decouple th
 
 ## v0.23.1
 
-- Add `QueryMediatorExtensions` for backward compatibility.
-- Add `CommandMediatorExtensions` for backward compatibility.
-- Add `EventMediatorExtensions` for backward compatibility.
+- Added `QueryMediatorExtensions` for backward compatibility.
+- Added `CommandMediatorExtensions` for backward compatibility.
+- Added `EventMediatorExtensions` for backward compatibility.
 
 ## v0.23.0
 
-- Fix the missing `Exception` parameter in `IAsyncMessageErrorHandler[TMessage, TMessageResult]` and `IAsyncMessageErrorHandler[TMessage]` interfaces.
+- Fixed the missing `Exception` parameter in the `IAsyncMessageErrorHandler[TMessage, TMessageResult]` and `IAsyncMessageErrorHandler[TMessage]` interfaces.
 
 ## v0.22.0
 
-- Introduce tag-based handler filtering through `HandlerTag` and `HandlerTags` attributes.
-- Add `CommandMediationSettings` to `ICommandMediator` to allow configuring command mediation.
-- Add `QueryMediationSettings` to `IQueryMediator` to allow configuring query mediation.
+- Introduced tag-based handler filtering through `HandlerTag` and `HandlerTags` attributes.
+- Added `CommandMediationSettings` to `ICommandMediator` for configuring command mediation.
+- Added `QueryMediationSettings` to `IQueryMediator` for configuring query mediation.
 
 ## v0.21.0
 
-- Fixed Query, Event, and Command error handlers returning `object` instead of `Task`.
+- Query, Event, and Command error handlers returned `object` instead of `Task`. They now return `Task`.
 
 ## v0.20.2
 
-- Refined Handle Descriptors
-- Removed Any Usage of Reflection in `MessageDependencies`
-- Removed Some Redundant Code From Descriptors
+- Refined Handle Descriptors.
+- Removed all use of reflection in `MessageDependencies`.
+- Removed redundant code from descriptors.
 
 ## v0.20.1
 
-- Rename `AddMessaging` method to `AddMessageModule`.
+- Renamed the `AddMessaging` method to `AddMessageModule`.
 
 ## v0.20.0
 
-- Revert TargetFramework to NET 7
+- Reverted TargetFramework to NET 7.
 
 ## v0.19.1
 
-- Add `ThrowOnNoHandlers` to `EventMediationSettings` to allow throwing an exception when no handlers are found for an event.
-- Fixed a bug where the pre and post handlers were being executed even when no main handlers were found.
+- Added `ThrowOnNoHandlers` to `EventMediationSettings` to throw an exception when no handlers are found for an event.
+- Pre and post handlers no longer run when no main handlers are found.
 
 ## v0.19.0
 
@@ -435,52 +434,52 @@ This is a major release with a fundamental architectural redesign to decouple th
 
 ## v0.18.4
 
-- Rename `FilterHandler` to `HandlerFilter` on `EventMediationSettings` as it is more concise and directly states that it is a filter for handlers.
+- Renamed `FilterHandler` to `HandlerFilter` on `EventMediationSettings`, as the shorter name states directly that it filters handlers.
 
 ## v0.18.3
 
-- Add `EventMediationSettings` to IEventMediator to allow configuring event mediation.
-- Add `FilterHandler` to `EventMediationSettings` to allow filtering event handlers.
+- Added `EventMediationSettings` to IEventMediator for configuring event mediation.
+- Added `FilterHandler` to `EventMediationSettings` for filtering event handlers.
 
 ## v0.18.2
 
-- Preserve the stack trace when rethrowing an exception in case there are no error handlers.
+- When an exception is rethrown because there are no error handlers, the stack trace is now preserved.
 
 ## v0.18.1
 
-- Make execution of event handlers synchronous by default.
+- Event handlers now run synchronously by default.
 
 ## v0.18.0
 
-- All post handlers expose message result as the second parameter.
-- Fixed a bug where IEventPreHandler was not asynchronous.
+- All post handlers now take the message result as the second parameter.
+- IEventPreHandler is now asynchronous.
 - Added more unit tests.
 
 ## v0.17.1
 
-- Add `Items` property to `IExecutionContext` to allow passing data between handlers.
+- Added the `Items` property to `IExecutionContext` for passing data between handlers.
 
 ## v0.17.0
 
-- Rename `AddCommands` method to `AddCommandModule`.
-- Rename `AddEvents` method to `AddEventModule`.
-- Rename `AddQueries` method to `AddQueryModule`.
+- Renamed the `AddCommands` method to `AddCommandModule`.
+- Renamed the `AddEvents` method to `AddEventModule`.
+- Renamed the `AddQueries` method to `AddQueryModule`.
 
 ## v0.16.0
 
-- Introduced execution context using AsyncLocal functionality, accessible through AmbientExecutionContext.
+- Introduced an execution context that uses AsyncLocal functionality and is accessible through AmbientExecutionContext.
 - Renamed `RegisterFrom` to `RegisterFromAssembly` in module builders.
-- Standardized namespace for all files in the `LiteBus.Messaging.Abstractions` project to `LiteBus.Messaging.Abstractions`, irrespective of folder path.
-- Removed `HandleContext` as a parameter from post and pre handlers.
+- Standardized the namespace for all files in the `LiteBus.Messaging.Abstractions` project to `LiteBus.Messaging.Abstractions`, irrespective of folder path.
+- Removed the `HandleContext` parameter from pre and post handlers.
 
 ## v0.15.1
 
-- Removed `IEvent` constraint from event handlers, allowing objects to be passed as events without implementing the `IEvent` interface.
+- Removed the `IEvent` constraint from event handlers, so objects can be passed as events without implementing the `IEvent` interface.
 
 ## v0.15.0
 
-- Added overload method to event publisher for passing an object as a message.
-- Removed `LiteBus` prefix from module constructor names.
+- Added an overload to the event publisher for passing an object as a message.
+- Removed the `LiteBus` prefix from module constructor names.
 
 ## v0.14.1
 
@@ -495,25 +494,25 @@ This is a major release with a fundamental architectural redesign to decouple th
 - Replaced `ICommandBase` with `ICommand`.
 - Replaced `IQueryBase` with `IQuery`.
 - Renamed `ILiteBusModule` to `IModule`.
-- Removed methods `RegisterPreHandler`, `RegisterHandler`, and `RegisterPostHandler`, replacing them with `Register`.
-- Removed superfluous base interfaces.
+- Removed the `RegisterPreHandler`, `RegisterHandler`, and `RegisterPostHandler` methods and replaced them with `Register`.
+- Removed unnecessary base interfaces.
 
 ## v0.12.0
 
-- Added support to message registry for registering any class type as a message.
+- The message registry now supports registering any class type as a message.
 
 ## v0.11.3
 
-- Fixed bug: Execute error handlers instead of pre handlers during error phase.
+- Fixed a bug where pre handlers ran during the error phase instead of error handlers. Error handlers now run instead.
 
 ## v0.11.2
 
-- Fixed bug: Considered the count of indirect error handlers when determining if an exception should be rethrown.
+- Fixed a bug in rethrow decisions. The count of indirect error handlers is now considered when determining whether an exception should be rethrown.
 
 ## v0.11.1
 
 - Disabled nullable reference types.
-- Ensured error handlers cover errors in pre and post handlers.
+- Error handlers now cover errors in pre and post handlers.
 
 ## v0.11.0
 

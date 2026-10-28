@@ -7,9 +7,9 @@
 
 ## What It Does
 
-`LiteBus.Inbox.Dispatch` and `LiteBus.Outbox.Dispatch` host the shared transport dispatch implementation. Each dispatcher resolves the contract from the envelope, optionally decrypts the payload, optionally validates deserialization, resolves a transport route, builds publish headers, and calls `ITransportPublisher.PublishAsync`.
+`LiteBus.Inbox.Dispatch` and `LiteBus.Outbox.Dispatch` host the shared transport dispatch implementation. Each dispatcher resolves the contract from the envelope, unprotects the payload when a protector is registered, and validates deserialization when validation is enabled. It then resolves a transport route, builds publish headers, and calls `ITransportPublisher.PublishAsync`.
 
-`TransportInboxDispatchModule` and `TransportOutboxDispatchModule` register the dispatcher and require a matching root transport module. Broker-specific `Use*Dispatch` extensions contribute only feature bridge wiring. Transport outbox modules expose `DefaultHookFailurePolicy = CompleteDespiteHookFailure`.
+`TransportInboxDispatchModule` and `TransportOutboxDispatchModule` register the dispatcher and require a matching root transport module. Broker-specific `Use*Dispatch` extensions add only the feature bridge wiring. Transport outbox modules expose `DefaultHookFailurePolicy = CompleteDespiteHookFailure`.
 
 Route resolution order:
 
@@ -18,7 +18,7 @@ Route resolution order:
 | Inbox | `ITenantRoutingStrategy` if registered, else `ResolveRoute` delegate, else `ContractName` |
 | Outbox | `ITenantRoutingStrategy` if registered, else `ResolveRoute` delegate, else non-empty `Topic`, else `ContractName` |
 
-The tenant strategy wins whenever one is registered. On the outbox axis a `ResolveRoute` delegate or tenant routing strategy that returns null or whitespace fails the dispatch with `LiteBusDispatchException` naming the envelope. On the inbox axis a `ResolveRoute` delegate that returns null or whitespace fails the dispatch with `InboxDispatchException` naming the envelope. On the outbox axis the strategy is set through `TransportOutboxDispatcherOptions.TenantRoutingStrategy`; on the inbox axis it is constructor-injected into `TransportInboxDispatcher`.
+The tenant strategy takes precedence whenever one is registered. On the outbox axis, a `ResolveRoute` delegate or tenant routing strategy that returns null or whitespace fails the dispatch with a `LiteBusDispatchException` that names the envelope. On the inbox axis, a `ResolveRoute` delegate that returns null or whitespace fails the dispatch with an `InboxDispatchException` that names the envelope. On the outbox axis, the strategy is set through `TransportOutboxDispatcherOptions.TenantRoutingStrategy`. On the inbox axis, it is constructor-injected into `TransportInboxDispatcher`.
 
 ## Packages
 
@@ -39,17 +39,17 @@ The tenant strategy wins whenever one is registered. On the outbox axis a `Resol
 
 ## Invariants
 
-- Stored payload bytes are published as-is after optional unprotect; deserialization is for validation only when `ValidatePayloadBeforeDispatch` is true.
-- `MessageId` on the transport request is the envelope GUID string.
-- The outbox dispatcher fills `MessageGroupId` and `DeduplicationKey` on every publish request; broker adapters apply them only where the broker supports ordered groups (SQS FIFO queue URLs ending in `.fifo`).
-- One explicitly selected root transport module is shared by dispatch and ingress.
-- Dispatch throws on transport failure; the processor owns retry and dead-letter state.
+- Stored payload bytes are published as-is after an optional unprotect. Deserialization only validates the payload when `ValidatePayloadBeforeDispatch` is true.
+- The `MessageId` on the transport request is the envelope GUID string.
+- The outbox dispatcher fills `MessageGroupId` and `DeduplicationKey` on every publish request. Broker adapters apply them only where the broker supports ordered groups (SQS FIFO queue URLs ending in `.fifo`).
+- Dispatch and ingress share one explicitly selected root transport module.
+- Dispatch throws on transport failure. The processor owns retry and dead-letter state.
 
 ## Non-Goals
 
-- Does not consume from brokers (ingress axis owns intake).
-- Does not deserialize and invoke mediators (in-process dispatch owns that path).
-- Does not persist terminal store outcomes (processor owns persistence after dispatch returns).
+- It does not consume from brokers. The ingress axis owns intake.
+- It does not deserialize and invoke mediators. In-process dispatch owns that path.
+- It does not persist terminal store outcomes. The processor owns persistence after dispatch returns.
 
 ## Public Surface
 
@@ -70,9 +70,9 @@ bus.AddOutbox(outbox => outbox.UseKafkaDispatch(
 | --- | --- |
 | Package | `LiteBus.Inbox.Dispatch` |
 | Implements | `IInboxDispatcher.DispatchAsync` |
-| Flow | Resolve contract to unprotect payload to optional deserialize validation to resolve route to start publish activity to `ITransportPublisher.PublishAsync` |
+| Flow | Resolves the contract, unprotects the payload, optionally validates deserialization, resolves the route, starts the publish activity, then calls `ITransportPublisher.PublishAsync` |
 
-Throws when contract resolution, validation, or transport publish fails. Does not catch transport exceptions.
+It throws when contract resolution, validation, or transport publish fails. It does not catch transport exceptions.
 
 ### `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)`
 
@@ -80,23 +80,23 @@ Throws when contract resolution, validation, or transport publish fails. Does no
 | --- | --- |
 | Package | `LiteBus.Outbox.Dispatch` |
 | Implements | `IOutboxDispatcher.DispatchAsync` |
-| Flow | Same as inbox transport dispatcher; route prefers tenant strategy, then resolver, then envelope `Topic`, then contract name |
-| FIFO addressing | `MessageGroupId` is the tenant id when present, otherwise the contract name; `DeduplicationKey` is the idempotency key when present, otherwise the message id; the inbox dispatcher sets neither |
+| Flow | Same as the inbox transport dispatcher, except the route prefers the tenant strategy, then the resolver, then the envelope `Topic`, then the contract name |
+| FIFO addressing | `MessageGroupId` is the tenant id when present, otherwise the contract name. `DeduplicationKey` is the idempotency key when present, otherwise the message id. The inbox dispatcher sets neither |
 
 ### `TransportInboxDispatchModule.Build(IModuleConfiguration)`
 
 | | |
 | --- | --- |
 | Package | `LiteBus.Inbox.Dispatch` |
-| Registers | `TransportInboxDispatcherOptions` singleton, `IInboxDispatcher` to `TransportInboxDispatcher` |
-| Dependencies | Requires the matching root transport module; duplicate dispatcher registration fails during composition |
+| Registers | The `TransportInboxDispatcherOptions` singleton, and `TransportInboxDispatcher` as the `IInboxDispatcher` |
+| Dependencies | Requires the matching root transport module, and duplicate dispatcher registration fails during composition |
 
 ### `TransportOutboxDispatchModule.Build(IModuleConfiguration)`
 
 | | |
 | --- | --- |
 | Package | `LiteBus.Outbox.Dispatch` |
-| Registers | `TransportOutboxDispatcherOptions` singleton, `IOutboxDispatcher` to `TransportOutboxDispatcher` |
+| Registers | The `TransportOutboxDispatcherOptions` singleton, and `TransportOutboxDispatcher` as the `IOutboxDispatcher` |
 | `DefaultHookFailurePolicy` | `CompleteDespiteHookFailure` (transport outbox default) |
 
 ### `TransportInboxDispatcherOptions` / `TransportOutboxDispatcherOptions`
@@ -106,33 +106,33 @@ Throws when contract resolution, validation, or transport publish fails. Does no
 | `DefaultDestination` | `""` | Exchange, topic, queue URL, or InMemory destination name |
 | `ContentType` | `application/json` | Wire MIME type |
 | `Persistent` | `true` | Broker durability flag (AMQP) |
-| `Mandatory` | `true` | Fail publish with `AmqpMessageReturnedException` when unroutable (AMQP) |
-| `ResolveRoute` | `null` | Per-envelope route override delegate; wins over `Topic` on the outbox axis and must return a non-empty route |
-| `TenantRoutingStrategy` | `null` | Outbox only: per-tenant destination override, registered as the `ITenantRoutingStrategy` the dispatcher resolves |
-| `ValidatePayloadBeforeDispatch` | `false` | Deserialize before publish to catch contract wiring errors |
+| `Mandatory` | `true` | Fails the publish with `AmqpMessageReturnedException` when the message is unroutable (AMQP) |
+| `ResolveRoute` | `null` | Per-envelope route override delegate that wins over `Topic` on the outbox axis and must return a non-empty route |
+| `TenantRoutingStrategy` | `null` | Outbox only. A per-tenant destination override, registered as the `ITenantRoutingStrategy` that the dispatcher resolves |
+| `ValidatePayloadBeforeDispatch` | `false` | Deserializes before publish to catch contract wiring errors |
 
 ### Optional Dependencies (Constructor Injection)
 
 | Type | Role |
 | --- | --- |
-| `IInboxPayloadProtector` / `IOutboxPayloadProtector` | Decrypt stored payload before publish |
-| `ITenantRoutingStrategy` | Per-tenant destination/route override |
+| `IInboxPayloadProtector` / `IOutboxPayloadProtector` | Unprotects the stored payload before publish |
+| `ITenantRoutingStrategy` | Per-tenant destination and route override |
 
 ## Observability
 
 | Signal | Constant / name | Tags / attributes | When |
 | --- | --- | --- | --- |
-| Send activity | `send {destination}` | Activity source `LiteBus.Transport`; required messaging operation tags plus destination, message id, conversation id, and broker-specific route tags | Started by the concrete transport publisher around its SDK send call |
-| Processor dispatch duration | `litebus.inbox.processor.dispatch_duration` / `litebus.outbox.processor.dispatch_duration` | Histogram in ms | Processor envelope handler wraps dispatch (includes transport and in-process paths) |
-| Circuit breaker open | `litebus.transport.circuit_breaker.open` | Tag `litebus.transport.broker` (`amqp`, `kafka`, `sqs`, `azure_service_bus`, `inmemory`) | Broker adapter records consecutive publish/connection failures |
-| Circuit breaker failure count | `litebus.transport.circuit_breaker.failure_count` | Same broker tag | Incremented on counted publish failures |
-| Processor pass counters | `litebus.inbox.processor.succeeded` / `failed` / `dead_lettered`; `litebus.outbox.processor.published` / `failed` / `dead_lettered` | None on dispatch axis | Incremented after dispatch outcome is persisted |
+| Send activity | `send {destination}` | Activity source `LiteBus.Transport`, with the required messaging operation tags, the destination, the message id, the conversation id, and broker-specific route tags | Started by the concrete transport publisher around its SDK send call |
+| Processor dispatch duration | `litebus.inbox.processor.dispatch_duration` / `litebus.outbox.processor.dispatch_duration` | A histogram in milliseconds | The processor envelope handler wraps dispatch, covering both transport and in-process paths |
+| Circuit breaker open | `litebus.transport.circuit_breaker.open` | Tag `litebus.transport.broker` (`amqp`, `kafka`, `sqs`, `azure_service_bus`, `inmemory`) | The broker adapter records consecutive publish or connection failures |
+| Circuit breaker failure count | `litebus.transport.circuit_breaker.failure_count` | Same broker tag | The adapter increments it on counted publish failures |
+| Processor pass counters | `litebus.inbox.processor.succeeded` / `failed` / `dead_lettered`, `litebus.outbox.processor.published` / `failed` / `dead_lettered` | None | Incremented after the dispatch outcome is persisted |
 
-Trace context from envelope headers is copied onto `TransportPublishRequest.Headers` for downstream `process {destination}` correlation. No dispatch-specific meter exists beyond processor and transport layers.
+The dispatcher copies trace context from envelope headers onto `TransportPublishRequest.Headers` for downstream `process {destination}` correlation. No dispatch-specific meter exists beyond the processor and transport layers.
 
-Register transport tracing through `AddLiteBusTransportInstrumentation()` from `LiteBus.Transport.Extensions.OpenTelemetry`. Processor metrics require `AddLiteBusInboxMetrics()` / `AddLiteBusOutboxMetrics()`.
+Register transport tracing through `AddLiteBusTransportInstrumentation()` from `LiteBus.Transport.Extensions.OpenTelemetry`. Processor metrics require `AddLiteBusInboxMetrics()` or `AddLiteBusOutboxMetrics()`.
 
-## Deep Docs
+## References
 
 - [Architecture.md: Transport platform](../../architecture/README.md#transport-platform)
 - [Architecture.md: Dispatch tracing](../../architecture/README.md#dispatch-tracing)
@@ -168,13 +168,13 @@ Register transport tracing through `AddLiteBusTransportInstrumentation()` from `
 
 ### Untested
 
-- Inbox `ValidatePayloadBeforeDispatch = true` branch.
-- `ITenantRoutingStrategy` route selection on inbox and outbox paths.
-- Payload decryption branch for both dispatchers.
-- AMQP and Azure outbox unreachable-broker coverage parity.
+- The inbox `ValidatePayloadBeforeDispatch = true` branch.
+- The `ITenantRoutingStrategy` route selection on the inbox and outbox paths.
+- Unprotecting the payload before publish, for both dispatchers.
+- Unreachable-broker coverage for the AMQP and Azure outbox, to match the other brokers.
 
 ### Out-of-Scope
 
-- Broker consumption (ingress axis)
-- Deserializing and invoking in-process mediators (in-process dispatch axis)
-- Persisting terminal store outcomes after dispatch returns (processor and storage axes)
+- Broker consumption, which the ingress axis owns
+- Deserializing and invoking in-process mediators, which the in-process dispatch axis owns
+- Persisting terminal store outcomes after dispatch returns, which the processor and storage axes own

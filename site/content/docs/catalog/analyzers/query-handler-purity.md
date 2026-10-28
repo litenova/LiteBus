@@ -14,14 +14,14 @@
 - `IQueryHandler<TQuery, TResult>`
 - `IStreamQueryHandler<TQuery, TResult>`
 
-It reports when a dependency type in constructor parameters, fields, or properties matches or implements one of the impure APIs. Members inherited from base handler classes are inspected the same way as declared members. Ordinary method parameters are not dependencies, because a helper receives them from its caller rather than from injection, so they stay silent:
+It reports when a dependency type in constructor parameters, fields, or properties matches or implements one of the impure APIs. Members inherited from base handler classes are inspected the same way as declared members. Ordinary method parameters are not dependencies, because a helper receives them from its caller rather than from injection, so they stay silent. The impure APIs are:
 
 - `ICommandMediator`, `IEventMediator`, `IQueryMediator`
 - `IInbox`, `ITransactionalInbox`, `ITransactionalInbox<T>`, `IInboxStore`, `ITransactionalInboxStore`
 - `IOutbox`, `ITransactionalOutbox`, `ITransactionalOutbox<T>`, `IOutboxStore`, `ITransactionalOutboxStore`
 - `ITransportPublisher`
 
-The analyzer reports each impure dependency metadata type once per handler.
+The analyzer reports each impure dependency type once per handler.
 
 ## Bad Example
 

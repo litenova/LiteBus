@@ -2,26 +2,26 @@
 
 - **ID**: `durable-core.processor-hooks`
 - **Name**: Processor Envelope Hooks
-- **Maturity**: GA; saga integration is Extension tier
-- **Summary**: Runs feature-owned logic around one leased inbox or outbox envelope without adding feature references to either durable axis.
+- **Maturity**: GA, with saga integration at Extension tier
+- **Summary**: Processor envelope hooks let a feature run its own logic around one leased inbox or outbox envelope, without adding feature references to either durable axis.
 
 ## What It Does
 
 Inbox and outbox processors adapt their envelopes to `IProcessorEnvelope` and invoke every registered `IProcessorEnvelopeHook` in dependency-injection registration order. The contract supports asynchronous state loading, synchronous ambient-scope attachment, post-dispatch persistence, and cleanup when processing cannot finish.
 
-Saga uses this seam to load and persist correlated state. Inbox and outbox packages reference `LiteBus.DurableMessaging.Abstractions`; they do not reference saga types.
+Saga uses these hooks to load and persist correlated state. Inbox and outbox packages reference `LiteBus.DurableMessaging.Abstractions`. They do not reference saga types.
 
 ## Hook Lifecycle
 
 | Method | Invocation Point | Constraint |
 | --- | --- | --- |
-| `BeforeDispatchAsync` | After lease acquisition and before axis dispatch | May perform asynchronous I/O such as saga state loading |
-| `PrepareDispatchScope` | Immediately before the dispatcher call | Synchronous so `AsyncLocal` assignments occur on the dispatch flow |
-| `ShouldDispatch` | After scope preparation, before the dispatcher call | Combined with `&=` across hooks; every hook is asked even after one declines; a `false` skips the dispatcher but after-hooks still run and the success persists |
-| `AfterDispatchAsync` | After successful dispatch and before terminal persistence | Runs on the persist token while the message lease remains active |
-| `AbandonDispatchScope` | After cancellation, failed dispatch, or an interrupted after-hook sequence | Releases in-memory state; must not persist business changes |
+| `BeforeDispatchAsync` | After lease acquisition and before axis dispatch | The hook may perform asynchronous I/O such as saga state loading |
+| `PrepareDispatchScope` | Immediately before the dispatcher call | This method is synchronous so `AsyncLocal` assignments occur on the dispatch flow |
+| `ShouldDispatch` | After scope preparation, before the dispatcher call | Results combine with `&=` across hooks, and every hook is asked even after one declines. A `false` skips the dispatcher, but after-hooks still run and the success persists. |
+| `AfterDispatchAsync` | After successful dispatch and before terminal persistence | This method runs on the persist token while the message lease remains active |
+| `AbandonDispatchScope` | After cancellation, failed dispatch, or an interrupted after-hook sequence | This method releases in-memory state and must not persist business changes |
 
-`PrepareDispatchScope`, `ShouldDispatch`, and `AbandonDispatchScope` have default implementations (`ShouldDispatch` defaults to `true`). A hook that owns ambient or keyed state implements the scope pair together.
+`PrepareDispatchScope`, `ShouldDispatch`, and `AbandonDispatchScope` have default implementations (`ShouldDispatch` defaults to `true`). A hook that owns ambient or keyed state implements scope preparation and abandonment together.
 
 ## Failure Semantics
 
@@ -31,12 +31,12 @@ An `AfterDispatchAsync` exception follows `ProcessorHookFailurePolicy`:
 
 | Policy | Inbox or Outbox Result |
 | --- | --- |
-| `DeadLetter` | Persist a dead-letter terminal state; do not execute the handler or publisher again |
-| `CompleteDespiteHookFailure` | Log the hook failure and persist the successful completed or published state |
+| `DeadLetter` | Persists a dead-letter terminal state and does not execute the handler or publisher again |
+| `CompleteDespiteHookFailure` | Logs the hook failure and persists the successful completed or published state |
 
 The runner invokes `AbandonDispatchScope` for every hook when an after-hook stops the sequence. This removes state owned by hooks that had not yet reached their normal cleanup path.
 
-`HookFailurePolicy` is `null` by default, which means the dispatcher recommendation, and an explicit value always wins. Inbox resolves an unset policy to `DeadLetter`. In-process outbox dispatch also resolves to `DeadLetter`. Transport outbox dispatch resolves to `CompleteDespiteHookFailure` because the broker send has already succeeded and another send could duplicate the message.
+`HookFailurePolicy` is `null` by default, which means the dispatcher recommendation. An explicit value always takes precedence. Inbox resolves an unset policy to `DeadLetter`. In-process outbox dispatch also resolves to `DeadLetter`. Transport outbox dispatch resolves to `CompleteDespiteHookFailure` because the broker send has already succeeded and another send could duplicate the message.
 
 ## Public Surface
 
@@ -77,8 +77,8 @@ registry.AddInbox(inbox =>
 
 ## Requires
 
-- `runtime.module-configuration` (module registration)
-- Inbox or outbox processor with hook invocation
+- Register the module through `runtime.module-configuration`.
+- Use an inbox or outbox processor with hook invocation.
 
 ## Invariants
 
@@ -91,11 +91,11 @@ registry.AddInbox(inbox =>
 
 ## Non-Goals
 
-- A transaction spanning external dispatch, hook persistence, and terminal store persistence.
-- Hook execution on direct mediator calls outside durable processors.
-- Automatic ordering beyond dependency-injection registration order.
-- A workflow engine built from arbitrary processor hooks.
-- Saga integration on the outbox processor; saga hooks run on the inbox processor only.
+- Hooks do not provide a transaction spanning external dispatch, hook persistence, and terminal store persistence.
+- Hooks do not run on direct mediator calls outside durable processors.
+- Hooks provide no automatic ordering beyond dependency-injection registration order.
+- Hooks are not a workflow engine built from arbitrary processor hooks.
+- Hooks do not provide saga integration on the outbox processor. Saga hooks run on the inbox processor only.
 
 ## Observability
 
@@ -103,9 +103,9 @@ Hooks use processor logs, counters, and activities. There is no hook-specific me
 
 | Signal | Meaning |
 | --- | --- |
-| Inbox `failed` | Failure before successful dispatch, including before or prepare hooks |
-| Inbox `dead_lettered` | After-hook failure under `DeadLetter`, or exhausted dispatch retry |
-| Outbox `failed` | Publish failure before a terminal state |
+| Inbox `failed` | Failure before successful dispatch, including failures in before or prepare hooks |
+| Inbox `dead_lettered` | After-hook failure under `DeadLetter`, or an exhausted dispatch retry |
+| Outbox `failed` | A publish failure before a terminal state |
 | Outbox published terminal state with hook error log | `CompleteDespiteHookFailure` preserved a successful broker send |
 
 ## Test Coverage
@@ -118,7 +118,7 @@ Hooks use processor logs, counters, and activities. There is no hook-specific me
 | `SagaProcessorHookTests.ParallelDispatches_WithSameCorrelation_IsolateScopeByMessageId` | Concurrent messages for one correlation retain separate active scopes |
 | EF Core and PostgreSQL after-dispatch integration tests | Hook failure transitions use real storage concurrency checks |
 
-## Deep Docs
+## References
 
 - [Saga](../../reliable-messaging/saga.md)
 - [Saga Processor Hook](../saga/processor-hook.md)

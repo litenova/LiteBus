@@ -5,29 +5,33 @@
 - **ID**: `analyzers.missing-contract-on-handled-type`, `analyzers.explicit-contract-registration`
 - **Diagnostics**: `LB1007` (Warning), `LB1017` (Warning)
 - **Maturity**: GA
-- **Summary**: Guards durable command and event contract discovery by checking attribute and configuration registration paths.
+- **Summary**: Reports handled durable commands and events with no contract attribute or registration, and attributed durable types with no explicit registration.
 
 ## Rule Split
 
 ### LB1007
 
-Reports for handled durable command or event message types when all of the following are true:
+The rule reports a handled durable command or event message type when every condition below holds:
 
-- Type is used by a command or event handler.
-- Type does not declare `[MessageContract]`.
-- Type is not explicitly registered by `Contracts.Register<T>()`, `Register(typeof(T), ...)`, `RegisterFromAssembly(...)`, or `AddFromAssembly(...)`.
+- A command or event handler uses the type.
+- The type does not declare `[MessageContract]`.
+- The type is not explicitly registered by `Contracts.Register<T>()`, `Register(typeof(T), ...)`, `RegisterFromAssembly(...)`, or `AddFromAssembly(...)`.
 
 ### LB1017
 
-Reports for attributed durable message types when all of the following are true:
+The rule reports an attributed durable message type when every condition below holds:
 
-- Type declares `[MessageContract(...)]`.
-- Type is durable (`ICommand`, `ICommand<TResult>`, or `IEvent`).
-- Type is not explicitly registered by `Register` or assembly scanning (`RegisterFromAssembly` or `AddFromAssembly`).
+- The type declares `[MessageContract(...)]`.
+- The type is durable (`ICommand`, `ICommand<TResult>`, or `IEvent`).
+- The type is not explicitly registered by `Register` or assembly scanning (`RegisterFromAssembly` or `AddFromAssembly`).
 
-Only contract surfaces satisfy either rule: `Register` on the message, command, event, or query axis builders records message and handler types and does not count, and `RegisterFromAssembly` counts everywhere except on the command, event, and query axis builders. A `Register` extension method whose receiver is a contract writer surface counts as well. Assembly scans count when the argument is `typeof(T)`, `typeof(T).Assembly`, a local initialized to either form, or `Assembly.GetExecutingAssembly()` / `Assembly.GetCallingAssembly()`; any other shape does not count.
+Only contract surfaces satisfy either rule.
 
-Both rules analyze one compilation: only handlers and attributed types declared in the analyzed assembly are candidates, and only registrations invoked in the analyzed compilation satisfy them. A registration that lives in a dependent project stays invisible; co-locate it with the handler or attributed type, or suppress the diagnostic. A partial type with two declarations reports once, at its first location. See [Analyzers](../../reference/analyzers.md).
+`Register` on the message, command, event, or query axis builders records message and handler types, so it does not count. `RegisterFromAssembly` counts everywhere except on the command, event, and query axis builders. A `Register` extension method whose receiver is a contract writer surface counts as well.
+
+An assembly scan counts when its argument is `typeof(T)`, `typeof(T).Assembly`, a local initialized to either form, or `Assembly.GetExecutingAssembly()` / `Assembly.GetCallingAssembly()`. Any other shape does not count.
+
+Both rules analyze one compilation. Only handlers and attributed types declared in the analyzed assembly are candidates, and only registrations invoked in the analyzed compilation satisfy the rules. A registration that lives in a dependent project stays invisible, so co-locate it with the handler or attributed type, or suppress the diagnostic. A partial type with two declarations reports once, at its first location. See [Analyzers](../../reference/analyzers.md).
 
 ## Bad Example
 
@@ -69,12 +73,12 @@ public static class ModuleConfiguration
 
 This avoids both warnings:
 
-- `LB1007` is satisfied by attribute and explicit registration.
-- `LB1017` is satisfied by explicit registration.
+- `LB1007` is satisfied by the attribute and the explicit registration.
+- `LB1017` is satisfied by the explicit registration.
 
 ## Suppression Guidance
 
-- Prefer explicit registration over suppression because contract discovery predictability matters in durable paths.
+- Prefer explicit registration over suppression because predictable contract discovery matters in durable paths.
 - If registration happens in generated code or external composition, suppress at the narrowest scope and document where registration occurs.
 - Do not suppress broadly in `.editorconfig` unless a whole project intentionally relies on runtime-only contract discovery.
 

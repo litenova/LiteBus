@@ -3,7 +3,7 @@
 - **ID**: `mediator.handler-filtering`
 - **Name**: Handler filtering
 - **Maturity**: GA
-- **Summary**: Selects participating handlers per mediation call using tags and descriptor predicates.
+- **Summary**: Selects the participating handlers for each mediation call using tags and descriptor predicates.
 - **Guide**: [Handler filtering](../../concepts/handler-filtering.md)
 
 ## What It Does
@@ -12,7 +12,7 @@ Handler filtering narrows candidate handlers before main stage resolution:
 - Tag filter (`Tags`) keeps untagged handlers and tagged handlers with at least one match.
 - Predicate filter (`HandlerPredicate`) applies after tag filtering.
 
-This applies to command, query, stream query, and event mediation. In command/query flows, filtering can create zero or multiple main handlers, which then fails fast in single-handler resolution.
+Filtering applies to command, query, stream query, and event mediation. In command and query flows, filtering can leave zero or multiple main handlers, which then fails fast in single-handler resolution.
 
 ## Public Surface
 
@@ -38,8 +38,8 @@ await commandMediator.SendAsync(new ApproveOrderCommand(orderId), settings, canc
 | `EventRoutingSettings.Tags` | Tag filter for event mediation |
 | `EventRoutingSettings.HandlerPredicate` | Predicate filter for event mediation, typed as the `EventHandlerFilter` delegate |
 | `EventHandlerFilter` | Named predicate delegate over `IHandlerDescriptor` for event routing (command and query routing use `Func<IHandlerDescriptor, bool>`) |
-| `IHandlerDescriptor.RegistrationSequence` | Stable tiebreak after priority, assigned at registration |
-| `IHandlerDescriptor.ContractType` | Closed contract the dispatch was discovered from, which names multi-contract registrations in diagnostics |
+| `IHandlerDescriptor.RegistrationSequence` | Stable tie-breaker after priority, assigned at registration |
+| `IHandlerDescriptor.ContractType` | The closed contract the dispatch was discovered from, which identifies multi-contract registrations in diagnostics |
 | `[HandlerTag("...")]` | Single static handler tag |
 | `[HandlerTags("...", "...")]` | Multi-tag static handler label |
 
@@ -57,8 +57,8 @@ await commandMediator.SendAsync(new ApproveOrderCommand(orderId), settings, canc
 
 ## Invariants
 
-- Untagged handlers are always eligible when predicate returns true.
-- Predicate receives `IHandlerDescriptor` and can inspect handler type, message type, priority, and tags.
+- Untagged handlers are always eligible when the predicate returns true.
+- The predicate receives an `IHandlerDescriptor` and can inspect the handler type, message type, priority, and tags.
 - Filtering is applied before main handler uniqueness checks.
 
 ## Non-Goals
@@ -72,7 +72,7 @@ await commandMediator.SendAsync(new ApproveOrderCommand(orderId), settings, canc
 No dedicated filtering telemetry is emitted.
 
 Operational alternatives:
-- Emit diagnostic logs in calling layer when using custom predicates.
+- Emit diagnostic logs in the calling layer when using custom predicates.
 - Use analyzer rule `LB1011` to detect orphaned handler tags.
 
 ## Test Coverage
@@ -89,7 +89,7 @@ Operational alternatives:
 
 ### Untested
 
-- Combined tags plus complex predicate in stream query flows under parallel event publishing.
+- Combined tags with a complex predicate in stream query flows under parallel event publishing.
 - Large tag set performance characteristics.
 
 ### Out-of-Scope
@@ -97,7 +97,7 @@ Operational alternatives:
 - Authorization policy enforcement framework.
 - Declarative rules engine for handler routing.
 
-## Deep Docs
+## References
 
 - [Handler filtering](../../concepts/handler-filtering.md)
 - [The handler pipeline](../../concepts/handler-pipeline.md)

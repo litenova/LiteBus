@@ -32,7 +32,7 @@ builder.Services.AddLiteBus(builder =>
 
 ## Transactional Writes
 
-The default `IOutboxStore` registration creates a context through `IDbContextFactory<AppDbContext>` and calls `SaveChanges` during `EnqueueAsync`. That commits outbox rows in a separate unit of work from your application `DbContext` unless you opt in to one of the patterns below. [Transactional Messaging Writes](../reliable-messaging/transactional-writes.md) owns the full pattern; this section covers the EF Core mechanics.
+The default `IOutboxStore` registration creates a context through `IDbContextFactory<AppDbContext>` and calls `SaveChanges` during `EnqueueAsync`. That commits outbox rows in a separate unit of work from your application `DbContext` unless you opt in to one of the patterns below. See [Transactional Messaging Writes](../reliable-messaging/transactional-writes.md) for the full pattern. This section covers the EF Core mechanics.
 
 ### Participate in the Caller `DbContext`
 
@@ -101,9 +101,9 @@ When `EnableSaveChangesInterceptor()` is set, the module also registers the non-
 | `idempotency_key` | Optional deduplication scoped per `tenant_id` (unique composite index with `IS NOT NULL` filter) |
 | `trace_context` | Optional distributed trace payload (`jsonb` on PostgreSQL) |
 
-Operators query `last_error`, `error_type`, `last_lease_owner`, and the forensic timestamps; processors use `status`, `visible_after`, `lease_expires_at`, and `lease_generation`.
+Operators query `last_error`, `error_type`, `last_lease_owner`, and the forensic timestamps. Processors use `status`, `visible_after`, `lease_expires_at`, and `lease_generation`.
 
-Indexes: unique filtered index on `(tenant_id, idempotency_key)`; composite index on `(status, visible_after, lease_expires_at, created_at)`; chronological index `IX_LiteBus_Outbox_CreatedAt`; filtered index on `topic` where `topic IS NOT NULL`. Null or whitespace `tenant_id` values normalize to an empty string for idempotency scope.
+The indexes are a unique filtered index on `(tenant_id, idempotency_key)`, a composite index on `(status, visible_after, lease_expires_at, created_at)`, a chronological index `IX_LiteBus_Outbox_CreatedAt`, and a filtered index on `topic` where `topic IS NOT NULL`. Null or whitespace `tenant_id` values normalize to an empty string for idempotency scope.
 
 Override names with `EntityFrameworkCoreOutboxStoreOptions` when needed.
 
@@ -126,9 +126,9 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 }
 ```
 
-See [Inbox Entity Framework Core Storage](inbox-ef-core-storage.md) for the full provider column-type table. SQL Server apps should set `SchemaName = "dbo"` in store options so raw lease SQL matches your migrations.
+See [Inbox Entity Framework Core Storage](inbox-ef-core-storage.md) for the full provider column-type table. SQL Server applications should set `SchemaName = "dbo"` in store options so raw lease SQL matches your migrations.
 
-Supported leasing providers match inbox EF storage: PostgreSQL, SQL Server, MySQL (Pomelo), SQLite, and the in-memory provider for tests. MySQL uses `READ COMMITTED`, `FOR UPDATE SKIP LOCKED`, and `IX_LiteBus_Outbox_CreatedAt` for ordered concurrent claims. SQLite stores durable timestamps as UTC ticks and serializes lease writers through its database transaction. See the inbox guide for the full provider table and SQLite throughput constraint.
+Supported leasing providers match inbox EF storage: PostgreSQL, SQL Server, MySQL (Pomelo), SQLite, and the in-memory provider for tests. MySQL uses `READ COMMITTED`, `FOR UPDATE SKIP LOCKED`, and `IX_LiteBus_Outbox_CreatedAt` for ordered concurrent claims. SQLite stores durable timestamps as UTC ticks and serializes lease writers through its database transaction. The inbox storage page lists the full provider table and the SQLite throughput constraint.
 
 ## Align Store Options with Your EF Model
 
@@ -138,7 +138,7 @@ Pass the same `EntityFrameworkCoreOutboxStoreOptions` schema and table names to 
 
 `EfCoreOutboxStore` reloads rows after insert when the store normalizes JSON payloads. Leasing uses the same multi-provider skip-locked SQL as `EfCoreInboxStore`.
 
-Register storage and a dispatcher before `EnableOutboxProcessor()`; module build fails when the processor is enabled without a dispatcher.
+Register storage and a dispatcher before `EnableOutboxProcessor()`. Module build fails when the processor is enabled without a dispatcher.
 
 ## Idempotency on the EF Transactional Path
 
@@ -149,9 +149,9 @@ Register storage and a dispatcher before `EnableOutboxProcessor()`; module build
 | `ReturnExisting` (default) | Returns the existing receipt without inserting a second row. |
 | `Strict` | Throws `IdempotencyConflictException` before `SaveChanges`, but only when the conflicting row differs. A byte-identical replay returns the existing receipt. |
 
-`Strict` compares message id, contract name, contract version, payload, topic, handler, idempotency key, correlation id, causation id, and tenant id. Rows that match on all ten fields return the stored receipt; any difference throws.
+`Strict` compares message id, contract name, contract version, payload, topic, handler, idempotency key, correlation id, causation id, and tenant id. Rows that match on all ten fields return the stored receipt. Any difference throws.
 
-The `LiteBusOutboxSaveChangesInterceptor` path does not dedupe at enqueue time. A duplicate `(tenant_id, idempotency_key)` pair in the same `SaveChanges` batch surfaces as a `DbUpdateException` from the unique index and aborts the caller transaction. Use `ReturnExisting` on `IOutbox` / `ITransactionalOutbox` when you need silent dedupe; reserve the interceptor for envelopes staged without idempotency keys or when duplicate keys should fail the unit of work.
+The `LiteBusOutboxSaveChangesInterceptor` path does not deduplicate at enqueue time. A duplicate `(tenant_id, idempotency_key)` pair in the same `SaveChanges` batch surfaces as a `DbUpdateException` from the unique index and aborts the caller transaction. Use `ReturnExisting` on `IOutbox` / `ITransactionalOutbox` when you need silent deduplication. Reserve the interceptor for envelopes staged without idempotency keys or when duplicate keys should fail the unit of work.
 
 ## Alignment with PostgreSQL `CurrentSchemaVersion`
 

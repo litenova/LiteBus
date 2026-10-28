@@ -3,7 +3,7 @@
 - **ID**: `storage.inbox.adapter.efcore`
 - **Name**: Inbox EF Core adapter
 - **Maturity**: GA
-- **Summary**: Entity Framework Core inbox store with factory-created operation contexts and provider-specific leasing for PostgreSQL, SQL Server, MySQL, and SQLite.
+- **Summary**: This adapter stores inbox messages through Entity Framework Core, using factory-created operation contexts and provider-specific leasing for PostgreSQL, SQL Server, MySQL, and SQLite.
 
 ## What It Does
 
@@ -13,13 +13,13 @@
 inbox.UseEntityFrameworkCoreStorage(o => o.UseDbContext<AppDbContext>());
 ```
 
-`AppDbContext` implements `IInboxDbContext`. Default table: `public.litebus_inbox_messages`.
+`AppDbContext` implements `IInboxDbContext`. The default table is `public.litebus_inbox_messages`.
 
 Transactional patterns:
 
-- `ITransactionalInbox<TContext>` for typed writer (`storage.transactional.writes`)
-- `UseExistingDbContext` for manual staging
-- `EnableSaveChangesInterceptor()` for interceptor-based accept before `SaveChanges`
+- A typed writer through `ITransactionalInbox<TContext>` (see `storage.transactional.writes`)
+- `UseExistingDbContext` for staging on a caller-owned context
+- `EnableSaveChangesInterceptor()` accepts through an interceptor before `SaveChanges`
 
 LiteBus does not create or migrate EF schema (see `storage.efcore.schema-ownership`).
 
@@ -40,7 +40,7 @@ LiteBus does not create or migrate EF schema (see `storage.efcore.schema-ownersh
 | Method | Typical caller |
 | --- | --- |
 | `IInboxStore.AddAsync` | Auto-commit singleton store (calls `SaveChanges`) |
-| `ITransactionalInbox<TContext>.AcceptAsync` | Command handlers in EF transaction |
+| `ITransactionalInbox<TContext>.AcceptAsync` | Command handlers in an EF transaction |
 | `IInboxLeaseStore.LeasePendingAsync` | Inbox processor |
 | Interceptor staging | `SaveChanges` on enrolled `DbContext` |
 
@@ -55,7 +55,7 @@ inbox.UseEntityFrameworkCoreStorage(o =>
 ```
 
 - One store implementation is registered for all inbox store roles and opens an operation context through `IDbContextFactory<TContext>`.
-- Interceptor must also be added to `DbContextOptions` in application startup.
+- The interceptor must also be added to `DbContextOptions` in application startup.
 
 ### Configuration
 
@@ -68,8 +68,8 @@ inbox.UseEntityFrameworkCoreStorage(o =>
 
 ### Extension Points
 
-- Any EF relational provider supported by `EfCoreStorageProvider` (PostgreSQL, SQL Server, MySQL, and SQLite).
-- `UseExistingDbContext` for caller-owned context in handlers.
+- Any EF relational provider that `EfCoreStorageProvider` supports (PostgreSQL, SQL Server, MySQL, and SQLite).
+- `UseExistingDbContext` uses a caller-owned context in handlers.
 
 ## Packages
 
@@ -80,26 +80,26 @@ inbox.UseEntityFrameworkCoreStorage(o =>
 
 ## Requires
 
-- EF Core relational provider
+- An EF Core relational provider
 - `AddDbContextFactory<TContext>(...)` in application composition
-- Application migrations including inbox entity configuration
+- Application migrations that include inbox entity configuration
 - Dispatch and processor configuration in the same inbox builder
 
 ## Invariants
 
 - Model configuration must match store expectations (column names, indexes, filtered idempotency index).
-- Auto-commit operations use factory-created contexts; transactional paths use the caller context.
-- A null tenant filter leaves query, purge, and lease unrestricted; an empty tenant filter matches only unscoped rows.
-- Batch inserts that fail after a concurrent commit resolve stored rows as `AlreadyAccepted` and re-insert rolled-back rows; persistent failures surface with the original database error chained.
+- Auto-commit operations use factory-created contexts. Transactional paths use the caller context.
+- A null tenant filter leaves query, purge, and lease unrestricted. An empty tenant filter matches only unscoped rows.
+- Batch inserts that fail after a concurrent commit resolve stored rows as `AlreadyAccepted` and re-insert rolled-back rows. Persistent failures surface with the original database error chained.
 - Transactional batch staging rejects strict same-identifier duplicates with changed payloads before anything is staged.
 - Single-add strict checks apply to rows staged on the same context, so a differing staged duplicate throws `IdempotencyConflictException` like the batch and persisted paths.
-- SQLite and in-memory tracked renew, release, and terminal persist compare `lease_generation` through an Entity Framework concurrency token; a lost race reports skipped instead of overwriting the new holder.
+- SQLite and in-memory tracked renew, release, and terminal persist compare `lease_generation` through an Entity Framework concurrency token. A lost race reports skipped instead of overwriting the new holder.
 
 ## Non-Goals
 
 - Automatic EF migrations from LiteBus
-- PostgreSQL NOTIFY (use PostgreSQL adapter for NOTIFY)
-- High-throughput SQLite writer workloads; SQLite serializes write transactions.
+- PostgreSQL NOTIFY. Use the PostgreSQL adapter for NOTIFY.
+- High-throughput SQLite writer workloads. SQLite serializes write transactions.
 
 ## Observability
 
@@ -114,9 +114,9 @@ inbox.UseEntityFrameworkCoreStorage(o =>
 | `LiteBus.Inbox` | `litebus.inbox.processor.persist_rejected` | Counter | Rejected persist | none | Competing workers |
 | `LiteBus.Inbox` | `litebus.inbox.cleanup.errors` | Counter | Retention failure | none | EF retention store |
 
-Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry`.
+Register through `AddLiteBusInboxMetrics()`. The constants live on `LiteBusInboxTelemetry`.
 
-## Deep Docs
+## References
 
 - [Inbox Entity Framework Core storage](../../integrations/inbox-ef-core-storage.md)
 - [Transactional messaging writes](../../reliable-messaging/transactional-writes.md)
@@ -290,5 +290,5 @@ Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry
 ### Out-of-Scope
 
 - LiteBus-driven EF migrations or `EnsureCreated`.
-- PostgreSQL NOTIFY (use PostgreSQL Npgsql adapter).
+- PostgreSQL NOTIFY. Use the PostgreSQL Npgsql adapter.
 - SQLite write parallelism beyond the database's single-writer model.

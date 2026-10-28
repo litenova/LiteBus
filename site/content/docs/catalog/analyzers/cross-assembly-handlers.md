@@ -5,17 +5,17 @@
 - **ID**: `analyzers.cross-assembly-handler-name`
 - **Diagnostic**: `LB1012` (Warning)
 - **Maturity**: GA
-- **Summary**: Warns when handler simple names are duplicated across different assemblies, which can cause ambiguous or duplicate registration through assembly scanning.
+- **Summary**: Warns when the same handler simple name appears in different assemblies, where assembly scanning can register it ambiguously or twice.
 
 ## Trigger Conditions
 
 `LB1012` reports when:
 
-- Handler registrations are collected from source and eligible referenced assemblies.
+- The analyzer collects handler registrations from source and from eligible referenced assemblies.
 - Two or more registrations share the same handler simple name (`HandlerType.Name`).
 - Those registrations come from different assemblies.
 
-The warning is name-based, not full type identity based.
+The warning compares simple names, not full type identity.
 
 ## Bad Example
 
@@ -38,7 +38,7 @@ public sealed class BillingCreateOrderHandler : ICommandHandler<CreateOrderComma
 public sealed class FulfillmentCreateShipmentHandler : ICommandHandler<CreateShipmentCommand> { ... }
 ```
 
-Distinct handler names avoid false composition matches during scan-based registration.
+Distinct handler names keep scan-based registration from matching the wrong handler at composition.
 
 ## Suppression Guidance
 

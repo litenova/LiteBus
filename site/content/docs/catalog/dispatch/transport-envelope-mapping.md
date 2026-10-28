@@ -7,9 +7,9 @@
 
 ## What It Does
 
-`InboxTransportEnvelopeMapper` and `OutboxTransportEnvelopeMapper` (internal in dispatch packages) delegate to `TransportEnvelopeHeaderMapper` in `LiteBus.Transport`. They build a header dictionary from envelope fields: message id, contract name and version, correlation and causation ids, tenant id, trace context, idempotency key, and visible-after scheduling.
+`InboxTransportEnvelopeMapper` and `OutboxTransportEnvelopeMapper` (internal in dispatch packages) delegate to `TransportEnvelopeHeaderMapper` in `LiteBus.Transport`. They build a header dictionary from the envelope's message id, contract name and version, correlation and causation ids, tenant id, trace context, idempotency key, and visible-after scheduling.
 
-Ingress adapters on the receiving side read the same header conventions to populate `InboxAcceptMetadata` when accepting into a remote inbox. Symmetric headers let an outbox publish on one service become an ingress accept on another without ad hoc header names per team.
+Ingress adapters on the receiving side read the same header conventions to populate `InboxAcceptMetadata` when accepting into a remote inbox. The headers are symmetric, so an outbox publish on one service becomes an ingress accept on another, and no team needs its own header names.
 
 ## Packages
 
@@ -27,16 +27,16 @@ Ingress adapters on the receiving side read the same header conventions to popul
 
 ## Invariants
 
-- Contract identity on the wire uses stable contract name and version, not CLR type names.
-- Message body remains the serialized payload from storage; headers carry metadata only.
+- Contract identity on the wire uses the stable contract name and version, not CLR type names.
+- The message body remains the serialized payload from storage. Headers carry metadata only.
 - Header mapping lives in dispatch and ingress adapter packages, not in storage or core processors.
 - FIFO addressing (`MessageGroupId`, `DeduplicationKey`) travels as `TransportPublishRequest` properties set by the outbox dispatcher, not as headers.
 
 ## Non-Goals
 
-- Does not define broker-specific property bags beyond what `ITransportPublisher` abstracts.
-- Does not validate header round-trip at dispatch time (consumer/ingress responsibility).
-- Does not encrypt header values (payload protection applies to body only).
+- It does not define broker-specific property bags beyond what `ITransportPublisher` abstracts.
+- It does not validate header round-trip at dispatch time. That is a consumer and ingress responsibility.
+- It does not encrypt header values. Payload protection applies to the body only.
 
 ## Public Surface
 
@@ -58,15 +58,15 @@ var headers = TransportEnvelopeHeaderMapper.BuildHeaders(new TransportEnvelopeHe
 | | |
 | --- | --- |
 | Package | `LiteBus.Inbox.Dispatch` |
-| Visibility | Internal; invoked from `TransportInboxDispatcher.DispatchAsync` |
-| Returns | `Dictionary<string, object?>` passed to `TransportPublishRequest.Headers` |
+| Visibility | Internal, invoked from `TransportInboxDispatcher.DispatchAsync` |
+| Returns | A `Dictionary<string, object?>` passed to `TransportPublishRequest.Headers` |
 
 ### `OutboxTransportEnvelopeMapper.BuildHeaders(OutboxEnvelope)` (Internal)
 
 | | |
 | --- | --- |
 | Package | `LiteBus.Outbox.Dispatch` |
-| Visibility | Internal; invoked from `TransportOutboxDispatcher.DispatchAsync` |
+| Visibility | Internal, invoked from `TransportOutboxDispatcher.DispatchAsync` |
 
 ### `TransportEnvelopeHeaderMapper.BuildHeaders(TransportEnvelopeHeaderSource)`
 
@@ -79,19 +79,19 @@ var headers = TransportEnvelopeHeaderMapper.BuildHeaders(new TransportEnvelopeHe
 
 ### `TransportPublishRequest.Headers`
 
-Wire carrier on publish; broker adapters map dictionary entries to AMQP properties, Kafka record headers, SQS message attributes, or Service Bus application properties.
+It is the wire carrier on publish. Broker adapters map dictionary entries to AMQP properties, Kafka record headers, SQS message attributes, or Service Bus application properties.
 
 ## Observability
 
 | Signal | Role |
 | --- | --- |
-| `send {destination}` activity tags | `messaging.message.id`, `messaging.destination.name`, conversation id, and route attributes from the publish request |
-| Trace context header | `TransportHeaders.TraceContext` copied to wire; downstream `process {destination}` can continue or link the stored W3C context |
-| Correlation id | Set on `TransportPublishRequest.CorrelationId` and duplicated in headers when envelope carries a value |
+| `send {destination}` activity tags | The `messaging.message.id`, `messaging.destination.name`, conversation id, and route attributes from the publish request |
+| Trace context header | `TransportHeaders.TraceContext` is copied to the wire, so downstream `process {destination}` can continue or link the stored W3C context |
+| Correlation id | Set on `TransportPublishRequest.CorrelationId` and duplicated in the headers when the envelope carries a value |
 
-No dedicated header-mapping counter or meter. Mapping failures surface as dispatch exceptions before publish.
+No dedicated header-mapping counter or meter. Mapping failures throw dispatch exceptions before publish.
 
-## Deep Docs
+## References
 
 - [Architecture.md: Transport platform](../../architecture/README.md#transport-platform)
 - [Reliable-Messaging-Semantics.md](../../reliable-messaging/semantics.md)
@@ -118,10 +118,10 @@ No dedicated header-mapping counter or meter. Mapping failures surface as dispat
 - Direct unit tests for `TransportEnvelopeHeaderMapper.BuildHeaders`.
 - Idempotency key round-trip through full remote ingress acceptance.
 - `VisibleAfter` interpretation in dispatch-only suites.
-- Header mapping behavior with encrypted payload body scenarios.
+- Header mapping behavior with encrypted payload bodies.
 
 ### Out-of-Scope
 
-- Broker-specific property bags beyond `ITransportPublisher` abstraction
-- Dispatch-time validation of header round-trip (consumer and ingress responsibility)
-- Encrypting header values (payload protection applies to body only)
+- Broker-specific property bags beyond the `ITransportPublisher` abstraction
+- Dispatch-time validation of header round-trip, which is a consumer and ingress responsibility
+- Encrypting header values. Payload protection applies to the body only.

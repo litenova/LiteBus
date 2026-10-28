@@ -7,9 +7,9 @@
 
 ## What It Does
 
-`AddAmqpTransport(...)` registers `AmqpTransportModule` once at the root. `UseAmqpDispatch(configure)` on `OutboxModuleBuilder` registers `TransportOutboxDispatchModule` as a feature bridge to that transport. After domain logic enqueues events to outbox storage, the processor publishes to the configured exchange when rows are leased.
+`AddAmqpTransport(...)` registers `AmqpTransportModule` once at the root. `UseAmqpDispatch(configure)` on `OutboxModuleBuilder` registers `TransportOutboxDispatchModule` as a feature bridge to that transport. After domain logic enqueues events to outbox storage, the processor publishes them to the configured exchange when rows are leased.
 
-Route resolution prefers the custom resolver, then envelope `Topic`, then contract name. Headers carry contract identity and trace context for downstream ingress.
+Route resolution prefers the custom resolver, then the envelope `Topic`, then the contract name. Headers carry contract identity and trace context for downstream ingress.
 
 ## Packages
 
@@ -28,14 +28,14 @@ Route resolution prefers the custom resolver, then envelope `Topic`, then contra
 ## Invariants
 
 - Default hook failure policy is `CompleteDespiteHookFailure` for transport outbox modules.
-- At-least-once publication: crash after broker ack but before terminal persist can duplicate messages.
-- Downstream consumers must deduplicate (message id, idempotency header, or business keys).
-- A mandatory publication the broker returns as unroutable throws `AmqpMessageReturnedException`, so the envelope stays leased and retries instead of being silently dropped.
+- Publication is at-least-once. A crash after the broker acknowledges but before the terminal persist can duplicate messages.
+- Downstream consumers must deduplicate by message id, idempotency header, or business keys.
+- A mandatory publication the broker returns as unroutable throws `AmqpMessageReturnedException`, so the envelope stays leased and is retried instead of being silently dropped.
 
 ## Non-Goals
 
-- Does not subscribe to queues.
-- Does not guarantee transactional outbox with broker (two-phase ack not built in).
+- It does not subscribe to queues.
+- It does not guarantee a transactional outbox with the broker. Two-phase acknowledgment is not built in.
 
 ## Public Surface
 
@@ -66,9 +66,9 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `OutboxModuleBuilder.UseAmqpDispatch(Action<TransportOutboxDispatcherOptions>)` | Registers outbox transport dispatcher that requires the root AMQP transport |
-| `TransportOutboxDispatchModule.DefaultHookFailurePolicy` | Defaults to `CompleteDespiteHookFailure` |
-| `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | Publishes outbox envelope to broker with canonical headers |
+| `OutboxModuleBuilder.UseAmqpDispatch(Action<TransportOutboxDispatcherOptions>)` | Registers the outbox transport dispatcher, which requires the root AMQP transport |
+| `TransportOutboxDispatchModule.DefaultHookFailurePolicy` | The policy defaults to `CompleteDespiteHookFailure` |
+| `TransportOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)` | Publishes the outbox envelope to the broker with canonical headers |
 
 `TransportOutboxDispatcherOptions`:
 
@@ -77,37 +77,37 @@ services.AddLiteBus(litebus =>
 | `DefaultDestination` | `""` | Exchange name |
 | `ContentType` | `application/json` | Outgoing MIME content type |
 | `Persistent` | `true` | Durable message flag |
-| `Mandatory` | `true` | Fail publish with `AmqpMessageReturnedException` when unroutable |
-| `ResolveRoute` | `null` | Route selector; wins over envelope `Topic` and must return a non-empty route |
-| `TenantRoutingStrategy` | `null` | Per-tenant destination override, registered as the `ITenantRoutingStrategy` the dispatcher resolves |
-| `ValidatePayloadBeforeDispatch` | `false` | Deserialize payload before publish for validation |
+| `Mandatory` | `true` | Fails the publish with `AmqpMessageReturnedException` when the message is unroutable |
+| `ResolveRoute` | `null` | Route selector. It wins over the envelope `Topic` and must return a non-empty route |
+| `TenantRoutingStrategy` | `null` | Per-tenant destination override, registered as the `ITenantRoutingStrategy` that the dispatcher resolves |
+| `ValidatePayloadBeforeDispatch` | `false` | Deserializes the payload before publish for validation |
 
-Outbox route order is tenant strategy, then `ResolveRoute`, then envelope `Topic`, then contract name.
+On the outbox axis, the route order is the tenant strategy, then `ResolveRoute`, then the envelope `Topic`, then the contract name.
 
 `AmqpConnectionOptions`:
 
 | Property | Default | Role |
 | --- | --- | --- |
-| `Uri` | `null` | Full AMQP URI, overrides host/port/credentials when set |
+| `Uri` | `null` | Full AMQP URI that overrides the host, port, and credentials when set |
 | `HostName` | `localhost` | Broker host |
 | `Port` | `5672` | Broker port |
 | `VirtualHost` | `/` | AMQP virtual host |
 | `UserName` / `Password` | `guest` / `guest` | Broker credentials |
-| `ClientProvidedName` | `null` | Connection name shown in broker UI |
+| `ClientProvidedName` | `null` | Connection name shown in the broker UI |
 | `AutomaticRecoveryEnabled` | `true` | Enables reconnect |
 | `NetworkRecoveryInterval` | `00:00:05` | Delay between reconnect attempts |
-| `CircuitBreaker` | configured object | Separate connection and per-exchange publisher breaker thresholds |
+| `CircuitBreaker` | configured object | Separate thresholds for the connection breaker and the per-exchange publisher breakers |
 
 ## Observability
 
 | Signal | Detail |
 | --- | --- |
-| `send {destination}` | Exchange, RabbitMQ routing key, and envelope id on the AMQP send path |
-| `litebus.transport.circuit_breaker.*` | Broker tag `amqp` on shared transport meter |
-| `litebus.outbox.processor.published` / `failed` / `dead_lettered` | After dispatch and terminal persist |
-| `litebus.outbox.processor.dispatch_duration` | Includes AMQP publish latency |
+| `send {destination}` | The exchange, the RabbitMQ routing key, and the envelope id on the AMQP send path |
+| `litebus.transport.circuit_breaker.*` | Broker tag `amqp` on the shared transport meter |
+| `litebus.outbox.processor.published` / `failed` / `dead_lettered` | After dispatch and the terminal persist |
+| `litebus.outbox.processor.dispatch_duration` | It includes AMQP publish latency |
 
-## Deep Docs
+## References
 
 - [Outbox.md](../../reliable-messaging/outbox.md)
 - [Architecture.md](../../architecture/README.md)
@@ -130,11 +130,11 @@ Outbox route order is tenant strategy, then `ResolveRoute`, then envelope `Topic
 
 ### Untested
 
-- After-dispatch hook failure path with `CompleteDespiteHookFailure` under live AMQP.
-- Outbox dispatch failure and circuit breaker behavior for AMQP dispatch projects.
-- Route override via tenant strategy in AMQP-specific coverage.
+- The after-dispatch hook failure path with `CompleteDespiteHookFailure` under live AMQP.
+- The outbox dispatch failure and circuit breaker behavior for the AMQP dispatch projects.
+- Route override through the tenant strategy in AMQP-specific coverage.
 
 ### Out-of-Scope
 
 - Subscribing to or consuming AMQP queues
-- Two-phase transactional outbox with broker acknowledgment persisted before terminal store state
+- A two-phase transactional outbox that persists the broker acknowledgment before the terminal store state

@@ -3,11 +3,11 @@
 - **ID**: `storage.efcore.shared-infra`
 - **Name**: EF Core shared infrastructure
 - **Maturity**: GA
-- **Summary**: Provider-specific lease SQL, bulk update helpers, and relational model utilities for EF-backed durable stores.
+- **Summary**: This package holds provider-specific lease SQL, bulk update helpers, and relational model utilities for EF-backed durable stores.
 
 ## What It Does
 
-`LiteBus.Storage.EntityFrameworkCore` supplies cross-axis EF primitives: provider detection (`EfCoreStorageProvider`), provider-specific lease SQL (PostgreSQL `FOR UPDATE SKIP LOCKED`, SQL Server, MySQL/Pomelo), serializable SQLite lease transactions, SQLite UTC-tick timestamp mapping, relational table qualification, JSON text normalization, bulk update capability probes, and shared durable store operation helpers. Inbox and outbox EF adapters use these types internally; applications typically interact through axis-specific model extensions and store options.
+`LiteBus.Storage.EntityFrameworkCore` supplies cross-axis EF primitives: provider detection (`EfCoreStorageProvider`), provider-specific lease SQL (PostgreSQL `FOR UPDATE SKIP LOCKED`, SQL Server, MySQL/Pomelo), serializable SQLite lease transactions, SQLite UTC-tick timestamp mapping, relational table qualification, JSON text normalization, bulk update capability probes, and shared durable store operation helpers. Inbox and outbox EF adapters use these types internally. Applications typically interact through axis-specific model extensions and store options.
 
 ## Public Surface
 
@@ -15,14 +15,14 @@
 
 | Type | Role |
 | --- | --- |
-| `EfCoreStorageProvider` | PostgreSQL, SQL Server, MySQL, SQLite, InMemory detection |
-| `EfCoreRelationalLeaseExecutor` | Internal: executes provider lease SQL against a `DbContext` |
+| `EfCoreStorageProvider` | Provider detection for PostgreSQL, SQL Server, MySQL, SQLite, and InMemory |
+| `EfCoreRelationalLeaseExecutor` | Internal. Executes provider lease SQL against a `DbContext` |
 | `EfCorePostgreSqlLeaseSql` / `EfCoreSqlServerLeaseSql` / `EfCoreMySqlLeaseSql` | Internal lease statement templates |
 | `EfCoreDurableStoreOperations` | Internal shared state transition helpers |
 | `EfCoreBulkUpdateCapabilities` | Internal provider bulk update feature detection |
 | `EfCoreRelationalModelColumnTypes` | Payload and trace column type mapping |
 | `EfCoreJsonTextNormalizer` | Internal JSON serialization alignment for relational providers |
-| `EfCoreProviderResolver` | Resolve provider from `DbContext` |
+| `EfCoreProviderResolver` | Resolves the provider from a `DbContext` |
 
 ### Invocation
 
@@ -35,7 +35,7 @@
 
 ### Registration
 
-- Not registered directly; consumed by inbox/outbox EF storage feature bridges.
+- These types are not registered directly. The inbox/outbox EF storage feature bridges consume them.
 - Provider detection runs against an operation context created by the application's `IDbContextFactory<TContext>`.
 
 ### Configuration
@@ -48,7 +48,7 @@
 
 ### Extension Points
 
-- Internal lease and persist helpers are shared with the inbox and outbox EF adapters through `InternalsVisibleTo`; custom adapters build on the public provider resolver, column types, and table qualifier.
+- Internal lease and persist helpers are shared with the inbox and outbox EF adapters through `InternalsVisibleTo`. Custom adapters build on the public provider resolver, column types, and table qualifier.
 - Unsupported providers throw `EfCoreStorageNotSupportedException` at resolve time.
 
 ## Packages
@@ -59,23 +59,23 @@
 
 ## Requires
 
-- EF Core relational provider package used by the application (`Npgsql.EntityFrameworkCore.PostgreSQL`, SQL Server, Pomelo, etc.)
-- Axis EF storage adapter (`LiteBus.Inbox.Storage.EntityFrameworkCore` or `LiteBus.Outbox.Storage.EntityFrameworkCore`)
+- An EF Core relational provider package used by the application (`Npgsql.EntityFrameworkCore.PostgreSQL`, SQL Server, Pomelo, etc.)
+- An axis EF storage adapter (`LiteBus.Inbox.Storage.EntityFrameworkCore` or `LiteBus.Outbox.Storage.EntityFrameworkCore`)
 
 ## Invariants
 
 - Lease SQL requires a supported relational provider. SQLite leasing runs inside a serializable transaction, which serializes claims across store instances through the database write lock.
 - MySQL leasing uses `READ COMMITTED`, the axis `IX_LiteBus_*_CreatedAt` index, and direct primary-key updates so concurrent workers claim disjoint ordered batches without range-lock starvation.
 - Store options `SchemaName` and `TableName` must match the EF model configuration used in migrations.
-- Payload columns map to text so payload protection can return opaque ciphertext; trace context uses provider-specific JSON types (`jsonb` on PostgreSQL).
+- Payload columns map to text so payload protection can return opaque ciphertext. Trace context uses provider-specific JSON types (`jsonb` on PostgreSQL).
 - Table qualification escapes provider quote characters per provider (doubled double-quote for PostgreSQL and SQLite, doubled closing bracket for SQL Server, doubled backtick for MySQL) and rejects null characters.
 - Tracked renew and release on providers without bulk update support map a lease-generation concurrency conflict to not-updated, matching the guarded bulk update path. Tracked terminal persist saves one row at a time, so one lost race skips only that row.
 
 ## Non-Goals
 
-- Does not register `DbContext` or run migrations.
-- Does not replace raw Npgsql inbox/outbox stores for apps that prefer ADO.NET-only persistence.
-- Does not implement saga EF storage (not shipped).
+- It does not register a `DbContext` or run migrations.
+- It does not replace the raw Npgsql inbox/outbox stores for apps that prefer ADO.NET-only persistence.
+- It does not implement saga EF storage, which is not shipped.
 
 ## Observability
 
@@ -94,7 +94,7 @@ No dedicated meters in this package. Processor and queue metrics come from axis 
 
 Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOutboxTelemetry`.
 
-## Deep Docs
+## References
 
 - [Inbox EF Core storage](../../integrations/inbox-ef-core-storage.md)
 - [Outbox EF Core storage](../../integrations/outbox-ef-core-storage.md)
@@ -249,11 +249,11 @@ Instrument names are public constants on `LiteBusInboxTelemetry` and `LiteBusOut
 
 ### Untested
 
-- Dedicated unit tests per provider lease SQL template file (coverage is indirect through contract and integration suites).
-- SQLite throughput under sustained multi-process writes; provider contracts cover concurrent claims across independent contexts on one file.
+- Dedicated unit tests per provider lease SQL template file. Coverage is indirect through contract and integration suites.
+- SQLite throughput under sustained multi-process writes. Provider contracts cover concurrent claims across independent contexts on one file.
 
 ### Out-of-Scope
 
 - Automatic EF migrations or `EnsureCreated` from shared infrastructure.
-- Saga EF storage (not shipped).
+- Saga EF storage, which is not shipped.
 - Replacing raw Npgsql inbox/outbox stores for ADO-only deployments.

@@ -3,25 +3,25 @@
 - **ID**: `runtime.message-module`
 - **Name**: Foundational messaging module
 - **Maturity**: GA
-- **Summary**: Bootstraps shared messaging services, registries, serializer, mediator, and scoped handler registrations.
+- **Summary**: The module bootstraps the shared messaging services, registries, serializer, mediator, and scoped handler registrations.
 
 ## What It Does
 
-`MessageModule` creates or reuses `IMessageRegistry` and contract registry contexts, executes `MessageModuleBuilder` registration callbacks, registers core messaging services, and registers newly discovered handler types as scoped dependencies.
+`MessageModule` creates or reuses the `IMessageRegistry` and contract registry contexts and runs the `MessageModuleBuilder` registration callbacks. It then registers the core messaging services and the newly discovered handler types as scoped dependencies.
 
 ## Public Surface
 
 | API | Role |
 | --- | --- |
-| `ILiteBusBuilder.AddMessaging(Action<MessageModuleBuilder>)` | Normal package-owned composition entry |
+| `ILiteBusBuilder.AddMessaging(Action<MessageModuleBuilder>)` | The normal package-owned entry point for composition |
 | `MessageModule(Action<MessageModuleBuilder>)` | Module entry |
 | `MessageModuleBuilder.Register<T>()` / `Register(Type)` | Message and handler registration |
 | `MessageModuleBuilder.RegisterFromAssembly(Assembly)` | Assembly scan registration |
 | `MessageModuleBuilder.Contracts` | Durable contract registration |
 | `MessageModuleBuilder.UseTimeProvider(TimeProvider)` | Optional custom clock |
-| `MessageModuleBuilder.UseTelemetry(MediationTelemetryOptions)` | Mediation telemetry selection (spans and metrics on; stage spans and metrics opt-in) |
+| `MessageModuleBuilder.UseTelemetry(MediationTelemetryOptions)` | Mediation telemetry selection (spans and metrics on, stage spans and metrics opt-in) |
 | `MessageModuleBuilder.RequireExplicitOpenGenerics()` | Fails composition on unnamed scan-found open generics |
-| `LiteBusCompositionSummary` | Resolvable summary: per-axis message counts, open-generic closures, required declarations, audit configuration, composition checks |
+| `LiteBusCompositionSummary` | Resolvable summary of per-axis message counts, open-generic closures, required declarations, audit configuration, and composition checks |
 
 ## Packages
 
@@ -35,18 +35,18 @@
 
 ## Invariants
 
-- Message registry is shared per composition context.
-- Core services are registered during build.
-- New handlers are registered with scoped lifetime.
-- Composition fails when no `IMessageDispatchScopeFactory` is registered by a host adapter or explicit manual-host opt-in.
+- The message registry is shared per composition context.
+- The module registers core services during build.
+- The module registers new handlers with scoped lifetime.
+- When no host adapter or explicit manual-host opt-in registers an `IMessageDispatchScopeFactory`, composition fails.
 
 ## Non-Goals
 
-- Semantic command/query/event policy.
+- Policy for semantic commands, queries, and events.
 
 ## Observability
 
-No dedicated runtime meter.
+The module exposes no runtime meter.
 
 ## Test Coverage
 
@@ -54,18 +54,18 @@ No dedicated runtime meter.
 
 #### `QueryModulePrerequisiteGuardTests.AddQueryModule_WithoutMessageModule_ShouldFailModuleGraphValidation`
 - **Test kind**: Unit
-- **Expected outcome**: semantic module registration is blocked without message module foundation
+- **Expected outcome**: semantic module registration fails without the message module foundation
 
 #### `HandlerDependencyLifetimeTests.AddLiteBus_WhenMessageAndCommandModulesRegisterSameHandler_ShouldRegisterHandlerAsScoped`
 - **Test kind**: Unit
-- **Expected outcome**: shared handler registration remains scoped and stable
+- **Expected outcome**: the shared handler registration stays scoped and stable
 
 ### Untested Use Cases
 
 | Use case | Priority | Notes |
 | --- | --- | --- |
-| Multiple message-module registration attempts in one graph | Medium | Blocked by duplicate module rules |
+| Multiple message-module registration attempts in one graph | Medium | Duplicate module rules block this |
 
 ### Out-of-Scope Use Cases
 
-- Distributed mediator deployment behavior.
+- How the mediator behaves in a distributed deployment.

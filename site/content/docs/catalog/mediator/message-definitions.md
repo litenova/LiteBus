@@ -15,7 +15,7 @@ Two sources populate metadata, in a defined order, and both contribute values of
 1. Attributes on the message type that implement `IMessageDeclarationSource`, each converted to the value type it names. Attributes that do not implement it are not metadata and are never collected, which keeps the collection bounded.
 2. Definitions, applied second, so a definition wins over an attribute declaring the same value type.
 
-Declarations are keyed by value type, in both definition shapes. `IMessageDefinition<TMessage>` declares any number of them from one `Describe(IMessageDeclarations)` method and is the shape to reach for. `IMessageDefinition<TMessage, TValue>` types one declaration against the compiler, which makes it the better choice for a message declaring exactly one thing and is why `IAuditDefinition<TMessage>` is built on it; past one, every later value has to be written as an explicit interface implementation naming both types again. Applications may declare their own value types either way, and LiteBus applies them without understanding them.
+Declarations are keyed by value type, in both definition shapes. `IMessageDefinition<TMessage>` declares any number of them from one `Describe(IMessageDeclarations)` method and is the usual choice. `IMessageDefinition<TMessage, TValue>` pins one declaration to its value type at compile time, which makes it the better choice for a message declaring exactly one thing, and is why `IAuditDefinition<TMessage>` is built on it. Past one value, every later value has to be written as an explicit interface implementation naming both types again. Applications may declare their own value types either way, and LiteBus applies them without understanding them.
 
 A declaration covers the message type it names and every message assignable to it, so a definition over a base type or marker interface describes a family of messages. The most derived declaration wins.
 
@@ -47,19 +47,19 @@ public sealed class PlaceOrderCommandDefinition :
 | `IMessageDefinition<TMessage, TValue>` | One declaration, keyed by `TValue` and checked by the compiler |
 | `IMessageDefinition<TMessage>` | Any number of declarations from one `Describe(IMessageDeclarations)` method |
 | `IMessageDeclarations` | `Declare<TValue>`, `Audited`, `NotAudited`, `Authorized`, `AuthorizationExempt`, `Exempt<TValue>` |
-| `IMessageDeclarationExemptionSource` | Implemented by an attribute that records an exemption, aggregated into one `DeclarationExemptions` value |
-| `[DeclarationExempt(typeof(TValue), rationale)]` | Records that a message deliberately declares nothing for one metadata type; repeatable, aggregated into `DeclarationExemptions` |
-| `[MessageDeclaration(typeof(TValue))]` | States on an attribute class which metadata value it declares, so analyzers can read it; registration fails when it names a different type than `IMessageDeclarationSource.DeclarationType` |
-| `MessageModuleBuilder.DeclareDefault<TScope, TValue>(value)` | Declares a value for every message assignable to a marker, overridden by a message that states its own |
+| `IMessageDeclarationExemptionSource` | Implemented by an attribute that records an exemption. Exemptions are aggregated into one `DeclarationExemptions` value |
+| `[DeclarationExempt(typeof(TValue), rationale)]` | Records that a message deliberately declares nothing for one metadata type. Repeatable, and exemptions are aggregated into `DeclarationExemptions` |
+| `[MessageDeclaration(typeof(TValue))]` | States on an attribute class which metadata value it declares, so analyzers can read it. Registration fails when it names a different type than `IMessageDeclarationSource.DeclarationType` |
+| `MessageModuleBuilder.DeclareDefault<TScope, TValue>(value)` | Declares a value for every message assignable to a marker. A message that states its own value overrides it |
 | `MessageDeclarationItem` / `IMessageWriter.AddDeclaration` | A declaration made from composition code rather than a definition class |
-| `MessageModuleBuilder.RequireDeclaration<TValue>()` / `RequireDeclaration<TValue, TScope>()` / `RequireDeclaration<TValue>(predicate, description)` | Fails composition for every registered message that neither declares the value nor records an exemption; unscoped, marker-scoped, or predicate-scoped |
+| `MessageModuleBuilder.RequireDeclaration<TValue>()` / `RequireDeclaration<TValue, TScope>()` / `RequireDeclaration<TValue>(predicate, description)` | Fails composition for every registered message that neither declares the value nor records an exemption. Unscoped, marker-scoped, or predicate-scoped |
 | `MessageDeclarationException` | Names every offending message, grouped by the omitted declaration and the violated scope |
 | `MessageModuleBuilder.ValidateComposition(Action<IMessageCatalog>)` | Runs an application convention over every registered message at composition |
 | `IMessageCatalog` / `MessageCatalogEntry` | The read-only view a composition check asserts over, with `Count` and an `Audited()` filter |
 | `IMessageDeclarationSource` | Implemented by an attribute that declares metadata |
 | `IMessageMetadata` | Read side exposed on the message descriptor |
 | `IMessageDescriptor.Metadata` | Resolved metadata for one message type |
-| `IMessageMetadataAccessor` | Reads resolved metadata from application code through `ForMessage` and `TryGet`; an unregistered runtime type reads the metadata of the descriptor it mediates through, and only a type nothing covers raises `MessageMetadataNotFoundException` |
+| `IMessageMetadataAccessor` | Reads resolved metadata from application code through `ForMessage` and `TryGet`. An unregistered runtime type reads the metadata of the descriptor it mediates through, and only a type nothing covers raises `MessageMetadataNotFoundException` |
 | `IAuditDefinition<TMessage>` | The audit declaration shipped by LiteBus |
 | `IAuthorizationDefinition<TMessage>` | The authorization declaration shipped by LiteBus |
 
@@ -79,25 +79,25 @@ public sealed class PlaceOrderCommandDefinition :
 - A declared value must not be null, and must be assignable to the value type it is keyed under.
 - Only attributes implementing `IMessageDeclarationSource` become metadata.
 - Definitions are applied after attributes, so a definition overrides an attribute of the same value type.
-- A declaration covers every message assignable to the type it names; the most derived declaration wins.
+- A declaration covers every message assignable to the type it names. The most derived declaration wins.
 - Two definitions declaring the same value type for one message throw `LiteBusConfigurationException` at registration.
 - Two declarations covering one message where neither type is more derived than the other throw `LiteBusConfigurationException`.
 - Metadata is resolved once per message type at registration, not per dispatch.
-- Metadata follows the descriptor the mediation resolved: an unregistered runtime type mediated through a base descriptor reads that descriptor's metadata, exactly as if it had been registered; only a type nothing registered covers raises `MessageMetadataNotFoundException`, and an ambiguous fallback raises `AmbiguousMessageResolveException`.
+- Metadata follows the descriptor the mediation resolved. An unregistered runtime type mediated through a base descriptor reads that descriptor's metadata, exactly as if it had been registered. Only a type nothing registered covers raises `MessageMetadataNotFoundException`, and an ambiguous fallback raises `AmbiguousMessageResolveException`.
 - Open generic message shapes are matched exactly, because assignability between generic type definitions is not meaningful.
-- A `RequireDeclaration` requirement is satisfied by a declaration of the value type or by a recorded exemption for it; every other message fails composition, named in full rather than one at a time.
-- A marker-scoped requirement covers every message assignable to the marker and leaves the messages outside it alone; a predicate requirement names its own scope in the error.
+- A `RequireDeclaration` requirement is satisfied by a declaration of the value type or by a recorded exemption for it. Every other message fails composition, named in full rather than one at a time.
+- A marker-scoped requirement covers every message assignable to the marker and leaves the messages outside it alone. A predicate requirement names its own scope in the error.
 - A `Describe` body that declares nothing, or that declares one value type twice, fails registration.
 
 ## Non-Goals
 
-- Interpreting application-owned declared values. LiteBus carries the declaration; enforcement stays in the application.
+- Interpreting application-owned declared values. LiteBus carries the declaration. Enforcement stays in the application.
 - Replacing handler-level configuration such as `[HandlerPriority]` and `[HandlerTag]`, which describe an implementation rather than a use case.
 - Runtime mutation of metadata after the registry is built.
 
 ## Observability
 
-No definition-specific meter or activity source. Binding failures surface as `LiteBusConfigurationException` during module build, so a malformed definition fails at startup rather than at dispatch.
+No definition-specific meter or activity source is emitted. Binding failures surface as `LiteBusConfigurationException` during module build, so a malformed definition fails at startup rather than at dispatch.
 
 ## Test Coverage
 
@@ -143,7 +143,7 @@ No definition-specific meter or activity source. Binding failures surface as `Li
 
 - Durable message contract registration, covered by `IContractWriter`.
 
-## Deep Docs
+## References
 
 - [Message definitions](../../concepts/message-definitions.md)
 - [Auditing](../../concepts/auditing.md)

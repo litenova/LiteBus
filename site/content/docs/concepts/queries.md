@@ -1,6 +1,6 @@
 # Query Module
 
-A query asks LiteBus to read state without changing it. This page shows you how to define a query, handle it, send it, and short-circuit it with cached answers.
+A query asks LiteBus to read state without changing it. This page shows how to define a query, handle it, send it, and short-circuit it with cached answers.
 
 > **This page is for** developers who read state through LiteBus.
 >
@@ -16,7 +16,9 @@ public sealed record SearchProductsQuery(string SearchTerm) : IStreamQuery<Produ
 
 Every query returns a result. Use `IQuery<TResult>` for one awaitable value and `IStreamQuery<TResult>` for an async stream of values. Pick the stream shape when the result set is large enough that holding it all in memory is wasteful, for real-time feeds, or for server-driven paging.
 
-Two rules define a query. It is handled by exactly one handler, and it has no side effects. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level survives: direct handlers win whenever any survive, and handlers registered for a base type apply only when no direct handler does. Both exceptions name the runtime type of the message, even when the call erased it to `IQuery`. The no-side-effects rule is a discipline you keep: when the handler writes, model the operation as a command instead. Name queries for the data they return, such as `GetProductByIdQuery` or `ListOpenOrdersQuery`.
+Two rules define a query. Each query has exactly one handler and no side effects. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level survives. Direct handlers win whenever any survive, and handlers registered for a base type apply only when no direct handler survives. Both exceptions name the runtime type of the message, even when the caller passed the message typed as `IQuery`.
+
+The no-side-effects rule is a discipline you keep. When the handler writes, model the operation as a command instead. Name queries for the data they return, such as `GetProductByIdQuery` or `ListOpenOrdersQuery`.
 
 ## Handle a Query
 
@@ -83,7 +85,7 @@ Task<TQueryResult> QueryAsync<TQueryResult>(IQuery<TQueryResult> query, QueryMed
 IAsyncEnumerable<TQueryResult> StreamAsync<TQueryResult>(IStreamQuery<TQueryResult> query, QueryMediationSettings? queryMediationSettings = null, CancellationToken cancellationToken = default);
 ```
 
-Enumerate a returned stream once and dispose its enumerator when you stop early. The stream holds its dispatch scope until it is enumerated to completion or disposed, so a stream you abandon keeps its scoped handler dependencies alive. Returning the stream straight from an ASP.NET Core action lets the framework serialize each item as it arrives, so the controller never holds the whole result set. Canceling the enumerator cancels the guard, shortcut, and post-handler stages the stream runs as well as the handler, because the stream links the enumerator token with the mediation token.
+Enumerate a returned stream once and dispose its enumerator when you stop early. The stream holds its dispatch scope until it is enumerated to completion or disposed, so a stream you abandon keeps its scoped handler dependencies alive. Returning the stream directly from an ASP.NET Core action lets the framework serialize each item as it arrives, so the controller never holds the whole result set. Canceling the enumerator cancels the guard, shortcut, and post-handler stages the stream runs as well as the handler, because the stream links the enumerator token with the mediation token.
 
 ## Filter Which Handlers Run
 
@@ -100,7 +102,7 @@ var settings = new QueryMediationSettings
 var result = await queryMediator.QueryAsync(new GetUserQuery(userId), settings, cancellationToken);
 ```
 
-Pass `QueryMediationSettings` when the same query must run a different set of handlers per call. `Routing.Tags` keeps only handlers with a matching tag and `Routing.HandlerPredicate` filters on the handler descriptor after tags. For one tag use the sugar overload: `await queryMediator.QueryAsync(query, "Admin", cancellationToken)`. See [Handler Filtering](handler-filtering.md).
+Pass `QueryMediationSettings` when the same query must run a different set of handlers per call. `Routing.Tags` keeps only handlers with a matching tag and `Routing.HandlerPredicate` filters on the handler descriptor after tags. For one tag, pass the tag directly: `await queryMediator.QueryAsync(query, "Admin", cancellationToken)`. See [Handler Filtering](handler-filtering.md).
 
 ## Answer From a Shortcut
 
@@ -124,13 +126,13 @@ public sealed class ProductCacheLookup : IQueryShortcut<GetProductByIdQuery, Pro
 }
 ```
 
-Use a shortcut for answers you already hold, such as a cache hit. The answer is typed over the query result, so the compiler requires the right shape. An answered query reports `MediationOutcome.Answered`, which an audit trail records as a success because nothing was refused.
+Use a shortcut for answers you already hold, such as a cache hit. The answer is typed over the query result, so the compiler enforces the right shape. An answered query reports `MediationOutcome.Answered`, which an audit trail records as a success because nothing was refused.
 
 Refusing a read is a different job. Implement `IQueryGuard<TQuery>` and return `Verdict.Deny(reason)`, which reports `MediationOutcome.Denied`. LiteBus runs every guard before any shortcut, so a cached answer can never reach a caller a guard would have refused.
 
 ## Details
 
-- The full stage order, including guards, validators, shortcuts, post-handlers, error-handlers, and completion handlers, lives on [The Handler Pipeline](handler-pipeline.md). That page is authoritative when this page and that page seem to differ.
+- The full stage order, including guards, validators, shortcuts, post-handlers, error-handlers, and completion handlers, appears in [The Handler Pipeline](handler-pipeline.md). That page is authoritative when this page and that page seem to differ.
 - When a refusal is a routine branch rather than a fault, call `TryQueryAsync` and read the outcome value instead of catching. When you need to ask whether a read would be permitted without running it, call `EvaluateAsync`. See [Refusal as a Value](handler-pipeline.md#refusal-as-a-value).
 
 ## Next

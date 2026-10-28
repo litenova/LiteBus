@@ -3,13 +3,13 @@
 - **ID**: `transport.tracing`
 - **Name**: Transport tracing
 - **Maturity**: GA
-- **Summary**: Records broker send and message processing activities through one transport activity source.
+- **Summary**: It records broker send and message processing activities through one transport activity source.
 
 ## Behavior
 
-Concrete broker publishers start one producer activity around the SDK send call. `TransportConsumerHandlerInvoker` starts one consumer activity around the application delivery handler. Durable inbox and outbox dispatchers do not add another transport activity, so one broker operation produces one transport span.
+Each broker publisher starts one producer activity around the SDK send call. `TransportConsumerHandlerInvoker` starts one consumer activity around the application delivery handler. Durable inbox and outbox dispatchers do not add another transport activity, so one broker operation produces one transport span.
 
-Span names follow the OpenTelemetry messaging form `{operation} {destination}`. Sending to `orders` records `send orders`; processing from `orders` records `process orders`. If no destination is available, the name is `send` or `process`.
+Span names follow the OpenTelemetry messaging form `{operation} {destination}`. Sending to `orders` records `send orders`. Processing from `orders` records `process orders`. If no destination is available, the name is `send` or `process`.
 
 ## Public Surface
 
@@ -64,11 +64,11 @@ Optional message metadata uses these attributes:
 
 ## Parenting and Stored Trace Context
 
-Send activities retain `Activity.Current` as their parent. Process activities read `TransportHeaders.TraceContext` when it contains either a W3C `traceparent` string or JSON with `traceparent` and optional `tracestate` properties.
+Send activities keep `Activity.Current` as their parent. Process activities read `TransportHeaders.TraceContext` when it contains either a W3C `traceparent` string or JSON with `traceparent` and optional `tracestate` properties.
 
 When no ambient activity exists, a valid stored W3C context becomes the process parent. When an ambient activity exists, it remains the parent and the stored remote context is added as an activity link. Invalid or malformed trace context is ignored.
 
-LiteBus copies the durable trace context header supplied by the message envelope. Broker-native trace header injection is outside this capability.
+LiteBus copies the durable trace context header supplied by the message envelope. Broker-native trace header injection stays outside this capability.
 
 ## Error Recording
 

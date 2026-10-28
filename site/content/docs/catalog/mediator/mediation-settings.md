@@ -3,7 +3,7 @@
 - **ID**: `mediator.mediation-settings`
 - **Name**: Mediation settings
 - **Maturity**: GA
-- **Summary**: Provides per-call routing, execution, and context item settings for command, query, and event mediation.
+- **Summary**: Carries per-call routing, execution, and context item settings for command, query, and event mediation.
 - **Guide**: [The handler pipeline](../../concepts/handler-pipeline.md)
 
 ## What It Does
@@ -46,7 +46,7 @@ await eventMediator.PublishAsync(new OrderPlacedEvent(orderId), settings, cancel
 | `QueryMediationSettings.Routing` | Query routing config |
 | `QueryMediationSettings.Items` | Query ambient context seed |
 | `EventMediationSettings.Routing` | Event routing config |
-| `EventMediationSettings.Execution` | Event execution concurrency/fault mode |
+| `EventMediationSettings.Execution` | Event execution concurrency and fault mode |
 | `EventMediationSettings.ThrowIfNoHandlerFound` | Event no-handler behavior |
 | `EventMediationSettings.AutoRegisterUnregisteredMessageTypes` | On-the-spot registration for plain events |
 
@@ -65,10 +65,10 @@ await eventMediator.PublishAsync(new OrderPlacedEvent(orderId), settings, cancel
 
 ## Invariants
 
-- Default routing accepts all handlers (`Tags` empty and predicate returns true).
+- Default routing accepts all handlers (`Tags` empty and the predicate returning true).
 - Items flow into `AmbientExecutionContext.Current.Items` for the mediation call.
-- `ThrowIfNoHandlerFound` only applies to event publish.
-- `AutoRegisterUnregisteredMessageTypes` only applies to event publish requests. It defaults to `false`, is independent of `ThrowIfNoHandlerFound`, and registers a plain unregistered event type on first publish; it is for plain-object events, not a substitute for assembly registration.
+- `ThrowIfNoHandlerFound` only applies to event publish requests.
+- `AutoRegisterUnregisteredMessageTypes` only applies to event publish requests. It defaults to `false`, is independent of `ThrowIfNoHandlerFound`, and registers a plain unregistered event type on first publish. It is for plain-object events, not a substitute for assembly registration.
 
 ## Non-Goals
 
@@ -78,7 +78,7 @@ await eventMediator.PublishAsync(new OrderPlacedEvent(orderId), settings, cancel
 
 ## Observability
 
-No settings-specific telemetry surfaces are emitted. Settings influence behavior but do not emit dedicated metrics.
+No settings-specific telemetry is emitted. Settings influence behavior but produce no dedicated metrics.
 
 Operational alternatives:
 - Log effective settings at call boundaries in application code.
@@ -106,7 +106,7 @@ Operational alternatives:
 - Long-lived session-level routing profiles.
 - Broker routing configuration.
 
-## Deep Docs
+## References
 
 - [Command module](../../concepts/commands.md)
 - [Query module](../../concepts/queries.md)

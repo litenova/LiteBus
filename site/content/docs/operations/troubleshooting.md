@@ -1,6 +1,6 @@
 # Troubleshooting
 
-This page maps the exceptions and behaviors LiteBus produces to their cause and fix. Use it as a lookup when a message fails to mediate or a registration throws at startup.
+LiteBus reports mediation and registration failures as exceptions, silent handlers, or failed registrations. This page maps each symptom to its cause and fix. Use it as a lookup when a message fails to mediate or a registration throws at startup.
 
 > **This page is for** developers who see a LiteBus exception, a silent handler, or a failed registration and need the fix.
 >
@@ -10,17 +10,17 @@ The behaviors here follow [The Handler Pipeline](../concepts/handler-pipeline.md
 
 ## Durable Messaging
 
-Inbox, outbox, and transactional writer failures. For the state model behind these entries, see [Message States and Alerting](message-states.md).
+This section covers inbox, outbox, and transactional writer failures. For the state model behind these entries, see [Message States and Alerting](message-states.md).
 
 ### Transactional Writer Requires an Active Transaction
 
 You see `InvalidOperationException` with text that contains `requires an active PostgreSQL transaction`.
 
-Cause: you used `ITransactionalInbox` or `ITransactionalOutbox` with `EnableAmbientTransactionProvider`, which defaults to `RequireActiveTransaction`, but no transaction was active in `IPostgreSqlTransactionProvider`.
+Cause: you used `ITransactionalInbox` or `ITransactionalOutbox` with `EnableAmbientTransactionProvider`. That provider defaults to `RequireActiveTransaction`, but no transaction was active in `IPostgreSqlTransactionProvider`.
 
 Fix:
 
-1. Open the connection and call `BeginTransactionAsync` at unit-of-work start, and implement `TryGetCurrent` on your scoped provider.
+1. Open the connection and call `BeginTransactionAsync` at unit-of-work start. Implement `TryGetCurrent` on your scoped provider.
 2. Confirm the handler injects `ITransactionalOutbox`, not `IOutbox`.
 
 See [Transactional Messaging Writes](../reliable-messaging/transactional-writes.md).
@@ -31,19 +31,19 @@ A message reaches the dead letter on its first attempt with no retries.
 
 Cause: a refusal and a missing handler produce the same outcome on every attempt, so both processors retire such a message on the first attempt. `MediationExceptionFilters.IsRetryableDispatchException` inspects the inner exception chain, so a refusal or missing handler wrapped in a dispatcher exception is still retired on the first attempt.
 
-Fix: read the dead-letter error text. `LiteBusMessageDeniedException` and `LiteBusMessageInvalidException` are decisions about the message itself, and `NoHandlerFoundException` means nothing is registered to handle it. Fix the registration or the message instead of raising the retry count.
+Fix: read the dead-letter error text. `LiteBusMessageDeniedException` and `LiteBusMessageInvalidException` are decisions about the message itself. `NoHandlerFoundException` means nothing is registered to handle it. Fix the registration or the message instead of raising the retry count.
 
 ### Command with Result Scheduled to Inbox
 
-You see analyzer error `LB1004` or a runtime failure when `IInbox.AcceptAsync` receives a command that implements `ICommand<TResult>`.
+When `IInbox.AcceptAsync` receives a command that implements `ICommand<TResult>`, you see analyzer error `LB1004` or a runtime failure.
 
 Cause: the inbox discards handler results when it replays a message later, so only result-less `ICommand` types can be stored.
 
-Fix: store a result-less command, and query for the outcome separately when a caller needs it. Reference `LiteBus.Analyzers` so `LB1004` catches invalid inbox writes at compile time. See [Inbox](../reliable-messaging/inbox.md).
+Fix: store a result-less command. When a caller needs the outcome, query for it separately. Reference `LiteBus.Analyzers` so `LB1004` catches invalid inbox writes at compile time. See [Inbox](../reliable-messaging/inbox.md).
 
 ### Processor Service Failed to Build
 
-You see `InvalidOperationException` when the generic host builds `InboxProcessorBackgroundService` or `OutboxProcessorBackgroundService`.
+When the generic host builds `InboxProcessorBackgroundService` or `OutboxProcessorBackgroundService`, you see `InvalidOperationException`.
 
 Cause: dependency injection cannot resolve a required dependency. Common cases are an enabled processor without a dispatcher (`UseInProcessDispatch` or a broker `Use*Dispatch`), missing storage (`UsePostgreSqlStorage` or `UseInMemoryStorage` inside the module builder), a missing core module, or a broker dispatch or ingress adapter without its matching root `Add*Transport` registration.
 
@@ -51,7 +51,7 @@ Fix: register the core module, storage, and dispatch before you enable processor
 
 ### PostgreSQL Tests Reported as Skipped
 
-`LiteBus.Storage.IntegrationTests` report skipped with a message about Docker.
+`LiteBus.Storage.IntegrationTests` are skipped with a message about Docker.
 
 Cause: those tests use Testcontainers and need Docker, so without Docker they skip.
 
@@ -63,13 +63,13 @@ dotnet test LiteBus.slnx --filter "FullyQualifiedName!~PostgreSql"
 
 ## Mediation Pipeline
 
-Command, query, and event mediation failures. For the stage model behind these entries, see [The Handler Pipeline](../concepts/handler-pipeline.md).
+This section covers command, query, and event mediation failures. For the stage model behind these entries, see [The Handler Pipeline](../concepts/handler-pipeline.md).
 
 ### No Handler Found for Message Type
 
 You see `NoHandlerFoundException` with `No handler found for message type '<Type>'`.
 
-Cause: the mediator cannot resolve a descriptor for the message because the message type or a handler for it was never registered. For an immediate publish this throws only when `EventMediationSettings.ThrowIfNoHandlerFound` is true; otherwise a published event with no handler returns silently. Outbox in-process dispatch is the exception: it requires a handler by default because a durable dispatch has no caller to observe the silence. Set `UseInProcessDispatch(dispatch => dispatch.RequireHandler = false)` only when publishing to zero handlers is a state your application allows.
+Cause: the mediator cannot resolve a descriptor for the message because the message type or a handler for it was never registered. For an immediate publish this throws only when `EventMediationSettings.ThrowIfNoHandlerFound` is true. Otherwise a published event with no handler returns silently. Outbox in-process dispatch is the exception. It requires a handler by default because a durable dispatch has no caller to observe the silence. Set `UseInProcessDispatch(dispatch => dispatch.RequireHandler = false)` only when publishing to zero handlers is a state your application allows.
 
 Fix:
 
@@ -77,11 +77,11 @@ Fix:
 2. Confirm the message implements the right marker (`ICommand`, `IQuery<T>`, `IEvent`) for the module you registered.
 3. In `WebApplicationFactory` tests, register LiteBus modules inside each factory `ConfigureTestServices` so discovery uses that factory `IMessageRegistry`. See [Testing LiteBus](../testing/application-testing.md).
 
-### More Than One Handler for a Command or Query
+### More than One Handler for a Command or Query
 
 You see `MultipleHandlerFoundException` with `<Type> has <n> handlers registered.`
 
-Cause: the single-handler strategies for commands and queries found more than one main handler. Commands and queries must resolve to exactly one main handler, and this is checked before any handler runs.
+Cause: the single-handler strategies for commands and queries found more than one main handler. Commands and queries must resolve to exactly one main handler. The mediator checks this before any handler runs.
 
 Fix:
 
@@ -104,7 +104,12 @@ Fix:
 
 Your guard, validator, or shortcut ran but the pipeline continued.
 
-Cause: stopping the pipeline is a return value, not an exception. A pre-stage handler stops it only when it implements a guard contract such as `ICommandGuard<TCommand>` and returns `Verdict.Deny` from `DecideAsync`, a validator contract such as `ICommandValidator<TCommand>` and returns `Validity.Invalid` from `ValidateAsync`, or a shortcut contract such as `IQueryShortcut<TQuery, TResult>` and returns an answer from `TryAnswerAsync`. Common mistakes are implementing plain `ICommandPreHandler<TCommand>`, which cannot stop the pipeline by design; forgetting to register the handler, since assembly scanning skips contracts outside the module allowlist; constructing a decision without returning it; or losing to an earlier stage, since guards run before validators, validators before shortcuts, and shortcuts before pre-handlers.
+Cause: stopping the pipeline is a return value, not an exception. A pre-stage handler stops it only when it implements a guard contract such as `ICommandGuard<TCommand>` and returns `Verdict.Deny` from `DecideAsync`, a validator contract such as `ICommandValidator<TCommand>` and returns `Validity.Invalid` from `ValidateAsync`, or a shortcut contract such as `IQueryShortcut<TQuery, TResult>` and returns an answer from `TryAnswerAsync`. When the pipeline continues anyway, one of these is usually the cause:
+
+- The handler implements plain `ICommandPreHandler<TCommand>`, which cannot stop the pipeline by design.
+- The handler was never registered, since assembly scanning skips contracts outside the module allowlist.
+- The handler constructs a decision without returning it.
+- An earlier stage won, since guards run before validators, validators before shortcuts, and shortcuts before pre-handlers.
 
 Fix: return the decision value from the handler. To skip post-handlers after the work already ran, call `IExecutionContext.SuppressPostHandlers()` instead, which reports `MediationOutcome.Succeeded`.
 
@@ -114,15 +119,15 @@ You see `PipelineContractException` for an untyped shortcut on a command or quer
 
 Cause: the untyped shortcut contract cannot carry a value, so it can never answer a result message. Registration reports it when the shortcut names the message directly. Dispatch reports it when the shortcut was registered against a base type or interface, since a shortcut for `ICommand` is valid for every result-less command beneath it and nothing before dispatch knows which message it will answer.
 
-Fix: implement the typed shortcut, `ICommandShortcut<TCommand, TCommandResult>` or `IQueryShortcut<TQuery, TQueryResult>`, and return `Shortcut<TResult>.Answer(result)`. A shortcut registered against a base type must return `Shortcut.None` for messages beneath it that produce a result. Guards and validators need no change because a denial never owes the caller a result. Reference `LiteBus.Analyzers` so `LB1019` catches the declaration at build time. See [Analyzers](../reference/analyzers.md).
+Fix: implement the typed shortcut, `ICommandShortcut<TCommand, TCommandResult>` or `IQueryShortcut<TQuery, TQueryResult>`. Return `Shortcut<TResult>.Answer(result)`. A shortcut registered against a base type must return `Shortcut.None` for messages beneath it that produce a result. Guards and validators need no change because a denial never owes the caller a result. Reference `LiteBus.Analyzers` so `LB1019` catches the declaration at build time. See [Analyzers](../reference/analyzers.md).
 
 ### Guard or Validator Exception Reached the Caller
 
 You see `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException` at the caller.
 
-Cause: a guard refused the message or a validator reported it malformed, and no refusal mapper covers it. Both are decisions rather than faults: neither reaches error handlers, the mediation reports `MediationOutcome.Denied` or `Invalid`, and `LiteBusMessageInvalidException.Failures` carries every failure the validator stage collected. `LiteBusMessageDeniedException.DeniedBy` names the guard and `LiteBusMessageInvalidException.RejectedBy` names the validator, and each message includes that handler name.
+Cause: a guard refused the message or a validator reported it malformed. No refusal mapper covers it. Both are decisions rather than faults. Neither reaches error handlers. The mediation reports `MediationOutcome.Denied` or `Invalid`. `LiteBusMessageInvalidException.Failures` carries every failure the validator stage collected. `LiteBusMessageDeniedException.DeniedBy` names the guard. `LiteBusMessageInvalidException.RejectedBy` names the validator. Each message includes that handler name.
 
-Fix: register an `IMessageRefusalMapper<TMessage, TMessageResult>` when the caller should receive a value instead of an exception. One registration against `ICommand` or `IQuery` covers the whole axis, and a mapper against a concrete message type overrides it. A message with no result, and any event, has nothing a mapper could return, so a refusal there always raises. When the caller should branch instead, call `TrySendAsync` or `TryQueryAsync` and map the returned `MediationResult` to a 403 or 400 without catching anything. A genuine fault still throws.
+Fix: register an `IMessageRefusalMapper<TMessage, TMessageResult>` when the caller should receive a value instead of an exception. One registration against `ICommand` or `IQuery` covers the whole axis. A mapper against a concrete message type overrides it. A message with no result, and any event, has nothing a mapper could return, so a refusal there always raises. When the caller should branch instead, call `TrySendAsync` or `TryQueryAsync`. Map the returned `MediationResult` to a 403 or 400 without catching anything. A genuine fault still throws.
 
 ### Finding the Guard That Denied a Message
 
@@ -130,9 +135,9 @@ You need to know which guard refused a message.
 
 Cause: several guards cover the message and the reason alone does not identify one.
 
-Fix: read `LiteBusMessageDeniedException.DeniedBy` for the concrete guard type, or read the exception message which names that guard; for a validation failure read `LiteBusMessageInvalidException.RejectedBy` the same way. The decision counter also tags the handler in `litebus.decided_by`.
+Fix: read `LiteBusMessageDeniedException.DeniedBy` for the concrete guard type, or read the exception message which names that guard. For a validation failure, read `LiteBusMessageInvalidException.RejectedBy` the same way. The decision counter also tags the handler in `litebus.decided_by`.
 
-### More Than One Refusal Mapper
+### More than One Refusal Mapper
 
 You see `PipelineContractException` naming more than one refusal mapper.
 
@@ -144,15 +149,15 @@ Fix: remove one mapper, or register the one that should win against the concrete
 
 No audit record exists for a mediation you expected to be audited.
 
-Cause: check in this order. The message declares no audited position, so an exempt or undeclared message produces no record. No `IAuditTrail` is registered; run the `litebus.audit.trail` diagnostic probe, which reports unhealthy in that case. The trail threw while the mediation was already failing, so its fault is attached to the original exception in `exception.Data[MediationExceptionData.SuppressedCompletionFaults]` as an `IReadOnlyList<Exception>`.
+Cause: check these in order. First, the message may declare no audited position, so an exempt or undeclared message produces no record. Second, no `IAuditTrail` may be registered. Run the `litebus.audit.trail` diagnostic probe, which reports unhealthy in that case. Third, the trail may have thrown while the mediation was already failing, so its fault is attached to the original exception in `exception.Data[MediationExceptionData.SuppressedCompletionFaults]` as an `IReadOnlyList<Exception>`.
 
-Fix: declare the audited position, register a trail, or read the suppressed faults collection. The completion stage is not cancellable and its handlers receive `CancellationToken.None`, so cancellation alone does not drop a record.
+Fix: declare the audited position, register a trail, or read the suppressed faults collection. The completion stage is not cancellable. Its handlers receive `CancellationToken.None`, so cancellation alone does not drop a record.
 
 ### Error Handler Swallowed the Exception
 
 A stage threw but the caller received a partial result or null with no error.
 
-Cause: when a stage throws and at least one error handler is registered, the error handlers run and the exception counts as handled unless one rethrows. An error handler that only logs silently swallows the failure.
+Cause: when a stage throws and at least one error handler is registered, the error handlers run. The exception counts as handled unless one rethrows. An error handler that only logs silently swallows the failure.
 
 Fix: rethrow from the error handler with `throw;` unless you intend to swallow. Rethrowing with `throw exception;` resets the stack trace. See [The Handler Pipeline](../concepts/handler-pipeline.md).
 
@@ -160,15 +165,19 @@ Fix: rethrow from the error handler with `throw;` unless you intend to swallow. 
 
 A published event ran no handler and returned normally.
 
-Cause: no handler is registered for the event type and `ThrowIfNoHandlerFound` is false, so the publish returned silently; a tag or predicate filtered the handler out, so check the tags passed to `PublishAsync` against the handler `[HandlerTag]`; or a pre-handler threw before the main handlers ran.
+Cause: one of three things happened. No handler is registered for the event type and `ThrowIfNoHandlerFound` is false, so the publish returned silently. A tag or predicate filtered the handler out, so check the tags passed to `PublishAsync` against the handler `[HandlerTag]`. Or a pre-handler threw before the main handlers ran.
 
-Fix: set `ThrowIfNoHandlerFound` to true in tests to make the first case fail loudly, check tags in [Handler Filtering](../concepts/handler-filtering.md), and check error-handler behavior in the swallowed-exception entry above.
+Fix:
+
+1. Set `ThrowIfNoHandlerFound` to true in tests to make the first case fail loudly.
+2. Check tags in [Handler Filtering](../concepts/handler-filtering.md).
+3. Check error-handler behavior in the swallowed-exception entry above.
 
 ### Handlers Ran in an Unexpected Order
 
 Handlers ran but not in the order you expected.
 
-Cause: within a stage, handlers run in ascending `[HandlerPriority]` with registration order breaking ties. Across the pipeline, global pre-handlers run before specific ones and specific post-handlers run before global ones. The completion stage merges global and specific sets and orders by priority alone. For events, priority groups and within-group execution follow `EventMediationSettings.Execution`, and parallel execution makes order non-deterministic.
+Cause: within a stage, handlers run in ascending `[HandlerPriority]` with registration order breaking ties. Across the pipeline, global pre-handlers run before specific ones. Specific post-handlers run before global ones. The completion stage merges global and specific sets. It orders by priority alone. For events, priority groups and within-group execution follow `EventMediationSettings.Execution`. Parallel execution makes order non-deterministic.
 
 Fix: set explicit priorities, or switch event execution to `Sequential`. See [Handler Priority](../concepts/handler-priority.md).
 

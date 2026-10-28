@@ -1,18 +1,18 @@
 # Cookbook and Scenarios
 
-This page collects recipe-style solutions to scenarios encountered when building with LiteBus: contextual handling, caching, result overriding, validation, durable wiring, and more. Each recipe is self-contained and links to the concept page behind it. Use it as a lookup once you know the basics from [Getting Started](README.md).
+The same scenarios come up repeatedly when building with LiteBus: contextual handling, caching, result overriding, validation, durable wiring, and more. This page solves each one in a self-contained recipe that links to the concept page that explains it. Use this page as a lookup once you know the basics from [Getting Started](README.md).
 
-For atomic domain + inbox/outbox writes (EF, PostgreSQL, Marten), start with [Transactional messaging writes](../reliable-messaging/transactional-writes.md).
+When domain writes and inbox or outbox writes must commit atomically (EF, PostgreSQL, Marten), start with [Transactional Messaging Writes](../reliable-messaging/transactional-writes.md).
 
-## Recipe: Contextual Scenario Handling
+## Contextual Scenario Handling
 
-**Problem**: You need to process the same command differently based on where the request came from. For example, a command from a public API needs stricter validation than one from an internal admin tool.
+The same command needs different handling depending on where the request came from. For example, a command from a public API needs stricter validation than one from an internal admin tool.
 
-**Solution**: Use handler tags to create context-specific pipelines.
+Handler tags create context-specific pipelines.
 
-### 1. Define Your Contexts
+### 1. Define Contexts
 
-Create a static class to hold your context tags. This avoids magic strings.
+Create a static class to hold the context tags. This avoids magic strings.
 
 ```csharp
 public static class RequestContexts
@@ -22,9 +22,9 @@ public static class RequestContexts
 }
 ```
 
-### 2. Tag Your Handlers
+### 2. Tag Handlers
 
-Apply the `[HandlerTag]` attribute to handlers that should only run in a specific context.
+Apply the `[HandlerTag]` attribute to handlers that run only in a specific context.
 
 ```csharp
 // This validator only runs for requests from the public API.
@@ -84,15 +84,15 @@ public async Task<IActionResult> UpdateUserFromAdmin(Guid id, UpdateUserCommand 
 }
 ```
 
-**Result**: The public API runs both validators; the admin portal runs only the untagged one.
+The public API runs both validators, while the admin portal runs only the untagged one.
 
 ---
 
-## Recipe: Cross-Cutting Logging with Open Generic Handlers
+## Cross-Cutting Logging with Open Generic Handlers
 
-**Problem**: You want every command in your application to be logged before and after execution, without modifying any existing command handlers.
+Every command in the application needs logging before and after execution, without changes to existing command handlers.
 
-**Solution**: Use open generic pre- and post-handlers that automatically apply to all commands.
+Open generic pre- and post-handlers apply to all commands automatically.
 
 ### 1. Define the Open Generic Handlers
 
@@ -148,7 +148,7 @@ builder.Services.AddLiteBus(builder =>
 });
 ```
 
-If they're in a **different assembly** (e.g., a shared infrastructure library), register them explicitly:
+If they're in a different assembly (e.g., a shared infrastructure library), register them explicitly:
 
 ```csharp
 builder.Services.AddLiteBus(builder =>
@@ -168,7 +168,7 @@ builder.Services.AddLiteBus(builder =>
 
 ### 3. Result
 
-Every command automatically gets logging:
+Every command logs automatically:
 
 ```
 Starting command: CreateProductCommand
@@ -177,15 +177,15 @@ Starting command: UpdateStockLevelCommand
 Completed command: UpdateStockLevelCommand
 ```
 
-No changes to existing handlers or commands are required. New commands added in the future will also be logged automatically.
+No changes to existing handlers or commands are required. New commands are logged automatically too.
 
 ---
 
-## Recipe: Generic FluentValidation Integration
+## Generic FluentValidation Integration
 
-**Problem**: You have FluentValidation validators for your commands and want them to run automatically in the LiteBus pipeline without writing a validator for each command.
+FluentValidation validators for commands should run automatically in the LiteBus pipeline, without a handwritten validator for each command.
 
-**Solution**: Create a single open generic validator that resolves the correct `IValidator<T>` from DI and returns its failures as `Validity`.
+One open generic validator resolves the correct `IValidator<T>` from DI and returns its failures as `Validity`.
 
 ### 1. Define the Generic Validator
 
@@ -240,7 +240,7 @@ builder.Services.AddLiteBus(builder =>
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 ```
 
-If the validator is in a **different assembly**, register it explicitly:
+If the validator is in a different assembly, register it explicitly:
 
 ```csharp
 builder.Services.AddLiteBus(builder =>
@@ -256,26 +256,26 @@ builder.Services.AddLiteBus(builder =>
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 ```
 
-**Result**: Every command is validated automatically. Commands without a registered `IValidator<T>` are passed through without validation. Commands with validators are validated before the main handler runs.
+Every command is validated automatically. Commands without a registered `IValidator<T>` pass through without validation. Commands with validators are validated before the main handler runs.
 
 ---
 
 ## Recipe: Overriding the Result from a Post-Handler
 
-**Problem**: Your post-handler needs to replace the result returned to the caller, for example to enrich a result with data from a downstream service, or to transform an immutable result object (such as a `FluentResults` `Result<T>`). Post-handler methods return `Task`, so there is no return-value path for replacing the result directly.
+A post-handler needs to replace the result returned to the caller, for example to enrich a result with data from a downstream service or to transform an immutable result object (such as a `FluentResults` `Result<T>`). Post-handler methods return `Task`, so there is no return-value path for replacing the result directly.
 
-**Solution**: Write the replacement result to `AmbientExecutionContext.Current.MessageResult`. After all post-handlers in the pipeline complete, the mediator inspects this property. If it is non-null, the value is cast to `TMessageResult` and returned to the caller in place of the main handler's original result.
+Write the replacement result to `AmbientExecutionContext.Current.MessageResult`. After all post-handlers in the pipeline complete, the mediator inspects this property. If it is non-null, the mediator casts the value to `TMessageResult` and returns it to the caller in place of the main handler's original result.
 
 ### How It Works
 
 1. The main handler runs and produces a result.
 2. Post-handlers execute in priority order.
-3. **After all post-handlers complete**, the mediator checks `AmbientExecutionContext.Current.MessageResult`.
-4. If the property is non-null, its value is returned to the caller instead of the main handler's result.
+3. After all post-handlers complete, the mediator checks `AmbientExecutionContext.Current.MessageResult`.
+4. If the property is non-null, the mediator returns its value to the caller instead of the main handler's result.
 
-> **Last Write Wins**: If multiple post-handlers each write to `MessageResult`, the value present after the _final_ post-handler in the chain is the one returned. This is by design: later post-handlers have the full picture and can correct earlier ones.
+> When multiple post-handlers write to `MessageResult`, the last write wins: the value present after the final post-handler in the chain is the one returned. A later post-handler sees what earlier ones wrote and can correct them.
 
-> **Scope**: This feature applies to commands with results (`ICommand<TResult>`) and queries (`IQuery<TResult>`). It does not apply to void commands (`ICommand`) or events. Writing to `MessageResult` in a void command pipeline is silently ignored.
+> This feature applies to commands with results (`ICommand<TResult>`) and queries (`IQuery<TResult>`). It does not apply to void commands (`ICommand`) or events. Writing to `MessageResult` in a void command pipeline is silently ignored.
 
 ### Example
 
@@ -310,15 +310,15 @@ public sealed class EnrichResultPostHandler : ICommandPostHandler<MyCommand, Res
 }
 ```
 
-**Result**: The caller receives the enriched or transformed result without any changes to the command contract or the main handler.
+The caller receives the enriched or transformed result without any changes to the command contract or the main handler.
 
 ---
 
-## Recipe: PostgreSQL Inbox, Command Dispatch, and Hosted Processor
+## PostgreSQL Inbox, Command Dispatch, and Hosted Processor
 
-**Problem**: A payment workflow must survive process restarts. Commands accepted at the API should run later with at-least-once delivery through in-process handlers.
+A payment workflow must survive process restarts. Commands accepted at the API run later with at-least-once delivery through in-process handlers.
 
-**Solution**: Register storage, `UseInProcessDispatch`, and `EnableInboxProcessor` inside `AddInbox`. Accept commands with `IInbox.AcceptAsync`.
+Register storage, `UseInProcessDispatch`, and `EnableInboxProcessor` inside `AddInbox`. Accept commands with `IInbox.AcceptAsync`.
 
 ### 2. Wire Modules
 
@@ -357,7 +357,7 @@ var receipt = await inbox.AcceptAsync(
 
 ---
 
-## Recipe: PostgreSQL Outbox with AMQP Transport Dispatch
+## PostgreSQL Outbox with AMQP Transport Dispatch
 
 ```csharp
 builder.Services.AddLiteBus(builder =>
@@ -391,7 +391,7 @@ await outbox.EnqueueAsync(
 
 ---
 
-## Recipe: AMQP Inbox Ingress with Command Dispatch
+## AMQP Inbox Ingress with Command Dispatch
 
 ```csharp
 builder.Services.AddLiteBus(builder =>
@@ -422,11 +422,11 @@ builder.Services.AddLiteBus(builder =>
 
 ---
 
-## Recipe: Transactional Outbox with PostgreSQL (Ambient Provider)
+## Transactional Outbox with PostgreSQL (Ambient Provider)
 
-**Problem:** A command handler persists domain state (Marten, Dapper, or raw SQL) and must enqueue integration events in the same PostgreSQL transaction.
+A command handler persists domain state (Marten, Dapper, or raw SQL) and must enqueue integration events in the same PostgreSQL transaction.
 
-**Solution:** Share one `NpgsqlDataSource`, enable ambient transactional writers, and implement scoped `IPostgreSqlTransactionProvider`. Full walkthrough: [Transactional messaging writes](../reliable-messaging/transactional-writes.md).
+Share one `NpgsqlDataSource`, enable ambient transactional writers, and implement a scoped `IPostgreSqlTransactionProvider`. The full walkthrough is on [Transactional Messaging Writes](../reliable-messaging/transactional-writes.md).
 
 ### 1. Shared Data Source and LiteBus
 
@@ -462,11 +462,11 @@ await transactionalOutbox.EnqueueAsync(
 await unitOfWork.CommitAsync(cancellationToken);
 ```
 
-**Do not** use `IOutbox` here: it auto-commits in a separate transaction.
+**Do not** use `IOutbox` here, because it auto-commits in a separate transaction.
 
 ---
 
-## Recipe: EF Core Outbox with In-Process Event Dispatch
+## EF Core Outbox with In-Process Event Dispatch
 
 ```csharp
 builder.Services.AddLiteBus(builder =>
@@ -486,7 +486,7 @@ builder.Services.AddLiteBus(builder =>
 
 ---
 
-## Recipe: InMemory Inbox and Outbox for Unit Tests
+## InMemory Inbox and Outbox for Unit Tests
 
 ```csharp
 services.AddLiteBus(builder =>
@@ -511,7 +511,7 @@ services.AddLiteBus(builder =>
 
 ---
 
-## Recipe: Full Ingress to Inbox to Handler to Outbox to AMQP
+## Full Ingress to Inbox to Handler to Outbox to AMQP
 
 ```csharp
 builder.Services.AddLiteBus(builder =>
@@ -548,4 +548,5 @@ Command handlers call `IOutbox.EnqueueAsync` inside the same database transactio
 
 ## Next
 
-Read [Troubleshooting](../operations/troubleshooting.md) for the exceptions these recipes can surface, then [Best Practices](best-practices.md) for conventions.
+- [Troubleshooting](../operations/troubleshooting.md) for the exceptions these recipes can surface
+- [Best Practices](best-practices.md) for conventions

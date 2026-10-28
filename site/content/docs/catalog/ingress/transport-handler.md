@@ -3,13 +3,13 @@
 - **ID**: `ingress.transport-handler`
 - **Name**: Transport-to-Inbox Accept Handler
 - **Maturity**: GA
-- **Summary**: Maps one `TransportMessage` delivery into `IInbox.AcceptAsync` or `AcceptBatchAsync`.
+- **Summary**: The handler maps one `TransportMessage` delivery into `IInbox.AcceptAsync` or `AcceptBatchAsync`.
 
 ## Purpose and Scope
 
-`TransportInboxIngressHandler` is the broker-neutral accept path. For each delivery it validates body size and optional authorization, reads contract name and version from LiteBus transport headers, resolves the CLR type through `IContractReader`, deserializes the JSON body, maps headers to `InboxAcceptMetadata`, and calls `IInbox.AcceptAsync(InboxAcceptItem)`.
+`TransportInboxIngressHandler` is the broker-neutral accept path. For each delivery, the handler validates body size and optional authorization, then reads the contract name and version from the LiteBus transport headers. It resolves the CLR type through `IContractReader`, deserializes the JSON body, maps headers to `InboxAcceptMetadata`, and calls `IInbox.AcceptAsync(InboxAcceptItem)`.
 
-Batch mode delegates to `IInbox.AcceptBatchAsync` after building an `InboxAcceptItem` per message. Both the single and batch paths wrap `TransportHeaderMappingException` as `InboxIngressException`, so invalid headers report the same exception shape on either path.
+In batch mode, the handler builds an `InboxAcceptItem` per message and delegates to `IInbox.AcceptBatchAsync`. Both the single and batch paths wrap `TransportHeaderMappingException` as `InboxIngressException`, so invalid headers report the same exception shape on either path.
 
 ## Accept Pipeline
 
@@ -35,8 +35,8 @@ flowchart TD
 | `TransportInboxIngressHandler.AcceptBatchAsync(IReadOnlyList<TransportMessage>, CancellationToken)` | Batch store round trip |
 | `AmqpInboxIngressHandler.AcceptAsync(AmqpReceivedMessage, CancellationToken)` | AMQP-shaped manual or test accept (delegates to inner handler) |
 | `AmqpInboxIngressHandler.AcceptBatchAsync(IReadOnlyList<AmqpReceivedMessage>, CancellationToken)` | AMQP-shaped batch accept (delegates to inner handler) |
-| `TransportInboxIngressMapper` | Internal; maps wire headers to `InboxAcceptMetadata` |
-| `TransportInboxIngressMappingOptions` | Internal; `RequireStableIdentity`, `TrustApplicationHeaders` mapping policy |
+| `TransportInboxIngressMapper` | Internal mapper of wire headers to `InboxAcceptMetadata` |
+| `TransportInboxIngressMappingOptions` | Internal mapping policy for `RequireStableIdentity` and `TrustApplicationHeaders` |
 
 ## Validation Behavior
 
@@ -64,11 +64,11 @@ flowchart TD
 
 ## Invariants
 
-- Required wire headers: `litebus-contract-name`, `litebus-contract-version` (positive integer).
+- The required wire headers are `litebus-contract-name` and `litebus-contract-version` (a positive integer).
 - Accept commits through the singleton inbox writer unless the host replaces store behavior.
 - Deserialization uses UTF-8 body text from `TransportMessage.Body`.
-- The transport consumer invoker owns process tracing; the mapping handler does not create a second activity.
-- Handler does not perform broker ack, ack remains owned by the consumer loop.
+- The transport consumer invoker owns process tracing, so the mapping handler does not create a second activity.
+- The handler does not perform broker ack. Ack stays owned by the consumer loop.
 
 ## Non-Goals
 
@@ -84,7 +84,7 @@ flowchart TD
 | --- | --- | --- | --- | --- |
 | `process {destination}` | `LiteBus.Transport` | Consumer | `TransportConsumerHandlerInvoker` around the delivery handler | Required messaging operation tags plus destination and message metadata |
 
-Operation constant: `LiteBusTransportTelemetry.ConsumeOperationName`. Register with `TracerProviderBuilder.AddLiteBusTransportInstrumentation()` from `LiteBus.Transport.Extensions.OpenTelemetry`.
+The operation constant is `LiteBusTransportTelemetry.ConsumeOperationName`. Register with `TracerProviderBuilder.AddLiteBusTransportInstrumentation()` from `LiteBus.Transport.Extensions.OpenTelemetry`.
 
 ### Metrics
 
@@ -92,7 +92,7 @@ The handler does not increment ingress counters. Store accept outcomes surface t
 
 ### Logs
 
-Mapping and contract validation failures throw before accept; the consumer logs discard or requeue decisions. No handler-specific structured log event IDs.
+Mapping and contract validation failures throw before accept, and the consumer logs the discard or requeue decisions. There are no handler-specific structured log event IDs.
 
 ## Test Coverage
 
@@ -124,7 +124,7 @@ Mapping and contract validation failures throw before accept; the consumer logs 
 
 ### Untested
 
-- `TransportHeaderMappingException` surfaced through the full consumer loop on live brokers.
+- `TransportHeaderMappingException` surfacing through the full consumer loop on live brokers.
 - Multi-message `AcceptBatchAsync` through the handler alone (batch path exercised via consumer and AMQP integration).
 - Header edge-case matrices on Kafka and Azure broker integration suites (InMemory suite carries the full matrix).
 
@@ -134,7 +134,7 @@ Mapping and contract validation failures throw before accept; the consumer logs 
 - Handler execution or inbox processor dispatch.
 - Transactional accept coupled to domain database connections at the ingress edge.
 
-## Deep Docs
+## References
 
 - [Inbox](../../reliable-messaging/inbox.md)
 - [AMQP transport: Wire headers](../../integrations/amqp.md)

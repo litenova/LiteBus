@@ -1,6 +1,6 @@
 # Architecture
 
-LiteBus mediates commands, queries, and events. Durable messaging uses orthogonal **Storage**, **Dispatch**, and **Ingress** adapters, and broker SDKs stay outside the mediator packages.
+LiteBus mediates commands, queries, and events inside a process, and it stores durable work through separate **Storage**, **Dispatch**, and **Ingress** adapters. Broker SDKs stay outside the mediator packages. This page maps each package to its dependency role and processing axis.
 
 > **This page is for** developers who compose LiteBus modules and select storage, dispatch, and transport adapters.
 >
@@ -21,19 +21,19 @@ LiteBus mediates commands, queries, and events. Durable messaging uses orthogona
 
 ## Startup Model
 
-Call the single `AddLiteBus(Action<ILiteBusBuilder>)` entry point and configure package extensions on `ILiteBusBuilder`. The builder exposes only `Modules`; normal application code uses package-owned extensions such as `AddMessaging`, `AddCommands`, `AddInbox`, and `AddOutbox`. Advanced composition uses `builder.Modules`. Each module contributes dependency descriptors, and the selected container adapter translates them into registrations.
+Call the single `AddLiteBus(Action<ILiteBusBuilder>)` entry point and configure package extensions on `ILiteBusBuilder`. The builder exposes only `Modules`. Normal application code uses package-owned extensions such as `AddMessaging`, `AddCommands`, `AddInbox`, and `AddOutbox`. Advanced composition uses `builder.Modules` directly. Each module contributes dependency descriptors. The selected container adapter translates those descriptors into registrations.
 
 `IModuleRegistry.BuildOrder()` resolves modules in topological order and freezes further registration. `AddLiteBus` calls `BuildOrder()` after the configuration callback returns.
 
-A single generic-host orchestrator (`LiteBusHostOrchestrator`) runs manifest startup tasks and background services. Startup tasks run sequentially during `StartAsync`; background loops start only after every startup task succeeds. A startup task failure aborts host startup and leaves background services unstarted.
+A single generic-host orchestrator (`LiteBusHostOrchestrator`) runs manifest startup tasks and background services. Startup tasks run sequentially during `StartAsync`. Background loops start only after every startup task succeeds. When a startup task fails, host startup aborts and background services stay unstarted.
 
-Core inbox and outbox modules register writers and processors only. Storage, dispatch, and ingress are separate registrations. Processor background services fail fast when no dispatcher is registered.
+Core inbox and outbox modules register writers and processors only. Storage, dispatch, and ingress are separate registrations. When no dispatcher is registered, the processor background service throws at startup.
 
-Microsoft DI and Autofac each provide one `IMessageDispatchScopeFactory`. Messaging composition fails when no dispatch-scope adapter is registered. Manual hosts can select `RootMessageDispatchScopeFactory` explicitly when root-provider dispatch is acceptable.
+Microsoft DI and Autofac each provide one `IMessageDispatchScopeFactory`. When no dispatch-scope adapter is registered, messaging composition throws. When root-provider dispatch is acceptable, a manual host can select `RootMessageDispatchScopeFactory` explicitly.
 
 ## Mediation Pipeline
 
-Commands, queries, and events use the messaging layer with type-specific rules.
+Commands, queries, and events travel through the messaging layer, and each kind enforces its own handler rule.
 
 | Message kind | Entry point | Handler rule |
 | --- | --- | --- |
@@ -43,11 +43,11 @@ Commands, queries, and events use the messaging layer with type-specific rules.
 | Stream query | `IQueryMediator.StreamAsync` | exactly one stream handler |
 | Event | `IEventMediator.PublishAsync` | zero or more handlers |
 
-Pre-handlers, post-handlers, and error handlers wrap the main handler path. You order event handlers by priority and run them sequentially or concurrently.
+Pre-handlers, post-handlers, and error handlers run around the main handler. You order event handlers by priority. They run sequentially or concurrently.
 
 ## API Model Conventions
 
-LiteBus names public value objects and operation inputs with a fixed suffix taxonomy (`*Item`, `*Metadata`, `*Request`, `*Settings`, `*Options`, and related patterns). Durable writers accept `InboxAcceptItem` / `OutboxEnqueueItem` with per-message metadata; mediation keeps `*Settings` for per-invocation pipeline tuning.
+LiteBus names public value objects and operation inputs with a fixed suffix taxonomy (`*Item`, `*Metadata`, `*Request`, `*Settings`, `*Options`, and related patterns). Durable writers accept `InboxAcceptItem` / `OutboxEnqueueItem` with per-message metadata. Mediation keeps `*Settings` for per-invocation pipeline tuning.
 
 The [API Design Reference](api-design.md) defines the suffix taxonomy, CLR shapes, package placement, writer signatures, parameter budget, and mapping boundaries used by public APIs.
 
@@ -55,12 +55,12 @@ The [Mediation Layer Design Rules](mediation-design.md) define the stage model, 
 
 ## Storage Axis
 
-Storage adapters implement narrow store roles against one logical table or DbSet. PostgreSQL, EF Core, and InMemory implementations register one singleton instance for all roles on that store.
+A storage adapter implements a set of small store interfaces against one logical table or DbSet. PostgreSQL, EF Core, and InMemory implementations register one singleton instance for all roles on that store.
 
 ### Implementation Invariants
 
-- `IsAvailable` must guard `LeaseExpiresAt is not null` when status is processing or publishing.
-- `trace_context` must be wired end-to-end when present in schema (envelopes, adapter mappings, SQL, lease rows).
+- When status is processing or publishing, `IsAvailable` must check that `LeaseExpiresAt is not null`.
+- When the schema contains `trace_context`, every layer must carry it: envelopes, adapter mappings, SQL, and lease rows.
 
 ```text
 Accept path (auto-commit)
@@ -123,7 +123,7 @@ flowchart LR
 
 ### Composite Store Roles
 
-Fine-grained interfaces remain for callers that depend on one concern. Composite roles group the slices processors and operator tooling need:
+Callers that depend on one concern use the fine-grained interfaces. Composite roles group the interfaces that processors and operator tooling need:
 
 | Composite role | Extends | Used by |
 | --- | --- | --- |
@@ -136,19 +136,21 @@ PostgreSQL and EF Core stores implement all roles on one implementation class. I
 
 ### Retention Cutoff Semantics
 
-Retention deletes terminal rows by finish time, not accept time: cleanup calls `IInboxRetentionStore.DeleteCompletedOlderThanAsync` and `IOutboxRetentionStore.DeletePublishedOlderThanAsync` with a cutoff compared against the effective terminal timestamp. See [Message States and Alerting](../operations/message-states.md#retention-cutoff) for the per-axis expressions and the cleanup loop contract.
+Retention deletes terminal rows by finish time, not by accept time. Cleanup calls `IInboxRetentionStore.DeleteCompletedOlderThanAsync` and `IOutboxRetentionStore.DeletePublishedOlderThanAsync` with a cutoff, and the store compares that cutoff against the effective terminal timestamp. See [Message States and Alerting](../operations/message-states.md#retention-cutoff) for the per-axis expressions and the cleanup loop contract.
 
 ### OpenTelemetry Metric Catalog
 
-Instrument names are stable public constants on `LiteBusMediationTelemetry`, `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, `LiteBusInboxIngressTelemetry`, and `LiteBusTransportTelemetry`. Register meters with `AddLiteBusMediationMetrics()`, `AddLiteBusInboxMetrics()`, `AddLiteBusOutboxMetrics()`, and `AddLiteBusTransportMetrics()` from the matching `*.Extensions.OpenTelemetry` packages. Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, so `AddLiteBusInboxMetrics()` exports both. Transport circuit breaker gauges are recorded on the shared `LiteBus.Transport` meter with the `litebus.transport.broker` dimension identifying the active adapter (`amqp`, `kafka`, `sqs`, `azure_service_bus`, `inmemory`). `AddLiteBusAmqpMetrics()` registers the same shared meter for backward compatibility.
+Instrument names are stable public constants on `LiteBusMediationTelemetry`, `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, `LiteBusInboxIngressTelemetry`, and `LiteBusTransportTelemetry`. Register meters with `AddLiteBusMediationMetrics()`, `AddLiteBusInboxMetrics()`, `AddLiteBusOutboxMetrics()`, and `AddLiteBusTransportMetrics()` from the matching `*.Extensions.OpenTelemetry` packages.
+
+Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, so `AddLiteBusInboxMetrics()` exports both. LiteBus records transport circuit breaker gauges on the shared `LiteBus.Transport` meter, with the `litebus.transport.broker` dimension identifying the active adapter (`amqp`, `kafka`, `sqs`, `azure_service_bus`, `inmemory`). `AddLiteBusAmqpMetrics()` registers the same shared meter for backward compatibility.
 
 | Meter | Instrument | Public constant | Description |
 | --- | --- | --- | --- |
-| `LiteBus.Mediation` | `litebus.mediation.duration` | `LiteBusMediationTelemetry.DurationInstrumentName` | Histogram in milliseconds; tags `litebus.message`, `litebus.outcome` |
-| `LiteBus.Mediation` | `litebus.mediation.count` | `LiteBusMediationTelemetry.CountInstrumentName` | One per completed mediation; tags `litebus.message` and `litebus.outcome`, plus `litebus.code` only when a decision stopped the mediation |
-| `LiteBus.Mediation` | `litebus.mediation.stage.duration` | `LiteBusMediationTelemetry.StageDurationInstrumentName` | Histogram in milliseconds per pre stage; opt-in through `MediationTelemetryOptions.StageMetrics` |
-| `LiteBus.Mediation` | `litebus.mediation.decisions` | `LiteBusMediationTelemetry.DecisionsInstrumentName` | One per mediation a stage stopped; tags `litebus.message`, `litebus.stage`, `litebus.outcome`, `litebus.decided_by` |
-| `LiteBus.Inbox` | `litebus.inbox.queue.depth` | `LiteBusInboxTelemetry.QueueDepthInstrumentName` | Observable gauge; tag `litebus.inbox.status` |
+| `LiteBus.Mediation` | `litebus.mediation.duration` | `LiteBusMediationTelemetry.DurationInstrumentName` | Histogram in milliseconds with tags `litebus.message` and `litebus.outcome` |
+| `LiteBus.Mediation` | `litebus.mediation.count` | `LiteBusMediationTelemetry.CountInstrumentName` | One per completed mediation with tags `litebus.message` and `litebus.outcome`, plus `litebus.code` when a decision stopped the mediation |
+| `LiteBus.Mediation` | `litebus.mediation.stage.duration` | `LiteBusMediationTelemetry.StageDurationInstrumentName` | Histogram in milliseconds per pre stage, opt-in through `MediationTelemetryOptions.StageMetrics` |
+| `LiteBus.Mediation` | `litebus.mediation.decisions` | `LiteBusMediationTelemetry.DecisionsInstrumentName` | One per mediation a stage stopped, with tags `litebus.message`, `litebus.stage`, `litebus.outcome`, `litebus.decided_by` |
+| `LiteBus.Inbox` | `litebus.inbox.queue.depth` | `LiteBusInboxTelemetry.QueueDepthInstrumentName` | Observable gauge with tag `litebus.inbox.status` |
 | `LiteBus.Inbox` | `litebus.inbox.processor.state` | `LiteBusInboxTelemetry.ProcessorStateInstrumentName` | `0` Running, `1` Paused, `2` Draining |
 | `LiteBus.Inbox` | `litebus.inbox.processor.persist_skipped` | `LiteBusInboxTelemetry.ProcessorPersistSkippedInstrumentName` | Skipped terminal persist when lease owner no longer matches |
 | `LiteBus.Inbox` | `litebus.inbox.processor.persist_failed` | `LiteBusInboxTelemetry.ProcessorPersistFailedInstrumentName` | Terminal persist threw after successful handler dispatch |
@@ -162,25 +164,25 @@ Instrument names are stable public constants on `LiteBusMediationTelemetry`, `Li
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_skipped` | `LiteBusOutboxTelemetry.ProcessorPersistSkippedInstrumentName` | Skipped terminal persist when lease owner no longer matches |
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_failed` | `LiteBusOutboxTelemetry.ProcessorPersistFailedInstrumentName` | Terminal persist threw after successful broker publish |
 | `LiteBus.Outbox` | `litebus.outbox.diagnostics.unavailable` | `LiteBusOutboxTelemetry.DiagnosticsUnavailableInstrumentName` | Queue depth probe failed against the backing store |
-| `LiteBus.Outbox` | `litebus.outbox.queue.depth` | `LiteBusOutboxTelemetry.QueueDepthInstrumentName` | Observable gauge; tag `litebus.outbox.status` |
+| `LiteBus.Outbox` | `litebus.outbox.queue.depth` | `LiteBusOutboxTelemetry.QueueDepthInstrumentName` | Observable gauge with tag `litebus.outbox.status` |
 | `LiteBus.Outbox` | `litebus.outbox.processor.state` | `LiteBusOutboxTelemetry.ProcessorStateInstrumentName` | Same encoding as inbox processor state |
 | `LiteBus.Outbox` | `litebus.outbox.processor.lease_lost` | `LiteBusOutboxTelemetry.ProcessorLeaseLostInstrumentName` | Incremented when outbox lease renewal fails during publication |
 | `LiteBus.Outbox` | `litebus.outbox.cleanup.errors` | `LiteBusOutboxTelemetry.CleanupErrorInstrumentName` | Incremented when outbox retention cleanup fails |
 | `LiteBus.Outbox` | `litebus.outbox.processor.dispatch_duration` | `LiteBusOutboxTelemetry.ProcessorDispatchDurationInstrumentName` | Histogram in milliseconds per publication attempt |
 | `LiteBus.Outbox` | `litebus.outbox.processor.leases_acquired` | `LiteBusOutboxTelemetry.ProcessorLeasesAcquiredInstrumentName` | Sum of outbox messages leased at the start of a pass |
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_rejected` | `LiteBusOutboxTelemetry.ProcessorPersistRejectedInstrumentName` | Terminal persist rejected an update because the lease was lost |
-| `LiteBus.Transport` | `litebus.transport.circuit_breaker.open` | `LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName` | `1` when any publisher circuit is open or half-open; tag `litebus.transport.broker` |
-| `LiteBus.Transport` | `litebus.transport.circuit_breaker.failure_count` | `LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName` | Current failure sum across publisher destinations; tag `litebus.transport.broker` |
-| `LiteBus.Transport` | `litebus.transport.circuit_breaker.failure_recorded` | `LiteBusTransportTelemetry.CircuitBreakerFailureRecordedInstrumentName` | One per failure recorded while the circuit is closed; no tags |
-| `LiteBus.Transport` | `litebus.transport.circuit_breaker.opened` | `LiteBusTransportTelemetry.CircuitBreakerOpenedInstrumentName` | One per circuit opening after reaching the failure threshold; no tags |
+| `LiteBus.Transport` | `litebus.transport.circuit_breaker.open` | `LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName` | `1` when any publisher circuit is open or half-open, with tag `litebus.transport.broker` |
+| `LiteBus.Transport` | `litebus.transport.circuit_breaker.failure_count` | `LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName` | Current failure sum across publisher destinations, with tag `litebus.transport.broker` |
+| `LiteBus.Transport` | `litebus.transport.circuit_breaker.failure_recorded` | `LiteBusTransportTelemetry.CircuitBreakerFailureRecordedInstrumentName` | One per failure recorded while the circuit is closed, with no tags |
+| `LiteBus.Transport` | `litebus.transport.circuit_breaker.opened` | `LiteBusTransportTelemetry.CircuitBreakerOpenedInstrumentName` | One per circuit opening after reaching the failure threshold, with no tags |
 | `LiteBus.Transport.AzureServiceBus` | (reserved) | | Adapter meter identity for custom instrumentation |
 | `LiteBus.Transport.AwsSqs` | (reserved) | | Adapter meter identity for custom instrumentation |
 | `LiteBus.Transport.Kafka` | (reserved) | | Adapter meter identity for custom instrumentation |
 | `LiteBus.Transport.InMemory` | (reserved) | | Adapter meter identity for test and CI transports |
 
-Mediation also emits one span per message on the `LiteBus.Mediation` activity source, named `mediate {MessageType}` and tagged with `litebus.message`, `litebus.outcome` and, when a decision supplied one, `litebus.code`. Only a `Failed` outcome sets the error status. Denials and validation refusals keep a success status so error views show faults only. Per-stage child spans are opt-in through `MediationTelemetryOptions.StageSpans`, because mediation volume is orders of magnitude above durable-processing volume.
+Mediation also emits one span per message on the `LiteBus.Mediation` activity source. The span is named `mediate {MessageType}` and tagged with `litebus.message` and `litebus.outcome`, plus `litebus.code` when a decision supplied one. Only a `Failed` outcome sets the error status. Denials and validation refusals keep a success status so error views show faults only. Per-stage child spans are opt-in through `MediationTelemetryOptions.StageSpans`, because mediation volume is orders of magnitude above durable-processing volume.
 
-Processor pass counters below are recorded by internal processor instrumentation (`InboxProcessorTelemetry`, `OutboxProcessorTelemetry`). Names are stable for metric export but are not public constants; dashboards may reference them, yet renames are not governed by the public instrument contract until promoted to `LiteBusInboxTelemetry` or `LiteBusOutboxTelemetry`.
+Internal processor instrumentation (`InboxProcessorTelemetry`, `OutboxProcessorTelemetry`) records the processor pass counters below. The names are stable for metric export but are not public constants. Dashboards may reference them, but renames are not governed by the public instrument contract until the names are promoted to `LiteBusInboxTelemetry` or `LiteBusOutboxTelemetry`.
 
 | Meter | Instrument | Description |
 | --- | --- | --- |
@@ -195,13 +197,11 @@ Processor pass counters below are recorded by internal processor instrumentation
 | `LiteBus.Outbox` | `litebus.outbox.processor.dead_lettered` | Messages moved to dead letter during a pass |
 | `LiteBus.Outbox` | `litebus.outbox.processor.loop_errors` | Unhandled exceptions caught by the processor background loop |
 
-Circuit breaker instruments use the `litebus.transport.circuit_breaker.*` names on the `LiteBus.Transport` meter with the `litebus.transport.broker` tag identifying the active adapter.
-
 Framework-neutral diagnostic probes use `IDiagnosticCheck` and `LiteBusHostManifest`. Applications map probe results to health endpoints or custom sinks. For probe registration, run budgets, and meter export, see [Diagnostics and Health](../operations/diagnostics-and-health.md).
 
 ## Transport Platform
 
-Broker clients implement `ITransportPublisher` and `IMessageConsumer` from `LiteBus.Transport.Abstractions`. Shared dispatch logic lives in `LiteBus.Inbox.Dispatch` and `LiteBus.Outbox.Dispatch`, and broker transports are root modules shared by dispatch and ingress adapters. Shared circuit breaker metrics live in `LiteBus.Transport`; header value parsing lives in `LiteBus.Transport.Abstractions`; envelope header mapping lives in the dispatch and ingress adapter packages.
+Broker clients implement `ITransportPublisher` and `IMessageConsumer` from `LiteBus.Transport.Abstractions`. Shared dispatch logic lives in `LiteBus.Inbox.Dispatch` and `LiteBus.Outbox.Dispatch`. Broker transports are root modules that dispatch and ingress adapters share. Shared circuit breaker metrics live in `LiteBus.Transport`. Header value parsing lives in `LiteBus.Transport.Abstractions`. Envelope header mapping lives in the dispatch and ingress adapter packages.
 
 | Package | Role | Broker | Destination mapping |
 | --- | --- | --- | --- |
@@ -236,29 +236,31 @@ services.AddLiteBus(bus =>
 
 ### Kafka At-Least-Once Semantics
 
-`LiteBus.Transport.Kafka` uses manual offset commit. `TransportMessage.AcceptAsync` commits the consumed offset. `ReturnToQueueAsync` seeks the consumer back to the failed offset before the next read so the record is retried in-session. `DiscardAsync` commits the offset so poison deliveries are skipped without blocking the consume loop. Kafka has no queue-style lease equivalent. Pair Kafka ingress with inbox idempotency keys and treat handlers as idempotent.
+`LiteBus.Transport.Kafka` uses manual offset commit. `TransportMessage.AcceptAsync` commits the consumed offset. `ReturnToQueueAsync` seeks the consumer back to the failed offset before the next read so the record is retried in-session. `DiscardAsync` commits the offset so poison deliveries are skipped without blocking the consume loop.
+
+Kafka has no queue-style lease equivalent. Pair Kafka ingress with inbox idempotency keys. Treat handlers as idempotent.
 
 ### Transport Resilience Capability Matrix
 
-Raw `IMessageConsumer` hosts use `TransportConsumerHandlerInvoker`, which returns failed deliveries to the broker and continues the consume loop. Inbox ingress applies its own poison, retry, and dead-letter policy on top of transport deliveries. See [Production Runbook](../operations/runbook.md#handle-broker-ingress-failure) for the per-adapter acknowledgement, requeue, and recovery behavior.
+Hosts that use `IMessageConsumer` directly run through `TransportConsumerHandlerInvoker`, which returns failed deliveries to the broker and continues the consume loop. Inbox ingress applies its own poison, retry, and dead-letter policy on top of transport deliveries. See [Production Runbook](../operations/runbook.md#handle-broker-ingress-failure) for the per-adapter acknowledgement, requeue, and recovery behavior.
 
 ### Poison Message Handling
 
-Raw consumers requeue handler exceptions indefinitely unless the handler calls `DiscardAsync`; inbox ingress requeues transient accept failures and discards poison and contract failures per `IngressAckPolicy`. See [Production Runbook](../operations/runbook.md#poison-messages) for the per-host policy and operator guidance.
+Consumers that use the transport directly requeue handler exceptions indefinitely unless the handler calls `DiscardAsync`. Inbox ingress requeues transient accept failures and discards poison and contract failures per `IngressAckPolicy`. See [Production Runbook](../operations/runbook.md#poison-messages) for the per-host policy and operator guidance.
 
 ### AMQP Transport Bootstrap
 
 `AddAmqpTransport` registers the single root `AmqpTransportModule`. `UseAmqpDispatch` and `UseAmqpIngress` only configure feature bridges. Their modules declare `IRequires<AmqpTransportModule>`, so composition rejects a missing root transport before any module builds. Kafka, AWS SQS, Azure Service Bus, and in-memory adapters use the same ownership rule.
 
-Inbox composite child order remains storage, dispatcher, then ingress for same-level children. Static module dependencies take precedence when topological sorting requires a lower-level transport module first.
+For same-level children, the inbox composite orders storage first, dispatcher second, then ingress. Static module dependencies take precedence when topological sorting requires a lower-level transport module first.
 
 ### Dispatch Tracing
 
-Concrete publishers emit `send {destination}` producer activities. `TransportConsumerHandlerInvoker` emits `process {destination}` consumer activities. Both use the `LiteBus.Transport` activity source and the OpenTelemetry messaging attributes documented in [Transport Tracing](../catalog/transport/tracing.md). Register the source with `AddLiteBusTransportInstrumentation()`.
+Each transport publisher emits `send {destination}` producer activities. `TransportConsumerHandlerInvoker` emits `process {destination}` consumer activities. Both use the `LiteBus.Transport` activity source and the OpenTelemetry messaging attributes documented in [Transport Tracing](../catalog/transport/tracing.md). Register the source with `AddLiteBusTransportInstrumentation()`.
 
 ## Dispatch Axis
 
-Dispatch adapters turn a leased envelope into a side effect. Core processors call `IInboxDispatcher.DispatchAsync` or `IOutboxDispatcher.DispatchAsync` and record success or failure based on thrown exceptions.
+A dispatch adapter executes the side effect for a leased envelope. Core processors call `IInboxDispatcher.DispatchAsync` or `IOutboxDispatcher.DispatchAsync`. They record success, or failure when the call throws.
 
 ```text
 Inbox processor
@@ -295,43 +297,43 @@ Register exactly one dispatcher per durable path. Processor background services 
 
 ## Processor Pipeline
 
-Inbox and outbox use `PipelinedInboxProcessor` and `PipelinedOutboxProcessor` exclusively. Each pass leases a batch, fans envelopes to `DispatcherConcurrency` workers, renews leases on a heartbeat interval, and persists terminal outcomes immediately.
+Inbox and outbox use `PipelinedInboxProcessor` and `PipelinedOutboxProcessor` exclusively. Each pass leases a batch and fans envelopes to `DispatcherConcurrency` workers. While workers dispatch, the processor renews leases on a heartbeat interval. It persists terminal outcomes immediately.
 
-Each acquisition increments `lease_generation`. Renewal and terminal persistence require both the current owner and generation, so an earlier attempt cannot complete after expiry and reacquisition, even when the configured owner label is unchanged. Direct PostgreSQL and relational EF Core stores use database time for lease eligibility and expiry; in-memory stores use the supplied `TimeProvider` for deterministic tests.
+Each acquisition increments `lease_generation`. Renewal and terminal persistence require both the current owner and generation. An earlier attempt therefore cannot complete after expiry and reacquisition, even when the configured owner label is unchanged. Direct PostgreSQL and relational EF Core stores use database time for lease eligibility and expiry. In-memory stores use the supplied `TimeProvider` for deterministic tests.
 
 ### Pass Abort vs Per-Message Persistence
 
-Outcomes are isolated per envelope: one worker records its outcome and continues with the next leased message, and terminal persistence follows the same per-message rule. When `PersistTerminalOutcomeAsync` throws for one envelope, `PipelinedMessageProcessor` logs the failure and continues the pass so sibling workers finish the remaining batch. The failed envelope keeps its active lease until expiration and becomes eligible for a later pass.
+Outcomes are isolated per envelope. One worker records its outcome, continues with the next leased message, and persists terminal outcomes under the same per-message rule. When `PersistTerminalOutcomeAsync` throws for one envelope, `PipelinedMessageProcessor` logs the failure and continues the pass so sibling workers finish the remaining batch. The failed envelope keeps its active lease until expiration and becomes eligible for a later pass.
 
-Pass-level abort still applies to leasing, channel fan-out, and cooperative shutdown. `OperationCanceledException` from the pass cancellation token stops the worker without swallowing the cancellation. Uncaught exceptions from `DispatchEnvelopeAsync` still propagate from the worker and can fault the pass when they are not the lease-loss cancellation pattern handled explicitly in `RunWorkerAsync`.
+Pass-level abort still applies to leasing, channel fan-out, and cooperative shutdown. `OperationCanceledException` from the pass cancellation token stops the worker without swallowing the cancellation. Uncaught exceptions from `DispatchEnvelopeAsync` still propagate from the worker. Unless they match the lease-loss cancellation pattern handled in `RunWorkerAsync`, they can fault the pass.
 
 | Option | Default | Role |
 | --- | --- | --- |
 | `DispatcherConcurrency` | `1` | Parallel dispatch workers per processor instance |
 | `LeaseHeartbeatInterval` | 15 seconds | Renews active leases during slow handlers (must be `<= LeaseDuration / 2`) |
-| `HonorShutdownTokenOnPersist` | `false` | When `false`, terminal `PersistAsync` uses `CancellationToken.None`; when `true`, passes shutdown token (faster drain, duplicate-dispatch risk) |
-| `HookFailurePolicy` | Dispatcher-specific | Transport outbox dispatch defaults to `CompleteDespiteHookFailure`; in-process outbox and inbox processors default to `DeadLetter`. See [Outbox](../reliable-messaging/outbox.md) and [Inbox](../reliable-messaging/inbox.md). |
+| `HonorShutdownTokenOnPersist` | `false` | When `false`, terminal `PersistAsync` uses `CancellationToken.None`. When `true`, it passes the shutdown token, which drains faster but risks duplicate dispatch |
+| `HookFailurePolicy` | Dispatcher-specific | Transport outbox dispatch defaults to `CompleteDespiteHookFailure`. In-process outbox and inbox processors default to `DeadLetter`. See [Outbox](../reliable-messaging/outbox.md) and [Inbox](../reliable-messaging/inbox.md). |
 | `TenantId` | `null` | Limits leasing to one tenant partition |
 
 `IProcessorEnvelopeHook` implementations from `LiteBus.DurableMessaging.Abstractions` run around each leased envelope. Inbox and outbox map envelopes through adapters. `EnableSaga()` registers saga hooks without coupling `LiteBus.Saga` to inbox abstractions.
 
-Set `DispatcherConcurrency` above `1` only when your handlers are safe to run in parallel. Background services create a per-message DI scope so scoped handlers (for example `DbContext`) resolve correctly.
+When your handlers are safe to run in parallel, set `DispatcherConcurrency` above `1`. Background services create a per-message DI scope so scoped handlers (for example `DbContext`) resolve correctly.
 
 ### Delivery Semantics (At-Least-Once)
 
-Durable paths guarantee at-least-once execution and publication, not exactly-once side effects. Make your handlers, dispatchers, and downstream consumers idempotent or deduplicate with `IdempotencyKey` and application logic. A crash between external side effect and terminal persist can produce duplicates: outbox processors publish through `IOutboxDispatcher` before terminal persist, so a crash or skipped persist after broker ack can republish the same envelope on lease reclaim.
+Durable paths guarantee at-least-once execution and publication, not exactly-once side effects. Make your handlers, dispatchers, and downstream consumers idempotent or deduplicate with `IdempotencyKey` and application logic. A crash between the external side effect and the terminal persist can produce duplicates. Outbox processors publish through `IOutboxDispatcher` before the terminal persist, so a crash or skipped persist after broker ack can republish the same envelope on lease reclaim.
 
 ### Transactional EF Behavior
 
-Idempotency keys are scoped per tenant across in-memory, EF Core, and PostgreSQL stores. The same key under different `tenant_id` values persists independently; null or whitespace tenants normalize to an empty string. On the transactional EF path, duplicate `message_id` or `(tenant_id, idempotency_key)` conflicts cause `SaveChanges` to fail and roll back the entire unit of work. Provider-specific upsert for silent idempotent inserts is not shipped; see [Roadmap](../roadmap/README.md).
+Idempotency keys are scoped per tenant across in-memory, EF Core, and PostgreSQL stores. The same key under different `tenant_id` values persists independently. Null or whitespace tenants normalize to an empty string. On the transactional EF path, duplicate `message_id` or `(tenant_id, idempotency_key)` conflicts cause `SaveChanges` to fail and roll back the entire unit of work. Provider-specific upsert for silent idempotent inserts is not shipped. See [Roadmap](../roadmap/README.md).
 
 ### Encryption Rotation
 
-`IPayloadEncryptor` key rotation is an application responsibility. LiteBus stores ciphertext as opaque bytes; plan re-encryption or multi-key decrypt outside the framework. See [Security and Tenancy](../operations/security-and-tenancy.md#key-rotation) for the operator procedure.
+`IPayloadEncryptor` key rotation is an application responsibility. LiteBus stores ciphertext as opaque bytes. Plan re-encryption or multi-key decrypt outside the framework. See [Security and Tenancy](../operations/security-and-tenancy.md#key-rotation) for the operator procedure.
 
 ### Instrument Stability
 
-Public `const` instrument and activity names on `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, `LiteBusInboxIngressTelemetry`, `LiteBusTransportTelemetry`, and adapter meter types are consumer contract. Renames or removals are breaking changes. Processor pass counters listed in the internal-only catalog above are stable implementation details until promoted to public constants on the matching telemetry type.
+Public `const` instrument and activity names on `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, `LiteBusInboxIngressTelemetry`, `LiteBusTransportTelemetry`, and adapter meter types are part of the consumer contract. Renames or removals are breaking changes. Processor pass counters listed in the internal-only catalog above are stable implementation details until they are promoted to public constants on the matching telemetry type.
 
 ## Ingress Axis
 
@@ -363,7 +365,7 @@ flowchart LR
   ST --> PR --> DS
 ```
 
-Ingress depends on inbox core and a registered `IMessageConsumer` implementation. It does not reference storage implementation types directly beyond what DI provides through `IInbox`.
+Ingress depends on inbox core and a registered `IMessageConsumer` implementation. It references storage only through `IInbox`, as DI provides it.
 
 ## End-to-End Pipeline Example
 
@@ -377,7 +379,7 @@ External producer
   -> OutboxProcessor -> Amqp dispatcher -> integration exchange
 ```
 
-Make handlers and dispatch targets idempotent: inbox and outbox provide at-least-once behavior, not exactly-once side effects.
+Make handlers and dispatch targets idempotent. Inbox and outbox provide at-least-once behavior, not exactly-once side effects.
 
 ## Durable Messaging Glossary
 
@@ -400,11 +402,11 @@ Make handlers and dispatch targets idempotent: inbox and outbox provide at-least
 
 Stored rows contain contract name, contract version, and serialized payload. The default registry maps concrete CLR types to names and versions. The default serializer uses `System.Text.Json` with web defaults.
 
-Closed generic messages are supported when each closed type has a registered contract. Open generic contracts are rejected.
+When each closed type has a registered contract, closed generic messages are supported. Open generic contracts are rejected.
 
 ## Saga Orchestration
 
-Integrate saga through `inbox.EnableSaga(...)` from `LiteBus.Saga.InboxIntegration`. `SagaModuleBuilder` owns exactly one explicit storage module: call `UseInMemoryStorage()` for tests or select a persistence adapter. Missing or duplicate storage fails composition.
+Integrate saga through `inbox.EnableSaga(...)` from `LiteBus.Saga.InboxIntegration`. `SagaModuleBuilder` owns exactly one explicit storage module. Call `UseInMemoryStorage()` for tests or select a persistence adapter. When storage is missing or duplicated, composition throws.
 
 | Package | Role | Responsibility |
 | --- | --- | --- |
@@ -428,21 +430,23 @@ builder.AddInbox(inbox =>
 });
 ```
 
-Saga state is command-centric (`LiteBus.Saga.Abstractions` references command contracts). You own state POCOs and completion rules.
+Saga state centers on commands. `LiteBus.Saga.Abstractions` references command contracts. You own state POCOs and completion rules.
 
 ### Concurrency and Scope
 
-`SagaExecutionContext` registers as a singleton with per-dispatch scope on the instance for the processor before/dispatch/after flow. Optimistic concurrency uses versioned saves. A dirty-state conflict propagates as `SagaConcurrencyException` because the hook cannot safely merge arbitrary handler-owned state with a concurrent update. Completion-only conflicts may reload and retry up to three attempts because completion is idempotent. Inbox terminal persistence and saga save are separate steps; handlers must tolerate at-least-once redelivery. A single transaction for inbox terminal state and saga persistence is not part of the current store contract (see the [Saga](../reliable-messaging/saga.md) durability model).
+The processor registers `SagaExecutionContext` as a singleton and scopes the instance per dispatch for the before, dispatch, and after flow. Optimistic concurrency uses versioned saves. A dirty-state conflict propagates as `SagaConcurrencyException` because the hook cannot safely merge arbitrary handler-owned state with a concurrent update. Completion-only conflicts may reload and retry up to three attempts because completion is idempotent.
+
+Inbox terminal persistence and saga save are separate steps, so handlers must tolerate at-least-once redelivery. A single transaction for inbox terminal state and saga persistence is not part of the current store contract (see the [Saga](../reliable-messaging/saga.md) durability model).
 
 ## Message Registry Lifecycle
 
-LiteBus creates one `IMessageRegistry` per `IModuleConfiguration` instance during `AddLiteBus`. Modules register message and handler types at compose time through `MessageModule` and semantic module builders. The registry is not process-wide: tests and hosts each get an isolated instance. Do not call `IMessageWriter.Register` at runtime in application code; register types during module `Build()` or through `RegisterFromAssembly` on module builders.
+LiteBus creates one `IMessageRegistry` per `IModuleConfiguration` instance during `AddLiteBus`. Modules register message and handler types at compose time through `MessageModule` and semantic module builders. The registry is not process-wide. Tests and hosts each get an isolated instance. Do not call `IMessageWriter.Register` at runtime in application code. Register types during module `Build()` or through `RegisterFromAssembly` on module builders.
 
 ## Payload Encryption and Tenant Isolation
 
 `IPayloadEncryptor` protects serialized payload bodies at rest. Register it through `UsePayloadEncryption()` on inbox and outbox module builders. Contract name and version remain plaintext so leasing, routing, and diagnostics continue to work.
 
-`ITenantRoutingStrategy.ResolveRoute` optionally computes a transport publish route from tenant metadata. Processor leasing is a separate durable concern: set `TenantScope` on accept or enqueue metadata and `TenantId` on processor options to scope lease queries in PostgreSQL, EF Core, and InMemory stores.
+When registered, `ITenantRoutingStrategy.ResolveRoute` computes a transport publish route from tenant metadata. Processor leasing is a separate durable concern. Set `TenantScope` on accept or enqueue metadata and `TenantId` on processor options to scope lease queries in PostgreSQL, EF Core, and InMemory stores.
 
 ```csharp
 inbox.UsePayloadEncryption(myEncryptor);
@@ -457,7 +461,7 @@ inbox.UseAmqpDispatch(options =>
 
 ## Module Composition
 
-Parent modules use `ICompositeModule` to declare storage, dispatch, ingress, and saga children, and child membership is collected before build. `BuildOrder()` validates every `IRequires<TModule>` edge, inserts composite children, and topologically sorts the complete graph before any `Build()` call. Configuration context stores shared configuration objects only. Duplicate registration of the same module type throws `LiteBusConfigurationException` at compose time.
+Parent modules use `ICompositeModule` to declare storage, dispatch, ingress, and saga children. Child membership is collected before build. `BuildOrder()` validates every `IRequires<TModule>` edge, inserts composite children, and topologically sorts the complete graph before any `Build()` call. Configuration context stores shared configuration objects only. Duplicate registration of the same module type throws `LiteBusConfigurationException` at compose time.
 
 Register adapters inside the parent builder:
 
@@ -485,13 +489,13 @@ Do not add top-level `IModuleRegistry` shortcuts that bypass the parent builder.
 
 ### Planned Capabilities
 
-The [Roadmap](../roadmap/README.md) tracks per-contract retry classification, SQS FIFO and broker dead-letter integration, named bus instances, schema tooling, payload compression, and validation, authorization, and caching modules. Handler-level idempotency already ships; see [Idempotency](../concepts/idempotency.md). Store-side `visible_after` covers delayed processing; broker-native delayed delivery is not part of the current API.
+The [Roadmap](../roadmap/README.md) tracks per-contract retry classification, SQS FIFO and broker dead-letter integration, named bus instances, schema tooling, payload compression, and validation, authorization, and caching modules. Handler-level idempotency already ships. See [Idempotency](../concepts/idempotency.md). Store-side `visible_after` covers delayed processing. Broker-native delayed delivery is not part of the current API.
 
 ## Boundaries
 
 - LiteBus mediates in process. Broker clients live in `LiteBus.Transport.*` adapter packages and are consumed by dispatch/ingress transport adapters.
 - Core inbox and outbox do not reference Commands, Events, Npgsql, EF, or RabbitMQ.
-- DI adapters translate descriptors; mediator code does not depend on Microsoft DI or Autofac.
+- DI adapters translate descriptors. Mediator code does not depend on Microsoft DI or Autofac.
 - `LiteBus.Analyzers` validates registration patterns at compile time without runtime coupling.
 
 ## Next

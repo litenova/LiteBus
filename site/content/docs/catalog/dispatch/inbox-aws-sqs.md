@@ -9,9 +9,9 @@
 
 ## What It Does
 
-Registers `TransportInboxDispatchModule` with `AwsSqsTransportModule`. `DefaultDestination` is the queue URL. Shared transport inbox dispatcher publishes payload bytes and LiteBus headers as SQS message attributes.
+This extension registers `TransportInboxDispatchModule` with `AwsSqsTransportModule`. `DefaultDestination` is the queue URL. The shared transport inbox dispatcher publishes payload bytes and LiteBus headers as SQS message attributes.
 
-Remote workers typically consume via SQS inbox ingress or custom consumers that accept into their inbox store.
+Remote workers usually consume through SQS inbox ingress, or through custom consumers that accept messages into their inbox store.
 
 ## Packages
 
@@ -29,14 +29,14 @@ Remote workers typically consume via SQS inbox ingress or custom consumers that 
 
 ## Invariants
 
-- SQS has no routing key; route resolver affects attribute mapping where applicable.
-- Requeue on consumer side uses visibility timeout change (transport layer).
-- One SQS transport module per composition.
+- SQS has no routing key. The resolved route travels as a message attribute instead.
+- On the consumer side, a requeue changes the visibility timeout. The transport layer owns that behavior.
+- A composition holds no more than one SQS transport module.
 
 ## Non-Goals
 
-- Does not configure FIFO deduplication (application queue choice).
-- Does not consume from SQS (ingress axis).
+- It does not configure FIFO deduplication, because the application chooses its queues.
+- It does not consume from SQS, because the ingress axis owns intake.
 
 ## Public Surface
 
@@ -63,8 +63,8 @@ services.AddLiteBus(litebus =>
 
 | API | Role |
 | --- | --- |
-| `InboxModuleBuilder.UseAwsSqsDispatch(Action<TransportInboxDispatcherOptions>)` | Registers inbox transport dispatcher that requires the root SQS transport |
-| `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | Shared dispatch publish path |
+| `InboxModuleBuilder.UseAwsSqsDispatch(Action<TransportInboxDispatcherOptions>)` | Registers the inbox transport dispatcher, which requires the root SQS transport |
+| `TransportInboxDispatcher.DispatchAsync(InboxEnvelope, CancellationToken)` | The shared dispatch publish path |
 
 `AwsSqsTransportOptions`:
 
@@ -86,13 +86,13 @@ services.AddLiteBus(litebus =>
 
 | Signal | Detail |
 | --- | --- |
-| `send {destination}` | Queue URL as destination; message id and `messaging.system=aws_sqs` attributes |
-| `litebus.transport.circuit_breaker.*` | Broker tag `sqs` (outbox failure tests exercise breaker; inbox dispatch failure mirror absent) |
-| `litebus.inbox.processor.*` | Standard inbox processor metrics around dispatch |
+| `send {destination}` | The queue URL is the destination, with the message id and `messaging.system=aws_sqs` attributes |
+| `litebus.transport.circuit_breaker.*` | Broker tag `sqs`. Outbox failure tests exercise the breaker, but no inbox dispatch test mirrors them |
+| `litebus.inbox.processor.*` | The standard inbox processor metrics around dispatch |
 
 SQS message attributes carry LiteBus headers mapped from envelope metadata.
 
-## Deep Docs
+## References
 
 - [Integration-Tests.md](../../testing/integration-tests.md)
 - [Architecture.md: Transport resilience matrix](../../architecture/README.md#transport-resilience-capability-matrix)
@@ -108,11 +108,11 @@ SQS message attributes carry LiteBus headers mapped from envelope metadata.
 
 ### Untested
 
-- Inbox dispatch failure for invalid queue URL or credentials.
+- Inbox dispatch failure for an invalid queue URL or invalid credentials.
 - FIFO queue constraints and deduplication behavior.
-- Route override branches through resolver and tenant strategy.
+- Route override branches through the resolver and the tenant strategy.
 
 ### Out-of-Scope
 
-- FIFO deduplication configuration (application queue choice)
-- Consuming from SQS (`ingress.inbox.aws-sqs`)
+- FIFO deduplication configuration, which is an application queue choice
+- Consuming from SQS (see `ingress.inbox.aws-sqs`)

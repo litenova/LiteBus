@@ -2,11 +2,11 @@
 
 Polymorphic dispatch lets one handler process a whole family of related messages by targeting a base type or interface they share. Write an auditing pre-handler once against `IAuditableCommand` and it runs for every command that implements it. This page builds on the handler stages in [The Handler Pipeline](handler-pipeline.md) and pairs with [Open Generic Handlers](open-generic-handlers.md), which solves the related but distinct problem of applying behavior to all messages regardless of shape.
 
-## What Polymorphic Dispatch Does
+## Shared Handlers for Message Families
 
-Polymorphic dispatch uses C# contravariance (`in` keyword) in handler interfaces. It lets you write common, cross-cutting logic once and apply it to an entire family of commands, queries, or events.
+Polymorphic dispatch uses C# contravariance (`in` keyword) in handler interfaces. It lets you write shared, cross-cutting logic once and apply it to an entire family of commands, queries, or events.
 
-**Important**: This feature applies to pipeline handlers, and to main handlers as a fallback. Commands and queries resolve a direct handler first and use an indirect (base-type) handler only when no direct handler survives filtering; events run direct and indirect main handlers together.
+This feature applies to pipeline handlers, and to main handlers as a fallback. Commands and queries resolve a direct handler first and use an indirect (base-type) handler only when no direct handler survives filtering. Events run direct and indirect main handlers together.
 
 ## How It Works
 
@@ -14,7 +14,7 @@ Consider a set of commands that all relate to auditable actions.
 
 ### 1. Define a Base Message Type
 
-First, define a base class or interface that all related messages will implement.
+Define a base class or interface that all related messages implement.
 
 ```csharp
 // Base interface for all auditable commands
@@ -38,7 +38,7 @@ public sealed class DeleteUserCommand : IAuditableCommand, ICommand
 
 ### 2. Create a Handler for the Base Type
 
-Now, create a single pre-handler that targets the base `IAuditableCommand` interface.
+Create a single pre-handler that targets the base `IAuditableCommand` interface.
 
 ```csharp
 // This single pre-handler will run for ANY command implementing IAuditableCommand.
@@ -64,7 +64,7 @@ public sealed class AuditingPreHandler : ICommandPreHandler<IAuditableCommand>
 
 ### 3. Mediation
 
-When you send a derived command, LiteBus automatically discovers and executes the handler for the base type.
+When you send a derived command, LiteBus discovers and runs the handler for the base type.
 
 ```csharp
 // Sending a CreateProductCommand...
@@ -78,7 +78,7 @@ await _commandMediator.SendAsync(new DeleteUserCommand { ... });
 
 ## Technical Explanation
 
-This behavior is enabled by the contravariant type parameter (`in TMessage`) on the handler interfaces:
+The contravariant type parameter (`in TMessage`) on the handler interfaces enables this behavior:
 
 ```csharp
 // The 'in' keyword allows a handler for a base type to accept a derived type.
@@ -96,26 +96,26 @@ Main-handler mediation resolves a **message descriptor** before handlers are loa
 2. **Most-derived assignable match**: otherwise the strategy scans registered message types assignable from the runtime type and picks the candidate with the highest inheritance depth score (base-type chain length plus implemented interface count).
 3. **Ambiguity guard**: when two or more candidates share the same depth score, mediation throws `AmbiguousMessageResolveException` instead of picking arbitrarily.
 
-Indirect pipeline handlers (pre, post, and error) still link from every assignable registration on the resolved descriptor. Register base-interface handlers against the interface type; LiteBus routes them through the indirect collections described in [The Handler Pipeline](handler-pipeline.md).
+Indirect pipeline handlers (pre, post, and error) link from every assignable registration on the resolved descriptor. Register base-interface handlers against the interface type. LiteBus routes them through the indirect collections described in [The Handler Pipeline](handler-pipeline.md).
 
 ## Use Cases
 
-1.  **Auditing**: Create a single post-handler for an `IAuditable` interface to log all state-changing operations.
-2.  **Authorization**: Implement a single pre-handler for a `ISecuredOperation` interface to check user permissions for a family of related commands or queries.
-3.  **Validation**: A pre-handler for a base `IPaginatedQuery` could validate that pagination parameters (`PageNumber`, `PageSize`) are within valid ranges for all queries that support pagination.
-4.  **Tenant Isolation**: A pre-handler for an `ITenantSpecific` interface can scope the request to the correct tenant.
+- **Auditing**: A single post-handler for an `IAuditable` interface logs all state-changing operations.
+- **Authorization**: A single pre-handler for a `ISecuredOperation` interface checks user permissions for a family of related commands or queries.
+- **Validation**: A pre-handler for a base `IPaginatedQuery` checks that pagination parameters (`PageNumber`, `PageSize`) stay within their valid ranges for all queries that support pagination.
+- **Tenant Isolation**: A pre-handler for an `ITenantSpecific` interface scopes the request to the correct tenant.
 
-## Best Practices
+## Usage Conventions
 
-1.  **Define Clear Base Contracts**: The base message interface or class should define the common data needed by the polymorphic handler.
-2.  **Use for Cross-Cutting Concerns**: Polymorphic dispatch is ideal for logic that applies uniformly across a set of related messages, such as security, logging, or validation.
-3.  **Remember the Scope**: Pipeline handlers registered for a base type run alongside message-specific ones. A base-type main handler covers a command or query that has no direct handler of its own, and joins every broadcast of a matching event.
+- **Define Clear Base Contracts**: The base message interface or class defines the shared data the polymorphic handler needs.
+- **Use for Cross-Cutting Concerns**: Polymorphic dispatch fits logic that applies uniformly across a set of related messages, such as security, logging, or validation.
+- **Remember the Scope**: Pipeline handlers registered for a base type run alongside message-specific ones. A base-type main handler covers a command or query that has no direct handler of its own, and joins every broadcast of a matching event.
 
 ## Polymorphic Dispatch vs. Open Generic Handlers
 
-Both features let one handler class cover many messages, but they solve fundamentally different problems. Understanding when to use each, or both together, is key to a clean architecture.
+Both features let one handler class cover many messages, but they solve fundamentally different problems. The comparison below shows when to use each, or both together.
 
-### Comparison Table
+### Comparison
 
 | Aspect | Polymorphic Dispatch | Open Generic Handlers |
 | :--- | :--- | :--- |
@@ -152,7 +152,7 @@ public sealed class AuditingPreHandler : ICommandPreHandler<IAuditableCommand>
 }
 ```
 
-**Good fit for:**
+Good fits include:
 - Auditing with `CorrelationId` / `UserId`
 - Authorization by reading `ISecuredOperation.RequiredPermission`
 - Tenant isolation using `ITenantSpecific.TenantId`
@@ -176,7 +176,7 @@ public sealed class CommandLoggingPreHandler<T> : ICommandPreHandler<T>
 }
 ```
 
-**Good fit for:**
+Good fits include:
 - Logging / tracing every command or query
 - Performance metrics and timing
 - Transaction wrapping (`UnitOfWork` commit/rollback)
@@ -185,7 +185,7 @@ public sealed class CommandLoggingPreHandler<T> : ICommandPreHandler<T>
 
 ### Decision Flowchart
 
-Ask yourself these questions in order:
+Decide in this order:
 
 1. **Does the handler need shared properties from the message?**
    - **Yes**: Use **Polymorphic Dispatch**. Define a base interface with those properties.
@@ -234,14 +234,14 @@ public sealed class CreateProductCommand : IAuditableCommand, ICommand<Guid>
 }
 ```
 
-When `CreateProductCommand` is sent, the pipeline executes:
+When you send `CreateProductCommand`, the pipeline runs:
 ```
 1. CommandLogger<CreateProductCommand>   (open generic, universal)
 2. CreateProductCommandHandler           (main handler)
 3. AuditTrailWriter                      (polymorphic dispatch; reads UserId/CorrelationId)
 ```
 
-See [Open Generic Handlers](open-generic-handlers.md) for the full open generics documentation.
+See [Open Generic Handlers](open-generic-handlers.md) for more on open generic handlers.
 
 ## Next
 

@@ -3,7 +3,7 @@
 - **ID**: `runtime.payload-protection`
 - **Name**: Payload encryption hook
 - **Maturity**: GA
-- **Summary**: Adds optional payload text encryption and decryption through `IPayloadEncryptor` and `PayloadProtection`.
+- **Summary**: This capability adds optional payload text encryption and decryption through `IPayloadEncryptor` and `PayloadProtection`.
 
 ## What It Does
 
@@ -12,9 +12,9 @@ Runtime calls:
 - `PayloadProtection.ProtectAsync(payload, encryptor, token)` before durable write
 - `PayloadProtection.UnprotectAsync(payload, encryptor, token)` before deserialization
 
-With no encryptor, payload is passed through unchanged.
+When no encryptor is configured, the payload passes through unchanged.
 
-Overloads taking `PayloadProtectionContext` pass durable metadata as associated data when the encryptor implements `IContextualPayloadEncryptor`; any other encryptor, or a null context, uses the plain contract. The context carries the message id, contract name and version, tenant id, and durable axis, so ciphertext cannot move between rows, contracts, tenants, or axes without authentication failure.
+Overloads that take a `PayloadProtectionContext` pass durable metadata as associated data when the encryptor implements `IContextualPayloadEncryptor`. Any other encryptor, or a null context, uses the plain contract. The context carries the message id, contract name and version, tenant id, and durable axis, so ciphertext cannot move between rows, contracts, tenants, or axes without failing authentication.
 
 ## Public Surface
 
@@ -39,18 +39,18 @@ Overloads taking `PayloadProtectionContext` pass durable metadata as associated 
 ## Invariants
 
 - Null payload is rejected.
-- Null encryptor returns original payload.
+- With a null encryptor, the helpers return the original payload.
 - Contract metadata remains plaintext.
 - A null context, or an encryptor without contextual support, falls back to the plain encryptor contract.
 - Unscoped tenant identifiers normalize to null in protection contexts, so null, empty, and whitespace authenticate identically.
 
 ## Non-Goals
 
-- Key management and rotation workflows.
+- Workflows for key management and rotation.
 
 ## Observability
 
-No dedicated instrumentation in runtime core.
+The runtime core adds no instrumentation for payload protection.
 
 ## Test Coverage
 
@@ -64,11 +64,11 @@ No dedicated instrumentation in runtime core.
 
 - **Use case**: Optional protection passes plaintext through or delegates to the configured encryptor.
 - **Test kind**: Unit
-- **Description**: Directly invokes protect and unprotect paths with no encryptor, a recording encryptor, null payloads, and provider failures.
-- **Behavior**: Payload and cancellation tokens are forwarded unchanged; encryptor exceptions retain their provider type.
+- **Description**: The test invokes protect and unprotect paths directly with no encryptor, a recording encryptor, null payloads, and provider failures.
+- **Behavior**: Payload and cancellation tokens are forwarded unchanged. Encryptor exceptions retain their provider type.
 - **Expected outcome**: Pass-through and delegation behavior match the runtime boundary contract.
-- **Remarks**: `tests/LiteBus.Runtime.UnitTests/Serialization/`.
+- **Remarks**: `tests/LiteBus.Runtime.UnitTests/Serialization/`
 
 ### Out-of-Scope Use Cases
 
-- Built-in encryptor implementation.
+- An encryptor implementation built into the runtime.

@@ -5,45 +5,45 @@
 
 ## Summary
 
-Inbox and outbox rows move through explicit status values from pending storage through leased processing to terminal completed/published, failed, or dead-lettered states.
+Inbox and outbox rows move through explicit status values. They start in pending storage, move through leased processing, and end in a terminal state: completed or published, failed, or dead-lettered.
 
 ## What It Does
 
-Writers create `Pending` envelopes. Processors transition rows to `Processing`/`Publishing` on lease, then persist terminal outcomes. Failed rows become eligible for retry with updated visibility. Exceeded retry policy moves rows to `DeadLettered`. Operators requeue dead letters back to pending. Retention services delete aged terminal rows.
+Writers create `Pending` envelopes. Processors move rows to `Processing` or `Publishing` on lease, then persist the terminal outcomes. Failed rows become eligible for retry with updated visibility. When the retry policy is exceeded, rows move to `DeadLettered`. Operators requeue dead letters back to pending. Retention services delete aged terminal rows.
 
 ## Public Surface
 
 ### Consumer Contracts
 
-- **`InboxEnvelope` / `OutboxEnvelope`**: Persistence and processor row models with status, lease fields, attempt count, and terminal timestamps.
-- **`InboxStatus` / `OutboxStatus`**: Lifecycle enums (`Pending`, `Processing`/`Publishing`, `Completed`/`Published`, `Failed`, `DeadLettered`).
-- **`IInboxStateWriter` / `IOutboxStateWriter`**: Terminal persist after dispatch (`PersistAsync` with lease-owner conditional semantics).
-- **`IInboxManager` / `IOutboxManager`**: Operator replay, status counts, and dead-letter inspection.
-- **`IInboxRetentionStore` / `IOutboxRetentionStore`**: Purge aged terminal rows by cutoff timestamp.
+- **`InboxEnvelope`** and **`OutboxEnvelope`**: The persistence and processor row models, with status, lease fields, attempt counts, and terminal timestamps.
+- **`InboxStatus`** and **`OutboxStatus`**: The lifecycle enums (`Pending`, `Processing` or `Publishing`, `Completed` or `Published`, `Failed`, `DeadLettered`).
+- **`IInboxStateWriter`** and **`IOutboxStateWriter`**: They persist the terminal state after dispatch (`PersistAsync` with lease-owner conditional semantics).
+- **`IInboxManager`** and **`IOutboxManager`**: They provide operator replay, status counts, and dead-letter inspection.
+- **`IInboxRetentionStore`** and **`IOutboxRetentionStore`**: They purge aged terminal rows by cutoff timestamp.
 
 ### Invocation
 
-- **Processor paths**: Lease transitions row to active processing; terminal persist writes `Completed`/`Published`, `Failed` (with `visible_after`), or `DeadLettered`.
-- **`RequeueAsync` / `RequeueDeadLettersAsync`**: Move dead-lettered rows back to `Pending` for operator replay.
-- **`GetStatusCountsAsync`**: Diagnostics query returning counts grouped by status.
-- **`DeleteCompletedOlderThanAsync` / `DeletePublishedOlderThanAsync`**: Retention purge by age cutoff.
+- **Processor paths**: A lease moves the row to active processing. The terminal persist then writes `Completed` or `Published`, `Failed` (with `visible_after`), or `DeadLettered`.
+- **`RequeueAsync`** and **`RequeueDeadLettersAsync`**: They move dead-lettered rows back to `Pending` for operator replay.
+- **`GetStatusCountsAsync`**: This diagnostics query returns counts grouped by status.
+- **`DeleteCompletedOlderThanAsync`** and **`DeletePublishedOlderThanAsync`**: They run the retention purge by age cutoff.
 
 ### Operational Fields
 
-Every envelope carries the forensics an operator asks for first, and every store adapter persists and returns them.
+Every envelope carries the fields an operator asks for first, and every store adapter persists and returns them.
 
 | Field | Written when | Answers |
 | --- | --- | --- |
-| `LastAttemptedAt` | Each lease | When a processor last picked this up |
-| `FirstFailedAt` | The first failure only | How long the message struggled before it succeeded or gave up |
-| `DeadLetteredAt` | Dead-letter transition | When the message gave up |
-| `LastLeaseOwner` | Each lease | Which instance was handling it, and it survives the lease being released |
+| `LastAttemptedAt` | Each lease | When a processor last leased it |
+| `FirstFailedAt` | The first failure only | How long the message kept failing before it succeeded or was dead-lettered |
+| `DeadLetteredAt` | Dead-letter transition | When the message was dead-lettered |
+| `LastLeaseOwner` | Each lease | Which instance handled it. The value survives the lease being released |
 | `ErrorType` | Each failure carrying an exception | What kind of failure it was, without parsing `LastError` |
-| `Handler` (outbox only) | Enqueue under per-handler delivery | Which single event handler the envelope is addressed to; `null` means broadcast |
+| `Handler` (outbox only) | Enqueue under per-handler delivery | Which single event handler the envelope is addressed to. A `null` value means broadcast |
 
 `Handler` holds the full name of the single event handler a per-handler envelope is addressed to. In-process dispatch publishes a targeted envelope with a handler predicate matching only the recorded handler. See [Per-Handler Delivery](outbox-enqueue.md#per-handler-delivery).
 
-`FirstFailedAt` is set once and is not moved by later failures, so it keeps naming the first one. `AsRequeued` clears `FirstFailedAt`, `DeadLetteredAt`, `ErrorType` and `LastError` because the message starts over, and keeps `LastAttemptedAt` and `LastLeaseOwner` as the record of what happened before.
+`FirstFailedAt` is set once and is not moved by later failures, so it still identifies the first failure. `AsRequeued` clears `FirstFailedAt`, `DeadLetteredAt`, `ErrorType` and `LastError` because the message starts again from pending, and it keeps `LastAttemptedAt` and `LastLeaseOwner` as the record of what happened before.
 
 Processors build these from a `MessageFailure`, which carries the formatted error, the exception type, and the moment the attempt failed:
 
@@ -52,27 +52,27 @@ envelope.AsFailed(MessageFailure.From(exception, clock.GetUtcNow()), visibleAfte
 envelope.AsDeadLettered(MessageFailure.From(exception, clock.GetUtcNow()));
 ```
 
-`MessageFailure.FromError(text, occurredAt)` covers a failure with a reason but no exception, such as a lost lease; the resulting envelope records no `ErrorType`, which is the honest answer when no exception exists.
+`MessageFailure.FromError(text, occurredAt)` covers a failure with a reason but no exception, such as a lost lease. The resulting envelope records no `ErrorType`, which is the correct record when no exception exists.
 
 Because `IInboxManager.QueryAsync` and `IOutboxManager.QueryAsync` return envelopes, a dead-letter listing reads these fields directly from the query result instead of reading store tables.
 
 ### Registration
 
-- Storage adapters implement lease, state writer, diagnostics, and retention store roles (see durable-storage capability).
-- **`EnableInboxProcessor`** / **`EnableOutboxProcessor`** register background services that drive automatic lifecycle transitions beyond `Pending`.
-- Retention background services register through module manifest when host options configure cleanup intervals.
+- Storage adapters implement the lease, state writer, diagnostics, and retention store roles (see the durable-storage capability).
+- **`EnableInboxProcessor`** and **`EnableOutboxProcessor`** register background services that drive automatic lifecycle transitions beyond `Pending`.
+- Retention background services register through the module manifest when the host options configure cleanup intervals.
 
 ### Configuration
 
-- **`InboxProcessorOptions` / `OutboxProcessorOptions`**: Batch size, lease duration, retry policy, and hook failure policy affect transition timing and terminal outcomes.
-- **Retention host options**: Cutoff age and poll interval on cleanup background services.
-- Store-specific: conditional persist matches `lease_owner` on PostgreSQL and EF adapters.
+- **`InboxProcessorOptions`** and **`OutboxProcessorOptions`**: The batch size, lease duration, retry policy, and hook failure policy affect transition timing and terminal outcomes.
+- **Retention host options**: They set the cutoff age and poll interval on the cleanup background services.
+- Store-specific behavior: the conditional persist matches `lease_owner` on the PostgreSQL and EF adapters.
 
 ### Extension Points
 
 - Custom storage must honor lease claim, conditional terminal persist, stale lease reclaim, and status query semantics (store contract tests).
-- Processor hooks can influence dead-letter vs retry decisions (see processor-hooks capability).
-- Operator tooling uses manager APIs; applications do not mutate status columns directly.
+- Processor hooks can influence dead-letter or retry decisions (see the processor-hooks capability).
+- Operator tooling uses the manager APIs. Applications do not mutate status columns directly.
 
 ## Packages
 
@@ -85,8 +85,8 @@ Because `IInboxManager.QueryAsync` and `IOutboxManager.QueryAsync` return envelo
 
 ## Requires
 
-- Storage implementation honoring lease and conditional persist semantics
-- Processor enabled for automatic transitions beyond pending
+- A storage implementation honoring lease and conditional persist semantics
+- An enabled processor for automatic transitions beyond pending
 - Retention host options when automated cleanup is desired
 
 ## Invariants
@@ -95,53 +95,53 @@ Because `IInboxManager.QueryAsync` and `IOutboxManager.QueryAsync` return envelo
 | --- | --- | --- |
 | Pending | Awaiting lease | Awaiting lease |
 | Processing / Publishing | Leased by worker | Leased by worker |
-| Completed / Published | Handler/dispatch succeeded | Published successfully |
+| Completed / Published | Handler or dispatch succeeded | Published successfully |
 | Failed | Retry scheduled | Retry scheduled |
 | DeadLettered | Retry exhausted or hook policy | Retry exhausted or hook policy |
 
 - Stale `Processing` rows become re-leasable after lease expiry
-- Terminal persist matches `lease_owner` on PostgreSQL and EF stores
-- Retention cutoff uses `COALESCE(completed_at, created_at)` (inbox) and `COALESCE(published_at, created_at)` (outbox)
+- The terminal persist matches `lease_owner` on the PostgreSQL and EF stores
+- The retention cutoff uses `COALESCE(completed_at, created_at)` (inbox) and `COALESCE(published_at, created_at)` (outbox)
 
 ## Non-Goals
 
-- Exactly-once terminal state across all failure modes
-- Automatic contract upgrade of in-flight payloads
-- Cross-axis unified envelope table
+- Terminal state is not exactly-once across all failure modes
+- In-flight payloads do not get automatic contract upgrades
+- There is no cross-axis unified envelope table
 
 ## Observability
 
-Lifecycle depth and processor state export through meter `LiteBus.Inbox` and `LiteBus.Outbox`. Register with `AddLiteBusInboxMetrics()` / `AddLiteBusOutboxMetrics()` from the matching `*.Extensions.OpenTelemetry` packages.
+Lifecycle depth and processor state are exported through the `LiteBus.Inbox` and `LiteBus.Outbox` meters. Register them with `AddLiteBusInboxMetrics()` or `AddLiteBusOutboxMetrics()` from the matching `*.Extensions.OpenTelemetry` packages.
 
 ### `litebus.inbox.queue.depth`
 
 - **Kind**: Observable gauge (`LiteBusInboxTelemetry.QueueDepthInstrumentName`)
-- **When emitted**: Periodic scrape (10-second cache) via `IInboxDiagnosticsStore.GetStatusCountsAsync`
+- **When emitted**: A periodic scrape with a 10-second cache, through `IInboxDiagnosticsStore.GetStatusCountsAsync`
 - **Tags**: `litebus.inbox.status` (`LiteBusInboxTelemetry.QueueStatusAttributeName`) with values `Pending`, `Processing`, `Completed`, `Failed`, `DeadLettered`
 - **How to enable**: `AddLiteBusInboxMetrics()`
-- **Operational note**: Rising `Pending` with flat `Processing` indicates processor lag; elevated `Processing` beyond lease duration suggests stuck leases
+- **Operational note**: A rising `Pending` count with a flat `Processing` count indicates processor lag. An elevated `Processing` count beyond the lease duration suggests stuck leases
 
 ### `litebus.outbox.queue.depth`
 
 - **Kind**: Observable gauge (`LiteBusOutboxTelemetry.QueueDepthInstrumentName`)
-- **When emitted**: Periodic scrape via `IOutboxDiagnosticsStore.GetStatusCountsAsync`
+- **When emitted**: A periodic scrape through `IOutboxDiagnosticsStore.GetStatusCountsAsync`
 - **Tags**: `litebus.outbox.status` with values `Pending`, `Publishing`, `Published`, `Failed`, `DeadLettered`
 - **How to enable**: `AddLiteBusOutboxMetrics()`
-- **Operational note**: Same lag interpretation as inbox; `Publishing` rows past lease expiry are reclaim candidates
+- **Operational note**: The lag interpretation is the same as for the inbox. `Publishing` rows past lease expiry are reclaim candidates
 
 ### `IInboxManager.GetStatusCountsAsync` / `IOutboxManager.GetStatusCountsAsync`
 
 - **Kind**: Management API (not OpenTelemetry)
-- **When used**: Operator dashboards, runbooks, and health probes querying live counts
-- **Operational note**: Authoritative for point-in-time inspection; gauges cache for export efficiency
+- **When used**: Operator dashboards, runbooks, and health probes use it to query live counts
+- **Operational note**: It is authoritative for point-in-time inspection. The gauges cache their values for export efficiency
 
 ### Retention Cleanup
 
-- **Kind**: Counter `litebus.inbox.cleanup.errors` / `litebus.outbox.cleanup.errors` on purge failure
-- **When emitted**: `InboxCleanupBackgroundService` / `OutboxCleanupBackgroundService` catch store errors during delete
-- **Operational note**: Alert when cleanup errors persist; terminal rows accumulate without purge
+- **Kind**: Counters `litebus.inbox.cleanup.errors` and `litebus.outbox.cleanup.errors`, incremented on purge failure
+- **When emitted**: `InboxCleanupBackgroundService` and `OutboxCleanupBackgroundService` catch store errors during delete
+- **Operational note**: Alert when cleanup errors persist. Terminal rows accumulate without a purge
 
-## Deep Docs
+## References
 
 - [Architecture](../../architecture/README.md) (store roles, retention)
 - [Custom stores and dispatchers](../../extending/custom-stores-and-dispatchers.md)
@@ -162,8 +162,8 @@ Lifecycle depth and processor state export through meter `LiteBus.Inbox` and `Li
 
 - **Use case**: When an inbox row is leased and completed, it traverses pending through processing to completed
 - **Test kind**: Contract
-- **Description**: Store contract suite happy-path lease cycle
-- **Behavior**: `LeasePendingAsync` then terminal persist to completed
+- **Description**: The store contract suite happy-path lease cycle
+- **Behavior**: `LeasePendingAsync` runs, then the terminal persist to completed
 - **Expected outcome**: Terminal completed status
 - **Remarks**: Shared across inbox storage adapters
 
@@ -171,8 +171,8 @@ Lifecycle depth and processor state export through meter `LiteBus.Inbox` and `Li
 
 - **Use case**: When an outbox row is leased and published, it traverses pending through publishing to published
 - **Test kind**: Contract
-- **Description**: Outbox lease and publish cycle
-- **Behavior**: Lease then dispatch success persist
+- **Description**: The outbox lease and publish cycle
+- **Behavior**: The lease runs, then the dispatch success persist
 - **Expected outcome**: Published terminal state
 - **Remarks**: Shared across outbox storage adapters
 
@@ -180,35 +180,35 @@ Lifecycle depth and processor state export through meter `LiteBus.Inbox` and `Li
 
 - **Use case**: When inbox dispatch fails, the row becomes failed with future retry visibility
 - **Test kind**: Contract
-- **Description**: Processor failure persist path
-- **Behavior**: `MarkFailedAsync` with retry metadata
-- **Expected outcome**: Failed status and `visible_after` set
+- **Description**: The processor failure persist path
+- **Behavior**: `MarkFailedAsync` runs with retry metadata
+- **Expected outcome**: Failed status with `visible_after` set
 - **Remarks**: Store contract suite
 
 #### `OutboxStoreContractTests.MarkFailedAsync_ShouldSetFailedStateAndVisibleAfter`
 
 - **Use case**: When outbox dispatch fails, the row becomes failed with backoff visibility
 - **Test kind**: Contract
-- **Description**: Dispatch failure persist
-- **Behavior**: Failed terminal persist with retry delay
-- **Expected outcome**: Failed status and future `visible_after`
+- **Description**: The dispatch failure persist
+- **Behavior**: The failed terminal persist runs with a retry delay
+- **Expected outcome**: Failed status with a future `visible_after`
 - **Remarks**: Store contract suite
 
 #### `InboxStoreContractTests.MoveToDeadLetterAsync_ShouldSetDeadLetteredStatus`
 
-- **Use case**: When inbox retry policy is exhausted, the row moves to dead letter
+- **Use case**: When the inbox retry policy is exhausted, the row moves to dead letter
 - **Test kind**: Contract
-- **Description**: Max attempts exceeded transition
-- **Behavior**: `MoveToDeadLetterAsync`
+- **Description**: The max attempts exceeded transition
+- **Behavior**: `MoveToDeadLetterAsync` runs
 - **Expected outcome**: DeadLettered status
 - **Remarks**: Store contract suite
 
 #### `OutboxStoreContractTests.MoveToDeadLetterAsync_ShouldSetDeadLetteredStatus`
 
-- **Use case**: When outbox retry policy is exhausted, the row moves to dead letter
+- **Use case**: When the outbox retry policy is exhausted, the row moves to dead letter
 - **Test kind**: Contract
-- **Description**: Max attempts exceeded on outbox row
-- **Behavior**: Dead letter persist role
+- **Description**: Max attempts exceeded on an outbox row
+- **Behavior**: The dead letter persist role runs
 - **Expected outcome**: DeadLettered status
 - **Remarks**: Store contract suite
 
@@ -217,53 +217,53 @@ Lifecycle depth and processor state export through meter `LiteBus.Inbox` and `Li
 - **Use case**: When an operator requeues a dead-lettered inbox row, it returns to pending
 - **Test kind**: Contract
 - **Description**: Operator replay at store level
-- **Behavior**: `RequeueDeadLetterAsync`
-- **Expected outcome**: Pending status restored
+- **Behavior**: `RequeueDeadLetterAsync` runs
+- **Expected outcome**: Pending status is restored
 - **Remarks**: Store contract suite
 
 #### `OutboxStoreContractTests.RequeueDeadLetterAsync_ShouldReturnMessageToPending`
 
 - **Use case**: When an operator requeues a dead-lettered outbox row, it returns to pending
 - **Test kind**: Contract
-- **Description**: Outbox operator requeue
-- **Behavior**: Dead letter to pending transition
-- **Expected outcome**: Pending status restored
+- **Description**: An outbox operator requeue
+- **Behavior**: The dead letter to pending transition runs
+- **Expected outcome**: Pending status is restored
 - **Remarks**: Store contract suite
 
 #### `InboxStoreContractTests.LeasePendingAsync_WhenLeaseExpires_ShouldReclaimProcessingCommand`
 
 - **Use case**: When an inbox lease expires while processing, the row becomes leasable again
 - **Test kind**: Contract
-- **Description**: Stale processing reclaim
-- **Behavior**: Lease expiry then second `LeasePendingAsync`
-- **Expected outcome**: Row re-leasable; not stuck in processing
+- **Description**: A stale processing reclaim
+- **Behavior**: The lease expires, then a second `LeasePendingAsync` runs
+- **Expected outcome**: The row is re-leasable and not stuck in processing
 - **Remarks**: Store contract suite
 
 #### `OutboxStoreContractTests.LeasePendingAsync_WhenLeaseExpires_ShouldReclaimPublishingMessage`
 
 - **Use case**: When an outbox lease expires while publishing, the row becomes leasable again
 - **Test kind**: Contract
-- **Description**: Stale publishing reclaim
-- **Behavior**: Expired lease on publishing row
-- **Expected outcome**: Row re-leasable
+- **Description**: A stale publishing reclaim
+- **Behavior**: The lease expires on a publishing row
+- **Expected outcome**: The row is re-leasable
 - **Remarks**: Store contract suite
 
 #### `InboxStoreContractTests.GetStatusCountsAsync_ShouldGroupByStatus`
 
-- **Use case**: When diagnostics query runs, counts group correctly by lifecycle status
+- **Use case**: When the diagnostics query runs, counts group correctly by lifecycle status
 - **Test kind**: Contract
-- **Description**: Mixed-status store population
-- **Behavior**: `GetStatusCountsAsync`
-- **Expected outcome**: Counts per status match stored rows
+- **Description**: A mixed-status store population
+- **Behavior**: `GetStatusCountsAsync` runs
+- **Expected outcome**: Counts per status match the stored rows
 - **Remarks**: Store contract suite
 
 #### `InboxRetentionStoreContractTests.DeleteCompletedOlderThanAsync_ShouldRemoveEligibleRows`
 
-- **Use case**: When retention cutoff passes, old completed inbox rows are deleted
+- **Use case**: When the retention cutoff passes, old completed inbox rows are deleted
 - **Test kind**: Contract
-- **Description**: Retention purge by age
-- **Behavior**: `DeleteCompletedOlderThanAsync`
-- **Expected outcome**: Eligible completed rows removed
+- **Description**: A retention purge by age
+- **Behavior**: `DeleteCompletedOlderThanAsync` runs
+- **Expected outcome**: Eligible completed rows are removed
 - **Remarks**: Uses `completed_at` in cutoff semantics
 
 #### `InboxRetentionStoreContractTests.DeleteCompletedOlderThanAsync_WhenCompletedAtIsRecentButCreatedAtIsOld_ShouldRetainRow`
@@ -271,53 +271,53 @@ Lifecycle depth and processor state export through meter `LiteBus.Inbox` and `Li
 - **Use case**: When `completed_at` is recent but `created_at` is old, retention retains the row
 - **Test kind**: Contract
 - **Description**: COALESCE cutoff semantics for inbox retention
-- **Behavior**: Retention delete with mixed timestamps
-- **Expected outcome**: Row kept because `completed_at` drives cutoff
+- **Behavior**: A retention delete with mixed timestamps
+- **Expected outcome**: The row is kept because `completed_at` drives the cutoff
 - **Remarks**: Store contract suite
 
 #### `OutboxRetentionStoreContractTests.DeletePublishedOlderThanAsync_ShouldRemoveEligibleRows`
 
-- **Use case**: When retention cutoff passes, old published outbox rows are deleted
+- **Use case**: When the retention cutoff passes, old published outbox rows are deleted
 - **Test kind**: Contract
-- **Description**: Outbox retention purge
-- **Behavior**: `DeletePublishedOlderThanAsync`
-- **Expected outcome**: Old published rows removed
+- **Description**: An outbox retention purge
+- **Behavior**: `DeletePublishedOlderThanAsync` runs
+- **Expected outcome**: Old published rows are removed
 - **Remarks**: Uses `COALESCE(published_at, created_at)`
 
 #### `InboxCleanupBackgroundServiceTests.ExecuteAsync_ShouldDeleteCompletedRowsOlderThanRetention`
 
 - **Use case**: When the hosted retention loop runs, it invokes purge for aged completed rows
 - **Test kind**: Unit
-- **Description**: Cleanup background service with configured retention window
-- **Behavior**: `ExecuteAsync` retention pass
-- **Expected outcome**: Purge store method invoked for eligible rows
+- **Description**: The cleanup background service with a configured retention window
+- **Behavior**: An `ExecuteAsync` retention pass
+- **Expected outcome**: The purge store method runs for eligible rows
 - **Remarks**: `LiteBus.Inbox.UnitTests`
 
 #### `PostgreSqlInboxEndToEndTests.ProcessPendingAsync_WhenHandlerFails_ShouldMarkFailedWithVisibleAfter`
 
 - **Use case**: When a handler fails in a real PostgreSQL deployment, the row is marked failed with retry visibility
 - **Test kind**: Integration
-- **Description**: Processor failure path end-to-end
-- **Behavior**: `ProcessPendingAsync` with throwing handler
-- **Expected outcome**: Failed status and `visible_after` in database
+- **Description**: The processor failure path end to end
+- **Behavior**: `ProcessPendingAsync` runs with a throwing handler
+- **Expected outcome**: Failed status and `visible_after` in the database
 - **Remarks**: `LiteBus.Storage.IntegrationTests (`PostgreSql/`)`
 
 #### `PostgreSqlInboxEndToEndTests.ProcessPendingAsync_WhenMaxAttemptsExceeded_ShouldMoveToDeadLetter`
 
 - **Use case**: When inbox retry attempts are exhausted in PostgreSQL, the row dead-letters
 - **Test kind**: Integration
-- **Description**: Retry exhaustion E2E
+- **Description**: Retry exhaustion end to end
 - **Behavior**: Repeated failures until max attempts
-- **Expected outcome**: DeadLettered status in database
+- **Expected outcome**: DeadLettered status in the database
 - **Remarks**: `LiteBus.Storage.IntegrationTests (`PostgreSql/`)`
 
 #### `PostgreSqlOutboxEndToEndTests.ProcessPendingAsync_WhenMaxAttemptsExceeded_ShouldMoveToDeadLetter`
 
 - **Use case**: When outbox retry attempts are exhausted in PostgreSQL, the row dead-letters
 - **Test kind**: Integration
-- **Description**: Outbox retry exhaustion E2E
+- **Description**: Outbox retry exhaustion end to end
 - **Behavior**: Repeated dispatch failures
-- **Expected outcome**: DeadLettered status in database
+- **Expected outcome**: DeadLettered status in the database
 - **Remarks**: `LiteBus.Storage.IntegrationTests (`PostgreSql/`)`
 
 ### Untested Use Cases
@@ -325,11 +325,11 @@ Lifecycle depth and processor state export through meter `LiteBus.Inbox` and `Li
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
 | Automatic contract upgrade of in-flight payloads | No | Not shipped | N/A | N/A |
-| Cross-axis unified envelope table | No | Separate inbox/outbox tables | N/A | N/A |
+| Cross-axis unified envelope table | No | Separate inbox and outbox tables | N/A | N/A |
 | Operator purge of in-progress leased rows | No (by design) | Management skips active leases | N/A | N/A |
 
 ### Out-of-Scope Use Cases
 
 - Exactly-once terminal state across all failure modes
-- Unified inbox/outbox lifecycle enum
+- A unified inbox and outbox lifecycle enum
 - Automatic archival to cold storage

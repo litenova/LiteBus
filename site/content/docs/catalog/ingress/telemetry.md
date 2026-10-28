@@ -3,11 +3,11 @@
 - **ID**: `ingress.telemetry`
 - **Name**: Ingress OpenTelemetry Metrics
 - **Maturity**: GA
-- **Summary**: Exposes stable ingress instrument names on the inbox meter for broker ack failures after successful accept.
+- **Summary**: This capability exposes stable ingress instrument names on the inbox meter for broker ack failures after successful accept.
 
 ## Purpose and Scope
 
-`LiteBusInboxIngressTelemetry` defines public instrument constants. `TransportInboxIngressTelemetry` increments `ingress.ack_failed_after_accept` when `TransportMessage.AcceptAsync` fails after the inbox store already accepted the delivery.
+`LiteBusInboxIngressTelemetry` defines the public instrument constants. When `TransportMessage.AcceptAsync` fails after the inbox store already accepted the delivery, `TransportInboxIngressTelemetry` increments `ingress.ack_failed_after_accept`.
 
 Register the inbox meter through `AddLiteBusInboxMetrics()` from `LiteBus.Inbox.Extensions.OpenTelemetry` (or axis-specific transport OpenTelemetry packages for transport-side metrics).
 
@@ -23,7 +23,7 @@ Register the inbox meter through `AddLiteBusInboxMetrics()` from `LiteBus.Inbox.
 
 ## Instrument Contract
 
-Public telemetry names here are treated as API contract. Renaming `LiteBusInboxIngressTelemetry.MeterName` or `LiteBusInboxIngressTelemetry.AckFailedAfterAcceptInstrumentName` is a breaking change for dashboards and alerts.
+Public telemetry names are API contracts here. Renaming `LiteBusInboxIngressTelemetry.MeterName` or `LiteBusInboxIngressTelemetry.AckFailedAfterAcceptInstrumentName` breaks dashboards and alerts.
 
 ## Packages
 
@@ -37,19 +37,19 @@ Public telemetry names here are treated as API contract. Renaming `LiteBusInboxI
 
 ## Invariants
 
-- Public instrument names are part of the consumer contract; renames are breaking changes.
-- Counter increments once per ack failure after accept, not per redelivery attempt at the store.
-- Counter recording is decoupled from requeue success, it records on ack failure before return-to-queue attempt.
+- Public instrument names are part of the consumer contract, so renames are breaking changes.
+- The counter increments once per ack failure after accept, not once per redelivery attempt at the store.
+- The counter records on ack failure, before the return-to-queue attempt, whether or not the requeue succeeds.
 
 ## Non-Goals
 
-- Distributed tracing activities dedicated to ingress (roadmap item; transport consume activities exist today).
+- Distributed tracing activities dedicated to ingress (a roadmap item, since transport consume activities exist today).
 - Per-broker ingress dashboards in-box.
 - Health check mapping for ack failures (application-owned probes).
 
 ## Observability
 
-Ingress ships one public counter on the shared inbox meter. Transport process tracing is documented under the transport axis; the consumer invoker starts `process {destination}` spans.
+Ingress ships one public counter on the shared inbox meter. Transport process tracing is documented under the transport axis, where the consumer invoker starts `process {destination}` spans.
 
 ### Inbox Meter Instruments
 
@@ -77,7 +77,7 @@ After recording, the consumer logs EventId 3004 (`AckFailedAfterAccept`) and req
 
 | Signal | Role |
 | --- | --- |
-| `process {destination}` activity | Per delivery in the consumer invoker; not an ingress meter |
+| `process {destination}` activity | Per delivery in the consumer invoker, not an ingress meter |
 | `litebus.transport.circuit_breaker.*` | Breaker state from the explicitly registered root transport |
 
 ### Registration Checklist
@@ -90,7 +90,7 @@ After recording, the consumer logs EventId 3004 (`AckFailedAfterAccept`) and req
 
 ### Covered
 
-`TransportInboxIngressConsumerTests.HandleDeliveryAsync_WhenAckFailsAfterAccept_ShouldNotDiscard` attaches a `MeterListener` to `LiteBus.Inbox`, forces broker acknowledgement failure after a recorded inbox accept, and asserts that `ingress.ack_failed_after_accept` increments before the delivery is returned to the queue.
+`TransportInboxIngressConsumerTests.HandleDeliveryAsync_WhenAckFailsAfterAccept_ShouldNotDiscard` attaches a `MeterListener` to `LiteBus.Inbox` and forces broker acknowledgement failure after a recorded inbox accept. It then asserts that `ingress.ack_failed_after_accept` increments before the delivery is returned to the queue.
 
 ### Untested
 
@@ -104,7 +104,7 @@ After recording, the consumer logs EventId 3004 (`AckFailedAfterAccept`) and req
 - Per-broker ingress dashboards in-box.
 - Health check mapping for ack failures.
 
-## Deep Docs
+## References
 
 - [Architecture: OpenTelemetry metric catalog](../../architecture/README.md)
 - [Inbox: ack failure note](../../reliable-messaging/inbox.md)

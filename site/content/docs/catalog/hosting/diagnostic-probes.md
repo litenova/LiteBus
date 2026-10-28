@@ -5,13 +5,13 @@
 - **ID**: `hosting.diagnostic-probes`
 - **Name**: Framework-neutral diagnostic probes
 - **Maturity**: GA
-- **Summary**: Probe contract and runner used by health checks and management endpoints.
+- **Summary**: The probe contract and runner used by health checks and management endpoints.
 
 ## What It Does
 
-`IDiagnosticCheck` gives LiteBus a host-neutral readiness probe abstraction. Modules register probes with `IModuleConfiguration.RegisterDiagnosticCheck(Type, string)`, and adapters execute them through `DiagnosticCheckRunner`.
+`IDiagnosticCheck` is the host-neutral contract for readiness probes. Modules register probes with `IModuleConfiguration.RegisterDiagnosticCheck(Type, string)`, and adapters execute them through `DiagnosticCheckRunner`.
 
-`DiagnosticCheckRunner.RunAsync(...)` aggregates status and handles zero-probe policy (`failHealthWhenNoProbes`). Probes run concurrently with a bounded semaphore, and each probe has a timeout. A missing registration, timeout, or probe exception becomes an unhealthy outcome for that probe while sibling probes continue.
+`DiagnosticCheckRunner.RunAsync(...)` aggregates probe statuses and applies the zero-probe policy (`failHealthWhenNoProbes`). Probes run concurrently under a bounded semaphore, and each probe has its own timeout. A missing registration, a timeout, or a probe exception marks that probe unhealthy while the other probes continue.
 
 ## Run Budget
 
@@ -23,7 +23,7 @@
 | `Timeout` | 5 seconds | Maximum time allowed for one probe |
 | `RunTimeout` | `null` | Maximum time allowed for the whole run |
 
-A `null` `RunTimeout` derives the budget as the worst-case packing of the probe count over `MaxParallelism` lanes at `Timeout` per probe. An explicit `RunTimeout` cancels the run when it expires and reports unfinished probes as unhealthy. After a computed budget expires, the runner allows a 1-second grace period before reporting over-budget probes, since the computed budget already equals the worst case of the in-flight per-probe timeouts.
+When `RunTimeout` is `null`, the runner derives the budget from the worst-case packing of the probe count over `MaxParallelism` lanes at `Timeout` per probe. An explicit `RunTimeout` cancels the run when it expires and reports unfinished probes as unhealthy. After a computed budget expires, the runner allows a 1-second grace period before it reports over-budget probes, because the computed budget already equals the worst case of the in-flight per-probe timeouts.
 
 ## Shipped Probes
 
@@ -53,7 +53,7 @@ A `null` `RunTimeout` derives the budget as the worst-case packing of the probe 
 ### Registration
 
 - `IModuleConfiguration.RegisterDiagnosticCheck(Type implementationType, string name)`
-- Inbox/outbox builder sugar: `AddDiagnosticCheck<TCheck>(string name)`
+- Inbox and outbox builder helper: `AddDiagnosticCheck<TCheck>(string name)`
 
 ## Packages
 
@@ -63,15 +63,15 @@ A `null` `RunTimeout` derives the budget as the worst-case packing of the probe 
 ## Requires
 
 - `hosting.host-manifest`
-- `hosting.aspnet-health-checks` or `hosting.aspnet-management-endpoints` for HTTP surfaces
+- `hosting.aspnet-health-checks` or `hosting.aspnet-management-endpoints` for the HTTP endpoints
 
 ## Invariants
 
-- Descriptor name is the operator-facing probe name.
-- Descriptor implementation type must resolve to `IDiagnosticCheck` from DI.
-- Registering the same probe type under the same name more than once keeps only the first registration; registering it under a different name fails composition with `ModuleCompositionException`, and registering a name already taken by another probe type fails composition with `ModuleCompositionException`.
-- `MaxParallelism` and `Timeout` are positive. A negative `RunTimeout` is rejected when health or management endpoints are registered and when a run starts. Probe cancellation is requested when a timeout expires.
-- Caller cancellation propagates; provider failures, missing registrations, and timeouts become isolated unhealthy outcomes.
+- The descriptor name is the operator-facing probe name.
+- The descriptor implementation type must resolve to `IDiagnosticCheck` from DI.
+- Registering the same probe type under the same name more than once keeps only the first registration. Registering it under a different name fails composition with `ModuleCompositionException`. Registering a name already taken by another probe type fails composition with `ModuleCompositionException`.
+- `MaxParallelism` and `Timeout` are positive. Endpoint registration and run start reject a negative `RunTimeout`. When a timeout expires, the runner requests probe cancellation.
+- Caller cancellation propagates. Provider failures, missing registrations, and timeouts become unhealthy outcomes for the affected probes only.
 
 ## Non-Goals
 
@@ -86,7 +86,7 @@ Probe results include:
 - per-probe name, status, description
 - optional structured `Data` payload
 
-When no probes are registered and fail-on-empty is true, runner returns degraded with synthetic `litebus.probes` result.
+When no probes are registered and fail-on-empty is true, the runner returns degraded with a synthetic `litebus.probes` result.
 
 ## Test Coverage
 
@@ -96,7 +96,7 @@ When no probes are registered and fail-on-empty is true, runner returns degraded
 
 - **Use case**: fail-on-empty policy
 - **Test kind**: Unit
-- **Description**: executes runner with empty manifest
+- **Description**: executes the runner with an empty manifest
 - **Behavior**: sets `failHealthWhenNoProbes` to true
 - **Expected outcome**: degraded aggregate and synthetic `litebus.probes`
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/DiagnosticCheckRunnerTests.cs`
@@ -106,7 +106,7 @@ When no probes are registered and fail-on-empty is true, runner returns degraded
 - **Use case**: unhealthy probe aggregation
 - **Test kind**: Unit
 - **Description**: one probe returns unhealthy
-- **Behavior**: runs diagnostic runner
+- **Behavior**: runs the diagnostic runner
 - **Expected outcome**: aggregate status is unhealthy
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/DiagnosticCheckRunnerTests.cs`
 
@@ -132,7 +132,7 @@ When no probes are registered and fail-on-empty is true, runner returns degraded
 
 | Gap | Priority | Notes |
 | --- | --- | --- |
-| Parallel long-running probe execution behavior | Covered | `DiagnosticCheckRunnerTests` verifies timeout cancellation and sibling-safe failure mapping. |
+| Parallel long-running probe execution behavior | Covered | `DiagnosticCheckRunnerTests` verifies timeout cancellation and per-probe failure isolation. |
 
 Host adapters expose the shared run options through `LiteBusHealthCheckOptions.DiagnosticChecks` and `LiteBusManagementOptions.DiagnosticChecks`.
 
@@ -140,6 +140,6 @@ Host adapters expose the shared run options through `LiteBusHealthCheckOptions.D
 
 - External probe orchestration across multiple services.
 
-## Deep Docs
+## References
 
 - [Diagnostics and health](../../operations/diagnostics-and-health.md)

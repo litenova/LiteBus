@@ -2,7 +2,7 @@
 
 - **ID**: `storage.postgresql.shared-infra`
 - **Package**: `LiteBus.Storage.PostgreSql` (technology adapter)
-- **Summary**: Shared primitives used by PostgreSQL inbox and outbox adapters for schema lifecycle, identifier safety, locking, work signaling, and transactional participation.
+- **Summary**: Shared primitives that the PostgreSQL inbox and outbox adapters use for schema lifecycle, identifier safety, locking, work signaling, and transactional participation.
 
 ## Main Contracts and Methods
 
@@ -18,43 +18,43 @@
 
 ## SQL and Metadata Behavior
 
-- Stores schema metadata in `litebus_schema_versions`.
-- Uses SQL resource templates and token rendering for table and index names.
-- Uses advisory lock key pairs derived from a stable hash of lock name.
-- Supports schema drift checks by comparing expected columns and required index names.
+- The infrastructure stores schema metadata in `litebus_schema_versions`.
+- It renders table and index names from SQL resource templates and tokens.
+- It derives advisory lock key pairs from a stable hash of the lock name.
+- It supports schema drift checks by comparing expected columns and required index names.
 
 ## Concurrency Model
 
-- Schema bootstrap is serialized by PostgreSQL advisory locks.
-- Work signal keeps a dedicated `LISTEN` connection and reconnects after failures.
-- Transactional participants read scoped ambient transaction context from application code.
+- PostgreSQL advisory locks serialize schema bootstrap.
+- The work signal keeps a dedicated `LISTEN` connection and reconnects after failures.
+- Transactional participants read the scoped ambient transaction context that application code provides.
 
 ## Index and Naming Helpers
 
-- Index names are generated through `PostgreSqlIdentifier.IndexName` and length-safe trimming.
-- Inbox and outbox adapters provide required index name sets to schema inspector.
-- Quoting and qualification are centralized to avoid SQL identifier mismatches.
+- `PostgreSqlIdentifier.IndexName` generates index names with length-safe trimming.
+- The inbox and outbox adapters provide their required index name sets to the schema inspector.
+- Quoting and qualification are centralized, so SQL identifiers stay consistent.
 
 ## Observability
 
 - No meter is emitted directly by `LiteBus.Storage.PostgreSql`.
-- Queue depth gauges remain exposed by inbox and outbox axis telemetry meters.
-- Schema drift details are raised through `PostgreSqlSchemaDriftException`, then surfaced by adapter schema checks.
+- The inbox and outbox axis telemetry meters expose the queue depth gauges.
+- The infrastructure reports schema drift details by raising `PostgreSqlSchemaDriftException`, which the adapter schema checks then surface.
 
 ## Test Coverage
 
 ### `LiteBus.Storage.UnitTests`
 
-- `PostgreSqlTableReferenceTests`: schema/table mapping and validation.
-- `PostgreSqlSchemaInspectorTests`: version inference and missing-column detection.
-- `PostgreSqlTransactionalParticipantTests`: write mode behavior for missing ambient transaction.
-- `PostgreSqlStorageExceptionTests`: configuration and timeout exception contracts.
+- `PostgreSqlTableReferenceTests` covers schema and table mapping and validation.
+- `PostgreSqlSchemaInspectorTests` covers version inference and missing-column detection.
+- `PostgreSqlTransactionalParticipantTests` covers write mode behavior when the ambient transaction is missing.
+- `PostgreSqlStorageExceptionTests` covers the configuration and timeout exception contracts.
 
 ### `LiteBus.Storage.IntegrationTests` (`PostgreSql/`)
 
-- `PostgreSqlIdentifierTests`: quoting, qualification, stable hash, index naming.
-- `PostgreSqlAdvisoryLockScopeTests`: deterministic lock-key derivation and key separation.
-- `PostgreSqlStorageUtilityTests`: data source factory and canonical SQL path checks.
+- `PostgreSqlIdentifierTests` covers quoting, qualification, stable hashing, and index naming.
+- `PostgreSqlAdvisoryLockScopeTests` covers deterministic lock-key derivation and key separation.
+- `PostgreSqlStorageUtilityTests` covers the data source factory and canonical SQL path checks.
 
 ## Related Docs
 

@@ -1,6 +1,6 @@
 # Roadmap
 
-LiteBus stays a semantic mediator for commands, queries, and events, with durable messaging as opt-in packages. This page lists planned work that is not part of the current contract; current behavior lives in the feature guides and the architecture reference.
+LiteBus stays a semantic mediator for commands, queries, and events, with durable messaging as opt-in packages. This page lists planned work that is not part of the current contract. Current behavior lives in the feature guides and the architecture reference.
 
 > **This page is for** developers who plan an integration and need to know what LiteBus does not do yet.
 >
@@ -19,7 +19,7 @@ The [Reliability Roadmap](reliability.md) tracks provider conformance, lease rec
 ## Dispatch and Ingress
 
 - Per-broker transport identity with keyed publishers, so one composition can host more than one transport module.
-- Concurrent delivery handlers for the AMQP, Kafka, SQS and in-memory consumers, so `MaxInFlightMessages` above 1 takes effect there as it does on Azure Service Bus.
+- Concurrent delivery handlers for the AMQP, Kafka, SQS, and in-memory consumers, so `MaxInFlightMessages` above 1 takes effect there as it does on Azure Service Bus.
 - An Autofac equivalent of `GetHostedServiceForBackgroundService<T>()` for manual host execution.
 - Event replay through an inbox dispatcher that targets `IEventMediator`.
 - Webhook and gRPC outbox dispatch adapters.

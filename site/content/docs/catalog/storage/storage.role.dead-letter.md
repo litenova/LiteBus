@@ -1,7 +1,7 @@
 # Dead-Letter Store Role
 
 - **ID**: `storage.role.dead-letter`
-- **Summary**: Requeues dead-lettered rows for operator-driven replay.
+- **Summary**: Requeues dead-lettered rows so operators can replay them.
 
 ## Interface Methods
 
@@ -14,8 +14,8 @@ Both methods return `RequeueResult` with requested and actual requeue counts.
 
 ## SQL Behavior
 
-- Requeue updates only rows currently in dead-letter status.
-- Requeue reset includes:
+- Requeue updates only rows that are currently in dead-letter status.
+- A requeue resets:
   - status to pending
   - `visible_after` to null
   - `attempt_count` to zero
@@ -25,27 +25,27 @@ Both methods return `RequeueResult` with requested and actual requeue counts.
 
 ## Concurrency Model
 
-- Requeue uses status predicate, so rows changed by another process are not incorrectly rewritten.
-- Replay path is safe for single or batch id lists.
+- Requeue uses a status predicate, so a row that another process moved out of dead-letter status keeps its new state.
+- The replay path is safe for single and batch id lists.
 
 ## Index Interaction
 
-- Requeue targets primary key (`message_id`).
-- No dedicated dead-letter index is required in current schema.
+- Requeue targets the primary key (`message_id`).
+- The current schema requires no dedicated dead-letter index.
 
 ## Observability
 
 - Automatic dead-letter transitions increment processor counters:
   - `litebus.inbox.processor.dead_lettered`
   - `litebus.outbox.processor.dead_lettered`
-- Manual requeue changes queue-depth breakdown in diagnostics gauges on next scrape.
+- Manual requeue changes the queue-depth breakdown in the diagnostics gauges on the next scrape.
 
 ## Test Coverage
 
 ### `LiteBus.Storage.UnitTests`
 
-- Contract tests for move-to-dead-letter and requeue semantics on inbox and outbox stores.
-- Manager-facing behavior is validated indirectly through store contract coverage.
+- Contract tests cover move-to-dead-letter and requeue semantics on inbox and outbox stores.
+- Store contract coverage indirectly validates the manager-facing behavior.
 
 ### `LiteBus.Storage.IntegrationTests` (`PostgreSql/`)
 

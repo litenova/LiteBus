@@ -3,11 +3,11 @@
 - **ID**: `runtime.module-configuration`
 - **Name**: Module configuration and shared context
 - **Maturity**: GA
-- **Summary**: Provides dependency registration, manifest entry collection, and typed context sharing.
+- **Summary**: The configuration provides dependency registration, manifest entry collection, and typed context sharing.
 
 ## What It Does
 
-`IModuleConfiguration` is passed to every module `Build` call. `ModuleConfiguration` stores the dependency registry, startup/background/diagnostic types, and typed context objects used by modules to share runtime state.
+`IModuleConfiguration` is passed to every module `Build` call. `ModuleConfiguration` stores the dependency registry, the startup-task, background-service, and diagnostic types, and typed context objects used by modules to share runtime state.
 
 ## Public Surface
 
@@ -18,7 +18,7 @@
 | `RegisterBackgroundService(Type)` | Background service manifest collection |
 | `RegisterDiagnosticCheck(Type, string)` | Diagnostic probe manifest collection |
 | `CompositionValidations` | Cross-module rules collected during build |
-| `RegisterCompositionValidation(Action)` | Registers a rule that runs after every module has built |
+| `RegisterCompositionValidation(Action)` | Registers a rule that runs after every module has been built |
 | `GetContext<T>()`, `SetContext<T>()`, `TryGetContext<T>()`, `GetOrCreateContext<T>()` | Typed context bag |
 
 ## Packages
@@ -32,18 +32,18 @@
 
 ## Invariants
 
-- Registration lists are deduplicated while preserving first registration order.
+- The configuration deduplicates registration lists while preserving first registration order.
 - Startup-task types cannot be registered as background services.
-- Missing context retrieval throws `LiteBusConfigurationException`.
-- `AddLiteBus` runs every composition validation after the module loop; a custom host adapter must do the same.
+- Retrieving a missing context throws `LiteBusConfigurationException`.
+- `AddLiteBus` runs every composition validation after the module loop. A custom host adapter must do the same.
 
 ## Non-Goals
 
-- Host execution scheduling.
+- Scheduling host execution.
 
 ## Observability
 
-No dedicated metric; invalid shape throws argument or configuration exceptions.
+The configuration exposes no metric. An invalid registration shape throws argument or configuration exceptions.
 
 ## Test Coverage
 
@@ -51,15 +51,15 @@ No dedicated metric; invalid shape throws argument or configuration exceptions.
 
 #### `ModuleConfigurationTests.RegisterStartupTask_ShouldPreserveFirstRegistrationOrderAndDeduplicate`
 - **Test kind**: Unit
-- **Expected outcome**: stable deduplicated order
+- **Expected outcome**: registrations keep a stable deduplicated order
 
 #### `ModuleConfigurationTests.RegisterBackgroundService_WhenTypeImplementsStartupTask_ShouldThrow`
 - **Test kind**: Unit
-- **Expected outcome**: invalid host role is rejected
+- **Expected outcome**: the configuration rejects the invalid host role
 
 #### `ModuleConfigurationTests.GetOrCreateContext_ForMessageRegistry_ShouldCreateSeparateInstancesPerConfiguration`
 - **Test kind**: Unit
-- **Expected outcome**: per-configuration context isolation
+- **Expected outcome**: each configuration gets isolated contexts
 
 ### Untested Use Cases
 

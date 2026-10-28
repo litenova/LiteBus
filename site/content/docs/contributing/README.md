@@ -24,7 +24,7 @@ Run the full suite with this command.
 dotnet test LiteBus.slnx
 ```
 
-`LiteBus.Storage.IntegrationTests` uses Testcontainers and needs a running Docker daemon. Without Docker those tests skip during fixture setup with a message that says so. Exclude the PostgreSQL integration tests with this filter.
+`LiteBus.Storage.IntegrationTests` uses Testcontainers and needs a running Docker daemon. Without Docker those tests skip during fixture setup. Exclude the PostgreSQL integration tests with this filter.
 
 ```bash
 dotnet test LiteBus.slnx --filter "FullyQualifiedName!~PostgreSql"
@@ -54,7 +54,7 @@ Update `Changelog.md` in the version's cumulative section as work lands when you
 
 ## Pull Request Expectations
 
-Follow existing naming, project layout, and module patterns. Keep your change scoped to the task. Build the solution and fix documentation analyzer warnings before you submit. Run the test suite; when you cannot run Docker, CI runs the PostgreSQL integration tests.
+Follow existing naming, project layout, and module patterns. Keep your change scoped to the task. Build the solution and fix documentation analyzer warnings before you submit. Run the test suite. When you cannot run Docker, CI runs the PostgreSQL integration tests.
 
 ## Next
 

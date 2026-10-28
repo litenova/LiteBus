@@ -3,7 +3,7 @@
 - **ID**: `storage.inbox.adapter.inmemory`
 - **Name**: Inbox InMemory adapter
 - **Maturity**: GA
-- **Summary**: Thread-safe in-process inbox store for unit tests, samples, and local development without external database dependencies.
+- **Summary**: This adapter keeps inbox messages in a thread-safe in-process store for unit tests, samples, and local development, with no external database dependency.
 
 ## What It Does
 
@@ -13,7 +13,7 @@
 inbox.UseInMemoryStorage();
 ```
 
-Optional builder configures capacity, lease defaults, and `TimeProvider` for tests. No schema management, NOTIFY, or transactional bindings.
+The optional builder configures capacity, lease defaults, and `TimeProvider` for tests. There is no schema management, NOTIFY, or transactional bindings.
 
 ## Public Surface
 
@@ -29,7 +29,7 @@ Optional builder configures capacity, lease defaults, and `TimeProvider` for tes
 
 | Method | Typical caller |
 | --- | --- |
-| `IInboxStore.AddAsync` | Unit tests, samples, local dev |
+| `IInboxStore.AddAsync` | Unit tests, samples, and local development |
 | `IInboxLeaseStore.LeasePendingAsync` | Processor tests with in-process dispatch |
 | `ILeaseRenewable.ReleaseLeaseAsync` | Processor tests for cancelled dispatch |
 | `GetAll` (test helper) | Filter diagnostics in unit tests |
@@ -40,21 +40,21 @@ Optional builder configures capacity, lease defaults, and `TimeProvider` for tes
 inbox.UseInMemoryStorage(o => o.UseTimeProvider(timeProvider));
 ```
 
-- Registers all inbox store roles on one singleton instance.
-- Second `UseInMemoryStorage` on same builder throws.
+- The call registers all inbox store roles on one singleton instance.
+- A second `UseInMemoryStorage` on the same builder throws.
 
 ### Configuration
 
 | Option surface | Purpose |
 | --- | --- |
-| `InMemoryInboxStoreOptions.Capacity` | Throw on append when capacity exceeded (unless idempotent); zero means unbounded |
-| `InMemoryInboxStoreOptions.DefaultLeaseDuration` | One minute by default; must be positive (validated at construction); lease calls with a zero duration throw `ArgumentOutOfRangeException` |
+| `InMemoryInboxStoreOptions.Capacity` | Throws on append when capacity is exceeded (unless idempotent). Zero means unbounded |
+| `InMemoryInboxStoreOptions.DefaultLeaseDuration` | One minute by default and must be positive (validated at construction). Lease calls with a zero duration throw `ArgumentOutOfRangeException` |
 | `UseOptions` | Replaces the store options |
 | `UseTimeProvider` | Deterministic lease expiry in tests |
 
 ### Extension Points
 
-- None for durability or cross-process visibility; swap to PostgreSQL or EF adapter for production.
+- There are none for durability or cross-process visibility. Swap to the PostgreSQL or EF adapter for production.
 
 ## Packages
 
@@ -71,8 +71,8 @@ No external NuGet dependencies beyond inbox abstractions.
 ## Invariants
 
 - Contract behavior matches relational stores per `InboxStoreContractTests`.
-- Process restart clears all data (non-durable by design).
-- A null tenant filter leaves query, purge, and lease unrestricted; an empty tenant filter matches only unscoped rows.
+- A process restart clears all data (non-durable by design).
+- A null tenant filter leaves query, purge, and lease unrestricted. An empty tenant filter matches only unscoped rows.
 - `PersistAsync` accepts only `Completed`, `Failed`, and `DeadLettered` envelopes and throws `InvalidOperationException` for other statuses, matching the relational stores.
 
 ## Non-Goals
@@ -89,9 +89,9 @@ No external NuGet dependencies beyond inbox abstractions.
 | `LiteBus.Inbox` | `litebus.inbox.processor.leases_acquired` | Counter | Processor pass in test host | none | In-memory lease store |
 | `LiteBus.Inbox` | `litebus.inbox.processor.state` | Observable gauge | Processor loop | State enum | Test hosts with processor enabled |
 
-In-memory stores report synthetic schema info suitable for tests. Register through `AddLiteBusInboxMetrics()`. Constants on `LiteBusInboxTelemetry`.
+In-memory stores report synthetic schema info suitable for tests. Register through `AddLiteBusInboxMetrics()`. The constants live on `LiteBusInboxTelemetry`.
 
-## Deep Docs
+## References
 
 - [Reliable messaging](../../reliable-messaging/README.md)
 - [Feature Index: Storage](../../reference/feature-index.md)

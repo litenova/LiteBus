@@ -7,9 +7,9 @@
 
 ## What It Does
 
-`TransportHeaders` defines the canonical header names that dispatch writes and ingress reads. `TransportHeaderValues` provides broker-tolerant value coercion for string and integer reads, including UTF-8 byte arrays and numeric conversions.
+`TransportHeaders` defines the canonical header names that dispatch writes and ingress reads. `TransportHeaderValues` reads string and integer values from whatever types brokers deliver, including UTF-8 byte arrays and numeric values.
 
-Canonical headers are transport contract surface. Renaming them breaks wire compatibility.
+Canonical headers are part of the transport contract surface, so renaming one breaks wire compatibility.
 
 ## Public Surface
 
@@ -49,9 +49,9 @@ Canonical headers are transport contract surface. Renaming them breaks wire comp
 | Kafka | Record key | `content-type` header |
 | AWS SQS | `litebus-route` message attribute | `content-type` message attribute |
 | Azure Service Bus | Message `Subject` | Message `ContentType` property |
-| InMemory | Preserved on the delivery | Not mapped; survives only when the caller also sets it in `Headers` |
+| InMemory | Preserved on the delivery | Not mapped. It survives only when the caller also sets it in `Headers` |
 
-Kafka publishes route as the record key and content type under the `content-type` header; SQS publishes both as message attributes under `litebus-route` and `content-type`. A consumer outside LiteBus reads the key on Kafka and those attribute names on SQS, not `Route` or `ContentType` properties.
+Kafka publishes the route as the record key and the content type under the `content-type` header. SQS publishes both as message attributes under `litebus-route` and `content-type`. A consumer outside LiteBus reads the key on Kafka and those attribute names on SQS, not `Route` or `ContentType` properties.
 
 ### Conversion Rules (`TransportHeaderValues`)
 
@@ -67,7 +67,7 @@ Kafka publishes route as the record key and content type under the `content-type
 ## Packages
 
 - `LiteBus.Transport.Abstractions`
-- AMQP value conversion through `AmqpHeaderValues`; header names come from `TransportHeaders`
+- AMQP value conversion goes through `AmqpHeaderValues`, while header names come from `TransportHeaders`
 
 ## Requires
 
@@ -77,7 +77,7 @@ Kafka publishes route as the record key and content type under the `content-type
 
 - Header names are public wire contract and must remain stable.
 - `correlation-id` is the canonical correlation header written by outbound mapping and read by ingress trace resolution.
-- Header readers apply invariant culture and broker-safe coercion.
+- Header readers use invariant culture and accept the value types brokers deliver.
 
 ## Non-Goals
 
@@ -87,7 +87,7 @@ Kafka publishes route as the record key and content type under the `content-type
 
 ## Observability
 
-- `litebus-trace-context` is the transport header used for trace propagation payload.
+- `litebus-trace-context` is the transport header used for the trace propagation payload.
 - Send and process spans use mapped message and correlation identifiers.
 
 ## Test Coverage
@@ -114,7 +114,7 @@ Kafka publishes route as the record key and content type under the `content-type
 - Custom encryption and signed header envelopes.
 - Non-canonical broker metadata key spaces.
 
-## Deep Docs
+## References
 
 - [envelope-header-mapping.md](envelope-header-mapping.md)
 - [Architecture.md](../../architecture/README.md)

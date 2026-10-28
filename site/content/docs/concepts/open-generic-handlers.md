@@ -1,10 +1,10 @@
 # Open Generic Handlers
 
-An open generic handler is a handler class with a type parameter, such as `CommandLoggingPreHandler<T> : ICommandPreHandler<T>`. LiteBus closes it at startup for every concrete message that satisfies its constraints, so one class becomes a pre-handler, post-handler, or error-handler for all matching messages. This is the way to add logging, validation, metrics, or transaction wrapping across a whole module without registering one handler per message. This page builds on [The Handler Pipeline](handler-pipeline.md) and pairs with [Polymorphic Dispatch](polymorphic-dispatch.md).
+An open generic handler is a handler class with a type parameter, such as `CommandLoggingPreHandler<T> : ICommandPreHandler<T>`. LiteBus closes it at startup for every concrete message that satisfies its constraints, so one class becomes a pre-handler, post-handler, or error-handler for all matching messages. Use one to add logging, validation, metrics, or transaction wrapping across a whole module without registering one handler per message. This page builds on [The Handler Pipeline](handler-pipeline.md) and pairs with [Polymorphic Dispatch](polymorphic-dispatch.md).
 
 ## When to Use This over Polymorphic Dispatch
 
-Rule of thumb: if the handler needs properties from a shared interface, use polymorphic dispatch; if it should apply to all messages regardless of shape, use an open generic handler. The full comparison, the decision flowchart, and a combined example live on [Polymorphic Dispatch](polymorphic-dispatch.md#polymorphic-dispatch-vs-open-generic-handlers).
+If the handler needs properties from a shared interface, use polymorphic dispatch. If it should apply to all messages regardless of shape, use an open generic handler. The full comparison, the decision flowchart, and a combined example appear in [Polymorphic Dispatch](polymorphic-dispatch.md#polymorphic-dispatch-vs-open-generic-handlers).
 
 ## How LiteBus Closes an Open Generic Handler
 
@@ -15,7 +15,7 @@ When you register an open generic handler such as `CommandLoggingPreHandler<>`, 
 3. For every concrete message type already registered (or registered later), checks whether the message satisfies the handler's generic constraints.
 4. If it does, closes the generic (for example `CommandLoggingPreHandler<CreateProductCommand>`) and links the result into that message's pipeline.
 
-This runs at startup, so closed handlers cost the same as hand-written ones. Registration order does not matter; the registry links open generics to messages discovered both before and after registration. The mechanics are described on [Handler Resolution Internals](../architecture/handler-resolution.md).
+This runs at startup, so closed handlers cost the same as hand-written ones. Registration order does not matter. The registry links open generics to messages discovered both before and after registration. The mechanics are described in [Handler Resolution Internals](../architecture/handler-resolution.md).
 
 ## Defining Open Generic Handlers
 
@@ -76,7 +76,7 @@ builder.Services.AddLiteBus(builder =>
 });
 ```
 
-If the open generic handler lives in a different assembly, such as a shared library, register it explicitly alongside assembly scanning:
+If the open generic handler is declared in a different assembly, such as a shared library, register it explicitly alongside assembly scanning:
 
 ```csharp
 builder.Services.AddLiteBus(builder =>
@@ -102,7 +102,7 @@ CreateProductCommand
   3. CommandMetricsPostHandler<CreateProductCommand>   (open generic, auto-closed)
 ```
 
-No changes are needed to existing commands or handlers. Use `[HandlerPriority]` to order an open generic handler relative to message-specific handlers in the same stage; see [Handler Priority](handler-priority.md).
+No changes are needed to existing commands or handlers. Use `[HandlerPriority]` to order an open generic handler relative to message-specific handlers in the same stage. See [Handler Priority](handler-priority.md).
 
 ## Running Once per Message
 
@@ -110,9 +110,9 @@ One open generic registration runs once per mediated message, whatever the regis
 
 An open generic is closed over every registered message that fits its constraint, and a base interface such as `ICommand` becomes a registered message as soon as any handler names it. `Guard<T> where T : ICommand` can therefore be closed both as `Guard<ICommand>`, which would apply to every command indirectly, and as `Guard<PlaceOrder>`. When both closures of one generic handler definition reach a message through the same contract, the direct closure wins and the indirect one is dropped for that message.
 
-A different handler type that names the base interface is a separate registration and still runs: a class implementing `IMessageGuard<ICommand>` runs for every command, indirect before direct. A class that implements both `IMessageGuard<ICommand>` and `IMessageGuard<PlaceOrder>` runs twice for `PlaceOrder`, once per contract; the composition summary reports every such handler type, so the double run shows up at startup instead of in production data. See [Getting Started](../getting-started/README.md).
+A different handler type that names the base interface is a separate registration and still runs. A class implementing `IMessageGuard<ICommand>` runs for every command, indirect before direct. A class that implements both `IMessageGuard<ICommand>` and `IMessageGuard<PlaceOrder>` runs twice for `PlaceOrder`, once per contract. The composition summary reports every such handler type, so the double run shows up at startup instead of in production data. See [Getting Started](../getting-started/README.md).
 
-## Constraints Are Respected
+## Generic Constraints
 
 Open generic handlers honor all standard C# generic constraints. A handler constrained to `where T : ICommand` does not apply to events or queries:
 
@@ -126,11 +126,11 @@ public sealed class AuditHandler<T> : ICommandPostHandler<T>
     where T : class, IAuditable, new() { /* ... */ }
 ```
 
-Supported constraints include interface constraints (`where T : IMyInterface`), base class constraints (`where T : MyBaseClass`), `class` and `struct` constraints, and the `new()` constraint. Use the narrowest constraint that fits, so a handler applies only where it makes sense.
+Supported constraints include interface constraints (`where T : IMyInterface`), base class constraints (`where T : MyBaseClass`), `class` and `struct` constraints, and the `new()` constraint. Use the narrowest constraint that fits, so a handler applies only to the messages it is written for.
 
 ## Supported Type Parameter Shapes
 
-One type parameter binds the message type. Two are closed when the handler implements a typed contract over both in order, such as `ICommandPostHandler<TCommand, TCommandResult>`, because then the second parameter binds to the result type the message declares. Any other arity throws `UnsupportedOpenGenericHandlerException` at startup: a second parameter that is the handler's own invention, such as a `TContext` or a `TStore`, has nothing to bind to. See [Troubleshooting](../operations/troubleshooting.md) for that exception.
+One type parameter binds the message type. A handler with two type parameters is closed when it implements a typed contract over both in order, such as `ICommandPostHandler<TCommand, TCommandResult>`, because then the second parameter binds to the result type the message declares. Any other arity throws `UnsupportedOpenGenericHandlerException` at startup. A second parameter that is the handler's own invention, such as a `TContext` or a `TStore`, has nothing to bind to. See [Troubleshooting](../operations/troubleshooting.md) for that exception.
 
 ```csharp
 // Closed over each command and its declared result type.
@@ -157,7 +157,7 @@ public sealed class CommandAuditPostHandler<TCommand, TCommandResult>
 
 ## Requiring Explicit Registration
 
-An open generic handler closed over every message it fits is the implicit behavior with the widest reach in the library: adding one file to a scanned assembly inserts a pipeline stage into every message, with no registration line for a reviewer to read. `RequireExplicitOpenGenerics` on the messaging builder makes composition fail, naming each offender, until every open generic handler is registered explicitly with `Register(typeof(MyHandler<>))`:
+An open generic handler closed over every message it fits is the implicit behavior with the widest reach in the library. Adding one file to a scanned assembly inserts a pipeline stage into every message, with no registration line for a reviewer to read. `RequireExplicitOpenGenerics` on the messaging builder makes composition fail, naming each offender, until every open generic handler is registered explicitly with `Register(typeof(MyHandler<>))`:
 
 ```csharp
 builder.Services.AddLiteBus(builder =>
@@ -167,7 +167,7 @@ builder.Services.AddLiteBus(builder =>
 });
 ```
 
-Scanning still finds everything else. The rule is opt-in because scans have picked up open generic handlers since v4, and changing that changes what a scan is rather than fixing a defect. Whether the rule is on or not, the composition summary reports every open generic handler and how many messages it closed over; see [Getting Started](../getting-started/README.md).
+Scanning still finds everything else. The rule is opt-in because scans have picked up open generic handlers since v4, and changing the default would change what a scan means rather than fix a defect. Whether the rule is on or not, the composition summary reports every open generic handler and how many messages it closed over. See [Getting Started](../getting-started/README.md).
 
 ## Next
 

@@ -10,30 +10,30 @@
 | `IInboxStateWriter` | `PersistAsync(IReadOnlyList<InboxEnvelope>)` |
 | `IOutboxStateWriter` | `PersistAsync(IReadOnlyList<OutboxEnvelope>)` |
 
-`PersistAsync` returns `PersistResult` with applied and skipped counts for lease-guard behavior.
+`PersistAsync` returns `PersistResult` with applied and skipped counts. The skipped count covers updates dropped because another worker holds the lease.
 
 ## SQL Behavior
 
-- Persist path updates status and timestamps based on envelope terminal state.
-- Inbox success writes `completed_at`; outbox success writes `published_at`.
-- Retry path sets failed status and next `visible_after`.
-- Dead-letter path sets dead-letter status and dead-letter timestamp where schema supports it.
+- The persist path updates status and timestamps based on the envelope terminal state.
+- Inbox success writes `completed_at`. Outbox success writes `published_at`.
+- The retry path sets failed status and the next `visible_after`.
+- The dead-letter path sets dead-letter status and the dead-letter timestamp where the schema supports it.
 - Persist validates statuses up front on every adapter and throws `InvalidOperationException` for non-terminal envelopes instead of overwriting rows.
 
 ## Concurrency Model
 
 - Persist updates include lease ownership checks.
-- If lease ownership was lost, update is skipped and reported in `PersistResult`.
+- If lease ownership was lost, the update is skipped and reported in `PersistResult`.
 - This prevents one worker from overwriting terminal state written by another worker.
 
 ## Index Interaction
 
-- State updates are primary-key based by `message_id`.
-- Lease index still matters because retry states move rows back into leasable scans.
+- State updates target the primary key `message_id`.
+- The lease index still matters, because retry states move rows back into leasable scans.
 
 ## Observability
 
-- State outcomes drive processor counters (outcome counters are internal; `persist_skipped` and `persist_rejected` are public constants):
+- State outcomes drive the processor counters. The outcome counters are internal, while `persist_skipped` and `persist_rejected` are public constants:
   - inbox: `litebus.inbox.processor.succeeded`, `litebus.inbox.processor.failed`, `litebus.inbox.processor.dead_lettered`, `litebus.inbox.processor.persist_skipped`, `litebus.inbox.processor.persist_rejected`
   - outbox: `litebus.outbox.processor.published`, `litebus.outbox.processor.failed`, `litebus.outbox.processor.dead_lettered`, `litebus.outbox.processor.persist_skipped`, `litebus.outbox.processor.persist_rejected`
 - Queue-depth gauges reflect status movement between active and terminal states.
@@ -47,10 +47,10 @@
 
 ### `LiteBus.Storage.IntegrationTests` (`PostgreSql/`)
 
-- `PostgreSqlInboxStorePersistResultTests`: completed timestamps and lost-lease reporting.
-- `PostgreSqlInboxStoreBatchMarkFailedTests`: batch failed persistence behavior.
-- End-to-end inbox and outbox processor tests: success, retry, and dead-letter terminal writes.
-- EF integration suites in same project verify parity for failure and dead-letter state transitions.
+- `PostgreSqlInboxStorePersistResultTests` covers completed timestamps and lost-lease reporting.
+- `PostgreSqlInboxStoreBatchMarkFailedTests` covers batch failed persistence behavior.
+- End-to-end inbox and outbox processor tests cover success, retry, and dead-letter terminal writes.
+- The EF integration suites in the same project verify parity for failure and dead-letter state transitions.
 
 ## Concrete Example
 

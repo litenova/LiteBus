@@ -3,20 +3,20 @@
 - **ID**: `ingress.aws-sqs`
 - **Name**: AWS SQS inbox ingress
 - **Maturity**: Beta
-- **Summary**: Polls an SQS queue and accepts messages into the inbox through shared transport ingress.
+- **Summary**: This adapter polls an SQS queue and accepts messages into the inbox through shared transport ingress.
 
 ## Purpose and Scope
 
-`UseAwsSqsIngress` registers `AwsSqsInboxIngressModule`. The module maps the queue URL, `ReceiveBatchSize`, requeue policy, and shared safety record into transport ingress options. A root `AwsSqsTransportModule` supplies the SQS client.
+`UseAwsSqsIngress` registers `AwsSqsInboxIngressModule`. The module maps the queue URL, `ReceiveBatchSize`, the requeue policy, and the shared safety record into the transport ingress options. A root `AwsSqsTransportModule` supplies the SQS client.
 
-SQS visibility timeout and delete-on-ack semantics are implemented in the transport consumer; ingress applies shared accept-then-ack ordering on top. The enforced `Safety.MaxInFlightMessages` bound is 1.
+SQS visibility timeout and delete-on-ack semantics are implemented in the transport consumer. Ingress applies shared accept-then-ack ordering on top. The enforced `Safety.MaxInFlightMessages` bound is 1.
 
 ## Beta Rationale
 
-AWS SQS ingress has strong scenario coverage, including requeue on and off, but it remains Beta because:
+AWS SQS ingress has strong scenario coverage, including requeue enabled and disabled, but it remains Beta because:
 
 - Broker option surface is intentionally narrower than AMQP.
-- Telemetry assertions and FIFO-specific semantics are not yet covered as contract tests.
+- No contract tests yet assert telemetry or FIFO-specific semantics.
 
 ## Public Surface
 
@@ -70,9 +70,9 @@ bus.AddInbox(inbox => inbox.UseAwsSqsIngress(ingress =>
 ## Invariants
 
 - `Destination` (queue URL) and root `AddAwsSqsTransport(...)` are required at compose time.
-- Standard LiteBus wire headers required for contract resolution.
-- Beta tier per the Feature Index.
-- `ReceiveBatchSize` is validated from 1 through 10 at composition, matching the AWS SDK for .NET v4 `ReceiveMessageRequest` contract.
+- Contract resolution requires the standard LiteBus wire headers.
+- The Feature Index lists this adapter as Beta tier.
+- At composition, `ReceiveBatchSize` is validated from 1 through 10, matching the AWS SDK for .NET v4 `ReceiveMessageRequest` contract.
 - Identity and idempotency default to broker-scoped values (`Safety.RequireStableIdentity=true`, `Safety.TrustApplicationHeaders=false`).
 
 ## Non-Goals
@@ -89,7 +89,7 @@ bus.AddInbox(inbox => inbox.UseAwsSqsIngress(ingress =>
 | --- | --- |
 | `ingress.ack_failed_after_accept` | SQS delete-on-ack fails after inbox accept |
 
-Meter `LiteBus.Inbox` via `AddLiteBusInboxMetrics()`.
+The meter is `LiteBus.Inbox`, registered through `AddLiteBusInboxMetrics()`.
 
 ### Transport Tracing and Metrics
 
@@ -97,13 +97,13 @@ Meter `LiteBus.Inbox` via `AddLiteBusInboxMetrics()`.
 | --- | --- | --- |
 | `process {destination}` activity | `aws_sqs` | `AddLiteBusTransportInstrumentation()` |
 | `litebus.transport.circuit_breaker.open` | `sqs` | Transport metrics from the root adapter |
-| `litebus.transport.circuit_breaker.failure_count` | `sqs` | same |
+| `litebus.transport.circuit_breaker.failure_count` | `sqs` | Same as above |
 
-Visibility timeout and delete semantics are transport-layer; ingress applies accept-then-ack ordering on top.
+Visibility timeout and delete semantics belong to the transport layer. Ingress applies accept-then-ack ordering on top.
 
 ### Structured Logs
 
-EventId 3002, 3003, 3004 from `TransportInboxIngressLogMessages`.
+The consumer logs EventId 3002, 3003, and 3004 from `TransportInboxIngressLogMessages`.
 
 ## Identity, Idempotency, and Trusted Headers
 
@@ -111,9 +111,9 @@ SQS ingress uses shared mapper defaults:
 
 | Setting | Default | Result |
 | --- | --- | --- |
-| `RequireStableIdentity` | true | Missing broker id fails closed |
+| `RequireStableIdentity` | true | A missing broker id fails closed |
 | `Safety.TrustApplicationHeaders` | false | App idempotency, tenant, and visibility headers are ignored |
-| Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | Duplicate SQS deliveries map to same inbox dedup key when id is stable |
+| Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | Duplicate SQS deliveries map to the same inbox deduplication key when the id is stable |
 
 ## Test Coverage
 
@@ -138,7 +138,7 @@ SQS ingress uses shared mapper defaults:
 - SQS FIFO ordering and deduplication semantics.
 - Delete-on-ack failure with `ingress.ack_failed_after_accept` metric assertion.
 - `ReceiveBatchSize = 10` under sustained LocalStack load.
-- Broker-suite assertion for missing contract version and wrong CLR shape (covered in InMemory suite).
+- Broker-suite assertions for a missing contract version and a wrong CLR shape (covered in the InMemory suite).
 
 ### Out-of-Scope
 
@@ -146,7 +146,7 @@ SQS ingress uses shared mapper defaults:
 - FIFO ordering guarantees beyond SQS and transport adapter behavior.
 - GA tier declaration.
 
-## Deep Docs
+## References
 
 - [AWS SQS transport](../../integrations/aws-sqs.md)
 - [Feature Index: Ingress](../../reference/feature-index.md)

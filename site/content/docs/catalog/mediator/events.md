@@ -8,11 +8,11 @@
 
 ## What It Does
 
-`IEventMediator` publishes events through `AsyncBroadcastMediationStrategy`. Events can have zero, one, or many handlers. Guards, validators, shortcuts, and pre-handlers run before broadcast. Main handlers are grouped by `[HandlerPriority]` and executed according to `EventExecutionSettings`. Post, error, and completion stages wrap the broadcast flow.
+`IEventMediator` publishes events through `AsyncBroadcastMediationStrategy`. Events can have zero, one, or many handlers. Guards, validators, shortcuts, and pre-handlers run before broadcast. Main handlers are grouped by `[HandlerPriority]` and executed according to `EventExecutionSettings`. The post, error, and completion stages run around the broadcast.
 
-One class can implement several closed handler contracts when one reaction answers more than one event. Registration records one main handler per closed contract, and each dispatch reaches the contract recorded in its descriptor, including when the event is published as `IEvent` or through a base-typed reference. The class needs no untyped entry point: `IMessageHandler` is a memberless marker.
+One class can implement several closed handler contracts when one reaction answers more than one event. Registration records one main handler per closed contract, and each dispatch reaches the contract recorded in its descriptor. That holds when the event is published as `IEvent` or through a base-typed reference. The class needs no untyped entry point, because `IMessageHandler` is a memberless marker.
 
-`EventMediationSettings.ThrowIfNoHandlerFound` controls whether empty subscriptions are allowed. `AutoRegisterUnregisteredMessageTypes` allows publishing plain event types not pre-registered in the message module.
+`EventMediationSettings.ThrowIfNoHandlerFound` controls whether empty subscriptions are allowed. `AutoRegisterUnregisteredMessageTypes` allows publishing plain event types that were not pre-registered in the message module.
 
 ## Public Surface
 
@@ -32,9 +32,9 @@ await eventMediator.PublishAsync(new ProductCreatedEvent(Guid.NewGuid()), cancel
 | --- | --- |
 | `IEvent` | Marker event contract |
 | `IEventMediator.PublishAsync(IEvent, EventMediationSettings?, CancellationToken)` | Publish interface-marked event |
-| `IEventMediator.PublishAsync<TEvent>(TEvent, EventMediationSettings?, CancellationToken)` | Publish plain or typed event |
-| `IEventHandler<TEvent>` | Main broadcast handler; one class may implement several closed contracts |
-| `IMessageHandler` | Memberless marker; a multi-contract class needs no untyped entry point |
+| `IEventMediator.PublishAsync<TEvent>(TEvent, EventMediationSettings?, CancellationToken)` | Publish a plain or typed event |
+| `IEventHandler<TEvent>` | Main broadcast handler. One class may implement several closed contracts |
+| `IMessageHandler` | Memberless marker. A multi-contract class needs no untyped entry point |
 | `IEventGuard<TEvent>` / `IEventValidator<TEvent>` / `IEventShortcut<TEvent>` / `IEventPreHandler<TEvent>` | Decision and pre stages, in framework-fixed order |
 | `IEventPostHandler<TEvent>` | Post stage |
 | `IEventErrorHandler<TEvent>` | Error stage |
@@ -56,11 +56,11 @@ await eventMediator.PublishAsync(new ProductCreatedEvent(Guid.NewGuid()), cancel
 
 ## Invariants
 
-- Event publish accepts zero handlers unless `ThrowIfNoHandlerFound = true`.
+- An event publish accepts zero handlers unless `ThrowIfNoHandlerFound = true`.
 - Handler ordering is deterministic only in sequential modes.
 - `ArgumentNullException` is thrown for `null` event arguments.
 - Failure behavior follows `HandlerFaultMode` (`PropagateFirst` or `ContinueAndAggregate`), for sequential and parallel execution alike.
-- One class implementing several closed event contracts registers one main handler per contract; each event reaches its own contract even when published as `IEvent`.
+- One class implementing several closed event contracts registers one main handler per contract. Each event reaches its own contract even when published as `IEvent`.
 
 ## Non-Goals
 
@@ -70,7 +70,7 @@ await eventMediator.PublishAsync(new ProductCreatedEvent(Guid.NewGuid()), cancel
 
 ## Observability
 
-Event mediation is covered by the shared `LiteBus.Mediation` activity source and meter: one span per mediation plus duration, count, and decision instruments, with per-stage spans and metrics opt-in through `MessageModuleBuilder.UseTelemetry`. See [Handler pipeline](handler-pipeline.md) for the instrument table.
+Event mediation is covered by the shared `LiteBus.Mediation` activity source and meter, which record one span per mediation plus duration, count, and decision instruments. Per-stage spans and metrics are opt-in through `MessageModuleBuilder.UseTelemetry`. See [Handler pipeline](handler-pipeline.md) for the instrument table.
 
 Operational alternatives:
 - Log in event handlers and pipeline stages.
@@ -102,7 +102,7 @@ Operational alternatives:
 - Broker dispatch, retries, dead-letter processing.
 - Exactly-once event processing semantics.
 
-## Deep Docs
+## References
 
 - [Event module](../../concepts/events.md)
 - [Handler filtering](../../concepts/handler-filtering.md)

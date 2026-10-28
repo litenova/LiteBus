@@ -11,9 +11,9 @@
 
 `LB1016` reports when:
 
-- Named type has a public constructor.
-- Constructor has a parameter implementing or equal to `ITransactionalInboxStore`.
-- Constructor has no parameter type that is or inherits from the Entity Framework Core `DbContext` (`Microsoft.EntityFrameworkCore`).
+- A named type declares a public constructor.
+- The constructor declares a parameter that implements or equals `ITransactionalInboxStore`.
+- The constructor declares no parameter whose type is the Entity Framework Core `DbContext` (`Microsoft.EntityFrameworkCore`) or inherits from it.
 
 ## Bad Example
 
@@ -30,7 +30,7 @@ public sealed class OrderService
 
 Expected diagnostic:
 
-- `LB1016` on constructor declaration.
+- `LB1016` on the constructor declaration.
 
 ## Good Example
 
@@ -53,8 +53,8 @@ public sealed class OrderService
 ## Suppression Guidance
 
 - Keep transactional inbox operations inside an active EF unit-of-work boundary.
-- Suppress only when transactional inbox is wrapped by another service that already guarantees scope and the constructor is a false positive.
-- Document the unit-of-work boundary next to suppression.
+- Suppress only when transactional inbox is wrapped by another service that already guarantees the scope and the constructor is a false positive.
+- Document the unit-of-work boundary next to the suppression.
 
 ## Test Coverage
 
@@ -66,5 +66,5 @@ Source: `tests/LiteBus.Analyzers.UnitTests/TransactionalInboxWithoutDbContextAna
 
 Untested in this suite:
 
-- Positive path where constructor includes `DbContext`.
-- Multiple constructor combinations with one valid transactional signature.
+- The positive path, where the constructor includes `DbContext`.
+- Types with multiple constructors where one transactional signature is valid.

@@ -1,16 +1,14 @@
 # LiteBus vs. MediatR
 
-LiteBus is MIT licensed, open source, free for commercial use, and will remain free. MediatR 13.0.0 and later ships under a commercial license with a free Community License below USD 5 million annual gross revenue; earlier versions remain Apache 2.0 or MIT (see [MediatR licensing](https://mediatr.io/), retrieved 2026-10-09). The two libraries agree on mediation and differ on how much structure the type system carries.
+LiteBus and MediatR both route messages to handlers so callers depend on an interface rather than a concrete service. LiteBus is MIT licensed, open source, free for commercial use, and will remain free. MediatR 13.0.0 and later ships under a commercial license with a free Community License below USD 5 million annual gross revenue. Earlier versions remain Apache 2.0 or MIT (see [MediatR licensing](https://mediatr.io/), retrieved 2026-10-09). The two libraries agree on mediation and differ on how much structure the type system carries and how much control the caller has over the handler pipeline.
 
 > **This page is for** a developer deciding between LiteBus and MediatR, or one who knows MediatR and wants to map concepts onto LiteBus quickly.
 >
 > **After reading it** you can translate requests, notifications, and behaviors to commands, queries, events, and pipeline stages. [Getting Started](../getting-started/README.md) runs each LiteBus shape in code.
 
-Both libraries route a message to its handler so callers depend on an interface rather than a concrete service. The difference is in how much structure the library imposes and how much control it gives over the handler pipeline.
-
 ## The Core Split
 
-MediatR has two message shapes: a request (`IRequest<T>`), handled by one handler, and a notification (`INotification`), handled by many. Whether a request reads or writes is a convention you keep in your head.
+MediatR has two message shapes: a request (`IRequest<T>`), handled by one handler, and a notification (`INotification`), handled by many. Whether a request reads or writes is a convention with no representation in the type system.
 
 ```csharp
 public sealed record CreateProductCommand(string Name, decimal Price) : ICommand<ProductDto>;
@@ -20,7 +18,7 @@ public sealed record GetProductByIdQuery(Guid Id) : IQuery<ProductDto>;
 public sealed record ProductCreatedEvent(Guid ProductId);
 ```
 
-LiteBus splits the write-side request into a command and the read-side request into a query, and gives each its own mediator and handler interfaces. The type a message implements states its intent: `ICommand<T>` changes state, `IQuery<T>` reads it, `IEvent` announces a fact. A reviewer sees the category from the declaration without opening the handler.
+LiteBus splits requests into commands for writes and queries for reads, and gives each side its own mediator and handler interfaces. The type a message implements states its intent: `ICommand<T>` changes state, `IQuery<T>` reads it, and `IEvent` announces a fact. A reviewer sees the category from the declaration without opening the handler.
 
 | MediatR | LiteBus | Notes |
 | --- | --- | --- |
@@ -28,22 +26,22 @@ LiteBus splits the write-side request into a command and the read-side request i
 | `IRequest<T>` (write) | `ICommand<T>` | One handler, returns `Task<T>` |
 | `IRequest<T>` (read) | `IQuery<T>` | One handler, side-effect free by convention |
 | `IStreamRequest<T>` | `IStreamQuery<T>` | One handler, returns `IAsyncEnumerable<T>` |
-| `INotification` | `IEvent` or any POCO | Zero to many handlers; LiteBus does not require an interface |
+| `INotification` | `IEvent` or any POCO | Zero to many handlers. LiteBus does not require an interface |
 | `IRequestHandler<TReq, TRes>` | `ICommandHandler<TCmd, TRes>` / `IQueryHandler<TQry, TRes>` | Method is `HandleAsync` |
 | `INotificationHandler<T>` | `IEventHandler<T>` | Method is `HandleAsync` |
 
 ## Pipeline Model
 
-MediatR wraps a request in `IPipelineBehavior<TRequest, TResponse>` delegates. A behavior calls `next()` to continue, and code before and after that call runs before and after the handler. Cross-cutting steps are written as behaviors and apply to every request unless you constrain the generic.
+MediatR wraps a request in `IPipelineBehavior<TRequest, TResponse>` delegates. A behavior calls `next()` to continue, and code before and after that call runs before and after the handler. Cross-cutting steps are written as behaviors and apply to every request unless you constrain the behavior's generic type parameters.
 
-LiteBus does not use a wrapping delegate. Each message type has named stages: pre-handlers, the main handler, post-handlers, and error-handlers. You attach a step to the stage where it belongs rather than reconstructing the stage from where you call `next()`. A pre-handler always runs before the main handler. A post-handler always runs after a successful one. An error-handler runs only on exception.
+LiteBus does not use a wrapping delegate. Each message type has named stages: pre-handlers, the main handler, post-handlers, and error-handlers. You attach each step to the stage where it belongs instead of placing code around a `next()` call. A pre-handler always runs before the main handler. A post-handler always runs after a successful one. An error-handler runs only on exception.
 
 | Concern | MediatR | LiteBus |
 | --- | --- | --- |
 | Run before handler | Code before `next()` in a behavior | `ICommandPreHandler<T>` / `IQueryPreHandler<T>` |
 | Run after handler | Code after `next()` in a behavior | `ICommandPostHandler<T, TResult>` / `IQueryPostHandler<T, TResult>` |
 | Handle failure | `try/catch` around `next()` in a behavior | `ICommandErrorHandler<T>` |
-| Short-circuit | Skip calling `next()` | Return an answer from a shortcut, a denial from a guard, or failures from a validator, which the pipeline reports as distinct outcomes |
+| Short-circuit | Skip calling `next()` | A shortcut answers, a guard denies, or a validator fails. The pipeline reports each as a distinct outcome |
 | Cross-cutting for all messages | Open generic behavior | Open generic pre/post/error handler, or a handler on a base interface (polymorphic dispatch) |
 
 The pipeline is documented in full at [The Handler Pipeline](../concepts/handler-pipeline.md).
@@ -65,7 +63,7 @@ public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
 }
 ```
 
-The equivalent in LiteBus is two open generic handlers, each owning one side of the call:
+The LiteBus equivalent is two open generic handlers, one for each side of the call:
 
 ```csharp
 public sealed class CommandLoggingPre<TCommand> : ICommandPreHandler<TCommand> where TCommand : ICommand
@@ -93,21 +91,30 @@ The cost is two types instead of one. The benefit is that "before" and "after" a
 
 | Capability | LiteBus | MediatR |
 | --- | --- | --- |
-| DI container | Container-agnostic core; adapters for Microsoft DI and Autofac | Registers into Microsoft DI; broad container support via that |
-| Handler resolution | Reflection runs once at registration into a cached `MessageRegistry`; mediation reads metadata | Resolves through `IServiceProvider` at request time |
-| Event concurrency | Per-call: priority groups and handlers within a group run `Sequential` or `Parallel` independently | A single notification publisher strategy |
+| DI container | Container-agnostic core, with adapters for Microsoft DI and Autofac | Registers with Microsoft DI, with support for other containers through it |
+| Handler resolution | Reflection runs once at registration and fills a cached `MessageRegistry`, which mediation then reads | Resolves through `IServiceProvider` at request time |
+| Event concurrency | Each call sets priority groups and handlers within a group to `Sequential` or `Parallel` independently | A single notification publisher strategy |
 | Handler selection | Built-in `[HandlerTag]` and runtime `HandlerPredicate` filtering | Write a behavior to filter |
 | Polymorphic dispatch | A handler for a base type or interface runs for derived messages (pre/post/error and events) | A handler for `Base` does not run for `Derived` |
-| Durable messaging | Built-in command inbox and event outbox with PostgreSQL stores | Not built in; use an external library |
+| Durable messaging | Built-in command inbox and event outbox with PostgreSQL stores | Not built in. Use an external library |
 | License | MIT licensed, open source, free for commercial use, and will remain free | Check the current MediatR license terms for your use |
 
 ## Choosing
 
-Choose LiteBus when the message category (command, query, event) should be visible in the type system, when you want named pipeline stages instead of wrapping behaviors, when event concurrency or handler filtering matters, or when you want a durable inbox or outbox without adding another dependency.
+Choose LiteBus when any of these hold:
 
-Choose MediatR when you prefer one request abstraction over the command/query split, when your pipeline needs are met by behaviors, or when you depend on its ecosystem of community packages.
+- The message category (command, query, event) should be visible in the type system.
+- You want named pipeline stages instead of wrapping behaviors.
+- Event concurrency or handler filtering matters.
+- You want a durable inbox or outbox without adding another dependency.
 
-The two are not mutually exclusive at the concept level: the CQS discipline LiteBus enforces is a discipline you can also keep by hand in MediatR. LiteBus moves it from convention into the compiler.
+Choose MediatR when any of these hold:
+
+- You prefer one request abstraction over the command/query split.
+- Your pipeline needs are met by behaviors.
+- You depend on its ecosystem of community packages.
+
+The two are not mutually exclusive at the concept level. You can follow by hand in MediatR the CQS discipline that LiteBus enforces. LiteBus moves that discipline from convention into the compiler.
 
 ## Migrating from MediatR
 
@@ -137,11 +144,11 @@ Call `RegisterFromAssembly` once per assembly on each semantic module builder (`
 
 ### Pipeline Behaviors
 
-Register pre/post handlers as ordinary DI types discovered by assembly scanning. See [Pipeline Model](#pipeline-model) for the full behavior mapping.
+Register pre-handlers and post-handlers as ordinary DI types discovered by assembly scanning. See [Pipeline Model](#pipeline-model) for the full behavior mapping.
 
 | MediatR behavior concern | LiteBus approach |
 | --- | --- |
-| Validation before handler | `ICommandValidator<TCommand>` (returns `Validity`; a failure is a return value, not an exception) |
+| Validation before handler | `ICommandValidator<TCommand>` (returns `Validity`, so a failure is a return value, not an exception) |
 | Query read-only guard | Analyzer LB1003 warns when query handlers inject command, event, inbox, or outbox APIs |
 
 ### Commands with Results

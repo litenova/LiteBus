@@ -3,17 +3,17 @@
 - **ID**: `storage.outbox.adapter.inmemory`
 - **Name**: Outbox InMemory adapter
 - **Maturity**: GA
-- **Summary**: Thread-safe in-process outbox store for tests and samples without a database.
+- **Summary**: Thread-safe, in-process outbox store for tests and samples that run without a database.
 
 ## What It Does
 
-`InMemoryOutboxStore` implements all outbox store roles under a process-wide lock. Registration:
+`InMemoryOutboxStore` implements all outbox store roles under a process-wide lock. Register it with:
 
 ```csharp
 outbox.UseInMemoryStorage();
 ```
 
-Pairs with in-process dispatch for full mediator loop tests.
+Combine it with in-process dispatch to test the full mediator loop.
 
 ## Public Surface
 
@@ -21,8 +21,8 @@ Pairs with in-process dispatch for full mediator loop tests.
 
 | Type | Role |
 | --- | --- |
-| `InMemoryOutboxStore` | All outbox store roles in-process |
-| `InMemoryOutboxStorageModuleBuilder` | Test tuning options |
+| `InMemoryOutboxStore` | Implements all outbox store roles in process |
+| `InMemoryOutboxStorageModuleBuilder` | Options for tuning tests |
 | `IOutboxStore` through `IOutboxOperationsStore` | Same abstractions as relational adapters |
 
 ### Invocation
@@ -32,7 +32,7 @@ Pairs with in-process dispatch for full mediator loop tests.
 | `IOutboxStore.AddAsync` | Unit tests, samples |
 | `IOutboxLeaseStore.LeasePendingAsync` | Processor tests with in-process dispatch |
 | `ILeaseRenewable.ReleaseLeaseAsync` | Processor tests for cancelled dispatch |
-| `GetAll` (test helper) | Filter diagnostics in unit tests |
+| `GetAll` (test helper) | Unit tests that filter diagnostics |
 
 ### Registration
 
@@ -41,21 +41,21 @@ outbox.UseInMemoryStorage(o => o.UseTimeProvider(timeProvider));
 ```
 
 - Registers all outbox store roles on one singleton instance.
-- Second `UseInMemoryStorage` on same builder throws.
+- A second `UseInMemoryStorage` call on the same builder throws.
 
 ### Configuration
 
 | Option surface | Purpose |
 | --- | --- |
-| `InMemoryOutboxStoreOptions.Capacity` | Throw on append when capacity exceeded (unless idempotent); zero means unbounded |
-| `InMemoryOutboxStoreOptions.DefaultLeaseDuration` | One minute by default; must be positive (validated at construction) |
+| `InMemoryOutboxStoreOptions.Capacity` | Throws on append when capacity is exceeded (unless idempotent). Zero means unbounded |
+| `InMemoryOutboxStoreOptions.DefaultLeaseDuration` | Defaults to one minute and must be positive. The store validates it at construction |
 | `UseOptions` | Replaces the store options |
-| `UseTimeProvider` | Deterministic lease expiry in tests |
-| Module builder | No external connectivity options |
+| `UseTimeProvider` | Makes lease expiry deterministic in tests |
+| Module builder | Offers no external connectivity options |
 
 ### Extension Points
 
-- None for durability; use PostgreSQL or EF adapter for production.
+- There are no durability extensions. Use the PostgreSQL or EF adapter for production.
 
 ## Packages
 
@@ -65,19 +65,19 @@ outbox.UseInMemoryStorage(o => o.UseTimeProvider(timeProvider));
 
 ## Requires
 
-- A registered dispatcher when the processor is enabled
+- A registered dispatcher, when the processor is enabled
 
 ## Invariants
 
-- Behavioral parity with contract tests shared across backends.
-- Data lost on process exit.
-- Tenants are stored normalized; a null filter or lease tenant means no restriction while an empty string matches only unscoped rows.
+- The store keeps behavioral parity with the contract tests shared across backends.
+- Data is lost on process exit.
+- The store normalizes tenants. A null filter or lease tenant means no restriction, while an empty string matches only unscoped rows.
 - Persist validates statuses up front and throws `InvalidOperationException` for non-terminal envelopes, matching relational adapters.
-- Leased and queried envelopes carry the recorded `Handler` value, so per-handler delivery rows round-trip without a database.
+- Leased and queried envelopes carry the recorded `Handler` value, so per-handler delivery works without a database.
 
 ## Non-Goals
 
-- Durability, NOTIFY, transactional DB enlistment
+- Durability, NOTIFY, and transactional database enlistment
 
 ## Observability
 
@@ -87,9 +87,9 @@ outbox.UseInMemoryStorage(o => o.UseTimeProvider(timeProvider));
 | `LiteBus.Outbox` | `litebus.outbox.processor.leases_acquired` | Counter | Processor pass in test host |: | In-memory lease store |
 | `LiteBus.Outbox` | `litebus.outbox.processor.state` | Observable gauge | Processor loop | State enum | Test hosts with processor |
 
-Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemetry`.
+Register them through `AddLiteBusOutboxMetrics()`. The instrument names are constants on `LiteBusOutboxTelemetry`.
 
-## Deep Docs
+## Further Reading
 
 - [Outbox](../../reliable-messaging/outbox.md)
 - [Feature Index](../../reference/feature-index.md)
@@ -102,79 +102,79 @@ Register through `AddLiteBusOutboxMetrics()`. Constants on `LiteBusOutboxTelemet
 
 - **Use case**: Full outbox store contract in memory
 - **Test kind**: Contract (unit)
-- **Description**: Complete shared outbox contract suite against `InMemoryOutboxStore`
-- **Behavior**: Enqueue, lease, persist, query, purge, diagnostics
-- **Expected outcome**: Parity with `LiteBus.Storage.Testing` expectations
+- **Description**: Runs the complete shared outbox contract suite against `InMemoryOutboxStore`
+- **Behavior**: Covers enqueue, lease, persist, query, purge, and diagnostics
+- **Expected outcome**: Results match the `LiteBus.Storage.Testing` expectations
 - **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `OutboxRetentionStoreContractTests` (in `LiteBus.Storage.UnitTests`, shared base in `LiteBus.Storage.Testing`)
 
 - **Use case**: Full outbox retention contract in memory
 - **Test kind**: Contract (unit)
-- **Description**: Retention delete eligibility tests
-- **Behavior**: `DeletePublishedOlderThanAsync` variants
-- **Expected outcome**: Same outcomes as shared retention contract
+- **Description**: Tests retention delete eligibility
+- **Behavior**: Exercises `DeletePublishedOlderThanAsync` variants
+- **Expected outcome**: Outcomes match the shared retention contract
 - **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InMemoryOutboxStorageModuleTests.UseInMemoryStorage_ShouldRegisterAllStoreRoles`
 
 - **Use case**: Register all outbox store roles
 - **Test kind**: Unit
-- **Description**: Build module with in-memory storage
-- **Behavior**: Resolve store interfaces
-- **Expected outcome**: All roles on singleton
+- **Description**: Builds the module with in-memory storage
+- **Behavior**: Resolves the store interfaces
+- **Expected outcome**: All roles resolve to the singleton
 - **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InMemoryOutboxStoreLeaseAvailabilityTests.LeasePendingAsync_WhenPublishingWithNullLeaseExpiry_ShouldNotLeaseImmediately`
 
 - **Use case**: Null lease expiry blocks immediate reclaim
 - **Test kind**: Unit
-- **Description**: Row in publishing state with null lease expiry
-- **Behavior**: Immediate lease attempt
-- **Expected outcome**: Row not leased until stale
+- **Description**: Seeds a row in publishing state with null lease expiry
+- **Behavior**: Attempts an immediate lease
+- **Expected outcome**: The row is not leased until it is stale
 - **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InMemoryOutboxStoreLeaseAvailabilityTests.LeasePendingAsync_WhenPublishingWithNullLeaseExpiryBecomesStale_ShouldReclaim`
 
 - **Use case**: Reclaim after null lease becomes stale
 - **Test kind**: Unit
-- **Description**: Publishing row with null expiry; advance time
-- **Behavior**: Lease after stale threshold
-- **Expected outcome**: Row reclaimed
+- **Description**: Seeds a publishing row with null expiry and advances time
+- **Behavior**: Leases after the stale threshold
+- **Expected outcome**: The row is reclaimed
 - **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InMemoryOutboxIdempotencyIndexTests.DeletePublishedOlderThanAsync_ShouldRemoveIdempotencyIndexEntry`
 
 - **Use case**: Retention removes idempotency index entry
 - **Test kind**: Unit
-- **Description**: Published row eligible for retention delete
-- **Behavior**: `DeletePublishedOlderThanAsync`
-- **Expected outcome**: Row and idempotency index entry removed
+- **Description**: Seeds a published row eligible for retention delete
+- **Behavior**: Runs `DeletePublishedOlderThanAsync`
+- **Expected outcome**: The row and its idempotency index entry are removed
 - **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InMemoryOutboxIdempotencyIndexTests.Clear_ShouldRemoveIdempotencyIndexEntry`
 
 - **Use case**: Clear store removes idempotency index entry
 - **Test kind**: Unit
-- **Description**: Store with idempotency-keyed row
-- **Behavior**: Test `Clear` helper
-- **Expected outcome**: Index entry removed with store clear
+- **Description**: Seeds a store with an idempotency-keyed row
+- **Behavior**: Runs the test `Clear` helper
+- **Expected outcome**: The index entry is removed with the store clear
 - **Remarks**: `LiteBus.Storage.UnitTests`
 
 #### `InMemoryOutboxGetAllFilterTests.GetAll_WithStatusAndContractName_ShouldFilterResults`
 
 - **Use case**: Filter InMemory outbox via GetAll test helper
 - **Test kind**: Unit
-- **Description**: Test-only filter by status and contract
-- **Behavior**: `GetAll` predicates
-- **Expected outcome**: Filtered subset returned
+- **Description**: Filters by status and contract with the test-only helper
+- **Behavior**: Applies `GetAll` predicates
+- **Expected outcome**: The filtered subset is returned
 - **Remarks**: Test-only surface; `LiteBus.Storage.UnitTests`
 
 ### Untested
 
-- InMemory outbox capacity limits (inbox InMemory has capacity tests; outbox does not).
+- InMemory outbox capacity limits are untested. The inbox InMemory store has capacity tests. The outbox does not.
 
 ### Out-of-Scope
 
-- Durability, NOTIFY, transactional database enlistment.
-- Broker publish.
+- Durability, NOTIFY, and transactional database enlistment.
+- Publishing to a broker.

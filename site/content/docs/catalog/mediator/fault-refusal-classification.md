@@ -8,9 +8,9 @@
 
 ## What It Does
 
-A fault raised after the decision stages never passed a guard: a duplicate key reported when a unit of work commits, or a concurrency fault from the main handler, reaches the caller as an exception that every application maps by hand at its boundary. A fault refusal classifier moves that mapping into the pipeline by recognizing the fault and naming the refusal the mediation ends as instead.
+A fault raised after the decision stages never passed a guard. A duplicate key reported when a unit of work commits, or a concurrency fault from the main handler, reaches the caller as an exception that every application maps manually at its boundary. A fault refusal classifier moves that mapping into the pipeline by recognizing the fault and naming the refusal the mediation ends as.
 
-A recognized fault ends the mediation as the classifier's refusal: `TrySendAsync` and `TryQueryAsync` report it as a value, `SendAsync` raises `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException` per the refusal's outcome, refusal mappers see it like any other refusal, and the audit outcome records the refusal rather than a failure. The fault stays available as the inner exception of the refusal exception, so the cause is never lost to a caller that catches it.
+A recognized fault ends the mediation as the classifier's refusal. `TrySendAsync` and `TryQueryAsync` report it as a value, and `SendAsync` raises `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException` according to the refusal's outcome. Refusal mappers see it like any other refusal, and the audit outcome records the refusal rather than a failure. The fault stays available as the inner exception of the refusal exception, so the cause is never lost to a caller that catches it.
 
 ## Public Surface
 
@@ -36,7 +36,7 @@ registry.AddMessaging(messaging =>
 });
 ```
 
-For PostgreSQL, `PostgreSqlConstraintRefusalClassifier` recognizes unique violations (`23505`) and exclusion violations (`23P01`) on a configured constraint map, found anywhere in the inner exception chain:
+For PostgreSQL, `PostgreSqlConstraintRefusalClassifier` recognizes unique violations (`23505`) and exclusion violations (`23P01`) on a configured constraint map, wherever they appear in the inner exception chain:
 
 ```csharp
 registry.AddMessaging(messaging =>
@@ -52,7 +52,7 @@ registry.AddMessaging(messaging =>
 | `MessageModuleBuilder.UseFaultRefusalClassifier<TClassifier>()` | Registers a classifier by type, as a singleton |
 | `MessageModuleBuilder.UseFaultRefusalClassifierInstance(classifier)` | Registers a classifier instance |
 | `PostgreSqlConstraintRefusalClassifier` | Shipped classifier over PostgreSQL unique and exclusion violations, from `LiteBus.Storage.PostgreSql` |
-| `MediationExceptionFilters.TryClassifyRefusal(classifiers, exception, out refusal)` | Consults the registered classifiers in order with first match winning |
+| `MediationExceptionFilters.TryClassifyRefusal(classifiers, exception, out refusal)` | Consults the registered classifiers in order. The first match wins |
 
 ## Packages
 
@@ -69,17 +69,17 @@ registry.AddMessaging(messaging =>
 
 - Classifiers are consulted in registration order and the first match wins, so the most specific classifier registers first.
 - Classifiers are singletons and must be stateless: a pure predicate over the exception, with no I/O and no side effects.
-- A fault from any stage is offered, including the completion stage, where a commit fault becomes a refusal the caller branches on.
+- A fault from any stage is offered to the classifiers, including the completion stage, where a commit fault becomes a refusal the caller branches on.
 - Cancellation is never classified, and an exception that already carries a refusal is never reclassified.
-- A classified fault skips the error handlers: it is a refusal, not a fault. Completion handlers still run, observing the refusal outcome.
-- A classified completion fault supersedes the ending the mediation had reached: handlers that already ran keep the outcome they observed, the remaining handlers do not run, and the caller receives the refusal exception. Refusal mappers do not apply there, because the main handler already produced the caller's value, and mediation telemetry records the outcome observed when the completion stage began.
-- `EvaluateAsync` reports a classified decision-stage fault as the denial or invalid decision the message would end as when sent.
+- A classified fault skips the error handlers, because it is a refusal, not a fault. Completion handlers still run, observing the refusal outcome.
+- A classified completion fault supersedes the ending the mediation had reached. Handlers that already ran keep the outcome they observed, the remaining handlers do not run, and the caller receives the refusal exception. Refusal mappers do not apply there, because the main handler already produced the caller's value, and mediation telemetry records the outcome observed when the completion stage began.
+- `EvaluateAsync` reports a classified decision-stage fault as the denial or invalid decision the message would end with when sent.
 - With no classifier registered, every fault behaves exactly as before.
 
 ## Non-Goals
 
-- Retrying the fault; classification decides the ending, not a second attempt.
-- Replacing guards; anything decidable before the work runs belongs to a guard, which runs first.
+- Retrying the fault. Classification decides the ending, not a second attempt.
+- Replacing guards. Anything decidable before the work runs belongs to a guard, which runs first.
 - Reclassifying a refusal into a different refusal.
 
 ## Observability
@@ -88,7 +88,7 @@ No classifier-specific meter or activity source. A classified fault is recorded 
 
 Operational alternatives:
 - Log inside the classifier when a new fault shape needs a mapping.
-- Switch the mediation decision counter on the refusal code the classifier supplies.
+- Group the mediation decision counter by the refusal code the classifier supplies.
 
 ## Test Coverage
 
@@ -126,7 +126,7 @@ Operational alternatives:
 - Durable processor retry and dead-letter behavior for classified refusals.
 - Database constraint design and migration management.
 
-## Deep Docs
+## References
 
 - [The handler pipeline](../../concepts/handler-pipeline.md)
 - [Validation](../../concepts/validation.md)

@@ -3,11 +3,11 @@
 - **ID**: `runtime.composite-modules`
 - **Name**: Composite parent and child modules
 - **Maturity**: GA
-- **Summary**: Allows parent modules to declare child modules during registration through `ICompositeModule`.
+- **Summary**: A parent module declares its child modules during registration through `ICompositeModule`.
 
 ## What It Does
 
-When `IModuleRegistry.Register` receives an `ICompositeModule`, it calls `DeclareChildren(Action<IModule>)` and stages each child immediately after the parent in the same registration call. This keeps parent-owned module graphs deterministic.
+When `IModuleRegistry.Register` receives an `ICompositeModule`, it calls `DeclareChildren(Action<IModule>)` and stages each child immediately after the parent in the same registration call, so a parent and its children always register in the same order.
 
 ## Public Surface
 
@@ -15,7 +15,7 @@ When `IModuleRegistry.Register` receives an `ICompositeModule`, it calls `Declar
 | --- | --- |
 | `ICompositeModule` | Parent-child module contract |
 | `DeclareChildren(Action<IModule>)` | Child declaration callback |
-| `ICompositeModule.BuildOrder` (`CompositeModuleBuildOrder`) | Parent-first by default; children-first reverses the ordering edge |
+| `ICompositeModule.BuildOrder` (`CompositeModuleBuildOrder`) | Parent-first by default, reversed for children-first |
 
 ## Packages
 
@@ -29,18 +29,18 @@ When `IModuleRegistry.Register` receives an `ICompositeModule`, it calls `Declar
 
 ## Invariants
 
-- Children are declared during registration, not build.
-- Duplicate child type registration fails.
-- Parent-first build order is the default; children-first adds the reversed ordering edge before topological sort.
+- Children are declared during registration, not during build.
+- The registry rejects a duplicate child type registration.
+- Parent-first build order is the default. Children-first adds the reversed ordering edge before the topological sort.
 - A failed composite expansion commits nothing to the registry.
 
 ## Non-Goals
 
-- Runtime dynamic child discovery.
+- Discovering child modules dynamically at run time.
 
 ## Observability
 
-No direct telemetry. Duplicate registrations fail fast at compose time.
+The registry emits no telemetry. Duplicate registrations throw at compose time.
 
 ## Test Coverage
 
@@ -48,23 +48,23 @@ No direct telemetry. Duplicate registrations fail fast at compose time.
 
 #### `CompositeModuleRegistryTests.Register_CompositeModule_ShouldExpandChildrenImmediatelyAfterParent`
 - **Test kind**: Unit
-- **Expected outcome**: children inserted after parent
+- **Expected outcome**: the registry inserts children after the parent
 
 #### `CompositeModuleRegistryTests.Register_CompositeChildAlsoRegisteredAtTopLevel_ShouldThrowConfigurationException`
 - **Test kind**: Unit
-- **Expected outcome**: duplicate child path is rejected
+- **Expected outcome**: the registry rejects the duplicate child path
 
 #### `CompositeModuleRegistryTests.BuildOrder_WithChildrenFirstComposite_ShouldBuildChildBeforeParent`
 - **Test kind**: Unit
-- **Expected outcome**: children-first edge builds the child before the parent
+- **Expected outcome**: the children-first edge builds the child before the parent
 
 #### `CompositeModuleRegistryTests.BuildOrder_WithNestedOppositeRelationships_ShouldHonorEveryCompositeEdge`
 - **Test kind**: Unit
-- **Expected outcome**: nested composite ordering edges are honored
+- **Expected outcome**: the registry honors the nested composite ordering edges
 
 #### `CompositeModuleRegistryTests.Register_WhenCompositeExpansionFails_ShouldNotCommitPartialGraph`
 - **Test kind**: Unit
-- **Expected outcome**: failed expansion leaves the registry unchanged
+- **Expected outcome**: a failed expansion leaves the registry unchanged
 
 ### Untested Use Cases
 
@@ -72,4 +72,4 @@ None currently tracked.
 
 ### Out-of-Scope Use Cases
 
-- Post-startup child module insertion.
+- Inserting child modules after startup.

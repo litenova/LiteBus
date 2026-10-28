@@ -49,14 +49,14 @@ On Windows the root is typically `%USERPROFILE%\.nuget\packages\`.
 
 ### Copy from the GitHub Repository
 
-You can also copy from the LiteBus source tree (same file contents as the NuGet package):
+You can also copy from the LiteBus source tree, which holds the same file contents as the NuGet package:
 
 | File | Purpose |
 | --- | --- |
 | `src/LiteBus.Storage.PostgreSql/Sql/metadata/create.sql` | Creates `litebus_schema_versions` |
 | `src/LiteBus.Inbox.Storage.PostgreSql/Sql/inbox/v1/create.sql` | Creates the current inbox table and indexes for a new installation |
 | `src/LiteBus.Inbox.Storage.PostgreSql/Sql/inbox/v1/ensure_indexes.sql` | Re-applies inbox indexes idempotently |
-| `src/LiteBus.Outbox.Storage.PostgreSql/Sql/outbox/v1/create.sql` | Creates the version 1 outbox table, indexes, and notify trigger (shipped shape without the handler column; kept for existing databases) |
+| `src/LiteBus.Outbox.Storage.PostgreSql/Sql/outbox/v1/create.sql` | Creates the version 1 outbox table, indexes, and notify trigger (shipped shape without the handler column, kept for existing databases) |
 | `src/LiteBus.Outbox.Storage.PostgreSql/Sql/outbox/v1/ensure_indexes.sql` | Re-applies outbox indexes idempotently |
 | `src/LiteBus.Outbox.Storage.PostgreSql/Sql/outbox/v2/create.sql` | Creates the current outbox table and indexes for a new installation |
 | `src/LiteBus.Outbox.Storage.PostgreSql/Sql/outbox/v2/upgrade.sql` | Upgrades a version 1 outbox table to version 2 |
@@ -105,8 +105,8 @@ Edit the `.sql` files under each package's `Sql/` folder in the LiteBus reposito
 
 | Location | When it is used | Best practice |
 | --- | --- | --- |
-| Embedded resource in the DLL | `EnsureAsync`, `GetCreateScript`, integration tests | Trust this at runtime; it always matches the package version you referenced |
-| Loose `sql/` folder in the NuGet package | DBA review, Flyway/Liquibase copy-paste | Copy verbatim into your migration repo; pin the LiteBus package version in release notes |
+| Embedded resource in the DLL | `EnsureAsync`, `GetCreateScript`, integration tests | Trust this at runtime. It always matches the package version you referenced. |
+| Loose `sql/` folder in the NuGet package | DBA review, Flyway/Liquibase copy-paste | Copy verbatim into your migration repo and pin the LiteBus package version in release notes |
 | GitHub `src/.../Sql/` tree | Documentation and PR review | Same content as the NuGet loose files for a given release tag |
 
 Runtime code never reads loose files from disk. Deployments that omit the `sql/` folder from the published app still work because the embedded copy is always present.
@@ -119,10 +119,10 @@ Placeholders use the form `{{TokenName}}`. Prefer `GetCreateScript(options)` ove
 
 | Approach | When to use |
 | --- | --- |
-| `UseDataSource(NpgsqlDataSource)` | Production apps that already build one shared data source for pooling, health checks, and tracing |
+| `UseDataSource(NpgsqlDataSource)` | Production applications that already build one shared data source for pooling, health checks, and tracing |
 | `UseConnectionString(string)` | Samples, tests, and small services where the module should create and register the data source |
 
-Ownership follows the overload. `UseConnectionString` creates a data source the module owns, and disposing the service provider disposes it and closes its pool, together with the dedicated LISTEN connection of a `UseListenNotify` work signal. `UseDataSource` leaves ownership with the application: the provider never disposes a data source it was given, so dispose it where you created it. Both behaviours are covered with Microsoft.Extensions.DependencyInjection by `PostgreSqlDataSourceOwnershipTests`; Autofac disposes the same registrations when its container is disposed.
+Ownership follows the overload. `UseConnectionString` creates a data source the module owns. Disposing the service provider disposes it and closes its pool, together with the dedicated LISTEN connection of a `UseListenNotify` work signal. `UseDataSource` leaves ownership with the application. The provider never disposes a data source it was given, so dispose it where you created it. `PostgreSqlDataSourceOwnershipTests` covers both behaviors with Microsoft.Extensions.DependencyInjection. Autofac disposes the same registrations when its container is disposed.
 
 When inbox and outbox share one database, build a single `NpgsqlDataSource` and pass it to both stores with `UseDataSource`. Calling `UseConnectionString` on both stores creates two pools against the same server.
 
@@ -138,7 +138,7 @@ builder.AddOutbox(outbox =>
 
 ### Current Schema Contract
 
-Inbox and saga use schema version 1; outbox uses schema version 2. Each current create script contains the complete table shape for a new installation.
+Inbox and saga use schema version 1, and outbox uses schema version 2. Each current create script contains the complete table shape for a new installation.
 
 `EnsureAsync` creates a missing table, validates its columns and types, and records the current version. When a table matches an older known version with a shipped upgrade script, `EnsureAsync` applies each upgrade in order before validating. An incompatible existing table fails validation. Historical replacement and data-copy procedures remain in the [Migration Guide](../migration/v6.md).
 
@@ -194,7 +194,7 @@ Use this for internal services, prototypes, and test environments where a migrat
 
 ### 3. Host Schema Creation (Default)
 
-`UsePostgreSqlStorage` registers `PostgreSqlInboxSchemaInitializer` as `IStartupTask` whenever `EnableSchemaInitialization` is enabled (the default), and `EnsureSchemaCreationOnStartup` defaults to `true`, so a plain registration creates schema when the generic host starts:
+`UsePostgreSqlStorage` registers `PostgreSqlInboxSchemaInitializer` as `IStartupTask` whenever `EnableSchemaInitialization` is enabled, which is the default. `EnsureSchemaCreationOnStartup` also defaults to `true`, so a plain registration creates schema when the generic host starts:
 
 ```csharp
 builder.Services.AddLiteBus(builder =>
@@ -227,12 +227,12 @@ Both inbox and outbox share the same option shape through `PostgreSqlSchemaStore
 | `EnsureSchemaCreationOnStartup` | `true` | Run `EnsureAsync` inside `PostgreSql*SchemaInitializer` when the host starts. Migration-owned deployments must set this to `false`. |
 | `ValidateSchemaCreationOnStartup` | `true` | Run `ValidateAsync` in the initializer when enabled, including validate-only when ensure is `false` |
 | `ValidateIndexesOnStartup` | `true` | When validation runs, also verify required store indexes exist |
-| `UseListenNotify` | `false` | Listen for PostgreSQL `NOTIFY` work signals with polling as a fallback. Enable only through `UseOptions`; see below. |
+| `UseListenNotify` | `false` | Listen for PostgreSQL `NOTIFY` work signals with polling as a fallback. Enable it only through `UseOptions`; see below. |
 | `Logger` | `null` | Optional `IPostgreSqlSchemaLogger` for schema operations |
 
 When `ValidateSchemaCreationOnStartup` is `true`, the initializer runs `ValidateAsync` even if `EnsureSchemaCreationOnStartup` is `false` (validate-only startup). When both are enabled, ensure runs first, then validation.
 
-Example with custom object names and logging:
+This example uses custom object names and logging:
 
 ```csharp
 postgres.UseOptions(new PostgreSqlInboxStoreOptions
@@ -249,7 +249,7 @@ Use the same option instance for the store registration and schema helpers so ta
 
 ## Listen/Notify Work Signal
 
-By default the processors poll the store on `PollInterval`. `UseListenNotify` switches the work signal to PostgreSQL `LISTEN`/`NOTIFY`: an `AFTER INSERT` trigger notifies the store channel, and the processor wakes immediately instead of waiting out the poll interval. Polling remains as a fallback: the wait still returns when the poll interval elapses, and disposal falls back to the polling delay.
+By default the processors poll the store on `PollInterval`. `UseListenNotify` switches the work signal to PostgreSQL `LISTEN`/`NOTIFY`. An `AFTER INSERT` trigger notifies the store channel, and the processor wakes immediately instead of waiting out the poll interval. Polling remains as a fallback. The wait still returns when the poll interval elapses, and disposal falls back to the polling delay.
 
 There is no builder method for this setting. Enable it through `UseOptions` on the nested storage builder:
 
@@ -260,9 +260,9 @@ postgres.UseOptions(new PostgreSqlInboxStoreOptions
 });
 ```
 
-The `NOTIFY` trigger is installed unconditionally by the canonical `create.sql` scripts, so enabling the listener later requires no schema change. The listener holds one dedicated connection per store outside the pool; connection poolers that reassign the connection between statements (transaction pooling) break the subscription, so use session pooling or leave `UseListenNotify` disabled behind such a pooler.
+The `NOTIFY` trigger is installed unconditionally by the canonical `create.sql` scripts, so enabling the listener later requires no schema change. The listener holds one dedicated connection per store outside the pool. Connection poolers that reassign the connection between statements (transaction pooling) break the subscription, so use session pooling or leave `UseListenNotify` disabled behind such a pooler.
 
-When the listener connection breaks, the loop reconnects with a 1-second backoff and keeps serving the poll interval meanwhile.
+When the listener connection breaks, the loop reconnects with a 1-second backoff and keeps polling on the poll interval meanwhile.
 
 ## Logging
 
@@ -278,7 +278,7 @@ Schema operations log at these points:
 - Recording metadata version rows
 - Validation success or `PostgreSqlSchemaDriftException` details
 
-Example adapter for local development:
+The following adapter logs to the console for local development:
 
 ```csharp
 public sealed class ConsolePostgreSqlSchemaLogger : IPostgreSqlSchemaLogger
@@ -308,7 +308,7 @@ LiteBus records applied table schema versions in `litebus_schema_versions`:
 | `version` | Applied table schema version |
 | `applied_at` | UTC timestamp of the recorded schema version |
 
-Primary key: `(component, schema_name, table_name)`.
+The primary key is `(component, schema_name, table_name)`.
 
 One metadata table serves all LiteBus store tables in the database. Each inbox or outbox table you configure gets its own row.
 
@@ -320,13 +320,13 @@ One metadata table serves all LiteBus store tables in the database. Each inbox o
 | Outbox | **2** | Adds the nullable `handler` column |
 | Saga | **1** | Duplicate dispatch suppression |
 
-Constants: `PostgreSqlInboxSchema.CurrentSchemaVersion` and `PostgreSqlOutboxSchema.CurrentSchemaVersion`.
+The version constants are `PostgreSqlInboxSchema.CurrentSchemaVersion` and `PostgreSqlOutboxSchema.CurrentSchemaVersion`.
 
 The schema validator checks required columns, payload and fencing column types, indexes, and version metadata. For example, an inbox table with `payload jsonb` fails version 1 validation because the current contract requires opaque payload text.
 
-### Indexes: Ensure vs Validate
+### Ensure and Validate Index Behavior
 
-`EnsureAsync` runs the idempotent `ensure_indexes` script after create so required indexes exist. `ValidateAsync` checks that the table exists, required columns for `CurrentSchemaVersion` are present, required column types match, required indexes exist, and metadata or inferred column shape matches the current version.
+`EnsureAsync` runs the idempotent `ensure_indexes` script after creating the table, so required indexes exist. `ValidateAsync` checks that the table exists, required columns for `CurrentSchemaVersion` are present, required column types match, required indexes exist, and metadata or inferred column shape matches the current version.
 
 ## Schema Upgrades
 
@@ -334,13 +334,13 @@ A component whose table shape grows ships one upgrade script per version step. E
 
 When schema initialization is enabled (`EnsureSchemaCreationOnStartup`, the default), `EnsureAsync` infers the table version from its columns. When the inferred version is lower than the current version but matches a known older version with a complete upgrade path, `EnsureAsync` runs each upgrade script in order under the same advisory lock as table creation, records the new version in `litebus_schema_versions`, and logs each step at Information. Index ensure and column validation then run against the upgraded table.
 
-When initialization is disabled, migration-owned deployments apply the upgrade by hand: copy the shipped `upgrade.sql` for each pending step into the migration pipeline in version order, replacing the `{{QualifiedTableName}}` placeholder with the quoted table name, and let the validate-only startup (`ValidateAsync`) confirm the result. A `ValidateAsync` run against a table with a pending upgrade fails with `PostgreSqlSchemaDriftException` whose details name the version found, the version required, and the upgrade script path to run.
+When initialization is disabled, migration-owned deployments apply the upgrade by hand. Copy the shipped `upgrade.sql` for each pending step into the migration pipeline in version order, replacing the `{{QualifiedTableName}}` placeholder with the quoted table name, and let the validate-only startup (`ValidateAsync`) confirm the result. A `ValidateAsync` run against a table with a pending upgrade fails with `PostgreSqlSchemaDriftException` whose details name the version found, the version required, and the upgrade script path to run.
 
-A table whose columns match no known version still fails as an incompatible shape: LiteBus does not mutate it automatically, and the drift details say to drain and replace the table or run a reviewed application-owned data migration. Destructive changes (drops, renames, narrowing type changes) never run automatically; see Schema Evolution Policy.
+A table whose columns match no known version still fails as an incompatible shape. LiteBus does not mutate it automatically, and the drift details say to drain and replace the table or run a reviewed application-owned data migration. Destructive changes (drops, renames, narrowing type changes) never run automatically. See Schema Evolution Policy.
 
 ## Store Table Columns
 
-Store tables carry the envelope fields plus forensic columns for operators. Processors use `status`, `visible_after`, `lease_expires_at`, and `lease_generation`; operators query `last_error`, `error_type`, `last_lease_owner`, and the forensic timestamps.
+Store tables carry the envelope fields plus forensic columns for operators. Processors use `status`, `visible_after`, `lease_expires_at`, and `lease_generation`. Operators query `last_error`, `error_type`, `last_lease_owner`, and the forensic timestamps.
 
 ### Inbox Columns
 
@@ -415,7 +415,7 @@ The outbox table mirrors the inbox shape with three differences: `topic` and `ha
 
 ### Exceptions
 
-`PostgreSqlSchemaDriftException` is thrown by `ValidateAsync` and by startup validation. It includes:
+`ValidateAsync` and startup validation throw `PostgreSqlSchemaDriftException`. It includes:
 
 - `Component` (`inbox` / `outbox`)
 - `SchemaName`, `TableName`
@@ -431,11 +431,11 @@ Treat this as a deployment blocker. Do not catch and ignore it in production sta
 1. **Initial create** uses `CREATE ... IF NOT EXISTS` for schemas, tables, and indexes.
 2. **Advisory locks** ensure one connection creates the schema at a time per store table. Other instances wait until the table reaches the expected version or the wait timeout elapses.
 
-Lock key format: `litebus:{component}:{schema}:{table}`.
+The lock key format is `litebus:{component}:{schema}:{table}`.
 
 Waiting instances poll the metadata table and physical column shape. They do not fail merely because another instance holds the lock.
 
-### What to Run from Every Pod vs One Deploy Job
+### Pod and Deploy Job Operations
 
 | Operation | Safe from all pods | Recommended pattern |
 | --- | --- | --- |
@@ -444,7 +444,7 @@ Waiting instances poll the metadata table and physical column shape. They do not
 
 ## Existing Tables
 
-LiteBus does not mutate an incompatible table automatically. When a table matches an older known version with a shipped upgrade script, `EnsureAsync` applies the upgrade; see Schema Upgrades. `ValidateAsync` reports the missing or mismatched columns, types, indexes, and metadata. Use the [Migration Guide](../migration/v6.md) when an existing database uses a historical LiteBus table shape.
+LiteBus does not mutate an incompatible table automatically. When a table matches an older known version with a shipped upgrade script, `EnsureAsync` applies the upgrade. See Schema Upgrades. `ValidateAsync` reports the missing or mismatched columns, types, indexes, and metadata. Use the [Migration Guide](../migration/v6.md) when an existing database uses a historical LiteBus table shape.
 
 ## Registration Order with Background Services
 
@@ -466,11 +466,11 @@ builder.AddOutbox(outbox =>
 });
 ```
 
-Schema initializers implement `IStartupTask` and run sequentially before processor loops. Register storage modules before inbox or outbox modules so schema ensure/validate completes first. See [Hosted services](../architecture/hosted-services.md).
+Schema initializers implement `IStartupTask` and run sequentially before processor loops. Register storage modules before inbox or outbox modules so schema creation and validation complete first. See [Hosted services](../architecture/hosted-services.md).
 
 ## Entity Framework Core Storage
 
-LiteBus ships EF Core inbox and outbox stores for applications that already use `DbContext` and migrations. EF apps own all DDL; LiteBus does not register `PostgreSql*SchemaInitializer` for EF storage.
+LiteBus ships EF Core inbox and outbox stores for applications that already use `DbContext` and migrations. EF applications own all DDL. LiteBus does not register `PostgreSql*SchemaInitializer` for EF storage.
 
 | Topic | PostgreSQL Npgsql store | EF Core store |
 | --- | --- | --- |
@@ -487,7 +487,7 @@ See [Inbox Entity Framework Core Storage](inbox-ef-core-storage.md) and [Outbox 
 
 ## Manual Deploy Job Example
 
-For teams that want automatic DDL without running it from every pod:
+Use this pattern when the team wants automatic DDL without running it from every pod:
 
 ```csharp
 var dataSource = NpgsqlDataSource.Create(connectionString);
@@ -519,7 +519,7 @@ If you implement `IInboxStore` / `IOutboxStore` and your own storage, you own th
 
 A package that changes the physical contract must document its source version, target version, and deployment procedure. Do not infer a migration path from development-branch SQL history.
 
-LiteBus will not auto-run destructive changes such as drops, renames, or narrowing type changes from application pods.
+LiteBus will not automatically run destructive changes such as drops, renames, or narrowing type changes from application pods.
 
 ## Related Docs
 

@@ -3,15 +3,15 @@
 - **ID**: `transport.single-broker-registration`
 - **Name**: Single broker registration
 - **Maturity**: GA
-- **Summary**: Root composition and dependency-registry validation that allow one transport adapter in a host.
+- **Summary**: Root composition and dependency-registry validation that allow one transport adapter per host.
 
 ## What It Does
 
 Applications register their shared broker once through `AddAmqpTransport`, `AddKafkaTransport`, `AddAwsSqsTransport`, `AddAzureServiceBusTransport`, or `AddInMemoryTransport`. Inbox dispatch, outbox dispatch, and ingress modules depend on that root module through the validated module graph.
 
-If advanced registry code adds a second broker module, composition fails with `ModuleCompositionException`, which extends `LiteBusConfigurationException` and names both modules. The first transport module records its module type in a shared composition context during `Build()`; the second module is refused against that claim.
+If advanced registry code adds a second broker module, composition fails with `ModuleCompositionException`, which extends `LiteBusConfigurationException` and names both modules. The first transport module records its module type in a shared composition context during `Build()`. The second module is refused against that claim.
 
-This rule keeps publisher and consumer runtime behavior aligned to one broker SDK graph and one breaker identity in a process.
+This rule keeps publisher and consumer runtime behavior aligned with one broker SDK graph and one circuit-breaker identity in a process.
 
 ## Public Surface
 
@@ -22,7 +22,7 @@ This rule keeps publisher and consumer runtime behavior aligned to one broker SD
 | `ILiteBusBuilder.AddAwsSqsTransport(...)` | Registers the shared AWS SQS root transport |
 | `ILiteBusBuilder.AddAzureServiceBusTransport(...)` | Registers the shared Azure Service Bus root transport |
 | `ILiteBusBuilder.AddInMemoryTransport(...)` | Registers the shared in-memory root transport |
-| `ModuleCompositionException` | Refuses a second transport module, naming both modules; extends `LiteBusConfigurationException` |
+| `ModuleCompositionException` | Refuses a second transport module, naming both modules. Extends `LiteBusConfigurationException` |
 
 ## Packages
 
@@ -36,9 +36,9 @@ This rule keeps publisher and consumer runtime behavior aligned to one broker SD
 
 ## Invariants
 
-- Exactly one `ITransportPublisher` implementation per process.
+- Each process holds exactly one `ITransportPublisher` implementation.
 - A duplicate broker module fails composition through the standard duplicate-service validation.
-- Metric registration stays single-tagged because only one adapter survives compose.
+- Metric registration stays single-tagged because only one adapter remains after composition.
 
 ## Non-Goals
 
@@ -48,8 +48,8 @@ This rule keeps publisher and consumer runtime behavior aligned to one broker SD
 
 ## Observability
 
-- No dedicated metrics for guard execution.
-- Indirect effect: only one broker tag value exists on shared transport metrics.
+- The guard defines no dedicated metrics.
+- As an indirect effect, only one broker tag value appears on shared transport metrics.
 
 ## Test Coverage
 
@@ -77,7 +77,7 @@ This rule keeps publisher and consumer runtime behavior aligned to one broker SD
 - Multi-broker fan-out in one process.
 - Runtime adapter replacement.
 
-## Deep Docs
+## References
 
 - [Architecture.md](../../architecture/README.md)
 - [Dependency Graph](../../architecture/dependency-graph.md)

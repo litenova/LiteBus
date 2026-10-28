@@ -1,8 +1,8 @@
 # In-Memory Transport
 
-`LiteBus.Transport.InMemory` is a process-local channel broker for tests and local workflows. It implements the same `ITransportPublisher` and `IMessageConsumer` contracts as the external brokers, so dispatch and ingress code paths run unchanged without a broker. It is not durable: queued messages live in process memory and do not survive a restart.
+`LiteBus.Transport.InMemory` is a process-local channel broker for tests and local workflows. It implements the same `ITransportPublisher` and `IMessageConsumer` contracts as the external brokers, so dispatch and ingress code paths run unchanged without a broker. It is not durable. Queued messages live in process memory and do not survive a restart.
 
-**Production tier: GA** for tests and local workflows. Not a production broker replacement: no durability, no cross-process delivery.
+**Production tier: GA** for tests and local workflows. It is not a production broker replacement: it offers no durability and no cross-process delivery.
 
 ## Packages to Install
 
@@ -40,20 +40,20 @@ builder.AddInbox(inbox =>
 });
 ```
 
-`AddInMemoryTransport` registers the shared broker at the root. Dispatch and ingress require that module. Register exactly one dispatcher per inbox or outbox: a second dispatcher registration throws `LiteBusConfigurationException`. Omit the options argument to use the default capacity of 1024 unsettled deliveries per destination.
+`AddInMemoryTransport` registers the shared broker at the root. Dispatch and ingress require that module. Register exactly one dispatcher per inbox or outbox, because a second dispatcher registration throws `LiteBusConfigurationException`. Omit the options argument to use the default capacity of 1024 unsettled deliveries per destination.
 
 ## Options Reference
 
 | Type | Property | Default | Notes |
 | --- | --- | --- | --- |
-| `InMemoryTransportOptions` | `DestinationCapacity` | `1024` | Maximum queued and in-flight deliveries admitted per destination. Must be positive; validated during composition. |
+| `InMemoryTransportOptions` | `DestinationCapacity` | `1024` | Maximum queued and in-flight deliveries admitted per destination. Must be positive and is validated during composition. |
 | `InMemoryInboxIngressOptions` | `Destination` | `""` (required) | Logical queue name the ingress consumer subscribes to |
 | | `RequeueOnFailure` | `true` | Re-enqueue with `Redelivered = true` on transient accept failure |
-| | `Safety.MaxInFlightMessages` | `32` requested | Enforced bound is 1: the in-memory adapter runs one handler at a time |
+| | `Safety.MaxInFlightMessages` | `32` requested | The enforced bound is 1, because the in-memory adapter runs one handler at a time. |
 
-When a destination reaches capacity, `PublishAsync` waits asynchronously until a delivery settles or the caller cancels. The transport does not drop old or new writes. `AcceptAsync` and `DiscardAsync` release the delivery's capacity reservation; `ReturnToQueueAsync` re-enqueues with `Redelivered = true` and retains the reservation, so a waiting publisher cannot take the only slot and deadlock redelivery.
+When a destination reaches capacity, `PublishAsync` waits asynchronously until a delivery settles or the caller cancels. The transport does not drop old or new writes. `AcceptAsync` and `DiscardAsync` release the delivery's capacity reservation. `ReturnToQueueAsync` re-enqueues with `Redelivered = true` and retains the reservation, so a waiting publisher cannot take the only slot and deadlock redelivery.
 
-A handler that returns successfully without settling is treated as unprocessed: the delivery is returned to the destination with `Redelivered = true` instead of being dropped, so always settle with `AcceptAsync`, `DiscardAsync`, or `ReturnToQueueAsync` before returning.
+A handler that returns successfully without settling is treated as unprocessed. The delivery is returned to the destination with `Redelivered = true` instead of being dropped, so always settle with `AcceptAsync`, `DiscardAsync`, or `ReturnToQueueAsync` before returning.
 
 ## Guarantees and Non-Guarantees
 
@@ -67,8 +67,8 @@ A handler that returns successfully without settling is treated as unprocessed: 
 
 | Symptom | Check | Action |
 | --- | --- | --- |
-| Publisher stalls | Destination depth, consumer running | Start the ingress consumer; drain the destination before raising capacity |
-| Same message reprocessed repeatedly | Accept failure logs | Fix root accept failure; redelivery retains its capacity slot by design |
+| Publisher stalls | Destination depth, consumer running | Start the ingress consumer and drain the destination before raising capacity |
+| Same message reprocessed repeatedly | Accept failure logs | Fix the root accept failure. Redelivery retains its capacity slot by design. |
 
 Shared circuit-breaker gauges are tagged `litebus.transport.broker="inmemory"` on the `LiteBus.Transport` meter.
 

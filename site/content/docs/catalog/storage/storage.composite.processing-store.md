@@ -1,7 +1,7 @@
 # Processing Composite Store
 
 - **ID**: `storage.composite.processing-store`
-- **Summary**: Composite role that combines lease and state-writer responsibilities for processor loops.
+- **Summary**: This composite role combines lease and state-writer responsibilities for processor loops.
 
 ## Interface Methods
 
@@ -15,8 +15,8 @@ Acceptance methods (`AddAsync`, `AddBatchAsync`) remain on append interfaces and
 ## SQL Behavior
 
 - Composite methods execute against the same physical table as append and operations roles.
-- Lease path reads due rows and marks owner plus expiry.
-- State path updates status and timestamps with lease guard checks.
+- The lease path reads due rows and marks the owner plus the expiry.
+- The state path updates status and timestamps with lease guard checks.
 
 ## Concurrency Model
 
@@ -26,7 +26,7 @@ Acceptance methods (`AddAsync`, `AddBatchAsync`) remain on append interfaces and
 
 ## Index Interaction
 
-- Lease scan index is required for claim operations.
+- Claim operations require the lease scan index.
 - Idempotency and topic indexes are not directly used by processing methods but remain part of the same table definition.
 
 ## Observability
@@ -44,14 +44,14 @@ Acceptance methods (`AddAsync`, `AddBatchAsync`) remain on append interfaces and
 
 ### `LiteBus.Storage.IntegrationTests` (`PostgreSql/`)
 
-- `PostgreSqlInboxEndToEndTests` and `PostgreSqlOutboxEndToEndTests`: lease plus persist path.
-- `PostgreSqlInboxProcessorLeaseStressTests`: concurrent processor claims and single terminal outcome.
-- `PostgreSqlModuleRegistrationTests`: role interfaces resolve to one singleton store instance.
+- `PostgreSqlInboxEndToEndTests` and `PostgreSqlOutboxEndToEndTests` cover the lease plus persist path.
+- `PostgreSqlInboxProcessorLeaseStressTests` covers concurrent processor claims and a single terminal outcome.
+- In `PostgreSqlModuleRegistrationTests`, role interfaces resolve to one singleton store instance.
 
 ### `LiteBus.Storage.UnitTests`
 
 - Module dependency tests validate that storage cannot build without its parent durable module.
-- EF and InMemory module tests in same project verify one-instance role mapping per axis adapter.
+- EF and InMemory module tests in the same project verify one-instance role mapping per axis adapter.
 
 ## Related Docs
 

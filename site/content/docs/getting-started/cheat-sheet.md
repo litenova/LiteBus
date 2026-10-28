@@ -1,14 +1,14 @@
 # LiteBus Cheat Sheet
 
-This page keeps every LiteBus registration and mediation call you use daily on one page. You install only the packages you use, and register storage, dispatch, and processors inside nested inbox and outbox builders.
+LiteBus registration and mediation follow a small set of patterns. You install only the packages you use, and you register storage, dispatch, and processors inside nested inbox and outbox builders. This page keeps every registration and mediation call you use daily on one page.
 
 > **This page is for** developers who finished [Getting Started](README.md) and want each API without the walkthrough.
 >
-> **After reading it** you can compose transports, stores, dispatchers, and mediators from memory. [Getting Started](README.md) holds the full walkthrough behind each row.
+> **After reading it** you can compose transports, stores, dispatchers, and mediators from memory. [Getting Started](README.md) holds the full walkthrough for each row.
 
 ## Mediators
 
-Inject `ICommandMediator`, `IQueryMediator`, or `IEventMediator`. Handlers and pipeline stages (guards, validators, shortcuts, pre, post, error, completion) are discovered by `RegisterFromAssembly` and resolved per mediation call.
+Inject `ICommandMediator`, `IQueryMediator`, or `IEventMediator`. `RegisterFromAssembly` discovers handlers and pipeline stages (guards, validators, shortcuts, pre-handlers, post-handlers, error handlers, and completion handlers), and each mediation call resolves them.
 
 ```csharp
 await commandMediator.SendAsync(new CreateOrderCommand(orderId));
@@ -16,11 +16,11 @@ var order = await queryMediator.QueryAsync(new GetOrderQuery(orderId));
 await eventMediator.PublishAsync(new OrderPlaced(orderId));
 ```
 
-Mediation alone persists nothing. When the work must survive a restart, accept through `IInbox.AcceptAsync` or enqueue through `IOutbox.EnqueueAsync` instead; see [Inbox](../reliable-messaging/inbox.md) and [Outbox](../reliable-messaging/outbox.md).
+Mediation alone persists nothing. When the work must survive a restart, accept through `IInbox.AcceptAsync` or enqueue through `IOutbox.EnqueueAsync` instead. See [Inbox](../reliable-messaging/inbox.md) and [Outbox](../reliable-messaging/outbox.md).
 
 ## Module Registration
 
-Prefer the `ILiteBusBuilder` overload for normal package-owned feature composition:
+Prefer the `ILiteBusBuilder` overload when composing the features your installed packages provide:
 
 ```csharp
 services.AddLiteBus(builder =>
@@ -93,7 +93,7 @@ Register horizontal transport infrastructure once on `ILiteBusBuilder`. Dispatch
 | `UseAwsSqsIngress(...)` | `LiteBus.Inbox.Ingress.AwsSqs` |
 | `UseKafkaIngress(...)` | `LiteBus.Inbox.Ingress.Kafka` |
 | `UseInMemoryIngress(...)` | `LiteBus.Inbox.Ingress.InMemory` |
-| `EnableInboxProcessor(...)` | `LiteBus.Inbox` (registers `InboxProcessorBackgroundService` via manifest) |
+| `EnableInboxProcessor(...)` | `LiteBus.Inbox` (registers `InboxProcessorBackgroundService` through the manifest) |
 | `EnableSaga(...)` | `LiteBus.Saga.InboxIntegration` |
 
 ## Outbox Composition (`Use*` Extensions)
@@ -146,7 +146,7 @@ builder.AddInbox(inbox =>
 });
 ```
 
-Inbox, outbox, and saga use PostgreSQL schema version **1**. The version 1 scripts contain the complete current shape. See the [v6 Migration Guide](../migration/v6.md) for historical table transitions.
+Inbox, outbox, and saga use PostgreSQL schema version 1. The version 1 scripts hold the full current schema. See the [Migration Guide v6](../migration/v6.md) for historical table transitions.
 
 ## Health and Operations
 
@@ -177,19 +177,19 @@ builder.Services.AddOpenTelemetry()
         .AddLiteBusTransportMetrics());
 ```
 
-Instrument names on `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, and `LiteBusTransportTelemetry` are a public contract; renames are breaking changes.
+Instrument names on `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, and `LiteBusTransportTelemetry` are a public contract. Renaming them is a breaking change.
 
-## Processor Options Worth Knowing
+## Processor Options
 
 | Option | Default | Notes |
 | --- | --- | --- |
-| `HonorShutdownTokenOnPersist` | `false` | When `false`, terminal `PersistAsync` uses `CancellationToken.None` (safer against duplicate dispatch; shutdown may block). When `true`, passes the shutdown token (faster drain; duplicate-dispatch risk). |
+| `HonorShutdownTokenOnPersist` | `false` | When `false`, terminal `PersistAsync` uses `CancellationToken.None`, which is safer against duplicate dispatch but may block shutdown. When `true`, it passes the shutdown token, which drains faster but risks duplicate dispatch. |
 | `DispatcherConcurrency` | `1` | Raise only when handlers are safe in parallel. |
 | `LeaseHeartbeatInterval` | 15s | Must be `<= LeaseDuration / 2`. |
 
 ## Naming Schemes
 
-| You see | Meaning |
+| Form | Meaning |
 | --- | --- |
 | Folder / project `LiteBus.Inbox.Storage.PostgreSql` | Source layout |
 | Namespace `LiteBus.Inbox.Storage.PostgreSql` | C# API |

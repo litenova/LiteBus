@@ -21,7 +21,7 @@ services.AddLiteBusManagement(options =>
 app.AddLiteBusManagementEndpoints();
 ```
 
-Hosts that map through `IEndpointRouteBuilder` can call `AddLiteBusManagementEndpoints` directly. Leading and trailing slashes on `RoutePrefix` are removed before route templates are built.
+Hosts that map through `IEndpointRouteBuilder` can call `AddLiteBusManagementEndpoints` directly. LiteBus removes leading and trailing slashes from `RoutePrefix` before it builds route templates.
 
 ## Public Surface
 
@@ -29,15 +29,15 @@ Hosts that map through `IEndpointRouteBuilder` can call `AddLiteBusManagementEnd
 | --- | --- |
 | `IServiceCollection.AddLiteBusManagement(...)` | Registers one `LiteBusManagementOptions` instance |
 | `IEndpointRouteBuilder.AddLiteBusManagementEndpoints(...)` | Maps inbox, outbox, and health route groups |
-| `LiteBusManagementOptions.RoutePrefix` | Selects the route prefix; default is `litebus` |
-| `LiteBusManagementOptions.AllowAnonymousManagement` | Disables authorization metadata when explicitly set to `true` |
+| `LiteBusManagementOptions.RoutePrefix` | Selects the route prefix (default `litebus`) |
+| `LiteBusManagementOptions.AllowAnonymousManagement` | When set explicitly to `true`, disables authorization metadata |
 | `LiteBusManagementOptions.AuthorizationPolicy` | Applies a named ASP.NET Core authorization policy |
 | `LiteBusManagementOptions.FailHealthWhenNoProbes` | Controls the empty-manifest health result |
 | `LiteBusManagementOptions.DiagnosticChecks` | Sets per-probe timeout and parallelism for the health route |
-| `LiteBusManagementOptions.DefaultDrainTimeout` | Supplies the processor drain timeout when the query omits one |
+| `LiteBusManagementOptions.DefaultDrainTimeout` | Supplies the default processor drain timeout for queries that omit one |
 | `LiteBusManagementOptions.MaxPageSize` | Caps one query page at 100 rows by default |
 | `LiteBusManagementOptions.MaxBulkMessageIds` | Caps one requeue, purge, or query identifier list at 1,000 by default |
-| `LiteBusManagementOptions.MaxDrainTimeout` | Caps a requested drain timeout at five minutes by default |
+| `LiteBusManagementOptions.MaxDrainTimeout` | Caps a requested drain timeout at 5 minutes by default |
 
 ## Routes
 
@@ -49,7 +49,7 @@ The table uses the default `litebus` prefix. Outbox routes mirror inbox routes w
 | `/litebus/inbox/messages/{messageId}` | `GET` | Return one envelope or 404 |
 | `/litebus/inbox/messages/requeue` | `POST` | Requeue selected message identifiers |
 | `/litebus/inbox/messages/requeue-dead-letters` | `POST` | Requeue all dead-lettered rows through paged manager operations |
-| `/litebus/inbox/messages` | `DELETE` | Purge a filtered set; unrestricted purge requires `confirm: true` |
+| `/litebus/inbox/messages` | `DELETE` | Purge a filtered set (an unrestricted purge requires `confirm: true`) |
 | `/litebus/inbox/status-counts` | `GET` | Return counts grouped by inbox status |
 | `/litebus/inbox/schema` | `GET` | Return logical or physical store schema metadata |
 | `/litebus/inbox/retention/status` | `GET` | Return the latest retention run status |
@@ -62,11 +62,11 @@ The table uses the default `litebus` prefix. Outbox routes mirror inbox routes w
 
 ## Authorization and Safety
 
-Management routes require an authenticated caller by default. When `AuthorizationPolicy` contains a policy name, every route requires that policy. Set `AllowAnonymousManagement` only for a host whose network boundary already limits access, such as an isolated local test host. Query, bulk identifier, and drain limits are validated before manager calls so operator traffic cannot request unbounded store work.
+Management routes require an authenticated caller by default. When `AuthorizationPolicy` contains a policy name, every route requires that policy. Set `AllowAnonymousManagement` only for a host whose network boundary already limits access, such as an isolated local test host. LiteBus validates query, bulk identifier, and drain limits before manager calls so operator traffic cannot request unbounded store work.
 
-Unrestricted purge requests require a JSON body with `confirm` set to `true`. Narrowed purge requests can omit confirmation because their query predicates limit the target set. Manager safety exceptions become HTTP 400 responses; unexpected manager failures become HTTP 500 problem responses.
+Unrestricted purge requests require a JSON body with `confirm` set to `true`. Narrowed purge requests can omit confirmation because their query predicates limit the target set. Manager safety exceptions become HTTP 400 responses. Unexpected manager failures become HTTP 500 problem responses.
 
-When an inbox or outbox manager is absent, the entire matching route group returns HTTP 404 with an axis-specific message. Processor routes return HTTP 404 when the manager exists but the matching processor control is not registered.
+When an inbox or outbox manager is absent, the entire matching route group returns HTTP 404 with an axis-specific message. When the manager exists but the matching processor control is not registered, processor routes return HTTP 404.
 
 ## Packages
 
@@ -92,7 +92,7 @@ Management routes do not define a separate meter. Use `LiteBus.Inbox` and `LiteB
 - Inbox and outbox route groups remain independent.
 - Storage adapters remain behind manager interfaces.
 - Destructive operations retain confirmation and authorization guards.
-- Drain timeout query values must be positive; missing or non-positive values use `DefaultDrainTimeout`, and values above `MaxDrainTimeout` are rejected.
+- Drain timeout query values must be positive. Missing or non-positive values use `DefaultDrainTimeout`. Values above `MaxDrainTimeout` are rejected.
 - Drain routes enforce the `LiteBusManagementOptions` instance passed to `AddLiteBusManagementEndpoints`, not a separately registered instance.
 - Query page sizes cannot exceed `MaxPageSize`.
 - Requeue, purge, and query identifier lists cannot exceed `MaxBulkMessageIds`.
@@ -112,10 +112,10 @@ Management routes do not define a separate meter. Use `LiteBus.Inbox` and `LiteB
 
 | Test | Proves |
 | --- | --- |
-| `ManagementEndpointTests.Health_ReturnsDegraded_WhenNoProbesAndFailHealthWhenNoProbesIsTrue` | Empty diagnostic manifests return HTTP 503 when configured to fail |
-| `ManagementEndpointTests.Health_ReturnsHealthy_WhenNoProbesAndFailHealthWhenNoProbesIsFalse` | Empty diagnostic manifests return HTTP 200 when explicitly allowed |
+| `ManagementEndpointTests.Health_ReturnsDegraded_WhenNoProbesAndFailHealthWhenNoProbesIsTrue` | When configured to fail, empty diagnostic manifests return HTTP 503 |
+| `ManagementEndpointTests.Health_ReturnsHealthy_WhenNoProbesAndFailHealthWhenNoProbesIsFalse` | When explicitly allowed, empty diagnostic manifests return HTTP 200 |
 | `ManagementEndpointTests.Health_IncludesProbeData_WhenProbeFails` | Health payloads preserve diagnostic data |
-| `ManagementEndpointTests.Health_WhenProbeExceedsConfiguredTimeout_ReturnsServiceUnavailable` | A blocking probe is bounded and returns HTTP 503 |
+| `ManagementEndpointTests.Health_WhenProbeExceedsConfiguredTimeout_ReturnsServiceUnavailable` | A blocking probe is bounded, and the endpoint returns HTTP 503 |
 | `ManagementEndpointAuthorizationIntegrationTests` | Default authentication, named policies, forbidden responses, and anonymous opt-in |
 | `ManagementEndpointPostgreSqlIntegrationTests.QueryInboxMessages_ReturnsPersistedRows` | Query binding reads physical PostgreSQL inbox rows |
 | `ManagementEndpointPostgreSqlIntegrationTests.Purge_WithConfirm_DeletesRowsInStore` | Confirmed HTTP purge deletes PostgreSQL rows |
@@ -138,7 +138,7 @@ Management routes do not define a separate meter. Use `LiteBus.Inbox` and `LiteB
 - Operator audit persistence.
 - Multi-cluster management federation.
 
-## Deep Docs
+## References
 
 - [Operations and Management](../../operations/management-endpoints.md)
 - [Hosted Services](../../architecture/hosted-services.md)

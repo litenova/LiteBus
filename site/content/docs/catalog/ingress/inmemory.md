@@ -3,13 +3,13 @@
 - **ID**: `ingress.inmemory`
 - **Name**: In-memory inbox ingress
 - **Maturity**: GA
-- **Summary**: Consumes in-process channel deliveries and accepts them into the inbox through shared transport ingress (testing and single-process dev).
+- **Summary**: This adapter consumes in-process channel deliveries and accepts them into the inbox through shared transport ingress. It is for testing and single-process development.
 
 ## Purpose and Scope
 
-`UseInMemoryIngress` registers `InMemoryInboxIngressModule`. The module maps in-memory transport destinations into `TransportInboxIngressOptions`, registers the shared handler and consumer, and runs the same accept path as broker ingress without Docker. The enforced `Safety.MaxInFlightMessages` bound is 1.
+`UseInMemoryIngress` registers `InMemoryInboxIngressModule`. The module maps in-memory transport destinations into `TransportInboxIngressOptions` and registers the shared handler and consumer. It runs the same accept path as broker ingress without Docker. The enforced `Safety.MaxInFlightMessages` bound is 1.
 
-This is the **reference matrix** for cross-broker ingress behavior (idempotency, headers, requeue on/off) that broker Docker suites intentionally omit or only partially cover.
+This adapter holds the **reference matrix** for cross-broker ingress behavior (idempotency, headers, and requeue enabled and disabled), which broker Docker suites intentionally omit or cover only partially.
 
 ## Public Surface
 
@@ -57,8 +57,8 @@ bus.AddInbox(inbox => inbox.UseInMemoryIngress(ingress =>
 
 ## Invariants
 
-- Process-local only; not cross-process.
-- Same ack and requeue policy as broker ingress via `TransportInboxIngressConsumer`.
+- Delivery is process-local only, never cross-process.
+- The adapter uses the same ack and requeue policy as broker ingress through `TransportInboxIngressConsumer`.
 - Identity and idempotency defaults remain broker-scoped through shared mapper options.
 
 ## Non-Goals
@@ -77,7 +77,7 @@ Shared ingress metrics and logs apply unchanged:
 | EventId 3003 | Batch timer flush failure |
 | EventId 3004 | Ack failed after accept |
 
-Register ingress meter with `AddLiteBusInboxMetrics()`.
+Register the ingress meter with `AddLiteBusInboxMetrics()`.
 
 ## Identity, Idempotency, and Trusted Headers
 
@@ -85,9 +85,9 @@ InMemory ingress uses the same mapping defaults as broker adapters:
 
 | Setting | Default | Result |
 | --- | --- | --- |
-| `RequireStableIdentity` | true | Missing message id fails closed |
+| `RequireStableIdentity` | true | A missing message id fails closed |
 | `Safety.TrustApplicationHeaders` | false | App idempotency, tenant, and visibility headers are ignored |
-| Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | Duplicate redelivery maps to same dedup key |
+| Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | A duplicate redelivery maps to the same deduplication key |
 
 ## Test Coverage
 
@@ -113,8 +113,8 @@ InMemory ingress uses the same mapping defaults as broker adapters:
 ### Untested
 
 - `DisableIngressConsumer` with in-memory ingress (covered for AMQP in PostgreSQL registration tests only).
-- Cross-process in-memory delivery (by design process-local).
-- Batch-accept path through the InMemory ingress builder (`Safety.EnableBatchAccept`) in integration suites; the option is exposed on every adapter through the shared `Safety` record.
+- Cross-process in-memory delivery (process-local by design).
+- Batch-accept path through the InMemory ingress builder (`Safety.EnableBatchAccept`) in integration suites. Every adapter exposes the option through the shared `Safety` record.
 
 ### Out-of-Scope
 
@@ -122,7 +122,7 @@ InMemory ingress uses the same mapping defaults as broker adapters:
 - Production multi-node intake.
 - Simulating broker-specific edge cases (TTL, DLQ, federation).
 
-## Deep Docs
+## References
 
 - [Inbox](../../reliable-messaging/inbox.md)
 - [Dependency graph](../../architecture/dependency-graph.md)

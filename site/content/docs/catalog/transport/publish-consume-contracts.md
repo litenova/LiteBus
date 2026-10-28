@@ -9,8 +9,8 @@
 
 Transport adapters implement:
 
-- `ITransportPublisher` for outbound publish via `TransportPublishRequest`
-- `IMessageConsumer` for inbound consume loops via `TransportConsumerOptions` and `TransportMessage` handlers
+- `ITransportPublisher`, which publishes outbound messages described by `TransportPublishRequest`
+- `IMessageConsumer`, which runs inbound consume loops driven by `TransportConsumerOptions` and delivers each message to a `TransportMessage` handler
 
 These abstractions isolate dispatch and ingress from broker SDK APIs.
 
@@ -49,17 +49,19 @@ These abstractions isolate dispatch and ingress from broker SDK APIs.
 | --- | --- | --- |
 | `Destination` | `string` | Queue, topic, or destination name |
 | `SubscriptionName` | `string?` | Named subscription for topic-based brokers |
-| `MaxInFlightMessages` | `int` | Requested cap on concurrent LiteBus handler calls, default 32; enforced as 1 except on Azure Service Bus, where the lower of this and `MaxConcurrentCalls` applies |
-| `PrefetchCount` | `int` | Native RabbitMQ or Azure Service Bus prefetch, default 0, which maps to the broker-native unlimited prefetch window on AMQP; set an explicit bound for large backlogs |
+| `MaxInFlightMessages` | `int` | Requested cap on concurrent LiteBus handler calls, default 32. Enforced as 1 except on Azure Service Bus, where the lower of this and `MaxConcurrentCalls` applies |
+| `PrefetchCount` | `int` | Native RabbitMQ or Azure Service Bus prefetch, default 0, which maps to the broker-native unlimited prefetch window on AMQP. Set an explicit bound for large backlogs |
 | `ReceiveBatchSize` | `int` | Messages requested per SQS receive call, default 1 and valid from 1 through 10 |
 | `MaxConcurrentCalls` | `int?` | Native Azure Service Bus callback concurrency |
-| `DeclareDestination` | `bool` | Declare destination before consume (default `true`; honored by AMQP only) |
-| `DurableDestination` | `bool` | Durable destination declaration (default `true`; honored by AMQP only) |
-| `Exclusive` | `bool` | Exclusive subscription for this connection (default `false`; honored by AMQP only) |
-| `ConsumerTag` | `string?` | Client-assigned consumer tag (default `null`, meaning the broker assigns one; honored by AMQP only) |
+| `DeclareDestination` | `bool` | Declare destination before consume (default `true`, honored by AMQP only) |
+| `DurableDestination` | `bool` | Durable destination declaration (default `true`, honored by AMQP only) |
+| `Exclusive` | `bool` | Exclusive subscription for this connection (default `false`, honored by AMQP only) |
+| `ConsumerTag` | `string?` | Client-assigned consumer tag (default `null`, meaning the broker assigns one, honored by AMQP only) |
 | `DestinationArguments` | `IReadOnlyDictionary<string, object?>?` | Broker-specific destination args (honored by AMQP only) |
 
-`MaxInFlightMessages` requests a cap on concurrent LiteBus delivery handlers for one subscription. The AMQP, Kafka, AWS SQS, and in-memory adapters enforce a bound of 1 and run one handler at a time, so raising `MaxInFlightMessages` alone does not parallelize them; the Azure Service Bus adapter enforces the lower of `MaxInFlightMessages` and `MaxConcurrentCalls`, and `MaxConcurrentCalls` defaults to the SDK value of 1, so both must be set to run handlers concurrently. Native broker controls remain separate because they regulate different resources. RabbitMQ prefetch limits unacknowledged deliveries, Azure prefetch fills a local cache while `MaxConcurrentCalls` controls processor callbacks, and SQS `ReceiveBatchSize` sets `ReceiveMessageRequest.MaxNumberOfMessages`.
+`MaxInFlightMessages` requests a cap on concurrent LiteBus delivery handlers for one subscription. The AMQP, Kafka, AWS SQS, and in-memory adapters enforce a bound of 1 and run one handler at a time, so raising `MaxInFlightMessages` alone does not run handlers in parallel on those adapters. The Azure Service Bus adapter enforces the lower of `MaxInFlightMessages` and `MaxConcurrentCalls`, and `MaxConcurrentCalls` defaults to the SDK value of 1, so set both to run handlers concurrently.
+
+Native broker controls stay separate because they regulate different resources. RabbitMQ prefetch limits unacknowledged deliveries. Azure prefetch fills a local cache while `MaxConcurrentCalls` controls processor callbacks. SQS `ReceiveBatchSize` sets `ReceiveMessageRequest.MaxNumberOfMessages`.
 
 Which adapter honors which option:
 
@@ -79,7 +81,7 @@ The limits match the current provider contracts:
 - [RabbitMQ consumer prefetch](https://www.rabbitmq.com/docs/consumer-prefetch) applies to unacknowledged deliveries and treats zero as unlimited.
 - [Azure Service Bus processor options](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusprocessoroptions?view=azure-dotnet) define prefetch and callback concurrency as separate properties.
 - [AWS SDK for .NET v4 `ReceiveMessageRequest`](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/SQS/TReceiveMessageRequest.html) permits 1 through 10 messages per receive call and defaults to 1.
-- [Confluent.Kafka .NET consumer guidance](https://docs.confluent.io/kafka-clients/dotnet/current/overview.html) describes one-record-at-a-time `Consume` calls over the client's background fetch queue, so LiteBus does not expose a false Kafka prefetch knob.
+- [Confluent.Kafka .NET consumer guidance](https://docs.confluent.io/kafka-clients/dotnet/current/overview.html) describes one-record-at-a-time `Consume` calls over the client's background fetch queue, so LiteBus exposes no Kafka prefetch setting.
 - [.NET channels guidance](https://learn.microsoft.com/en-us/dotnet/core/extensions/channels) defines `BoundedChannelFullMode.Wait` as waiting for capacity instead of dropping a write or an existing item.
 
 ## Packages
@@ -93,10 +95,10 @@ The limits match the current provider contracts:
 ## Invariants
 
 - Contracts stay broker-neutral and do not reference SDK types.
-- Handler acknowledgement remains explicit via `TransportMessage` methods; the handler must call `AcceptAsync`, `DiscardAsync`, or `ReturnToQueueAsync` before returning.
-- One broker module registration per process (`transport.single-broker-registration`).
+- Handler acknowledgement stays explicit through `TransportMessage` methods. The handler must call `AcceptAsync`, `DiscardAsync`, or `ReturnToQueueAsync` before returning.
+- A process holds one broker module registration (`transport.single-broker-registration`).
 - Transport publishers are singletons and consumers are transient in all five adapters, so a dispatched envelope reuses its publisher while each subscription holds its own consumer.
-- `StartAsync` returns a task that completes when the consume loop has been initiated; startup and subscription failures surface through `WaitUntilStoppedAsync`, and transports that subscribe synchronously complete after the subscription is active.
+- `StartAsync` returns a task that completes when the consume loop has been initiated. Startup and subscription failures surface through `WaitUntilStoppedAsync`. Transports that subscribe synchronously complete after the subscription is active.
 - Calling `StartAsync` twice on one consumer instance throws `InvalidOperationException`.
 
 ## Non-Goals
@@ -107,8 +109,8 @@ The limits match the current provider contracts:
 
 ## Observability
 
-- Tracing uses shared source and span names (`transport.tracing`).
-- Circuit-breaker metrics attach at adapter modules (`transport.metrics`).
+- Tracing uses the shared source and span names (`transport.tracing`).
+- Circuit-breaker metrics attach at the adapter modules (`transport.metrics`).
 
 ## Test Coverage
 
@@ -137,7 +139,7 @@ The limits match the current provider contracts:
 - Durable storage semantics.
 - Handler registration and contract resolution policy.
 
-## Deep Docs
+## References
 
 - [manual-acknowledgement.md](manual-acknowledgement.md)
 - [Architecture.md](../../architecture/README.md)

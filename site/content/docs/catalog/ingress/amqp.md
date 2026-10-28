@@ -3,13 +3,15 @@
 - **ID**: `ingress.amqp`
 - **Name**: AMQP inbox ingress
 - **Maturity**: GA
-- **Summary**: Consumes RabbitMQ or LavinMQ queues and accepts commands into the inbox through shared transport ingress.
+- **Summary**: This adapter consumes RabbitMQ or LavinMQ queues and accepts commands into the inbox through shared transport ingress.
 
-## What It Does
+## Purpose and Scope
 
-`UseAmqpIngress` registers `AmqpInboxIngressModule` as an inbox child. The module maps `AmqpInboxIngressOptions` to `TransportInboxIngressOptions`, requires a root `AmqpTransportModule`, registers `TransportInboxIngressHandler` and optional `TransportInboxIngressConsumer`, and registers `AmqpInboxIngressHandler` for AMQP-shaped manual accept.
+`UseAmqpIngress` registers `AmqpInboxIngressModule` as an inbox child. The module maps `AmqpInboxIngressOptions` to `TransportInboxIngressOptions` and requires a root `AmqpTransportModule`. It registers `TransportInboxIngressHandler` and the optional `TransportInboxIngressConsumer`, plus `AmqpInboxIngressHandler` for AMQP-shaped manual accept.
 
-RabbitMQ message ids map to broker-scoped identity and idempotency by default. The idempotency key is scoped to the consuming queue (`ingress:{queue}:{id}`), so two queues bound to one exchange do not share a key. Queue declaration, native prefetch, and requeue behavior stay on `AmqpInboxIngressOptions`; trust, authorization, maximum-in-flight work, and batch acceptance use its shared `Safety` record. `AmqpInboxIngressOptions` defaults are `PrefetchCount` 10, `DeclareQueue` true, `DurableQueue` true, and `RequeueOnFailure` true; the enforced `Safety.MaxInFlightMessages` bound is 1.
+RabbitMQ message ids map to broker-scoped identity and idempotency by default. The idempotency key is scoped to the consuming queue (`ingress:{queue}:{id}`), so two queues bound to one exchange do not share a key.
+
+Queue declaration, native prefetch, and requeue behavior stay on `AmqpInboxIngressOptions`. Trust, authorization, maximum-in-flight work, and batch acceptance use its shared `Safety` record. `AmqpInboxIngressOptions` defaults are `PrefetchCount` 10, `DeclareQueue` true, `DurableQueue` true, and `RequeueOnFailure` true. The enforced `Safety.MaxInFlightMessages` bound is 1.
 
 ## Public Surface
 
@@ -43,9 +45,9 @@ bus.AddInbox(inbox => inbox.UseAmqpIngress(ingress =>
 
 ### AMQP Baseline Role
 
-AMQP ingress is the current reference adapter for ingress capability depth:
+AMQP ingress is the current reference adapter, with the deepest ingress capability coverage:
 
-- Native AMQP prefetch and destination declaration plus the shared ingress `Safety` record.
+- Native AMQP prefetch and destination declaration, plus the shared ingress `Safety` record.
 - Full unit coverage for AMQP handler mapping surfaces.
 - Broadest broker integration matrix across happy path, failure paths, and batch acceptance.
 
@@ -64,15 +66,15 @@ AMQP ingress is the current reference adapter for ingress capability depth:
 
 ## Invariants
 
-- `QueueName` is required; compose fails when empty.
+- `QueueName` is required, and composition fails when it is empty.
 - `AddAmqpTransport(...)` is required at the root composition boundary.
 - Publishers must send `litebus-contract-name` and `litebus-contract-version` headers.
-- At-least-once intake when ack follows successful accept; not exactly-once handler effects.
+- Intake is at-least-once when ack follows a successful accept. Handler effects are not exactly-once.
 
 ## Non-Goals
 
 - Azure Service Bus or Kafka intake (separate packages).
-- Automatic queue binding to exchanges (declare settings only; routing is ops or publisher concern).
+- Automatic queue binding to exchanges (declare settings only, because routing is an ops or publisher concern).
 - Outbox publish from ingress.
 
 ## Observability
@@ -83,11 +85,11 @@ AMQP ingress is the current reference adapter for ingress capability depth:
 | --- | --- |
 | `ingress.ack_failed_after_accept` | RabbitMQ/LavinMQ ack fails after inbox accept |
 
-Meter `LiteBus.Inbox`. Register with `AddLiteBusInboxMetrics()`.
+The meter is `LiteBus.Inbox`. Register it with `AddLiteBusInboxMetrics()`.
 
 ### Transport Tracing
 
-`process {destination}` records one activity per delivery through `TransportConsumerHandlerInvoker`. Register tracing with `AddLiteBusTransportInstrumentation()` and metrics with `AddLiteBusAmqpMetrics()` or `AddLiteBusTransportMetrics()`.
+Each delivery records one `process {destination}` activity through `TransportConsumerHandlerInvoker`. Register tracing with `AddLiteBusTransportInstrumentation()` and metrics with `AddLiteBusAmqpMetrics()` or `AddLiteBusTransportMetrics()`.
 
 ### Circuit Breaker (AMQP Transport)
 
@@ -96,11 +98,11 @@ Meter `LiteBus.Inbox`. Register with `AddLiteBusInboxMetrics()`.
 | `litebus.transport.circuit_breaker.open` | `amqp` | At least one destination-scoped publisher circuit is open or half-open |
 | `litebus.transport.circuit_breaker.failure_count` | `amqp` | Current failures summed across publisher circuits |
 
-AMQP circuit breaker metrics use the shared transport instruments with the `amqp` broker tag. No AMQP-specific circuit breaker meter names are emitted.
+AMQP circuit breaker metrics use the shared transport instruments with the `amqp` broker tag. The adapter emits no AMQP-specific circuit breaker meter names.
 
 ### Structured Logs
 
-EventId 3002 (loop restart), 3003 (batch flush failed), 3004 (ack failed after accept) from `TransportInboxIngressLogMessages`.
+The consumer logs EventId 3002 (loop restart), 3003 (batch flush failed), and 3004 (ack failed after accept) from `TransportInboxIngressLogMessages`.
 
 ## Test Coverage
 
@@ -141,7 +143,7 @@ EventId 3002 (loop restart), 3003 (batch flush failed), 3004 (ack failed after a
 - Automatic queue binding to exchanges.
 - Outbox publish from ingress.
 
-## Deep Docs
+## References
 
 - [Inbox AMQP ingress](../../integrations/inbox-amqp-ingress.md)
 - [AMQP transport](../../integrations/amqp.md)

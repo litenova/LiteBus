@@ -4,7 +4,7 @@ A validator answers one question about a message: is it well-formed. LiteBus run
 
 It assumes the stage model from [The Handler Pipeline](handler-pipeline.md).
 
-## Validation Is Not Authorization
+## Validation and Authorization
 
 The pipeline keeps three questions apart because the answers mean different things to whoever reads them later:
 
@@ -14,9 +14,9 @@ The pipeline keeps three questions apart because the answers mean different thin
 | Is this well-formed? | `ICommandValidator<TCommand>` | `Invalid` | The caller, so they can fix the message |
 | Is this already done? | `ICommandShortcut<TCommand>` | `Answered` | Nobody; nothing was refused |
 
-Recording a malformed field as a denial puts an entry in the list a security review reads that has nothing to do with permission. Recording a refusal as invalid input hides the entry that review is looking for. Two outcomes, kept apart, is the whole point.
+Recording a malformed field as a denial puts an entry in the list a security review reads that has nothing to do with permission. Recording a refusal as invalid input hides the entry that review is looking for. Keeping the two outcomes apart is the whole design.
 
-The test for which contract to reach for: if the same message from a different caller would be treated differently, it is a guard. If the message would be wrong no matter who sent it, it is a validator.
+To choose a contract, ask whether the caller matters. If the same message from a different caller would be treated differently, it is a guard. If the message would be wrong no matter who sent it, it is a validator.
 
 ## The Contract
 
@@ -49,17 +49,17 @@ public sealed class TransferValidator : ICommandValidator<TransferCommand>
 }
 ```
 
-`Validity.Invalid` over an empty sequence is `Validity.Valid`, so the happy path needs no branch. For a single failure there is a shorter form:
+`Validity.Invalid` over an empty sequence is `Validity.Valid`, so the success path needs no branch. For a single failure there is a shorter form:
 
 ```csharp
 return Task.FromResult(Validity.Invalid("the amount must be positive", nameof(command.Amount)));
 ```
 
-A `ValidationFailure` always carries a message written for a person. `Member` and `Code` are optional and LiteBus never interprets either; they exist so a caller, a refusal mapper, or a transport layer can act on the failure without parsing prose.
+A `ValidationFailure` always carries a message written for a person. `Member` and `Code` are optional and LiteBus never interprets either. They exist so a caller, a refusal mapper, or a transport layer can act on the failure without parsing prose.
 
 The axis contracts are `ICommandValidator<TCommand>`, `IQueryValidator<TQuery>`, and `IEventValidator<TEvent>`, each deriving from `IMessageValidator<TMessage>`.
 
-## Every Validator Runs
+## Validator Aggregation
 
 This is the one decision stage that does not stop at the first answer. Every validator registered for the message runs, global then specific, and the stage gathers all their failures into one result.
 
@@ -71,17 +71,17 @@ builder.Register(typeof(TransferAmountValidator));
 builder.Register(typeof(TransferReferenceValidator));
 ```
 
-`[HandlerPriority]` still orders validators among themselves, which matters when one validator's message reads better before another's. It cannot move the stage.
+`[HandlerPriority]` orders validators among themselves, which matters when one validator's message reads better before another's. It cannot move the stage.
 
-## Why Validation Runs After Guards and Before Shortcuts
+## Validation Position in the Pipeline
 
 The order encodes what each stage may assume about its input, and the framework fixes it so no priority can change it.
 
-Guards run first because an unauthorized caller should learn nothing from the response, including whether a field was malformed or a resource exists. Validators run before shortcuts because a malformed message must not claim an idempotency key or collect a cached answer; a shortcut keyed on a field validation would have rejected is a shortcut keyed on garbage. Pre-handlers run last because there is no point enriching a message that is about to be refused, rejected, or skipped.
+Guards run first because an unauthorized caller should learn nothing from the response, including whether a field was malformed or a resource exists. Validators run before shortcuts because a malformed message must not claim an idempotency key or collect a cached answer. A shortcut keyed on a field validation would have rejected is a shortcut keyed on invalid data. Pre-handlers run last because there is no point enriching a message that is about to be refused, rejected, or skipped.
 
-Under a single pre-handler stage this ordering rested on priority numbers every author had to remember, and indirect handlers ran ahead of direct ones regardless of what those numbers said.
+Under a single pre-handler stage this ordering rests on priority numbers every author has to remember, and indirect handlers run ahead of direct ones regardless of those numbers.
 
-## What the Caller Receives
+## Response to Invalid Messages
 
 By default a validation failure reaches the caller as `LiteBusMessageInvalidException`, carrying every failure on `Failures`:
 
@@ -120,7 +120,7 @@ A message that produces no result, and any event, has nothing a mapper could ret
 
 ## Moving a Validator That Threw
 
-A validator that reports a failure by throwing reports malformed input as a fault: error handlers see it, the mediation reports `Failed`, and an audit trail cannot tell it apart from a database timeout.
+A validator that reports a failure by throwing reports malformed input as a fault. Error handlers see it, the mediation reports `Failed`, and an audit trail cannot tell it apart from a database timeout.
 
 The validator contract returns the failures instead of raising, and a throwing body fails to compile against it, which is deliberate. Return the failures instead of raising:
 
@@ -200,7 +200,7 @@ Only the exception type you name is caught, so a genuine fault inside a validato
 
 Adapted and converted validators mix in one mediation, because the stage collects across both. A half-converted codebase behaves correctly rather than only after the last file lands.
 
-The adapter is scaffolding. It cannot recover the behavior the contract exists for: a throwing body stops at the first problem, so a message with three malformed fields still reports one failure. Give the adapter a deletion date, or the codebase keeps reporting only the first failure per message.
+The adapter is scaffolding. It cannot recover the behavior the contract exists for. A throwing body stops at the first problem, so a message with three malformed fields still reports one failure. Give the adapter a deletion date, or the codebase keeps reporting only the first failure per message.
 
 ## Next
 

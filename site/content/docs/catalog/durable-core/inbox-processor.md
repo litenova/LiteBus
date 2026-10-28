@@ -5,50 +5,50 @@
 
 ## Summary
 
-Background worker that leases due inbox envelopes, dispatches them through `IInboxDispatcher`, and records terminal state with configurable concurrency and lease heartbeat.
+The inbox processor is a background worker that leases due inbox envelopes, dispatches them through `IInboxDispatcher`, and records their terminal state. It supports configurable concurrency, and a lease heartbeat keeps long dispatches alive.
 
 ## What It Does
 
-`PipelinedInboxProcessor` is the sole inbox processor implementation. Each pass leases a batch, fans work to `DispatcherConcurrency` workers with per-message DI scopes, renews leases on heartbeat interval, runs optional envelope hooks, and persists outcomes per envelope. `InboxProcessorBackgroundService` holds one processor instance for stable `LeaseOwner`. Registration requires exactly one dispatcher when the processor is enabled.
+`PipelinedInboxProcessor` is the only inbox processor implementation. Each pass leases a batch of envelopes, spreads the work across `DispatcherConcurrency` workers with one DI scope per message, renews leases on the heartbeat interval, runs the optional envelope hooks, and persists one outcome per envelope. `InboxProcessorBackgroundService` holds one processor instance so the `LeaseOwner` stays stable. When the processor is enabled, the module needs exactly one dispatcher.
 
 ## Public Surface
 
 ### Consumer Contracts
 
-- **`IInboxProcessor`**: Processor contract (`ProcessPendingAsync`) for manual passes and testing.
-- **`PipelinedInboxProcessor`**: Default pipelined implementation with lease heartbeat and concurrent dispatch workers.
-- **`IInboxProcessorControl`**: Pause, drain, and resume for operational control; exposed through management endpoints when ASP.NET extensions are installed.
-- **`InboxProcessorOptions`**: Batch size, lease duration, heartbeat interval, retry policy, dispatcher concurrency, hook failure policy, and optional tenant filter.
-- **`InboxProcessorHostOptions`**: Background loop poll interval and adaptive polling tuning.
+- **`IInboxProcessor`**: The processor contract. Use `ProcessPendingAsync` for manual passes and testing.
+- **`PipelinedInboxProcessor`**: The default pipelined implementation. It renews leases on a heartbeat and dispatches through concurrent workers.
+- **`IInboxProcessorControl`**: Offers pause, drain, and resume for operational control. Management endpoints expose it when the ASP.NET extensions are installed.
+- **`InboxProcessorOptions`**: Carries the batch size, lease duration, heartbeat interval, retry policy, dispatcher concurrency, hook failure policy, and an optional tenant filter.
+- **`InboxProcessorHostOptions`**: Carries the background loop poll interval and adaptive polling tuning.
 
 ### Invocation
 
-- **`ProcessPendingAsync(CancellationToken)`**: One processor pass: lease batch, dispatch each envelope, persist terminal state.
-- **`PauseAsync` / `DrainAsync` / `ResumeAsync`**: Operational control on `IInboxProcessorControl`.
-- Background service calls `ProcessPendingAsync` on a poll interval until host shutdown.
+- **`ProcessPendingAsync(CancellationToken)`**: Runs one processor pass: it leases a batch, dispatches each envelope, and persists the terminal state.
+- **`PauseAsync` / `DrainAsync` / `ResumeAsync`**: Pause, drain, and resume the processor through `IInboxProcessorControl`.
+- The background service calls `ProcessPendingAsync` on a poll interval until host shutdown.
 
-Typical deployment: enable processor on generic host; application code accepts commands via `IInbox`; processor executes handlers asynchronously.
+In a typical deployment, the processor runs on the generic host, application code accepts commands through `IInbox`, and the processor executes handlers asynchronously.
 
 ### Registration
 
-- **`EnableInboxProcessor(host => ...)`** on inbox module builder registers manifest background service.
-- **`UseProcessorOptions(InboxProcessorOptions)`** configures batch, lease, retry, and concurrency.
-- **`Use*Storage()`** and exactly one **`Use*Dispatch()`** must be present in the same inbox builder; callback order is irrelevant.
-- **`IInboxProcessor`** registers transient; background service holds a singleton processor instance for stable lease owner.
+- Call **`EnableInboxProcessor(host => ...)`** on the inbox module builder to register the manifest background service.
+- Call **`UseProcessorOptions(InboxProcessorOptions)`** to configure batch, lease, retry, and concurrency.
+- Register **`Use*Storage()`** and exactly one **`Use*Dispatch()`** in the same inbox builder, in any order.
+- The background service holds a singleton processor instance so the lease owner stays stable, even though **`IInboxProcessor`** is registered as transient.
 
 ### Configuration
 
-- **`InboxProcessorOptions`**: `BatchSize` (default 20), `LeaseDuration` (default one minute), `LeaseHeartbeatInterval` (default 15 seconds; must be `<= LeaseDuration / 2`), `Retry`, `DispatcherConcurrency` (default 1), `HookFailurePolicy` (`null` by default, which the inbox builder resolves to `DeadLetter`), optional `TenantId` (`null` leases across tenants).
-- **`InboxProcessorHostOptions.PollInterval`**: Delay between passes; adaptive polling when full batches return quickly.
+- **`InboxProcessorOptions`**: `BatchSize` (default 20), `LeaseDuration` (default one minute), `LeaseHeartbeatInterval` (default 15 seconds, which must be `<= LeaseDuration / 2`), `Retry`, `DispatcherConcurrency` (default 1), `HookFailurePolicy` (`null` by default, which the inbox builder resolves to `DeadLetter`), and optional `TenantId` (when `null`, the processor leases across tenants).
+- **`InboxProcessorHostOptions.PollInterval`**: The delay between passes. Polling adapts when full batches return quickly.
 
-Set `Retry.IsPermanentFailure` to dead-letter application failures that can never succeed on retry; see [Permanent Failures](lease-retry-dead-letter.md#permanent-failures).
-- Compose-time validation rejects invalid batch size and max attempts.
+Set `Retry.IsPermanentFailure` to dead-letter application failures that can never succeed on retry. See [Permanent Failures](lease-retry-dead-letter.md#permanent-failures).
+- Compose-time validation rejects an invalid batch size and invalid max attempts.
 
 ### Extension Points
 
-- **`IInboxDispatcher`**: Exactly one dispatcher per inbox module (in-process command mediator or transport adapter).
-- **`IProcessorEnvelopeHook`** (`LiteBus.Messaging.Abstractions.Processing`): Pre/post dispatch hooks with configurable failure policy (see processor-hooks capability).
-- Custom storage implements lease and state writer roles required by the pipeline.
+- **`IInboxDispatcher`**: Each inbox module takes exactly one dispatcher: the in-process command mediator or a transport adapter.
+- **`IProcessorEnvelopeHook`** (`LiteBus.Messaging.Abstractions.Processing`): Runs before and after dispatch, with a configurable failure policy (see processor-hooks capability).
+- Custom storage implements the lease and state writer roles the pipeline requires.
 
 ## Packages
 
@@ -61,18 +61,18 @@ Set `Retry.IsPermanentFailure` to dead-letter application failures that can neve
 
 ## Requires
 
-- `Use*Storage` and exactly one `Use*Dispatch` before `EnableInboxProcessor`
-- Registered command handlers for in-process dispatch path
-- Store implementing lease and state writer roles
+- Register `Use*Storage` and exactly one `Use*Dispatch` before `EnableInboxProcessor`
+- Register command handlers for the in-process dispatch path
+- Use a store that implements the lease and state writer roles
 
 ## Invariants
 
-- `IInboxProcessor` registers transient but background service holds singleton instance
-- Completion timestamps come from the processor clock, so completion times follow a configured or fake clock instead of wall-clock time
-- Per-message persist failures log and continue pass; failed envelope keeps lease until expiry
+- The background service holds a singleton processor instance, even though `IInboxProcessor` is registered as transient
+- Completion timestamps use the processor clock, so they follow a configured or fake clock instead of wall-clock time
+- When a per-message persist fails, the processor logs the failure and continues the pass. The failed envelope keeps its lease until expiry
 - `LeaseHeartbeatInterval` must be `<= LeaseDuration / 2`
-- `HookFailurePolicy` is `null` by default, which means the dispatcher recommendation; the inbox builder always resolves an unset policy to `DeadLetter`, and an explicit value wins
-- `TenantId` on options limits leasing to one tenant partition when set
+- By default `HookFailurePolicy` is `null`, which means the dispatcher recommendation. The inbox builder always resolves an unset policy to `DeadLetter`, and an explicit value takes precedence
+- When set, `TenantId` on the options limits leasing to one tenant partition
 
 ## Non-Goals
 
@@ -82,34 +82,34 @@ Set `Retry.IsPermanentFailure` to dead-letter application failures that can neve
 
 ## Observability
 
-Inbox processor instrumentation uses meter `LiteBus.Inbox` (`LiteBusInboxTelemetry.MeterName`) and activity source `LiteBus.Inbox`. Register with `AddLiteBusInboxMetrics()` and `AddLiteBusInboxInstrumentation()` from `LiteBus.Inbox.Extensions.OpenTelemetry`. The [OpenTelemetry Metric Catalog](../../architecture/README.md#opentelemetry-metric-catalog) lists every public instrument name with its meter, constant and description; the table below says only what each one tells an operator.
+Inbox processor instrumentation uses meter `LiteBus.Inbox` (`LiteBusInboxTelemetry.MeterName`) and activity source `LiteBus.Inbox`. Register with `AddLiteBusInboxMetrics()` and `AddLiteBusInboxInstrumentation()` from `LiteBus.Inbox.Extensions.OpenTelemetry`. The [OpenTelemetry Metric Catalog](../../architecture/README.md#opentelemetry-metric-catalog) lists every public instrument name with its meter, constant, and description. The table below adds what each instrument means to an operator.
 
-| Instrument | What it tells you |
+| Instrument | Operator Meaning |
 |---|---|
-| `litebus.inbox.processor.state` | Recorded on scrape when `IInboxProcessorControl` is registered. Non-zero state during maintenance windows is expected; stuck Paused indicates forgotten resume. |
-| `litebus.inbox.processor.passes` | Recorded once per completed processor pass. Flat passes with rising queue depth indicates lease or dispatch bottleneck. |
-| `litebus.inbox.processor.succeeded` | Recorded for each envelope marked completed in a pass. Compare to `leases_acquired` for pass efficiency. |
-| `litebus.inbox.processor.failed` | Recorded for each envelope marked failed (retry scheduled) in a pass. Sustained rate may indicate handler exceptions or dispatch errors. |
-| `litebus.inbox.processor.dead_lettered` | Recorded for each envelope moved to dead letter in a pass. Alert when rate exceeds operator tolerance; inspect dead-letter queue via manager APIs. |
-| `litebus.inbox.processor.loop_errors` | Recorded when the background loop catches an unhandled exception outside per-envelope handling. Indicates infrastructure or store failures; investigate logs immediately. |
-| `litebus.inbox.processor.leases_acquired` | Recorded as the sum of envelopes leased at the start of a pass. Zero leases with pending depth suggests visibility or tenant filter mismatch. |
-| `litebus.inbox.processor.lease_lost` | Recorded when lease renewal fails during dispatch and dispatch is canceled. Correlates with long handlers or store renewal failures. |
-| `litebus.inbox.processor.persist_skipped`, `litebus.inbox.processor.persist_rejected` | Recorded when terminal persist is skipped because the active lease no longer matches. Expected under concurrent reclaim; row retries on next visibility. |
-| `litebus.inbox.processor.persist_failed` | Recorded when terminal persist throws after successful handler dispatch (exception is logged; pass continues). Row remains leased until expiry and may redispatch; pair with `litebus.inbox.processor.succeeded` and handler idempotency. |
-| `litebus.inbox.diagnostics.unavailable` | Recorded when the queue depth diagnostic probe fails against the backing store. Observable `litebus.inbox.queue.depth` may be stale while this counter rises; investigate store connectivity. |
+| `litebus.inbox.processor.state` | Recorded on scrape when `IInboxProcessorControl` is registered. A non-zero state is expected during maintenance windows. A state stuck at Paused means the operator never resumed the processor. |
+| `litebus.inbox.processor.passes` | Recorded once per completed processor pass. A flat pass count with rising queue depth indicates a lease or dispatch bottleneck. |
+| `litebus.inbox.processor.succeeded` | Recorded for each envelope marked completed in a pass. Compare with `leases_acquired` for pass efficiency. |
+| `litebus.inbox.processor.failed` | Recorded for each envelope marked failed (retry scheduled) in a pass. A sustained rate may indicate handler exceptions or dispatch errors. |
+| `litebus.inbox.processor.dead_lettered` | Recorded for each envelope moved to dead letter in a pass. Alert when the rate exceeds operator tolerance, and inspect the dead-letter queue through the manager APIs. |
+| `litebus.inbox.processor.loop_errors` | Recorded when the background loop catches an unhandled exception outside per-envelope handling. It indicates infrastructure or store failures, so investigate the logs immediately. |
+| `litebus.inbox.processor.leases_acquired` | Recorded as the sum of envelopes leased at the start of a pass. Zero leases alongside pending depth suggests a visibility or tenant filter mismatch. |
+| `litebus.inbox.processor.lease_lost` | Recorded when lease renewal fails during dispatch and dispatch is canceled. It correlates with long handlers or store renewal failures. |
+| `litebus.inbox.processor.persist_skipped`, `litebus.inbox.processor.persist_rejected` | Recorded when terminal persist is skipped because the active lease no longer matches. This is expected under concurrent reclaim. The row becomes visible again, so a later pass retries it. |
+| `litebus.inbox.processor.persist_failed` | Recorded when terminal persist throws after successful handler dispatch (the processor logs the exception and continues the pass). The row stays leased until expiry and may be dispatched again. Read it together with `litebus.inbox.processor.succeeded` and handler idempotency. |
+| `litebus.inbox.diagnostics.unavailable` | Recorded when the queue depth diagnostic probe fails against the backing store. Observable `litebus.inbox.queue.depth` may be stale while this counter rises. Investigate store connectivity. |
 | `litebus.inbox.processor.dispatch_duration` | Recorded after each envelope dispatch completes. Tail latency drives lease duration and heartbeat tuning. |
 
 ### Management Endpoints
 
 - **Kind**: HTTP control (ASP.NET extensions)
 - **Routes**: `POST /litebus/inbox/processor/pause`, `POST /litebus/inbox/processor/drain`, and `POST /litebus/inbox/processor/resume`
-- **Operational note**: Route tests verify state transitions and forward drain timeouts to the processor control service
+- **Operational note**: The routes forward drain timeouts to the processor control service, and the route tests verify the state transitions
 
-## Deep Docs
+## References
 
-- [Inbox](../../reliable-messaging/inbox.md) (processing flow, processor lifetime)
+- [Inbox](../../reliable-messaging/inbox.md) (processing flow and processor lifetime)
 - [Hosted services](../../architecture/hosted-services.md)
-- [Architecture](../../architecture/README.md) (pipelined processor)
+- [Architecture](../../architecture/README.md) (the pipelined processor)
 
 ## Test Coverage
 
@@ -137,7 +137,7 @@ Inbox processor instrumentation uses meter `LiteBus.Inbox` (`LiteBusInboxTelemet
 - **Test kind**: Unit
 - **Description**: Handler duration exceeds default lease without heartbeat failure
 - **Behavior**: Lease renewal during dispatch
-- **Expected outcome**: Handler executes once; row completes
+- **Expected outcome**: The handler executes once, and the row completes
 - **Remarks**: `LiteBus.Inbox.UnitTests`
 
 #### `PipelinedInboxProcessorTests.PipelinedProcessor_WithParallelWorkers_ShouldDispatchConcurrently`
@@ -154,8 +154,8 @@ Inbox processor instrumentation uses meter `LiteBus.Inbox` (`LiteBusInboxTelemet
 - **Use case**: When the processor is paused, no new dispatches occur until resume
 - **Test kind**: Unit
 - **Description**: Processor control API
-- **Behavior**: `PauseAsync` then pass attempt; `ResumeAsync`
-- **Expected outcome**: No dispatches while paused; processing resumes after resume
+- **Behavior**: `PauseAsync`, then a pass attempt, then `ResumeAsync`
+- **Expected outcome**: No dispatches while paused, and processing resumes after resume
 - **Remarks**: `LiteBus.Inbox.UnitTests`
 
 #### `InboxProcessorControlTests.DrainAsync_should_process_pending_messages_and_complete`
@@ -164,7 +164,7 @@ Inbox processor instrumentation uses meter `LiteBus.Inbox` (`LiteBusInboxTelemet
 - **Test kind**: Unit
 - **Description**: Graceful drain API
 - **Behavior**: `DrainAsync` with pending rows
-- **Expected outcome**: Pending cleared; processor reaches drained state
+- **Expected outcome**: The pending rows clear and the processor reaches the drained state
 - **Remarks**: `LiteBus.Inbox.UnitTests`
 
 #### `InboxHostingTests.ProcessorBackgroundService_ShouldProcessScheduledCommands`
@@ -190,7 +190,7 @@ Inbox processor instrumentation uses meter `LiteBus.Inbox` (`LiteBusInboxTelemet
 - **Use case**: When adaptive polling is enabled and batches are full, the loop processes work quickly
 - **Test kind**: Unit
 - **Description**: Poll tuning with full batch returns
-- **Behavior**: Multiple commands accepted; short poll window
+- **Behavior**: Multiple commands accepted in a short poll window
 - **Expected outcome**: High throughput within test window
 - **Remarks**: `LiteBus.Inbox.UnitTests`
 
@@ -245,7 +245,7 @@ Inbox processor instrumentation uses meter `LiteBus.Inbox` (`LiteBusInboxTelemet
 - **Test kind**: Unit
 - **Description**: Heartbeat failure path
 - **Behavior**: Simulated renewal failure during handler execution
-- **Expected outcome**: Dispatch canceled; retryable failed outcome
+- **Expected outcome**: Dispatch canceled, with a retryable failed outcome
 - **Remarks**: `LiteBus.Inbox.UnitTests`
 
 #### `InboxProcessorLoopErrorTelemetryTests` (Processor Throws in Pass)
@@ -307,7 +307,7 @@ Inbox processor instrumentation uses meter `LiteBus.Inbox` (`LiteBusInboxTelemet
 - **Use case**: When a pending row is inserted, PostgreSQL NOTIFY wakes the processor before poll timeout
 - **Test kind**: Integration
 - **Description**: Work signal integration
-- **Behavior**: Insert row; observe processor wake
+- **Behavior**: Insert a row and observe the processor wake
 - **Expected outcome**: Processor runs before poll interval elapses
 - **Remarks**: `LiteBus.Storage.IntegrationTests (`PostgreSql/`)`
 
@@ -324,7 +324,7 @@ Inbox processor instrumentation uses meter `LiteBus.Inbox` (`LiteBusInboxTelemet
 
 - **Use case**: Dedicated processors share one store while leasing separate tenant partitions
 - **Test kind**: Unit with the complete processor and store path
-- **Description**: Two pending rows use `tenant-a` and `tenant-b`; each processor configures one tenant filter
+- **Description**: Two pending rows use `tenant-a` and `tenant-b`, and each processor configures one tenant filter
 - **Behavior**: The tenant A pass runs before the tenant B pass
 - **Expected outcome**: Each pass completes only its configured tenant row
 - **Remarks**: `LiteBus.Inbox.UnitTests`
@@ -342,7 +342,7 @@ Inbox processor instrumentation uses meter `LiteBus.Inbox` (`LiteBusInboxTelemet
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| Processor disabled mid-pass cancellation | Yes | Cancellation tested; not host SIGTERM | Integration | Low |
+| Processor disabled mid-pass cancellation | Yes | Cancellation is tested, but host SIGTERM is not | Integration | Low |
 
 ### Out-of-Scope Use Cases
 

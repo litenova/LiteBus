@@ -1,8 +1,8 @@
 # Ingress
 
-Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
+Inbox ingress is the part of LiteBus that receives command deliveries from a broker and writes them into the inbox store. It maps broker headers to inbox metadata and writes `InboxEnvelope` rows through `IInbox.AcceptAsync` or `IInbox.AcceptBatchAsync`.
 
-Inbox ingress is the durable intake edge for commands. It receives broker deliveries, maps headers to inbox metadata, and writes `InboxEnvelope` rows through `IInbox.AcceptAsync` or `IInbox.AcceptBatchAsync`.
+This page is a contributor contract reference for that intake edge. Readers using LiteBus start with [the documentation overview](../../index.md).
 
 Ingress does not execute handlers. Handler execution starts later in the inbox processor.
 
@@ -56,7 +56,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | AMQP | GA | Deepest live-broker ingress matrix and native queue declaration controls | Requeue-off poison drain still untested on RabbitMQ/LavinMQ |
 | Kafka | Beta | End-to-end and failure paths exist | No dedicated requeue-off matrix, no dedicated duplicate MessageId matrix, no explicit ack-failed metric assertion |
-| AWS SQS | Beta | Strong ingress matrix, including requeue on/off and idempotency paths | Ack-failed metric assertion and FIFO-specific semantics are not covered |
+| AWS SQS | Beta | Strong ingress matrix, covering requeue enabled and disabled, and idempotency paths | Ack-failed metric assertion and FIFO-specific semantics are not covered |
 | Azure Service Bus | Beta | End-to-end and failure coverage on emulator, plus requeue-enabled path | No duplicate MessageId matrix, no requeue-off matrix, limited header edge-case matrix |
 | InMemory | GA (test adapter) | Fast deterministic matrix for shared ingress semantics | Not a cross-process transport, no broker-native edge semantics |
 
@@ -77,10 +77,10 @@ flowchart LR
 | Executor | Folder scope | What it proves for ingress |
 | --- | --- | --- |
 | `LiteBus.Inbox.UnitTests` | `Ingress/`, `Ingress/Amqp/` | Mapper, handler, consumer, ack policy, AMQP registration and AMQP handler mapping |
-| `LiteBus.Durable.IntegrationTests` | `Ingress/<Broker>/`, `Registration/` | Broker end-to-end intake, failure handling, selected idempotency and requeue behavior, registration smoke |
+| `LiteBus.Durable.IntegrationTests` | `Ingress/<Broker>/`, `Registration/` | Broker end-to-end intake, failure handling, selected idempotency and requeue behavior, registration smoke tests |
 | `LiteBus.Storage.IntegrationTests` | `PostgreSql/` | AMQP ingress with PostgreSQL backing store and duplicate broker delivery idempotency |
 
-Coverage gaps described in broker pages follow the ingress matrix in [Integration tests](../../testing/integration-tests.md).
+The coverage gaps on the broker pages match the ingress matrix in [Integration tests](../../testing/integration-tests.md).
 
 ## What Ingress Does Not Cover
 
@@ -91,7 +91,7 @@ Coverage gaps described in broker pages follow the ingress matrix in [Integratio
 | Broker health probes | Ingress registers background work. Health probes live in hosting and diagnostics modules. |
 | One generic `UseTransportIngress` | Broker adapters stay split by package to avoid pulling every SDK into every app. |
 
-## Deep Docs
+## References
 
 - [Inbox](../../reliable-messaging/inbox.md)
 - [Integration tests](../../testing/integration-tests.md)

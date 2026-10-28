@@ -5,7 +5,7 @@
 
 ## Summary
 
-Inbox and outbox writers can encrypt serialized payload bodies before persistence. Dispatchers decrypt after load and before deserialization. Contract names, versions, routing fields, and operator metadata remain readable.
+In LiteBus, payload encryption lets inbox and outbox writers encrypt serialized payload bodies before persistence. Dispatchers decrypt after load and before deserialization. Contract names, versions, routing fields, and operator metadata remain readable.
 
 ## Public Surface
 
@@ -19,7 +19,7 @@ Inbox and outbox writers can encrypt serialized payload bodies before persistenc
 | `InboxModuleBuilder.UsePayloadEncryption` | Applies protection to inbox acceptance and dispatch |
 | `OutboxModuleBuilder.UsePayloadEncryption` | Applies protection to outbox enqueue and dispatch |
 
-Register protection on each durable axis that shares the encrypted store. The encryptor below is application code: implement `IPayloadEncryptor` against your key provider, since LiteBus ships the contract only.
+Register protection on each durable axis that shares the encrypted store. The encryptor below is application code. Implement `IPayloadEncryptor` against your key provider, because LiteBus provides the contract only.
 
 ```csharp
 var encryptor = new ApplicationPayloadEncryptor(keyProvider);
@@ -48,9 +48,9 @@ Inbox and outbox can use separate implementations when they use different keys o
 
 Storage adapters treat the protected payload as opaque text. EF Core and PostgreSQL adapters map payload columns to text so ciphertext does not need to be valid JSON. Contract name and version stay plaintext so the registry can select a CLR type before deserialization. Topic, correlation, tenant, visibility, and status fields also remain plaintext for leasing and operations.
 
-Implement `IContextualPayloadEncryptor` when ciphertext must be bound to its row metadata. LiteBus passes `MessageId`, `ContractName`, `ContractVersion`, `TenantId`, and an axis value of `inbox` or `outbox`. Use these fields as authenticated associated data in an AEAD implementation. Existing `IPayloadEncryptor` implementations remain supported but do not receive associated data.
+Implement `IContextualPayloadEncryptor` when ciphertext must be bound to its row metadata. LiteBus passes `MessageId`, `ContractName`, `ContractVersion`, `TenantId`, and an axis value of `inbox` or `outbox`. Use these fields as authenticated associated data in an AEAD (authenticated encryption with associated data) implementation. Existing `IPayloadEncryptor` implementations remain supported but do not receive associated data.
 
-The inbox and outbox protectors forward the contextual overloads to the configured encryptor when it implements `IContextualPayloadEncryptor`, and fall back to the plain contract otherwise. `PayloadProtectionContext.TenantId` normalizes null, empty, and whitespace values to null so unscoped messages authenticate identically on encrypt and decrypt; custom protectors can implement `IContextualPayloadEncryptor` to receive the same metadata.
+The inbox and outbox protectors forward the contextual overloads to the configured encryptor when it implements `IContextualPayloadEncryptor`, and fall back to the plain contract otherwise. `PayloadProtectionContext.TenantId` normalizes null, empty, and whitespace values to null, so unscoped messages authenticate identically during encryption and decryption. Custom protectors can implement `IContextualPayloadEncryptor` to receive the same metadata.
 
 ## Key Rotation
 
@@ -62,7 +62,7 @@ LiteBus does not own keys or rotation schedules. The application encryptor can i
 4. Select the matching read key from each stored ciphertext.
 5. Retire a historical key only after no retained row depends on it.
 
-For example, rows prefixed with `key-v1:` and `key-v2:` can coexist while `DecryptAsync` selects from an application key ring. New writes use `key-v2`; old rows remain dispatchable through `key-v1`.
+For example, rows prefixed with `key-v1:` and `key-v2:` can coexist while `DecryptAsync` selects from an application key ring. New writes use `key-v2`, and old rows remain dispatchable through `key-v1`.
 
 The test key ring in `PayloadEncryptionTests` models identifier selection and mixed historical reads. It is not a cryptographic algorithm reference. Applications should use an authenticated encryption scheme and managed key material suitable for their security requirements.
 
@@ -73,7 +73,7 @@ The test key ring in `PayloadEncryptionTests` models identifier selection and mi
 - Removing a historical read key while retained rows still reference it makes those rows undispatchable.
 - Changing the ciphertext format requires a reader that recognizes every retained format version.
 
-Repeated decrypt failures after a deployment usually identify missing keys, mismatched configuration, or an incompatible ciphertext format. The processor failure and dead-letter counters expose the durable impact; the encryptor should log a non-secret key identifier and failure category.
+Repeated decrypt failures after a deployment usually identify missing keys, mismatched configuration, or an incompatible ciphertext format. The processor failure and dead-letter counters expose the durable impact. The encryptor should log a non-secret key identifier and failure category.
 
 ## Packages
 
@@ -88,7 +88,7 @@ Repeated decrypt failures after a deployment usually identify missing keys, mism
 
 ## Invariants
 
-- Protection is optional; the default stores serialized JSON as plaintext.
+- Protection is optional. By default, the store holds serialized JSON as plaintext.
 - Encryption runs before the payload reaches the store.
 - Decryption runs before payload validation or deserialization.
 - All readers of one store must retain keys for every non-expired ciphertext.
@@ -99,10 +99,10 @@ Repeated decrypt failures after a deployment usually identify missing keys, mism
 
 ## Non-Goals
 
-- Built-in KMS, HSM, or key-vault integration.
-- Automatic key generation, rotation, re-encryption, or retirement.
-- Field-level payload encryption.
-- Encryption of contract, routing, lease, or status columns.
+- This capability does not provide built-in KMS, HSM, or key-vault integration.
+- This capability does not provide automatic key generation, rotation, re-encryption, or retirement.
+- This capability does not provide field-level payload encryption.
+- This capability does not encrypt contract, routing, lease, or status columns.
 
 ## Observability
 
@@ -111,16 +111,16 @@ LiteBus does not emit key identifiers as metric tags because key and tenant sets
 | Signal | Meaning |
 | --- | --- |
 | Writer exception | Encryption failed before durable insertion |
-| `litebus.inbox.processor.failed` | Inbox decrypt, deserialize, hook, or handler failure scheduled a retry |
-| `litebus.outbox.processor.failed` | Outbox decrypt, validate, or dispatch failure scheduled a retry |
-| Dead-letter counters | Retry policy exhausted, including persistent decrypt failures |
-| Dispatch duration histogram | Includes decrypt time inside the dispatch operation |
+| `litebus.inbox.processor.failed` | An inbox decrypt, deserialize, hook, or handler failure scheduled a retry |
+| `litebus.outbox.processor.failed` | An outbox decrypt, validate, or dispatch failure scheduled a retry |
+| Dead-letter counters | The retry policy is exhausted, including persistent decrypt failures |
+| Dispatch duration histogram | The histogram includes decrypt time inside the dispatch operation |
 
 ## Test Coverage
 
 - `PayloadEncryptionTests.Inbox_RoundTripsEncryptedPayloadThroughDispatch` verifies ciphertext at rest and plaintext delivery.
 - `PayloadEncryptionTests.CommandInboxDispatcher_DecryptsProtectedPayload` and `EventOutboxDispatcher_DecryptsProtectedPayload` verify both in-process dispatch paths.
-- `PayloadEncryptionTests.Inbox_WithRotatedKeyRing_ShouldDispatchHistoricalAndCurrentCiphertext` writes one row with `key-v1`, rotates the active key to `key-v2`, writes another row, and dispatches both through one retained key ring.
+- `PayloadEncryptionTests.Inbox_WithRotatedKeyRing_ShouldDispatchHistoricalAndCurrentCiphertext` writes one row with `key-v1` and rotates the active key to `key-v2`. It then writes another row and dispatches both through one retained key ring.
 - `InboxEnvelopeFactoryTests.CreateAsync_should_encrypt_payload_when_protector_configured` verifies the inbox writer boundary.
 - `TransactionalInboxAcceptTests` and `TransactionalOutboxEnqueueTests` verify encryption inside EF Core transactional staging.
 - `InboxPayloadProtectorContextTests` and `OutboxPayloadProtectorContextTests` verify contextual forwarding, cross-row rejection, and unscoped tenant round-trips.

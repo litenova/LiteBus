@@ -5,7 +5,7 @@
 
 ## Summary
 
-Tenant metadata partitions durable idempotency, store queries, processor leasing, saga correlation, and optional transport routing. LiteBus carries the tenant identifier; the application remains responsible for authentication and authorization.
+Tenant metadata partitions durable idempotency, store queries, processor leasing, saga correlation, and optional transport routing. LiteBus carries the tenant identifier, and the application remains responsible for authentication and authorization.
 
 ## Tenant Model
 
@@ -58,7 +58,7 @@ inbox.UseProcessorOptions(new InboxProcessorOptions
 });
 ```
 
-A processor with this configuration leaves `tenant-b` rows pending. A separate processor configured for `tenant-b` can lease those rows from the same store. Lease requests use the same null semantics on every store: `null` leases across all tenants and a blank value leases unscoped rows only, matching the manager filter rule below.
+A processor with this configuration leaves `tenant-b` rows pending. A separate processor configured for `tenant-b` can lease those rows from the same store. Lease requests use the same null semantics on every store. `null` leases across all tenants, and a blank value leases unscoped rows only, matching the manager filter rule below.
 
 Processor leasing belongs to the inbox and outbox domains. It does not depend on transport routing abstractions.
 
@@ -70,7 +70,7 @@ Enable trusted application headers only after the broker binding authenticates t
 
 ## Transport Routing
 
-`ITenantRoutingStrategy.ResolveRoute` can compute a broker route from the tenant identifier, stable contract name, and topic hint. Both transport dispatchers use the resolved value as `TransportPublishRequest.Route`; `DefaultDestination` remains unchanged.
+`ITenantRoutingStrategy.ResolveRoute` can compute a broker route from the tenant identifier, stable contract name, and topic hint. Both transport dispatchers use the resolved value as `TransportPublishRequest.Route`. `DefaultDestination` remains unchanged.
 
 ```csharp
 public sealed class TenantRouteStrategy : ITenantRoutingStrategy
@@ -83,7 +83,7 @@ public sealed class TenantRouteStrategy : ITenantRoutingStrategy
 }
 ```
 
-Without a strategy, inbox dispatch uses its configured route resolver or contract name. Outbox dispatch prefers its configured route resolver, then the envelope topic when present, then the contract name. Configure the outbox strategy through `TransportOutboxDispatcherOptions.TenantRoutingStrategy`; the inbox dispatcher resolves an optional strategy from the container instead.
+Without a strategy, inbox dispatch uses its configured route resolver or contract name. Outbox dispatch prefers its configured route resolver, then the envelope topic when present, then the contract name. Configure the outbox strategy through `TransportOutboxDispatcherOptions.TenantRoutingStrategy`. The inbox dispatcher resolves an optional strategy from the container instead.
 
 ## Management Operations
 
@@ -106,20 +106,20 @@ For example, `GET /litebus/inbox/messages?tenantId=tenant-a&status=Pending` retu
 ## Invariants
 
 - The same idempotency key can identify one row per tenant partition.
-- A message identifier that already exists for another tenant throws `IdempotencyConflictException` regardless of conflict mode instead of resolving to the foreign row.
+- When a message identifier already exists for another tenant, the writer throws `IdempotencyConflictException` regardless of conflict mode instead of resolving to the foreign row.
 - A configured processor tenant limits only that processor's lease requests.
 - A null manager tenant filter includes all tenants.
-- Tenant ingress headers are ignored unless application headers are trusted.
+- Ingress ignores tenant headers unless application headers are trusted.
 - Saga correlation includes the normalized tenant identifier.
 - Transport routing changes the route, not the configured destination.
 
 ## Non-Goals
 
-- Tenant authentication or authorization policy.
-- Automatic tenant discovery from an HTTP or broker principal.
-- Database row-level security configuration.
-- Cross-tenant dead-letter replay without an explicit operator filter.
-- A tenant identifier tag on public metrics, which could create unbounded cardinality.
+- This capability does not define tenant authentication or authorization policy.
+- This capability does not provide automatic tenant discovery from an HTTP or broker principal.
+- This capability does not configure database row-level security.
+- This capability does not provide cross-tenant dead-letter replay without an explicit operator filter.
+- Public metrics carry no tenant identifier tag, which could create unbounded cardinality.
 
 ## Observability
 
@@ -132,13 +132,13 @@ The tenant contract is covered at each boundary:
 - `InboxStoreContractTests` and `OutboxStoreContractTests` verify tenant-filtered leasing and querying. The inbox contract also verifies deduplication within a tenant and independence across tenants.
 - `TenantScopedInboxProcessorTests.ProcessPendingAsync_WithTenantFilters_ShouldIsolateProcessorPasses` runs two complete processor passes against one store and proves each processor leases only its configured tenant.
 - `TenantLeaseFilterTests` verifies inbox and outbox lease requests against mixed-tenant in-memory rows.
-- `TransportInboxIngressMapperTests.ToInboxAcceptMetadata_ShouldMapOptionalHeadersWhenTrusted` verifies trusted header propagation; companion tests verify untrusted headers are ignored.
+- `TransportInboxIngressMapperTests.ToInboxAcceptMetadata_ShouldMapOptionalHeadersWhenTrusted` verifies trusted header propagation. Companion tests verify that untrusted headers are ignored.
 - `TransportInboxDispatcherTests` and `TransportOutboxDispatcherTests` verify `ITenantRoutingStrategy` receives the envelope tenant and controls the published route.
-- `OutboxTenantRoutingRegistrationTests.Dispatcher_WhenTenantRoutingRegistered_ShouldConsultStrategy` verifies a strategy set on `TransportOutboxDispatcherOptions.TenantRoutingStrategy` is consulted by the resolved dispatcher.
+- `OutboxTenantRoutingRegistrationTests.Dispatcher_WhenTenantRoutingRegistered_ShouldConsultStrategy` verifies that the resolved dispatcher consults a strategy set on `TransportOutboxDispatcherOptions.TenantRoutingStrategy`.
 - Broker dispatch integration tests verify `tenant-id` propagation for AMQP, Kafka, Azure Service Bus, AWS SQS, and the in-memory transport.
 - `PostgreSqlSagaInboxEndToEndTests.ProcessPendingAsync_WithTenantScopedAccepts_ShouldPersistSeparateSagaRows` verifies two tenants with the same saga correlation create separate PostgreSQL rows.
 
-The remaining low-priority stress case is fairness across a large number of tenant-specific processor instances. Correct partition filtering is covered; throughput depends on the store, batch size, worker count, and broker topology selected by the application.
+One low-priority stress case remains: fairness across a large number of tenant-specific processor instances. Correct partition filtering is covered. Throughput depends on the store, batch size, worker count, and broker topology selected by the application.
 
 ## Related Documentation
 

@@ -8,11 +8,11 @@
 
 ## What It Does
 
-Every command states its authorization position beside the message: either it requires authorization under a policy, or it is deliberately exempt and says why. LiteBus carries that position from the message to the metadata, where one guard enforces it for every message. A position is an `AuthorizationDeclaration`, read back through `IMessageMetadataAccessor` whichever shape declared it. The two positions are separate types, `AuthorizedDeclaration` carrying the policy and `AuthorizationExemptDeclaration` carrying the rationale, so a declaration cannot hold a combination that means nothing.
+Every command states its authorization position beside the message. Either it requires authorization under a policy, or it is deliberately exempt and says why. LiteBus carries that position from the message to the metadata, where one guard enforces it for every message. A position is an `AuthorizationDeclaration`, read back through `IMessageMetadataAccessor` whichever shape declared it. The two positions are separate types, `AuthorizedDeclaration` carrying the policy and `AuthorizationExemptDeclaration` carrying the rationale, so no declaration can hold a meaningless combination.
 
-A position takes four shapes: the `[Authorized]` and `[AuthorizationExempt]` attributes, the keyed `IAuthorizationDefinition<TMessage>`, and the `Authorized` and `AuthorizationExempt` helpers in a `Describe` body. A definition wins when both an attribute and a definition declare the same message, because both contribute the same `AuthorizationDeclaration` and the definition is applied last. LiteBus never evaluates the policy; whether the actor satisfies it stays in the application.
+A position takes four shapes: the `[Authorized]` and `[AuthorizationExempt]` attributes, the keyed `IAuthorizationDefinition<TMessage>`, and the `Authorized` and `AuthorizationExempt` helpers in a `Describe` body. When both an attribute and a definition declare the same message, the definition wins, because both contribute the same `AuthorizationDeclaration` and the definition is applied last. LiteBus never evaluates the policy. Whether the actor satisfies it stays in the application.
 
-Enforcement is a guard derived from `AuthorizationGuard<TMessage>`, registered once as an open generic. The guard reads the declaration for the runtime message type, allows what is exempt, and calls `AuthorizeAsync` with the declared policy on everything else. A message that declares nothing is denied with the `declaration.missing` code. For a declaration of any other value type, `DeclarationGuard<TMessage, TValue>` applies the same shape: a declared value reaches the typed `DecideAsync`, a recorded exemption allows without calling it, and an undeclared message reaches `DecideUndeclaredAsync`.
+Enforcement is a guard derived from `AuthorizationGuard<TMessage>`, registered once as an open generic. The guard reads the declaration for the runtime message type, allows what is exempt, and calls `AuthorizeAsync` with the declared policy on everything else. A message that declares nothing is denied with the `declaration.missing` code. For a declaration of any other value type, `DeclarationGuard<TMessage, TValue>` applies the same shape. A declared value reaches the typed `DecideAsync`, a recorded exemption allows without calling it, and an undeclared message reaches `DecideUndeclaredAsync`.
 
 ## Public Surface
 
@@ -45,14 +45,14 @@ registry.AddCommands(builder => builder.Register(typeof(VaultAuthorizationGuard<
 
 | API | Role |
 | --- | --- |
-| `AuthorizationDeclaration` | The closed base of the two authorization positions; `Authorized(policy)` and `Exempt(rationale)` factories |
+| `AuthorizationDeclaration` | The closed base of the two authorization positions, with `Authorized(policy)` and `Exempt(rationale)` factories |
 | `AuthorizedDeclaration.Policy` | The required policy, in the application's own vocabulary |
 | `AuthorizationExemptDeclaration.Rationale` | The recorded reason the message needs no authorization |
 | `[Authorized]` / `[AuthorizationExempt]` | Attribute-form authorization declaration |
 | `IAuthorizationDefinition<TMessage>` | Definition-form authorization declaration, exposing `Authorization` |
-| `IMessageDeclarations.Authorized` / `AuthorizationExempt` | The `Describe` helpers; the exemption also records the exemption a requirement reads |
-| `DeclarationGuard<TMessage, TValue>` | Guard base over any declaration value type: typed `DecideAsync`, exemption allow, `DecideUndeclaredAsync` denying with `UndeclaredCode` (`declaration.missing`) by default |
-| `AuthorizationGuard<TMessage>` | Guard base over authorization positions: exempt allows, authorized delegates to `AuthorizeAsync` with the declared policy |
+| `IMessageDeclarations.Authorized` / `AuthorizationExempt` | The `Describe` helpers. The exemption helper records the exemption that a requirement reads |
+| `DeclarationGuard<TMessage, TValue>` | Guard base over any declaration value type, with a typed `DecideAsync`, an exemption that allows without calling it, and `DecideUndeclaredAsync` denying with `UndeclaredCode` (`declaration.missing`) by default |
+| `AuthorizationGuard<TMessage>` | Guard base over authorization positions. An exempt position allows, and an authorized position delegates to `AuthorizeAsync` with the declared policy |
 | `MessageModuleBuilder.RequireDeclaration<AuthorizationDeclaration, TScope>()` | Fails composition for every message in scope that states no authorization position |
 | Analyzer `LB1020` | Compile-time report for a message stating no position on a configured declaration, here `AuthorizationDeclaration` |
 
@@ -72,22 +72,22 @@ registry.AddCommands(builder => builder.Register(typeof(VaultAuthorizationGuard<
 
 - The lookup reads the runtime message type, so a guard closed over a base type still enforces the concrete message's declaration.
 - A recorded exemption allows without calling the typed decision method.
-- An undeclared message is denied with the `declaration.missing` code unless `DecideUndeclaredAsync` is overridden; pair the guard with `RequireDeclaration` so the override becomes unreachable once every message states its position.
-- Scope a requirement on a type rather than a namespace, so a refactoring cannot silently stop the rule applying.
-- LiteBus never interprets the policy string; evaluation stays in the application's `AuthorizeAsync`.
+- An undeclared message is denied with the `declaration.missing` code unless `DecideUndeclaredAsync` is overridden. Pair the guard with `RequireDeclaration` so the override becomes unreachable once every message states its position.
+- Scope a requirement on a type rather than a namespace, so a refactoring cannot silently stop the rule from applying.
+- LiteBus never interprets the policy string. Evaluation stays in the application's `AuthorizeAsync`.
 
 ## Non-Goals
 
-- Modelling identity, roles, or tenancy; the guard reads those from whatever principal the host provides.
-- A fixed policy vocabulary; the policy string belongs to the application.
-- Compile-time policy evaluation; `LB1020` reports a missing position, never a wrong one.
+- Modelling identity, roles, or tenancy. The guard reads those from whatever principal the host provides.
+- A fixed policy vocabulary. The policy string belongs to the application.
+- Compile-time policy evaluation. `LB1020` reports a missing position, never a wrong one.
 
 ## Observability
 
 No authorization-specific meter or activity source. Denials report `MediationOutcome.Denied` through mediation telemetry and are recorded as denials by the audit trail, with the guard's reason.
 
 Operational alternatives:
-- Switch the mediation decision counter on the deciding guard to see which policy denies most.
+- Group the mediation decision counter by the deciding guard to see which policy denies most.
 - Read the audit trail for denied actions and their reasons.
 
 ## Test Coverage
@@ -118,7 +118,7 @@ Operational alternatives:
 - Authentication middleware and principal construction.
 - Policy storage and administration user interfaces.
 
-## Deep Docs
+## References
 
 - [Authorization declarations](../../concepts/authorization-declarations.md)
 - [Message definitions](../../concepts/message-definitions.md)

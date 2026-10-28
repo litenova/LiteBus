@@ -5,13 +5,13 @@
 - **ID**: `hosting.background-services`
 - **Name**: Long-running background services
 - **Maturity**: GA
-- **Summary**: Manifest registration contract for continuous loops that run until host shutdown.
+- **Summary**: The manifest registration contract for continuous loops that run until host shutdown.
 
 ## What It Does
 
 `IBackgroundService` defines the host-independent loop contract: `ExecuteAsync(CancellationToken)`. Modules register implementation types through `IModuleConfiguration.RegisterBackgroundService(Type)`. Host bridges resolve and run these through a single orchestrator.
 
-Shipped loops are the inbox and outbox processor services with their cleanup services, the transport inbox ingress consumer, and one `RecurringCommandBackgroundService<TCommand>` per recurring registration. The recurring loop sends one command per pass on `RecurringCommandHostOptions`, survives failing passes with `ErrorBackoff`, and single-flights through `IRecurringCommandLease` when `RequireLease` is set; see [mediator.recurring-commands](../mediator/recurring-commands.md) and [Recurring commands](../../integrations/recurring-commands.md).
+Shipped loops are the inbox and outbox processor services with their cleanup services, the transport inbox ingress consumer, and one `RecurringCommandBackgroundService<TCommand>` per recurring registration. The recurring loop sends one command per pass, timed by `RecurringCommandHostOptions`. After a failing pass it waits `ErrorBackoff` instead of stopping. When `RequireLease` is set, the loop acquires an `IRecurringCommandLease` so the pass runs on at most one host instance at a time. See [mediator.recurring-commands](../mediator/recurring-commands.md) and [Recurring commands](../../integrations/recurring-commands.md).
 
 ## Public Surface
 
@@ -23,8 +23,8 @@ Shipped loops are the inbox and outbox processor services with their cleanup ser
 
 ### Registration
 
-- Registered during module `Build(...)`.
-- Resolved by hosting bridges as singleton implementations.
+- Modules register loops during `Build(...)`.
+- Hosting bridges resolve them as singleton implementations.
 
 ## Packages
 
@@ -38,9 +38,9 @@ Shipped loops are the inbox and outbox processor services with their cleanup ser
 
 ## Invariants
 
-- Types registered as startup tasks cannot also register as background services.
+- A type registered as a startup task cannot also be registered as a background service.
 - Duplicate registrations are deduplicated while preserving first-seen order.
-- Loops are canceled through host shutdown token.
+- Loops are canceled through the host shutdown token.
 
 ## Non-Goals
 
@@ -49,7 +49,7 @@ Shipped loops are the inbox and outbox processor services with their cleanup ser
 
 ## Observability
 
-No generic background-service meter exists. Service-specific metrics are emitted by feature axes (inbox, outbox, ingress, transport).
+No generic background-service meter exists. The feature axes (inbox, outbox, ingress, transport) emit service-specific metrics.
 
 ## Test Coverage
 
@@ -59,7 +59,7 @@ No generic background-service meter exists. Service-specific metrics are emitted
 
 - **Use case**: deduplicated background-service registration
 - **Test kind**: Unit
-- **Description**: registers same implementation twice
+- **Description**: registers the same implementation twice
 - **Behavior**: reads `BackgroundServices`
 - **Expected outcome**: one entry in first-registration order
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/ModuleConfigurationTests.cs`
@@ -68,7 +68,7 @@ No generic background-service meter exists. Service-specific metrics are emitted
 
 - **Use case**: startup-task type blocked from background registration
 - **Test kind**: Unit
-- **Description**: attempts to register an `IStartupTask` implementation as background service
+- **Description**: attempts to register an `IStartupTask` implementation as a background service
 - **Behavior**: calls `RegisterBackgroundService`
 - **Expected outcome**: argument exception
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/ModuleConfigurationTests.cs`
@@ -77,8 +77,8 @@ No generic background-service meter exists. Service-specific metrics are emitted
 
 - **Use case**: hosted adapter executes underlying LiteBus loop
 - **Test kind**: Unit
-- **Description**: registers one recording background service through Microsoft bridge
-- **Behavior**: starts/stops hosted service
+- **Description**: registers one recording background service through the Microsoft bridge
+- **Behavior**: starts and stops the hosted service
 - **Expected outcome**: loop execute counter increments
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/MicrosoftBackgroundServiceHostingExtensionsTests.cs`
 
@@ -104,13 +104,13 @@ No generic background-service meter exists. Service-specific metrics are emitted
 
 | Gap | Priority | Notes |
 | --- | --- | --- |
-| Unified failure policy when one of multiple loops faults after startup | Medium | Covered indirectly by axis-specific processor tests. |
+| Unified failure policy when one of multiple loops faults after startup | Medium | Axis-specific processor tests cover it indirectly. |
 
 ### Out-of-Scope Use Cases
 
 - Per-loop retry strategy in the hosting layer.
 
-## Deep Docs
+## References
 
 - [Recurring commands](../../integrations/recurring-commands.md)
 - [Hosted services](../../architecture/hosted-services.md)

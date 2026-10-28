@@ -1,6 +1,8 @@
 # Handler Filtering
 
-Filtering runs a different set of handlers for the same message depending on the call. Tag handlers at registration and select tags per call, or pass a predicate that inspects each handler descriptor. Tags and predicates work on commands, queries, and events: each axis exposes routing settings on its mediation settings type (`CommandRoutingSettings`, `QueryRoutingSettings`, `EventRoutingSettings`). This page builds on the handler stages in [The Handler Pipeline](handler-pipeline.md).
+Handler filtering selects which handlers run for a message on each call. You tag handlers at registration and select tags per call, or you pass a predicate that inspects each handler descriptor. Tags and predicates work on commands, queries, and events. Each axis exposes routing settings on its mediation settings type (`CommandRoutingSettings`, `QueryRoutingSettings`, `EventRoutingSettings`).
+
+This page builds on the handler stages in [The Handler Pipeline](handler-pipeline.md).
 
 ## Tag-Based Filtering
 
@@ -44,14 +46,14 @@ var settings = new CommandMediationSettings
 await commandMediator.SendAsync(command, settings, cancellationToken);
 ```
 
-Query and event calls follow the same shape with `QueryMediationSettings` / `QueryRoutingSettings` and `EventMediationSettings` / `EventRoutingSettings`.
+Queries and events use the same pattern, with `QueryMediationSettings` / `QueryRoutingSettings` and `EventMediationSettings` / `EventRoutingSettings`.
 
 ### Tag Selection Logic
 
 When you mediate with a set of tags:
 
-1. **Untagged handlers always run.** They are considered universal.
-2. **Tagged handlers run only when at least one of their tags matches** a tag passed for the call.
+1. Untagged handlers always run, because they belong to every context.
+2. Tagged handlers run when at least one of their tags matches a tag passed for the call.
 3. Handlers whose tags match none of the passed tags are skipped.
 
 ## Predicate-Based Filtering
@@ -85,7 +87,7 @@ var commandSettings = new CommandMediationSettings
 await commandMediator.SendAsync(command, commandSettings, cancellationToken);
 ```
 
-The predicate type differs by axis. Command and query routing use `Func<IHandlerDescriptor, bool>`; event routing uses the named `EventHandlerFilter` delegate, which takes an `IHandlerDescriptor` and returns whether the handler runs. The lambda shape is identical; name the delegate type when you store a predicate in a field or combine several with logical operators.
+The predicate type differs by axis. Command and query routing use `Func<IHandlerDescriptor, bool>`. Event routing uses the named `EventHandlerFilter` delegate, which takes an `IHandlerDescriptor` and returns whether the handler runs. The lambda you write looks the same on every axis. Name the delegate type when you store a predicate in a field or combine several with logical operators.
 
 ### `IHandlerDescriptor` Properties
 
@@ -95,12 +97,12 @@ The descriptor carries the message type, the handler type, the tags, the priorit
 - `MessageType`: the `System.Type` of the message it handles.
 - `Priority`: the handler priority value.
 - `Tags`: the tags applied to the handler.
-- `RegistrationSequence`: the sequence assigned when the descriptor was committed to the registry. Lower values indicate earlier registration and break priority ties.
-- `ContractType`: the closed handler contract the dispatch was discovered from, such as `IMessagePostHandler<PlaceOrderCommand, OrderId>`. A handler class may implement contracts for several message types; this names the one the pipeline invokes through, which is what appears in diagnostics.
+- `RegistrationSequence`: the sequence assigned when the descriptor was committed to the registry. Lower values mean earlier registration and break priority ties.
+- `ContractType`: the closed handler contract that the dispatch was discovered from, such as `IMessagePostHandler<PlaceOrderCommand, OrderId>`. A handler class may implement contracts for several message types. This property names the contract the pipeline invokes, which is the one that appears in diagnostics.
 
-### Use Case: Filtering by Marker Interface
+### Filtering by Marker Interface
 
-A common pattern is to filter handlers on a marker interface rather than on type names:
+To filter handlers on a marker interface rather than on type names, define the interface, apply it to handlers, and test for it in the predicate:
 
 ```csharp
 // 1. Define a marker interface

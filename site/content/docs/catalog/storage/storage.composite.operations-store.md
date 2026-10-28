@@ -3,11 +3,11 @@
 - **ID**: `storage.composite.operations-store`
 - **Name**: Operations composite store
 - **Maturity**: GA
-- **Summary**: Dead-letter, retention, diagnostics, query, and purge roles for managers and operator tooling.
+- **Summary**: These composites bundle the dead-letter, retention, diagnostics, query, and purge roles that managers and operator tooling use.
 
 ## What It Does
 
-`IInboxOperationsStore` combines `IInboxDeadLetterStore`, `IInboxRetentionStore`, `IInboxDiagnosticsStore`, `IInboxMessageQuery`, and `IInboxPurgeStore`. `IOutboxOperationsStore` mirrors the same operational slices for outbox. `InboxManager` and `OutboxManager` depend on the operations composite for HTTP management, cleanup services, and schema info endpoints.
+`IInboxOperationsStore` combines `IInboxDeadLetterStore`, `IInboxRetentionStore`, `IInboxDiagnosticsStore`, `IInboxMessageQuery`, and `IInboxPurgeStore`. `IOutboxOperationsStore` combines the matching outbox roles. `InboxManager` and `OutboxManager` depend on the operations composite for HTTP management, cleanup services, and schema info endpoints.
 
 ## Public Surface
 
@@ -17,32 +17,32 @@
 | --- | --- |
 | `IInboxOperationsStore` | Inbox dead-letter, retention, diagnostics, query, purge composite |
 | `IOutboxOperationsStore` | Outbox operations composite |
-| Fine-grained operations interfaces | Narrow dependencies when needed |
+| Fine-grained operations interfaces | Narrow dependencies for callers that need one role |
 | `IInboxManager` / `IOutboxManager` | Application and ASP.NET operator facades |
 
 ### Invocation
 
 | Method family | Typical caller |
 | --- | --- |
-| `RequeueAsync` | Managers, management HTTP |
+| `RequeueAsync` | Managers and management HTTP |
 | `DeleteCompletedOlderThanAsync` / `DeletePublishedOlderThanAsync` | Cleanup background services |
-| `GetStatusCountsAsync` / `GetSchemaInfoAsync` | OpenTelemetry gauges, management HTTP |
-| `QueryAsync` / `PurgeAsync` | Operator tooling, management HTTP |
+| `GetStatusCountsAsync` / `GetSchemaInfoAsync` | OpenTelemetry gauges and management HTTP |
+| `QueryAsync` / `PurgeAsync` | Operator tooling and management HTTP |
 
 ### Registration
 
-- Same singleton as append and processing roles; managers resolve `IInboxOperationsStore` / `IOutboxOperationsStore` from DI.
+- The operations composite is the same singleton as the append and processing roles. Managers resolve `IInboxOperationsStore` / `IOutboxOperationsStore` from DI.
 
 ### Configuration
 
 | Option surface | Purpose |
 | --- | --- |
 | Retention options on processor/host | Cleanup schedule for retention role |
-| Application auth on management HTTP | Production purge and query protection |
+| Application auth on management HTTP | Protection for purge and query in production |
 
 ### Extension Points
 
-- Custom stores implement all operations roles on the registered singleton; composite is a typing aggregate.
+- Custom stores implement all operations roles on the registered singleton. The composite is a typing aggregate.
 
 ## Packages
 
@@ -54,19 +54,19 @@
 
 ## Requires
 
-- Storage adapter registered on parent module
-- For HTTP operations: `LiteBus.Extensions.AspNetCore` and application auth
+- A storage adapter registered on the parent module
+- For HTTP operations, `LiteBus.Extensions.AspNetCore` and application auth
 
 ## Invariants
 
-- Same singleton instance as append and processing roles.
+- The operations composite is the same singleton instance as the append and processing roles.
 - Operations APIs do not lease rows for dispatch.
 - Fine-grained interfaces remain available for narrow dependencies.
 
 ## Non-Goals
 
-- Does not start or pause processors (processor control APIs on managers are separate from store roles).
-- Does not validate broker connectivity.
+- The operations composite does not start or pause processors. Processor control APIs on managers are separate from store roles.
+- It does not validate broker connectivity.
 
 ## Observability
 
@@ -77,9 +77,9 @@
 | `LiteBus.Inbox` | `litebus.inbox.cleanup.errors` | Counter | Retention service failure | none | Retention role |
 | `LiteBus.Outbox` | `litebus.outbox.cleanup.errors` | Counter | Retention service failure | none | Retention role |
 
-Management HTTP exposes human-readable schema info; purge returns affected counts without a dedicated meter.
+Management HTTP exposes human-readable schema info. Purge returns affected counts without a dedicated meter.
 
-## Deep Docs
+## References
 
 - [Operations management](../durable-core/operations-management.md)
 - [Custom stores and dispatchers](../../extending/custom-stores-and-dispatchers.md)
@@ -198,7 +198,7 @@ Management HTTP exposes human-readable schema info; purge returns affected count
 
 ### Untested
 
-- `InboxManager` / `OutboxManager` facade unit tests isolated from store roles (manager tests live in inbox/outbox core packages).
+- `InboxManager` / `OutboxManager` facade unit tests isolated from store roles. Manager tests live in the inbox/outbox core packages.
 - Processor start/stop control via manager APIs.
 
 ### Out-of-Scope

@@ -3,11 +3,11 @@
 - **ID**: `runtime.dependency-registry`
 - **Name**: Container-neutral dependency registry
 - **Maturity**: GA
-- **Summary**: Tracks `DependencyDescriptor` entries, blocks conflicting registrations, and supports explicit collection-registration semantics.
+- **Summary**: The registry tracks `DependencyDescriptor` entries, rejects conflicting registrations, and keeps single-service and collection registrations on separate paths.
 
 ## What It Does
 
-`IDependencyRegistry` is the runtime registration abstraction used by modules. `DependencyRegistry` stores descriptors and enforces rules before container-specific adapters translate registrations.
+`IDependencyRegistry` is the runtime registration abstraction used by modules. `DependencyRegistry` stores descriptors and rejects conflicting or mismatched registrations before container-specific adapters translate them.
 
 ## Public Surface
 
@@ -28,18 +28,18 @@
 
 ## Invariants
 
-- Conflicting non-collection bindings for same service type fail.
+- When two non-collection bindings conflict for the same service type, registration throws.
 - Collection registrations require collection-marked descriptors.
-- A service registered both singly and as collection items fails composition.
-- Duplicate equivalent descriptors are ignored.
+- When a service is registered both singly and as collection items, composition fails.
+- The registry ignores duplicate equivalent descriptors.
 
 ## Non-Goals
 
-- Runtime service resolution.
+- Resolving services at run time.
 
 ## Observability
 
-No direct telemetry. Registration conflicts throw `ModuleCompositionException`.
+The registry emits no telemetry. Registration conflicts throw `ModuleCompositionException`.
 
 ## Test Coverage
 
@@ -47,15 +47,15 @@ No direct telemetry. Registration conflicts throw `ModuleCompositionException`.
 
 #### `DependencyRegistryTests.Register_WithConflictingBindingForSameServiceType_ShouldThrowLiteBusConfigurationException`
 - **Test kind**: Unit
-- **Expected outcome**: conflicting binding is rejected
+- **Expected outcome**: the registry rejects the conflicting binding
 
 #### `DependencyRegistryTests.RegisterCollection_ShouldAllowMultipleImplementations`
 - **Test kind**: Unit
-- **Expected outcome**: multiple collection items are accepted
+- **Expected outcome**: the registry accepts multiple collection items
 
 #### `DependencyRegistryAdapterTests.MicrosoftAdapter_RegisterCollection_ShouldAllowMultipleImplementations`
 - **Test kind**: Unit
-- **Expected outcome**: Microsoft DI adapter preserves collection semantics
+- **Expected outcome**: the Microsoft DI adapter preserves collection semantics
 
 ### Untested Use Cases
 
@@ -65,4 +65,4 @@ No direct telemetry. Registration conflicts throw `ModuleCompositionException`.
 
 ### Out-of-Scope Use Cases
 
-- Post-build service replacement.
+- Replacing services after the container is built.

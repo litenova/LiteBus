@@ -31,17 +31,19 @@ services.AddLiteBus(builder =>
 });
 ```
 
-`UsePostgreSqlIdempotencyStore` registers the store as a child module of the command module, so it is composed inside `AddCommands` and cannot be registered without the axis whose shortcuts claim through it. `UseConnectionString` creates a data source the module owns and disposes with the container; `UseDataSource` uses an application-owned `NpgsqlDataSource` the module leaves alone. The module registers `IIdempotencyStore` as a singleton; an application that registers its own `IIdempotencyStore` should not add this module.
+`UsePostgreSqlIdempotencyStore` registers the store as a child module of the command module, so it is composed inside `AddCommands` and cannot be registered without the axis whose shortcuts claim through it. `UseConnectionString` creates a data source the module owns and disposes with the container. `UseDataSource` uses an application-owned `NpgsqlDataSource` the module leaves alone. The module registers `IIdempotencyStore` as a singleton. An application that registers its own `IIdempotencyStore` should not add this module.
 
 ## Claim Behavior
 
-A claim inserts the key with its fingerprint and lets the primary key refuse the duplicate. An insert that lands is granted with a claim token fenced into the row. An insert refused by a row already marked applied reports the stored payload for the repeat, or a fingerprint mismatch when the stored fingerprint and the incoming one are both set and differ. An insert refused by a row still waiting to settle reports in-flight, and the pipeline denies the delivery with `idempotency.in-flight` so the caller retries after the first delivery settles. A completion or release lands only while the row still carries the token the caller was granted: a settle that arrives after a takeover is a no-op, and completing a key the caller does not hold inserts nothing.
+A claim inserts the key with its fingerprint and lets the primary key refuse the duplicate. An insert that lands is granted with a claim token fenced into the row. An insert refused by a row already marked applied reports the stored payload for the repeat. It reports a fingerprint mismatch when the stored fingerprint and the incoming one are both set and differ. An insert refused by a row still waiting to settle reports in-flight. The pipeline denies the delivery with `idempotency.in-flight`, so the caller retries after the first delivery settles.
 
-Both shipped stores answer a held key the same way, because two deliveries racing across processes are the case idempotency exists to win. The in-memory store is still a test double: it forgets on restart and shares nothing across processes, so it cannot make a claim about the system.
+A completion or release lands only while the row still carries the token the caller was granted. A settle that arrives after a takeover is a no-op, and completing a key the caller does not hold inserts nothing.
+
+Both shipped stores answer a held key the same way, because idempotency exists to decide deliveries that race across processes. The in-memory store is still a test double. It forgets on restart and shares nothing across processes, so it cannot answer for the system.
 
 ## Claim Timeout
 
-An unsettled claim blocks its key until `ClaimTimeout` passes, five minutes by default. A claimant that crashes without settling would otherwise block its key until an operator intervenes, so a claim older than the timeout is taken over: the new caller refreshes the row with a new token and is granted the key. The takeover compares the `claimed_at` value it read, so two callers racing to take over the same expired claim cannot both win. Keep the timeout comfortably longer than the slowest mediation that claims through the store, so a live claimant always settles first. The timeout must be positive: zero or negative is rejected when the module builds, because it would make every unsettled claim immediately takeover-eligible.
+An unsettled claim blocks its key until `ClaimTimeout` passes, five minutes by default. A claimant that crashes without settling would otherwise block its key until an operator intervenes, so a claim older than the timeout is taken over. The new caller refreshes the row with a new token and is granted the key. The takeover compares the `claimed_at` value it read, so two callers racing to take over the same expired claim cannot both win. Keep the timeout comfortably longer than the slowest mediation that claims through the store, so a live claimant always settles first. The timeout must be positive. Zero or negative is rejected when the module builds, because it would make every unsettled claim immediately takeover-eligible.
 
 ```csharp
 pg.UseOptions(new PostgreSqlIdempotencyStoreOptions
@@ -54,15 +56,15 @@ pg.UseOptions(new PostgreSqlIdempotencyStoreOptions
 
 ## Retention
 
-Nothing expires an applied key. The store grows by one row per applied key until the application purges rows whose repeats stopped being plausible, using `completed_at` as the cutoff. A crashed claimant leaves its row unsettled rather than applied; that key is taken over once its claim outlasts `ClaimTimeout` instead of staying blocked.
+Nothing expires an applied key. The store grows by one row per applied key until the application purges rows whose repeats are no longer expected, using `completed_at` as the cutoff. A crashed claimant leaves its row unsettled rather than applied. That key is taken over once its claim outlasts `ClaimTimeout` instead of staying blocked.
 
 ## Schema Management
 
-The table defaults to `public.litebus_idempotency_keys` at schema version 1, with `idempotency_key` as the primary key, the recorded `payload`, the `fingerprint` the key was claimed with, the `claim_token` fencing the current claim, the `is_completed` flag that separates an in-flight claim from an applied key, and `claimed_at` and `completed_at` timestamps. Schema creation follows the same three ownership models as the other PostgreSQL stores, and the `idempotency.postgresql.schema` probe reports whether the table matches the expected version. See [PostgreSQL Schema Management](postgresql-schema-management.md).
+The table defaults to `public.litebus_idempotency_keys` at schema version 1. It holds `idempotency_key` as the primary key, the recorded `payload`, the `fingerprint` the key was claimed with, the `claim_token` fencing the current claim, the `is_completed` flag that separates an in-flight claim from an applied key, and `claimed_at` and `completed_at` timestamps. Schema creation follows the same three ownership models as the other PostgreSQL stores, and the `idempotency.postgresql.schema` probe reports whether the table matches the expected version. See [PostgreSQL Schema Management](postgresql-schema-management.md).
 
 ## Limitations
 
-Each store call runs on its own connection, so the claim is not atomic with the change the handler applies. A crash between the claim commit and the handler commit leaves the key claimed for work that never happened, and only a mediation that ends inside the process settles its claim. Commands whose handler joins an application transaction should claim through that same unit of work with a store that can see it; this store suits commands applied without one. A concurrent claim is answered in-flight rather than waiting, so the caller owns the retry.
+Each store call runs on its own connection, so the claim is not atomic with the change the handler applies. A crash between the claim commit and the handler commit leaves the key claimed for work that never happened. Only a mediation that ends inside the process settles its claim. Commands whose handler joins an application transaction should claim through that same unit of work with a store that can see it. This store suits commands applied without one. A concurrent claim is answered in-flight rather than waiting, so the caller owns the retry.
 
 ## Related Docs
 

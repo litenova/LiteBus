@@ -5,11 +5,11 @@
 
 ## Summary
 
-Accept commands and other registered message types into durable storage for later execution, returning an acceptance receipt instead of a handler result.
+Inbox acceptance stores commands and other registered message types in durable storage for later execution, and returns an acceptance receipt instead of a handler result.
 
 ## What It Does
 
-`IInbox` serializes the message, resolves its contract name and version, and appends an `InboxEnvelope` to the store. Acceptance is durable once the store transaction commits. A background processor executes the message later through a registered dispatcher. Batch acceptance stores multiple envelopes in one store round trip.
+`IInbox` serializes the message, resolves its contract name and version, and appends an `InboxEnvelope` to the store. The accept becomes durable when the store transaction commits. A background processor executes the message later through a registered dispatcher. Batch acceptance stores multiple envelopes in one store round trip.
 
 Receipts confirm storage only. They do not contain business results from command handlers.
 
@@ -17,38 +17,38 @@ Receipts confirm storage only. They do not contain business results from command
 
 ### Consumer Contracts
 
-- **`IInbox`**: Application-facing writer for accept operations. Inject at API edges, ingress adapters, or tools that need immediate store commit.
-- **`InboxAcceptItem<TMessage>` / `InboxAcceptItem`**: Command input carrying payload plus `InboxAcceptMetadata`. Use the untyped variant when the runtime type varies in a batch.
-- **`InboxAcceptMetadata`**: Per-message identity, idempotency, visibility, trace, and tenant variants. Start from `InboxAcceptMetadata.Immediate` and compose with `with`.
-- **`InboxReceipt` / `InboxAcceptOutcome`**: Acceptance result (`Accepted`, `AlreadyAccepted`). Not a handler result.
+- **`IInbox`**: The application-facing writer for accept operations. Inject it at API edges and ingress adapters, and in tools that need an immediate store commit.
+- **`InboxAcceptItem<TMessage>` / `InboxAcceptItem`**: Command input that carries the payload with its `InboxAcceptMetadata`. Use the untyped variant when the runtime type varies within a batch.
+- **`InboxAcceptMetadata`**: Carries the per-message identity, idempotency, visibility, trace, and tenant variants. Start from `InboxAcceptMetadata.Immediate` and compose with `with`.
+- **`InboxReceipt` / `InboxAcceptOutcome`**: The acceptance result (`Accepted`, `AlreadyAccepted`); it is not a handler result.
 
 ### Invocation
 
-- **`AcceptAsync<TMessage>(InboxAcceptItem<TMessage>, CancellationToken)`**: Primary typed accept with full metadata.
-- **`AcceptAsync<TMessage>(TMessage, CancellationToken)`**: Body-only sugar equivalent to `InboxAcceptItem<T>.From(message)`.
-- **`InboxAcceptItem<TMessage>.FromAmbient(message)`**: Body-only accept that stamps `MessageTrace.FromAmbient()` onto the item, so a command accepted inside a mediation carries the ambient correlation, causation, and distributed trace context; outside a mediation the item equals `From(message)`.
-- **`AcceptAsync(InboxAcceptItem, CancellationToken)`**: Runtime-type accept for heterogeneous payloads; contract lookup uses `message.GetType()`.
-- **`AcceptBatchAsync(IReadOnlyList<InboxAcceptItem>, CancellationToken)`**: Batch accept in one store round trip.
+- **`AcceptAsync<TMessage>(InboxAcceptItem<TMessage>, CancellationToken)`**: Accepts a typed message with full metadata.
+- **`AcceptAsync<TMessage>(TMessage, CancellationToken)`**: Accepts a bare message body; it is equivalent to `InboxAcceptItem<T>.From(message)`.
+- **`InboxAcceptItem<TMessage>.FromAmbient(message)`**: A body-only accept that records `MessageTrace.FromAmbient()` on the item, so a command accepted inside a mediation carries the ambient correlation, causation, and distributed trace context. Outside a mediation, the item carries no trace, exactly as `From(message)` builds it.
+- **`AcceptAsync(InboxAcceptItem, CancellationToken)`**: Accepts heterogeneous payloads by runtime type. Contract lookup uses `message.GetType()`.
+- **`AcceptBatchAsync(IReadOnlyList<InboxAcceptItem>, CancellationToken)`**: Accepts a batch, storing every item in one store round trip.
 
-Typical call sites: HTTP controllers deferring work, ingress handlers after broker mapping, operational replay tools.
+Typical call sites are HTTP controllers deferring work, ingress handlers after broker mapping, and operational replay tools.
 
 ### Registration
 
-- **`AddInbox()`** with **`Use*Storage()`** registered inside the same inbox module builder (required before first accept).
-- **`Contracts.Register<TMessage>(name, version)`** or **`RegisterFromAssembly`** for each stored message type.
-- **`UseAmbientTrace()`** on the inbox builder stamps `MessageTrace.FromAmbient()` onto every accepted envelope whose item trace is `MessageTrace.None`; an explicit item trace always wins, and outside a mediation the envelope stays untraced.
-- Default **`IInbox`** registers transient against the singleton non-transactional store.
+- Call **`AddInbox()`** with **`Use*Storage()`** registered inside the same inbox module builder, before the first accept.
+- Call **`Contracts.Register<TMessage>(name, version)`** or **`RegisterFromAssembly`** for each stored message type.
+- On the inbox builder, **`UseAmbientTrace()`** records `MessageTrace.FromAmbient()` on every accepted envelope whose item trace is `MessageTrace.None`. An explicit item trace takes precedence, and outside a mediation the envelope stays untraced.
+- The default **`IInbox`** is registered as transient, backed by the singleton non-transactional store.
 
 ### Configuration
 
-- Per-call: metadata on **`InboxAcceptItem`** (`MessageIdentity`, `Idempotency`, `MessageVisibility`, trace, `TenantScope`).
-- Compose-time: storage adapter options on the inbox builder (see durable-storage capability); not mixed into accept item metadata.
+- Per call, set metadata on **`InboxAcceptItem`** (`MessageIdentity`, `Idempotency`, `MessageVisibility`, trace, `TenantScope`).
+- At compose time, set storage adapter options on the inbox builder (see durable-storage capability), not on accept item metadata.
 
 ### Extension Points
 
-- Custom storage implements **`IInboxStore`** append role and returns **`InboxAppendResult`** so the writer can preserve insertion outcomes (storage axis).
+- A custom store implements the **`IInboxStore`** append role and returns **`InboxAppendResult`** so the writer can preserve the outcome of each insert (storage axis).
 - Ingress maps broker deliveries to **`InboxAcceptItem`** (inbox-ingress capability).
-- For domain-transaction alignment use **`ITransactionalInbox`** instead of **`IInbox`** (transactional-writes capability).
+- For domain-transaction alignment, use **`ITransactionalInbox`** instead of **`IInbox`** (transactional-writes capability).
 
 ## Packages
 
@@ -60,43 +60,43 @@ Typical call sites: HTTP controllers deferring work, ingress handlers after brok
 
 ## Requires
 
-- `AddInbox` with `Use*Storage` registered inside the same builder
-- Each stored message type registered in `IMessageContractRegistry`
-- Message must not be `ICommand<TResult>` (analyzer LB1004)
+- Call `AddInbox` with `Use*Storage` registered inside the same builder
+- Register every stored message type in `IMessageContractRegistry`
+- The message must not be `ICommand<TResult>` (analyzer LB1004)
 
 ## Invariants
 
-- Contract lookup always uses `message.GetType()`, not only the generic type parameter
-- Open generic contract definitions are rejected
-- Default `IInbox` commits immediately through the singleton store (not joined to domain transactions)
-- `AlreadyAccepted` outcome returns existing row for duplicate message id or tenant-scoped idempotency key without re-executing completed handlers
-- A message id that already exists for another tenant throws `IdempotencyConflictException` in every conflict mode instead of returning the foreign row
+- Contract lookup always uses `message.GetType()`, not the generic type parameter alone
+- An open generic contract definition never resolves to a stored contract
+- The default `IInbox` commits immediately through the singleton store, without joining domain transactions
+- On a duplicate message id or tenant-scoped idempotency key, the writer returns the existing row with `AlreadyAccepted`, without re-executing completed handlers
+- When a message id already exists for another tenant, the writer throws `IdempotencyConflictException` in every conflict mode instead of returning the foreign row
 
 ## Non-Goals
 
-- Synchronous handler execution (use `ICommandMediator.SendAsync`)
-- Exactly-once side effects (handlers must be idempotent)
-- Owning domain transaction boundaries (use `ITransactionalInbox` instead)
+- Synchronous handler execution. Use `ICommandMediator.SendAsync` for that.
+- Exactly-once side effects. Handlers must be idempotent.
+- Owning domain transaction boundaries. Use `ITransactionalInbox` instead.
 
 ## Observability
 
-No dedicated accept counter. Writer failures surface as store exceptions.
+Acceptance has no dedicated counter. Writer failures surface as store exceptions.
 
 ### `litebus.inbox.queue.depth`
 
-- **Kind**: Observable gauge (`LiteBusInboxTelemetry.QueueDepthInstrumentName`)
-- **When emitted**: Periodic observation after processor registration reads diagnostics store
+- **Kind**: An observable gauge (`LiteBusInboxTelemetry.QueueDepthInstrumentName`)
+- **When emitted**: A periodic observation after processor registration reads the diagnostics store
 - **Tags**: `litebus.inbox.status` (`LiteBusInboxTelemetry.QueueStatusAttributeName`) groups pending, processing, completed, failed, dead-lettered
 - **How to enable**: `AddLiteBusInboxMetrics()` from `LiteBus.Inbox.Extensions.OpenTelemetry`
-- **Operational note**: Rising pending depth with flat processing rate signals processor lag or lease contention
+- **Operational note**: A rising pending depth with a flat processing rate signals processor lag or lease contention
 
 ### Writer Path
 
 - **Kind**: Log + exception (no accept-specific meter)
-- **When emitted**: Contract resolution failure, store constraint violation, strict idempotency conflict
-- **Operational note**: Alert on sustained accept exception rate at API or ingress boundary
+- **When emitted**: A contract resolution failure, a store constraint violation, or a strict idempotency conflict
+- **Operational note**: Alert on a sustained accept exception rate at the API or ingress boundary
 
-## Deep Docs
+## References
 
 - [Inbox](../../reliable-messaging/inbox.md)
 - [Reliable messaging](../../reliable-messaging/README.md)
@@ -120,7 +120,7 @@ No dedicated accept counter. Writer failures surface as store exceptions.
 - **Test kind**: Unit
 - **Description**: In-memory inbox module with registered contract and handler
 - **Behavior**: `IInbox.AcceptAsync<T>` with explicit item metadata
-- **Expected outcome**: Receipt contains message id; row is pending in store
+- **Expected outcome**: The receipt contains the message id, and the row is pending in store
 - **Remarks**: Same fixture also exercises body-only sugar overload sharing the factory path
 
 #### `InboxTests.AcceptAsync_WhenIdempotencyKeyMatchesExisting_ShouldReturnExistingReceipt`
@@ -129,7 +129,7 @@ No dedicated accept counter. Writer failures surface as store exceptions.
 - **Test kind**: Unit
 - **Description**: Two accepts with `Idempotency.Keyed(...)` on the same tenant
 - **Behavior**: Second `AcceptAsync` with duplicate key
-- **Expected outcome**: `AlreadyAccepted` outcome; no duplicate row
+- **Expected outcome**: `AlreadyAccepted` outcome, and no duplicate row
 - **Remarks**: `LiteBus.Inbox.UnitTests`
 
 #### `InboxTests.AcceptBatchAsync_ShouldUseRuntimeTypeNotDeclaredGenericParameter`
@@ -143,7 +143,7 @@ No dedicated accept counter. Writer failures surface as store exceptions.
 
 #### `InboxProcessorEdgeCaseTests.AcceptAsync_WhenContractNotRegistered_ShouldThrowMessageContractNotRegisteredException`
 
-- **Use case**: When accept runs without contract registration, resolution fails before store write
+- **Use case**: When accept runs without contract registration, resolution fails before the store write
 - **Test kind**: Unit
 - **Description**: Accept of unregistered message type
 - **Behavior**: `AcceptAsync` without `Contracts.Register`
@@ -202,7 +202,7 @@ No dedicated accept counter. Writer failures surface as store exceptions.
 - **Description**: `InboxAcceptItem<T>.FromAmbient(message)` inside a processor-built scope
 - **Behavior**: Ambient trace factory on the accept item
 - **Expected outcome**: Item trace holds the ambient correlation, causation, and trace context
-- **Remarks**: `LiteBus.Inbox.UnitTests`; companion tests cover the incoming-message-id fallback and the untraced result outside any scope
+- **Remarks**: `LiteBus.Inbox.UnitTests`. Companion tests cover the incoming-message-id fallback and the untraced result outside any scope
 
 #### `InboxAmbientTraceTests.UseAmbientTrace_flows_from_the_module_builder_to_accepted_envelopes`
 
@@ -210,7 +210,7 @@ No dedicated accept counter. Writer failures surface as store exceptions.
 - **Test kind**: Unit
 - **Description**: Inbox module with the ambient-trace opt-in enabled
 - **Behavior**: Accept with `MessageTrace.None` inside a traced mediation
-- **Expected outcome**: Stored envelope carries the ambient trace; explicit item traces are kept
+- **Expected outcome**: The stored envelope carries the ambient trace, and explicit item traces are kept
 - **Remarks**: `LiteBus.Inbox.UnitTests` (`AmbientTrace/`)
 
 #### `InboxCompositeModuleTests.NestedConfiguration_ShouldAcceptAndProcessCommand`
@@ -233,7 +233,7 @@ No dedicated accept counter. Writer failures surface as store exceptions.
 
 #### `TransportInboxIngressHandlerTests.AcceptBatchAsync_WithSingleMessage_ShouldWriteEnvelopeToInboxStore`
 
-- **Use case**: When ingress batch accept receives one delivery, behavior matches single accept
+- **Use case**: When ingress batch accept receives one delivery, behavior matches a single accept
 - **Test kind**: Unit
 - **Description**: Batch ingress path with one message
 - **Behavior**: `AcceptBatchAsync` from ingress handler
@@ -289,11 +289,11 @@ No dedicated accept counter. Writer failures surface as store exceptions.
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| HTTP API controller accept with client idempotency header | Yes | No ASP.NET integration test for accept endpoint | Integration | Low |
-| Accept of open generic command without closed registration | No (by design) | Analyzer LB1007/LB1017 only; no runtime accept test for open generic | Unit | Low |
+| HTTP API controller accept with client idempotency header | Yes | No ASP.NET integration test for the accept endpoint | Integration | Low |
+| Accept of open generic command without closed registration | No (by design) | Analyzer LB1007/LB1017 only, with no runtime accept test for an open generic | Unit | Low |
 
 ### Out-of-Scope Use Cases
 
 - Synchronous `ICommandMediator.SendAsync` (mediator axis)
 - Handler-level side-effect idempotency (application concern)
-- Dedicated SQL Server store (the EF Core adapter supports the SQL Server provider; a dedicated adapter is planned on [Roadmap](../../roadmap/README.md))
+- Dedicated SQL Server store (the EF Core adapter supports the SQL Server provider, and a dedicated adapter is planned on [Roadmap](../../roadmap/README.md))

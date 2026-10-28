@@ -14,9 +14,9 @@
 - `AddLiteBusMediationInstrumentation()` for tracing
 - `AddLiteBusMediationMetrics()` for metrics
 
-These methods subscribe to public constants from `LiteBusMediationTelemetry`. The instruments record whether or not anything listens; these two calls are what makes them reach an exporter.
+These methods subscribe to public constants from `LiteBusMediationTelemetry`. The instruments record whether anything listens or not. These two calls are what send the recordings to an exporter.
 
-One span is started per mediation by default. Per-stage child spans are opt-in through `MessageModuleBuilder.UseTelemetry(MediationTelemetryOptions)`, because mediation volume is orders of magnitude above durable processing volume. Metrics are recorded by default and per-stage durations are opt-in; `MediationTelemetryOptions.Disabled` records nothing.
+Each mediation starts one span by default. Per-stage child spans are opt-in through `MessageModuleBuilder.UseTelemetry(MediationTelemetryOptions)`, because mediation volume is orders of magnitude above durable processing volume. The pipeline records metrics by default, and per-stage durations are opt-in. `MediationTelemetryOptions.Disabled` records nothing.
 
 ## Public Surface
 
@@ -49,10 +49,10 @@ One span is started per mediation by default. Per-stage child spans are opt-in t
 
 ## Invariants
 
-- Extension methods validate null builders.
+- The extension methods reject null builders.
 - Source, meter, instrument, and attribute names are stable consumer contracts.
-- A mediation a decision stopped carries `litebus.code` on the outcome counter; a denied mediation records the code and is not marked as an error, while a faulted mediation marks its span as an error.
-- The decision counter names the stage that stopped the mediation and the handler that decided; a mediation nothing stopped records no decision.
+- When a decision stops a mediation, the outcome counter carries `litebus.code`. A denied mediation records the code without being marked as an error, while a faulted mediation marks its span as an error.
+- The decision counter names the stage that stopped the mediation and the handler that decided. A mediation that nothing stopped records no decision.
 
 ## Non-Goals
 
@@ -61,7 +61,7 @@ One span is started per mediation by default. Per-stage child spans are opt-in t
 
 ## Observability
 
-Registers the mediation source and meter only. Instrument emission happens in `LiteBus.Messaging`: the duration histogram and outcome counter record every mediation, the decision counter answers which stage stopped a message, and per-stage durations record only when asked for.
+These methods register the mediation source and meter only. In `LiteBus.Messaging`, the duration histogram and outcome counter record every mediation, the decision counter names the stage that stopped a message, and per-stage durations are recorded only when enabled.
 
 ## Test Coverage
 
@@ -80,7 +80,7 @@ Registers the mediation source and meter only. Instrument emission happens in `L
 
 - **Use case**: decision counter tags
 - **Test kind**: Unit
-- **Description**: mediates a message a guard denies
+- **Description**: mediates a message that a guard denies
 - **Behavior**: reads the recorded decision measurement tags
 - **Expected outcome**: the stage and deciding handler are named
 - **Remarks**: `tests/LiteBus.Mediator.UnitTests/Pipeline/MediationTelemetryTests.cs`
@@ -107,14 +107,14 @@ Registers the mediation source and meter only. Instrument emission happens in `L
 
 | Gap | Priority | Notes |
 | --- | --- | --- |
-| Provider-subscription scope of `AddLiteBusMediationInstrumentation` and `AddLiteBusMediationMetrics` | Medium | No test builds a provider with these extensions; instrument behavior is covered by `MediationTelemetryTests`. |
-| End-to-end exporter payload shape for mediation metrics and traces | Low | Exporters are application-owned and not tested in-repo. |
+| Provider-subscription scope of `AddLiteBusMediationInstrumentation` and `AddLiteBusMediationMetrics` | Medium | No test builds a provider with these extensions. Instrument behavior is covered by `MediationTelemetryTests`. |
+| End-to-end exporter payload shape for mediation metrics and traces | Low | Exporters are application-owned and not tested in this repository. |
 
 ### Out-of-Scope Use Cases
 
 - OTLP endpoint lifecycle and retention policy.
 
-## Deep Docs
+## References
 
 - [Hosted services](../../architecture/hosted-services.md)
 - [Architecture](../../architecture/README.md)

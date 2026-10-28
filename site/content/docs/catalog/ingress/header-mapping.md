@@ -3,7 +3,7 @@
 - **ID**: `ingress.header-mapping`
 - **Name**: Wire header to accept metadata
 - **Maturity**: GA
-- **Summary**: Translates LiteBus transport headers and broker delivery ids into `InboxAcceptMetadata` on each accept.
+- **Summary**: This mapper translates LiteBus transport headers and broker delivery ids into `InboxAcceptMetadata` on each accept.
 
 ## Purpose and Scope
 
@@ -11,52 +11,52 @@
 
 | Concern | Source | Default behavior |
 | --- | --- | --- |
-| Identity | Broker delivery id or `litebus-message-id` when trusted | Supplied identity from broker id; GUID ids verbatim, other ids as a destination-scoped deterministic GUID |
+| Identity | Broker delivery id or `litebus-message-id` when trusted | Supplied identity from broker id, with GUID ids verbatim and other ids as a destination-scoped deterministic GUID |
 | Idempotency | Broker-scoped key or `litebus-idempotency-key` when trusted | `ingress:{destination}:{brokerMessageId}` |
-| Visibility | `litebus-visible-after`, `litebus-visible-after-delay` when trusted | Immediate unless trusted; relative delay wins when both present |
-| Trace | `correlation-id`, `causation-id`, `litebus-trace-context` (correlation falls back to the message `CorrelationId` property) | None, correlated, workflow, or distributed variants; correlation headers are always honored |
-| Tenant | `tenant-id` when trusted | Unscoped unless trusted headers enabled |
+| Visibility | `litebus-visible-after`, `litebus-visible-after-delay` when trusted | Immediate unless trusted, with relative delay winning when both are present |
+| Trace | `correlation-id`, `causation-id`, `litebus-trace-context` (correlation falls back to the message `CorrelationId` property) | None, correlated, workflow, or distributed variants, with correlation headers always honored |
+| Tenant | `tenant-id` when trusted | Unscoped unless trusted headers are enabled |
 
-Contract headers are validated separately: name required, version must be a positive integer.
+Contract headers are validated separately. The name is required, and the version must be a positive integer.
 
 ## Mapping Order
 
 1. Read contract headers (`litebus-contract-name`, `litebus-contract-version`) and validate.
 2. Resolve identity and idempotency from trusted app headers or broker delivery id.
-3. Resolve visibility from relative delay first, then absolute visible-after, only when trusted; distrusted deliveries are immediately visible.
+3. Resolve visibility from relative delay first, then absolute visible-after, only when trusted. Distrusted deliveries are immediately visible.
 4. Resolve trace metadata from correlation, causation, and trace-context.
 5. Resolve tenant scope only when trusted headers are enabled.
 
-Relative visibility delay takes precedence over absolute visible-after when both are present. Correlation headers are always honored, even when application headers are distrusted.
+When both are present, the relative visibility delay takes precedence over the absolute visible-after. Correlation headers are always honored, even when application headers are distrusted.
 
 ## Public Surface
 
-Internal mapper used by `TransportInboxIngressHandler`. Policy flags on `TransportInboxIngressMappingOptions` (from `Safety` on `TransportInboxIngressOptions`):
+The mapper is internal and used by `TransportInboxIngressHandler`. Policy flags live on `TransportInboxIngressMappingOptions` (from `Safety` on `TransportInboxIngressOptions`):
 
 | Property | Default | Role |
 | --- | --- | --- |
-| `Safety.RequireStableIdentity` | `true` | Fail when broker delivery id is missing |
+| `Safety.RequireStableIdentity` | `true` | Fail when the broker delivery id is missing |
 | `Safety.TrustApplicationHeaders` | `false` | Honor app idempotency, tenant, message id, and visibility headers |
 
-Canonical wire header names on `TransportHeaders` (`LiteBus.Transport.Abstractions`): `litebus-contract-name`, `litebus-contract-version`, `litebus-message-id`, `litebus-idempotency-key`, `litebus-visible-after`, `litebus-visible-after-delay`, `tenant-id`, `causation-id`, `litebus-trace-context`, `correlation-id`.
+The canonical wire header names on `TransportHeaders` (`LiteBus.Transport.Abstractions`) are `litebus-contract-name`, `litebus-contract-version`, `litebus-message-id`, `litebus-idempotency-key`, `litebus-visible-after`, `litebus-visible-after-delay`, `tenant-id`, `causation-id`, `litebus-trace-context`, and `correlation-id`.
 
 ## Identity and Idempotency Defaults
 
 | Setting | Identity default | Idempotency default | Operational effect |
 | --- | --- | --- | --- |
-| `RequireStableIdentity=true`, `TrustApplicationHeaders=false` | Broker delivery id (GUID verbatim, other ids as a destination-scoped deterministic GUID) | `ingress:{destination}:{brokerMessageId}` | Stable duplicate absorption on redelivery |
-| `RequireStableIdentity=true`, `TrustApplicationHeaders=true` | `litebus-message-id` when valid GUID, else broker id | `litebus-idempotency-key` when present, else broker-scoped key | Upstream can control dedup key and identity |
-| `RequireStableIdentity=false`, broker id missing | Generated identity | `Idempotency.None` | No broker-scoped dedup on retry |
+| `RequireStableIdentity=true`, `TrustApplicationHeaders=false` | Broker delivery id (GUID verbatim, other ids as a destination-scoped deterministic GUID) | `ingress:{destination}:{brokerMessageId}` | Duplicates are absorbed on redelivery |
+| `RequireStableIdentity=true`, `TrustApplicationHeaders=true` | `litebus-message-id` when valid GUID, else broker id | `litebus-idempotency-key` when present, else broker-scoped key | Upstream can control the deduplication key and identity |
+| `RequireStableIdentity=false`, broker id missing | Generated identity | `Idempotency.None` | No broker-scoped deduplication on retry |
 
 ## Broker Notes
 
 Every ingress adapter uses this same mapper. Broker pages differ in test coverage depth, not in mapping rules:
 
-- AMQP: mapping validation through unit tests and AMQP ingress integration tests. The destination segment of the broker-scoped key is the consuming queue (`AmqpReceivedMessage.QueueName`, falling back to the exchange when unknown), so two queues bound to one exchange do not share an idempotency key.
-- Kafka: no dedicated header edge-case matrix in broker Docker tests.
-- AWS SQS: partial header edge-case matrix in broker Docker tests.
-- Azure Service Bus: header edge-case matrix not yet covered in emulator ingress tests.
-- InMemory: full edge-case matrix used as cross-broker reference behavior.
+- AMQP validates mapping through unit tests and AMQP ingress integration tests. The destination segment of the broker-scoped key is the consuming queue (`AmqpReceivedMessage.QueueName`, falling back to the exchange when unknown), so two queues bound to one exchange do not share an idempotency key.
+- Kafka has no dedicated header edge-case matrix in broker Docker tests.
+- AWS SQS has a partial header edge-case matrix in broker Docker tests.
+- Azure Service Bus has no header edge-case matrix in emulator ingress tests yet.
+- InMemory carries the full edge-case matrix as cross-broker reference behavior.
 
 ## Packages
 
@@ -70,10 +70,10 @@ Every ingress adapter uses this same mapper. Broker pages differ in test coverag
 
 ## Invariants
 
-- Missing broker delivery id fails closed when `RequireStableIdentity` is true (default).
-- Untrusted mode ignores application idempotency, tenant, and visibility headers; broker delivery id drives deduplication and the message is immediately visible.
-- Broker-scoped idempotency keys include destination so the same broker id on different queues does not collide.
-- Non-GUID broker delivery ids derive destination-scoped inbox identity, so the same id on different destinations names different messages; GUID ids stay verbatim.
+- A missing broker delivery id fails closed when `RequireStableIdentity` is true (default).
+- In untrusted mode, the mapper ignores application idempotency, tenant, and visibility headers. The broker delivery id drives deduplication, and the message is immediately visible.
+- Broker-scoped idempotency keys include the destination, so the same broker id on different queues does not collide.
+- Non-GUID broker delivery ids derive destination-scoped inbox identity, so the same id on different destinations names different messages. GUID ids stay verbatim.
 - Correlation headers are always honored, even in untrusted mode.
 
 ## Non-Goals
@@ -84,9 +84,9 @@ Every ingress adapter uses this same mapper. Broker pages differ in test coverag
 
 ## Observability
 
-No mapping-specific metrics or activities. Failures surface as exceptions (`InboxIngressException`, `TransportHeaderMappingException`) logged by `ingress.transport-consumer` when discard or requeue runs.
+Mapping has no metrics or activities of its own. Failures surface as exceptions (`InboxIngressException`, `TransportHeaderMappingException`) logged by `ingress.transport-consumer` when the consumer discards or requeues.
 
-Contract header validation (missing name, non-positive version) throws before mapping completes; poison paths are classified by `ingress.ack-policy` and appear in consumer logs without dedicated mapping counters.
+Contract header validation (missing name, non-positive version) throws before mapping completes. Poison paths are classified by `ingress.ack-policy` and appear in consumer logs without dedicated mapping counters.
 
 ## Test Coverage
 
@@ -114,10 +114,10 @@ Contract header validation (missing name, non-positive version) throws before ma
 
 ### Untested
 
-- `litebus-trace-context` distributed variant through a live broker round trip.
-- Correlation and causation headers asserted on persisted envelope fields in integration tests (mapper unit tests cover mapping only).
+- The `litebus-trace-context` distributed variant through a live broker round trip.
+- Assertions that correlation and causation headers reach persisted envelope fields in integration tests (mapper unit tests cover mapping only).
 - Azure Service Bus header edge cases on the wire.
-- Missing contract version and wrong CLR shape matrix in AWS and AMQP broker suites (covered in InMemory matrix).
+- Missing contract version and wrong CLR shape matrix in the AWS and AMQP broker suites (covered in the InMemory matrix).
 - Kafka broker suite assertions for header edge cases beyond unknown contract and invalid JSON.
 
 ### Out-of-Scope
@@ -126,7 +126,7 @@ Contract header validation (missing name, non-positive version) throws before ma
 - Cross-broker identity federation.
 - Outbox header mapping (dispatch axis).
 
-## Deep Docs
+## References
 
 - [Inbox: Ingress](../../reliable-messaging/inbox.md)
 - [AMQP transport: Wire headers](../../integrations/amqp.md)

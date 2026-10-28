@@ -5,7 +5,7 @@
 - **ID**: `hosting.manual-host-execution`
 - **Name**: Manual startup and loop execution
 - **Maturity**: GA
-- **Summary**: Supports direct execution of startup tasks and background loops without running full Generic Host orchestration.
+- **Summary**: Runs startup tasks and background loops directly, without full Generic Host orchestration.
 
 ## What It Does
 
@@ -17,8 +17,8 @@ Manual mode bypasses orchestrator ordering guarantees unless callers enforce sta
 
 ### Invocation
 
-- Resolve `IStartupTask` implementation and call `RunAsync(...)`
-- Resolve `IBackgroundService` implementation and call `ExecuteAsync(...)`
+- Resolve an `IStartupTask` implementation and call `RunAsync(...)`
+- Resolve an `IBackgroundService` implementation and call `ExecuteAsync(...)`
 
 ### Bridge Helper
 
@@ -36,17 +36,17 @@ Manual mode bypasses orchestrator ordering guarantees unless callers enforce sta
 
 ## Invariants
 
-- Manual mode does not auto-run startup tasks before loops.
+- Manual mode does not run startup tasks before loops on its own.
 - Root DI lifetimes still apply to resolved services.
 
 ## Non-Goals
 
 - Production host lifecycle replacement.
-- HTTP control plane for direct task/loop invocation.
+- HTTP control plane for direct task and loop invocation.
 
 ## Observability
 
-Manual execution emits the same axis-level metrics as hosted execution once loop code runs. No dedicated manual-mode instrumentation exists.
+Manual execution emits the same axis-level metrics as hosted execution once loop code runs. No instrumentation exists for manual mode specifically.
 
 ## Test Coverage
 
@@ -56,7 +56,7 @@ Manual execution emits the same axis-level metrics as hosted execution once loop
 
 - **Use case**: manually composed host exposes diagnostics without extra orchestrator APIs
 - **Test kind**: Integration
-- **Description**: starts test host with PostgreSQL storage and management endpoints
+- **Description**: starts the test host with PostgreSQL storage and management endpoints
 - **Behavior**: calls `/litebus/health` after composition
 - **Expected outcome**: registered probe appears with healthy status
 - **Remarks**: `tests/LiteBus.Extensions.IntegrationTests/AspNetCore/ManagementEndpointPostgreSqlIntegrationTests.cs`
@@ -65,7 +65,7 @@ Manual execution emits the same axis-level metrics as hosted execution once loop
 
 - **Use case**: composed host supports management reads without custom orchestrator interaction
 - **Test kind**: Integration
-- **Description**: accepts command into inbox and queries management route
+- **Description**: accepts a command into the inbox and queries the management route
 - **Behavior**: calls `/litebus/inbox/messages`
 - **Expected outcome**: persisted rows are returned
 - **Remarks**: `tests/LiteBus.Extensions.IntegrationTests/AspNetCore/ManagementEndpointPostgreSqlIntegrationTests.cs`
@@ -74,13 +74,13 @@ Manual execution emits the same axis-level metrics as hosted execution once loop
 
 | Gap | Priority | Notes |
 | --- | --- | --- |
-| Explicit direct invocation tests for resolved `IStartupTask.RunAsync(...)` | Medium | Current coverage is mostly through hosted integration flows. |
-| Direct invocation tests for outbox `IBackgroundService.ExecuteAsync(...)` | Medium | Inbox loop direct behavior has broader unit test coverage than outbox manual invocation. |
+| Explicit direct invocation tests for resolved `IStartupTask.RunAsync(...)` | Medium | Hosted integration flows provide most current coverage. |
+| Direct invocation tests for outbox `IBackgroundService.ExecuteAsync(...)` | Medium | Unit tests cover inbox loop direct behavior more broadly than outbox manual invocation. |
 
 ### Out-of-Scope Use Cases
 
 - Full production lifecycle without `IHost`.
 
-## Deep Docs
+## References
 
 - [Hosted services](../../architecture/hosted-services.md)

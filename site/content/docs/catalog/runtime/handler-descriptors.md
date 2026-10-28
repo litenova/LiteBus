@@ -3,15 +3,15 @@
 - **ID**: `runtime.handler-descriptors`
 - **Name**: Handler descriptor model
 - **Maturity**: GA
-- **Summary**: Defines descriptor contracts for message handlers, stages, priorities, tags, registration sequence, and the closed contract each handler was discovered from.
+- **Summary**: The descriptor contracts describe message handlers: their stages, priorities, tags, registration sequence, and the closed contract each handler was discovered from.
 
 ## What It Does
 
-Descriptor contracts in `LiteBus.Messaging.Abstractions` connect registration and runtime execution. `IMessageDescriptor` groups handlers by stage and direct/indirect applicability, and exposes the declarative metadata resolved for the message type. `IHandlerDescriptor` provides metadata used by filtering and ordering, plus the closed contract the handler was discovered from.
+Descriptor contracts in `LiteBus.Messaging.Abstractions` connect registration and runtime execution. `IMessageDescriptor` groups handlers by stage and by direct or indirect applicability, and exposes the declarative metadata resolved for the message type. `IHandlerDescriptor` provides the metadata that filtering and ordering use, and the closed contract the handler was discovered from.
 
-Recording the contract is what lets the pipeline invoke a handler through the contract it was registered under rather than searching its interfaces at dispatch. For the pre, post, completion, and refusal-mapper stages the descriptor also carries a `PipelineDispatch`, a bound dispatch holder for that contract built while the descriptor is built, so dispatch is a field read rather than reflection.
+Because the descriptor records the contract, the pipeline invokes a handler through the contract it was registered under instead of searching its interfaces at dispatch. For the pre, post, completion, and refusal-mapper stages the descriptor also carries a `PipelineDispatch`, a bound dispatch holder for that contract that is built together with the descriptor. Dispatch then reads a field instead of using reflection.
 
-Main handlers are invoked through the same recorded contract. `HandlerInvocation` calls the strategy-typed contract directly when the descriptor names the strategy message type; otherwise the internal `MainHandlerDispatch.Invoke` binds the recorded closed contract, so an event published as `IEvent` still reaches its concrete registration with the mediation cancellation token.
+The pipeline invokes main handlers through the same recorded contract. `HandlerInvocation` calls the strategy-typed contract directly when the descriptor names the strategy message type. Otherwise the internal `MainHandlerDispatch.Invoke` binds the recorded closed contract, so an event published as `IEvent` still reaches its concrete registration with the mediation cancellation token.
 
 ## Public Surface
 
@@ -42,17 +42,17 @@ Main handlers are invoked through the same recorded contract. `HandlerInvocation
 ## Invariants
 
 - `RegistrationSequence` is a stable registration-order tiebreaker.
-- Descriptor message types for generics are normalized.
-- `ContractType` is open only when the handler was registered for a generic message; the pipeline binds those on first dispatch.
+- The registry normalizes descriptor message types for generics.
+- `ContractType` is open only when the handler was registered for a generic message. The pipeline binds those on first dispatch.
 - On descriptors that carry `Dispatch` (pre, post, completion), it is null exactly when `ContractType` is open.
 
 ## Non-Goals
 
-- Persistent descriptor storage format.
+- A format for storing descriptors persistently.
 
 ## Observability
 
-No direct telemetry; descriptors are observable through mediation behavior.
+Descriptors emit no telemetry. Their effects are visible through mediation behavior.
 
 ## Test Coverage
 
@@ -60,11 +60,11 @@ No direct telemetry; descriptors are observable through mediation behavior.
 
 #### `MessageRegistryTests.Register_Handler_ShouldRegisterHandlerAndMessage`
 - **Test kind**: Unit
-- **Expected outcome**: descriptors are created and linked
+- **Expected outcome**: the registry creates and links the descriptors
 
 #### `PredicateFilteringTests.Publish_Event_WithPredicate_ShouldExecuteOnlyMatchingHandlers`
 - **Test kind**: Unit
-- **Expected outcome**: descriptor-based predicate filtering works
+- **Expected outcome**: only the matching handlers execute under descriptor-based predicate filtering
 
 ### Untested Use Cases
 
@@ -74,4 +74,4 @@ No direct telemetry; descriptors are observable through mediation behavior.
 
 ### Out-of-Scope Use Cases
 
-- Reflection-free descriptor generation.
+- Generating descriptors without reflection.

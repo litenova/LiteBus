@@ -1,14 +1,14 @@
 # LiteBus Capability Catalog
 
-This document is the root index for LiteBus capabilities across all feature axes. It consolidates the per-axis catalogs under `docs/catalog/` without duplicating their full content. Use it for expansion planning, gap analysis, test coverage review, and discovering which packages and docs apply to a use case.
+LiteBus ships as small packages grouped into feature axes such as mediation, storage, and transport. This catalog is the root index of the capabilities those axes provide. Each entry names one behavior with a stable ID, a maturity tier, its packages, and a link to the page that describes it. It consolidates the per-axis catalogs under `docs/catalog/` without duplicating their full content. Use it for expansion planning, gap analysis, test coverage review, and finding which packages and pages apply to a use case.
 
-**Total capabilities indexed:** 180 across 10 axes (21 analyzers, 16 dispatch, 23 durable core, 16 hosting, 14 ingress, 23 mediator, 18 runtime, 10 saga, 24 storage, 15 transport).
+The catalog indexes 180 capabilities across 10 axes: 21 analyzers, 16 dispatch, 23 durable core, 16 hosting, 14 ingress, 23 mediator, 18 runtime, 10 saga, 24 storage, and 15 transport.
 
 ---
 
 ## Purpose
 
-LiteBus ships as granular NuGet packages along concern boundaries. The capability catalog names each shipped (or explicitly planned) behavior with a stable ID, maturity tier, package mapping, and link to a deep doc page.
+LiteBus ships as granular NuGet packages along concern boundaries. The capability catalog names each shipped (or explicitly planned) behavior with a stable ID, a maturity tier, a package mapping, and a link to the detailed page for that behavior.
 
 Use this catalog when you need to:
 
@@ -17,7 +17,7 @@ Use this catalog when you need to:
 - Trace dependencies between axes (for example ingress requires transport and durable storage)
 - Prioritize roadmap work from documented coverage gaps
 
-Each axis maintains its own folder with standalone capability files and a README index. Test coverage (covered, untested, and out-of-scope use cases) lives in each capability file. This root page synthesizes those folders; detail lives in the linked axis pages.
+Each axis maintains its own folder with standalone capability files and a README index. Each capability file records its own test coverage (covered, untested, and out-of-scope use cases). This root page synthesizes those folders. The linked axis pages hold the detail.
 
 ---
 
@@ -32,23 +32,23 @@ Every capability has an ID of the form **`axis.slug`**:
 | `axis` | Feature area | `mediator`, `storage`, `dispatch` |
 | `slug` | Kebab-case behavior name | `inbox-acceptance`, `role.lease` |
 
-Storage role capabilities use dotted slugs (`storage.role.append`). Broker adapters often suffix `-adapter` (`transport.amqp-adapter`). Dispatch inbox/outbox pairs share broker names (`dispatch.inbox.amqp`, `dispatch.outbox.amqp`).
+Storage role capabilities use dotted slugs (`storage.role.append`). Broker adapters often end their IDs with `-adapter` (`transport.amqp-adapter`). Dispatch inbox and outbox pairs share broker names (`dispatch.inbox.amqp`, `dispatch.outbox.amqp`).
 
 ### Maturity Legend
 
 | Tier | Meaning |
 | --- | --- |
-| **GA** | Production-ready; stable public contract |
-| **Beta** | Shipped; validate in non-critical paths before enterprise reliance |
+| **GA** | Production-ready with a stable public contract |
+| **Beta** | Shipped, but validate in non-critical paths before enterprise reliance |
 | **Extension** | Optional package on top of core axes (for example saga) |
 | **Planned** | Documented on [Roadmap](../roadmap/README.md); not shipped |
 | **Deprecated** | Still present but superseded; see migration guides |
 
 When a capability spans tiers (for example AMQP ingress GA, Kafka ingress Beta), the master table notes the split.
 
-### Deep Docs
+### References
 
-Each capability links to a file under `docs/catalog/<axis>/`. Axis README pages list the same IDs with local context. Broader narrative guides remain in `docs/` (Architecture, Inbox, Outbox, transport guides, and similar).
+Each capability links to a file under `docs/catalog/<axis>/`. Axis README pages list the same IDs with local context. Broader narrative guides, such as the architecture, inbox, outbox, and transport guides, remain in `docs/`.
 
 ---
 
@@ -115,27 +115,27 @@ flowchart TB
 
 ## Master Capability Table
 
-One row per capability. Packages list primary install targets; transitive abstractions omitted unless they are the main surface.
+One row per capability. Packages list primary install targets. Transitive abstractions are omitted unless they are the main surface.
 
 ### Analyzers (21)
 
 | ID | Name | Axis | Maturity | Summary | Packages | Deep doc |
 | --- | --- | --- | --- | --- | --- | --- |
 | `analyzers.cross-assembly-handler-name` | Cross-assembly handler name collision | analyzers | GA | Warns when handler simple names collide across assemblies | `LiteBus.Analyzers` | [cross-assembly-handlers.md](../catalog/analyzers/cross-assembly-handlers.md) |
-| `analyzers.duplicate-command-handler` | Duplicate command handler detection | analyzers | GA | Errors when more than one main command handler exists | `LiteBus.Analyzers` | [handler-duplicates.md](../catalog/analyzers/handler-duplicates.md) |
-| `analyzers.duplicate-query-handler` | Duplicate query handler detection | analyzers | GA | Errors when more than one main query handler exists | `LiteBus.Analyzers` | [handler-duplicates.md](../catalog/analyzers/handler-duplicates.md) |
+| `analyzers.duplicate-command-handler` | Duplicate command handler detection | analyzers | GA | Reports an error when more than one main command handler exists | `LiteBus.Analyzers` | [handler-duplicates.md](../catalog/analyzers/handler-duplicates.md) |
+| `analyzers.duplicate-query-handler` | Duplicate query handler detection | analyzers | GA | Reports an error when more than one main query handler exists | `LiteBus.Analyzers` | [handler-duplicates.md](../catalog/analyzers/handler-duplicates.md) |
 | `analyzers.explicit-contract-registration` | Explicit contract registration recommendation | analyzers | GA | Recommends module `Register` for attributed durable types | `LiteBus.Analyzers` | [contract-registration.md](../catalog/analyzers/contract-registration.md) |
 | `analyzers.external-side-effect-in-command-handler` | External side effect in command handler | analyzers | GA | Warns when a command handler injects an external side-effect type | `LiteBus.Analyzers` | [external-side-effect-in-command-handler.md](../catalog/analyzers/external-side-effect-in-command-handler.md) |
-| `analyzers.inbox-result-command-guard` | Inbox accept rejects result commands | analyzers | GA | Errors when result commands are scheduled to inbox | `LiteBus.Analyzers` | [inbox-accept-rules.md](../catalog/analyzers/inbox-accept-rules.md) |
+| `analyzers.inbox-result-command-guard` | Inbox accept rejects result commands | analyzers | GA | Reports an error when result commands are scheduled to inbox | `LiteBus.Analyzers` | [inbox-accept-rules.md](../catalog/analyzers/inbox-accept-rules.md) |
 | `analyzers.missing-audit-declaration` | Missing audit declaration | analyzers | GA | Warns when command and query types state no audit position | `LiteBus.Analyzers` | [audit-declaration.md](../catalog/analyzers/audit-declaration.md) |
-| `analyzers.missing-command-handler` | Missing command handler detection | analyzers | GA | Errors when a command type has no handler | `LiteBus.Analyzers` | [handler-coverage.md](../catalog/analyzers/handler-coverage.md) |
+| `analyzers.missing-command-handler` | Missing command handler detection | analyzers | GA | Reports an error when a command type has no handler | `LiteBus.Analyzers` | [handler-coverage.md](../catalog/analyzers/handler-coverage.md) |
 | `analyzers.missing-contract-on-handled-type` | Missing contract on handled durable type | analyzers | GA | Warns when handled types lack contract registration | `LiteBus.Analyzers` | [contract-registration.md](../catalog/analyzers/contract-registration.md) |
 | `analyzers.missing-declaration` | Missing required declaration | analyzers | GA | Warns when messages state no position on a required declaration | `LiteBus.Analyzers` | [required-declarations.md](../catalog/analyzers/required-declarations.md) |
-| `analyzers.missing-query-handler` | Missing query handler detection | analyzers | GA | Errors when a query type has no handler | `LiteBus.Analyzers` | [handler-coverage.md](../catalog/analyzers/handler-coverage.md) |
+| `analyzers.missing-query-handler` | Missing query handler detection | analyzers | GA | Reports an error when a query type has no handler | `LiteBus.Analyzers` | [handler-coverage.md](../catalog/analyzers/handler-coverage.md) |
 | `analyzers.nested-mediation-in-command-handler` | Nested mediation in command handler | analyzers | GA | Warns when a command handler mediates another message inside its handle method | `LiteBus.Analyzers` | [nested-mediation-in-command-handler.md](../catalog/analyzers/nested-mediation-in-command-handler.md) |
-| `analyzers.open-generic-handler-shape` | Open generic handler arity check | analyzers | GA | Errors on unsupported open generic handler shapes | `LiteBus.Analyzers` | [open-generic-handlers.md](../catalog/analyzers/open-generic-handlers.md) |
+| `analyzers.open-generic-handler-shape` | Open generic handler arity check | analyzers | GA | Reports an error on unsupported open generic handler shapes | `LiteBus.Analyzers` | [open-generic-handlers.md](../catalog/analyzers/open-generic-handlers.md) |
 | `analyzers.orphan-handler-tag` | Orphan handler tag detection | analyzers | GA | Warns when handler tags are never referenced | `LiteBus.Analyzers` | [handler-tags.md](../catalog/analyzers/handler-tags.md) |
-| `analyzers.processor-dispatcher-coupling` | Processor requires dispatcher registration | analyzers | GA | Errors when processor is enabled without dispatch | `LiteBus.Analyzers` | [processor-dispatcher-coupling.md](../catalog/analyzers/processor-dispatcher-coupling.md) |
+| `analyzers.processor-dispatcher-coupling` | Processor requires dispatcher registration | analyzers | GA | Reports an error when processor is enabled without dispatch | `LiteBus.Analyzers` | [processor-dispatcher-coupling.md](../catalog/analyzers/processor-dispatcher-coupling.md) |
 | `analyzers.query-handler-purity` | Query handler side-effect guard | analyzers | GA | Warns when query handlers take event mediator dependencies | `LiteBus.Analyzers` | [query-handler-purity.md](../catalog/analyzers/query-handler-purity.md) |
 | `analyzers.reserved-handler-priority` | Reserved handler priority | analyzers | GA | Warns when `[HandlerPriority]` falls inside the range LiteBus reserves | `LiteBus.Analyzers` | [reserved-handler-priority.md](../catalog/analyzers/reserved-handler-priority.md) |
 | `analyzers.transactional-ef-interceptor` | Transactional EF requires save interceptor | analyzers | GA | Warns when EF transactional storage lacks interceptor | `LiteBus.Analyzers` | [transactional-ef-interceptor.md](../catalog/analyzers/transactional-ef-interceptor.md) |
@@ -159,9 +159,9 @@ One row per capability. Packages list primary install targets; transitive abstra
 | `dispatch.outbox.in-process` | Outbox in-process event dispatch | dispatch | GA | Replay leased outbox events to local event mediator | `LiteBus.Outbox.Dispatch.InProcess` | [outbox-in-process.md](../catalog/dispatch/outbox-in-process.md) |
 | `dispatch.outbox.inmemory` | Outbox InMemory transport dispatch | dispatch | GA | Publish leased outbox events to in-memory transport | `LiteBus.Outbox.Dispatch.InMemory` | [outbox-inmemory.md](../catalog/dispatch/outbox-inmemory.md) |
 | `dispatch.outbox.kafka` | Outbox Kafka dispatch | dispatch | GA | Publish leased outbox events to Kafka | `LiteBus.Outbox.Dispatch.Kafka` | [outbox-kafka.md](../catalog/dispatch/outbox-kafka.md) |
-| `dispatch.processor-coupling` | Processor pipeline coupling | dispatch | GA | Processor success/failure driven by dispatcher exceptions | `LiteBus.Inbox`, `LiteBus.Outbox` | [processor-coupling.md](../catalog/dispatch/processor-coupling.md) |
+| `dispatch.processor-coupling` | Processor pipeline coupling | dispatch | GA | Processor success or failure driven by dispatcher exceptions | `LiteBus.Inbox`, `LiteBus.Outbox` | [processor-coupling.md](../catalog/dispatch/processor-coupling.md) |
 | `dispatch.registration` | Dispatcher registration | dispatch | GA | Exactly one dispatcher per inbox or outbox module | `LiteBus.Inbox.Dispatch`, `LiteBus.Outbox.Dispatch` | [registration.md](../catalog/dispatch/registration.md) |
-| `dispatch.transport-core` | Shared transport dispatchers | dispatch | GA | Broker-neutral inbox/outbox transport dispatch implementations | `LiteBus.Inbox.Dispatch`, `LiteBus.Outbox.Dispatch` | [transport-core.md](../catalog/dispatch/transport-core.md) |
+| `dispatch.transport-core` | Shared transport dispatchers | dispatch | GA | Broker-neutral inbox and outbox transport dispatch implementations | `LiteBus.Inbox.Dispatch`, `LiteBus.Outbox.Dispatch` | [transport-core.md](../catalog/dispatch/transport-core.md) |
 | `dispatch.transport-envelope-mapping` | Envelope-to-wire header mapping | dispatch | GA | Copy durable metadata to canonical transport headers on publish | `LiteBus.Inbox.Dispatch`, `LiteBus.Outbox.Dispatch` | [transport-envelope-mapping.md](../catalog/dispatch/transport-envelope-mapping.md) |
 
 ### Durable Core (23)
@@ -169,15 +169,15 @@ One row per capability. Packages list primary install targets; transitive abstra
 | ID | Name | Axis | Maturity | Summary | Packages | Deep doc |
 | --- | --- | --- | --- | --- | --- | --- |
 | `durable-core.ambient-trace` | Ambient trace opt-ins | durable-core | GA | Stamp the ambient trace onto envelopes accepted or enqueued without an explicit trace | `LiteBus.Inbox`, `LiteBus.Outbox` | [Inbox](../reliable-messaging/inbox.md#ambient-trace-opt-in), [Outbox](../reliable-messaging/outbox.md#ambient-trace-option) |
-| `durable-core.command-inbox-patterns` | Command-inbox patterns | durable-core | GA | Explicit accept-at-edge patterns for deferred command execution | `LiteBus.Inbox` | [command-inbox-patterns.md](../catalog/durable-core/command-inbox-patterns.md) |
-| `durable-core.domain-events-unit-of-work` | Domain events and unit of work | durable-core | GA | Collect domain events and enqueue outbox in one UoW | `LiteBus.Outbox` | [domain-events-unit-of-work.md](../catalog/durable-core/domain-events-unit-of-work.md) |
+| `durable-core.command-inbox-patterns` | Command-inbox patterns | durable-core | GA | Explicit patterns for accepting commands at the edge for deferred execution | `LiteBus.Inbox` | [command-inbox-patterns.md](../catalog/durable-core/command-inbox-patterns.md) |
+| `durable-core.domain-events-unit-of-work` | Domain events and unit of work | durable-core | GA | Collect domain events and enqueue them in the outbox within one unit of work | `LiteBus.Outbox` | [domain-events-unit-of-work.md](../catalog/durable-core/domain-events-unit-of-work.md) |
 | `durable-core.domain-event-staging` | Domain event staging | durable-core | GA | Drain a scoped collector into the transactional outbox before the unit-of-work commit | `LiteBus.Outbox` | [Outbox](../reliable-messaging/outbox.md#domain-event-staging) |
 | `durable-core.durable-dispatch` | Durable dispatch | durable-core | GA | Processor-driven side effects through registered dispatchers | `LiteBus.Inbox`, `LiteBus.Outbox` | [durable-dispatch.md](../catalog/durable-core/durable-dispatch.md) |
 | `durable-core.durable-storage` | Durable storage | durable-core | GA | Persisted inbox and outbox envelope model | `LiteBus.Inbox`, `LiteBus.Outbox` | [durable-storage.md](../catalog/durable-core/durable-storage.md) |
 | `durable-core.envelope-lifecycle` | Envelope lifecycle | durable-core | GA | Pending, processing, completed, failed, dead-letter states | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | [envelope-lifecycle.md](../catalog/durable-core/envelope-lifecycle.md) |
-| `durable-core.idempotency` | Acceptance idempotency | durable-core | GA | Dedup at accept/enqueue using idempotency keys | `LiteBus.Inbox`, `LiteBus.Outbox` | [idempotency.md](../catalog/durable-core/idempotency.md) |
+| `durable-core.idempotency` | Acceptance idempotency | durable-core | GA | Deduplication at accept or enqueue using idempotency keys | `LiteBus.Inbox`, `LiteBus.Outbox` | [idempotency.md](../catalog/durable-core/idempotency.md) |
 | `durable-core.inbox-acceptance` | Inbox acceptance | durable-core | GA | Accept commands into durable storage without handler results | `LiteBus.Inbox` | [inbox-acceptance.md](../catalog/durable-core/inbox-acceptance.md) |
-| `durable-core.inbox-ingress` | Inbox ingress | durable-core | GA / Beta | Broker intake into inbox (AMQP GA; Kafka, SQS, Azure Beta) | `LiteBus.Inbox.Ingress.*` | [inbox-ingress.md](../catalog/durable-core/inbox-ingress.md) |
+| `durable-core.inbox-ingress` | Inbox ingress | durable-core | GA / Beta | Broker intake into inbox (AMQP GA, Kafka, SQS, and Azure Beta) | `LiteBus.Inbox.Ingress.*` | [inbox-ingress.md](../catalog/durable-core/inbox-ingress.md) |
 | `durable-core.inbox-processor` | Inbox processor | durable-core | GA | Background lease, dispatch, and terminal persistence for inbox | `LiteBus.Inbox` | [inbox-processor.md](../catalog/durable-core/inbox-processor.md) |
 | `durable-core.lease-retry-dead-letter` | Lease, retry, and dead letter | durable-core | GA | Visibility delays, lease reclaim, operator requeue | `LiteBus.Inbox`, `LiteBus.Outbox` | [lease-retry-dead-letter.md](../catalog/durable-core/lease-retry-dead-letter.md) |
 | `durable-core.message-contracts` | Durable message contracts | durable-core | GA | Stable contract name and version on persisted payloads | `LiteBus.Messaging.Abstractions` | [message-contracts.md](../catalog/durable-core/message-contracts.md) |
@@ -186,9 +186,9 @@ One row per capability. Packages list primary install targets; transitive abstra
 | `durable-core.outbox-per-handler-delivery` | Per-handler outbox delivery | durable-core | GA | Write one envelope per subscribed handler so each reaction retries alone | `LiteBus.Outbox` | [Outbox](../reliable-messaging/outbox.md#per-handler-delivery) |
 | `durable-core.outbox-processor` | Outbox processor | durable-core | GA | Background lease, dispatch, and terminal persistence for outbox | `LiteBus.Outbox` | [outbox-processor.md](../catalog/durable-core/outbox-processor.md) |
 | `durable-core.payload-encryption` | Payload encryption at rest | durable-core | GA | Optional encryptor for stored message bodies | `LiteBus.Inbox`, `LiteBus.Outbox` | [payload-encryption.md](../catalog/durable-core/payload-encryption.md) |
-| `durable-core.processor-hooks` | Processor envelope hooks | durable-core | GA / Extension | Before/after dispatch hooks (saga uses Extension path) | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Saga` | [processor-hooks.md](../catalog/durable-core/processor-hooks.md) |
+| `durable-core.processor-hooks` | Processor envelope hooks | durable-core | GA / Extension | Hooks before and after dispatch (saga uses the Extension path) | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Saga` | [processor-hooks.md](../catalog/durable-core/processor-hooks.md) |
 | `durable-core.reliable-messaging-semantics` | Reliable messaging semantics | durable-core | GA | At-least-once delivery guarantees and crash windows | `LiteBus.Inbox`, `LiteBus.Outbox` | [reliable-messaging-semantics.md](../catalog/durable-core/reliable-messaging-semantics.md) |
-| `durable-core.scheduling-metadata` | Scheduling and visibility metadata | durable-core | GA | Delayed visibility and scheduled execution on accept/enqueue | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | [scheduling-metadata.md](../catalog/durable-core/scheduling-metadata.md) |
+| `durable-core.scheduling-metadata` | Scheduling and visibility metadata | durable-core | GA | Delayed visibility and scheduled execution on accept or enqueue | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | [scheduling-metadata.md](../catalog/durable-core/scheduling-metadata.md) |
 | `durable-core.tenant-scoping` | Tenant scoping | durable-core | GA | Tenant metadata on envelopes and processor isolation | `LiteBus.Inbox`, `LiteBus.Outbox` | [tenant-scoping.md](../catalog/durable-core/tenant-scoping.md) |
 | `durable-core.transactional-writes` | Transactional inbox/outbox writes | durable-core | GA | Atomic domain and messaging rows in one transaction | `LiteBus.Inbox`, `LiteBus.Outbox` | [transactional-writes.md](../catalog/durable-core/transactional-writes.md) |
 
@@ -206,7 +206,7 @@ One row per capability. Packages list primary install targets; transitive abstra
 | `hosting.diagnostic-probes` | Framework-neutral diagnostic probes | hosting | GA | `IDiagnosticCheck` contract for readiness probes | `LiteBus.Runtime.Abstractions` | [diagnostic-probes.md](../catalog/hosting/diagnostic-probes.md) |
 | `hosting.generic-host-orchestrator` | Generic host orchestrator | hosting | GA | Single orchestrator runs startup tasks then background loops | `LiteBus.Runtime.Extensions.Hosting` | [generic-host-orchestrator.md](../catalog/hosting/generic-host-orchestrator.md) |
 | `hosting.host-manifest` | Host manifest snapshot | hosting | GA | Frozen manifest of tasks, services, and probes after compose | `LiteBus.Runtime.Abstractions` | [host-manifest.md](../catalog/hosting/host-manifest.md) |
-| `hosting.manual-host-execution` | Manual startup and loop execution | hosting | GA | Run startup tasks or background services without full host | `LiteBus.Runtime.Extensions.Hosting` | [manual-host-execution.md](../catalog/hosting/manual-host-execution.md) |
+| `hosting.manual-host-execution` | Manual startup and loop execution | hosting | GA | Run startup tasks or background services without a full host | `LiteBus.Runtime.Extensions.Hosting` | [manual-host-execution.md](../catalog/hosting/manual-host-execution.md) |
 | `hosting.microsoft-hosting-bridge` | Microsoft DI hosting bridge | hosting | GA | Register orchestrator and probes for generic host | `LiteBus.Runtime.Extensions.Microsoft.Hosting` | [microsoft-hosting-bridge.md](../catalog/hosting/microsoft-hosting-bridge.md) |
 | `hosting.opentelemetry-inbox` | Inbox OpenTelemetry registration | hosting | GA | Register inbox meters and trace sources for OTLP export | `LiteBus.Inbox.Extensions.OpenTelemetry` | [opentelemetry-inbox.md](../catalog/hosting/opentelemetry-inbox.md) |
 | `hosting.opentelemetry-outbox` | Outbox OpenTelemetry registration | hosting | GA | Register outbox meters and trace sources for OTLP export | `LiteBus.Outbox.Extensions.OpenTelemetry` | [opentelemetry-outbox.md](../catalog/hosting/opentelemetry-outbox.md) |
@@ -244,7 +244,7 @@ One row per capability. Packages list primary install targets; transitive abstra
 | `mediator.handler-filtering` | Handler filtering | mediator | GA | Select handlers per call with tags and predicates | `LiteBus.Messaging` | [handler-filtering.md](../catalog/mediator/handler-filtering.md) |
 | `mediator.handler-pipeline` | Handler pipeline | mediator | GA | Pre, main, post, error, and completion stages shared by all kinds | `LiteBus.Messaging` | [handler-pipeline.md](../catalog/mediator/handler-pipeline.md) |
 | `mediator.auditing` | Audit trail | mediator | GA | Audit records at the boundary on every outcome | `LiteBus.Messaging`, `LiteBus.Commands`, `LiteBus.Queries` | [auditing.md](../catalog/mediator/auditing.md) |
-| `mediator.audit-selectors` | Audit target and reason selectors | mediator | GA | Project audit target and reason from the message when the scope is silent | `LiteBus.Messaging` | [Auditing](../concepts/auditing.md#declaring-what-the-message-already-knows) |
+| `mediator.audit-selectors` | Audit target and reason selectors | mediator | GA | Project audit target and reason from the message when the handler pushed none through the scope | `LiteBus.Messaging` | [Auditing](../concepts/auditing.md#declaring-what-the-message-already-knows) |
 | `mediator.authorization-declarations` | Authorization declarations and guards | mediator | GA | Declare a per-message authorization position enforced by one guard | `LiteBus.Messaging.Abstractions` | [Authorization declarations](../concepts/authorization-declarations.md) |
 | `mediator.message-definitions` | Message definitions | mediator | GA | Declarative per-message metadata read by pipeline stages | `LiteBus.Messaging` | [message-definitions.md](../catalog/mediator/message-definitions.md) |
 | `mediator.handler-priority` | Handler priority | mediator | GA | Order handlers within a pipeline stage | `LiteBus.Messaging` | [handler-priority.md](../catalog/mediator/handler-priority.md) |
@@ -258,7 +258,7 @@ One row per capability. Packages list primary install targets; transitive abstra
 | `mediator.recurring-single-flight-lease` | Recurring single-flight lease | mediator | GA | Run a recurring pass on at most one replica through a named lease | `LiteBus.Commands.Recurring.Storage.PostgreSql` | [Recurring commands](../integrations/recurring-commands.md#running-on-several-replicas) |
 | `mediator.shortcut-denial` | Shortcut denial | mediator | GA | Deny a message at the shortcut stage when only that stage can decide | `LiteBus.Messaging.Abstractions` | [The handler pipeline](../concepts/handler-pipeline.md#shortcut-contracts) |
 | `mediator.unit-of-work-commit` | Unit-of-work commit | mediator | GA | Commit staged work from a completion handler after a successful mediation | `LiteBus.Messaging.Abstractions`, `LiteBus.Commands`, `LiteBus.Queries` | [Domain events and unit of work](../reliable-messaging/domain-events-and-unit-of-work.md#command-pipeline-boundary) |
-| `mediator.queries` | Queries | mediator | GA | Read state with one handler; stream large sets | `LiteBus.Queries` | [queries.md](../catalog/mediator/queries.md) |
+| `mediator.queries` | Queries | mediator | GA | Read state with one handler, and stream large sets | `LiteBus.Queries` | [queries.md](../catalog/mediator/queries.md) |
 
 ### Runtime (18)
 
@@ -269,9 +269,9 @@ One row per capability. Packages list primary install targets; transitive abstra
 | `runtime.dependency-registry` | Container-neutral dependency registry | runtime | GA | Register services without host framework references | `LiteBus.Runtime` | [dependency-registry.md](../catalog/runtime/dependency-registry.md) |
 | `runtime.dispatch-scopes` | Per-mediation DI scopes | runtime | GA | Isolated scoped services per mediation call | `LiteBus.Messaging` | [dispatch-scopes.md](../catalog/runtime/dispatch-scopes.md) |
 | `runtime.handler-descriptors` | Handler descriptor model | runtime | GA | Metadata for handler type, stage, priority, and tags | `LiteBus.Messaging` | [handler-descriptors.md](../catalog/runtime/handler-descriptors.md) |
-| `runtime.litebus-builder` | Composition builder surface | runtime | GA | Package-neutral `ILiteBusBuilder.Modules` plus package-owned feature extensions | `LiteBus.Runtime.Abstractions`, `LiteBus.Runtime` | [litebus-builder.md](../catalog/runtime/litebus-builder.md) |
-| `runtime.mediation-strategies` | Pluggable mediation strategies | runtime | GA | Single-handler vs broadcast execution strategies | `LiteBus.Messaging` | [mediation-strategies.md](../catalog/runtime/mediation-strategies.md) |
-| `runtime.message-mediator` | Core message mediator | runtime | GA | Engine behind semantic command/query/event mediators | `LiteBus.Messaging` | [message-mediator.md](../catalog/runtime/message-mediator.md) |
+| `runtime.litebus-builder` | Composition builder surface | runtime | GA | Package-neutral `ILiteBusBuilder.Modules` and package-owned feature extensions | `LiteBus.Runtime.Abstractions`, `LiteBus.Runtime` | [litebus-builder.md](../catalog/runtime/litebus-builder.md) |
+| `runtime.mediation-strategies` | Pluggable mediation strategies | runtime | GA | Single-handler and broadcast execution strategies | `LiteBus.Messaging` | [mediation-strategies.md](../catalog/runtime/mediation-strategies.md) |
+| `runtime.message-mediator` | Core message mediator | runtime | GA | Engine behind semantic command, query, and event mediators | `LiteBus.Messaging` | [message-mediator.md](../catalog/runtime/message-mediator.md) |
 | `runtime.message-module` | Foundational messaging module | runtime | GA | Creates shared message registry at compose time | `LiteBus.Messaging` | [message-module.md](../catalog/runtime/message-module.md) |
 | `runtime.message-registry` | Message and handler type registry | runtime | GA | Register and resolve message and handler types | `LiteBus.Messaging` | [message-registry.md](../catalog/runtime/message-registry.md) |
 | `runtime.message-resolution` | Message resolve strategies | runtime | GA | Polymorphic and assignable-type handler lookup | `LiteBus.Messaging` | [message-resolution.md](../catalog/runtime/message-resolution.md) |
@@ -289,12 +289,12 @@ One row per capability. Packages list primary install targets; transitive abstra
 | --- | --- | --- | --- | --- | --- | --- |
 | `saga.correlation-and-tenancy` | Correlation and tenancy | saga | Extension | Scope saga state by correlation id and tenant | `LiteBus.Saga.Abstractions` | [correlation-and-tenancy.md](../catalog/saga/correlation-and-tenancy.md) |
 | `saga.handler-context` | Handler saga context | saga | Extension | `ISagaContext` for load, mutate, and complete state | `LiteBus.Saga` | [handler-context.md](../catalog/saga/handler-context.md) |
-| `saga.in-memory-store` | In-memory saga store | saga | Extension | Process-lifetime saga persistence for dev and tests | `LiteBus.Saga` | [in-memory-store.md](../catalog/saga/in-memory-store.md) |
+| `saga.in-memory-store` | In-memory saga store | saga | Extension | Process-lifetime saga persistence for development and tests | `LiteBus.Saga` | [in-memory-store.md](../catalog/saga/in-memory-store.md) |
 | `saga.inbox-command-scope` | Inbox command scope re-attach | saga | Extension | Re-attach saga scope in nested DI during inbox dispatch | `LiteBus.Saga.InboxIntegration` | [inbox-command-scope.md](../catalog/saga/inbox-command-scope.md) |
 | `saga.inbox-integration` | Inbox saga integration | saga | Extension | `EnableSaga()` on inbox module builder | `LiteBus.Saga.InboxIntegration` | [inbox-integration.md](../catalog/saga/inbox-integration.md) |
 | `saga.optimistic-concurrency` | Optimistic concurrency | saga | Extension | Version checks on concurrent saga saves | `LiteBus.Saga` | [optimistic-concurrency.md](../catalog/saga/optimistic-concurrency.md) |
 | `saga.postgresql-storage` | PostgreSQL saga storage | saga | Extension | Durable `ISagaStore` on PostgreSQL | `LiteBus.Saga.Storage.PostgreSql` | [postgresql-storage.md](../catalog/saga/postgresql-storage.md) |
-| `saga.processor-hook` | Saga processor hook | saga | Extension | Load/save saga state around inbox dispatch | `LiteBus.Saga` | [processor-hook.md](../catalog/saga/processor-hook.md) |
+| `saga.processor-hook` | Saga processor hook | saga | Extension | Load and save saga state around inbox dispatch | `LiteBus.Saga` | [processor-hook.md](../catalog/saga/processor-hook.md) |
 | `saga.state-registration` | Saga state type registration | saga | Extension | Map command contracts to saga state types | `LiteBus.Saga.InboxIntegration` | [state-registration.md](../catalog/saga/state-registration.md) |
 | `saga.store` | Saga store contract | saga | Extension | `ISagaStore` persistence abstraction | `LiteBus.Saga.Abstractions` | [store.md](../catalog/saga/store.md) |
 
@@ -306,7 +306,7 @@ One row per capability. Packages list primary install targets; transitive abstra
 | `storage.commands.adapter.postgresql` | Command PostgreSQL idempotency adapter | storage | GA | Shared idempotency-key table for commands mediated on several hosts | `LiteBus.Commands.Storage.PostgreSql` | [PostgreSQL idempotency store](../integrations/commands-postgresql-idempotency-store.md) |
 | `storage.composite.operations-store` | Operations composite store | storage | GA | Dead-letter, retention, diagnostics, query, purge roles | `LiteBus.Inbox.Storage.*`, `LiteBus.Outbox.Storage.*` | [storage.composite.operations-store.md](../catalog/storage/storage.composite.operations-store.md) |
 | `storage.composite.processing-store` | Processing composite store | storage | GA | Lease and state-writer roles for processors | `LiteBus.Inbox.Storage.*`, `LiteBus.Outbox.Storage.*` | [storage.composite.processing-store.md](../catalog/storage/storage.composite.processing-store.md) |
-| `storage.efcore.schema-ownership` | EF Core schema ownership | storage | GA | App-owned migrations; LiteBus mapping helpers only | `LiteBus.Storage.EntityFrameworkCore` | [storage.efcore.schema-ownership.md](../catalog/storage/storage.efcore.schema-ownership.md) |
+| `storage.efcore.schema-ownership` | EF Core schema ownership | storage | GA | App-owned migrations, with LiteBus mapping helpers only | `LiteBus.Storage.EntityFrameworkCore` | [storage.efcore.schema-ownership.md](../catalog/storage/storage.efcore.schema-ownership.md) |
 | `storage.efcore.shared-infra` | EF Core shared infrastructure | storage | GA | Provider-specific lease SQL and bulk updates | `LiteBus.Storage.EntityFrameworkCore` | [storage.efcore.shared-infra.md](../catalog/storage/storage.efcore.shared-infra.md) |
 | `storage.inbox.adapter.efcore` | Inbox EF Core adapter | storage | GA | DbContext-backed inbox store with all roles | `LiteBus.Inbox.Storage.EntityFrameworkCore` | [storage.inbox.adapter.efcore.md](../catalog/storage/storage.inbox.adapter.efcore.md) |
 | `storage.inbox.adapter.inmemory` | Inbox InMemory adapter | storage | GA | Thread-safe in-process inbox store for tests | `LiteBus.Inbox.Storage.InMemory` | [storage.inbox.adapter.inmemory.md](../catalog/storage/storage.inbox.adapter.inmemory.md) |
@@ -315,7 +315,7 @@ One row per capability. Packages list primary install targets; transitive abstra
 | `storage.outbox.adapter.inmemory` | Outbox InMemory adapter | storage | GA | Thread-safe in-process outbox store for tests | `LiteBus.Outbox.Storage.InMemory` | [storage.outbox.adapter.inmemory.md](../catalog/storage/storage.outbox.adapter.inmemory.md) |
 | `storage.outbox.adapter.marten` | Outbox Marten adapter | storage | GA | Transactional outbox writes queued on the current Marten session | `LiteBus.Outbox.Storage.Marten` | [Outbox Marten storage](../integrations/outbox-marten-storage.md) |
 | `storage.outbox.adapter.postgresql` | Outbox PostgreSQL adapter | storage | GA | Npgsql outbox store with all roles on one singleton | `LiteBus.Outbox.Storage.PostgreSql` | [storage.outbox.adapter.postgresql.md](../catalog/storage/storage.outbox.adapter.postgresql.md) |
-| `storage.postgresql.schema-management` | PostgreSQL schema management | storage | GA | DDL templates, ensure/validate, drift detection | `LiteBus.Storage.PostgreSql` | [storage.postgresql.schema-management.md](../catalog/storage/storage.postgresql.schema-management.md) |
+| `storage.postgresql.schema-management` | PostgreSQL schema management | storage | GA | DDL templates, ensure and validate, drift detection | `LiteBus.Storage.PostgreSql` | [storage.postgresql.schema-management.md](../catalog/storage/storage.postgresql.schema-management.md) |
 | `storage.postgresql.shared-infra` | PostgreSQL shared infrastructure | storage | GA | Quoting, advisory locks, idempotency helpers | `LiteBus.Storage.PostgreSql` | [storage.postgresql.shared-infra.md](../catalog/storage/storage.postgresql.shared-infra.md) |
 | `storage.postgresql.work-signal` | PostgreSQL work signal | storage | GA | NOTIFY-driven processor wake with poll fallback | `LiteBus.Storage.PostgreSql` | [storage.postgresql.work-signal.md](../catalog/storage/storage.postgresql.work-signal.md) |
 | `storage.role.append` | Append store role | storage | GA | Accept inbox commands and enqueue outbox events | `LiteBus.Inbox.Storage.*`, `LiteBus.Outbox.Storage.*` | [storage.role.append.md](../catalog/storage/storage.role.append.md) |
@@ -331,7 +331,7 @@ One row per capability. Packages list primary install targets; transitive abstra
 
 | ID | Name | Axis | Maturity | Summary | Packages | Deep doc |
 | --- | --- | --- | --- | --- | --- | --- |
-| `transport.amqp-adapter` | AMQP (RabbitMQ) adapter | transport | GA | RabbitMQ publish and consume with manual ack | `LiteBus.Transport.Amqp` | [amqp.md](../catalog/transport/amqp.md) |
+| `transport.amqp-adapter` | AMQP (RabbitMQ) adapter | transport | GA | RabbitMQ publish and consume with manual acknowledgement | `LiteBus.Transport.Amqp` | [amqp.md](../catalog/transport/amqp.md) |
 | `transport.aws-sqs-adapter` | AWS SQS adapter | transport | Beta | SQS publish and long-poll consume | `LiteBus.Transport.AwsSqs` | [aws-sqs.md](../catalog/transport/aws-sqs.md) |
 | `transport.azure-service-bus-adapter` | Azure Service Bus adapter | transport | Beta | Service Bus publish and peek-lock consume | `LiteBus.Transport.AzureServiceBus` | [azure-service-bus.md](../catalog/transport/azure-service-bus.md) |
 | `transport.canonical-headers` | Canonical wire headers | transport | GA | Stable header names for contract, idempotency, trace | `LiteBus.Transport.Abstractions` | [canonical-headers.md](../catalog/transport/canonical-headers.md) |
@@ -344,8 +344,8 @@ One row per capability. Packages list primary install targets; transitive abstra
 | `transport.metrics` | Circuit breaker metrics | transport | GA | OpenTelemetry gauges for breaker state | `LiteBus.Transport` | [metrics.md](../catalog/transport/metrics.md) |
 | `transport.publish-consume-contracts` | Publish and consume contracts | transport | GA | `ITransportPublisher` and `IMessageConsumer` surface | `LiteBus.Transport.Abstractions` | [publish-consume-contracts.md](../catalog/transport/publish-consume-contracts.md) |
 | `transport.single-broker-registration` | Single broker per process | transport | GA | One transport module allowed per host | `LiteBus.Transport` | [single-broker-registration.md](../catalog/transport/single-broker-registration.md) |
-| `transport.tenant-routing` | Tenant routing strategy | transport | GA | Route publish/consume by tenant metadata | `LiteBus.Transport` | [tenant-routing.md](../catalog/transport/tenant-routing.md) |
-| `transport.tracing` | Publish and consume tracing | transport | GA | Distributed trace propagation on wire | `LiteBus.Transport` | [tracing.md](../catalog/transport/tracing.md) |
+| `transport.tenant-routing` | Tenant routing strategy | transport | GA | Route publish and consume paths by tenant metadata | `LiteBus.Transport` | [tenant-routing.md](../catalog/transport/tenant-routing.md) |
+| `transport.tracing` | Publish and consume tracing | transport | GA | Distributed trace propagation on the wire | `LiteBus.Transport` | [tracing.md](../catalog/transport/tracing.md) |
 
 ---
 
@@ -353,63 +353,63 @@ One row per capability. Packages list primary install targets; transitive abstra
 
 ### [Analyzers](../catalog/analyzers/README.md) (21 capabilities)
 
-Compile-time Roslyn rules (LB1001 through LB1024; LB1002 and LB1006 are reserved and never shipped) that guard handler registration, durable contracts, inbox accept semantics, EF transactional wiring, processor/dispatcher coupling, audit and required declarations, shortcut contracts, handler priority, and command handler discipline. No runtime dependency on LiteBus libraries.
+This axis ships compile-time Roslyn rules (LB1001 through LB1024; LB1002 and LB1006 are reserved and never shipped) that guard handler registration, durable contracts, inbox accept semantics, EF transactional wiring, processor and dispatcher coupling, audit and required declarations, shortcut contracts, handler priority, and command handler discipline. It has no runtime dependency on LiteBus libraries.
 
-**Key requires:** application projects reference `LiteBus.Analyzers`; protected axes (mediator, durable core, dispatch, storage) must be composed for rules to apply meaningfully.
+Application projects reference `LiteBus.Analyzers`, and the protected axes (mediator, durable core, dispatch, storage) must be part of the composition for the rules to apply.
 
 ### [Dispatch](../catalog/dispatch/README.md) (16 capabilities)
 
-Turns leased durable envelopes into side effects through in-process mediators or broker transports. Exactly one dispatcher per inbox or outbox module.
+Dispatch turns leased durable envelopes into side effects through in-process mediators or broker transports. Each inbox or outbox module registers exactly one dispatcher.
 
-**Key requires:** `durable-core.inbox-processor` or `durable-core.outbox-processor`, matching storage adapter, and for broker paths `transport.*` plus ingress on consuming services.
+Dispatch requires `durable-core.inbox-processor` or `durable-core.outbox-processor`, a matching storage adapter, and, for broker paths, `transport.*` plus ingress on consuming services.
 
 ### [Durable Core](../catalog/durable-core/README.md) (23 capabilities)
 
-Accept/enqueue, processors, lease/retry/dead-letter, idempotency, transactional writes, operations, per-handler delivery, domain event staging, ambient trace, and semantic guarantees for reliable messaging.
+This axis covers accept and enqueue, processors, lease, retry, and dead-letter handling, idempotency, transactional writes, operations, per-handler delivery, domain event staging, ambient trace, and the semantic guarantees behind reliable messaging.
 
-**Key requires:** `runtime.contract-registry`, `runtime.message-serialization`, storage adapter (via `storage.*`), dispatch adapter (via `dispatch.*`), optional `ingress.*` for broker intake.
+It requires `runtime.contract-registry`, `runtime.message-serialization`, a storage adapter (via `storage.*`), a dispatch adapter (via `dispatch.*`), and, for broker intake, optional `ingress.*`.
 
 ### [Hosting](../catalog/hosting/README.md) (16 capabilities)
 
-`AddLiteBus`, module registry, manifest model, generic host orchestration, ASP.NET health and management, the ASP.NET Core Idempotency-Key filter, OpenTelemetry registration bridges.
+This axis covers `AddLiteBus`, the module registry, the manifest model, generic host orchestration, ASP.NET health and management, the ASP.NET Core Idempotency-Key filter, and the OpenTelemetry registration bridges.
 
-**Key requires:** `runtime.modules`, `runtime.litebus-builder`; consumes manifest entries registered by durable, ingress, and storage modules.
+It requires `runtime.modules` and `runtime.litebus-builder`, and it consumes manifest entries registered by durable, ingress, and storage modules.
 
 ### [Ingress](../catalog/ingress/README.md) (14 capabilities)
 
-Broker intake into inbox accept. Commands only; pairs with transport consume and inbox storage.
+Ingress moves broker deliveries into inbox accept. It handles commands only, and it pairs transport consumption with inbox storage.
 
-**Key requires:** `LiteBus.Inbox.Ingress`, matching `LiteBus.Transport.*`, inbox storage, `durable-core.inbox-acceptance`.
+It requires `LiteBus.Inbox.Ingress`, a matching `LiteBus.Transport.*`, inbox storage, and `durable-core.inbox-acceptance`.
 
 ### [Mediator](../catalog/mediator/README.md) (23 capabilities)
 
-In-process commands, queries, and events with shared pipeline, priority, filtering, registration, idempotency, authorization, auditing, unit of work, recurring commands, and the mediation test harness.
+This axis covers in-process commands, queries, and events. They share one pipeline with priority, filtering, registration, idempotency, authorization, auditing, unit of work, recurring commands, and the mediation test harness.
 
-**Key requires:** `runtime.message-module`, `runtime.message-mediator`; semantic packages (`LiteBus.Commands`, `LiteBus.Queries`, `LiteBus.Events`).
+It requires `runtime.message-module`, `runtime.message-mediator`, and the semantic packages (`LiteBus.Commands`, `LiteBus.Queries`, `LiteBus.Events`).
 
 ### [Runtime](../catalog/runtime/README.md) (18 capabilities)
 
-Module graph, message registry, contract registry, core mediator engine, serialization, and trace metadata. Foundation for all other axes.
+This axis covers the module graph, message registry, contract registry, core mediator engine, serialization, and trace metadata. It is the foundation for all other axes.
 
-**Key requires:** none beyond platform contracts; hosting bridges consume its output.
+It requires nothing beyond platform contracts, and hosting bridges consume its output.
 
 ### [Saga](../catalog/saga/README.md) (10 capabilities)
 
-Extension-tier correlated state around inbox command dispatch. Not a full workflow engine.
+Saga keeps Extension-tier correlated state for inbox command dispatch. It is not a full workflow engine.
 
-**Key requires:** `durable-core.inbox-processor`, `durable-core.processor-hooks`, inbox in-process or remote dispatch with shared store for multi-step workflows.
+It requires `durable-core.inbox-processor`, `durable-core.processor-hooks`, and inbox in-process or remote dispatch with a shared store for multi-step workflows.
 
 ### [Storage](../catalog/storage/README.md) (24 capabilities)
 
-Store roles, PostgreSQL/EF/InMemory/Marten adapters, command idempotency stores, schema management, transactional bindings, work signals.
+This axis covers store roles, the PostgreSQL, EF, InMemory, and Marten adapters, command idempotency stores, schema management, transactional bindings, and work signals.
 
-**Key requires:** `durable-core.durable-storage`; registered inside `AddInbox` / `AddOutbox` builders.
+It requires `durable-core.durable-storage`, and its adapters register inside `AddInbox` and `AddOutbox` builders.
 
 ### [Transport](../catalog/transport/README.md) (15 capabilities)
 
-Broker-neutral publish and consume platform. One broker adapter per process.
+Transport is the broker-neutral publish and consume platform. Each process uses one broker adapter.
 
-**Key requires:** `runtime.message-serialization`, `runtime.contract-registry` for wire contract headers; consumed by `dispatch.*` and `ingress.*`.
+It requires `runtime.message-serialization` and `runtime.contract-registry` for wire contract headers, and `dispatch.*` and `ingress.*` consume it.
 
 ---
 
@@ -421,13 +421,13 @@ Each standalone file under `docs/catalog/<axis>/` follows this layout. Axis fold
 | --- | --- |
 | **Header** | ID, name, maturity, summary |
 | **What it does** | Behavior and boundaries in prose |
-| **Public surface** | How consumers use the capability (replaces a single vague Entry APIs table) |
+| **Public surface** | How consumers use the capability (see the subsections below) |
 | **Packages** | Installable NuGet IDs |
 | **Requires** | Other capability IDs |
-| **Invariants** | Must-always-hold rules |
+| **Invariants** | Rules that must always hold |
 | **Non-goals** | Technical limits of the implementation |
 | **Observability** | Telemetry, logs, health signals (see below) |
-| **Deep docs** | Links to narrative guides |
+| **References** | Links to narrative guides |
 | **Test coverage** | Proof and gaps (see below) |
 
 ### Public Surface Subsections
@@ -437,14 +437,23 @@ Use only subsections that apply:
 | Subsection | Documents |
 | --- | --- |
 | **Consumer contracts** | Interfaces and types the application implements or registers |
-| **Invocation** | Runtime entry points (`SendAsync`, `AcceptAsync`, store methods): parameters, returns, typical call site |
-| **Registration** | Module builders, `Use*` extensions, DI wiring at compose time |
-| **Configuration** | Options and settings: compose-time vs per-call |
+| **Invocation** | Runtime entry points (`SendAsync`, `AcceptAsync`, store methods), with their parameters, returns, and typical call site |
+| **Registration** | Module builders, `Use*` extensions, dependency injection wiring at compose time |
+| **Configuration** | Options and settings, marked as compose-time or per-call |
 | **Extension points** | Hooks, pipeline stages, open generics, strategies |
 
 ### Observability
 
-When instruments exist, document each with: **name** (public constant when shipped), **kind** (counter, gauge, histogram, Activity, log EventId), **when emitted**, **tags**, **how to enable** (package or `AddOpenTelemetry` extension), and **operational note** (what to alert on). When none exist, state that explicitly and name practical alternatives (application logging, cross-axis meters, analyzers).
+When instruments exist, document each one with:
+
+- **name** (the public constant when one is shipped);
+- **kind** (counter, gauge, histogram, Activity, log EventId);
+- **when emitted**;
+- **tags**;
+- **how to enable** (the package or `AddOpenTelemetry` extension);
+- **operational note** (what to alert on).
+
+When none exist, state that explicitly and name practical alternatives (application logging, cross-axis meters, analyzers).
 
 ### Test Coverage Model
 
@@ -454,9 +463,9 @@ Each capability file ends with **Test coverage**:
 | --- | --- |
 | **Covered use cases** | One `#### \`ClassName.MethodName\`` block per test method |
 | **Untested use cases** | Supported behavior without automated proof (table with priority) |
-| **Out-of-scope use cases** | Deliberate product limits; not confused with missing tests |
+| **Out-of-scope use cases** | Deliberate product limits, not missing tests |
 
-**Covered use case block** (one per test method):
+Write one covered use case block per test method:
 
 ```markdown
 #### `ClassName.MethodName`
@@ -498,26 +507,26 @@ Each capability file ends with **Test coverage**:
 
 ## Cross-Axis Gaps
 
-Synthesis from per-capability **Untested use cases** and **Out-of-scope use cases** sections. "Expansion candidate" indicates whether a first-class LiteBus capability is a natural fit (Yes), partial or roadmap (Partial), or intentional non-goal (No).
+This table synthesizes the per-capability **Untested use cases** and **Out-of-scope use cases** sections. "Expansion candidate" indicates whether a first-class LiteBus capability is a natural fit (Yes), partial or roadmap (Partial), or an intentional non-goal (No).
 
 | Priority | Gap | Affected axes | Current Alternative | Expansion candidate? |
 | --- | --- | --- | --- | --- |
-| 1 | HTTP/webhook ingress and outbox dispatch | ingress, durable-core, dispatch, transport | Controller calls `IInbox.AcceptAsync`; custom `IOutboxDispatcher` for HTTP callbacks | Yes ([Roadmap](../roadmap/README.md)) |
-| 2 | Exactly-once end-to-end delivery | durable-core, dispatch, transport, ingress, mediator | At-least-once with accept dedup; in-process idempotency claims for commands | Partial (claims cover commands only) |
-| 3 | Dedicated SQL Server / non-relational durable storage | storage, durable-core | EF Core adapter with SQL Server provider; custom store implementation | Yes (SQL Server adapter on roadmap) |
-| 4 | Beta broker production maturity (Kafka, SQS, Azure) | transport, ingress, dispatch, durable-core | Emulator/LocalStack CI; soak testing before critical loads | Partial (tier promotion) |
-| 5 | Inbox in-process event replay | dispatch, durable-core, mediator | Route through command handlers or outbox event path | Yes (roadmap extension) |
-| 6 | Transactional inbox + saga single commit | saga, durable-core, storage | Separate connections; design idempotent handlers | Yes (future store seam) |
+| 1 | HTTP and webhook ingress and outbox dispatch | ingress, durable-core, dispatch, transport | Controllers call `IInbox.AcceptAsync`, with a custom `IOutboxDispatcher` for HTTP callbacks | Yes ([Roadmap](../roadmap/README.md)) |
+| 2 | Exactly-once end-to-end delivery | durable-core, dispatch, transport, ingress, mediator | At-least-once delivery with accept deduplication, plus in-process idempotency claims for commands | Partial (claims cover commands only) |
+| 3 | Dedicated SQL Server or non-relational durable storage | storage, durable-core | EF Core adapter with a SQL Server provider, or a custom store implementation | Yes (SQL Server adapter on roadmap) |
+| 4 | Beta broker production maturity (Kafka, SQS, Azure) | transport, ingress, dispatch, durable-core | Emulator and LocalStack CI, with soak testing before critical loads | Partial (tier promotion) |
+| 5 | Inbox in-process event replay | dispatch, durable-core, mediator | Route through command handlers or the outbox event path | Yes (roadmap extension) |
+| 6 | Transactional inbox and saga single commit | saga, durable-core, storage | Separate connections, with idempotent handler design | Yes (future store seam) |
 | 7 | Multi-broker fan-out in one host | transport, dispatch | Multiple hosts or custom dispatcher | No (granular opt-in by design) |
-| 8 | Distributed / network mediator | mediator, transport | API edge invokes local mediator; durable axes for cross-service | No (by design) |
-| 9 | Compile-time guards for storage/ingress pairing | analyzers, dispatch, ingress | Manual review; runtime compose exceptions | Yes (LB-style rules) |
-| 10 | Contract version migration and schema registry | durable-core, runtime, analyzers | Dual registration; drain old version | Partial (CLI on roadmap) |
-| 11 | Built-in Grafana/dashboard bundles | hosting, transport, ingress | Documented metric names; app-owned dashboards | Partial (docs/recipes) |
-| 12 | Saga outbox integration and remote scope propagation | saga, dispatch | Inbox-only hooks; consumer host enables saga with shared store | Partial |
-| 13 | Deep storage dedup (`RelationalMessageStore`) | storage | Separate inbox and outbox relational store orchestration | Yes ([Roadmap-Deep-Storage-Dedup](../roadmap/storage-deduplication.md)) |
+| 8 | Distributed or network mediator | mediator, transport | The API edge invokes the local mediator, and the durable axes cover cross-service messaging | No (by design) |
+| 9 | Compile-time guards for storage and ingress pairing | analyzers, dispatch, ingress | Manual review, backed by runtime compose exceptions | Yes (LB-style rules) |
+| 10 | Contract version migration and schema registry | durable-core, runtime, analyzers | Dual registration, then drain the old version | Partial (CLI on roadmap) |
+| 11 | Built-in Grafana and dashboard bundles | hosting, transport, ingress | Documented metric names with app-owned dashboards | Partial (documentation and recipes) |
+| 12 | Saga outbox integration and remote scope propagation | saga, dispatch | Inbox-only hooks, and the consumer host enables saga with a shared store | Partial |
+| 13 | Deep storage deduplication (`RelationalMessageStore`) | storage | Separate inbox and outbox relational store orchestration | Yes ([Roadmap-Deep-Storage-Dedup](../roadmap/storage-deduplication.md)) |
 | 14 | Flat convenience registration (`UsePostgreSqlInbox`) | hosting, durable-core, dispatch | Nested `AddInbox` builders | Partial (deferred ergonomics) |
 
-In-process mediation OpenTelemetry shipped and is not a gap: `MessageModuleBuilder.UseTelemetry` configures one span per mediation plus duration, outcome, and decision instruments on the `LiteBus.Mediation` source and meter, with per-stage spans and metrics opt-in, exported through `LiteBus.Messaging.Extensions.OpenTelemetry`. See [Mediation Telemetry](../concepts/handler-pipeline.md#mediation-telemetry).
+In-process mediation OpenTelemetry is available, so it is not a gap. `MessageModuleBuilder.UseTelemetry` configures one span per mediation, with duration, outcome, and decision instruments on the `LiteBus.Mediation` source and meter, plus opt-in per-stage spans and metrics. The `LiteBus.Messaging.Extensions.OpenTelemetry` package exports them. See [Mediation Telemetry](../concepts/handler-pipeline.md#mediation-telemetry).
 
 ---
 
@@ -525,16 +534,16 @@ In-process mediation OpenTelemetry shipped and is not a gap: `MessageModuleBuild
 
 To add a new LiteBus capability:
 
-1. **Choose the axis.** Match dependency role rules in [Dependency graph](../architecture/dependency-graph.md). New broker glue belongs in transport plus dispatch and/or ingress, not in durable core.
+1. Choose the axis. Match dependency role rules in [Dependency graph](../architecture/dependency-graph.md). New broker glue belongs in transport plus dispatch, ingress, or both, not in durable core.
 
-2. **Add catalog files under `site/content/docs/catalog/<axis>/`.**
-   - One standalone capability markdown file using the [capability page template](#capability-page-template) (`axis.slug`, maturity, summary, **Public surface**, packages, requires, invariants, non-goals, **Observability**, **Test coverage** with one block per covered test method).
+2. Add catalog files under `site/content/docs/catalog/<axis>/`.
+   - Write one standalone capability markdown file using the [capability page template](#capability-page-template), with `axis.slug`, maturity, summary, **Public surface**, packages, requires, invariants, non-goals, **Observability**, and **Test coverage** with one block per covered test method.
    - Update the axis `README.md` capability table only.
-   - Add or extend tests; add one covered use case block per new test method.
+   - Add or extend tests, with one covered use case block per new test method.
 
-3. **Update this root catalog.** Add a row to the master capability table, adjust axis counts, and revisit cross-axis gaps if the new capability closes a documented gap.
+3. Update this root catalog. Add a row to the master capability table, adjust axis counts, and revisit cross-axis gaps if the new capability closes a documented gap.
 
-4. **Update sibling docs when shipping code:**
+4. Update sibling docs when shipping code:
    - [Architecture.md](../architecture/README.md) for invariants and feature sections
    - [Dependency-Graph.md](../architecture/dependency-graph.md) for new packages and dependency-role placement
    - [Roadmap.md](../roadmap/README.md) when planned scope changes or becomes part of the current product
@@ -542,7 +551,7 @@ To add a new LiteBus capability:
    - [Analyzers.md](analyzers.md) and `LiteBus.Analyzers` tests if compile-time rules apply
    - [Feature Index](feature-index.md) when the capability belongs in the quick package map
 
-5. **Preserve granular packaging.** Do not merge orthogonal adapters into kitchen-sink packages unless an explicit breaking packaging change is approved.
+5. Preserve granular packaging. Do not merge orthogonal adapters into kitchen-sink packages unless an explicit breaking packaging change is approved.
 
 ---
 

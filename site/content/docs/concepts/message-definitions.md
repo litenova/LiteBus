@@ -1,8 +1,8 @@
 # Message Definitions
 
-A message definition declares metadata about a message: facts that pipeline stages outside the handler need to read, such as whether the message is audited or what permission it requires. LiteBus resolves definitions once, when the message registry is built, and exposes the result on the message descriptor. This page explains what belongs in a definition, how one class declares several things without them interfering, and how definitions relate to attributes.
+A message definition declares metadata about a message. These are facts that pipeline stages outside the handler need to read, such as whether the message is audited or what permission it requires. LiteBus resolves definitions once, when the message registry is built, and exposes the result on the message descriptor. This page explains what belongs in a definition, how one class declares several things without them interfering, and how definitions relate to attributes.
 
-Three words appear throughout and mean different things. A **declaration** is the value: `AuditDeclaration`, `RequiredPermission`. A **definition** is the class that declares it. **Metadata** is the resolved collection on the message descriptor.
+Three words appear throughout and mean different things. A **declaration** is the value, such as `AuditDeclaration` or `RequiredPermission`. A **definition** is the class that declares it. **Metadata** is the resolved collection on the message descriptor.
 
 ## Limits of Attributes
 
@@ -13,9 +13,9 @@ Attributes work, and LiteBus supports them. They are the right shape when the de
 public sealed record GetStorefrontQuery(Guid StoreId) : IQuery<StorefrontView>;
 ```
 
-They stop being the right shape when the declaration wants real types, shared constants, or more than one concern. An attribute argument must be a compile-time constant, so an action code is a magic string and a permission is a magic string, neither checked by the compiler and neither found by a rename.
+They stop being the right shape when the declaration needs real types, shared constants, or more than one concern. An attribute argument must be a compile-time constant, so an action code is a magic string and a permission is a magic string, neither checked by the compiler nor updated by a rename refactoring.
 
-A definition is ordinary C#. It lives beside the message it describes, so a feature folder holds the command, its handler, its validator, and its definition together:
+A definition is ordinary C# declared beside the message it describes, so a feature folder holds the command, its handler, its validator, and its definition together:
 
 ```
 Organizations/CreateOrganization/
@@ -28,7 +28,7 @@ Organizations/CreateOrganization/
 
 ## Describing a Message
 
-`IMessageDefinition<TMessage>` declares everything a message states, from one method:
+`IMessageDefinition<TMessage>` declares everything a message states through one method:
 
 ```csharp
 internal sealed class PlaceOrderCommandDefinition : IMessageDefinition<PlaceOrderCommand>
@@ -43,7 +43,7 @@ internal sealed class PlaceOrderCommandDefinition : IMessageDefinition<PlaceOrde
 
 `IMessageDeclarations` carries six members: `Declare<TValue>` for any value the application defines, `Audited` and `NotAudited` for the audit position, `Authorized` and `AuthorizationExempt` for the authorization position, and `Exempt<TValue>` for a recorded exemption. Declarations are keyed by value type here exactly as they are in the typed shape below, so a reader looks a value up by its own type whichever way it was declared. Declaring the same value type twice in one `Describe` is a configuration error rather than the second silently replacing the first.
 
-## One Interface Per Declaration
+## One Interface per Declaration
 
 A definition may also implement one small interface per declaration, each keyed by the type of the value it contributes:
 
@@ -64,15 +64,15 @@ public sealed class PlaceOrderCommandDefinition :
 
 Keying by value type means a definition that only declares one thing is not forced to implement the others, and the compiler checks each value against its key. That is what makes it the better shape for a message declaring exactly one thing, and why `IAuditDefinition<TMessage>` and `IIdempotencyDefinition<TMessage>` are built on it.
 
-Past one declaration it stops paying. Each of those named interfaces exists because the underlying member is called `Value`, and a message declaring two values it has no named interface for has to write the second as an explicit interface implementation:
+For a message declaring more than one value, this shape costs more than it saves. Each of those named interfaces exists because the underlying member is called `Value`, and a message declaring two values without a named interface for the second has to write it as an explicit interface implementation:
 
 ```csharp
 RequiredPermission IMessageDefinition<PlaceOrderCommand, RequiredPermission>.Value => Permissions.Orders.Place;
 ```
 
-That is the message type and the value type twice each to say one thing. `Describe` is the shape to reach for once a message declares more than one value, and the two mix freely: both write into the same type-keyed metadata, and one class may implement both.
+That is the message type and the value type twice each to say one thing. `Describe` is the shape to reach for once a message declares more than one value, and the two mix freely. Both write into the same type-keyed metadata, and one class may implement both.
 
-## Declaring Your Own
+## Custom Declarations
 
 `IAuditDefinition<TMessage>` and `IIdempotencyDefinition<TMessage>` are the declarations LiteBus ships, but the mechanism is open. Any interface deriving from `IMessageDefinition<TMessage, TValue>` that forwards `Value` to a better-named member works:
 
@@ -88,7 +88,7 @@ public interface IPermissionDefinition<TMessage> : IMessageDefinition<TMessage, 
 }
 ```
 
-LiteBus discovers and applies this without knowing what a permission is. Read it back with `IMessageMetadataAccessor`, which is covered in full under [Reading Metadata](#reading-metadata):
+LiteBus discovers and applies this without any permission-specific code. Read it back with `IMessageMetadataAccessor`, which is covered in full in [Reading Metadata](#reading-metadata):
 
 ```csharp
 public sealed class PermissionGuard<TCommand> : ICommandGuard<TCommand>
@@ -123,9 +123,9 @@ Register it once as an open generic and it covers every command:
 registry.AddCommands(builder => builder.Register(typeof(PermissionGuard<>)));
 ```
 
-That is the whole payoff of the declaration model. One guard replaces one authorization call per handler, and a message that forgets to declare its permission is a build failure rather than an unguarded use case, once you add [Requiring a Declaration](#requiring-a-declaration).
+That is the whole benefit of the declaration model. One guard replaces one authorization call per handler, and a message that forgets to declare its permission is a build failure rather than an unguarded use case, once you add [Requiring a Declaration](#requiring-a-declaration).
 
-This is the division that keeps the framework honest. **What a use case requires** is a declaration, and LiteBus carries it. **Whether the current actor holds it** is enforcement, and that stays in your application, because no messaging library can model your tenancy and role structure.
+The framework draws one division and keeps it. What a use case requires is a declaration, and LiteBus carries it. Whether the current actor holds it is enforcement, and that stays in your application, because no messaging library can model your tenancy and role structure.
 
 ## Guarding on a Declaration
 
@@ -158,11 +158,13 @@ Register it once as an open generic and it covers every command:
 registry.AddCommands(builder => builder.Register(typeof(PermissionGuard<>)));
 ```
 
-The lookup reads the runtime message type, so a guard closed over a base type still enforces the concrete message's declaration. A declared value reaches the typed `DecideAsync`; a recorded exemption for the value type allows without calling it; a message declaring neither reaches `DecideUndeclaredAsync`, which denies with the `declaration.missing` code by default. Override that method to allow while a declaration is still being rolled out, and pair the guard with [Requiring a Declaration](#requiring-a-declaration) so the override becomes unreachable once every message declares its position. `AuthorizationGuard<TMessage>` applies the same shape to authorization positions: an exempt declaration allows, and an authorized one calls `AuthorizeAsync` with the declared policy. See [Authorization Declarations](authorization-declarations.md) for that half.
+The lookup reads the runtime message type, so a guard closed over a base type still enforces the concrete message's declaration. A declared value reaches the typed `DecideAsync`. A recorded exemption for the value type allows without calling it. A message declaring neither reaches `DecideUndeclaredAsync`, which denies with the `declaration.missing` code by default.
 
-## What Belongs in a Definition
+Override that method to allow while a declaration is still being rolled out, and pair the guard with [Requiring a Declaration](#requiring-a-declaration) so the override becomes unreachable once every message declares its position. `AuthorizationGuard<TMessage>` applies the same shape to authorization positions. An exempt declaration allows, and an authorized one calls `AuthorizeAsync` with the declared policy. See [Authorization Declarations](authorization-declarations.md) for the authorization side.
 
-A useful rule: metadata belongs in a definition only if a pipeline stage **outside the handler** needs to read it before or after the handler runs.
+## Definition Contents
+
+A useful rule is that metadata belongs in a definition only if a pipeline stage **outside the handler** needs to read it before or after the handler runs.
 
 | Belongs | Does not belong |
 | --- | --- |
@@ -170,9 +172,9 @@ A useful rule: metadata belongs in a definition only if a pipeline stage **outsi
 | The permission the use case requires | Default values the handler fills in |
 | Retry or idempotency policy read by a processor | Anything only the handler reads |
 
-Without that rule, a per-message configuration file becomes a dumping ground and turns into a second, worse handler.
+Without that rule, a per-message configuration file collects unrelated settings and turns into a second, worse handler.
 
-Note that handler-level configuration is a different altitude and stays where it is. `[HandlerPriority]` and `[HandlerTag]` describe one implementation's position in a pipeline, not a fact about the use case. The test that separates them: delete the handler and write a new one, then ask which declarations survive.
+Handler-level configuration belongs to a different level and stays where it is. `[HandlerPriority]` and `[HandlerTag]` describe one implementation's position in a pipeline, not a fact about the use case. The test that separates them is to delete the handler and write a new one, then ask which declarations survive.
 
 ## Registration and Precedence
 
@@ -201,7 +203,7 @@ public sealed class RequiresPermissionAttribute : Attribute, IMessageDeclaration
 }
 ```
 
-Requiring that is what keeps metadata bounded. A message type carries attributes for serialization, diagnostics and source generators, and collecting all of them would make `Metadata.Contains<T>()` answer questions LiteBus never meant to answer. It also puts both sources on one key, so the precedence rule is real rather than nominal:
+Requiring that is what keeps metadata bounded. A message type carries attributes for serialization, diagnostics and source generators, and collecting all of them would make `Metadata.Contains<T>()` answer questions outside what LiteBus defines. It also puts both sources on one key, so the precedence rule below resolves genuine conflicts:
 
 1. **Attributes** that declare metadata are applied first, each converted to the value type it names.
 2. **Definitions** are applied second, so a definition always wins over an attribute declaring the same value type.
@@ -212,20 +214,20 @@ That is the same arrangement LiteBus already uses for durable message contracts,
 
 A declaration applies to the message type it names **and to every message assignable to it**, so one definition can describe a family of messages through a base type or a marker interface. When two declarations of the same value type both cover a message, the more derived one wins, which matches how attributes are inherited and how the registry resolves indirect handlers.
 
-Two situations are configuration errors and are reported at registration rather than resolved by scanning order:
+Two situations are configuration errors and are reported at registration rather than being resolved by scanning order:
 
-- Two definitions declaring the same value type for the same message. Letting the last one win would make the effective configuration depend on file layout.
+- Two definitions declaring the same value type for the same message. Letting the last one win would make the effective configuration depend on the order files are scanned.
 - Two declarations covering a message where neither type is more derived than the other, such as two unrelated marker interfaces. Declare the value for the message itself to say which one applies.
 
 Open generic message shapes are matched exactly, because assignability between generic type definitions is not meaningful.
 
-One more constraint is worth knowing: a definition must expose a **parameterless constructor**, public or not. Definitions are declarative and are instantiated once during registration, so they cannot take dependencies.
+One more constraint is worth knowing. A definition must expose a **parameterless constructor**, public or not. Definitions are declarative and are instantiated once during registration, so they cannot take dependencies.
 
 ## Requiring a Declaration
 
-A declaration is only as good as its coverage. One command that forgets to declare the permission it requires is an unguarded use case, and it looks exactly like a command that needs no permission. Two mechanisms close that gap, and they cover different ground.
+A declaration only protects the messages that state it. One command that forgets to declare the permission it requires is an unguarded use case, and it looks exactly like a command that needs no permission. Two mechanisms close that gap, and they cover different cases.
 
-At composition time, on the messaging module. Scope the requirement to the messages the rule is actually about:
+At composition time, on the messaging module, scope the requirement to the messages the rule is actually about:
 
 ```csharp
 registry.AddMessaging(messaging => messaging
@@ -244,7 +246,7 @@ registry.AddMessaging(messaging => messaging
     .RequireDeclaration<RetentionClass>());
 ```
 
-Every registered message in scope must then declare the value or record an exemption from it. The check runs once every module has built, because the messaging module is foundational and has no commands to inspect while it is being built. A failure is a `MessageDeclarationException` naming every offender, grouped by the declaration each one omits and by the scope of the requirement it violated:
+Every registered message in scope must then declare the value or record an exemption from it. The check runs after every module has been built, because the messaging module is foundational and has no commands to inspect while it is being built. A failure is a `MessageDeclarationException` naming every offender, grouped by the declaration each one omits and by the scope of the requirement it violated:
 
 ```text
 One or more registered messages state no position on a required declaration:
@@ -254,7 +256,7 @@ with [DeclarationExempt(typeof(TValue), "rationale")]. Narrow the requirement in
 listed were never meant to be in its scope.
 ```
 
-Scope on a type rather than a namespace deliberately. A namespace is a string a refactoring tool moves without telling anyone, so a requirement keyed on one silently stops applying when a folder is renamed, and for an authorization rule that failure is a silently unguarded command.
+As a rule, scope on a type rather than a namespace. A namespace is a string that a refactoring tool can move without updating the requirement, so a requirement keyed on one silently stops applying when a folder is renamed. For an authorization rule that failure leaves a command silently unguarded.
 
 ### Declaring a Family Default
 
@@ -266,15 +268,15 @@ registry.AddMessaging(messaging => messaging
     .RequireDeclaration<RequiredPermission, IOrganizationCommand>());
 ```
 
-Every command implementing `IOrganizationCommand` declares that permission, and one that states its own keeps it. A declaration resolves to the one written closest to the message, which is the same rule a definition written for a base type follows. This states it without a file.
+Every command implementing `IOrganizationCommand` declares that permission, and one that states its own keeps it. A declaration resolves to the one written closest to the message, which is the same rule a definition written for a base type follows. The default states the permission without a definition file.
 
-Defaults and a scoped requirement work together. The requirement makes the family answer for the value; the default answers for the ones that have nothing special to say. For a large family that is the difference between a hundred declarations and a handful of overrides.
+Defaults and a scoped requirement work together. The requirement forces every message in the family to state a position. The default states it for the ones with nothing special to say. For a large family that is the difference between a hundred declarations and a handful of overrides.
 
-The scope is a type rather than a namespace for the same reason a scoped requirement's is. A namespace is a string a refactoring tool moves without telling anyone, so a default keyed on one silently stops applying when a folder is renamed, and for an authorization default that failure is a command left unguarded.
+The scope is a type rather than a namespace for the same reason a scoped requirement's is. A namespace is a string that a refactoring tool can move without updating the default, so a default keyed on one silently stops applying when a folder is renamed. For an authorization default that failure leaves a command unguarded.
 
-Two defaults for one scope and value type are a configuration error, as are a default and a definition both declared against the same message: one of them would have to be discarded and nothing says which.
+Two defaults for one scope and value type are a configuration error, as are a default and a definition both declared against the same message. One of them would have to be discarded, and nothing says which.
 
-### Checking Your Own Conventions
+### Custom Convention Checks
 
 A requirement covers "did this message state a position". `ValidateComposition` covers everything else a team writes down and then enforces by review:
 
@@ -296,9 +298,9 @@ registry.AddMessaging(messaging => messaging
     }));
 ```
 
-The callback receives an `IMessageCatalog` over every registered message and its resolved declarations, at the same point a requirement runs. Throw to fail composition, and name every offender in one message rather than the first, so a convention turned on for an existing codebase is fixed in one pass rather than one restart at a time.
+The callback receives an `IMessageCatalog` over every registered message and its resolved declarations, at the same point a requirement runs. Throw from the callback to fail composition, and name every offender in one message rather than the first, so a convention turned on for an existing codebase is fixed in one pass rather than one restart at a time.
 
-`RequireUniqueAuditActions()` and `RequireAuditActionFormat(pattern)` ship because every audited application needs both and getting either wrong corrupts the trail rather than breaking the build: two messages under one action code make the trail unqueryable by use case, and an inconsistent code is written and stored exactly like a consistent one.
+`RequireUniqueAuditActions()` and `RequireAuditActionFormat(pattern)` ship because every audited application needs both and getting either wrong corrupts the trail rather than breaking the build. Two messages under one action code make the trail unqueryable by use case, and an inconsistent code is written and stored exactly like a consistent one.
 
 At compile time, with `LB1020`:
 
@@ -309,7 +311,7 @@ litebus_required_declarations = App.Security.RequiredPermission
 dotnet_diagnostic.LB1020.severity = warning
 ```
 
-Use both. The analyzer reports the omission on the message itself while you are writing it; the composition check covers a message registered from an assembly the analyzer never saw. See [Required Declarations](../catalog/analyzers/required-declarations.md) for the full rule, including how to make your own attribute analyzable with `[MessageDeclaration]`.
+Use both. The analyzer reports the omission on the message itself while you are writing it. The composition check covers a message registered from an assembly the analyzer never saw. See [Required Declarations](../catalog/analyzers/required-declarations.md) for the full rule, including how to make your own attribute analyzable with `[MessageDeclaration]`.
 
 ### Recording an Exemption
 
@@ -322,7 +324,7 @@ public sealed record BrowseStorefrontQuery(Guid StoreId) : IQuery<StorefrontView
 
 The rationale is the whole point. An exemption is a decision and an omission is an accident, and without the reason written down there is nothing to tell them apart, which is the situation the requirement exists to end.
 
-The attribute may be applied more than once and every instance is aggregated into a single `DeclarationExemptions` metadata value, readable through the accessor like any other declaration:
+The attribute may be applied more than once. LiteBus aggregates every instance into a single `DeclarationExemptions` metadata value, readable through the accessor like any other declaration:
 
 ```csharp
 accessor.TryGet<BrowseStorefrontQuery, DeclarationExemptions>(out var exemptions);
@@ -330,13 +332,13 @@ exemptions.TryGet(typeof(RequiredPermission), out var exemption);
 // exemption.Rationale
 ```
 
-There is one exemption mechanism, with two spellings for auditing. `[DeclarationExempt(typeof(AuditDeclaration), "rationale")]` exempts a message from auditing, and `[AuditExempt("rationale")]` is the shorthand for exactly that; both record the same exemption, so everything a message is exempt from reads from one place. `[AuditExempt]` additionally produces the `AuditExemptDeclaration` the record writer reads, because auditing is the one declaration whose two positions are both modelled as values. A definition says the same thing with `declarations.NotAudited("rationale")`.
+There is one exemption mechanism, with two spellings for auditing. `[DeclarationExempt(typeof(AuditDeclaration), "rationale")]` exempts a message from auditing, and `[AuditExempt("rationale")]` is the shorthand for exactly that. Both record the same exemption, so everything a message is exempt from is read from one place. `[AuditExempt]` additionally produces the `AuditExemptDeclaration` the record writer reads, because auditing is the one declaration whose two positions are both modelled as values. A definition says the same thing with `declarations.NotAudited("rationale")`.
 
 ## Declaring a Value Computed From the Message
 
-A declaration is resolved once at registration and cannot take dependencies, which is often read as "constants only". It is not. The value is an ordinary object, so it can carry a delegate over the message, and that is the difference between a generic handler covering only the constant cases and one covering everything derivable from the message itself.
+A declaration is resolved once at registration and cannot take dependencies, which is often read as "constants only", but it is not. The value is an ordinary object, so it can carry a delegate over the message, and that is the difference between a generic handler covering only the constant cases and one covering everything derivable from the message itself.
 
-An authorization scope is the common case. Some commands need a fixed permission; others need one scoped to the organization named in the command:
+An authorization scope is the common case. Some commands need a fixed permission. Others need one scoped to the organization named in the command:
 
 ```csharp
 public sealed record AuthorizationScope(Func<object, string> Resolve)
@@ -366,7 +368,7 @@ if (_metadata.TryGet<TCommand, AuthorizationScope>(out var scope))
 }
 ```
 
-The constraint that remains is real: the delegate is built at registration and cannot resolve services, so it can only project from the message. Anything needing a database read belongs in the guard, which can inject what it needs and hand the result forward through [`IExecutionContext.Data`](execution-context.md).
+The constraint that remains is real. The delegate is built at registration and cannot resolve services, so it can only project from the message. Anything needing a database read belongs in the guard, which can inject what it needs and hand the result forward through [`IExecutionContext.Data`](execution-context.md).
 
 ## Reading Metadata
 
@@ -389,13 +391,13 @@ accessor.ForMessage(message.GetType()).Contains<AuditDeclaration>();
 
 Because metadata is resolved once at registration, reading it costs a dictionary lookup rather than reflection on every dispatch, and the accessor is a stateless view with nothing to invalidate.
 
-A type the registry does not hold raises `MessageMetadataNotFoundException` rather than answering with an empty collection. That is deliberate: an empty answer would turn a missing registration into a permission check that silently passes. An unregistered runtime type that mediation resolves through a base descriptor reads that descriptor's metadata instead, exactly as if the type had been registered; only a type nothing covers raises, so the accessor still never answers with an empty collection.
+A type the registry does not hold raises `MessageMetadataNotFoundException` rather than answering with an empty collection. That is deliberate. An empty answer would turn a missing registration into a permission check that silently passes. An unregistered runtime type that mediation resolves through a base descriptor reads that descriptor's metadata instead, exactly as if the type had been registered. Only a type nothing covers raises, so the accessor never answers with an empty collection.
 
-`IMessageDescriptor.Metadata` is still there and still public, but reaching for it from application code means the registry's descriptor shape becomes part of your application. Use the accessor.
+`IMessageDescriptor.Metadata` remains public, but reading it from application code makes the registry's descriptor shape part of your application. Use the accessor.
 
 ## Declaring Effects
 
-A use case that issues commands, sends messages, and publishes events can declare those edges as metadata, so the set of consequences is written down where the pipeline can read it rather than only in an external record. Effects stay application-owned: the verbs and timings are your taxonomy, and LiteBus carries them without understanding them. Declare them with an application record plus the same enforcement this page already teaches:
+A use case that issues commands, sends messages, and publishes events can declare those edges as metadata, so the set of consequences is written down where the pipeline can read it rather than only in an external record. Effects stay application-owned. The verbs and timings are your taxonomy, and LiteBus carries them as opaque values. Declare them with an application record plus the same enforcement this page already teaches:
 
 ```csharp
 public enum EffectKind
@@ -469,7 +471,7 @@ litebus_required_declarations = App.Effects.DeclaredEffects
 dotnet_diagnostic.LB1020.severity = warning
 ```
 
-That enforces that every command states its effects and that no effect list names a target twice. It does not verify that a handler dispatches only its declared edges, because nothing records which messages a handler actually dispatched. The gap-free form of that check is a runtime audit built on shipped seams: a decorator over the dispatch path records each dispatched message type into `IExecutionContext.Data`, and a completion handler diffs the recorded edges against the declared `DeclaredEffects` read through `IMessageMetadataAccessor`. Static call-site checking stays on the [roadmap](../roadmap/integrator-feedback.md#static-checking-of-declared-effects), because the analyzer never executes `Describe` bodies and can only read attribute-declared edges.
+That enforces that every command states its effects and that no effect list names a target twice. It does not verify that a handler dispatches only its declared edges, because nothing records which messages a handler actually dispatched. A check with no gaps takes the form of a runtime audit built on shipped seams. A decorator over the dispatch path records each dispatched message type into `IExecutionContext.Data`, and a completion handler compares the recorded edges against the declared `DeclaredEffects` read through `IMessageMetadataAccessor`. Static call-site checking stays on the [roadmap](../roadmap/integrator-feedback.md#static-checking-of-declared-effects), because the analyzer never executes `Describe` bodies and can only read attribute-declared edges.
 
 ## Next
 

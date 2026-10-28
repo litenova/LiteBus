@@ -1,6 +1,6 @@
 # Durable Messaging Walkthrough
 
-This walkthrough takes one command from registration to a processed inbox row: compose the host with in-memory storage, accept a command, run a processor pass, and observe the stored row through the manager API. It then shows the two swaps that production needs: PostgreSQL storage and AMQP dispatch.
+The LiteBus inbox stores a command and a background processor executes it. This walkthrough follows one command from registration to a processed row: compose the host with in-memory storage, accept a command, run a processor pass, and observe the stored row through the manager API. It then shows the 2 swaps that production needs: PostgreSQL storage and AMQP dispatch.
 
 > **This page is for** developers adopting durable messaging who want one working program before reading the references.
 >
@@ -8,7 +8,7 @@ This walkthrough takes one command from registration to a processed inbox row: c
 
 ## Prerequisites
 
-A console host with the LiteBus command, inbox, in-memory storage, and in-process dispatch packages referenced, plus a `ProcessPaymentCommand` and its handler:
+You need a console host with the LiteBus command, inbox, in-memory storage, and in-process dispatch packages referenced, plus a `ProcessPaymentCommand` and its handler:
 
 ```csharp
 public sealed record ProcessPaymentCommand(Guid PaymentId, decimal Amount) : ICommand;
@@ -48,7 +48,7 @@ builder.Services.AddLiteBus(liteBus =>
 var host = builder.Build();
 ```
 
-Four registrations make the durable path: contracts for every stored message type, one storage adapter, one dispatcher, and the processor loop. In-memory storage keeps rows process-wide; it fits this walkthrough and unit tests, not production.
+Four registrations make the durable path: contracts for every stored message type, one storage adapter, one dispatcher, and the processor loop. In-memory storage keeps rows process-wide. It fits this walkthrough and unit tests, not production.
 
 ## Accept a Command
 
@@ -66,7 +66,7 @@ The receipt confirms storage, not execution. The handler has not run yet.
 
 ## Run a Processor Pass
 
-In production the hosted loop registered by `EnableInboxProcessor` leases and dispatches on its poll interval. Here, run one pass directly so the walkthrough stays deterministic:
+In production, the hosted loop registered by `EnableInboxProcessor` leases and dispatches on its poll interval. Here, run one pass directly so the walkthrough stays deterministic:
 
 ```csharp
 var processor = host.Services.GetRequiredService<IInboxProcessor>();
@@ -88,11 +88,11 @@ var stored = await manager.GetMessageAsync(receipt.Id, CancellationToken.None).C
 Console.WriteLine($"Row {stored?.Id} is {stored?.Status}.");
 ```
 
-The row reports `Completed` with its attempt count, lease history, and error fields available on the envelope. `IInboxManager` also pages, requeues, purges, and reports status counts; see [Message States](../operations/message-states.md) for the operator model.
+The row reports `Completed` with its attempt count, lease history, and error fields available on the envelope. `IInboxManager` also pages, requeues, purges, and reports status counts. See [Message States](../operations/message-states.md) for the operator model.
 
 ## Swap in PostgreSQL Storage
 
-Replace `UseInMemoryStorage` with the PostgreSQL adapter. Pass one shared `NpgsqlDataSource` when inbox and outbox use the same database:
+Replace `UseInMemoryStorage` with the PostgreSQL adapter. When inbox and outbox use the same database, pass one shared `NpgsqlDataSource`:
 
 ```csharp
 inbox.UsePostgreSqlStorage(pg =>
@@ -101,11 +101,11 @@ inbox.UsePostgreSqlStorage(pg =>
 });
 ```
 
-`EnsureSchemaCreationOnStartup` defaults to `true`, so this composition creates schema at startup. Migration-owned production deployments set it to `false` via `UseOptions` and keep validation enabled. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md) and [Inbox](inbox.md).
+`EnsureSchemaCreationOnStartup` defaults to `true`, so this composition creates the schema at startup. Migration-owned production deployments set it to `false` via `UseOptions` and keep validation enabled. See [PostgreSQL Schema Management](../integrations/postgresql-schema-management.md) and [Inbox](inbox.md).
 
 ## Swap in AMQP Dispatch
 
-Replace `UseInProcessDispatch` with the AMQP dispatcher and register the root transport once. Each builder registers exactly one dispatcher:
+Replace `UseInProcessDispatch` with the AMQP dispatcher and register the root transport once. Each builder registers exactly 1 dispatcher:
 
 ```csharp
 liteBus.AddAmqpTransport(new AmqpConnectionOptions
@@ -121,10 +121,10 @@ liteBus.AddInbox(inbox =>
 });
 ```
 
-Leased envelopes now publish to the broker for remote execution instead of running handlers in the caller process. Destination mapping, connection recovery, and ingress live in the [AMQP](../integrations/amqp.md) guide.
+Leased envelopes now publish to the broker for remote execution instead of running handlers in the caller process. For destination mapping, connection recovery, and ingress, see the [AMQP](../integrations/amqp.md) guide.
 
 ## Next
 
 - Contract and registration reference: [Inbox](inbox.md), [Outbox](outbox.md)
-- Atomic domain plus durable writes: [Transactional messaging writes](transactional-writes.md)
+- Atomic domain plus durable writes: [Transactional Messaging Writes](transactional-writes.md)
 - Delivery guarantees: [Reliable Messaging Semantics](semantics.md)

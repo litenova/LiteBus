@@ -7,17 +7,17 @@
 
 ## What It Does
 
-`TransportMetricsRegistration.RegisterIfNeeded` installs one startup initializer (`TransportObservableMetricsInitializer`) and optional broker identity (`TransportBrokerIdentity`). The initializer creates `TransportObservableMetrics`, which exports aggregate publisher state from `ITransportCircuitBreakerRegistry`.
+`TransportMetricsRegistration.RegisterIfNeeded` registers one startup initializer (`TransportObservableMetricsInitializer`) and an optional broker identity (`TransportBrokerIdentity`). The initializer creates `TransportObservableMetrics`, which exports aggregate publisher state from `ITransportCircuitBreakerRegistry`.
 
-Applications subscribe with `AddLiteBusTransportMetrics()`. AMQP package keeps compatibility alias `AddLiteBusAmqpMetrics()` and points to the same shared meter.
+Applications subscribe with `AddLiteBusTransportMetrics()`. The AMQP package keeps the compatibility alias `AddLiteBusAmqpMetrics()`, which points to the same shared meter.
 
 ## Public Surface
 
 | API | Role |
 | --- | --- |
-| `TransportMetricsRegistration.RegisterIfNeeded(IModuleConfiguration, string? broker, Type moduleType)` | One-time registration of metrics hooks; refuses a second transport module |
+| `TransportMetricsRegistration.RegisterIfNeeded(IModuleConfiguration, string? broker, Type moduleType)` | One-time registration of metrics hooks. Refuses a second transport module |
 | `TransportObservableMetricsInitializer` | Startup task that creates gauges |
-| `TransportObservableMetrics` | Gauge producer bound to aggregate publisher breaker state |
+| `TransportObservableMetrics` | Gauge producer bound to aggregate publisher circuit-breaker state |
 | `TransportBrokerIdentity` | Broker tag identity value |
 | `TransportCompositionContext` | Shared compose claim that refuses a second transport module (internal) |
 | `AddLiteBusTransportMetrics()` | OpenTelemetry meter registration extension |
@@ -45,7 +45,7 @@ Applications subscribe with `AddLiteBusTransportMetrics()`. AMQP package keeps c
 
 - Per-message publish and consume counters.
 - Prebuilt dashboard bundles.
-- AMQP-specific circuit breaker meter names; use the shared transport instruments with the `amqp` broker tag.
+- AMQP-specific circuit breaker meter names. Use the shared transport instruments with the `amqp` broker tag.
 
 ## Observability
 
@@ -103,7 +103,7 @@ Applications subscribe with `AddLiteBusTransportMetrics()`. AMQP package keeps c
 - Transport-level throughput and latency histograms.
 - Bundled exporter configurations.
 
-## Deep Docs
+## References
 
 - [circuit-breaker.md](circuit-breaker.md)
 - [Architecture.md](../../architecture/README.md)
