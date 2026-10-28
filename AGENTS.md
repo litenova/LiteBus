@@ -12,25 +12,6 @@ Package inventories, registration recipes, and feature-specific detail live in `
 - **Suggest guide updates.** When repeated overrides, new patterns, or outdated docs show a rule no longer fits, recommend a concrete edit to `AGENTS.md` or the relevant `site/content/docs/` file. The user decides whether to adopt it.
 - **Prefer dialogue over deadlock.** A short question beats a long assumption. If confirmation is unclear, ask once with options rather than blocking on rigid compliance.
 
-## Writing Style (documentation and prose)
-
-Write for experienced .NET developers who already understand messaging, CQS, DDD, and dependency injection.
-
-- Use plain ASCII punctuation. Do not use em dashes, smart quotes, emoji, or decorative symbols.
-- Do not hard-wrap Markdown prose. Write each paragraph and each list item on one line; break lines only between blocks (paragraphs, list items, table rows, headings). Line ends inside a sentence make the source hard to read and diff.
-- Lead with the exact capability, then a runnable example, then constraints and explanation. Keep reference pages dense and precise.
-- Describe LiteBus in technical terms: command, query, and event mediation, with optional inbox, outbox, saga, storage, transport, hosting, and observability modules.
-- Prefer nouns and verbs over slogans or taglines. Headings name the capability. Use `Durable Inbox and Transactional Outbox`; avoid claims such as `Messages That Never Get Lost`.
-- Do not use sales cadence, rhetorical fragments, or unsupported superlatives. State the API, execution model, durability boundary, or integration directly.
-- Prefer `command, query, and event mediation` over `in-process mediator` unless process locality is the subject. When locality matters, say that handlers execute in the caller's process.
-- Describe durable behavior with exact terms such as persisted inbox acceptance, transactional outbox enqueueing, lease-based processing, and the configured storage or transport adapter.
-- Use CQS and DDD terminology where it clarifies API intent. Do not present those terms as branding.
-- When comparing LiteBus with MediatR, lead with the licensing difference and the semantic command, query, and event model. Keep `IRequest` replacement details in migration documentation, not landing-page copy. Verify and cite current external licensing claims.
-- State the LiteBus license policy directly: LiteBus is MIT licensed, open source, free for commercial use, and will remain free. Do not turn the policy into a tagline.
-- Use Title Case for consumer-facing page headings, section headings, navigation labels, and primary buttons. Use sentence case for body text.
-- Use exact, sourced numbers. Label illustrative examples as illustrative and do not present them as benchmarks.
-- State meaningful limitations and opt-in boundaries alongside the related capability. For example, durable processing requires a selected store and processor host; mediation alone does not persist messages.
-
 ## XML documentation (required)
 
 All C# under `src/` must use XML documentation comments (`///`) on every construct, including `private` and `internal` members. This applies to shipping libraries consumers reference and to internal implementation details agents maintain.
