@@ -60,7 +60,10 @@ public sealed class AmqpInboxIngressHandlerTests : LiteBusTestBase
             leased[0].CorrelationId.Should().Be("correlation-1");
             leased[0].CausationId.Should().Be("causation-2");
             leased[0].TenantId.Should().BeNull();
-            leased[0].VisibleAfter.Should().Be(visibleAfter);
+
+            // Application headers are distrusted here, so the visible-after header is ignored and the row is
+            // immediately visible. Trusted visibility mapping is covered by TransportInboxIngressMapperTests.
+            leased[0].VisibleAfter.Should().BeNull();
         }
     }
 

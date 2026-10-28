@@ -27,7 +27,9 @@ public sealed record TransportConsumerOptions
     /// </summary>
     /// <remarks>
     ///     RabbitMQ and Azure Service Bus use this setting. SQS receive batching and callback concurrency use
-    ///     <see cref="ReceiveBatchSize" /> and <see cref="MaxConcurrentCalls" /> instead.
+    ///     <see cref="ReceiveBatchSize" /> and <see cref="MaxConcurrentCalls" /> instead. The default is zero, which
+    ///     maps to the broker-native unlimited prefetch window on AMQP, so set an explicit bound when consuming from
+    ///     a large backlog with slow handlers.
     /// </remarks>
     public int PrefetchCount { get; init; }
 

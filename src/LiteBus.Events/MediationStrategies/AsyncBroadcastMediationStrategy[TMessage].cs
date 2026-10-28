@@ -56,6 +56,14 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     ///     Thrown if <see cref="EventMediationSettings.ThrowIfNoHandlerFound" /> is
     ///     <see langword="true" /> and no main handlers are found for the message.
     /// </exception>
+    /// <remarks>
+    ///     A fault the recoverable filter excludes, such as a missing handler when
+    ///     <see cref="EventMediationSettings.ThrowIfNoHandlerFound" /> is <see langword="true" />, bypasses the error
+    ///     handlers but is still recorded before completion runs, so completion never observes
+    ///     <see cref="MediationOutcome.Succeeded" /> for a broadcast that threw. When error handlers recover, the
+    ///     outcome stays <see cref="MediationOutcome.Failed" /> but no exception is recorded, which is what
+    ///     distinguishes a recovered fault from one that propagated.
+    /// </remarks>
     public async Task Mediate(TMessage message, IMessageDependencies messageDependencies, IExecutionContext executionContext)
     {
         ArgumentNullException.ThrowIfNull(message);
@@ -157,6 +165,28 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
             await messageDependencies
                 .RunAsyncErrorHandlers(message, null, e, executionContext)
                 .ConfigureAwait(false);
+
+            // Reaching here means an error handler recovered: the stage rethrows otherwise. The outcome stays Failed
+            // so the audit trail still records that a fault occurred, but no exception is recorded, which is what
+            // distinguishes a recovered fault from one that propagated and what lets a completion-handler fault
+            // propagate instead of being suppressed into an exception nobody receives.
+            failure = null;
+        }
+#pragma warning disable CA1031 // A non-recoverable fault must still be recorded before completion handlers run.
+        catch (Exception e)
+#pragma warning restore CA1031
+        {
+            // A missing handler, an idempotency misconfiguration, and an application-thrown refusal bypass the
+            // error stage, but completion must not observe Succeeded for a broadcast that threw. An ending already
+            // recorded, such as a refusal the pre stages decided, keeps what it recorded: only a broadcast with no
+            // recorded failure is marked Failed here.
+            if (failure is null)
+            {
+                outcome = MediationOutcome.Failed;
+                failure = e;
+            }
+
+            throw;
         }
         finally
         {

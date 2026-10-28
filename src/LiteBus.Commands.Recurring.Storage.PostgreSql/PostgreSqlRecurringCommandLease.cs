@@ -15,17 +15,18 @@ namespace LiteBus.Commands.Recurring.Storage.PostgreSql;
 /// <remarks>
 ///     <para>
 ///         Each acquisition is one upsert against <c>litebus_recurring_leases</c>: the row is inserted when absent, or
-///         taken over when its <c>expires_at</c> has passed on the database clock or it is already held by this holder.
-///         The statement returns a row only to the winner, so a second holder racing the same name gets
-///         <see langword="null" />. Every timestamp comes from <c>now()</c>; host clocks are never read, so skew between
-///         replicas cannot shorten or extend a lease.
+///         taken over when its <c>expires_at</c> has passed on the database clock. The statement returns a row only to
+///         the winner, so a second holder racing the same name gets <see langword="null" />. Every timestamp comes from
+///         <c>now()</c>; host clocks are never read, so skew between replicas cannot shorten or extend a lease.
 ///     </para>
 ///     <para>
 ///         The returned handle renews the row in the background while it is held and deletes it on dispose, but only
-///         while this holder still owns it. A holder whose process dies stops renewing, so its row becomes takeable once
-///         the lease duration lapses; no connection state is involved. Each statement opens its own pooled connection and
-///         no connection is held between statements, so the lease works behind PgBouncer in transaction mode and with
-///         pooling disabled.
+///         while this holder still owns it. A renewal that finds the lease taken or fails cancels
+///         <see cref="IRecurringCommandLeaseHandle.LeaseLost" /> on the handle, so the pass holding it ends its busy
+///         period instead of running undefended. A holder whose process dies stops renewing, so its row becomes takeable
+///         once the lease duration lapses; no connection state is involved. Each statement opens its own pooled
+///         connection and no connection is held between statements, so the lease works behind PgBouncer in transaction
+///         mode and with pooling disabled.
 ///     </para>
 ///     <para>
 ///         The holder identity is the machine name plus the process id plus a per-instance GUID, recorded on every row
@@ -93,7 +94,7 @@ public sealed class PostgreSqlRecurringCommandLease : IRecurringCommandLease
     }
 
     /// <inheritdoc />
-    public async Task<IAsyncDisposable?> TryAcquireAsync(string leaseName, CancellationToken cancellationToken)
+    public async Task<IRecurringCommandLeaseHandle?> TryAcquireAsync(string leaseName, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(leaseName);
 
@@ -105,7 +106,7 @@ public sealed class PostgreSqlRecurringCommandLease : IRecurringCommandLease
                        acquired_at = EXCLUDED.acquired_at,
                        expires_at = EXCLUDED.expires_at,
                        renewed_at = EXCLUDED.renewed_at
-                   WHERE {_tableName}.expires_at <= now() OR {_tableName}.holder = EXCLUDED.holder
+                   WHERE {_tableName}.expires_at <= now()
                    RETURNING lease_name;
                    """;
 
@@ -142,7 +143,7 @@ public sealed class PostgreSqlRecurringCommandLease : IRecurringCommandLease
     /// <summary>
     ///     Holds one acquired lease row for the lifetime of the pass that acquired it, renewing it in the background.
     /// </summary>
-    private sealed class LeaseHandle : IAsyncDisposable
+    private sealed class LeaseHandle : IRecurringCommandLeaseHandle
     {
         /// <summary>
         ///     The PostgreSQL data source used to open one connection per lease statement.
@@ -183,6 +184,16 @@ public sealed class PostgreSqlRecurringCommandLease : IRecurringCommandLease
         ///     Stops the background renewal loop when the handle is disposed.
         /// </summary>
         private readonly CancellationTokenSource _renewalLifetime = new();
+
+        /// <summary>
+        ///     Signals the handle's loss token when a renewal finds the lease taken or fails.
+        /// </summary>
+        private readonly CancellationTokenSource _leaseLostLifetime = new();
+
+        /// <summary>
+        ///     The cached loss token handed out by <see cref="LeaseLost" />, still pollable after dispose.
+        /// </summary>
+        private readonly CancellationToken _leaseLost;
 
         /// <summary>
         ///     The background renewal loop, awaited on dispose so no renewal races the release delete.
@@ -226,8 +237,18 @@ public sealed class PostgreSqlRecurringCommandLease : IRecurringCommandLease
             _leaseDuration = leaseDuration;
             _renewInterval = renewInterval;
             _logger = logger;
+            _leaseLost = _leaseLostLifetime.Token;
             _renewal = RenewLoopAsync(_renewalLifetime.Token);
         }
+
+        /// <summary>
+        ///     Gets a token that is cancelled when the lease is lost while the handle is held.
+        /// </summary>
+        /// <value>
+        ///     A token that fires when another holder takes the lease or a renewal fails. A clean dispose never
+        ///     cancels it; releasing the lease is not losing it.
+        /// </value>
+        public CancellationToken LeaseLost => _leaseLost;
 
         /// <inheritdoc />
         public async ValueTask DisposeAsync()
@@ -246,6 +267,7 @@ public sealed class PostgreSqlRecurringCommandLease : IRecurringCommandLease
             finally
             {
                 _renewalLifetime.Dispose();
+                _leaseLostLifetime.Dispose();
             }
 
             // The delete is ownership-checked, so a handle whose lease was taken (or whose row already expired and was
@@ -264,7 +286,8 @@ public sealed class PostgreSqlRecurringCommandLease : IRecurringCommandLease
         }
 
         /// <summary>
-        ///     Renews the row until the handle is disposed, the renewal fails, or the lease is taken.
+        ///     Renews the row until the handle is disposed, the renewal fails, or the lease is taken, signalling loss
+        ///     on every stop but dispose.
         /// </summary>
         /// <param name="cancellationToken">A token that stops the loop when the handle is disposed.</param>
         /// <returns>A task that completes when the loop stops.</returns>
@@ -295,6 +318,7 @@ public sealed class PostgreSqlRecurringCommandLease : IRecurringCommandLease
                     // once and stopping lets the lease expire on the database clock so another instance takes over,
                     // instead of hammering a broken store once per interval for the life of the pass.
                     PostgreSqlRecurringLeaseLogMessages.LeaseRenewalFailed(_logger, _leaseName, exception);
+                    SignalLeaseLost();
                     return;
                 }
 #pragma warning restore CA1031
@@ -302,8 +326,24 @@ public sealed class PostgreSqlRecurringCommandLease : IRecurringCommandLease
                 if (!renewed)
                 {
                     PostgreSqlRecurringLeaseLogMessages.LeaseRenewalStolen(_logger, _leaseName, _holder);
+                    SignalLeaseLost();
                     return;
                 }
+            }
+        }
+
+        /// <summary>
+        ///     Cancels the handle's loss token so the pass holding the lease ends its busy period.
+        /// </summary>
+        private void SignalLeaseLost()
+        {
+            try
+            {
+                _leaseLostLifetime.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The handle was disposed concurrently; the pass is already past its last loss check.
             }
         }
 

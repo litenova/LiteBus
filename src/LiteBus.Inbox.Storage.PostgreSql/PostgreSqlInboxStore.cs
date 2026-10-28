@@ -576,6 +576,11 @@ public sealed class PostgreSqlInboxStore :
                 cancellationToken)
             .ConfigureAwait(false);
 
+        if (existing is not null)
+        {
+            ThrowIfCrossTenantMessageIdMatch(envelope, existing);
+        }
+
         if (existing is not null &&
             envelope.IdempotencyConflictMode == Messaging.Abstractions.DurableMessaging.IdempotencyConflictMode.Strict &&
             !HasSameSubmission(envelope, existing))
@@ -588,6 +593,30 @@ public sealed class PostgreSqlInboxStore :
             ? throw new InvalidOperationException(
                 "The inbox insert reported a conflict, but the existing envelope could not be resolved.")
             : new InboxAppendResult(existing, InboxAcceptOutcome.AlreadyAccepted);
+    }
+
+    /// <summary>
+    ///     Throws when a message identifier already exists for another tenant.
+    /// </summary>
+    /// <param name="envelope">The incoming envelope.</param>
+    /// <param name="existing">The existing envelope.</param>
+    /// <remarks>
+    ///     The message identifier lookup is global while the idempotency-key lookup is tenant-scoped, so only an
+    ///     identifier match can span tenants. Returning the foreign row would expose its metadata and silently drop
+    ///     the second tenant's message, so a cross-tenant identifier hit is always a conflict, regardless of the
+    ///     configured conflict mode.
+    /// </remarks>
+    private static void ThrowIfCrossTenantMessageIdMatch(InboxEnvelope envelope, InboxEnvelope existing)
+    {
+        if (existing.Id == envelope.Id &&
+            !string.Equals(
+                PostgreSqlIdempotencyResolution.NormalizeTenantParameter(envelope.TenantId),
+                PostgreSqlIdempotencyResolution.NormalizeTenantParameter(existing.TenantId),
+                StringComparison.Ordinal))
+        {
+            throw new Messaging.Abstractions.DurableMessaging.IdempotencyConflictException(
+                $"An inbox message with message id '{envelope.Id}' already exists for another tenant.");
+        }
     }
 
     /// <summary>
@@ -753,6 +782,8 @@ public sealed class PostgreSqlInboxStore :
                         envelope.TenantId,
                         envelope.IdempotencyKey,
                         cancellationToken).ConfigureAwait(false);
+
+                ThrowIfCrossTenantMessageIdMatch(envelope, existing);
 
                 results[index] = new InboxAppendResult(
                     existing,
@@ -1413,6 +1444,10 @@ public sealed class PostgreSqlInboxStore :
     /// </summary>
     /// <param name="envelope">The completed envelope being persisted.</param>
     /// <returns>The UTC timestamp written to <c>completed_at</c>.</returns>
+    /// <remarks>
+    ///     Processors stamp <see cref="InboxEnvelope.CompletedAt" /> from the processor clock before persisting; the
+    ///     wall-clock fallback covers only envelopes completed without a stamp, such as direct store calls.
+    /// </remarks>
     private static DateTimeOffset ResolveCompletedAt(InboxEnvelope envelope)
     {
         return envelope.CompletedAt ?? DateTimeOffset.UtcNow;
@@ -1518,14 +1553,17 @@ public sealed class PostgreSqlInboxStore :
     }
 
     /// <summary>
-    ///     Validates that the requested page size is positive.
+    ///     Validates that the requested page size is within the supported range.
     /// </summary>
     /// <param name="pageSize">The requested page size.</param>
     private static void ValidatePageSize(int pageSize)
     {
-        if (pageSize <= 0)
+        if (pageSize <= 0 || pageSize > InboxMessagePageRequest.MaxPageSize)
         {
-            throw new ArgumentOutOfRangeException(nameof(pageSize), pageSize, "Page size must be greater than zero.");
+            throw new ArgumentOutOfRangeException(
+                nameof(pageSize),
+                pageSize,
+                $"Page size must be between 1 and {InboxMessagePageRequest.MaxPageSize}.");
         }
     }
 

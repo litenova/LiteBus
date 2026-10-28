@@ -36,7 +36,7 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
     {
         var typeCache = new LiteBusTypeCache(context.Compilation);
         var tagCollector = new TagReferenceCollector();
-        var occurrences = new ConcurrentBag<TagHandlerOccurrence>();
+        var occurrences = new ConcurrentDictionary<INamedTypeSymbol, TagHandlerOccurrence>(SymbolEqualityComparer.Default);
 
         context.RegisterSyntaxNodeAction(
             nodeContext => AnalyzeAssignment(nodeContext, tagCollector),
@@ -120,11 +120,15 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
     /// </summary>
     /// <param name="context">The syntax node analysis context.</param>
     /// <param name="typeCache">The per-compilation type cache.</param>
-    /// <param name="occurrences">The handler occurrences to populate.</param>
+    /// <param name="occurrences">The handler occurrences to populate, deduplicated by symbol.</param>
+    /// <remarks>
+    ///     Occurrences are keyed by symbol rather than by declaration node, so a partial handler with two
+    ///     declarations reports once, at its first location.
+    /// </remarks>
     private static void AnalyzeHandlerDeclaration(
         SyntaxNodeAnalysisContext context,
         LiteBusTypeCache typeCache,
-        ConcurrentBag<TagHandlerOccurrence> occurrences)
+        ConcurrentDictionary<INamedTypeSymbol, TagHandlerOccurrence> occurrences)
     {
         if (context.Node is not TypeDeclarationSyntax declaration)
         {
@@ -154,7 +158,7 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        occurrences.Add(new TagHandlerOccurrence(symbol.Name, location, tags));
+        occurrences.TryAdd(symbol, new TagHandlerOccurrence(symbol.Name, location, tags));
     }
 
     /// <summary>
@@ -162,11 +166,11 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
     /// </summary>
     /// <param name="context">The compilation analysis context.</param>
     /// <param name="tags">The collected referenced tags.</param>
-    /// <param name="occurrences">The collected handler occurrences.</param>
+    /// <param name="occurrences">The collected handler occurrences, deduplicated by symbol.</param>
     private static void AnalyzeCompilationEnd(
         CompilationAnalysisContext context,
         TagReferenceCollector tags,
-        ConcurrentBag<TagHandlerOccurrence> occurrences)
+        ConcurrentDictionary<INamedTypeSymbol, TagHandlerOccurrence> occurrences)
     {
         if (occurrences.IsEmpty)
         {
@@ -174,9 +178,8 @@ public sealed class OrphanHandlerTagAnalyzer : DiagnosticAnalyzer
         }
 
         // Node actions run concurrently, so order occurrences the way source order presents them:
-        // by file path, then by span start, then by handler name. Each occurrence keeps its
-        // declaration so a partial handler with two declarations still reports twice.
-        var ordered = occurrences
+        // by file path, then by span start, then by handler name.
+        var ordered = occurrences.Values
             .OrderBy(occurrence => occurrence.Location.SourceTree?.FilePath ?? string.Empty, StringComparer.Ordinal)
             .ThenBy(occurrence => occurrence.Location.SourceSpan.Start)
             .ThenBy(occurrence => occurrence.HandlerName, StringComparer.Ordinal)

@@ -10,10 +10,11 @@ namespace LiteBus.Transport.InMemory;
 ///     Consumes in-memory channel deliveries with manual acknowledgement support.
 /// </summary>
 /// <remarks>
-///     When a handler throws, the delivery is returned to the channel for redelivery by default. Handlers that reject a
-///     message without throwing should call <see cref="TransportMessage.ReturnToQueueAsync" /> or
-///     <see cref="TransportMessage.DiscardAsync" /> explicitly. This differs from broker transports where the broker owns
-///     retry and dead-letter policy.
+///     When a handler throws, the delivery is returned to the channel for redelivery by default. A handler that
+///     returns successfully without settling is returned to the channel for redelivery as well, so a missing settle
+///     never drops the delivery silently. Handlers that reject a message without throwing should call
+///     <see cref="TransportMessage.ReturnToQueueAsync" /> or <see cref="TransportMessage.DiscardAsync" /> explicitly.
+///     This differs from broker transports where the broker owns retry and dead-letter policy.
 /// </remarks>
 public sealed class InMemoryConsumer : IMessageConsumer
 {
@@ -211,6 +212,7 @@ public sealed class InMemoryConsumer : IMessageConsumer
                     try
                     {
                         await boundedHandler(transportMessage, cancellationToken).ConfigureAwait(false);
+                        await settlement.RequeueAsync(CancellationToken.None).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                     {

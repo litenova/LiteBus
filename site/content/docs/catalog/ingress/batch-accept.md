@@ -71,7 +71,7 @@ Every ingress adapter exposes the same `Safety` record. AMQP prefetch, SQS recei
 - Broker acknowledgement remains per delivery after batch store success.
 - A failed batch store call falls back to per-message acceptance.
 - A cancelled batch accept releases admission for the whole batch and rethrows without per-message fallback.
-- `BatchSize` must be greater than zero and fails at module composition when invalid.
+- `BatchSize` must be greater than zero and fails at module composition when invalid. `BatchMaxWait` of zero with batch accept enabled fails the same way, because a zero wait never flushes partial batches.
 
 ## Observability
 

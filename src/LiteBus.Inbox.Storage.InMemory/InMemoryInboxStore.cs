@@ -52,7 +52,8 @@ public sealed class InMemoryInboxStore :
     private readonly object _sync = new();
 
     /// <summary>
-    ///     The clock used when lease requests omit an explicit timestamp.
+    ///     The clock used when lease requests omit an explicit timestamp and for terminal timestamps on envelopes
+    ///     that carry none.
     /// </summary>
     private readonly TimeProvider _timeProvider;
 
@@ -62,7 +63,7 @@ public sealed class InMemoryInboxStore :
     /// <param name="options">The store options.</param>
     /// <param name="timeProvider">
     ///     The clock used for lease expiry when a lease request omits
-    ///     <see cref="InboxLeaseRequest.Now" />.
+    ///     <see cref="InboxLeaseRequest.Now" />, and for terminal timestamps on envelopes that carry none.
     /// </param>
     public InMemoryInboxStore(InMemoryInboxStoreOptions? options = null, TimeProvider? timeProvider = null)
     {
@@ -658,14 +659,17 @@ public sealed class InMemoryInboxStore :
     }
 
     /// <summary>
-    ///     Validates that the requested page size is positive.
+    ///     Validates that the requested page size is within the supported range.
     /// </summary>
     /// <param name="pageSize">The requested page size.</param>
     private static void ValidatePageSize(int pageSize)
     {
-        if (pageSize <= 0)
+        if (pageSize <= 0 || pageSize > InboxMessagePageRequest.MaxPageSize)
         {
-            throw new ArgumentOutOfRangeException(nameof(pageSize), pageSize, "Page size must be greater than zero.");
+            throw new ArgumentOutOfRangeException(
+                nameof(pageSize),
+                pageSize,
+                $"Page size must be between 1 and {InboxMessagePageRequest.MaxPageSize}.");
         }
     }
 
@@ -678,6 +682,7 @@ public sealed class InMemoryInboxStore :
     {
         if (_envelopes.TryGetValue(envelope.Id, out var existingById))
         {
+            ThrowIfCrossTenantMessageIdMatch(envelope, existingById);
             ThrowIfStrictConflict(envelope, existingById);
             return new InboxAppendResult(existingById, InboxAcceptOutcome.AlreadyAccepted);
         }
@@ -737,7 +742,7 @@ public sealed class InMemoryInboxStore :
     /// </summary>
     /// <param name="envelope">The post-transition envelope supplied by the processor.</param>
     /// <returns>The envelope with lease fields cleared when the status is terminal.</returns>
-    private static InboxEnvelope ClearLeaseWhenTerminal(InboxEnvelope envelope)
+    private InboxEnvelope ClearLeaseWhenTerminal(InboxEnvelope envelope)
     {
         if (envelope.Status is InboxStatus.Completed or InboxStatus.Failed or InboxStatus.DeadLettered)
         {
@@ -746,12 +751,35 @@ public sealed class InMemoryInboxStore :
                 LeaseOwner = null,
                 LeaseExpiresAt = null,
                 CompletedAt = envelope.Status == InboxStatus.Completed
-                    ? envelope.CompletedAt ?? DateTimeOffset.UtcNow
+                    ? envelope.CompletedAt ?? _timeProvider.GetUtcNow()
                     : envelope.CompletedAt
             };
         }
 
         return envelope;
+    }
+
+    /// <summary>
+    ///     Throws when a message identifier already exists for another tenant.
+    /// </summary>
+    /// <param name="envelope">The envelope attempted for insert.</param>
+    /// <param name="existing">The stored envelope that conflicts with the attempt.</param>
+    /// <remarks>
+    ///     The message identifier lookup is global while the idempotency-key index is tenant-scoped, so only an
+    ///     identifier match can span tenants. Returning the foreign row would expose its metadata and silently drop
+    ///     the second tenant's message, so a cross-tenant identifier hit is always a conflict, regardless of the
+    ///     configured conflict mode.
+    /// </remarks>
+    private static void ThrowIfCrossTenantMessageIdMatch(InboxEnvelope envelope, InboxEnvelope existing)
+    {
+        if (!string.Equals(
+                DurableTenantId.Normalize(envelope.TenantId),
+                DurableTenantId.Normalize(existing.TenantId),
+                StringComparison.Ordinal))
+        {
+            throw new IdempotencyConflictException(
+                $"An inbox message with message id '{envelope.Id}' already exists for another tenant.");
+        }
     }
 
     /// <summary>

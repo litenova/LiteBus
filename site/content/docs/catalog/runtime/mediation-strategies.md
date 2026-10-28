@@ -7,7 +7,11 @@
 
 ## What It Does
 
-Strategies implementing `IMessageMediationStrategy<TMessage,TResult>` control pre, main, post, error, and completion handler execution. In the shipped execution strategies, the completion stage runs in a `finally`, so each one reports an outcome even when the pipeline aborts, fails, or is cancelled. The decision-evaluation strategy runs decision stages only and never fires completion. Runtime ships single-main-handler strategies for `Task`, `Task<T>`, and `IAsyncEnumerable<T>`.
+Strategies implementing `IMessageMediationStrategy<TMessage,TResult>` control pre, main, post, error, and completion handler execution. In the shipped execution strategies, the completion stage runs in a `finally`, so each one reports an outcome even when the pipeline aborts, fails, or is cancelled. Runtime ships single-main-handler strategies for `Task`, `Task<T>`, and `IAsyncEnumerable<T>`.
+
+Decision evaluation is a strategy, not a mediation. `DecisionEvaluationMediationStrategy<TMessage>` implements `IMessageMediationStrategy<TMessage, Task<MediationDecision>>` for the `Evaluate` methods: it runs guards then validators in the fixed order and stops, so no shortcut claims a key, no pre-handler or main handler runs, the completion stage does not fire, and no audit record is produced. A fault a refusal classifier recognizes is reported as the refusal the message would end as when actually sent.
+
+Event fan-out uses `AsyncBroadcastMediationStrategy`, covered by [mediator.events](../mediator/events.md).
 
 ## Public Surface
 
@@ -17,6 +21,7 @@ Strategies implementing `IMessageMediationStrategy<TMessage,TResult>` control pr
 | `SingleAsyncHandlerMediationStrategy<TMessage>` | Task strategy |
 | `SingleAsyncHandlerMediationStrategy<TMessage,TResult>` | Task result strategy |
 | `SingleStreamHandlerMediationStrategy<TMessage,TResult>` | Stream strategy |
+| `DecisionEvaluationMediationStrategy<TMessage>` | Decision-stages-only strategy backing `Evaluate` |
 | `SingleMainHandlerResolver` (internal) | Enforces single-main-handler rule |
 
 ## Packages

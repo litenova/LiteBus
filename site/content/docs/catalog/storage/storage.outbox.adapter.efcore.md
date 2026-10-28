@@ -15,7 +15,7 @@ outbox.UseEntityFrameworkCoreStorage(o => o.UseDbContext<AppDbContext>());
 
 Default auto-commit operations create and dispose a context through `IDbContextFactory<TContext>`. Caller-owned transactional patterns are documented in [Outbox EF Core storage](../../integrations/outbox-ef-core-storage.md) and `storage.transactional.writes`.
 
-Supports PostgreSQL, SQL Server, MySQL, SQLite, and in-memory EF providers for leasing. MySQL uses a chronological index with skip-locked `READ COMMITTED` transactions. SQLite uses UTC-tick timestamp columns and serializable file transactions.
+Supports PostgreSQL, SQL Server, MySQL, SQLite, and in-memory EF providers for leasing. MySQL uses a chronological index with skip-locked `READ COMMITTED` transactions. SQLite uses UTC-tick timestamp columns and serializable file transactions. `OutboxMessageEntity.Handler` maps to the nullable `handler` column, so the EF model carries the per-handler delivery target exactly like the PostgreSQL version 2 shape; leased, queried, and purged envelopes round-trip the recorded handler full name.
 
 ## Public Surface
 
@@ -83,8 +83,12 @@ outbox.UseEntityFrameworkCoreStorage(o =>
 - Schema and table names in options must match `OnModelCreating` configuration.
 - Interceptor pattern requires registration on both LiteBus module and `DbContext` options.
 - A null filter or lease tenant means no tenant restriction; an empty string matches only unscoped rows.
-- Strict batches pre-check known duplicates and throw `IdempotencyConflictException` for conflicting content; only concurrent races reach the database unique index.
+- Strict batches pre-check known duplicates and throw `IdempotencyConflictException` for conflicting content; only concurrent races reach the database unique index. Single-add strict checks apply to rows staged on the same context as well.
 - Batch insert failures reinsert rows still missing after a unique violation and chain the database error when the retry also fails.
+- `EnableSaveChangesInterceptor()` registers both `ITransactionalOutbox<TContext>` and the non-generic `ITransactionalOutbox` adapter, so collected domain events stage into the ambient EF transaction.
+- SQLite and in-memory tracked renew, release, and terminal persist compare `lease_generation` through an Entity Framework concurrency token; a lost race reports skipped instead of overwriting the new holder.
+- Strict comparison includes the `handler` targeting alongside identity, contract, payload, topic, key, correlation, causation, and tenant.
+- Leased envelopes carry the stored `IdempotencyKey` on every EF relational provider, so key readers and FIFO deduplication mapping see the key.
 
 ## Non-Goals
 

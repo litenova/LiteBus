@@ -113,7 +113,38 @@ public sealed class IdempotencyKeyFilterTests
         Assert.Equal(422, problem.GetProperty("status").GetInt32());
     }
 
-    private static Task<IHost> CreateHostAsync(IIdempotencyStore store, ApplicationCounter applications)
+    [Fact]
+    public async Task Send_WithSameKeyUnderDifferentTenants_RunsHandlerForEachTenant()
+    {
+        var applications = new ApplicationCounter();
+        using var host = await CreateHostAsync(
+            new InMemoryIdempotencyStore(),
+            applications,
+            options =>
+            {
+                options.TenantResolver = context =>
+                    context.Request.Headers.TryGetValue("X-Tenant", out var values) ? values.ToString() : null;
+            }).ConfigureAwait(false);
+        using var client = host.GetTestClient();
+
+        using var first = await PostCommandAsync(client, "key-1", "tenant-a").ConfigureAwait(false);
+        using var second = await PostCommandAsync(client, "key-1", "tenant-b").ConfigureAwait(false);
+        using var repeat = await PostCommandAsync(client, "key-1", "tenant-a").ConfigureAwait(false);
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, repeat.StatusCode);
+        Assert.Equal(2, applications.Count);
+
+        Assert.False(await ReadAnsweredAsync(first).ConfigureAwait(false));
+        Assert.False(await ReadAnsweredAsync(second).ConfigureAwait(false));
+        Assert.True(await ReadAnsweredAsync(repeat).ConfigureAwait(false));
+    }
+
+    private static Task<IHost> CreateHostAsync(
+        IIdempotencyStore store,
+        ApplicationCounter applications,
+        Action<IdempotencyKeyFilterOptions>? configureFilter = null)
     {
         var builder = Host.CreateDefaultBuilder()
             .ConfigureWebHost(webBuilder =>
@@ -155,7 +186,7 @@ public sealed class IdempotencyKeyFilterTests
                                 var settings = new CommandMediationSettings().WithIdempotencyKey(context);
                                 var result = await mediator.TrySendAsync(command, settings, cancellationToken).ConfigureAwait(false);
                                 return result.ToHttpResult(context, () => Results.Ok(new { answered = result.Outcome == MediationOutcome.Answered }));
-                            }).WithIdempotencyKey();
+                            }).WithIdempotencyKey(configureFilter);
                     });
                 });
             });
@@ -163,7 +194,7 @@ public sealed class IdempotencyKeyFilterTests
         return builder.StartAsync();
     }
 
-    private static async Task<HttpResponseMessage> PostCommandAsync(HttpClient client, string? key)
+    private static async Task<HttpResponseMessage> PostCommandAsync(HttpClient client, string? key, string? tenant = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/commands")
         {
@@ -173,6 +204,11 @@ public sealed class IdempotencyKeyFilterTests
         if (key is not null)
         {
             request.Headers.Add("Idempotency-Key", key);
+        }
+
+        if (tenant is not null)
+        {
+            request.Headers.Add("X-Tenant", tenant);
         }
 
         return await client.SendAsync(request).ConfigureAwait(false);
@@ -236,12 +272,12 @@ public sealed class IdempotencyKeyFilterTests
             return Task.FromResult(IdempotencyClaim.InFlight);
         }
 
-        public Task CompleteAsync(string key, string? payload, CancellationToken cancellationToken = default)
+        public Task CompleteAsync(string key, string claimToken, string? payload, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
 
-        public Task ReleaseAsync(string key, CancellationToken cancellationToken = default)
+        public Task ReleaseAsync(string key, string claimToken, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
@@ -254,12 +290,12 @@ public sealed class IdempotencyKeyFilterTests
             return Task.FromResult(IdempotencyClaim.FingerprintMismatch);
         }
 
-        public Task CompleteAsync(string key, string? payload, CancellationToken cancellationToken = default)
+        public Task CompleteAsync(string key, string claimToken, string? payload, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
 
-        public Task ReleaseAsync(string key, CancellationToken cancellationToken = default)
+        public Task ReleaseAsync(string key, string claimToken, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }

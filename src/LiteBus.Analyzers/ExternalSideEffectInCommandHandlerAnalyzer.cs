@@ -63,9 +63,13 @@ public sealed class ExternalSideEffectInCommandHandlerAnalyzer : DiagnosticAnaly
     }
 
     /// <summary>
-    ///     Reports constructor parameters whose type is a forbidden side-effect type.
+    ///     Reports public constructor parameters whose type is a forbidden side-effect type.
     /// </summary>
     /// <param name="context">The symbol analysis context.</param>
+    /// <remarks>
+    ///     Only public constructors are inspected, matching the transactional-constructor rules: a private test-seam
+    ///     constructor is never called by the container, so its parameters are not injected dependencies.
+    /// </remarks>
     private static void AnalyzeNamedType(SymbolAnalysisContext context)
     {
         if (context.Symbol is not INamedTypeSymbol handlerType ||
@@ -79,7 +83,7 @@ public sealed class ExternalSideEffectInCommandHandlerAnalyzer : DiagnosticAnaly
             return;
         }
 
-        foreach (var constructor in handlerType.InstanceConstructors)
+        foreach (var constructor in handlerType.InstanceConstructors.Where(constructor => constructor.DeclaredAccessibility == Accessibility.Public))
         {
             var forbiddenTypes = GetForbiddenTypes(context, constructor);
 

@@ -3,9 +3,12 @@
     "pages":  [
                   "README",
                   "auditing",
+                  "authorization-declarations",
+                  "command-idempotency",
                   "commands",
                   "events",
                   "execution-context",
+                  "fault-refusal-classification",
                   "generic-messages-and-handlers",
                   "handler-filtering",
                   "handler-pipeline",
@@ -16,7 +19,7 @@
                   "open-generic-handlers",
                   "polymorphic-dispatch",
                   "queries",
-                  "recurring-commands"
+                  "recurring-commands",
+                  "unit-of-work"
               ]
 }
-

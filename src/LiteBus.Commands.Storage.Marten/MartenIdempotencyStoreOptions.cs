@@ -21,7 +21,7 @@ public sealed class MartenIdempotencyStoreOptions
     /// <value>
     ///     The default is five minutes. Must be positive. Keep it longer than the longest mediation that claims
     ///     through the store: a claimant that is still applying when its claim expires can lose the key to a
-    ///     takeover, and its late completion then marks the new claimant's work applied.
+    ///     takeover, and its late settle is then a no-op while the new claimant's work runs on.
     /// </value>
     public TimeSpan ClaimTimeout { get; set; } = TimeSpan.FromMinutes(5);
 

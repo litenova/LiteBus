@@ -15,7 +15,7 @@ For inbox and outbox EF adapters:
 
 PostgreSQL schema initializers (`PostgreSql*SchemaInitializer`) are not registered for EF storage. Diagnostics `GetSchemaInfoAsync` reports expected LiteBus schema version; recorded version reflects application migration state.
 
-Column layouts mirror PostgreSQL v1 scripts (snake_case columns, filtered idempotency index, lease index, outbox topic index).
+Column layouts mirror the PostgreSQL scripts (snake_case columns, filtered idempotency index, lease index, outbox topic index): the inbox model mirrors version 1 and the outbox model mirrors version 2, including the nullable `handler` column that carries the per-handler delivery target.
 
 ## Public Surface
 
@@ -84,7 +84,7 @@ Column layouts mirror PostgreSQL v1 scripts (snake_case columns, filtered idempo
 
 | Signal | Source | Notes |
 | --- | --- | --- |
-| `GetSchemaInfoAsync` | `IInboxDiagnosticsStore` / `IOutboxDiagnosticsStore` | Reports expected LiteBus v1 layout and configured object names |
+| `GetSchemaInfoAsync` | `IInboxDiagnosticsStore` / `IOutboxDiagnosticsStore` | Reports logical store version 1 with the configured object names; the physical column layout still mirrors the PostgreSQL version (outbox version 2 with `handler`) |
 | `litebus.inbox.queue.depth` / `litebus.outbox.queue.depth` | `LiteBusInboxTelemetry` / `LiteBusOutboxTelemetry` | Requires matching schema; query failures prevent meaningful counts |
 | Application migration logs | Host deployment | Actual DDL state; LiteBus does not emit migration events |
 

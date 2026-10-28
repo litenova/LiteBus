@@ -18,6 +18,10 @@ public static class IngressAckPolicy
     /// <param name="exception">The exception thrown while accepting the delivery.</param>
     /// <param name="requeueOnFailure">A value indicating whether failed store writes should be requeued by the broker.</param>
     /// <returns><see langword="true" /> when the broker should requeue the message; otherwise <see langword="false" />.</returns>
+    /// <remarks>
+    ///     The inner exception chain is inspected as well, so a serializer that wraps a malformed payload in
+    ///     <see cref="MessageSerializationException" /> still has the delivery discarded instead of requeued forever.
+    /// </remarks>
     public static bool ShouldRequeue(Exception exception, bool requeueOnFailure)
     {
         if (!requeueOnFailure)
@@ -27,16 +31,25 @@ public static class IngressAckPolicy
 
         exception = UnwrapException(exception);
 
-        return exception is not (
-            MessageContractNotRegisteredException
-            or InboxDispatchException
-            or InboxIngressException
-            or InboxStorageException
-            or InvalidOperationException
-            or ArgumentException
-            or FormatException
-            or JsonException
-            or OperationCanceledException);
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is (
+                MessageContractNotRegisteredException
+                or InboxDispatchException
+                or InboxIngressException
+                or InboxStorageException
+                or MessageSerializationException
+                or InvalidOperationException
+                or ArgumentException
+                or FormatException
+                or JsonException
+                or OperationCanceledException))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

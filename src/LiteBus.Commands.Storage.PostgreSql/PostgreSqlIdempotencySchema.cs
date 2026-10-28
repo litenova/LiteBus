@@ -39,8 +39,8 @@ namespace LiteBus.Commands.Storage.PostgreSql;
 ///     </list>
 ///     <para>
 ///         The idempotency schema uses version 1. Its table holds one row per key with the recorded payload, the
-///         fingerprint the key was claimed with, and the flag that separates a claim still in flight from a key already
-///         applied.
+///         fingerprint the key was claimed with, the token fencing the current claim, and the flag that separates a
+///         claim still in flight from a key already applied.
 ///     </para>
 /// </remarks>
 public static class PostgreSqlIdempotencySchema

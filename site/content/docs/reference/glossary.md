@@ -66,6 +66,23 @@ Two consequences worth stating outright, because they are the questions the spli
 | Audit actor | Who performed the action, resolved by an `IAuditActorResolver` at the completion stage so a denied message is attributed too. A null actor means nothing established one, which is a distinct answer from `AuditActor.System`. |
 | Audit trail | The sink for finished records (`IAuditTrail`). LiteBus decides when a record is produced and what it holds; where it is written is your decision. |
 
+## Unit of Work, Idempotency, and Delivery
+
+| Term | Definition |
+| --- | --- |
+| Unit of work | The application's commit boundary (`IUnitOfWork.CommitAsync`), called once after a successful mediation from a completion handler at `HandlerPriorities.UnitOfWork`. LiteBus decides when it runs; the application owns the transaction. See [Domain Events and Unit of Work](../reliable-messaging/domain-events-and-unit-of-work.md#command-pipeline-boundary). |
+| Fault refusal | A fault a stage raised that an `IFaultRefusalClassifier` recognized, so the mediation ends as a denial or an invalid result instead of a failure. See [The Handler Pipeline](../concepts/handler-pipeline.md#turning-faults-into-refusals). |
+| Per-handler delivery | Outbox opt-in (`EnablePerHandlerDelivery`) that writes one envelope per subscribed handler, so each reaction retries, dead-letters, and replays alone. See [Outbox](../reliable-messaging/outbox.md#per-handler-delivery). |
+| Claim timeout | How long an unsettled idempotency claim blocks its key before a new caller takes it over; five minutes by default on both shipped stores. See [In-Process Idempotency](../concepts/idempotency.md). |
+| Request fingerprint | Content projection stored with an idempotency claim; a repeat with a different fingerprint is denied with `idempotency.fingerprint-mismatch` instead of being answered. See [In-Process Idempotency](../concepts/idempotency.md). |
+| Idempotency claim | An atomic insert of a command's key into an `IIdempotencyStore`, answered `Granted` with a claim token fencing the grant, `AlreadyCompleted`, `InFlight`, or `FingerprintMismatch`. See [In-Process Idempotency](../concepts/idempotency.md). |
+| Ambient trace | Trace stamped from the ambient execution context onto a durable envelope under `UseAmbientTrace()` when the item carries no explicit trace. See [Inbox](../reliable-messaging/inbox.md#ambient-trace-opt-in). |
+| Authorization declaration | A message's stated authorization position, either authorized under a policy or deliberately exempt with a rationale, enforced by an `AuthorizationGuard<TMessage>`. See [Authorization Declarations](../concepts/authorization-declarations.md). |
+| Audit selector | A projection from the message that supplies an audit target or reason when the handler pushed none through `IAuditScope`. See [Auditing](../concepts/auditing.md#declaring-what-the-message-already-knows). |
+| Shortcut denial | A refusal returned from the shortcut stage (`Shortcut.Deny`) when only that stage can decide it, ending the mediation as `Denied`. See [The Handler Pipeline](../concepts/handler-pipeline.md#shortcut-contracts). |
+| Domain event staging | Draining a scoped `IDomainEventCollector` into `ITransactionalOutbox` at `HandlerPriorities.Persistence`, before the unit-of-work commit. See [Outbox](../reliable-messaging/outbox.md#domain-event-staging). |
+| Single-flight lease | A named renewable lease (`IRecurringCommandLease`) that runs a recurring pass on at most one replica. See [Recurring Commands](../integrations/recurring-commands.md#running-on-several-replicas). |
+
 ## Reliable Messaging Entry Points
 
 LiteBus keeps domain-specific names instead of one generic "store" verb:

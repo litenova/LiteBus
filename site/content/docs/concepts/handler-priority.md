@@ -10,8 +10,6 @@ Handler Priority defines the sequence in which handlers of the same type (e.g., 
 - The default priority for any handler without the attribute is `0`.
 - Ties break on registration order. Two handlers at the same priority run in the order their modules registered them, except in the Event Module, where the concurrency settings decide whether a priority group runs sequentially at all.
 
-This feature replaces the `[HandlerOrder]` attribute from versions prior to v4.0.
-
 ## How to Use
 
 Apply the `[HandlerPriority]` attribute to any handler class.
@@ -114,7 +112,7 @@ LiteBus ships pipeline handlers of its own, such as the audit record writer regi
 
 Application handlers belong below `ReservedFloor` or at or above `ReservedCeiling`. Nothing inside the window is yours: `Persistence` and `Observability` may be reordered relative to each other between releases. The floor and the ceiling are stable, so both application bands are stable.
 
-The band from `ReservedCeiling` up to `UnitOfWork` is for application infrastructure that has to run after every LiteBus handler and still before the commit, such as a handler flushing a buffered projection the same commit will write. The two constants shared the value `2_000_000` in earlier previews, which left no such band: a handler on the ceiling tied with the commit and the order resolved by registration sequence, which is assembly scan order.
+The band from `ReservedCeiling` up to `UnitOfWork` is for application infrastructure that has to run after every LiteBus handler and still before the commit, such as a handler flushing a buffered projection the same commit will write.
 
 Because handlers run in ascending order and an unannotated handler sits at zero, your handlers run before LiteBus's by default. To run *after* every LiteBus handler, use the band above the ceiling. The unit-of-work commit is the main resident there, and LiteBus ships it: `UseUnitOfWork<TUnitOfWork>` on the command or query module builder registers a completion handler at `UnitOfWork` that calls `IUnitOfWork.CommitAsync` after every successful mediation, so an application normally writes no handler at this priority and only implements the commit:
 

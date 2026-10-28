@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging;
@@ -146,20 +147,28 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
             return [];
         }
 
-        var tasks = new Task<OutboxEnvelope>[items.Count];
+        var tasks = new Task<IReadOnlyList<OutboxEnvelope>>[items.Count];
 
         for (var index = 0; index < items.Count; index++)
         {
             var item = items[index];
 
-            tasks[index] = CreateCoreAsync(
+            tasks[index] = CreateManyCoreAsync(
                 item.Message,
                 item.Message.GetType(),
                 item.Metadata,
                 cancellationToken);
         }
 
-        return await Task.WhenAll(tasks).ConfigureAwait(false);
+        var perItemEnvelopes = await Task.WhenAll(tasks).ConfigureAwait(false);
+        List<OutboxEnvelope> envelopes = [];
+
+        for (var index = 0; index < perItemEnvelopes.Length; index++)
+        {
+            envelopes.AddRange(perItemEnvelopes[index]);
+        }
+
+        return envelopes;
     }
 
     /// <inheritdoc />
@@ -174,20 +183,28 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
             return [];
         }
 
-        var tasks = new Task<OutboxEnvelope>[items.Count];
+        var tasks = new Task<IReadOnlyList<OutboxEnvelope>>[items.Count];
 
         for (var index = 0; index < items.Count; index++)
         {
             var item = items[index];
 
-            tasks[index] = CreateCoreAsync(
+            tasks[index] = CreateManyCoreAsync(
                 item.Message,
                 item.MessageType,
                 item.Metadata,
                 cancellationToken);
         }
 
-        return await Task.WhenAll(tasks).ConfigureAwait(false);
+        var perItemEnvelopes = await Task.WhenAll(tasks).ConfigureAwait(false);
+        List<OutboxEnvelope> envelopes = [];
+
+        for (var index = 0; index < perItemEnvelopes.Length; index++)
+        {
+            envelopes.AddRange(perItemEnvelopes[index]);
+        }
+
+        return envelopes;
     }
 
     /// <summary>
@@ -198,6 +215,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     /// <param name="metadata">The enqueue metadata applied outside the payload.</param>
     /// <param name="cancellationToken">A token used to cancel serialization.</param>
     /// <returns>The outbox envelope ready for store persistence or staging.</returns>
+    /// <exception cref="ArgumentException">The distributed trace context is not valid JSON text.</exception>
     private async Task<OutboxEnvelope> CreateCoreAsync(
         object eventInstance,
         Type eventType,
@@ -235,6 +253,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
             .ConfigureAwait(false);
         var trace = ResolveTrace(metadata.Trace);
         var (correlationId, causationId, traceContext) = DurableEnvelopeMetadataMapper.ResolveTraceColumns(trace);
+        ThrowIfInvalidTraceContext(traceContext, metadata);
 
         return new OutboxEnvelope
         {
@@ -435,5 +454,36 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     private Type ResolveContractType(Type declaredType, object eventInstance)
     {
         return _contractTypeResolver?.ResolveContractType(declaredType, eventInstance) ?? eventInstance.GetType();
+    }
+
+    /// <summary>
+    ///     Validates that a distributed trace context is valid JSON text before it reaches storage.
+    /// </summary>
+    /// <param name="traceContext">The trace context column value resolved from enqueue metadata.</param>
+    /// <param name="metadata">The enqueue metadata that supplied the trace context.</param>
+    /// <exception cref="ArgumentException">The trace context is not valid JSON text.</exception>
+    /// <remarks>
+    ///     PostgreSQL stores the value as jsonb and rejects non-JSON at insert, while other providers would persist it
+    ///     and fail on read. Validating here fails fast on every provider with one clear error.
+    /// </remarks>
+    private static void ThrowIfInvalidTraceContext(string? traceContext, OutboxEnqueueMetadata metadata)
+    {
+        if (string.IsNullOrWhiteSpace(traceContext))
+        {
+            return;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(traceContext);
+        }
+        catch (JsonException exception)
+        {
+            throw new ArgumentException(
+                "The distributed trace context must be valid JSON text because the outbox stores it as JSON. " +
+                "Pass a JSON object such as {\"traceparent\":\"00-...\"} instead of a raw traceparent string.",
+                nameof(metadata),
+                exception);
+        }
     }
 }

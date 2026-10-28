@@ -32,7 +32,7 @@ flowchart TD
 | API | Package |
 | --- | --- |
 | `InboxModuleBuilder.RegisterIngress(IInboxIngressModule)` | `LiteBus.Inbox` |
-| `IInboxIngressModule` | Marker for ingress child modules |
+| `IInboxIngressModule` | `LiteBus.Inbox.Abstractions` |
 | `UseAmqpIngress(Action<AmqpInboxIngressModuleBuilder>)` | `LiteBus.Inbox.Ingress.Amqp` |
 | `UseKafkaIngress(Action<KafkaInboxIngressModuleBuilder>)` | `LiteBus.Inbox.Ingress.Kafka` |
 | `UseAzureServiceBusIngress(Action<AzureServiceBusInboxIngressModuleBuilder>)` | `LiteBus.Inbox.Ingress.AzureServiceBus` |
@@ -45,10 +45,10 @@ Broker module builders expose `UseOptions`, `DisableIngressConsumer()`, and `Hos
 
 | Broker | Required ingress option members | Required root transport | Additional ingress options mapped |
 | --- | --- | --- | --- |
-| AMQP | `QueueName` | `AddAmqpTransport(...)` | `PrefetchCount`, `DeclareQueue`, `DurableQueue` |
+| AMQP | `QueueName` | `AddAmqpTransport(...)` | `PrefetchCount`, `DeclareQueue`, `DurableQueue`, `RequeueOnFailure` |
 | Kafka | `Destination` | `AddKafkaTransport(...)` | None beyond shared safety and requeue |
-| AWS SQS | `Destination` | `AddAwsSqsTransport(...)` | `ReceiveBatchSize` |
-| Azure Service Bus | `Destination` | `AddAzureServiceBusTransport(...)` | `SubscriptionName`, `PrefetchCount`, `MaxConcurrentCalls` |
+| AWS SQS | `Destination` | `AddAwsSqsTransport(...)` | `ReceiveBatchSize`, `RequeueOnFailure` |
+| Azure Service Bus | `Destination` | `AddAzureServiceBusTransport(...)` | `SubscriptionName`, `PrefetchCount`, `MaxConcurrentCalls`, `RequeueOnFailure` |
 | InMemory | `Destination` | `AddInMemoryTransport()` | None beyond shared safety and requeue |
 
 ## Packages
@@ -97,8 +97,8 @@ No ingress registration activities or log events. Consumer restart and ack-failu
 
 | Test method | Project |
 | --- | --- |
-| `UseAmqpIngress_WithTransportModule_ShouldRegisterIngressHandler` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
-| `UseAmqpIngress_WithRootTransport_ShouldResolveConsumer` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
+| `UseAmqpIngress_WithEnabledIngressConsumer_ShouldRegisterConsumerInManifest` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
+| `UseAmqpIngress_WithDisabledIngressConsumer_ShouldOmitConsumerFromManifest` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
 | `InboxIngressExtensions_ShouldRegisterIngressServices` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
 | `DisableIngressConsumer_ShouldNotRegisterIngressHostedService` | `LiteBus.Storage.IntegrationTests (`PostgreSql/`)` |
 | `UseInMemoryIngress_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/InMemory/`) |

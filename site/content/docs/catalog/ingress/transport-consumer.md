@@ -68,6 +68,7 @@ When `Safety.EnableBatchAccept` is true, the consumer:
 - Consumer loop exits immediately when `TransportInboxIngressHostOptions.Enabled` is false.
 - Partial batch buffers flush on stop, timer, or `Safety.BatchSize` when batch accept is enabled.
 - `Safety.MaxInFlightMessages` limits LiteBus callback work independently from AMQP or Azure prefetch, SQS receive size, and Azure processor concurrency.
+- The enforced `Safety.MaxInFlightMessages` bound is 1 on AMQP, Kafka, AWS SQS, and in-memory ingress; on Azure Service Bus it is the lower of that value and `MaxConcurrentCalls`.
 - Consumer restart loop treats transport faults as retryable host-loop failures and logs EventId 3002.
 
 ## Non-Goals

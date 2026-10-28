@@ -27,7 +27,8 @@ internal static class PostgreSqlIdempotencySchemaScripts
         "fingerprint",
         "is_completed",
         "claimed_at",
-        "completed_at"
+        "completed_at",
+        "claim_token"
     ];
 
     /// <summary>
@@ -45,7 +46,8 @@ internal static class PostgreSqlIdempotencySchemaScripts
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["payload"] = "text",
-            ["fingerprint"] = "text"
+            ["fingerprint"] = "text",
+            ["claim_token"] = "text"
         };
 
     /// <summary>
@@ -55,7 +57,7 @@ internal static class PostgreSqlIdempotencySchemaScripts
     [
         new(
             PostgreSqlIdempotencySchemaSqlPaths.V1Create,
-            "Creates the version 1 idempotency keys table with the key as primary key."),
+            "Creates the current idempotency keys table with the key as primary key."),
         new(
             PostgreSqlIdempotencySchemaSqlPaths.V1EnsureIndexes,
             "Ensures the current idempotency indexes exist.")

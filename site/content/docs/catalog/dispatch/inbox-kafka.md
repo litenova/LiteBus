@@ -75,6 +75,8 @@ services.AddLiteBus(litebus =>
 | `ClientId` | `null` | Producer and consumer client id |
 | `ConsumerGroupId` | `litebus-transport` | Group id for transport consumer side |
 | `MessageTimeoutMs` | `null` | Producer local message timeout override |
+| `SocketTimeoutMs` | `null` | Socket timeout override; positive when set, otherwise the librdkafka default |
+| `MessageSendMaxRetries` | `null` | Producer send retry override; positive when set, otherwise the librdkafka default |
 | `SeekFailureBackoffInitial` | `00:00:00.250` | Initial seek retry delay |
 | `SeekFailureBackoffMax` | `00:00:30` | Max seek retry delay |
 | `SeekFailureBackoffMultiplier` | `2.0` | Seek retry multiplier |

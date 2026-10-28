@@ -81,6 +81,8 @@ public sealed class KafkaTransportModule : IModule
             },
             InstanceLifetime.Singleton));
 
+        // Transient so each KafkaConsumer owns one client: the Confluent consumer holds single-subscription
+        // state and is not thread-safe, so sharing one client across consumers replaces subscriptions.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IConsumer<string, byte[]>),
             static serviceProvider =>
@@ -100,7 +102,7 @@ public sealed class KafkaTransportModule : IModule
 
                 return new ConsumerBuilder<string, byte[]>(config).Build();
             },
-            InstanceLifetime.Singleton));
+            InstanceLifetime.Transient));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ITransportCircuitBreakerRegistry),

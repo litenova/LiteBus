@@ -17,4 +17,14 @@ public interface IOutboxDispatcherModule : IModule
     ///     <see cref="ProcessorHookFailurePolicy.DeadLetter" /> unless a transport dispatcher overrides it.
     /// </value>
     ProcessorHookFailurePolicy DefaultHookFailurePolicy => ProcessorHookFailurePolicy.DeadLetter;
+
+    /// <summary>
+    ///     Gets a value indicating whether the dispatcher publishes the full event once per envelope.
+    /// </summary>
+    /// <value>
+    ///     <see langword="false" /> for in-process dispatch, which publishes each per-handler envelope to its recorded
+    ///     handler alone. Transport dispatchers return <see langword="true" /> because they publish the full event per
+    ///     envelope, so per-handler envelopes would duplicate broker publication.
+    /// </value>
+    bool PublishesFullEventPerEnvelope => false;
 }

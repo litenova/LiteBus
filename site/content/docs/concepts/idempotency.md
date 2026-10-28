@@ -84,10 +84,12 @@ A message declared this way that reaches the shortcut with no key in context rai
 | --- | --- |
 | `KeySelector` | Projects the key from the message. Required. |
 | `FingerprintSelector` | Projects the content fingerprint from the message. Absent by default; set it with `WithFingerprint`. |
-| `Scope` | Prefixes the key. Defaults to the message type name, so two message types never collide by accident. Set it when two types share a key space on purpose. |
+| `Scope` | Prefixes the key. Defaults to the message full type name, so two message types never collide by accident, including two types with one simple name and two closed generics. Set it when two types share a key space on purpose. A blank scope raises `IdempotencyConfigurationException`. |
 | `ReplayResult` | Whether a repeat replays the result the first attempt produced. Off by default. |
 
 A blank key raises `IdempotencyConfigurationException` rather than being used. Every message with a blank key shares one key space, so the first would answer all the others.
+
+The stored key is prefixed by the mediation tenant when the mediation carries one. Set `CommandMediationSettings.Items[MessageTraceContextKeys.TenantId]` from the caller context before sending, or let the integration do it: inbox replay copies the stored envelope tenant, and the ASP.NET Core filter resolves it through `TenantResolver` (see [ASP.NET Core Idempotency Key](../integrations/aspnetcore-idempotency-key.md)). Without a tenant scope, two tenants sending one key string for one command share a store row, and one tenant's repeat is answered with the other's stored result whenever the fingerprints match or either side carries none. Tenant, scope, and key segments are escaped before they are joined, so no two distinct triples produce one stored key.
 
 ## Enabling It
 
@@ -114,8 +116,8 @@ You supply the store, or register the shipped PostgreSQL one with `commands.UseP
 public interface IIdempotencyStore
 {
     Task<IdempotencyClaim> TryClaimAsync(string key, string? fingerprint, CancellationToken cancellationToken = default);
-    Task CompleteAsync(string key, string? payload, CancellationToken cancellationToken = default);
-    Task ReleaseAsync(string key, CancellationToken cancellationToken = default);
+    Task CompleteAsync(string key, string claimToken, string? payload, CancellationToken cancellationToken = default);
+    Task ReleaseAsync(string key, string claimToken, CancellationToken cancellationToken = default);
 }
 ```
 
@@ -125,11 +127,13 @@ Two rules decide whether the store is correct.
 
 **Claim inside the transaction that applies the change.** A key claimed in one transaction and a change written in another can come apart: a crash between them leaves a key claimed for work that never happened, and the retry is answered as already applied. Write the claim through the same unit of work the handler writes through and let it commit both. See [Auditing](auditing.md#making-a-record-atomic-with-its-change) for where that commit goes; the shape is the same, and the completion handler that settles the claim runs at `HandlerPriorities.Persistence`, which is before an application's commit at `HandlerPriorities.UnitOfWork`.
 
-Four answers cover what a claim can meet. `Granted` runs the message and `AlreadyCompleted` answers the repeat from the stored record. `InFlight` refuses a delivery whose key another delivery still holds, and `FingerprintMismatch` refuses a repeat whose fingerprint differs from the stored one; both end the mediation as `Denied`, so `TrySendAsync` returns the denial and `SendAsync` raises `LiteBusMessageDeniedException`.
+Four answers cover what a claim can meet. `Granted` runs the message and `AlreadyCompleted` answers the repeat from the stored record. `InFlight` refuses a delivery whose key another delivery still holds, and `FingerprintMismatch` refuses a repeat whose fingerprint differs from the stored one; both end the mediation as `Denied`, so `TrySendAsync` returns the denial and `SendAsync` raises `LiteBusMessageDeniedException`. Anything else is a broken store, and the shortcut reports it as `PipelineContractException` naming the store rather than running the handler without a recorded claim.
+
+Every grant carries a claim token fenced into the stored row. The completion handler settles with the token the shortcut was granted, and the store completes or releases only while the stored claim still carries it. A settle that arrives after a claim-timeout takeover is a no-op: a late completion cannot mark the new claimant's work applied, a late release cannot free its live claim, and completing a key the caller does not hold stores nothing.
 
 The denial carries a machine-readable code from `IdempotencyRefusalCodes`: `idempotency.in-flight` for a claim still running, `idempotency.fingerprint-mismatch` for a key reused with different content. An HTTP boundary maps them the way the IETF Idempotency-Key header draft does: 409 Conflict for in-flight, telling the client to retry after the first delivery settles, and 422 Unprocessable Content for a mismatch, telling the client the request itself must change because the key already identifies other content.
 
-Nothing expires an applied key. A store that grows forever is a storage problem with a storage answer, a retention job, and only you know how long a repeat is still plausible. An unsettled claim is different: a claimant that crashes without settling would block its key until an operator intervenes, so a store takes the claim over for a new caller once it is older than the store's claim timeout, five minutes by default on both shipped stores. Keep the timeout comfortably longer than the slowest mediation that claims through the store, so a live claimant always settles first.
+Nothing expires an applied key. A store that grows forever is a storage problem with a storage answer, a retention job, and only you know how long a repeat is still plausible. An unsettled claim is different: a claimant that crashes without settling would block its key until an operator intervenes, so a store takes the claim over for a new caller once it is older than the store's claim timeout, five minutes by default on every shipped store. Keep the timeout comfortably longer than the slowest mediation that claims through the store, so a live claimant always settles first. The timeout must be positive: zero or negative is rejected when the store is built, because it would make every unsettled claim immediately takeover-eligible.
 
 `InMemoryIdempotencyStore` in `LiteBus.Testing.Mediation` is a test double, and it is shipped from the testing package on purpose. It forgets everything on restart, and a second process behind a load balancer shares nothing with the first, so both apply the same message. Idempotency is a claim about the system, and a per-process store cannot make it.
 
@@ -148,7 +152,7 @@ public sealed class SettlePaymentCommandDefinition : IIdempotencyDefinition<Sett
 }
 ```
 
-Without it, a repeated result-producing command raises `PipelineContractException` naming the fix. LiteBus will not invent an answer: returning `default` would hand the caller a zero or a null that looks like a real result.
+Without it, a repeated result-producing command raises `PipelineContractException` naming the fix. LiteBus will not invent an answer: returning `default` would hand the caller a zero or a null that looks like a real result. A command declared with `KeyedByContext` that replays results should also set a fingerprint with `WithFingerprint`: without one, any repeat of the key is answered with the stored result, even a different request reusing a predictable key.
 
 Turn replay on for a command whose caller needs the same answer twice, such as an endpoint a client retries. Leave it off for a redelivered command nobody is waiting on, and for a command with no result, where there is nothing to replay.
 
@@ -161,7 +165,7 @@ Turn replay on for a command whose caller needs the same answer twice, such as a
 | `Denied`, `Invalid` | Left alone: a guard or validator denial never claimed, and an in-flight or mismatch denial holds no claim either, so there is nothing to settle |
 | `Failed`, `Canceled` | Released, so the retry runs |
 
-Only the mediation that was granted the key settles it. The shortcut records each granted key in execution-context data, and the completion handler completes or releases that recorded key; a mediation that never claimed, because it was denied, invalid, answered as a repeat, or denied as in-flight or mismatched, settles nothing, so it can never delete another delivery's in-flight claim.
+Only the mediation that was granted the key settles it. The shortcut records each granted key in execution-context data, and the completion handler completes or releases that recorded key; a mediation that never claimed, because it was denied, invalid, answered as a repeat, or denied as in-flight or mismatched, settles nothing, so it can never delete another delivery's in-flight claim. The record carries the token fencing the grant, and the completion handler settles with it without re-running the key or fingerprint selectors, so a handler that mutates the message cannot turn its own success into a resolution failure.
 
 Release is what makes a transient failure survivable. Burning the key on a database timeout would make the retry a false repeat, which is the opposite of what idempotency is for.
 

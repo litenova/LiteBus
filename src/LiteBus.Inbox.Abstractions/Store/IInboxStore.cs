@@ -29,6 +29,10 @@ public interface IInboxStore
     /// </param>
     /// <param name="cancellationToken">A token that cancels the store write before it is committed.</param>
     /// <returns>The stored envelope and whether this append inserted it or resolved an existing submission.</returns>
+    /// <exception cref="LiteBus.Messaging.Abstractions.DurableMessaging.IdempotencyConflictException">
+    ///     The message identifier already exists for another tenant, or the submission conflicts under strict conflict
+    ///     mode.
+    /// </exception>
     Task<InboxAppendResult> AddAsync(InboxEnvelope envelope, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -43,6 +47,10 @@ public interface IInboxStore
     ///     The append results in the same order as <paramref name="envelopes" />. Each result identifies whether its
     ///     envelope was inserted or resolved from a duplicate idempotency key or message identifier.
     /// </returns>
+    /// <exception cref="LiteBus.Messaging.Abstractions.DurableMessaging.IdempotencyConflictException">
+    ///     A message identifier already exists for another tenant, or a submission conflicts under strict conflict
+    ///     mode.
+    /// </exception>
     Task<IReadOnlyList<InboxAppendResult>> AddBatchAsync(
         IReadOnlyList<InboxEnvelope> envelopes,
         CancellationToken cancellationToken = default);

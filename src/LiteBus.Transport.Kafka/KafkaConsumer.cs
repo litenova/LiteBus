@@ -10,6 +10,9 @@ namespace LiteBus.Transport.Kafka;
 ///     Consumes Kafka records with manual offset commit after handler acknowledgement.
 /// </summary>
 /// <remarks>
+///     Each instance owns its <see cref="IConsumer{TKey,TValue}" />: the client holds single-subscription state and
+///     is not thread-safe, so a client must never be shared across consumers. <see cref="StopAsync" /> closes the
+///     owned client for a prompt group leave, and <see cref="DisposeAsync" /> disposes it.
 ///     <see cref="TransportMessage.ReturnToQueueAsync" /> seeks to the failed offset so the record is consumed again
 ///     before the offset is committed. <see cref="TransportMessage.AcceptAsync" /> commits the offset. Processors must
 ///     treat Kafka deliveries as at-least-once and make handlers idempotent.
@@ -17,7 +20,7 @@ namespace LiteBus.Transport.Kafka;
 public sealed class KafkaConsumer : IMessageConsumer
 {
     /// <summary>
-    ///     Gets the Kafka consumer used to read topic records.
+    ///     Gets the owned Kafka consumer used to read topic records.
     /// </summary>
     private readonly IConsumer<string, byte[]> _consumer;
 
@@ -63,9 +66,14 @@ public sealed class KafkaConsumer : IMessageConsumer
     private static readonly TimeSpan ConsumePollInterval = TimeSpan.FromMilliseconds(250);
 
     /// <summary>
+    ///     The delay before polling again after a transient consume error that leaves the client usable.
+    /// </summary>
+    private static readonly TimeSpan ConsumeErrorBackoff = TimeSpan.FromSeconds(1);
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="KafkaConsumer" /> class.
     /// </summary>
-    /// <param name="consumer">The Kafka consumer used to read topic records.</param>
+    /// <param name="consumer">The Kafka consumer used to read topic records. Ownership transfers to this instance.</param>
     /// <param name="options">The connection settings controlling seek backoff behavior.</param>
     public KafkaConsumer(IConsumer<string, byte[]> consumer, KafkaTransportOptions options)
     {
@@ -120,6 +128,11 @@ public sealed class KafkaConsumer : IMessageConsumer
     private static readonly TimeSpan CloseWaitTimeout = TimeSpan.FromSeconds(30);
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     A faulted consume loop is captured into the stop signal instead of thrown here, so the terminal failure
+    ///     surfaces through <see cref="WaitUntilStoppedAsync" />. The owned client is closed for a prompt group leave
+    ///     once the loop exits.
+    /// </remarks>
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -140,22 +153,16 @@ public sealed class KafkaConsumer : IMessageConsumer
 
                 if (_consumeTask is not null)
                 {
+                    var closedToUnblock = false;
+
                     try
                     {
                         await _consumeTask.WaitAsync(StopWaitTimeout, cancellationToken).ConfigureAwait(false);
                     }
                     catch (TimeoutException)
                     {
-                        try
-                        {
-                            await Task.Run(() => _consumer.Close(), CancellationToken.None)
-                                .WaitAsync(CloseWaitTimeout, CancellationToken.None)
-                                .ConfigureAwait(false);
-                        }
-                        catch (TimeoutException)
-                        {
-                            // Close is best-effort when the consume loop does not exit promptly.
-                        }
+                        await CloseConsumerAsync().ConfigureAwait(false);
+                        closedToUnblock = true;
 
                         try
                         {
@@ -165,6 +172,16 @@ public sealed class KafkaConsumer : IMessageConsumer
                         {
                             // The consume loop may still be blocked in native code.
                         }
+                        catch (OperationCanceledException)
+                        {
+                            // Expected when cancellation stops the consume loop.
+                        }
+#pragma warning disable CA1031 // A faulted loop surfaces through WaitUntilStoppedAsync, not StopAsync.
+                        catch (Exception exception)
+#pragma warning restore CA1031
+                        {
+                            SignalStopped(exception);
+                        }
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                     {
@@ -173,6 +190,17 @@ public sealed class KafkaConsumer : IMessageConsumer
                     catch (OperationCanceledException)
                     {
                         // Expected when cancellation stops the consume loop.
+                    }
+#pragma warning disable CA1031 // A faulted loop surfaces through WaitUntilStoppedAsync, not StopAsync.
+                    catch (Exception exception)
+#pragma warning restore CA1031
+                    {
+                        SignalStopped(exception);
+                    }
+
+                    if (!closedToUnblock && !cancellationToken.IsCancellationRequested)
+                    {
+                        await CloseConsumerAsync().ConfigureAwait(false);
                     }
                 }
             }
@@ -216,6 +244,7 @@ public sealed class KafkaConsumer : IMessageConsumer
         }
         finally
         {
+            _consumer.Dispose();
             _lifecycleGate.Dispose();
         }
     }
@@ -223,6 +252,11 @@ public sealed class KafkaConsumer : IMessageConsumer
     /// <summary>
     ///     Reads records from the subscribed topic until cancellation is requested.
     /// </summary>
+    /// <remarks>
+    ///     Transient consume errors leave the client usable, so the loop backs off briefly and keeps polling; only a
+    ///     fatal error faults the loop. A requeue nack retries a transient seek failure with the seek backoff schedule
+    ///     until the seek succeeds or shutdown cancels the retry.
+    /// </remarks>
     /// <param name="options">The consumer options for the active subscription.</param>
     /// <param name="handler">The handler invoked for each record.</param>
     /// <param name="cancellationToken">The token used to cancel the consume loop.</param>
@@ -254,10 +288,12 @@ public sealed class KafkaConsumer : IMessageConsumer
                 {
                     result = _consumer.Consume(ConsumePollInterval);
                 }
-                catch (ConsumeException)
+                catch (ConsumeException exception) when (exception.Error is not null && !exception.Error.IsFatal)
                 {
-                    SignalStopped();
-                    throw;
+                    // The client recovers from a transient broker error by itself; faulting here would stall
+                    // raw-host consumers until manual intervention.
+                    await Task.Delay(ConsumeErrorBackoff, cancellationToken).ConfigureAwait(false);
+                    continue;
                 }
 
                 if (result is null)
@@ -275,20 +311,17 @@ public sealed class KafkaConsumer : IMessageConsumer
                         CommitOffset(result);
                         return Task.CompletedTask;
                     },
-                    NackAsync = (requeue, _) =>
+                    NackAsync = async (requeue, token) =>
                     {
                         if (requeue)
                         {
-                            _consumer.Seek(offset);
-                            _pendingConsumeDelay = _seekBackoff.RecordSeek(offset);
+                            await SeekWithRetryAsync(offset, token).ConfigureAwait(false);
                         }
                         else
                         {
                             _seekBackoff.RecordCommit(offset);
                             CommitOffset(result);
                         }
-
-                        return Task.CompletedTask;
                     }
                 };
 
@@ -304,6 +337,13 @@ public sealed class KafkaConsumer : IMessageConsumer
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // Expected during consumer shutdown.
+        }
+#pragma warning disable CA1031 // Terminal loop failures surface through WaitUntilStoppedAsync; the signal preserves the fault before rethrow.
+        catch (Exception exception)
+#pragma warning restore CA1031
+        {
+            SignalStopped(exception);
+            throw;
         }
         finally
         {
@@ -321,6 +361,74 @@ public sealed class KafkaConsumer : IMessageConsumer
     }
 
     /// <summary>
+    ///     Seeks to the failed offset, retrying transient seek failures with backoff until success or cancellation.
+    /// </summary>
+    /// <remarks>
+    ///     Seek throws <see cref="KafkaException" /> when the assigned partition was revoked during a rebalance. A
+    ///     fatal error is rethrown so the loop faults; a transient failure delays with the seek backoff schedule and
+    ///     retries, so a rebalance coinciding with a handler failure redelivers instead of killing the consumer.
+    /// </remarks>
+    /// <param name="offset">The offset to seek back to.</param>
+    /// <param name="cancellationToken">The token used to cancel seek retries.</param>
+    /// <returns>A task that completes when the seek succeeds.</returns>
+    private async Task SeekWithRetryAsync(TopicPartitionOffset offset, CancellationToken cancellationToken)
+    {
+        TimeSpan? lastRetryDelay = null;
+
+        while (true)
+        {
+            try
+            {
+                _consumer.Seek(offset);
+                break;
+            }
+            catch (KafkaException exception) when (!IsFatalKafkaError(exception))
+            {
+                lastRetryDelay = _seekBackoff.RecordSeek(offset);
+                await Task.Delay(lastRetryDelay.Value, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        _pendingConsumeDelay = lastRetryDelay ?? _seekBackoff.RecordSeek(offset);
+    }
+
+    /// <summary>
+    ///     Returns whether a Kafka client error is fatal and the client cannot recover from it.
+    /// </summary>
+    /// <param name="exception">The Kafka client exception to inspect.</param>
+    /// <returns><see langword="true" /> when the error is fatal; otherwise, <see langword="false" />.</returns>
+    private static bool IsFatalKafkaError(KafkaException exception)
+    {
+        return exception.Error is not null && exception.Error.IsFatal;
+    }
+
+    /// <summary>
+    ///     Closes the owned client without failing teardown when the close cannot complete.
+    /// </summary>
+    /// <returns>A task that completes when the close attempt finishes.</returns>
+    private async Task CloseConsumerAsync()
+    {
+        try
+        {
+            await Task.Run(() => _consumer.Close(), CancellationToken.None)
+                .WaitAsync(CloseWaitTimeout, CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            // Close is best-effort when the consume loop does not exit promptly.
+        }
+        catch (KafkaException)
+        {
+            // Close is best-effort; a failed group leave must not fail host shutdown.
+        }
+        catch (ObjectDisposedException)
+        {
+            // The owned client was already released; there is nothing left to close.
+        }
+    }
+
+    /// <summary>
     ///     Creates a new task source used to observe consumer shutdown.
     /// </summary>
     /// <returns>The task source for the current consume session.</returns>
@@ -332,8 +440,15 @@ public sealed class KafkaConsumer : IMessageConsumer
     /// <summary>
     ///     Marks the current consume session as stopped.
     /// </summary>
-    private void SignalStopped()
+    /// <param name="exception">The broker failure that stopped the session, when one was supplied.</param>
+    private void SignalStopped(Exception? exception = null)
     {
+        if (exception is not null)
+        {
+            _stoppedTcs.TrySetException(exception);
+            return;
+        }
+
         _stoppedTcs.TrySetResult();
     }
 }

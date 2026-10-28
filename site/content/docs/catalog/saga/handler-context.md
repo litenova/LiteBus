@@ -7,7 +7,7 @@
 
 ## What It Does
 
-`ISagaContext` is the handler-facing surface for saga. When a saga scope is active, handlers call `GetState<TState>()` to read the current snapshot, `SetState(state)` to mark dirty state for post-dispatch save, and `Complete()` to mark the workflow terminal after dispatch succeeds.
+`ISagaContext` is the handler-facing surface for saga. When a saga scope is active, handlers call `GetState<TState>()` to read the current snapshot, `SetState(state)` to replace state for post-dispatch save, and `Complete()` to mark the workflow terminal after dispatch succeeds. Reading state never marks the scope changed; the hook compares the serialized state with the snapshot taken at load, so in-place mutations of the returned instance persist without `SetState`, and a dispatch that only reads state saves nothing.
 
 `IsActive` is false when the envelope has no correlation, the contract is unmapped, the saga instance is already completed, or the message was already applied (redelivery marker match). The handler still runs for a new message on a completed saga; `IsActive` false only disables saga state access, so handlers should guard mutations with `IsActive`.
 
@@ -77,6 +77,24 @@ No meters, activities, or structured logging on `ISagaContext` itself.
 - **Description**: `SagaMutatingDispatcher` handler checks `IsActive`, calls `GetState`/`SetState`.
 - **Behavior**: In-process inbox dispatch with active saga scope.
 - **Expected outcome**: Persisted state reflects handler increment.
+- **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
+
+#### `SagaPureReadTests.AfterDispatchAsync_WhenDispatchOnlyReadsState_SkipsSave`
+
+- **Use case**: Observing state through `GetState` without changing it performs no save.
+- **Test kind**: Unit
+- **Description**: Handler reads the snapshot and returns it unchanged.
+- **Behavior**: Snapshot comparison finds no changes after dispatch.
+- **Expected outcome**: No save and no row created for the new saga.
+- **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
+
+#### `SagaPureReadTests.AfterDispatchAsync_WhenStateChangesInPlace_PersistsWithoutSetState`
+
+- **Use case**: Mutating the `GetState` instance in place persists without `SetState`.
+- **Test kind**: Unit
+- **Description**: Handler sets a property on the returned state object.
+- **Behavior**: The serialized state differs from the load snapshot, so the hook saves.
+- **Expected outcome**: The stored row carries the mutation at version 1.
 - **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
 
 #### `PostgreSqlSagaInboxEndToEndTests.ProcessPendingAsync_with_EnableSaga_should_persist_state_in_postgresql`

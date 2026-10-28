@@ -8,7 +8,8 @@ namespace LiteBus.Extensions.AspNetCore;
 ///         The filter writes the validated header value under <see cref="HttpContextItem" />, which keeps it available
 ///         for the duration of the endpoint invocation. The endpoint copies it into mediation settings under
 ///         <see cref="MediationItem" /> as a <see cref="LiteBus.Messaging.Abstractions.SuppliedIdempotencyKey" />, and
-///         the guard reads that entry back before the idempotency shortcut asks for it.
+///         the guard reads that entry back before the idempotency shortcut asks for it. A tenant the filter resolved
+///         travels the same two hops under <see cref="TenantHttpContextItem" /> and the trace tenant entry.
 ///     </para>
 ///     <para>
 ///         The two entries live in different dictionaries, so the keys never collide: one is an
@@ -27,4 +28,9 @@ internal static class IdempotencyKeyItemKeys
     ///     The mediation settings entry holding the key the guard hands to the idempotency shortcut.
     /// </summary>
     internal const string MediationItem = "__LiteBus.IdempotencyKey.MediationItem";
+
+    /// <summary>
+    ///     The <c>HttpContext.Items</c> entry holding the resolved tenant for the endpoint invocation.
+    /// </summary>
+    internal const string TenantHttpContextItem = "__LiteBus.IdempotencyKey.TenantHttpContextItem";
 }

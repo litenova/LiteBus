@@ -19,6 +19,9 @@ public sealed class TransportOutboxDispatchModule<TTransportModule> :
     public ProcessorHookFailurePolicy DefaultHookFailurePolicy =>
         ProcessorHookFailurePolicy.CompleteDespiteHookFailure;
 
+    /// <inheritdoc />
+    public bool PublishesFullEventPerEnvelope => true;
+
     /// <summary>
     ///     Gets the dispatcher options configured by the application.
     /// </summary>

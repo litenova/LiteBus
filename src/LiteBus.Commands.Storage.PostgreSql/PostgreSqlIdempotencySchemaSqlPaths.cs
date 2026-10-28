@@ -16,7 +16,7 @@ public static class PostgreSqlIdempotencySchemaSqlPaths
     private const string Root = "src/LiteBus.Commands.Storage.PostgreSql/Sql/";
 
     /// <summary>
-    ///     Creates the version 1 idempotency keys table.
+    ///     Creates the current idempotency keys table.
     /// </summary>
     public const string V1Create = Root + "idempotency/v1/create.sql";
 

@@ -81,12 +81,145 @@ public sealed class TestMediatorDoubleTests
         IQueryMediator contract = mediator;
 
         var value = await contract.QueryAsync(new DoubledQuery()).ConfigureAwait(false);
+
+        mediator.NextResult = "seeded";
+
         var tried = await contract.TryQueryAsync(new DoubledQuery()).ConfigureAwait(false);
 
         value.Should().Be("seeded");
         tried.IsSuccess.Should().BeTrue();
         tried.Value.Should().Be("seeded");
         mediator.Queries.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task The_query_double_consumes_the_next_result_once()
+    {
+        var mediator = new TestQueryMediator { NextResult = "seeded" };
+        IQueryMediator contract = mediator;
+
+        var first = await contract.QueryAsync(new DoubledQuery()).ConfigureAwait(false);
+        var second = await contract.QueryAsync(new DoubledQuery()).ConfigureAwait(false);
+
+        first.Should().Be("seeded");
+        second.Should().BeNull();
+        mediator.NextResult.Should().BeNull();
+        mediator.Queries.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task The_query_double_stream_throws_when_the_next_result_has_the_wrong_type()
+    {
+        var mediator = new TestQueryMediator { NextResult = 42 };
+        IQueryMediator contract = mediator;
+
+        var enumerating = async () =>
+        {
+            await foreach (var item in contract.StreamAsync(new DoubledStreamQuery()).ConfigureAwait(false))
+            {
+                _ = item;
+            }
+        };
+
+        await enumerating.Should().ThrowAsync<InvalidCastException>().ConfigureAwait(false);
+        mediator.Queries.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task The_command_double_records_every_send_under_concurrent_use()
+    {
+        var mediator = new TestCommandMediator();
+        ICommandMediator contract = mediator;
+
+        const int senderCount = 8;
+        const int sendsPerSender = 250;
+
+        var senders = new Task[senderCount];
+
+        for (var sender = 0; sender < senderCount; sender++)
+        {
+            senders[sender] = Task.Run(async () =>
+            {
+                for (var index = 0; index < sendsPerSender; index++)
+                {
+                    await contract.SendAsync(new DoubledCommand()).ConfigureAwait(false);
+                }
+            });
+        }
+
+        await Task.WhenAll(senders).ConfigureAwait(false);
+
+        mediator.Commands.Should().HaveCount(senderCount * sendsPerSender);
+    }
+
+    [Fact]
+    public async Task The_command_double_returns_a_snapshot_of_recorded_commands()
+    {
+        var mediator = new TestCommandMediator();
+        ICommandMediator contract = mediator;
+
+        await contract.SendAsync(new DoubledCommand()).ConfigureAwait(false);
+
+        var snapshot = mediator.Commands;
+
+        await contract.SendAsync(new DoubledCommand()).ConfigureAwait(false);
+
+        snapshot.Should().ContainSingle();
+        mediator.Commands.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task The_event_double_records_every_publication_under_concurrent_use()
+    {
+        var mediator = new TestEventMediator();
+        IEventMediator contract = mediator;
+
+        const int publisherCount = 8;
+        const int publicationsPerPublisher = 250;
+
+        var publishers = new Task[publisherCount];
+
+        for (var publisher = 0; publisher < publisherCount; publisher++)
+        {
+            publishers[publisher] = Task.Run(async () =>
+            {
+                for (var index = 0; index < publicationsPerPublisher; index++)
+                {
+                    await contract.PublishAsync(new DoubledEvent()).ConfigureAwait(false);
+                }
+            });
+        }
+
+        await Task.WhenAll(publishers).ConfigureAwait(false);
+
+        mediator.Events.Should().HaveCount(publisherCount * publicationsPerPublisher);
+    }
+
+    [Fact]
+    public async Task The_query_double_records_every_query_under_concurrent_use()
+    {
+        var mediator = new TestQueryMediator();
+        IQueryMediator contract = mediator;
+
+        const int querierCount = 8;
+        const int queriesPerQuerier = 250;
+
+        var queriers = new Task[querierCount];
+
+        for (var querier = 0; querier < querierCount; querier++)
+        {
+            queriers[querier] = Task.Run(async () =>
+            {
+                for (var index = 0; index < queriesPerQuerier; index++)
+                {
+                    await contract.QueryAsync(new DoubledQuery()).ConfigureAwait(false);
+                }
+            });
+        }
+
+        await Task.WhenAll(queriers).ConfigureAwait(false);
+
+        mediator.Queries.Should().HaveCount(querierCount * queriesPerQuerier);
     }
 
     [Fact]

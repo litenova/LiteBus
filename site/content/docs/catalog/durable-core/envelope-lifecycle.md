@@ -39,6 +39,9 @@ Every envelope carries the forensics an operator asks for first, and every store
 | `DeadLetteredAt` | Dead-letter transition | When the message gave up |
 | `LastLeaseOwner` | Each lease | Which instance was handling it, and it survives the lease being released |
 | `ErrorType` | Each failure carrying an exception | What kind of failure it was, without parsing `LastError` |
+| `Handler` (outbox only) | Enqueue under per-handler delivery | Which single event handler the envelope is addressed to; `null` means broadcast |
+
+`Handler` holds the full name of the single event handler a per-handler envelope is addressed to. In-process dispatch publishes a targeted envelope with a handler predicate matching only the recorded handler. See [Per-Handler Delivery](outbox-enqueue.md#per-handler-delivery).
 
 `FirstFailedAt` is set once and is not moved by later failures, so it keeps naming the first one. `AsRequeued` clears `FirstFailedAt`, `DeadLetteredAt`, `ErrorType` and `LastError` because the message starts over, and keeps `LastAttemptedAt` and `LastLeaseOwner` as the record of what happened before.
 

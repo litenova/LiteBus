@@ -20,7 +20,9 @@ namespace LiteBus.Messaging.MediationStrategies;
 ///     <para>
 ///         Faults are routed to the error stage from four places: acquiring the handler's stream, acquiring an
 ///         enumerator, advancing one, and running post-handlers. All four go through the same local function, because
-///         four copies of that block is how they drift apart.
+///         four copies of that block is how they drift apart. A refusal mapper's stream is enumerated through the
+///         same runner as the handler's stream, so a fault in it is routed rather than escaping raw. A fault the
+///         recoverable filter excludes bypasses the error stage but is still recorded before completion runs.
 ///     </para>
 ///     <para>
 ///         The returned stream links the token supplied to <c>GetAsyncEnumerator</c> with the token captured

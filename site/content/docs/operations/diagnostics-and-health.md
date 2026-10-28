@@ -53,7 +53,7 @@ public sealed class OutboxBacklogCheck : IDiagnosticCheck
 inbox.AddDiagnosticCheck<OutboxBacklogCheck>("payments.outbox.backlog");
 ```
 
-The PostgreSQL inbox and outbox storage adapters already register their schema probes (`inbox.postgresql.schema` and `outbox.postgresql.schema`) when you call `UsePostgreSqlStorage`. Do not register those library probes again under another name: one implementation type under two names fails composition.
+The PostgreSQL inbox and outbox storage adapters already register their schema probes (`inbox.postgresql.schema` and `outbox.postgresql.schema`) when you call `UsePostgreSqlStorage`. Do not register those library probes again under another name: one implementation type under two names fails composition, and so does one name shared by two probe types.
 
 ## Read Broker Probes
 
@@ -91,7 +91,7 @@ builder.Services.AddHealthChecks().AddLiteBus(options =>
 | `DiagnosticChecks.RunTimeout` | Management and health-check options | `null`: budget derived from probe count, `MaxParallelism`, and `Timeout` |
 | Meter names | Public constants on axis telemetry types | Stable consumer contract |
 
-`Timeout` bounds one probe: a probe that overruns it reports unhealthy. `RunTimeout` bounds the whole run. When `RunTimeout` is `null`, the runner derives the budget as worst-case packing of the probe count into `MaxParallelism` lanes at `Timeout` per probe, and allows a one second grace after a computed budget expires so in-flight per-probe timeouts can land. When `RunTimeout` is set, probes still running when the budget expires are cancelled and reported unhealthy.
+`Timeout` bounds one probe: a probe that overruns it reports unhealthy. `RunTimeout` bounds the whole run. A negative `RunTimeout` is rejected when the health check or management endpoints are registered. When `RunTimeout` is `null`, the runner derives the budget as worst-case packing of the probe count into `MaxParallelism` lanes at `Timeout` per probe, and allows a one second grace after a computed budget expires so in-flight per-probe timeouts can land. When `RunTimeout` is set, probes still running when the budget expires are cancelled and reported unhealthy.
 
 When the manifest has zero probes and `FailHealthWhenNoProbes` is true, the endpoint returns degraded or unhealthy. Set it to false only in local samples without probes; keep the default true in production and register at least one probe. The Generic Host health registration carries `litebus` and `ready` tags so you can filter a readiness endpoint with the standard health-check predicate. See [Architecture](../architecture/README.md) for telemetry instrument names. Renames are breaking changes.
 

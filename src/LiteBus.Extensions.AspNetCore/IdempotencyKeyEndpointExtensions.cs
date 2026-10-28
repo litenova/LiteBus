@@ -46,6 +46,12 @@ public static class IdempotencyKeyEndpointExtensions
     ///         A blank header counts as missing. When several values arrive under one header name, the first value wins
     ///         and the rest are ignored.
     ///     </para>
+    ///     <para>
+    ///         A multi-tenant endpoint sets <see cref="IdempotencyKeyFilterOptions.TenantResolver" /> so the stored key
+    ///         is prefixed by the calling tenant. Without it, two tenants sending one key string for one command share
+    ///         a store row. The resolved tenant travels with the key into the mediation through
+    ///         <see cref="CommandMediationSettingsExtensions" />.
+    ///     </para>
     /// </remarks>
     public static TBuilder WithIdempotencyKey<TBuilder>(
         this TBuilder builder,
@@ -76,6 +82,13 @@ public static class IdempotencyKeyEndpointExtensions
             }
 
             httpContext.Items[IdempotencyKeyItemKeys.HttpContextItem] = key;
+
+            var tenant = options.TenantResolver?.Invoke(httpContext);
+
+            if (!string.IsNullOrWhiteSpace(tenant))
+            {
+                httpContext.Items[IdempotencyKeyItemKeys.TenantHttpContextItem] = tenant;
+            }
 
             return next(context);
         });

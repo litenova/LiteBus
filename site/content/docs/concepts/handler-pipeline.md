@@ -152,6 +152,10 @@ When any stage throws a recoverable exception, the main flow stops and error han
 - A handler recovers by setting `context.Outcome` to `Handled`. For commands and queries that produce a result, it sets `context.HandledResult` to the fallback value the caller receives.
 - A handler that sets `context.Outcome` to `Handled` on a result-bearing message without a usable `context.HandledResult` recovers the message, and the caller receives the default value (`null` for a reference type). Set `HandledResult` to hand the caller a fallback value instead.
 
+Some faults bypass the error stage: a missing or ambiguous handler, a refusal, a cancellation, and an idempotency misconfiguration. They still reach the completion stage, which observes `Failed` with the exception, or `Canceled` for a cancellation, so a unit of work never commits and an audit trail never records success for work that threw.
+
+When an error handler recovers, completion still observes `Failed`, because a fault occurred, but `MessageCompletionContext.Exception` is null, because nothing propagated to the caller. That is what distinguishes a recovered fault from one that escaped, and it is why a completion handler that throws on a recovered path propagates its fault instead of having it suppressed.
+
 An observing handler records the failure and leaves the default outcome unchanged, so the original exception still propagates:
 
 ```csharp
@@ -632,7 +636,7 @@ Three rules matter when you write one:
 
 Register a handler for one message type with `ICommandCompletionHandler<TCommand>`, `IQueryCompletionHandler<TQuery>`, or `IEventCompletionHandler<TEvent>`; for a message that produces a result, the two-parameter form such as `ICommandCompletionHandler<TCommand, TCommandResult>` hands the result over typed. Register for every message on an axis with the non-generic `ICommandCompletionHandler`, `IQueryCompletionHandler`, or `IEventCompletionHandler`.
 
-For streams, completion fires when the enumerator is disposed. A consumer who calls a stream query and never enumerates the result produces no completion record. That is inherent to iterators, and worth knowing if you audit reads.
+For streams, completion fires when the enumerator is disposed. A consumer who calls a stream query and never enumerates the result produces no completion record. That is inherent to iterators, and worth knowing if you audit reads. A stream supplied by a refusal mapper is enumerated through the same runner as the handler's stream, so a fault in it is offered to the error stage like any other stream fault, and the ambient scope wraps every advance.
 
 ## Next
 

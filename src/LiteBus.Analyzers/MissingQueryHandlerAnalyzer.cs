@@ -97,6 +97,11 @@ public sealed class MissingQueryHandlerAnalyzer : DiagnosticAnalyzer
     /// <param name="registrations">The discovered handler registrations.</param>
     /// <param name="messages">The message type collector for the kind.</param>
     /// <param name="pipeline">The handler pipeline stage name.</param>
+    /// <remarks>
+    ///     Only messages declared in the analyzed assembly are candidates, while handlers from eligible referenced
+    ///     assemblies still satisfy coverage. A handler that lives in a dependent project is compiled separately and
+    ///     stays invisible here; co-locate the handler with the message or suppress the diagnostic.
+    /// </remarks>
     private static void ReportMissingHandlers(
         CompilationAnalysisContext context,
         ImmutableArray<HandlerRegistration> registrations,
@@ -109,7 +114,7 @@ public sealed class MissingQueryHandlerAnalyzer : DiagnosticAnalyzer
 
         var openGenericHandlers = messages.ToOpenGenericMainHandlers(context.CancellationToken);
 
-        foreach (var query in messages.ToMessageTypes(context.CancellationToken))
+        foreach (var query in messages.ToMessageTypes())
         {
             if (MessageAnalysis.HasMainHandler(
                     query.MessageType,

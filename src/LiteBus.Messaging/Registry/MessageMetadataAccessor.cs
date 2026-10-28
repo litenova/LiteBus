@@ -28,11 +28,18 @@ internal sealed class MessageMetadataAccessor : IMessageMetadataAccessor
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     Metadata follows the descriptor the mediation resolved, not the registration scan. An unregistered runtime
+    ///     type that the default resolve strategy mediates through a base descriptor reads that descriptor's metadata,
+    ///     exactly as if the type had been registered and inherited the base declarations. Only a type nothing
+    ///     registered covers raises <see cref="MessageMetadataNotFoundException" />; an ambiguous fallback raises
+    ///     <see cref="AmbiguousMessageResolveException" />, the same exception mediating the type would raise.
+    /// </remarks>
     public IMessageMetadata ForMessage(Type messageType)
     {
         ArgumentNullException.ThrowIfNull(messageType);
 
-        return _reader.Find(messageType)?.Metadata
+        return ResolveDescriptor(messageType)?.Metadata
                ?? throw new MessageMetadataNotFoundException(messageType);
     }
 
@@ -56,5 +63,16 @@ internal sealed class MessageMetadataAccessor : IMessageMetadataAccessor
         where TValue : notnull
     {
         return ForMessage(typeof(TMessage)).TryGet(out value);
+    }
+
+    /// <summary>
+    ///     Resolves the descriptor whose metadata governs a message type: the exact registration, or the
+    ///     most-derived assignable one the default resolve strategy would mediate the type through.
+    /// </summary>
+    /// <param name="messageType">The message type to read.</param>
+    /// <returns>The governing descriptor, or <see langword="null" /> when nothing registered covers the type.</returns>
+    private IMessageDescriptor? ResolveDescriptor(Type messageType)
+    {
+        return new ActualTypeOrFirstAssignableTypeMessageResolveStrategy().Find(messageType, _reader);
     }
 }

@@ -9,7 +9,9 @@ namespace LiteBus.Outbox.Abstractions;
 /// </summary>
 /// <remarks>
 ///     Envelope factories centralize metadata mapping so <see cref="IOutbox" />,
-///     <see cref="ITransactionalOutbox" />, and Entity Framework Core staging share one creation path.
+///     <see cref="ITransactionalOutbox" />, and Entity Framework Core staging share one creation path. A distributed
+///     trace context must be valid JSON text; creation throws <see cref="System.ArgumentException" /> otherwise, so
+///     every provider fails fast instead of persisting a row it cannot read back.
 /// </remarks>
 public interface IOutboxEnvelopeFactory
 {
@@ -84,7 +86,8 @@ public interface IOutboxEnvelopeFactory
     /// <param name="items">The enqueue commands to serialize.</param>
     /// <param name="cancellationToken">A token used to cancel serialization.</param>
     /// <returns>
-    ///     Outbox envelopes in the same order as <paramref name="items" />.
+    ///     One envelope per item, or one envelope per subscribed main handler per item when per-handler delivery is
+    ///     enabled, flattened in item order, then handler-name order within each item.
     /// </returns>
     /// <remarks>
     ///     Writer implementations fan out through <see cref="CreateManyAsync{TEvent}" />; overrides of this batch
@@ -101,7 +104,8 @@ public interface IOutboxEnvelopeFactory
     /// <param name="items">The enqueue commands carrying explicit runtime types and durable metadata.</param>
     /// <param name="cancellationToken">A token used to cancel serialization.</param>
     /// <returns>
-    ///     Outbox envelopes in the same order as <paramref name="items" />.
+    ///     One envelope per item, or one envelope per subscribed main handler per item when per-handler delivery is
+    ///     enabled, flattened in item order, then handler-name order within each item.
     /// </returns>
     /// <remarks>
     ///     Writer implementations fan out through <see cref="CreateManyAsync" />; overrides of this batch method

@@ -9,7 +9,7 @@ Persist inbox and outbox envelopes through role-split store interfaces with Post
 
 ## What It Does
 
-Storage adapters implement narrow roles: append (writer), lease (processor), state persist (processor), dead letter, retention, diagnostics, query, and purge. A single class typically implements all roles on one table set. PostgreSQL components use schema version 1. EF Core schemas are owned by the application. Shared PostgreSQL primitives live in `LiteBus.Storage.PostgreSql`.
+Storage adapters implement narrow roles: append (writer), lease (processor), state persist (processor), dead letter, retention, diagnostics, query, and purge. A single class typically implements all roles on one table set. PostgreSQL inbox and saga components use schema version 1; the PostgreSQL outbox component uses schema version 2, which adds the nullable `handler` column for per-handler delivery, and `EnsureAsync` upgrades a version 1 table automatically. EF Core schemas are owned by the application. Shared PostgreSQL primitives live in `LiteBus.Storage.PostgreSql`.
 
 ## Public Surface
 
@@ -31,12 +31,12 @@ Query and purge roles are exposed through manager APIs backed by the same store 
 | Extension | Package | Backend |
 | --- | --- | --- |
 | `UseInMemoryStorage()` | `LiteBus.Inbox.Storage.InMemory`, `LiteBus.Outbox.Storage.InMemory` | Process-local, single-worker |
-| `UsePostgreSqlStorage(configure)` | `LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.Storage.PostgreSql` | PostgreSQL schema v1 |
+| `UsePostgreSqlStorage(configure)` | `LiteBus.Inbox.Storage.PostgreSql`, `LiteBus.Outbox.Storage.PostgreSql` | PostgreSQL schema v1 (inbox), v2 (outbox) |
 | `UseEntityFrameworkCoreStorage(configure)` | `LiteBus.Inbox.Storage.EntityFrameworkCore`, `LiteBus.Outbox.Storage.EntityFrameworkCore` | Application-owned EF migrations |
 | `UseDataSource(NpgsqlDataSource)` | `LiteBus.Storage.PostgreSql` | Shared connection pool across axes |
 | `EnsureSchemaCreationOnStartup()` | PostgreSQL storage modules | Dev-only schema bootstrap via startup task |
 
-Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only. Calling the same storage extension twice on one builder throws **`LiteBusConfigurationException`**.
+Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only. Calling the same storage extension twice on one builder throws **`DurableStorageConfigurationException`**.
 
 ### Configuration
 
@@ -71,6 +71,7 @@ Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only
 | Package | Role |
 | --- | --- |
 | `LiteBus.Storage.PostgreSql` | Shared Npgsql helpers, ambient transaction provider |
+| `LiteBus.Outbox.Storage.Marten` | Queued transactional outbox writer on the current Marten session |
 | `LiteBus.Inbox.Storage.*`, `LiteBus.Outbox.Storage.*` | Axis-specific stores |
 | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | Store interface definitions |
 
@@ -85,11 +86,11 @@ Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only
 - Default table: `litebus_inbox_messages` / outbox equivalent with PK `message_id`
 - In-memory store uses process-wide lock; not for multi-worker production simulation
 - Custom stores implement roles; use envelope factories for serialization
-- Inbox, outbox, and saga PostgreSQL components use schema version 1
+- PostgreSQL inbox and saga components use schema version 1; the outbox component uses schema version 2 with automatic upgrade from version 1 under `EnsureAsync`
 
 ## Non-Goals
 
-- SQL Server store (planned)
+- Dedicated SQL Server store (the EF Core adapter supports the SQL Server provider; a dedicated adapter is planned on [Roadmap](../../roadmap/README.md))
 - SQLite production store
 - Shared storage implementation across adapters; each adapter owns its provider-specific behavior
 
@@ -319,15 +320,24 @@ Register storage inside **`AddInbox(...)`** / **`AddOutbox(...)`** builders only
 - **Test kind**: Unit
 - **Description**: Builder guard against duplicate storage registration
 - **Behavior**: Two **`UseInMemoryStorage()`** calls on one inbox builder
-- **Expected outcome**: **`LiteBusConfigurationException`**
-- **Remarks**: `LiteBus.Storage.UnitTests` (`InMemory/Inbox/`)
+- **Expected outcome**: **`LiteBusConfigurationException`** reporting that inbox storage is already configured
+- **Remarks**: `LiteBus.Storage.UnitTests` (`InMemory/Inbox/`); the builder throws the derived `DurableStorageConfigurationException`
+
+#### `PostgreSqlOutboxSchemaUpgradeTests.EnsureAsync_WhenVersion1TableExists_ShouldUpgradeToVersion2AndPreserveRows`
+
+- **Use case**: When a version 1 outbox table exists, schema ensure upgrades it to version 2 without losing rows
+- **Test kind**: Integration
+- **Description**: Existing version 1 table with stored envelopes
+- **Behavior**: **`EnsureAsync`** against the old table shape
+- **Expected outcome**: Nullable `handler` column added; existing rows preserved
+- **Remarks**: `LiteBus.Storage.IntegrationTests` (`PostgreSql/`); companion tests cover fresh version 2 creation and the drift error naming the upgrade path when initialization is disabled
 
 ### Untested Use Cases
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
 | Custom Oracle store implementation | Yes (extension point) | No sample third-party store test | Contract | Low |
-| SQL Server storage adapter | No | Not shipped | N/A | N/A |
+| SQL Server storage adapter | Partial | EF Core adapter works with the SQL Server provider; a dedicated adapter is not shipped | N/A | N/A |
 | Multi-worker in-memory production simulation | No (by design) | In-memory is single-process | N/A | N/A |
 
 ### Out-of-Scope Use Cases

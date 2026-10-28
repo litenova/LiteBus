@@ -43,6 +43,11 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
     private readonly Dictionary<Type, string> _diagnosticCheckNamesByType = [];
 
     /// <summary>
+    ///     Tracks diagnostic probe implementation types by name so a name taken by another probe type fails composition.
+    /// </summary>
+    private readonly Dictionary<string, Type> _diagnosticCheckTypesByName = new(StringComparer.Ordinal);
+
+    /// <summary>
     ///     Startup task implementation types registered for host execution in first-registration order.
     /// </summary>
     private readonly List<Type> _startupTasks = [];
@@ -151,7 +156,16 @@ internal sealed class ModuleConfiguration : IModuleConfiguration
                 $"as '{registeredName}' and cannot also be registered as '{name}'.");
         }
 
+        if (_diagnosticCheckTypesByName.TryGetValue(name, out var registeredType))
+        {
+            throw new ModuleCompositionException(
+                $"Diagnostic check name '{name}' is already registered by type " +
+                $"'{registeredType.FullName ?? registeredType.Name}' and cannot also be registered by type " +
+                $"'{implementationType.FullName ?? implementationType.Name}'.");
+        }
+
         _diagnosticCheckNamesByType.Add(implementationType, name);
+        _diagnosticCheckTypesByName.Add(name, implementationType);
         _diagnosticChecks.Add(new DiagnosticCheckDescriptor(implementationType, name));
     }
 

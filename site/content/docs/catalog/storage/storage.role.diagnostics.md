@@ -62,8 +62,8 @@
 ## Invariants
 
 - Status counts reflect store truth at query time (not cached indefinitely).
-- Schema info for PostgreSQL includes the expected version 1 contract.
-- InMemory stores report synthetic schema info suitable for tests.
+- Schema info for PostgreSQL reports the recorded version from `litebus_schema_versions` against the expected `CurrentSchemaVersion` (inbox 1, outbox 2).
+- EF Core and InMemory stores report logical store version 1 with the configured object names.
 
 ## Non-Goals
 

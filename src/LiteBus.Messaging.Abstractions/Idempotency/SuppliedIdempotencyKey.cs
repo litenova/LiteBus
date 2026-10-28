@@ -22,9 +22,9 @@ namespace LiteBus.Messaging.Abstractions;
 /// context.Data.Set(new SuppliedIdempotencyKey(verified.EventId));
 /// ]]></code>
 ///     <para>
-///         The key is read once and reused by both the shortcut that claims it and the completion handler that
-///         resolves it, so the expensive verification happens once per mediation rather than once per stage. Declare
-///         the message with <see cref="IdempotencyDeclaration.KeyedByContext" /> to require this.
+///         The shortcut that claims the key records the grant, and the completion handler settles from that record
+///         without re-resolving, so the expensive verification happens once per mediation rather than once per stage.
+///         Declare the message with <see cref="IdempotencyDeclaration.KeyedByContext" /> to require this.
 ///     </para>
 /// </remarks>
 public sealed record SuppliedIdempotencyKey(string Value)

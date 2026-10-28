@@ -1,6 +1,6 @@
-using System.Collections.Immutable;
+using LiteBus.Commands.Abstractions;
+using LiteBus.Messaging.Abstractions;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace LiteBus.Analyzers.UnitTests;
 
@@ -61,24 +61,13 @@ public sealed class ContractRegistrationCompilationEndTests
                              """;
 
         const string file1 = """
-                             using LiteBus.Commands.Abstractions;
+                             using LiteBus.Messaging.Abstractions;
 
                              public static class ModuleConfiguration
                              {
-                                 public static void Configure(ContractsRegistry contracts)
+                                 public static void Configure(MessageContractBuilder contracts)
                                  {
                                      contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
-                                 }
-                             }
-
-                             public sealed class ContractsRegistry
-                             {
-                                 public void Register<T>(string name, int version)
-                                 {
-                                 }
-
-                                 public void RegisterFromAssembly(System.Reflection.Assembly assembly)
-                                 {
                                  }
                              }
                              """;
@@ -201,24 +190,13 @@ public sealed class ContractRegistrationCompilationEndTests
                              """;
 
         const string file1 = """
-                             using LiteBus.Commands.Abstractions;
+                             using LiteBus.Messaging.Abstractions;
 
                              public static class ModuleConfiguration
                              {
-                                 public static void Configure(ContractsRegistry contracts)
+                                 public static void Configure(MessageContractBuilder contracts)
                                  {
                                      contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
-                                 }
-                             }
-
-                             public sealed class ContractsRegistry
-                             {
-                                 public void Register<T>(string name, int version)
-                                 {
-                                 }
-
-                                 public void RegisterFromAssembly(System.Reflection.Assembly assembly)
-                                 {
                                  }
                              }
                              """;
@@ -271,16 +249,16 @@ public sealed class ContractRegistrationCompilationEndTests
     }
 
     /// <summary>
-    ///     Verifies that a partial attributed message with two declarations reports twice at the first declaration.
+    ///     Verifies that a partial attributed message with two declarations reports once at the first declaration.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
     [Fact]
-    public async Task PartialAttributedMessageAcrossTwoFiles_ReportsTwiceAtFirstDeclaration()
+    public async Task PartialAttributedMessageAcrossTwoFiles_ReportsOnceAtFirstDeclaration()
     {
         const string file0 = """
                              using LiteBus.Commands.Abstractions;
 
-                             public sealed partial record ProcessPaymentCommand(int PaymentId) : ICommand;
+                             public sealed partial record {|#0:ProcessPaymentCommand|}(int PaymentId) : ICommand;
                              """;
 
         const string file1 = """
@@ -290,21 +268,52 @@ public sealed class ContractRegistrationCompilationEndTests
                              public sealed partial record ProcessPaymentCommand;
                              """;
 
-        var compilation = await AnalyzerTest.CreateCompilationAsync([file0, file1]).ConfigureAwait(false);
+        await AnalyzerTest.VerifyMultiFileAsync<ExplicitMessageContractRegistrationAnalyzer>(
+            [file0, file1],
+            (DiagnosticDescriptors.ExplicitMessageContractRegistration, 0, ["ProcessPaymentCommand"])).ConfigureAwait(false);
+    }
 
-        var diagnostics = await compilation
-            .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ExplicitMessageContractRegistrationAnalyzer()))
-            .GetAnalyzerDiagnosticsAsync()
-            .ConfigureAwait(false);
+    /// <summary>
+    ///     Verifies that a handler declared only in a referenced assembly without registration produces no diagnostic, because candidates are scoped to the analyzed assembly.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task HandlerInReferencedAssemblyWithoutRegistration_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              public sealed class Placeholder
+                              {
+                              }
+                              """;
 
-        Assert.Equal(2, diagnostics.Length);
+        const string referencedAssembly = """
+                                          using System.Threading;
+                                          using System.Threading.Tasks;
+                                          using LiteBus.Commands.Abstractions;
 
-        foreach (var diagnostic in diagnostics)
-        {
-            Assert.Equal(DiagnosticIds.ExplicitMessageContractRegistration, diagnostic.Id);
-            Assert.Equal("/0/Test0.cs", diagnostic.Location.SourceTree?.FilePath);
-        }
+                                          namespace Domain;
 
-        Assert.Equal(diagnostics[0].Location.SourceSpan, diagnostics[1].Location.SourceSpan);
+                                          public sealed record ProcessPaymentCommand(int PaymentId) : ICommand;
+
+                                          public sealed class ProcessPaymentCommandHandler : ICommandHandler<ProcessPaymentCommand>
+                                          {
+                                              public Task HandleAsync(ProcessPaymentCommand command, CancellationToken cancellationToken = default)
+                                                  => Task.CompletedTask;
+                                          }
+                                          """;
+
+        var commandsReference = MetadataReference.CreateFromFile(typeof(ICommand).Assembly.Location);
+        var messagingReference = MetadataReference.CreateFromFile(typeof(HandlerPriorityAttribute).Assembly.Location);
+        var referencedProject = AnalyzerTest.CompileToMetadataReference(
+            "DomainAssembly",
+            referencedAssembly,
+            commandsReference,
+            messagingReference);
+
+        return AnalyzerTest.VerifyNoDiagnosticsWithReferencesAsync<MissingMessageContractRegistrationAnalyzer>(
+            source,
+            commandsReference,
+            messagingReference,
+            referencedProject);
     }
 }

@@ -24,7 +24,7 @@ Common uses include schema ensure and validation for PostgreSQL-backed inbox and
 ### Registration
 
 - Startup tasks are manifest registrations, not direct `IHostedService` registrations.
-- Examples: `PostgreSqlInboxSchemaInitializer`, `PostgreSqlOutboxSchemaInitializer`.
+- Shipped tasks: `PostgreSqlInboxSchemaInitializer`, `PostgreSqlOutboxSchemaInitializer`, `PostgreSqlSagaSchemaInitializer`, `PostgreSqlIdempotencySchemaInitializer`, `PostgreSqlRecurringLeaseSchemaInitializer`, `TransportObservableMetricsInitializer`, and the internal `InboxObservableMetricsInitializer` and `OutboxObservableMetricsInitializer`.
 
 ## Packages
 

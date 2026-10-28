@@ -28,8 +28,8 @@ Processor controls are separate contracts. `IInboxProcessorControl` and `IOutbox
 | Retention status | `GetRetentionStatusAsync` | `GetRetentionStatusAsync` | Returns the latest run outcome |
 | Run retention | `RunRetentionPurgeAsync` | `RunRetentionPurgeAsync` | Deletes terminal rows older than the configured retention period |
 
-Query and purge APIs accept `InboxMessageFilter` or `OutboxMessageFilter`. Filters can select identifiers, statuses, contract names, trace fields, tenants, and creation-time bounds. Page requests use opaque keyset cursors returned by the previous page.
-`IOutboxManager.GetFailureSummaryAsync` returns one row per contract name and version that has `Failed` or `DeadLettered` messages, ordered by the latest attempt time. Health probes report unhealthy when any contract has `DeadLetteredCount > 0` or a `FailedCount` whose `LastFailedAt` is recent.
+Query and purge APIs accept `InboxMessageFilter` or `OutboxMessageFilter`. Filters can select identifiers, statuses, contract names, trace fields, tenants, and creation-time bounds. Page requests use opaque keyset cursors returned by the previous page. Inbox queries reject a `PageSize` above `InboxMessagePageRequest.MaxPageSize` (1000) with `ArgumentOutOfRangeException`; the default page size is 50.
+`IOutboxManager.GetFailureSummaryAsync` returns one `OutboxFailureSummary` row per contract name and version that has `Failed` or `DeadLettered` messages, ordered by `LastFailedAt` descending and then by contract name, or an empty list when nothing is failing. Each row carries `ContractName`, `ContractVersion`, `FailedCount` (awaiting retry), `DeadLetteredCount` (needing an operator replay), `LastError` and `LastErrorType` from the most recently attempted failing message of the contract, and `LastFailedAt` (its `LastAttemptedAt`, `null` when none has been attempted). Health probes report unhealthy when any contract has `DeadLetteredCount > 0` or a `FailedCount` whose `LastFailedAt` is recent.
 
 ```csharp
 var summary = await outboxManager.GetFailureSummaryAsync(cancellationToken).ConfigureAwait(false);
@@ -51,7 +51,7 @@ Pause waits for the active pass before blocking new leases. Resume opens the pro
 
 ## Retention
 
-Inbox retention deletes completed rows. Outbox retention deletes published rows. The corresponding cleanup host options select the retention period and background loop interval. A null retention period disables deletion while leaving status inspection available. A zero or negative period fails host validation.
+Inbox retention deletes completed rows. Outbox retention deletes published rows. The corresponding cleanup host options select the retention period and background loop interval. A null retention period disables deletion while leaving status inspection available. A zero or negative period fails host validation. Manual retention differs by axis: inbox `RunRetentionPurgeAsync` returns 0 when retention is null or non-positive, while outbox `RunRetentionPurgeAsync` throws `OutboxManagementException`.
 
 Each manager records the latest retention run timestamp, deleted-row count, and failure message through its retention coordinator. Manual and hosted retention use the same coordinator state.
 
@@ -131,6 +131,10 @@ Management endpoints do not define a separate meter. ASP.NET Core request teleme
 | --- | --- |
 | `InboxManagerOperationsTests` | Query, missing get, status counts, schema, paged dead-letter replay, purge safety, retention success, and retention failure |
 | `OutboxManagerOperationsTests` | The equivalent outbox manager contract |
+| `OutboxManagerOperationsTests.GetFailureSummaryAsync_ReturnsStoreRows` | Manager failure summary delegates to the operations store |
+| `OutboxStoreContractTests.GetFailureSummaryAsync_WithFailedAndDeadLetteredContracts_ShouldGroupCountsByContract` | Per-contract failing counts across store backends |
+| `OutboxStoreContractTests.GetFailureSummaryAsync_WithTwoFailuresForOneContract_ShouldReportMostRecentError` | Latest error wins within one contract |
+| `OutboxStoreContractTests.GetFailureSummaryAsync_WhenNothingIsFailing_ShouldReturnEmpty` | Empty summary when nothing is failing |
 | `InboxStoreContractTests.QueryAsync_ShouldFilterAndPageByCreatedAt` | Store adapters satisfy filter and keyset pagination behavior |
 | `InboxStoreContractTests.PurgeAsync_ShouldDeleteMatchingRows` | Store purge honors typed predicates |
 | `InboxProcessorControlTests` | Pause, resume, and drain behavior on the concrete inbox processor control |

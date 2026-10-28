@@ -31,6 +31,7 @@ Optional builder configures capacity, lease defaults, and `TimeProvider` for tes
 | --- | --- |
 | `IInboxStore.AddAsync` | Unit tests, samples, local dev |
 | `IInboxLeaseStore.LeasePendingAsync` | Processor tests with in-process dispatch |
+| `ILeaseRenewable.ReleaseLeaseAsync` | Processor tests for cancelled dispatch |
 | `GetAll` (test helper) | Filter diagnostics in unit tests |
 
 ### Registration
@@ -46,8 +47,9 @@ inbox.UseInMemoryStorage(o => o.UseTimeProvider(timeProvider));
 
 | Option surface | Purpose |
 | --- | --- |
-| `InMemoryInboxStoreOptions.Capacity` | Throw on append when capacity exceeded (unless idempotent) |
-| `InMemoryInboxStoreOptions.DefaultLeaseDuration` | Must be positive (validated at construction); lease calls with a zero duration throw `ArgumentOutOfRangeException` |
+| `InMemoryInboxStoreOptions.Capacity` | Throw on append when capacity exceeded (unless idempotent); zero means unbounded |
+| `InMemoryInboxStoreOptions.DefaultLeaseDuration` | One minute by default; must be positive (validated at construction); lease calls with a zero duration throw `ArgumentOutOfRangeException` |
+| `UseOptions` | Replaces the store options |
 | `UseTimeProvider` | Deterministic lease expiry in tests |
 
 ### Extension Points

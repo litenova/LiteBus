@@ -53,7 +53,15 @@ internal static class EfCoreDurableStoreOperations
     /// <param name="trackedQuery">The query that selects the row to update through change tracking.</param>
     /// <param name="applyTracked">Applies the update to the tracked entity.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
-    /// <returns><see langword="true" /> when a row was updated; otherwise <see langword="false" />.</returns>
+    /// <returns>
+    ///     <see langword="true" /> when a row was updated; <see langword="false" /> when no row matched or a
+    ///     concurrent writer won the lease race after the tracked load.
+    /// </returns>
+    /// <remarks>
+    ///     Durable entities mark the lease generation as a concurrency token, so a re-lease committed between the
+    ///     tracked load and the save fails with <see cref="DbUpdateConcurrencyException" /> instead of overwriting
+    ///     the new holder. The conflicted entity is detached so later operations on the context do not retry it.
+    /// </remarks>
     internal static async Task<bool> ExecuteUpdateOrTrackAsync<TEntity>(
         DbContext dbContext,
         Func<Task<int>> executeUpdate,
@@ -75,7 +83,16 @@ internal static class EfCoreDurableStoreOperations
         }
 
         applyTracked(entity);
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        return true;
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            dbContext.Entry(entity).State = EntityState.Detached;
+            return false;
+        }
     }
 }

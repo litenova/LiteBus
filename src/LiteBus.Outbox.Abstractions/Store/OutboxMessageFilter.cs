@@ -53,7 +53,8 @@ public sealed record OutboxMessageFilter
 
     /// <summary>
     ///     Gets the tenant identifier that must match when set. A <see langword="null" /> value means no tenant
-    ///     restriction; an empty string matches only unscoped rows.
+    ///     restriction; an empty or blank string matches only unscoped rows. Stored and requested tenants compare
+    ///     through <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.DurableTenantId" /> normalization.
     /// </summary>
     public string? TenantId { get; init; }
 

@@ -15,6 +15,7 @@ The Microsoft DI and Autofac adapters each register one container-specific `IMes
 | --- | --- |
 | `IMessageDispatchScopeFactory.CreateScope()` | Creates one dispatch scope |
 | `IMessageDispatchScope.ServiceProvider` | Service provider for handler resolution |
+| `LazyMessageDispatchScope` (internal) | Defers host scope creation until the first service resolution, so an unenumerated stream holds no container scope |
 | Microsoft DI dispatch-scope factory | Opens an `IServiceScope` per dispatch |
 | Autofac dispatch-scope factory | Opens an `ILifetimeScope` per dispatch |
 | `RootMessageDispatchScopeFactory` | Explicit root-provider opt-in |

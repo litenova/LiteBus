@@ -31,6 +31,8 @@ The storage axis covers durable persistence for inbox and outbox flows. Technolo
 | `LiteBus.Storage.PostgreSql` | Technology adapter | Shared SQL utilities, schema lock/version helpers, work signal, ambient transaction provider contract |
 | `LiteBus.Inbox.Storage.PostgreSql` | Feature bridge | PostgreSQL inbox adapter, schema scripts, transactional inbox participant |
 | `LiteBus.Outbox.Storage.PostgreSql` | Feature bridge | PostgreSQL outbox adapter, schema scripts, transactional outbox participant |
+| `LiteBus.Outbox.Storage.Marten` | Feature bridge | Marten queued transactional outbox writer on the PostgreSQL outbox table |
+| `LiteBus.Commands.Recurring.Storage.PostgreSql` | Feature bridge | Renewable PostgreSQL single-flight lease rows for recurring commands |
 
 ## Capability Index
 
@@ -38,6 +40,10 @@ The storage axis covers durable persistence for inbox and outbox flows. Technolo
 | --- | --- |
 | [storage.inbox.adapter.postgresql](storage.inbox.adapter.postgresql.md) | Full PostgreSQL inbox adapter surface |
 | [storage.outbox.adapter.postgresql](storage.outbox.adapter.postgresql.md) | Full PostgreSQL outbox adapter surface |
+| [storage.outbox.adapter.marten](storage.outbox.adapter.marten.md) | Marten queued transactional outbox writer |
+| [storage.commands.adapter.postgresql](storage.commands.adapter.postgresql.md) | PostgreSQL command idempotency store |
+| [storage.commands.adapter.marten](storage.commands.adapter.marten.md) | Marten unit of work, command idempotency store, and audit trail |
+| [storage.commands.recurring.postgresql](storage.commands.recurring.postgresql.md) | PostgreSQL recurring command single-flight lease |
 | [storage.postgresql.shared-infra](storage.postgresql.shared-infra.md) | Shared PostgreSQL technology primitives |
 | [storage.postgresql.schema-management](storage.postgresql.schema-management.md) | Ensure, validate, and drift checks |
 | [storage.postgresql.work-signal](storage.postgresql.work-signal.md) | LISTEN/NOTIFY wake-up path |

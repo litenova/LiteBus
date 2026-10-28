@@ -540,13 +540,14 @@ internal sealed class MessageRegistry : IMessageRegistry
         var descriptor = new MessageDescriptor(normalizedType);
         _pendingMessages.Add(descriptor);
 
-        // Try to close open generic handlers for this concrete message type.
-        // Don't link directly - LinkHandlersToPendingMessages will handle it since this is pending.
+        // Try to close open generic handlers for this concrete message type. The closures link to committed
+        // messages immediately, and LinkHandlersToPendingMessages links them to this pending message later, so a
+        // closure reaches committed and pending messages alike whichever registered first.
         if (!normalizedType.IsGenericTypeDefinition)
         {
             foreach (var openGenericHandler in _openGenericHandlers.ToList())
             {
-                TryCloseOpenGenericHandler(openGenericHandler, descriptor, false);
+                TryCloseOpenGenericHandler(openGenericHandler, descriptor);
             }
         }
     }
@@ -605,33 +606,31 @@ internal sealed class MessageRegistry : IMessageRegistry
         // covering zero messages. A handler that silently never runs is the case the summary most needs to show.
         _openGenericClosures.TryAdd(openGenericHandlerType, []);
 
-        // Close for committed messages - must add directly since LinkHandlersToPendingMessages won't touch them.
-        foreach (var messageDescriptor in _committedMessages.ToList())
+        // Close over every known message, committed or still pending. The closures link to committed messages
+        // immediately, and LinkHandlersToPendingMessages links them to pending ones later in Register, so the result
+        // does not depend on whether the message or the handler registered first.
+        foreach (var messageDescriptor in _committedMessages.Concat(_pendingMessages).ToList())
         {
-            TryCloseOpenGenericHandler(openGenericHandlerType, messageDescriptor, true);
-        }
-
-        // Close for pending messages - only add to _handlerDescriptorsInOrder.
-        // LinkHandlersToPendingMessages (called later in Register) will link them.
-        foreach (var messageDescriptor in _pendingMessages.ToList())
-        {
-            TryCloseOpenGenericHandler(openGenericHandlerType, messageDescriptor, false);
+            TryCloseOpenGenericHandler(openGenericHandlerType, messageDescriptor);
         }
     }
 
     /// <summary>
     ///     Attempts to close an open generic handler type for a specific message type.
-    ///     Always adds closed descriptors to <see cref="_handlerDescriptorsInOrder" /> for DI registration.
-    ///     Optionally links them directly to the message descriptor (for committed messages only,
-    ///     since pending messages will be linked by <see cref="LinkHandlersToPendingMessages" />).
+    ///     Always adds closed descriptors to <see cref="_handlerDescriptorsInOrder" /> for DI registration and links
+    ///     them to every committed message they apply to, so a closure reaches committed messages whichever registered
+    ///     first. Pending messages are linked later by <see cref="LinkHandlersToPendingMessages" />.
     /// </summary>
     /// <param name="openGenericHandlerType">The open generic handler type definition.</param>
-    /// <param name="messageDescriptor">The message descriptor to potentially add closed handler descriptors to.</param>
-    /// <param name="linkToMessageDescriptor">
-    ///     If true, directly adds descriptors to the message descriptor.
-    ///     Set to true for committed messages, false for pending messages (to avoid double-linking).
-    /// </param>
-    private void TryCloseOpenGenericHandler(Type openGenericHandlerType, MessageDescriptor messageDescriptor, bool linkToMessageDescriptor)
+    /// <param name="messageDescriptor">The message descriptor to close the handler over.</param>
+    /// <remarks>
+    ///     Linking every closure to every committed message is what keeps indirect coverage independent of
+    ///     registration order: a closure over a base type reaches an already-committed derived message the same way
+    ///     the pending path reaches one that registers later. A message is either pending or committed, so nothing
+    ///     links twice, and the direct-over-indirect rule in <see cref="MessageDescriptor.AddDescriptor" /> keeps the
+    ///     direct closure when both exist.
+    /// </remarks>
+    private void TryCloseOpenGenericHandler(Type openGenericHandlerType, MessageDescriptor messageDescriptor)
     {
         var messageType = messageDescriptor.MessageType;
 
@@ -668,11 +667,10 @@ internal sealed class MessageRegistry : IMessageRegistry
                 _handlerDescriptorsInOrder.Add(committed);
             }
 
-            // Link to the message descriptor only if requested (for committed messages)
-            if (linkToMessageDescriptor)
-            {
-                messageDescriptor.AddDescriptors(committedDescriptors);
-            }
+            // Link to every committed message the closure applies to, directly to the message it closed over and
+            // indirectly to the rest. Linking only the one it closed over would make indirect coverage depend on
+            // whether the other messages had committed yet when the handler registered.
+            LinkHandlersToCommittedMessages(committedDescriptors);
 
             if (closedDescriptors.Count > 0)
             {

@@ -12,7 +12,7 @@
 
 Because it runs at the completion stage, refusals, failures, and cancellations produce records in the same way successes do. That is the difference between an audit trail and a changelog: an audit exists to answer who attempted something and was stopped, and a handler-written record can never capture that, since authorization refuses before the handler reaches its audit line. The stage is not cancellable, so a cancelled mediation still produces its record. Attribution runs there for the same reason: a resolver at the completion stage names the actor on a denied command, and a pre-stage handler never runs on that path.
 
-The constant half of a record is declared once per message, with `[Audited]` and `[AuditExempt]` or with an `IAuditDefinition<TMessage>`. Both contribute an `AuditDeclaration`, so the writer reads one metadata key and a definition overwrites an attribute rather than sitting beside it. The variable half, such as an identifier the handler generated, is pushed at runtime.
+The constant half of a record is declared once per message, with `[Audited]` and `[AuditExempt]` or with an `IAuditDefinition<TMessage>`. Both contribute an `AuditDeclaration`, so the writer reads one metadata key and a definition overwrites an attribute rather than sitting beside it. The variable half, such as an identifier the handler generated, is pushed at runtime through `IAuditScope`, or declared with a target or reason selector when the value can be read off the message itself: `AuditedDeclaration.WithTargetFrom<TMessage>` and `WithReasonFrom<TMessage>` project `TargetId` and `Reason` from the message. Selectors are delegates, so attributes cannot carry them; a message that reads its target or reason off itself needs a definition.
 
 ## Public Surface
 
@@ -36,6 +36,7 @@ services.AddLiteBus(registry =>
 | `IAuditDefinition<TMessage>` | Definition-form audit declaration |
 | `AuditDeclaration` | The closed base of the two positions stored in message metadata |
 | `AuditedDeclaration` / `AuditExemptDeclaration` | The audited position and the recorded exemption |
+| `AuditedDeclaration.WithTargetFrom<TMessage>` / `WithReasonFrom<TMessage>` | Declare the target and reason as projections off the message, read into `TargetSelector` and `ReasonSelector` |
 | `IAuditScope` | Handler-supplied actor, target, reason, and properties |
 | `AuditRecord` / `AuditOutcome` | The record handed to the trail |
 | `AuditActor` | Who acted: a required `Id` and `Kind`, plus `DisplayName` and `OnBehalfOf`. Factories `User(id)`, `System(processName)`, `For(kind, id)`; a display name is added with `with` |
@@ -50,8 +51,7 @@ services.AddLiteBus(registry =>
 | `MessageModuleBuilder.UseAuditActorResolver<T>(lifetime)` / `UseAuditActorResolverInstance` | The attribution primitives |
 | `MessageModuleBuilder.UseAuditOutcomeMapper<T>()` / `UseAuditOutcomeMapper(instance)` | Classifies an application refusal exception as a denial rather than a failure |
 | `MessageModuleBuilder.RequireUniqueAuditActions()` | Fails composition when two messages share an action code |
-| `MessageModuleBuilder.RequireAuditActionFormat(pattern)` | Fails composition when an action breaks the house naming convention |
-| `IAuditRecordWriter` | Composes a record from a completion context |
+| `MessageModuleBuilder.RequireAuditActionFormat(pattern)` | Fails composition when an action breaks the house naming convention; the default pattern is `MessageModuleBuilder.DefaultAuditActionPattern` |
 | `IAuditOutcomeMapper` / `DefaultAuditOutcomeMapper` | Classifies an exception-borne refusal as denied rather than failed |
 | `AuditReasonMissingException` | Raised when a reason-required action supplies none |
 | `AuditTrailDiagnosticCheck` | Probe reporting `litebus.audit.trail`: unhealthy with no trail, degraded with no actor resolver |
@@ -77,6 +77,8 @@ services.AddLiteBus(registry =>
 
 - A record is produced only when the message declares an audited position; an exempt or undeclared message produces none.
 - Records are produced on every outcome path: success, early answer, denial, failure, and cancellation.
+- A fault an error handler recovered is recorded as `Failed`, with no exception on the completion context.
+- An unregistered runtime type mediated through a base descriptor is audited under that descriptor's declaration, so scan coverage never decides whether a mediation leaves a record.
 - A guard denial is recorded as `AuditOutcome.Denied`, a validation failure as `AuditOutcome.Invalid`, and a shortcut answer as `AuditOutcome.Succeeded`, with no mapper involved.
 - The writer runs at `HandlerPriorities.Observability`, after LiteBus persistence handlers and after unannotated application handlers.
 - A record for a successful action whose declaration sets `ReasonRequired` is never written without a reason; the writer raises `AuditReasonMissingException` instead, before the commit at `HandlerPriorities.UnitOfWork`, so the work is rolled back.
@@ -84,6 +86,8 @@ services.AddLiteBus(registry =>
 - `IAuditScope` state lives on the ambient execution context, so concurrent mediations never share it.
 - `AuditRecord` carries no before-and-after payload snapshot, and does not carry the message. The message is handed to `IAuditActorResolver` instead.
 - An actor pushed through `IAuditScope.WithActor` overrides whatever the resolver resolved; a resolver returning null leaves `AuditRecord.Actor` null, which means nothing established an actor.
+- The writer consults the scope first and runs a target or reason selector only when the scope is silent, so a handler that knows better keeps the last word; for the reason, the pipeline decision sits between the two, because a guard denial or an answer explanation describes the ending while the selector describes the intent.
+- A selector result that is null or blank means the message carries no value, and `ReasonRequired` applies to the final value, so a required reason may come from the scope or the selector alike. A selector that throws fails the record write.
 - An audited event writes one record per publish, not one per handler.
 
 ## Non-Goals
@@ -117,6 +121,13 @@ No audit-specific meter or activity source. The record itself carries `Duration`
 | `A_required_reason_that_goes_missing_is_reported_rather_than_recorded_as_absent` | `LiteBus.Mediator.UnitTests` |
 | `The_audit_probe_reports_unhealthy_when_no_trail_is_registered` | `LiteBus.Mediator.UnitTests` |
 | `An_audited_query_produces_a_record` | `LiteBus.Mediator.UnitTests` |
+| `Selectors_supply_the_target_and_reason_when_the_handler_pushes_nothing` | `LiteBus.Mediator.UnitTests` |
+| `The_scope_wins_when_both_the_scope_and_a_selector_supply_a_value` | `LiteBus.Mediator.UnitTests` |
+| `A_selector_is_never_invoked_when_the_scope_supplied_the_value` | `LiteBus.Mediator.UnitTests` |
+| `A_null_or_blank_selector_result_leaves_the_value_empty` | `LiteBus.Mediator.UnitTests` |
+| `A_required_reason_satisfied_by_a_selector_passes` | `LiteBus.Mediator.UnitTests` |
+| `A_required_reason_missing_from_the_selector_fails_like_a_missing_scope_reason` | `LiteBus.Mediator.UnitTests` |
+| `A_throwing_selector_fails_the_record_write` | `LiteBus.Mediator.UnitTests` |
 
 ### Untested
 

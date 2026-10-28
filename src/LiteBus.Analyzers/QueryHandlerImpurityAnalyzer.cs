@@ -11,6 +11,11 @@ namespace LiteBus.Analyzers;
 /// <summary>
 ///     Reports query handlers that depend on side-effecting mediators or durable writers.
 /// </summary>
+/// <remarks>
+///     Constructor parameters, fields, and properties are inspected, including members inherited from base handler
+///     classes. Ordinary method parameters are not dependencies: a helper that takes a mediator receives it from its
+///     caller rather than from injection, so such parameters stay silent.
+/// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
 {
@@ -57,8 +62,7 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
             current is not null && current.SpecialType != SpecialType.System_Object;
             current = current.BaseType)
         {
-            var isDeclaredType = SymbolEqualityComparer.Default.Equals(current, handlerType);
-            AnalyzeMembers(context, handlerType, current, isDeclaredType, reportedDependencies);
+            AnalyzeMembers(context, handlerType, current, reportedDependencies);
         }
     }
 
@@ -68,13 +72,11 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
     /// <param name="context">The symbol analysis context.</param>
     /// <param name="handlerType">The query handler type symbol.</param>
     /// <param name="declaringType">The hierarchy level whose members are inspected.</param>
-    /// <param name="isDeclaredType">Whether the level is the handler type itself rather than a base type.</param>
     /// <param name="reportedDependencies">The impure dependency metadata names already reported.</param>
     private static void AnalyzeMembers(
         SymbolAnalysisContext context,
         INamedTypeSymbol handlerType,
         INamedTypeSymbol declaringType,
-        bool isDeclaredType,
         HashSet<string> reportedDependencies)
     {
         foreach (var member in declaringType.GetMembers())
@@ -84,13 +86,10 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
                 case IMethodSymbol { MethodKind: MethodKind.Constructor } constructor:
                     AnalyzeParameters(context, handlerType, constructor.Parameters, reportedDependencies);
                     break;
-                case IMethodSymbol { MethodKind: MethodKind.Ordinary or MethodKind.LocalFunction } method when isDeclaredType:
-                    AnalyzeParameters(context, handlerType, method.Parameters, reportedDependencies);
-                    break;
                 case IFieldSymbol field:
                     ReportIfImpure(context, handlerType, field.Type, field.Locations.FirstOrDefault(), reportedDependencies);
                     break;
-                case IPropertySymbol property when isDeclaredType:
+                case IPropertySymbol property:
                     ReportIfImpure(context, handlerType, property.Type, property.Locations.FirstOrDefault(), reportedDependencies);
                     break;
             }
@@ -110,7 +109,7 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    ///     Reports impure dependency types used by method parameters.
+    ///     Reports impure dependency types used by constructor parameters.
     /// </summary>
     /// <param name="context">The symbol analysis context.</param>
     /// <param name="handlerType">The query handler type symbol.</param>

@@ -38,7 +38,7 @@ Typical deployment: enable processor on generic host; application code accepts c
 
 ### Configuration
 
-- **`InboxProcessorOptions`**: `BatchSize`, `LeaseDuration`, `LeaseHeartbeatInterval` (must be `<= LeaseDuration / 2`), `Retry`, `DispatcherConcurrency`, `HookFailurePolicy` (default `DeadLetter`), optional `TenantId`.
+- **`InboxProcessorOptions`**: `BatchSize` (default 20), `LeaseDuration` (default one minute), `LeaseHeartbeatInterval` (default 15 seconds; must be `<= LeaseDuration / 2`), `Retry`, `DispatcherConcurrency` (default 1), `HookFailurePolicy` (`null` by default, which the inbox builder resolves to `DeadLetter`), optional `TenantId` (`null` leases across tenants).
 - **`InboxProcessorHostOptions.PollInterval`**: Delay between passes; adaptive polling when full batches return quickly.
 
 Set `Retry.IsPermanentFailure` to dead-letter application failures that can never succeed on retry; see [Permanent Failures](lease-retry-dead-letter.md#permanent-failures).
@@ -68,9 +68,10 @@ Set `Retry.IsPermanentFailure` to dead-letter application failures that can neve
 ## Invariants
 
 - `IInboxProcessor` registers transient but background service holds singleton instance
+- Completion timestamps come from the processor clock, so completion times follow a configured or fake clock instead of wall-clock time
 - Per-message persist failures log and continue pass; failed envelope keeps lease until expiry
 - `LeaseHeartbeatInterval` must be `<= LeaseDuration / 2`
-- Default `HookFailurePolicy` is `DeadLetter` for inbox processors
+- `HookFailurePolicy` is `null` by default, which means the dispatcher recommendation; the inbox builder always resolves an unset policy to `DeadLetter`, and an explicit value wins
 - `TenantId` on options limits leasing to one tenant partition when set
 
 ## Non-Goals

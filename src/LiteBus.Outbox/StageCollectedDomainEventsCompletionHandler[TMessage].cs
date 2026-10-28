@@ -94,8 +94,9 @@ internal sealed class StageCollectedDomainEventsCompletionHandler<TMessage> : IM
         {
             throw new InvalidOperationException(
                 "StageCollectedEvents drained domain events but no scoped ITransactionalOutbox is registered. " +
-                "Register one through the ambient PostgreSQL provider, the Marten writer, or a test double before " +
-                "collecting domain events.");
+                "Register one through the ambient PostgreSQL provider, the Entity Framework Core interceptor " +
+                "non-generic ITransactionalOutbox adapter over ITransactionalOutbox<TContext>, the Marten writer, " +
+                "or a test double before collecting domain events.");
         }
 
         var trace = _enqueueOptions?.UseAmbientTrace == true

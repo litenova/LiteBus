@@ -68,6 +68,7 @@ flowchart LR
 | Exposes shared `Safety` options | yes | yes | yes | yes | yes |
 | Exposes batch accept through `Safety` | yes | yes | yes | yes | yes |
 | Native receive control | AMQP prefetch | none | receive batch size | prefetch and callback concurrency | none |
+| Enforced `MaxInFlightMessages` bound | 1 | 1 | 1 | lower of value and `MaxConcurrentCalls` | 1 |
 | Broker declaration options on ingress options | yes | no | no | no | no |
 | Cross-broker identity and idempotency defaults | broker-scoped | broker-scoped | broker-scoped | broker-scoped | broker-scoped |
 

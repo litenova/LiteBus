@@ -2,7 +2,7 @@
 
 Contributor contract reference. Readers using LiteBus start with [the documentation overview](../../index.md).
 
-The mediator axis provides in-process command, query, and event mediation on top of the shared message module. It covers semantic contracts (`ICommand`, `IQuery<T>`, `IEvent`), pipeline stages (pre/main/post/error/completion), routing filters, handler priority, declarative message metadata, audit records, and execution context behavior.
+The mediator axis provides in-process command, query, and event mediation on top of the shared message module. It covers semantic contracts (`ICommand`, `IQuery<T>`, `IEvent`), pipeline stages (guard/validator/shortcut/pre/main/post/error/completion), routing filters, handler priority, declarative message metadata, audit records, authorization positions, command idempotency, unit-of-work commits, fault refusal classification, and execution context behavior.
 
 ## Capability Index
 
@@ -23,6 +23,10 @@ The mediator axis provides in-process command, query, and event mediation on top
 | [mediator.polymorphic-dispatch](polymorphic-dispatch.md) | Polymorphic dispatch | GA |
 | [mediator.message-definitions](message-definitions.md) | Message definitions and metadata | GA |
 | [mediator.auditing](auditing.md) | Audit trail | GA |
+| [mediator.authorization-declarations](authorization-declarations.md) | Authorization declarations and declaration guards | GA |
+| [mediator.command-idempotency](command-idempotency.md) | Command idempotency | GA |
+| [mediator.unit-of-work](unit-of-work.md) | Unit of work | GA |
+| [mediator.fault-refusal-classification](fault-refusal-classification.md) | Fault refusal classification | GA |
 
 ## Package Map
 
@@ -43,6 +47,11 @@ The mediator axis provides in-process command, query, and event mediation on top
 | `LiteBus.Mediator.UnitTests` (`UseCases/Queries`) | Query module, stream query, and query validation tests |
 | `LiteBus.Mediator.UnitTests` (`UseCases/Events`) | Event module, event execution, event validation tests |
 | `LiteBus.Mediator.UnitTests` (`UseCases/Messaging`) | Message module and shared mediation behavior tests |
+| `LiteBus.Mediator.UnitTests` (`Idempotency`) | Idempotency claim, denial, settlement, and context-supplied key tests |
+| `LiteBus.Mediator.UnitTests` (`UnitOfWork`) | Unit-of-work commit gating tests for commands and queries |
+| `LiteBus.Mediator.UnitTests` (`DeclarationGuards`, `Authorization`) | Declaration guard and authorization guard tests |
+| `LiteBus.Mediator.UnitTests` (`FaultRefusals`) | Fault refusal classification tests |
+| `LiteBus.Mediator.UnitTests` (`HandledAt`) | Mediation start instant tests |
 
 ## Deep Docs
 
@@ -55,3 +64,6 @@ The mediator axis provides in-process command, query, and event mediation on top
 - [Generic messages and handlers](../../concepts/generic-messages-and-handlers.md)
 - [Open generic handlers](../../concepts/open-generic-handlers.md)
 - [Polymorphic dispatch](../../concepts/polymorphic-dispatch.md)
+- [Authorization declarations](../../concepts/authorization-declarations.md)
+- [In-process idempotency](../../concepts/idempotency.md)
+- [Domain events and unit of work](../../reliable-messaging/domain-events-and-unit-of-work.md)

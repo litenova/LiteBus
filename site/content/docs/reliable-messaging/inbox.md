@@ -45,6 +45,8 @@ When `Outcome` is `AlreadyAccepted`, the store returned an existing row for the 
 
 Under `IdempotencyConflictMode.Strict`, an identical replay still returns the existing row; only a conflicting submission whose id, contract name and version, payload, idempotency key, correlation, causation, or tenant differs throws `IdempotencyConflictException`.
 
+A supplied message id that already exists for another tenant always throws `IdempotencyConflictException`, regardless of conflict mode. Supplied ids are global, so derive them per tenant or keep them unguessable.
+
 Start from `InboxAcceptMetadata.Immediate with { ... }` (or the factories below) rather than building metadata with uninitialized required fields.
 
 Use a query or read model when a caller needs the final state later. Deferred execution runs through `InboxAcceptMetadata.Visibility` (`MessageVisibility.At` or `MessageVisibility.After`). The writer surface has no separate scheduler interface.
@@ -205,7 +207,7 @@ inbox.EnableCleanup(cleanup =>
 | `Interval` | 1 hour | Delay between cleanup passes; must be greater than zero |
 | `Retention` | `null` | How long completed rows are kept; `null` disables deletion |
 
-When `Retention` is `null`, the loop exits without deleting rows, so calling `EnableCleanup` without setting `Retention` retains everything. `IInboxManager.RunRetentionPurgeAsync` runs the same purge on demand and returns the deleted row count; it returns `0` when retention is unset. `IInboxManager.GetRetentionStatusAsync` reports the configured policy and the most recent cleanup outcome.
+When `Retention` is `null`, the loop exits without deleting rows, so calling `EnableCleanup` without setting `Retention` retains everything. `IInboxManager.RunRetentionPurgeAsync` runs the same purge on demand and returns the deleted row count; it returns `0` when retention is unset. `IInboxManager.GetRetentionStatusAsync` reports the configured policy and the most recent cleanup outcome. Completion timestamps come from the processor clock, so retention cutoffs compare against the same clock that stamped the rows.
 
 ## Storage (`Use*` Extensions)
 
@@ -250,7 +252,7 @@ Without a registered dispatcher, module build fails when the processor is enable
 
 Broker ingress extensions (`UseAmqpIngress`, `UseAzureServiceBusIngress`, `UseAwsSqsIngress`, `UseKafkaIngress`, `UseInMemoryIngress`) consume messages into `IInbox.AcceptAsync`. Register the matching `Add*Transport(...)` extension once at the root; ingress does not own broker connectivity.
 
-The accept-path contract is the same on every broker: ingress maps the broker delivery id to `MessageIdentity.Supplied` and a broker-scoped `Idempotency.Keyed` value (`ingress:{destination}:{brokerMessageId}`), so broker redelivery after a successful store accept does not create duplicate inbox rows. Ingress honors `litebus-visible-after` (absolute ISO-8601) and `litebus-visible-after-delay` (relative `TimeSpan` or tick count); relative delay takes precedence when both headers are present. Application idempotency and tenant headers apply only when the broker binding is authenticated and `Safety.TrustApplicationHeaders` is `true`.
+The accept-path contract is the same on every broker: ingress maps the broker delivery id to `MessageIdentity.Supplied` and a broker-scoped `Idempotency.Keyed` value (`ingress:{destination}:{brokerMessageId}`), so broker redelivery after a successful store accept does not create duplicate inbox rows. Non-GUID broker delivery ids also scope the derived identity to the ingress destination, so the same delivery id on two ingress sources maps to two inbox rows when tables are shared. Ingress honors `litebus-visible-after` (absolute ISO-8601) and `litebus-visible-after-delay` (relative `TimeSpan` or tick count) only when the broker binding is authenticated and `Safety.TrustApplicationHeaders` is `true`; relative delay takes precedence when both headers are present, and distrusted messages are immediately visible. Application idempotency and tenant headers apply only under the same trust setting, while correlation headers are always honored.
 
 Safety options, prefetch tuning, and acknowledgement policy are broker-specific. See the [AMQP](../integrations/amqp.md), [Kafka](../integrations/kafka.md), [AWS SQS](../integrations/aws-sqs.md), and [Azure Service Bus](../integrations/azure-service-bus.md) guides, and [Reliable Messaging Semantics](semantics.md) for the acknowledgement table.
 

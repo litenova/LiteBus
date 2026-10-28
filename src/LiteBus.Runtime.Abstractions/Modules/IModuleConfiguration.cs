@@ -60,6 +60,10 @@ public interface IModuleConfiguration
     /// <exception cref="ArgumentException">
     ///     Thrown when <paramref name="implementationType" /> does not implement <see cref="IDiagnosticCheck" />.
     /// </exception>
+    /// <exception cref="Exceptions.ModuleCompositionException">
+    ///     Thrown when <paramref name="implementationType" /> is already registered under another name, or when
+    ///     <paramref name="name" /> is already registered by another implementation type.
+    /// </exception>
     void RegisterDiagnosticCheck(Type implementationType, string name);
 
     /// <summary>

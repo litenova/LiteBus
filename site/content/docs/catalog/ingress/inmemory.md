@@ -7,7 +7,7 @@
 
 ## Purpose and Scope
 
-`UseInMemoryIngress` registers `InMemoryInboxIngressModule`. The module maps in-memory transport destinations into `TransportInboxIngressOptions`, registers the shared handler and consumer, and runs the same accept path as broker ingress without Docker.
+`UseInMemoryIngress` registers `InMemoryInboxIngressModule`. The module maps in-memory transport destinations into `TransportInboxIngressOptions`, registers the shared handler and consumer, and runs the same accept path as broker ingress without Docker. The enforced `Safety.MaxInFlightMessages` bound is 1.
 
 This is the **reference matrix** for cross-broker ingress behavior (idempotency, headers, requeue on/off) that broker Docker suites intentionally omit or only partially cover.
 
@@ -86,7 +86,7 @@ InMemory ingress uses the same mapping defaults as broker adapters:
 | Setting | Default | Result |
 | --- | --- | --- |
 | `RequireStableIdentity` | true | Missing message id fails closed |
-| `Safety.TrustApplicationHeaders` | false | App idempotency and tenant headers are ignored |
+| `Safety.TrustApplicationHeaders` | false | App idempotency, tenant, and visibility headers are ignored |
 | Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | Duplicate redelivery maps to same dedup key |
 
 ## Test Coverage
@@ -114,7 +114,7 @@ InMemory ingress uses the same mapping defaults as broker adapters:
 
 - `DisableIngressConsumer` with in-memory ingress (covered for AMQP in PostgreSQL registration tests only).
 - Cross-process in-memory delivery (by design process-local).
-- Batch-accept path through InMemory ingress builder surface (shared consumer supports it but builder does not expose knobs).
+- Batch-accept path through the InMemory ingress builder (`Safety.EnableBatchAccept`) in integration suites; the option is exposed on every adapter through the shared `Safety` record.
 
 ### Out-of-Scope
 

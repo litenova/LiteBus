@@ -69,6 +69,7 @@
 - Store options `SchemaName` and `TableName` must match the EF model configuration used in migrations.
 - Payload columns map to text so payload protection can return opaque ciphertext; trace context uses provider-specific JSON types (`jsonb` on PostgreSQL).
 - Table qualification escapes provider quote characters per provider (doubled double-quote for PostgreSQL and SQLite, doubled closing bracket for SQL Server, doubled backtick for MySQL) and rejects null characters.
+- Tracked renew and release on providers without bulk update support map a lease-generation concurrency conflict to not-updated, matching the guarded bulk update path. Tracked terminal persist saves one row at a time, so one lost race skips only that row.
 
 ## Non-Goals
 

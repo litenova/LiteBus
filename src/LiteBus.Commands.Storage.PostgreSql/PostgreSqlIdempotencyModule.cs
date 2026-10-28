@@ -47,6 +47,8 @@ public sealed class PostgreSqlIdempotencyModule : IModule, IRequires<CommandModu
                 "Call UseDataSource(NpgsqlDataSource) or UseConnectionString(string).");
         }
 
+        moduleBuilder.Options.Validate();
+
         var dataSourceOwner = new PostgreSqlDataSourceOwner<PostgreSqlIdempotencyModule>(moduleBuilder.DataSource, moduleBuilder.OwnsDataSource);
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

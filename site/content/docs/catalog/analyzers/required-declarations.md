@@ -11,7 +11,7 @@
 
 Auditing was the first cross-cutting declaration worth enforcing at compile time, and `LB1018` enforces it. It is not the only one. A required permission, a tenancy scope, a retention class and an idempotency key are all facts a message either states or silently omits, and the omission is the failure that matters: an unguarded use case looks exactly like one that needs no guard.
 
-Without this rule, an application that wants the same guarantee for its own declarations writes a reflection test over its assemblies and re-derives what `LB1018` already does. This is the general form, and `LB1018` is now the preconfigured instance of it for `AuditDeclaration`.
+Without this rule, an application that wants the same guarantee for its own declarations writes a reflection test over its assemblies and re-derives what `LB1018` already does. This is the general form, and `LB1018` is the preconfigured instance of it for `AuditDeclaration`.
 
 ## Configuring It
 
@@ -182,12 +182,20 @@ Keep both. The analyzer reports the omission where it can be fixed, message by m
 | `WithoutConfiguration_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `AttributeDeclaredCommand_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `DefinitionDeclaredCommand_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
+| `DescribeDeclaredCommand_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
+| `DescribeExemptedCommand_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `DeclarationOnAMarkerInterface_CoversTheFamily` | `LiteBus.Analyzers.UnitTests` |
 | `ExemptCommand_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `ExemptionForAnotherValue_StillProducesDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `UndeclaredCommand_ProducesDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `UndeclaredQuery_ProducesDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `UnresolvableRequiredType_ProducesConfigurationDiagnostic` | `LiteBus.Analyzers.UnitTests` |
+| `AuthorizedAttribute_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
+| `AuthorizationExemptAttribute_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
+| `KeyedAuthorizationDefinition_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
+| `DescribeAuthorized_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
+| `DescribeAuthorizationExempt_ProducesNoDiagnostic` | `LiteBus.Analyzers.UnitTests` |
+| `DescribeThatDeclaresSomethingElse_ProducesDiagnostic` | `LiteBus.Analyzers.UnitTests` |
 | `An_undeclared_message_fails_composition_naming_the_message_and_the_value` | `LiteBus.Mediator.UnitTests` |
 | `Every_offender_is_named_rather_than_the_first` | `LiteBus.Mediator.UnitTests` |
 | `A_recorded_exemption_satisfies_the_requirement` | `LiteBus.Mediator.UnitTests` |

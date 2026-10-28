@@ -61,8 +61,8 @@ public sealed class KafkaTransportContractTests : TransportContractTests
             topic,
             async () =>
             {
+                // The consumer owns its client, so disposing the consumer releases it.
                 await consumer.DisposeAsync().ConfigureAwait(false);
-                consumerClient.Dispose();
                 producer.Dispose();
             });
     }

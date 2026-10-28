@@ -22,6 +22,11 @@ namespace LiteBus.Messaging.MediationStrategies;
 ///     mediation as that refusal instead.
 ///     5. Routes unclassified exceptions to registered error handlers.
 ///     6. Reports the outcome to completion handlers, on every path.
+///     A fault the recoverable filter excludes, such as a resolution failure or an idempotency misconfiguration,
+///     bypasses the error handlers but is still recorded before completion runs, so completion never observes
+///     <see cref="MediationOutcome.Succeeded" /> for a mediation that threw. When error handlers recover, the outcome
+///     stays <see cref="MediationOutcome.Failed" /> but no exception is recorded, which is what distinguishes a
+///     recovered fault from one that propagated.
 /// </remarks>
 public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult>
     : IMessageMediationStrategy<TMessage, Task<TMessageResult>>
@@ -150,6 +155,12 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                 .RunAsyncErrorHandlers(message, messageResult, e, executionContext)
                 .ConfigureAwait(false);
 
+            // Reaching here means an error handler recovered: the stage rethrows otherwise. The outcome stays Failed
+            // so the audit trail still records that a fault occurred, but no exception is recorded, which is what
+            // distinguishes a recovered fault from one that propagated and what lets a completion-handler fault
+            // propagate instead of being suppressed into an exception nobody receives.
+            failure = null;
+
             if (errorContext.HandledResult is TMessageResult handledResult)
             {
                 // The recovered value is what the caller receives, so the completion stage has to see it too. Returning
@@ -162,6 +173,22 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
             // A handler that claims the fault without a usable result recovers the message, and the caller receives the
             // default value. A global error handler cannot know a message's result type, so this is how it absorbs a
             // fault; a handler that has a fallback value supplies it through HandledResult.
+        }
+#pragma warning disable CA1031 // A non-recoverable fault must still be recorded before completion handlers run.
+        catch (Exception e)
+#pragma warning restore CA1031
+        {
+            // Resolution failures, idempotency misconfiguration, and application-thrown refusals bypass the error
+            // stage, but completion must not observe Succeeded for a mediation that threw. An ending already
+            // recorded, such as a refusal the pre stages decided, keeps what it recorded: only a mediation with no
+            // recorded failure is marked Failed here.
+            if (failure is null)
+            {
+                outcome = MediationOutcome.Failed;
+                failure = e;
+            }
+
+            throw;
         }
         finally
         {

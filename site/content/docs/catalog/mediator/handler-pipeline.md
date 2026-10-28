@@ -16,12 +16,14 @@ The pipeline is shared across semantic mediators:
 5. Completion handlers on every outcome path.
 
 Direct and indirect handlers run in a fixed order:
-- Guard, shortcut, and pre: indirect then direct.
+- Guard, validator, shortcut, and pre: indirect then direct.
 - Post: direct then indirect.
 - Error: indirect then direct.
 - Completion: one pass over the merged direct and indirect sets, ordered by `[HandlerPriority]` then registration sequence.
 
-The pre stage is four framework-ordered stages, not one. Guards run first and refuse through `Verdict`; validators run next and report failures through `Validity`; shortcuts run third and answer through `Shortcut` or `Shortcut<TResult>`; plain pre-handlers run last and cannot stop the pipeline by returning. Priority orders handlers inside a stage and never reorders the stages, so a globally registered shortcut cannot answer ahead of a message-specific guard, and a malformed message cannot claim an idempotency key. Guards and shortcuts stop at the first decision; the validator stage runs every validator and collects their failures. A refusal with no registered `IMessageRefusalMapper<TMessage, TMessageResult>` raises `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException`, both excluded from the recoverable filter so error handlers never see a decision as a fault. `LiteBusMessageDeniedException` carries `DeniedBy` and `LiteBusMessageInvalidException` carries `RejectedBy`, and each message names the handler that decided it. Any stage may call `IExecutionContext.SuppressPostHandlers()` to skip the remaining post-handlers without changing the outcome.
+The pre stage is four framework-ordered stages, not one. Guards run first and refuse through `Verdict`; validators run next and report failures through `Validity`; shortcuts run third and answer through `Shortcut` or `Shortcut<TResult>`, or deny through `Shortcut.Deny` when the refusal can only be decided at the shortcut stage; plain pre-handlers run last and cannot stop the pipeline by returning. Priority orders handlers inside a stage and never reorders the stages, so a globally registered shortcut cannot answer ahead of a message-specific guard, and a malformed message cannot claim an idempotency key. Guards and shortcuts stop at the first decision; the validator stage runs every validator and collects their failures. A refusal with no registered `IMessageRefusalMapper<TMessage, TMessageResult>` raises `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException`, both excluded from the recoverable filter so error handlers never see a decision as a fault. `LiteBusMessageDeniedException` carries `DeniedBy` and `LiteBusMessageInvalidException` carries `RejectedBy`, and each message names the handler that decided it. A shortcut denial ends the mediation exactly as a guard denial does: completion handlers observe `Denied`, error handlers do not run, and a registered refusal mapper applies. Any stage may call `IExecutionContext.SuppressPostHandlers()` to skip the remaining post-handlers without changing the outcome.
+
+A fault raised after the decision stages can still end as a refusal: `IFaultRefusalClassifier` entries registered with `MessageModuleBuilder.UseFaultRefusalClassifier` recognize the fault and name the refusal the mediation ends as instead. See [Fault refusal classification](fault-refusal-classification.md).
 
 The completion stage runs in a `finally` inside the ambient execution scope, so it observes success, an early answer, a denial, a validation failure, a fault, and cancellation alike. It is the only stage guaranteed to run, and it is not cancellable.
 
@@ -47,10 +49,13 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 | `IMessageShortcut<TMessage>` / `IMessageShortcut<TMessage, TResult>` | Shortcut stage contracts that may answer without the handler |
 | `Verdict` | Allow or deny, with a reason and an optional code |
 | `Validity` / `ValidationFailure` | Valid, or the failures a validator reported |
+| `ThrowingValidator<TMessage, TException>` | Migration adapter over a validator body that reports failure by throwing; axis forms are `ThrowingCommandValidator` and `ThrowingQueryValidator` |
 | `Refusal` | The outcome, reason, and code handed to a refusal mapper. `Refusal.Denied` or `Refusal.Invalid`, never anything else |
-| `Shortcut` / `Shortcut<TResult>` | `None` to carry on, or `Answer` with a reason, a code, and, when the message produces one, a result |
+| `Shortcut` / `Shortcut<TResult>` | `None` to carry on, `Answer` with a reason, a code, and, when the message produces one, a result, or `Deny` with a reason and a code |
+| `IFaultRefusalClassifier` / `MessageModuleBuilder.UseFaultRefusalClassifier` | Turns a fault raised after the decision stages into the refusal the mediation ends as |
+| `MediationExceptionFilters.IsRefusal` / `IsRetryableDispatchException` / `IsCallerCancellation` | Classifies a decision apart from a fault, a fault worth retrying, and the caller cancelling inside a wrapper |
 | `PreStage` | `Guard`, `Validator`, `Shortcut`, `PreHandler`; the framework-fixed stage order. Covers the pre stage only |
-| `PipelineDecision` | What a pre-stage handler reported: `Continue`, or a stop carrying the outcome, reason, and result |
+| `PipelineDecision` | What a pre-stage handler reported: `Continue`, or a stop carrying the outcome, reason, result, and `DecidedBy` |
 | `LiteBusMessageDeniedException` | Raised when a refusal supplies no result for the caller; carries `DeniedBy` naming the guard |
 | `LiteBusMessageInvalidException` | Raised for a validation failure; carries `RejectedBy` naming the validator |
 | `IAsyncMessageHandler<TMessage>` / `IAsyncMessageHandler<TMessage, TResult>` | Main handler contracts |
@@ -100,7 +105,9 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 - Single-handler strategies resolve one main handler at the winning level: direct handlers first, an indirect (base-type) handler only when no direct handler survives filtering.
 - Post-handler result override uses `executionContext.MessageResult`.
 - Recoverable exceptions route to error handlers with the caller's explicit cancellation token.
+- A fault the recoverable filter excludes bypasses the error stage but is still recorded before completion runs: completion observes `Failed` with the exception, or `Canceled` for a cancellation, never `Succeeded` for a mediation that threw.
 - Error handlers suppress the original exception only by setting their shared context outcome to `Handled`.
+- A fault an error handler recovered completes as `Failed` with no recorded exception, which distinguishes it from a fault that propagated; a completion-handler fault on that path propagates instead of being suppressed.
 - On a result-bearing message, an error handler that sets `Handled` without a usable `HandledResult` recovers the message and the caller receives the default value (`null` for a reference type). A global error handler cannot know the result type, so this is how it absorbs a fault; a handler with a fallback value sets `HandledResult`.
 - Event broadcast may execute handlers concurrently based on event execution settings.
 - Completion handlers run exactly once per mediation, on every outcome path.
@@ -111,10 +118,12 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 - Completion handlers receive `CancellationToken.None`; the stage runs to the end on every path.
 - A completion handler that throws while an exception is ending the mediation has its fault attached to that exception under `MediationExceptionData.SuppressedCompletionFaults`, and propagates otherwise.
 - Stream completion fires on enumerator disposal, so an unenumerated stream produces no completion record.
+- A refusal mapper's stream is enumerated through the same runner as the handler's stream, so a fault in it is offered to the error stage and the ambient scope wraps every advance.
 - Only a guard, a validator, or a shortcut can stop the pipeline; `Answered`, `Denied`, and `Invalid` all mean the main handler never ran.
 - A denial is not routed to error handlers and is not reported as `Faulted`.
 - Suppressing post-handlers reports `MediationOutcome.Succeeded`, because the main handler ran.
-- A shortcut that answers a result-returning message must supply a result of the expected type, or mediation throws `LiteBusConfigurationException`. Analyzer rule `LB1019` reports a shortcut that used the untyped contract for such a message. A guard has no such duty, so the untyped guard is correct everywhere.
+- A shortcut that answers a result-returning message must supply a result of the expected type, or mediation throws `LiteBusConfigurationException`. Analyzer rule `LB1019` reports a shortcut that used the untyped contract for such a message. A guard has no such duty, so the untyped guard is correct everywhere. A denial carries no result and is resolved through a mapper, so denying a result message is safe through either shortcut contract, although direct registration of the untyped contract on a result message is still rejected.
+- A shortcut denial reports `Denied` exactly like a guard denial: `TrySendAsync` reports it as a value, `SendAsync` raises `LiteBusMessageDeniedException` naming the shortcut in `DeniedBy`, completion handlers observe it, error handlers skip it, and a registered refusal mapper applies. Anything a guard could decide belongs to a guard, which runs first.
 - One class may implement pipeline contracts for several message types; each dispatch reaches the contract recorded in its descriptor.
 
 ## Non-Goals
@@ -162,7 +171,7 @@ Operational alternatives:
 | `Completion_receives_the_result_typed_when_the_handler_asks_for_it` | `LiteBus.Mediator.UnitTests` |
 | `A_suppressed_completion_fault_is_attached_to_the_original_exception` | `LiteBus.Mediator.UnitTests` |
 | `Completion_runs_with_Canceled_and_the_cancellation_still_propagates` | `LiteBus.Mediator.UnitTests` |
-| `Direct_completion_handlers_run_before_indirect_ones` | `LiteBus.Mediator.UnitTests` |
+| `Priority_orders_completion_handlers_across_the_direct_and_indirect_split` | `LiteBus.Mediator.UnitTests` |
 | `A_failing_completion_handler_does_not_replace_the_original_fault` | `LiteBus.Mediator.UnitTests` |
 | `An_answering_shortcut_skips_the_main_handler_and_reports_Answered` | `LiteBus.Mediator.UnitTests` |
 | `The_stage_order_is_guard_then_validator_then_shortcut_then_pre_handler` | `LiteBus.Mediator.UnitTests` |
@@ -170,11 +179,20 @@ Operational alternatives:
 | `A_lowest_priority_shortcut_cannot_answer_ahead_of_a_guard` | `LiteBus.Mediator.UnitTests` |
 | `A_denial_reports_Denied_and_reaches_the_caller_as_an_exception` | `LiteBus.Mediator.UnitTests` |
 | `A_denial_is_a_decision_so_error_handlers_do_not_see_it` | `LiteBus.Mediator.UnitTests` |
-| `A_denial_may_hand_the_caller_a_refusal_value_instead_of_throwing` | `LiteBus.Mediator.UnitTests` |
+| `A_registered_mapper_hands_the_caller_a_refusal_value_instead_of_throwing` | `LiteBus.Mediator.UnitTests` |
 | `Suppressing_post_handlers_still_reports_Succeeded` | `LiteBus.Mediator.UnitTests` |
-| `A_short_circuit_supplies_the_result_the_caller_receives` | `LiteBus.Mediator.UnitTests` |
-| `A_short_circuit_without_a_required_result_is_a_configuration_error` | `LiteBus.Mediator.UnitTests` |
-| `Pre_handlers_after_a_stopping_directive_do_not_run` | `LiteBus.Mediator.UnitTests` |
+| `An_answering_shortcut_supplies_the_result_the_caller_receives` | `LiteBus.Mediator.UnitTests` |
+| `An_untyped_shortcut_on_a_message_with_a_result_is_rejected_at_registration` | `LiteBus.Mediator.UnitTests` |
+| `An_untyped_shortcut_is_rejected_whichever_side_registers_first` | `LiteBus.Mediator.UnitTests` |
+| `A_global_untyped_shortcut_reaching_a_message_with_a_result_reports_the_shortcut_by_name` | `LiteBus.Mediator.UnitTests` |
+| `Pre_handlers_after_a_stopping_decision_do_not_run` | `LiteBus.Mediator.UnitTests` |
+| `A_denying_shortcut_reports_Denied_through_TrySendAsync` | `LiteBus.Mediator.UnitTests` |
+| `A_denying_shortcut_throws_through_SendAsync_naming_the_shortcut` | `LiteBus.Mediator.UnitTests` |
+| `A_shortcut_denial_reaches_completion_handlers_as_Denied` | `LiteBus.Mediator.UnitTests` |
+| `A_shortcut_denial_is_a_decision_so_error_handlers_do_not_see_it` | `LiteBus.Mediator.UnitTests` |
+| `A_refusal_mapper_applies_to_a_shortcut_denial` | `LiteBus.Mediator.UnitTests` |
+| `A_mapped_shortcut_denial_reports_Denied_with_a_value_through_TrySendAsync` | `LiteBus.Mediator.UnitTests` |
+| `A_denying_typed_shortcut_throws_when_no_mapper_covers_the_command` | `LiteBus.Mediator.UnitTests` |
 | `An_event_shortcut_can_skip_the_reactions_to_an_already_handled_event` | `LiteBus.Mediator.UnitTests` |
 | `An_event_completion_handler_observes_a_successful_broadcast` | `LiteBus.Mediator.UnitTests` |
 | `Each_message_type_reaches_its_own_contract_on_a_shared_handler` | `LiteBus.Mediator.UnitTests` |

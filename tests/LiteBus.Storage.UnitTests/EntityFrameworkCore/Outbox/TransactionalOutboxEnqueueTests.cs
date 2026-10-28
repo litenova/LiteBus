@@ -56,7 +56,7 @@ public sealed class TransactionalOutboxEnqueueTests
                         Trace = new MessageTrace.Distributed(
                             "corr-1",
                             "cause-1",
-                            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
+                            """{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}"""),
                         Tenant = new TenantScope.Isolated("tenant-1"),
                         Target = new PublicationTarget.Topic("orders")
                     })).ConfigureAwait(false);
@@ -67,7 +67,7 @@ public sealed class TransactionalOutboxEnqueueTests
             receipt.Trace.Should().Be(new MessageTrace.Distributed(
                 "corr-1",
                 "cause-1",
-                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"));
+                """{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}"""));
 
             var savedCount = await context.SaveChangesAsync().ConfigureAwait(false);
             savedCount.Should().Be(1);
@@ -81,7 +81,7 @@ public sealed class TransactionalOutboxEnqueueTests
             stored.CausationId.Should().Be("cause-1");
             stored.TenantId.Should().Be("tenant-1");
             stored.IdempotencyKey.Should().Be("idem-1");
-            stored.TraceContext.Should().Be("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
+            stored.TraceContext.Should().Be("""{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}""");
             stored.Payload.Should().Contain(orderId.ToString("D"));
             stored.Status.Should().Be(OutboxStatus.Pending);
         }

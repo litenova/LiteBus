@@ -97,4 +97,46 @@ public static class InboxOutboxStoreServiceCollectionExtensions
 
         return services.AddTestTransactionalOutbox(new TestOutboxStore());
     }
+
+    /// <summary>
+    ///     Registers one shared <see cref="TestInboxStore" /> for every inbox role plus an in-memory <see cref="ITransactionalInbox" /> for application tests.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="store">The store instance shared by the writer, processor, diagnostics, and transactional roles.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    ///     Call this after <c>AddLiteBus</c> so the test roles win over module registrations. The transactional inbox
+    ///     is the production <see cref="StoreBoundTransactionalInbox" /> bound to the shared store; it writes
+    ///     immediately because the in-memory backend has no transaction to enlist in, so it proves accept and
+    ///     processor behaviour, not rollback.
+    /// </remarks>
+    public static IServiceCollection AddTestTransactionalInbox(this IServiceCollection services, TestInboxStore store)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(store);
+
+        services.AddInboxStoreRoles(store);
+        services.AddSingleton(store);
+        services.AddSingleton<ITransactionalInboxStore>(_ => store);
+        services.AddScoped<ITransactionalInbox>(provider => new StoreBoundTransactionalInbox(
+            provider.GetRequiredService<ITransactionalInboxStore>(),
+            provider.GetRequiredService<IInboxEnvelopeFactory>()));
+        return services;
+    }
+
+    /// <summary>
+    ///     Registers a new shared <see cref="TestInboxStore" /> for every inbox role plus an in-memory <see cref="ITransactionalInbox" /> for application tests.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    ///     Call this after <c>AddLiteBus</c> so the test roles win over module registrations. Resolve
+    ///     <see cref="TestInboxStore" /> from the provider to assert on stored envelopes.
+    /// </remarks>
+    public static IServiceCollection AddTestTransactionalInbox(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        return services.AddTestTransactionalInbox(new TestInboxStore());
+    }
 }

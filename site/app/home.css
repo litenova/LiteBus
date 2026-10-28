@@ -4,7 +4,21 @@
    globals.css; nothing here redefines those classes. */
 
 /* ------------------------------------------------------------------- hero */
-.hero { padding: 96px 0 80px; }
+.hero { padding: 96px 0 80px; position: relative; isolation: isolate; overflow: hidden; }
+/* A soft accent glow on the right and a faint grid that fades toward the copy, so the hero has depth without a
+   competing element. Both layers sit behind the content and ignore the pointer. */
+.hero::before,
+.hero::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.hero::before { background: radial-gradient(ellipse 48% 70% at 82% 38%, var(--acc-soft), transparent 70%); }
+.hero::after {
+  background-image:
+    linear-gradient(var(--line-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 46% 64% at 80% 42%, #000 0%, transparent 72%);
+  -webkit-mask-image: radial-gradient(ellipse 46% 64% at 80% 42%, #000 0%, transparent 72%);
+  opacity: .55;
+}
 .chip { display: inline-flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12.5px; color: var(--dim); border: var(--bw) solid var(--line); border-radius: 999px; padding: 4px 12px 4px 10px; transition: border-color .12s; }
 .chip:hover { border-color: var(--acc); text-decoration: none; }
 .chip b { color: var(--fg); font-weight: 500; }
@@ -71,7 +85,11 @@ button.ed-tab { background: transparent; border: 0; border-right: var(--bw) soli
 .write .lc { animation: e-write .26s steps(14) both; animation-delay: calc(var(--i) * 55ms + 80ms); }
 .write .line:last-child .lc::after { content: ""; display: inline-block; width: 2px; height: 1.15em; margin-left: 2px; vertical-align: -3px; background: var(--acc); animation: e-blink 1.1s steps(1) infinite; }
 
-/* features */
+/* features, grouped by axis under a small mono label */
+.feat-group { margin-top: 40px; }
+.feat-group h3 { display: flex; align-items: center; gap: 12px; font-family: var(--mono); font-size: 11.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--acc); }
+.feat-group h3::after { content: ""; flex: 1; height: var(--bw); background: var(--line-soft); }
+.feat-group .feats { margin-top: 12px; border-top: 0; }
 .feats { margin-top: 32px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 40px; border-top: var(--bw) solid var(--line-soft); }
 .feat { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; padding: 20px 8px; border-bottom: var(--bw) solid var(--line-soft); color: var(--fg); transition: background-color .14s; }
 .feat:hover { text-decoration: none; background: linear-gradient(90deg, var(--acc-soft), transparent 70%); }

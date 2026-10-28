@@ -170,11 +170,11 @@ public sealed class MissingQueryHandlerAnalyzerTests
     }
 
     /// <summary>
-    ///     Verifies that a query declared only in a referenced assembly without a handler produces LB1009.
+    ///     Verifies that a query declared only in a referenced assembly without a handler produces no diagnostic, because candidates are scoped to the analyzed assembly.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
     [Fact]
-    public Task QueryInReferencedAssemblyWithoutHandler_ProducesDiagnostic()
+    public Task QueryInReferencedAssemblyWithoutHandler_ProducesNoDiagnostic()
     {
         const string source = """
                               public sealed class Placeholder
@@ -198,10 +198,8 @@ public sealed class MissingQueryHandlerAnalyzerTests
             queriesReference,
             messagingReference);
 
-        return AnalyzerTest.VerifyDiagnosticWithReferencesAsync<MissingQueryHandlerAnalyzer>(
+        return AnalyzerTest.VerifyNoDiagnosticsWithReferencesAsync<MissingQueryHandlerAnalyzer>(
             source,
-            DiagnosticDescriptors.MissingQueryHandler,
-            ["GetUserQuery"],
             queriesReference,
             messagingReference,
             referencedProject);
@@ -255,11 +253,11 @@ public sealed class MissingQueryHandlerAnalyzerTests
     }
 
     /// <summary>
-    ///     Verifies that a stream query declared only in a referenced assembly without a handler produces LB1009.
+    ///     Verifies that a stream query declared only in a referenced assembly without a handler produces no diagnostic, because candidates are scoped to the analyzed assembly.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
     [Fact]
-    public Task StreamQueryInReferencedAssemblyWithoutHandler_ProducesDiagnostic()
+    public Task StreamQueryInReferencedAssemblyWithoutHandler_ProducesNoDiagnostic()
     {
         const string source = """
                               public sealed class Placeholder
@@ -283,10 +281,8 @@ public sealed class MissingQueryHandlerAnalyzerTests
             queriesReference,
             messagingReference);
 
-        return AnalyzerTest.VerifyDiagnosticWithReferencesAsync<MissingQueryHandlerAnalyzer>(
+        return AnalyzerTest.VerifyNoDiagnosticsWithReferencesAsync<MissingQueryHandlerAnalyzer>(
             source,
-            DiagnosticDescriptors.MissingQueryHandler,
-            ["StreamUsersQuery"],
             queriesReference,
             messagingReference,
             referencedProject);

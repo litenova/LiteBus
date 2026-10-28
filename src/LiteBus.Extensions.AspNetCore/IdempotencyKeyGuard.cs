@@ -26,8 +26,14 @@ namespace LiteBus.Extensions.AspNetCore;
 /// ]]></code>
 ///     <para>
 ///         It always allows. A mediation that carries no key passes through untouched, so commands sent without the
-///         endpoint filter behave exactly as before. It also leaves a key another stage already supplied alone, so a
-///         command-specific guard that derives its own key keeps precedence over the header.
+///         endpoint filter behave exactly as before. It also leaves a key another stage already supplied alone.
+///     </para>
+///     <para>
+///         This guard applies to every command indirectly, and indirect guards run before command-specific direct
+///         guards, so the header key is already present when a direct guard runs. A command-specific guard that derives
+///         its own key keeps precedence only when it overwrites unconditionally with
+///         <see cref="IHandleContextData.Set{T}(T)" />: a guard that sets only when no key is present yet
+///         silently loses to the header.
 ///     </para>
 /// </remarks>
 public sealed class IdempotencyKeyGuard : ICommandGuard<ICommand>

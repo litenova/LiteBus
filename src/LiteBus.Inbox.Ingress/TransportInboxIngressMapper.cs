@@ -31,7 +31,7 @@ internal static class TransportInboxIngressMapper
         {
             Identity = ResolveIdentity(message, mappingOptions),
             Idempotency = ResolveIdempotency(message, mappingOptions),
-            Visibility = ResolveVisibility(message),
+            Visibility = ResolveVisibility(message, mappingOptions),
             Trace = ResolveTrace(message),
             Tenant = ResolveTenant(message, mappingOptions)
         };
@@ -115,7 +115,7 @@ internal static class TransportInboxIngressMapper
             return MessageIdentity.Generated.Instance;
         }
 
-        return new MessageIdentity.Supplied(CreateIdentityFromBrokerDeliveryId(brokerDeliveryId));
+        return new MessageIdentity.Supplied(CreateIdentityFromBrokerDeliveryId(message, brokerDeliveryId));
     }
 
     /// <summary>
@@ -156,12 +156,23 @@ internal static class TransportInboxIngressMapper
     }
 
     /// <summary>
-    ///     Resolves visibility metadata from the optional visible-after header.
+    ///     Resolves visibility metadata from the optional visible-after header when application headers are trusted.
     /// </summary>
     /// <param name="message">The received transport delivery.</param>
-    /// <returns>Deferred visibility when a valid timestamp is present; otherwise immediate visibility.</returns>
-    private static MessageVisibility ResolveVisibility(TransportMessage message)
+    /// <param name="mappingOptions">The ingress mapping policy applied to visibility resolution.</param>
+    /// <returns>
+    ///     Deferred visibility when headers are trusted and a valid timestamp is present; otherwise immediate
+    ///     visibility. Distrusted visibility headers are ignored so a publisher cannot park a message in the future.
+    /// </returns>
+    private static MessageVisibility ResolveVisibility(
+        TransportMessage message,
+        TransportInboxIngressMappingOptions mappingOptions)
     {
+        if (!mappingOptions.TrustApplicationHeaders)
+        {
+            return MessageVisibility.Immediate.Instance;
+        }
+
         var delay = TryGetVisibleAfterDelay(message);
 
         if (delay is { } relativeDelay)
@@ -181,6 +192,10 @@ internal static class TransportInboxIngressMapper
     /// </summary>
     /// <param name="message">The received transport delivery.</param>
     /// <returns>The trace specification represented by the ingress headers.</returns>
+    /// <remarks>
+    ///     Correlation headers are always honored, even when application headers are distrusted. Trust mode only
+    ///     governs identity, idempotency, tenant, and visibility headers.
+    /// </remarks>
     private static MessageTrace ResolveTrace(TransportMessage message)
     {
         var correlationId = TransportHeaderValues.GetString(message.Headers, TransportHeaders.CorrelationId) ?? message.CorrelationId;
@@ -265,16 +280,24 @@ internal static class TransportInboxIngressMapper
     /// <summary>
     ///     Creates a stable inbox message id from a broker delivery identifier.
     /// </summary>
+    /// <param name="message">The received transport delivery.</param>
     /// <param name="brokerDeliveryId">The broker-scoped delivery identifier.</param>
     /// <returns>A supplied identity GUID derived from the broker delivery id.</returns>
-    private static Guid CreateIdentityFromBrokerDeliveryId(string brokerDeliveryId)
+    /// <remarks>
+    ///     The deterministic input includes the normalized ingress destination, matching the broker-scoped
+    ///     idempotency key, so the same delivery id on two ingress sources maps to two inbox rows when inbox tables
+    ///     are shared. A broker delivery id that already parses as a <see cref="Guid" /> is used verbatim because
+    ///     GUID delivery ids are globally unique; the same GUID on two destinations names the same logical delivery.
+    /// </remarks>
+    private static Guid CreateIdentityFromBrokerDeliveryId(TransportMessage message, string brokerDeliveryId)
     {
         if (Guid.TryParse(brokerDeliveryId, out var messageId))
         {
             return messageId;
         }
 
-        return CreateDeterministicGuid($"ingress-identity:{brokerDeliveryId}");
+        var destination = string.IsNullOrWhiteSpace(message.Destination) ? "unknown" : message.Destination;
+        return CreateDeterministicGuid($"ingress-identity:{destination}:{brokerDeliveryId}");
     }
 
     /// <summary>

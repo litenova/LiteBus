@@ -30,7 +30,9 @@ namespace LiteBus.Testing.Mediation;
 ///         <see cref="IdempotencyClaimOutcome.InFlight" /> until the claim is older than <see cref="ClaimTimeout" />,
 ///         when the new caller takes it over, and an applied key whose stored fingerprint differs from the incoming one
 ///         reports <see cref="IdempotencyClaimOutcome.FingerprintMismatch" />. Pass a controlled
-///         <see cref="TimeProvider" /> to drive the takeover deterministically.
+///         <see cref="TimeProvider" /> to drive the takeover deterministically. A granted claim is fenced by its token
+///         exactly like the durable stores: a settle carrying another token, or a settle for a key the caller does not
+///         hold, is a no-op.
 ///     </para>
 /// </remarks>
 public sealed class InMemoryIdempotencyStore : IIdempotencyStore
@@ -42,7 +44,13 @@ public sealed class InMemoryIdempotencyStore : IIdempotencyStore
     /// <param name="ClaimedAt">When the current claim was taken.</param>
     /// <param name="IsCompleted">Whether the key was marked applied.</param>
     /// <param name="Payload">The serialized result recorded for replay, or <see langword="null" /> when none.</param>
-    private sealed record ClaimEntry(string? Fingerprint, DateTimeOffset ClaimedAt, bool IsCompleted, string? Payload);
+    /// <param name="ClaimToken">The token fencing the current claim.</param>
+    private sealed record ClaimEntry(
+        string? Fingerprint,
+        DateTimeOffset ClaimedAt,
+        bool IsCompleted,
+        string? Payload,
+        string ClaimToken);
 
     /// <summary>
     ///     Guards <see cref="_entries" />, so a claim is checked and recorded atomically.
@@ -66,10 +74,12 @@ public sealed class InMemoryIdempotencyStore : IIdempotencyStore
     /// <param name="claimTimeout">
     ///     How long an unsettled claim blocks its key before a new caller takes it over. Defaults to five minutes.
     /// </param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="claimTimeout" /> is zero or negative.</exception>
     public InMemoryIdempotencyStore(TimeProvider? timeProvider = null, TimeSpan? claimTimeout = null)
     {
         _timeProvider = timeProvider ?? TimeProvider.System;
         ClaimTimeout = claimTimeout ?? TimeSpan.FromMinutes(5);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(ClaimTimeout, TimeSpan.Zero);
     }
 
     /// <summary>
@@ -103,8 +113,14 @@ public sealed class InMemoryIdempotencyStore : IIdempotencyStore
         {
             if (!_entries.TryGetValue(key, out var existing))
             {
-                _entries[key] = new ClaimEntry(fingerprint, _timeProvider.GetUtcNow(), IsCompleted: false, Payload: null);
-                return Task.FromResult(IdempotencyClaim.Granted);
+                var granted = NewClaimToken();
+                _entries[key] = new ClaimEntry(
+                    fingerprint,
+                    _timeProvider.GetUtcNow(),
+                    IsCompleted: false,
+                    Payload: null,
+                    granted);
+                return Task.FromResult(IdempotencyClaim.Granted(granted));
             }
 
             if (existing.IsCompleted)
@@ -121,8 +137,14 @@ public sealed class InMemoryIdempotencyStore : IIdempotencyStore
 
             if (_timeProvider.GetUtcNow() - existing.ClaimedAt > ClaimTimeout)
             {
-                _entries[key] = existing with { Fingerprint = fingerprint, ClaimedAt = _timeProvider.GetUtcNow() };
-                return Task.FromResult(IdempotencyClaim.Granted);
+                var taken = NewClaimToken();
+                _entries[key] = existing with
+                {
+                    Fingerprint = fingerprint,
+                    ClaimedAt = _timeProvider.GetUtcNow(),
+                    ClaimToken = taken
+                };
+                return Task.FromResult(IdempotencyClaim.Granted(taken));
             }
 
             return Task.FromResult(IdempotencyClaim.InFlight);
@@ -130,38 +152,54 @@ public sealed class InMemoryIdempotencyStore : IIdempotencyStore
     }
 
     /// <inheritdoc />
-    public Task CompleteAsync(string key, string? payload, CancellationToken cancellationToken = default)
+    public Task CompleteAsync(string key, string claimToken, string? payload, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentException.ThrowIfNullOrWhiteSpace(claimToken);
 
         lock (_entriesLock)
         {
-            _entries.TryGetValue(key, out var existing);
-            _entries[key] = new ClaimEntry(
-                existing?.Fingerprint,
-                existing?.ClaimedAt ?? _timeProvider.GetUtcNow(),
-                IsCompleted: true,
-                payload);
+            // Only the holder settles. A completion for a missing key, or one carrying a token the stored claim no
+            // longer carries after a takeover, is a no-op: inserting an applied row here would carry no fingerprint
+            // and silently disable mismatch checks for later repeats.
+            if (_entries.TryGetValue(key, out var existing) &&
+                string.Equals(existing.ClaimToken, claimToken, StringComparison.Ordinal))
+            {
+                _entries[key] = existing with { IsCompleted = true, Payload = payload };
+            }
         }
 
         return Task.CompletedTask;
     }
 
     /// <inheritdoc />
-    public Task ReleaseAsync(string key, CancellationToken cancellationToken = default)
+    public Task ReleaseAsync(string key, string claimToken, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentException.ThrowIfNullOrWhiteSpace(claimToken);
 
         lock (_entriesLock)
         {
-            // Only an unsettled claim is removed. A completed record is never deleted here, so a release racing a
-            // completion cannot turn an applied key back into a claimable one.
-            if (_entries.TryGetValue(key, out var existing) && !existing.IsCompleted)
+            // Only an unsettled claim still carrying the token is removed. A completed record is never deleted here,
+            // so a release racing a completion cannot turn an applied key back into a claimable one, and a late
+            // release from a superseded claimant cannot free the new claimant's live claim.
+            if (_entries.TryGetValue(key, out var existing) &&
+                !existing.IsCompleted &&
+                string.Equals(existing.ClaimToken, claimToken, StringComparison.Ordinal))
             {
                 _entries.Remove(key);
             }
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    ///     Generates the opaque token fencing one granted claim.
+    /// </summary>
+    /// <returns>A token unique to the grant.</returns>
+    private static string NewClaimToken()
+    {
+        return Guid.NewGuid().ToString("N");
     }
 }

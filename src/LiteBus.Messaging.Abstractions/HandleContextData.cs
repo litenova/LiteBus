@@ -8,7 +8,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// <inheritdoc cref="IHandleContextData" />
 /// <remarks>
 /// <para>
-///     Access is guarded by a lock rather than left unsynchronised the way <see cref="IExecutionContext.Items" /> is.
+///     Access is guarded by a lock, matching the concurrent dictionary behind <see cref="IExecutionContext.Items" />.
 ///     Event handlers can run in parallel over one execution context, and a torn dictionary there would surface as a
 ///     corrupted read a long way from its cause. The lock is uncontended for every sequential mediation, which is all
 ///     of them on the command and query axes.

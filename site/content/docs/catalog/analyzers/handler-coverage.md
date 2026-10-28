@@ -5,7 +5,7 @@
 - **ID**: `analyzers.missing-command-handler`, `analyzers.missing-query-handler`
 - **Diagnostics**: `LB1008` (Error), `LB1009` (Error)
 - **Maturity**: GA
-- **Summary**: Reports command, query, and stream query message types that do not have a main handler in the analyzed compilation and eligible referenced assemblies.
+- **Summary**: Reports command, query, and stream query message types declared in the analyzed compilation that do not have a main handler.
 
 ## Trigger Conditions
 
@@ -25,6 +25,8 @@ The analyzer reports when a concrete query type has no matching main query handl
 - `IStreamQuery<TResult>` requires `IStreamQueryHandler<TQuery, TResult>`.
 - Stream queries are checked against stream query handlers, not regular query handlers.
 - No supported open generic main handler that closes for the type (an arity-2 handler binds the message's declared result type and covers only messages that declare one).
+
+Message candidates are scoped to the analyzed assembly: a message from a referenced assembly is never reported, while handlers from eligible referenced assemblies still satisfy coverage. A handler that lives in a dependent project stays invisible; co-locate it with the message or suppress the diagnostic. See [Analyzers](../../reference/analyzers.md).
 
 ## Bad Example
 
@@ -83,14 +85,16 @@ Source: `tests/LiteBus.Analyzers.UnitTests/MissingCommandHandlerAnalyzerTests.cs
 | `CommandWithoutHandler_ProducesDiagnostic` | Unhandled command reports `LB1008` |
 | `DerivedCommandWithBaseHandler_ProducesNoDiagnostic` | Base command handler satisfies derived command coverage |
 | `CommandWithOpenGenericHandler_ProducesNoDiagnostic` | Open generic command handler satisfies coverage |
-| `CommandInReferencedAssemblyWithHandler_ProducesNoDiagnostic` | Coverage resolves across referenced assembly message types |
-| `CommandInReferencedAssemblyWithoutHandler_ProducesDiagnostic` | Referenced assembly command without handler reports `LB1008` |
+| `CommandInReferencedAssemblyWithHandler_ProducesNoDiagnostic` | Referenced assembly message with a local handler does not report `LB1008` |
+| `CommandInReferencedAssemblyWithoutHandler_ProducesNoDiagnostic` | Referenced assembly command without handler is not reported |
+| `CommandWithHandlerInReferencedAssembly_ProducesNoDiagnostic` | Handler in a referenced assembly satisfies coverage |
+| `CommandWithOpenGenericHandlerInReferencedAssembly_ProducesNoDiagnostic` | Open generic handler in a referenced assembly satisfies coverage |
 | `QueryWithHandler_ProducesNoDiagnostic` | Covered query type does not report `LB1009` |
 | `ResultQueryWithArityTwoOpenGenericHandler_ProducesNoDiagnostic` | Arity-2 open generic handler covers a result query |
 | `QueryWithoutHandler_ProducesDiagnostic` | Unhandled query reports `LB1009` |
 | `StreamQueryWithHandler_ProducesNoDiagnostic` | Covered stream query does not report `LB1009` |
 | `StreamQueryWithoutHandler_ProducesDiagnostic` | Unhandled stream query reports `LB1009` |
-| `QueryInReferencedAssemblyWithHandler_ProducesNoDiagnostic` | Referenced assembly query coverage is recognized |
-| `QueryInReferencedAssemblyWithoutHandler_ProducesDiagnostic` | Referenced assembly query without handler reports `LB1009` |
-| `StreamQueryInReferencedAssemblyWithHandler_ProducesNoDiagnostic` | Referenced assembly stream query coverage is recognized |
-| `StreamQueryInReferencedAssemblyWithoutHandler_ProducesDiagnostic` | Referenced assembly stream query without handler reports `LB1009` |
+| `QueryInReferencedAssemblyWithHandler_ProducesNoDiagnostic` | Referenced assembly query with a local handler does not report `LB1009` |
+| `QueryInReferencedAssemblyWithoutHandler_ProducesNoDiagnostic` | Referenced assembly query without handler is not reported |
+| `StreamQueryInReferencedAssemblyWithHandler_ProducesNoDiagnostic` | Referenced assembly stream query with a local handler does not report `LB1009` |
+| `StreamQueryInReferencedAssemblyWithoutHandler_ProducesNoDiagnostic` | Referenced assembly stream query without handler is not reported |

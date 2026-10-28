@@ -254,7 +254,7 @@ with [DeclarationExempt(typeof(TValue), "rationale")]. Narrow the requirement in
 listed were never meant to be in its scope.
 ```
 
-Scope on a type rather than a namespace deliberately. A namespace is a string a refactoring tool moves without telling anyone, so a requirement keyed on one silently stops applying when a folder is renamed, and for an authorization rule that failure is an unguarded command that used to be guarded.
+Scope on a type rather than a namespace deliberately. A namespace is a string a refactoring tool moves without telling anyone, so a requirement keyed on one silently stops applying when a folder is renamed, and for an authorization rule that failure is a silently unguarded command.
 
 ### Declaring a Family Default
 
@@ -266,11 +266,11 @@ registry.AddMessaging(messaging => messaging
     .RequireDeclaration<RequiredPermission, IOrganizationCommand>());
 ```
 
-Every command implementing `IOrganizationCommand` now declares that permission, and one that states its own keeps it. Nothing new decides that: a declaration resolves to the one written closest to the message, which is the rule a definition written for a base type has always followed. This states it without a file.
+Every command implementing `IOrganizationCommand` declares that permission, and one that states its own keeps it. A declaration resolves to the one written closest to the message, which is the same rule a definition written for a base type follows. This states it without a file.
 
 Defaults and a scoped requirement work together. The requirement makes the family answer for the value; the default answers for the ones that have nothing special to say. For a large family that is the difference between a hundred declarations and a handful of overrides.
 
-The scope is a type rather than a namespace for the same reason a scoped requirement's is. A namespace is a string a refactoring tool moves without telling anyone, so a default keyed on one silently stops applying when a folder is renamed, and for an authorization default that failure is a command that used to be guarded and now is not.
+The scope is a type rather than a namespace for the same reason a scoped requirement's is. A namespace is a string a refactoring tool moves without telling anyone, so a default keyed on one silently stops applying when a folder is renamed, and for an authorization default that failure is a command left unguarded.
 
 Two defaults for one scope and value type are a configuration error, as are a default and a definition both declared against the same message: one of them would have to be discarded and nothing says which.
 
@@ -389,7 +389,7 @@ accessor.ForMessage(message.GetType()).Contains<AuditDeclaration>();
 
 Because metadata is resolved once at registration, reading it costs a dictionary lookup rather than reflection on every dispatch, and the accessor is a stateless view with nothing to invalidate.
 
-A type the registry does not hold raises `MessageMetadataNotFoundException` rather than answering with an empty collection. That is deliberate: an empty answer would turn a missing registration into a permission check that silently passes.
+A type the registry does not hold raises `MessageMetadataNotFoundException` rather than answering with an empty collection. That is deliberate: an empty answer would turn a missing registration into a permission check that silently passes. An unregistered runtime type that mediation resolves through a base descriptor reads that descriptor's metadata instead, exactly as if the type had been registered; only a type nothing covers raises, so the accessor still never answers with an empty collection.
 
 `IMessageDescriptor.Metadata` is still there and still public, but reaching for it from application code means the registry's descriptor shape becomes part of your application. Use the accessor.
 

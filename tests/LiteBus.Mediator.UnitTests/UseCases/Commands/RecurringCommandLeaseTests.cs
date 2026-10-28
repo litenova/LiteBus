@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace LiteBus.Mediator.UnitTests.UseCases.Commands;
 
 /// <summary>
-///     Covers recurring command single-flight: skipped passes, lease release on success and failure, busy-period coverage, composition without a lease, and the default lease name.
+///     Covers recurring command single-flight: skipped passes, lease release on success and failure, busy-period coverage, lease loss ending the busy period, shutdown with a held lease, composition without a lease, and the default lease name.
 /// </summary>
 public sealed class RecurringCommandLeaseTests
 {
@@ -120,6 +120,104 @@ public sealed class RecurringCommandLeaseTests
         await run.ConfigureAwait(false);
 
         log.Count.Should().BeGreaterThanOrEqualTo(1);
+    }
+
+    [Fact]
+    public async Task Lease_loss_stops_the_busy_period_releases_and_backs_off()
+    {
+        var log = new SendLog { HasMoreWorkUntil = int.MaxValue };
+        var lease = new FakeLease();
+        await using var serviceProvider = BuildReportingProvider(
+            log,
+            lease,
+            host =>
+            {
+                host.Interval = TimeSpan.FromMilliseconds(5);
+                host.ErrorBackoff = TimeSpan.FromMilliseconds(400);
+                host.RequireLease = true;
+            });
+
+        var service = ResolveLoop<LeaseReportingCommand>(serviceProvider);
+        using var cancellation = new CancellationTokenSource();
+
+        var run = service.ExecuteAsync(cancellation.Token);
+        await log.WaitForSendsAsync(2).ConfigureAwait(false);
+
+        lease.CancelLoss();
+
+        // The loop must release the lost lease promptly instead of running the busy period on.
+        await lease.WaitForReleasesAsync(1).ConfigureAwait(false);
+
+        var sendsAtLoss = log.Count;
+        await Task.Delay(TimeSpan.FromMilliseconds(150)).ConfigureAwait(false);
+
+        // Still backing off: no further passes and no re-acquire while the backoff runs.
+        log.Count.Should().Be(sendsAtLoss);
+        lease.Acquisitions.Should().Be(1);
+
+        // The loop survived: it re-acquires after the backoff and sends again.
+        await log.WaitForSendsAsync(sendsAtLoss + 2).ConfigureAwait(false);
+        await cancellation.CancelAsync().ConfigureAwait(false);
+        await run.ConfigureAwait(false);
+
+        lease.Acquisitions.Should().BeGreaterThanOrEqualTo(2);
+    }
+
+    [Fact]
+    public async Task Lease_loss_cancels_the_in_flight_send()
+    {
+        var log = new SendLog { BlockUntilCancelled = true };
+        var lease = new FakeLease();
+        await using var serviceProvider = BuildProvider(
+            log,
+            lease,
+            host =>
+            {
+                host.Interval = TimeSpan.FromMilliseconds(5);
+                host.ErrorBackoff = TimeSpan.FromMilliseconds(50);
+                host.RequireLease = true;
+            });
+
+        var service = ResolveLoop<LeaseProbeCommand>(serviceProvider);
+        using var cancellation = new CancellationTokenSource();
+
+        var run = service.ExecuteAsync(cancellation.Token);
+        await log.WaitForSendsAsync(1).ConfigureAwait(false);
+
+        lease.CancelLoss();
+
+        // The blocked send must end through cancellation so the pass releases the lost lease.
+        await lease.WaitForReleasesAsync(1).ConfigureAwait(false);
+        await cancellation.CancelAsync().ConfigureAwait(false);
+        await run.ConfigureAwait(false);
+    }
+
+    [Fact]
+    public async Task Shutdown_with_a_held_lease_and_failing_release_completes_cleanly()
+    {
+        var log = new SendLog { BlockUntilCancelled = true };
+        var lease = new FakeLease { ThrowOnRelease = true };
+        await using var serviceProvider = BuildProvider(
+            log,
+            lease,
+            host =>
+            {
+                host.Interval = TimeSpan.FromMilliseconds(5);
+                host.ErrorBackoff = TimeSpan.FromMilliseconds(5);
+                host.RequireLease = true;
+            });
+
+        var service = ResolveLoop<LeaseProbeCommand>(serviceProvider);
+        using var cancellation = new CancellationTokenSource();
+
+        var run = service.ExecuteAsync(cancellation.Token);
+        await log.WaitForSendsAsync(1).ConfigureAwait(false);
+        await cancellation.CancelAsync().ConfigureAwait(false);
+
+        // The loop returns with the lease held, so the shutdown-path release runs; its failure is logged, not thrown.
+        await run.ConfigureAwait(false);
+
+        lease.Releases.Should().Be(1);
     }
 
     [Fact]
@@ -274,6 +372,8 @@ public sealed class RecurringCommandLeaseTests
 
         public int HasMoreWorkUntil { get; init; }
 
+        public bool BlockUntilCancelled { get; init; }
+
         public int Record()
         {
             var ordinal = Interlocked.Increment(ref _count);
@@ -298,9 +398,16 @@ public sealed class RecurringCommandLeaseTests
     private sealed class FakeLease : IRecurringCommandLease, IDisposable
     {
         private readonly SemaphoreSlim _attemptSignal = new(0);
+        private readonly SemaphoreSlim _releaseSignal = new(0);
 
-        public void Dispose() => _attemptSignal.Dispose();
+        public void Dispose()
+        {
+            _attemptSignal.Dispose();
+            _releaseSignal.Dispose();
+        }
+
         private readonly List<string> _names = [];
+        private FakeHandle? _currentHandle;
         private int _acquisitions;
         private int _releases;
 
@@ -323,19 +430,39 @@ public sealed class RecurringCommandLeaseTests
             }
         }
 
-        public Task<IAsyncDisposable?> TryAcquireAsync(string leaseName, CancellationToken cancellationToken)
+        public Task<IRecurringCommandLeaseHandle?> TryAcquireAsync(string leaseName, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _acquisitions);
+
+            IRecurringCommandLeaseHandle? handle = null;
 
             lock (_names)
             {
                 _names.Add(leaseName);
+
+                if (Grant)
+                {
+                    var granted = new FakeHandle(this);
+                    _currentHandle = granted;
+                    handle = granted;
+                }
             }
 
             _attemptSignal.Release();
 
-            IAsyncDisposable? handle = Grant ? new FakeHandle(this) : null;
             return Task.FromResult(handle);
+        }
+
+        public void CancelLoss()
+        {
+            FakeHandle? current;
+
+            lock (_names)
+            {
+                current = _currentHandle;
+            }
+
+            current?.CancelLoss();
         }
 
         public async Task WaitForAttemptsAsync(int target)
@@ -348,18 +475,38 @@ public sealed class RecurringCommandLeaseTests
             }
         }
 
-        private sealed class FakeHandle : IAsyncDisposable
+        public async Task WaitForReleasesAsync(int target)
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+            while (Releases < target)
+            {
+                await _releaseSignal.WaitAsync(timeout.Token).ConfigureAwait(false);
+            }
+        }
+
+        private sealed class FakeHandle : IRecurringCommandLeaseHandle
         {
             private readonly FakeLease _owner;
+            private readonly CancellationTokenSource _loss = new();
 
             public FakeHandle(FakeLease owner)
             {
                 _owner = owner;
             }
 
+            public CancellationToken LeaseLost => _loss.Token;
+
+            public void CancelLoss()
+            {
+                _loss.Cancel();
+            }
+
             public ValueTask DisposeAsync()
             {
                 Interlocked.Increment(ref _owner._releases);
+                _owner._releaseSignal.Release();
+                _loss.Dispose();
 
                 if (_owner.ThrowOnRelease)
                 {
@@ -410,7 +557,7 @@ public sealed class RecurringCommandLeaseTests
             _log = log;
         }
 
-        public Task HandleAsync(LeaseProbeCommand message, CancellationToken cancellationToken = default)
+        public async Task HandleAsync(LeaseProbeCommand message, CancellationToken cancellationToken = default)
         {
             var ordinal = _log.Record();
 
@@ -419,7 +566,10 @@ public sealed class RecurringCommandLeaseTests
                 throw new InvalidOperationException($"pass {ordinal} failed");
             }
 
-            return Task.CompletedTask;
+            if (_log.BlockUntilCancelled)
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 

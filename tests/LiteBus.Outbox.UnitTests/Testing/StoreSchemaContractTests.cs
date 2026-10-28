@@ -164,6 +164,24 @@ public sealed class StoreSchemaContractTests : LiteBusTestBase
     }
 
     /// <summary>
+    ///     Verifies that the asynchronous assertion reads schema metadata from an inbox diagnostics store.
+    /// </summary>
+    [Fact]
+    public async Task AssertCompatibleAsync_should_read_schema_from_inbox_diagnostics_store()
+    {
+        var store = new TestInboxStore();
+
+        await StoreSchemaContract.AssertCompatibleAsync(store, InboxVersionOne()).ConfigureAwait(false);
+
+        Func<Task> act = () => StoreSchemaContract.AssertCompatibleAsync(store, InboxVersionOne() with
+        {
+            RecordedVersion = 2
+        });
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Recorded version mismatch*").ConfigureAwait(false);
+    }
+
+    /// <summary>
     ///     Builds the pinned expectation for a version one outbox store without name pins.
     /// </summary>
     /// <returns>The version one outbox expectation.</returns>
@@ -172,6 +190,20 @@ public sealed class StoreSchemaContractTests : LiteBusTestBase
         return new StoreSchemaExpectation
         {
             Component = "outbox",
+            ExpectedVersion = 1,
+            RecordedVersion = 1
+        };
+    }
+
+    /// <summary>
+    ///     Builds the pinned expectation for a version one inbox store without name pins.
+    /// </summary>
+    /// <returns>The version one inbox expectation.</returns>
+    private static StoreSchemaExpectation InboxVersionOne()
+    {
+        return new StoreSchemaExpectation
+        {
+            Component = "inbox",
             ExpectedVersion = 1,
             RecordedVersion = 1
         };

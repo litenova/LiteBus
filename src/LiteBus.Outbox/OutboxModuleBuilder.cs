@@ -76,6 +76,11 @@ public sealed class OutboxModuleBuilder
     private bool _perHandlerDelivery;
 
     /// <summary>
+    ///     Whether <see cref="AllowPerHandlerDeliveryWithTransportDispatch" /> was called.
+    /// </summary>
+    private bool _allowPerHandlerDeliveryWithTransportDispatch;
+
+    /// <summary>
     ///     Gets the deferred contract writer. Registrations are applied to the shared
     ///     <see cref="IMessageContractRegistry" /> when the module builds.
     /// </summary>
@@ -268,9 +273,10 @@ public sealed class OutboxModuleBuilder
     ///         work that produced them. A failed mediation stages nothing.
     ///     </para>
     ///     <para>
-    ///         The application must register a scoped <see cref="ITransactionalOutbox" />; the staging handler resolves
-    ///         it lazily and only when the drain is non-empty, so mediations that collect nothing never touch it. When
-    ///         <see cref="UseAmbientTrace" /> is also enabled, staged envelopes stamp
+    ///         The application must register a scoped <see cref="ITransactionalOutbox" />, including the Entity Framework
+    ///         Core interceptor non-generic adapter over <see cref="ITransactionalOutbox{TContext}" />; the staging handler
+    ///         resolves it lazily and only when the drain is non-empty, so mediations that collect nothing never touch it.
+    ///         When <see cref="UseAmbientTrace" /> is also enabled, staged envelopes stamp
     ///         <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.MessageTrace.FromAmbient" />.
     ///     </para>
     /// </remarks>
@@ -315,7 +321,9 @@ public sealed class OutboxModuleBuilder
     ///         does not receive already-enqueued events, and a handler removed before dispatch leaves its envelopes with
     ///         no matching subscriber, which the dispatch <c>RequireHandler</c> option then decides. Use this only with
     ///         in-process dispatch: broker dispatchers publish the full event per envelope, so per-handler envelopes
-    ///         would duplicate broker publication.
+    ///         would duplicate broker publication. Composition throws <see cref="DurableStorageConfigurationException" />
+    ///         when per-handler delivery meets a transport dispatcher unless
+    ///         <see cref="AllowPerHandlerDeliveryWithTransportDispatch" /> acknowledges the duplication.
     ///     </para>
     /// </remarks>
     public OutboxModuleBuilder EnablePerHandlerDelivery()
@@ -325,9 +333,40 @@ public sealed class OutboxModuleBuilder
     }
 
     /// <summary>
+    ///     Acknowledges that per-handler envelopes duplicate broker publication when combined with a transport dispatcher.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     Call this only when the duplicate publication is intended, for example during a migration that replays
+    ///     per-handler rows through a broker. Without this acknowledgement, composition throws
+    ///     <see cref="DurableStorageConfigurationException" /> when <see cref="EnablePerHandlerDelivery" /> meets a
+    ///     transport dispatcher.
+    /// </remarks>
+    public OutboxModuleBuilder AllowPerHandlerDeliveryWithTransportDispatch()
+    {
+        _allowPerHandlerDeliveryWithTransportDispatch = true;
+        return this;
+    }
+
+    /// <summary>
     ///     Gets a value indicating whether <see cref="StageCollectedEvents" /> was called.
     /// </summary>
     internal bool IsCollectedEventStagingEnabled => _stageCollectedEvents;
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="AllowPerHandlerDeliveryWithTransportDispatch" /> was called.
+    /// </summary>
+    internal bool IsPerHandlerDeliveryWithTransportDispatchAllowed => _allowPerHandlerDeliveryWithTransportDispatch;
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="EnablePerHandlerDelivery" /> was called.
+    /// </summary>
+    internal bool IsPerHandlerDeliveryEnabled => _perHandlerDelivery;
+
+    /// <summary>
+    ///     Gets the dispatcher sub-module registered on this builder, if any.
+    /// </summary>
+    internal IOutboxDispatcherModule? DispatcherModule => _dispatcherModule;
 
     /// <summary>
     ///     Collects the enqueue options built from the ambient trace and per-handler delivery flags.

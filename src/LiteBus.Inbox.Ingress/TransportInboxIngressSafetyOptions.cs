@@ -43,6 +43,10 @@ public sealed record TransportInboxIngressSafetyOptions
     /// <summary>
     ///     Gets a value indicating whether trusted application headers may override broker identity and tenant metadata.
     /// </summary>
+    /// <value>
+    ///     When <see langword="false" /> (the default), identity, idempotency, tenant, and visibility derive from the
+    ///     broker delivery id and accepted messages are immediately visible; correlation headers are always honored.
+    /// </value>
     public bool TrustApplicationHeaders { get; init; }
 
     /// <summary>
@@ -75,6 +79,10 @@ public sealed record TransportInboxIngressSafetyOptions
     /// <summary>
     ///     Gets the maximum wait before a partial batch is accepted.
     /// </summary>
+    /// <value>
+    ///     Must be positive when <see cref="EnableBatchAccept" /> is <see langword="true" />; zero would leave partial
+    ///     batches buffered with no flush trigger except a later full batch or shutdown.
+    /// </value>
     public TimeSpan BatchMaxWait { get; init; } = TimeSpan.FromMilliseconds(200);
 
     /// <summary>
@@ -105,6 +113,13 @@ public sealed record TransportInboxIngressSafetyOptions
         {
             throw new DurableStorageConfigurationException(
                 $"{nameof(BatchMaxWait)} must be greater than or equal to zero.");
+        }
+
+        if (EnableBatchAccept && BatchMaxWait == TimeSpan.Zero)
+        {
+            throw new DurableStorageConfigurationException(
+                $"{nameof(BatchMaxWait)} must be greater than zero when {nameof(EnableBatchAccept)} is enabled; " +
+                "a zero wait never flushes partial batches.");
         }
     }
 }

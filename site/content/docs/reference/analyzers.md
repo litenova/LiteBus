@@ -47,9 +47,13 @@ LB1001, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1017, LB1018, LB1020, 
 
 `dotnet build` and CI report them as usual. Visual Studio and other hosts that analyze one open file at a time do not show them as live squiggles; they appear in the error list after a build, or with full solution analysis enabled. The remaining rules inspect one type or one invocation and report live while you type.
 
+## Compilation Boundaries
+
+Compilation-end rules analyze one project at a time: they see the analyzed compilation's syntax plus the types declared in eligible referenced assemblies. Registrations, tag filters, and handlers that live in another project are invisible, so a message handled or registered in an upper layer still reports in the lower layer's build. Message candidates for LB1007, LB1008, LB1009, LB1011, and LB1017 are scoped to the analyzed assembly, because a message from a referenced assembly cannot be annotated from the compilation being built; handlers from eligible referenced assemblies still satisfy LB1008 and LB1009 coverage. Keep the handler or the registration call in the same compilation as the message type, or suppress the diagnostic at the declaration with a comment naming the project that owns it. LB1012 is the exception: it compares handler simple names across assemblies by design.
+
 ## Reserved Handler Priority (LB1022)
 
-`HandlerPriorities` reserves the window from `ReservedFloor` (1,000,000) up to but not including `ReservedCeiling` (2,000,000) for the handlers LiteBus ships, such as the persistence writer and the audit writer. Your application owns everything below the floor and everything at or above the ceiling.
+`HandlerPriorities` reserves the window from `ReservedFloor` (1,000,000) up to but not including `ReservedCeiling` (2,000,000) for the handlers LiteBus ships, such as the persistence writer and the audit writer. Your application owns everything below the floor and everything at or above the ceiling. The rule applies to handler types only: a class that implements no handler interface is skipped even when it carries the attribute, because the attribute is inert there.
 
 Reaching for a stage constant to order two application handlers against each other compiles and runs, and produces an ordering against the library stages rather than against the sibling you meant.
 
@@ -131,7 +135,7 @@ litebus.LB1024.forbidden_types = App.Billing.BillingClient, App.Devices.DeviceGa
 dotnet_diagnostic.LB1024.severity = warning
 ```
 
-The configured list replaces the defaults; a configured value that names nothing reports nothing. Names that do not resolve are ignored. Only constructor parameters are reported: a side-effect type that appears only as a method parameter or a property is out of the rule's sight. Move the call behind the transactional outbox or into a completion handler that runs after the commit. See [External Side Effect in Command Handler](../catalog/analyzers/external-side-effect-in-command-handler.md).
+The configured list replaces the defaults; a configured value that names nothing reports nothing. Names that do not resolve are ignored. Only public constructor parameters are reported: a side-effect type that appears only as a method parameter, a property, or a private constructor parameter is out of the rule's sight. Move the call behind the transactional outbox or into a completion handler that runs after the commit. See [External Side Effect in Command Handler](../catalog/analyzers/external-side-effect-in-command-handler.md).
 
 ## Untyped Shortcut on a Result Message (LB1019)
 
@@ -154,17 +158,17 @@ Open generic shortcuts are not reported: the message type is a type parameter, s
 - **LB1007** fires on **handled** durable types that have neither `[MessageContract]` nor registration discovered through `Contracts.Register<T>()` or `RegisterFromAssembly`.
 - **LB1017** fires on **attributed** durable types that lack explicit registration. Runtime on-demand resolution still works; explicit registration is recommended for predictable discovery.
 
-Both rules treat `RegisterFromAssembly` / `AddFromAssembly` as satisfying explicit registration, except scans through the command, event, and query axis builders, which record message and handler types only. LB1017 matches only `IContractWriter` / `IMessageContractRegistry` `Register` invocations, not unrelated `Register<T>()` methods such as the message, command, event, and query axis builders.
+Both rules treat `RegisterFromAssembly` / `AddFromAssembly` as satisfying explicit registration, except scans through the command, event, and query axis builders, which record message and handler types only. Both rules match singular `Register` only on contract writer surfaces (`IContractWriter`, `IMessageContractRegistry`, `MessageContractBuilder`, implementers, and `Register` extensions on those), not unrelated `Register<T>()` methods such as the message, command, event, and query axis builders or a same-shaped handler registry.
 
 Assembly scans satisfy the rules when the argument is `typeof(T)`, `typeof(T).Assembly`, a local initialized to either form, or `Assembly.GetExecutingAssembly()` / `Assembly.GetCallingAssembly()`. Any other shape, such as an `Assembly` parameter, property, or unresolved call result, does not count; hoist the value into a `typeof`-based local at the call site.
 
 ## Inbox Result Commands (LB1004)
 
-The inbox replays stored commands later and discards handler results. Only result-less `ICommand` types may be accepted. LB1004 covers `AcceptAsync`, `AcceptBatchAsync` (including `InboxAcceptItem.From` in array and collection-expression batches), and transactional inbox acceptance APIs.
+The inbox replays stored commands later and discards handler results. Only result-less `ICommand` types may be accepted. LB1004 covers `AcceptAsync`, `AcceptBatchAsync` (including `InboxAcceptItem.From` in array and collection-expression batches), and transactional inbox acceptance APIs. Untyped items resolve through `MessageType = typeof(X)` when present, else through the `Message` assignment, mirroring the runtime contract lookup; arguments match parameters by name, so reordered named arguments resolve correctly. Batches that are not inline at the call site, such as a method result, a parameter, or a field, are statically opaque and stay silent, because their element type is always `InboxAcceptItem`.
 
 ## Query and Stream Query Handlers (LB1009 and LB1010)
 
-LB1009 reports query types without `IQueryHandler<TQuery, TResult>` and stream query types without `IStreamQueryHandler<TQuery, TResult>`. Stream queries implementing `IStreamQuery<TResult>` are not checked against query handlers. LB1010 applies the same duplicate detection to both handler kinds. Message type discovery for LB1008, LB1009, and LB1010, and handler registration scanning, include eligible referenced assemblies (same filter as handler registration scanning).
+LB1009 reports query types without `IQueryHandler<TQuery, TResult>` and stream query types without `IStreamQueryHandler<TQuery, TResult>`. Stream queries implementing `IStreamQuery<TResult>` are not checked against query handlers. LB1010 applies the same duplicate detection to both handler kinds. Message candidates for LB1008 and LB1009 are scoped to the analyzed assembly: a message from a referenced assembly is never reported, because it cannot be annotated from the compilation being built. Handler registration scanning still includes eligible referenced assemblies, so a handler in a referenced assembly satisfies coverage; LB1010 duplicate detection spans the same registrations. See Compilation Boundaries.
 
 ## Reserved Event Handler Slot (LB1002)
 

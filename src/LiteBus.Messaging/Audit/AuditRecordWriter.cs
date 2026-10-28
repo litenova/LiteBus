@@ -188,11 +188,14 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
     /// <returns>The declaration, or <see langword="null" /> when the message declares no audit position.</returns>
     /// <remarks>
     ///     Attributes and definitions both contribute an <see cref="AuditDeclaration" /> during registration, so this is
-    ///     one lookup by one key rather than a search through the sources.
+    ///     one lookup by one key rather than a search through the sources. The declaration is read through the
+    ///     descriptor the mediation resolved: an unregistered runtime type mediated through a base descriptor is
+    ///     audited under that descriptor's declaration, exactly as if the type had been registered, so whether a
+    ///     mediation leaves a record never depends on scan coverage.
     /// </remarks>
     private AuditDeclaration? ResolveDeclaration(Type messageType)
     {
-        var descriptor = _registry.Find(messageType);
+        var descriptor = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy().Find(messageType, _registry);
 
         if (descriptor is null)
         {

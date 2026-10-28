@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Transport.Abstractions;
-using LiteBus.Transport.Amqp.Exceptions;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
@@ -44,6 +43,11 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     ///     Gets the queue name for the active subscription when consuming through <see cref="IMessageConsumer" />.
     /// </summary>
     private string? _activeQueueName;
+
+    /// <summary>
+    ///     Gets the cancellation source used to stop delivery processing for the active subscription.
+    /// </summary>
+    private CancellationTokenSource? _consumeCts;
 
     /// <summary>
     ///     Signals when the active consume loop stops because of shutdown, cancellation, or channel failure.
@@ -87,7 +91,7 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     /// </summary>
     /// <param name="options">The queue, prefetch, and declaration settings for the subscription.</param>
     /// <param name="boundedHandler">The admission-bounded delivery handler.</param>
-    /// <param name="cancellationToken">A token that cancels channel creation.</param>
+    /// <param name="cancellationToken">A token that cancels subscription startup.</param>
     /// <returns>A task that completes when the subscription is active.</returns>
     private async Task StartCoreAsync(
         AmqpConsumerOptions options,
@@ -100,10 +104,12 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
         {
             if (_consumerChannel is not null)
             {
-                throw new AmqpTransportConfigurationException("The AMQP consumer is already started.");
+                throw new InvalidOperationException("The AMQP consumer is already started.");
             }
 
             _stoppedTcs = CreateStoppedTaskSource();
+            _consumeCts = new CancellationTokenSource();
+            var consumeToken = _consumeCts.Token;
             _activeQueueName = options.QueueName;
             _consumerChannel = await _connectionManager.CreateChannelAsync(cancellationToken).ConfigureAwait(false);
 
@@ -137,25 +143,32 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
                         return;
                     }
 
+                    var settlement = new AmqpDeliverySettlement();
+
                     try
                     {
-                        var message = CreateReceivedMessage(_consumerChannel, delivery);
-                        await boundedHandler(message, cancellationToken).ConfigureAwait(false);
+                        var message = CreateReceivedMessage(_consumerChannel, delivery, settlement);
+                        await boundedHandler(message, consumeToken).ConfigureAwait(false);
                     }
-                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    catch (OperationCanceledException) when (consumeToken.IsCancellationRequested)
                     {
                         // Graceful shutdown: do not nack so unacknowledged deliveries follow channel-close semantics.
                     }
 #pragma warning disable CA1031 // Handler failures are intentionally broad; nack policy filters graceful shutdown.
-                    catch (Exception exception) when (AmqpConsumerAckPolicy.ShouldNack(exception, cancellationToken))
+                    catch (Exception exception) when (AmqpConsumerAckPolicy.ShouldNack(exception, consumeToken))
 #pragma warning restore CA1031
                     {
+                        if (settlement.IsSettled)
+                        {
+                            return;
+                        }
+
                         if (_consumerChannel.IsOpen)
                         {
                             try
                             {
                                 await _consumerChannel
-                                    .BasicNackAsync(delivery.DeliveryTag, false, true, cancellationToken)
+                                    .BasicNackAsync(delivery.DeliveryTag, false, true, consumeToken)
                                     .ConfigureAwait(false);
                             }
                             catch (AlreadyClosedException)
@@ -189,6 +202,12 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
                     _consumerChannel = null;
                 }
 
+                if (_consumeCts is not null)
+                {
+                    _consumeCts.Dispose();
+                    _consumeCts = null;
+                }
+
                 _activeQueueName = null;
                 _consumerTag = null;
                 SignalStopped(exception);
@@ -214,6 +233,11 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
                 return;
             }
 
+            if (_consumeCts is not null)
+            {
+                await _consumeCts.CancelAsync().ConfigureAwait(false);
+            }
+
             _consumerChannel.ChannelShutdownAsync -= OnChannelShutdownAsync;
 
             if (!string.IsNullOrWhiteSpace(_consumerTag))
@@ -236,6 +260,13 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
             await _consumerChannel.DisposeAsync().ConfigureAwait(false);
             _consumerChannel = null;
             _activeQueueName = null;
+
+            if (_consumeCts is not null)
+            {
+                _consumeCts.Dispose();
+                _consumeCts = null;
+            }
+
             SignalStopped();
         }
         finally
@@ -263,6 +294,10 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     A <see cref="TransportConsumerOptions.PrefetchCount" /> of zero maps to RabbitMQ's unlimited native
+    ///     prefetch window. Set an explicit bound when consuming from a large backlog with slow handlers.
+    /// </remarks>
     public Task StartAsync(
         TransportConsumerOptions options,
         Func<TransportMessage, CancellationToken, Task> handler,
@@ -392,8 +427,12 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
     /// </summary>
     /// <param name="channel">The channel used to acknowledge the delivery.</param>
     /// <param name="delivery">The broker delivery event arguments.</param>
-    /// <returns>The received message with acknowledgement delegates attached.</returns>
-    private AmqpReceivedMessage CreateReceivedMessage(IChannel channel, BasicDeliverEventArgs delivery)
+    /// <param name="settlement">The settlement tracker shared with the failure-path requeue for the delivery.</param>
+    /// <returns>The received message with settlement-guarded acknowledgement delegates attached.</returns>
+    private AmqpReceivedMessage CreateReceivedMessage(
+        IChannel channel,
+        BasicDeliverEventArgs delivery,
+        AmqpDeliverySettlement settlement)
     {
         return new AmqpReceivedMessage
         {
@@ -408,10 +447,20 @@ public sealed class AmqpConsumer : IAmqpConsumer, IMessageConsumer
             Redelivered = delivery.Redelivered,
             AckDelegate = async (multiple, token) =>
             {
+                if (!settlement.TryMarkSettled())
+                {
+                    return;
+                }
+
                 await channel.BasicAckAsync(delivery.DeliveryTag, multiple, token).ConfigureAwait(false);
             },
             NackDelegate = async (multiple, requeue, token) =>
             {
+                if (!settlement.TryMarkSettled())
+                {
+                    return;
+                }
+
                 await channel.BasicNackAsync(delivery.DeliveryTag, multiple, requeue, token).ConfigureAwait(false);
             }
         };

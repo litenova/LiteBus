@@ -51,10 +51,10 @@ details[open] > summary.xrow .chev { transform: rotate(90deg); }
 .prose h2:hover a.anchor, .prose h2 a.anchor:focus-visible { opacity: 1; }
 .prose p { margin-top: 12px; }
 /*
- * Running text is justified for an even right edge across pages, and hyphenation keeps word spacing even. Table cells,
- * code and headings stay left-aligned.
+ * Running text is left-aligned. Justified text stretched the word gaps around inline code and broke API names with
+ * hyphens; balanced wrapping keeps the right edge even enough without either.
  */
-.prose > p, .prose li, .prose blockquote p, .prose dd { text-align: justify; hyphens: auto; -webkit-hyphens: auto; text-wrap: pretty; }
+.prose > p, .prose li, .prose blockquote p, .prose dd { text-align: start; hyphens: manual; -webkit-hyphens: manual; text-wrap: pretty; }
 .prose :not(pre) > code { font-family: var(--mono); font-size: .86em; color: var(--fg); background: var(--raised); border: var(--bw) solid var(--line-soft); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
 .prose blockquote { margin: 16px 0 0; padding: 2px 0 2px 16px; border-left: 2px solid var(--line); color: var(--dim); }
 .prose blockquote p { margin-top: 8px; }

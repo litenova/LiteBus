@@ -17,6 +17,7 @@ Writers persist optional idempotency keys with envelopes. On duplicate `(tenant_
 
 - **`Idempotency.None`**: No insert-time deduplication key. Duplicate rows are possible when callers retry without a key.
 - **`Idempotency.Keyed(string Key, IdempotencyConflictMode ConflictMode = ReturnExisting)`**: Application-defined key stored with the envelope. `ReturnExisting` returns the prior row; `Strict` throws `IdempotencyConflictException`.
+- **`Idempotency.FromCommandKey(string? suffix = null, IdempotencyConflictMode conflictMode = ReturnExisting)`**: Builds keyed idempotency from the key the in-flight command was granted. Reads the `ClaimedIdempotencyKey` the idempotency shortcut recorded in `IExecutionContext.Data`; an optional suffix lets one command key several envelopes distinctly (`{key}:{suffix}`). Throws `InvalidOperationException` outside a keyed command mediation instead of inventing a key, and `ArgumentException` for a blank suffix.
 - **`MessageIdentity.Generated`**: Writer assigns a new message id at accept or enqueue time.
 - **`MessageIdentity.Supplied(Guid)`**: Caller-supplied message id; collisions deduplicate like idempotency keys.
 - **`InboxAcceptMetadata.Idempotency` / `OutboxEnqueueMetadata.Idempotency`**: Per-message idempotency variant on writer metadata records.
@@ -70,8 +71,7 @@ Writers persist optional idempotency keys with envelopes. On duplicate `(tenant_
 
 ## Non-Goals
 
-- Handler-level idempotency record store (planned)
-- Automatic idempotency middleware in the mediator pipeline
+- Mediation idempotency, which is a separate shipped capability: `IdempotencyDeclaration` with `IIdempotencyStore` answers a replayed command without running the handler again (see [Idempotency](../../concepts/idempotency.md)); this page covers insert-time deduplication only
 - Cross-service deduplication without application keys
 
 ## Observability
@@ -110,7 +110,7 @@ No dedicated idempotency meter. Duplicate accepts are success paths, not errors.
 
 - [Inbox](../../reliable-messaging/inbox.md) (idempotency, ingress defaults)
 - [Reliable messaging semantics](../../reliable-messaging/semantics.md)
-- [Roadmap](../../roadmap/README.md) (handler-level idempotency store)
+- [Idempotency](../../concepts/idempotency.md) (mediation idempotency: declarations, idempotency store, `FromCommandKey` source)
 
 ## Test Coverage
 
@@ -248,15 +248,32 @@ No dedicated idempotency meter. Duplicate accepts are success paths, not errors.
 - **Description**: PostgreSQL store plus ingress redelivery simulation
 - **Behavior**: Duplicate broker delivery through accept dedup then processor pass
 - **Expected outcome**: Handler invoked once
-- **Remarks**: `LiteBus.Storage.IntegrationTests (`PostgreSql/`)`
+- **Remarks**: `LiteBus.Storage.IntegrationTests (`PostgreSql/`)
+
+#### `CommandKeyIdempotencyTests.Inside_a_keyed_command_FromCommandKey_returns_the_claimed_key`
+
+- **Use case**: When a keyed command builds durable metadata from its claim, the envelope carries the claimed key
+- **Test kind**: Unit
+- **Description**: `Idempotency.FromCommandKey()` inside a keyed command mediation
+- **Behavior**: Key factory reads the recorded `ClaimedIdempotencyKey`
+- **Expected outcome**: Keyed idempotency with the claimed key value
+- **Remarks**: `LiteBus.Mediator.UnitTests`; companion tests cover the conflict mode, the suffix form, and the throws outside a keyed mediation
+
+#### `CommandKeyIdempotencyTests.Inside_an_undeclared_command_FromCommandKey_throws`
+
+- **Use case**: When no idempotency key was claimed, the factory throws instead of inventing a key
+- **Test kind**: Unit
+- **Description**: `Idempotency.FromCommandKey()` inside a command with no idempotency declaration
+- **Behavior**: Key factory with no recorded claim
+- **Expected outcome**: `InvalidOperationException`; no generated fallback that would make every delivery look distinct
+- **Remarks**: `LiteBus.Mediator.UnitTests``
 
 ### Untested Use Cases
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| Handler-level idempotency store | No (planned) | N/A | N/A | N/A |
-| Automatic mediator idempotency middleware | No | Planned capability | Unit | Medium |
-| Client HTTP Idempotency-Key header mapping | Yes | Application-owned; no framework test | N/A | Low |
+| Mediation idempotency record store | Yes | Shipped as `IIdempotencyStore`; covered on the mediation axis, not here | N/A | N/A |
+| Client HTTP Idempotency-Key header mapping | Yes | `WithIdempotencyKey` endpoint filter; covered on the ASP.NET Core axis, not here | N/A | N/A |
 
 ### Out-of-Scope Use Cases
 

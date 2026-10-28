@@ -57,6 +57,10 @@ public sealed class SagaModuleBuilder
     /// <param name="contractName">The durable message contract name.</param>
     /// <param name="sagaDefinitionId">The saga definition identifier that owns state for the contract.</param>
     /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     Module build fails when <paramref name="sagaDefinitionId" /> has no registered state type, so a misspelled
+    ///     definition identifier cannot leave the saga silently inactive.
+    /// </remarks>
     public SagaModuleBuilder MapContract(string contractName, string sagaDefinitionId)
     {
         _registry.MapContract(contractName, sagaDefinitionId);
@@ -106,6 +110,17 @@ public sealed class SagaModuleBuilder
 
         _storageModule = storageModule;
         return this;
+    }
+
+    /// <summary>
+    ///     Throws when a mapped contract names a saga definition with no registered state type.
+    /// </summary>
+    /// <exception cref="DurableStorageConfigurationException">
+    ///     A contract mapping names a saga definition identifier with no registered state type.
+    /// </exception>
+    internal void ValidateContractMappings()
+    {
+        _registry.ValidateContractMappings();
     }
 
     /// <summary>

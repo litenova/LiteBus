@@ -29,23 +29,28 @@ Pairs with in-process dispatch for full mediator loop tests.
 
 | Method | Typical caller |
 | --- | --- |
-| `IOutboxStore.EnqueueAsync` | Unit tests, samples |
+| `IOutboxStore.AddAsync` | Unit tests, samples |
 | `IOutboxLeaseStore.LeasePendingAsync` | Processor tests with in-process dispatch |
+| `ILeaseRenewable.ReleaseLeaseAsync` | Processor tests for cancelled dispatch |
 | `GetAll` (test helper) | Filter diagnostics in unit tests |
 
 ### Registration
 
 ```csharp
-outbox.UseInMemoryStorage();
+outbox.UseInMemoryStorage(o => o.UseTimeProvider(timeProvider));
 ```
 
 - Registers all outbox store roles on one singleton instance.
+- Second `UseInMemoryStorage` on same builder throws.
 
 ### Configuration
 
 | Option surface | Purpose |
 | --- | --- |
-| `InMemoryOutboxStoreOptions` | Lease behavior and test defaults |
+| `InMemoryOutboxStoreOptions.Capacity` | Throw on append when capacity exceeded (unless idempotent); zero means unbounded |
+| `InMemoryOutboxStoreOptions.DefaultLeaseDuration` | One minute by default; must be positive (validated at construction) |
+| `UseOptions` | Replaces the store options |
+| `UseTimeProvider` | Deterministic lease expiry in tests |
 | Module builder | No external connectivity options |
 
 ### Extension Points
@@ -68,6 +73,7 @@ outbox.UseInMemoryStorage();
 - Data lost on process exit.
 - Tenants are stored normalized; a null filter or lease tenant means no restriction while an empty string matches only unscoped rows.
 - Persist validates statuses up front and throws `InvalidOperationException` for non-terminal envelopes, matching relational adapters.
+- Leased and queried envelopes carry the recorded `Handler` value, so per-handler delivery rows round-trip without a database.
 
 ## Non-Goals
 

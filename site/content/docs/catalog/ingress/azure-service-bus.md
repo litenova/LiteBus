@@ -9,7 +9,7 @@
 
 `UseAzureServiceBusIngress` registers `AzureServiceBusInboxIngressModule`. The module maps `AzureServiceBusInboxIngressOptions` into shared transport ingress options, requires a root `AzureServiceBusTransportModule`, and registers the shared handler and consumer loop. Queue destinations use `Destination`; topic destinations also set `SubscriptionName`.
 
-Failed store writes can abandon messages for retry when `RequeueOnFailure` is true (Service Bus retry semantics via transport adapter).
+Failed store writes can abandon messages for retry when `RequeueOnFailure` is true (Service Bus retry semantics via transport adapter). The enforced handler bound is the lower of `Safety.MaxInFlightMessages` and `MaxConcurrentCalls`, which defaults to the SDK value of 1.
 
 ## Beta Rationale
 
@@ -116,7 +116,7 @@ Service Bus ingress uses shared mapper defaults:
 | Setting | Default | Result |
 | --- | --- | --- |
 | `RequireStableIdentity` | true | Missing broker id fails closed |
-| `Safety.TrustApplicationHeaders` | false | App idempotency and tenant headers are ignored |
+| `Safety.TrustApplicationHeaders` | false | App idempotency, tenant, and visibility headers are ignored |
 | Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | Stable duplicate absorption when delivery id is stable |
 
 ## Test Coverage

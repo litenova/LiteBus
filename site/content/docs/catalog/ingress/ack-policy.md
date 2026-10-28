@@ -42,13 +42,14 @@ These types are always treated as poison or configuration errors and discard whe
 - `InboxDispatchException`
 - `InboxIngressException`
 - `InboxStorageException`
+- `MessageSerializationException`
 - `InvalidOperationException`
 - `ArgumentException`
 - `FormatException`
 - `JsonException`
 - `OperationCanceledException`
 
-Any other exception type requeues when `RequeueOnFailure` is `true`. Cancellation is never requeued. When the ingress token is cancelled, the consumer rethrows `OperationCanceledException` before settlement, so the delivery stays unacknowledged and the broker redelivers it instead of the offset being committed without a store write.
+The match walks the inner-exception chain, so a malformed payload wrapped in `MessageSerializationException` discards instead of requeueing forever. Any other exception type requeues when `RequeueOnFailure` is `true`. Cancellation is never requeued. When the ingress token is cancelled, the consumer rethrows `OperationCanceledException` before settlement, so the delivery stays unacknowledged and the broker redelivers it instead of the offset being committed without a store write.
 
 ## Packages
 

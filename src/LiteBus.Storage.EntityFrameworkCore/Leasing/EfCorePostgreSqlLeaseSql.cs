@@ -104,6 +104,7 @@ internal static class EfCorePostgreSqlLeaseSql
                 {alias}.visible_after,
                 {alias}.status,
                 {alias}.attempt_count,
+                {alias}.idempotency_key,
                 {alias}.lease_owner,
                 {alias}.lease_expires_at,
                 {alias}.last_error,

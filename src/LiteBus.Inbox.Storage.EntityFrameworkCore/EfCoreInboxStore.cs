@@ -465,6 +465,8 @@ public sealed class EfCoreInboxStore :
 
             if (local is not null)
             {
+                ThrowIfCrossTenantMessageIdMatch(envelope, local);
+                ThrowIfStrictConflict(envelope, local);
                 return new InboxAppendResult(ToEnvelope(local), InboxAcceptOutcome.AlreadyAccepted);
             }
 
@@ -478,6 +480,7 @@ public sealed class EfCoreInboxStore :
 
             if (existing is not null)
             {
+                ThrowIfCrossTenantMessageIdMatch(envelope, existing);
                 ThrowIfStrictConflict(envelope, existing);
                 return new InboxAppendResult(ToEnvelope(existing), InboxAcceptOutcome.AlreadyAccepted);
             }
@@ -511,6 +514,7 @@ public sealed class EfCoreInboxStore :
                     throw;
                 }
 
+                ThrowIfCrossTenantMessageIdMatch(envelope, stored);
                 ThrowIfStrictConflict(envelope, stored);
                 DetachFailedInsert(context, entity);
                 return new InboxAppendResult(ToEnvelope(stored), InboxAcceptOutcome.AlreadyAccepted);
@@ -546,6 +550,7 @@ public sealed class EfCoreInboxStore :
 
                 if (seenIds.TryGetValue(envelope.Id, out var duplicateById))
                 {
+                    ThrowIfCrossTenantMessageIdMatch(envelope, duplicateById);
                     ThrowIfStrictConflict(envelope, duplicateById);
                     results[index] = new InboxAppendResult(duplicateById, InboxAcceptOutcome.AlreadyAccepted);
                     continue;
@@ -567,6 +572,7 @@ public sealed class EfCoreInboxStore :
 
                 if (local is not null)
                 {
+                    ThrowIfCrossTenantMessageIdMatch(envelope, local);
                     ThrowIfStrictConflict(envelope, local);
                     results[index] = new InboxAppendResult(ToEnvelope(local), InboxAcceptOutcome.AlreadyAccepted);
                     RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
@@ -583,6 +589,7 @@ public sealed class EfCoreInboxStore :
 
                 if (existing is not null)
                 {
+                    ThrowIfCrossTenantMessageIdMatch(envelope, existing);
                     ThrowIfStrictConflict(envelope, existing);
                     results[index] = new InboxAppendResult(ToEnvelope(existing), InboxAcceptOutcome.AlreadyAccepted);
                     RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
@@ -591,6 +598,7 @@ public sealed class EfCoreInboxStore :
 
                 if (pendingIds.TryGetValue(envelope.Id, out var pendingIdSourceIndex))
                 {
+                    ThrowIfCrossTenantMessageIdMatch(envelope, envelopes[pendingIdSourceIndex]);
                     ThrowIfStrictConflict(envelope, envelopes[pendingIdSourceIndex]);
                     pendingAliases[index] = pendingIdSourceIndex;
                     continue;
@@ -689,6 +697,7 @@ public sealed class EfCoreInboxStore :
                         continue;
                     }
 
+                    ThrowIfCrossTenantMessageIdMatch(envelope, stored);
                     results[index] = new InboxAppendResult(ToEnvelope(stored), InboxAcceptOutcome.AlreadyAccepted);
                     RememberBatchResult(seenIds, seenIdempotencyKeys, envelope, results[index].Envelope);
                 }
@@ -795,6 +804,10 @@ public sealed class EfCoreInboxStore :
     /// <param name="envelopes">The completed envelopes to persist.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
     /// <returns>The message identifiers updated under the lease guard.</returns>
+    /// <remarks>
+    ///     Each row saves separately so a re-lease committed after the tracked load skips only that row through the
+    ///     lease-generation concurrency token instead of failing the whole batch.
+    /// </remarks>
     private static async Task<HashSet<Guid>> ApplyCompletedTrackedAsync(
         IInboxDbContext context,
         IReadOnlyList<InboxEnvelope> envelopes,
@@ -822,7 +835,10 @@ public sealed class EfCoreInboxStore :
                 ? source
                 : source.AsCompleted());
 
-            persistedMessageIds.Add(entity.Id);
+            if (await TrySaveTrackedEntityAsync(context, entity, cancellationToken).ConfigureAwait(false))
+            {
+                persistedMessageIds.Add(entity.Id);
+            }
         }
 
         return persistedMessageIds;
@@ -890,6 +906,10 @@ public sealed class EfCoreInboxStore :
     /// <param name="envelopes">The failed envelopes to persist.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
     /// <returns>The message identifiers updated under the lease guard.</returns>
+    /// <remarks>
+    ///     Each row saves separately so a re-lease committed after the tracked load skips only that row through the
+    ///     lease-generation concurrency token instead of failing the whole batch.
+    /// </remarks>
     private static async Task<HashSet<Guid>> ApplyFailedTrackedAsync(
         IInboxDbContext context,
         IReadOnlyList<InboxEnvelope> envelopes,
@@ -914,7 +934,11 @@ public sealed class EfCoreInboxStore :
             }
 
             ApplyMutableState(entity, source);
-            persistedMessageIds.Add(entity.Id);
+
+            if (await TrySaveTrackedEntityAsync(context, entity, cancellationToken).ConfigureAwait(false))
+            {
+                persistedMessageIds.Add(entity.Id);
+            }
         }
 
         return persistedMessageIds;
@@ -982,6 +1006,10 @@ public sealed class EfCoreInboxStore :
     /// <param name="envelopes">The dead-lettered envelopes to persist.</param>
     /// <param name="cancellationToken">A token that cancels the update.</param>
     /// <returns>The message identifiers updated under the lease guard.</returns>
+    /// <remarks>
+    ///     Each row saves separately so a re-lease committed after the tracked load skips only that row through the
+    ///     lease-generation concurrency token instead of failing the whole batch.
+    /// </remarks>
     private static async Task<HashSet<Guid>> ApplyDeadLetteredTrackedAsync(
         IInboxDbContext context,
         IReadOnlyList<InboxEnvelope> envelopes,
@@ -1006,7 +1034,11 @@ public sealed class EfCoreInboxStore :
             }
 
             ApplyMutableState(entity, source);
-            persistedMessageIds.Add(entity.Id);
+
+            if (await TrySaveTrackedEntityAsync(context, entity, cancellationToken).ConfigureAwait(false))
+            {
+                persistedMessageIds.Add(entity.Id);
+            }
         }
 
         return persistedMessageIds;
@@ -1023,6 +1055,47 @@ public sealed class EfCoreInboxStore :
         return entity.Status == InboxStatus.Processing &&
                string.Equals(entity.LeaseOwner, envelope.LeaseOwner, StringComparison.Ordinal) &&
                entity.LeaseGeneration == envelope.LeaseGeneration;
+    }
+
+    /// <summary>
+    ///     Saves one tracked terminal update, treating a lost lease race as a skip instead of an overwrite.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="entity">The tracked entity carrying the terminal state.</param>
+    /// <param name="cancellationToken">A token that cancels the save.</param>
+    /// <returns><see langword="true" /> when the update committed; otherwise, <see langword="false" />.</returns>
+    /// <remarks>
+    ///     The lease generation is an Entity Framework concurrency token, so a re-lease committed after the tracked
+    ///     load fails this save with <see cref="DbUpdateConcurrencyException" /> instead of overwriting the new holder.
+    /// </remarks>
+    private static async Task<bool> TrySaveTrackedEntityAsync(
+        IInboxDbContext context,
+        InboxMessageEntity entity,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await SaveChangesAsync(context, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            DetachConflictedEntity(context, entity);
+            return false;
+        }
+    }
+
+    /// <summary>
+    ///     Detaches an entity that lost a lease race so its stale update is not retried by a later save.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="entity">The conflicted entity.</param>
+    private static void DetachConflictedEntity(IInboxDbContext context, InboxMessageEntity entity)
+    {
+        if (context is DbContext dbContext)
+        {
+            dbContext.Entry(entity).State = EntityState.Detached;
+        }
     }
 
     /// <summary>
@@ -1472,6 +1545,7 @@ public sealed class EfCoreInboxStore :
                     continue;
                 }
 
+                ThrowIfCrossTenantMessageIdMatch(envelope, stored);
                 results[index] = new InboxAppendResult(ToEnvelope(stored), InboxAcceptOutcome.AlreadyAccepted);
                 RememberBatchResult(seenIds, seenIdempotencyScopes, envelope, results[index].Envelope);
             }
@@ -1752,14 +1826,17 @@ public sealed class EfCoreInboxStore :
     }
 
     /// <summary>
-    ///     Validates that the requested page size is positive.
+    ///     Validates that the requested page size is within the supported range.
     /// </summary>
     /// <param name="pageSize">The requested page size.</param>
     private static void ValidatePageSize(int pageSize)
     {
-        if (pageSize <= 0)
+        if (pageSize <= 0 || pageSize > InboxMessagePageRequest.MaxPageSize)
         {
-            throw new ArgumentOutOfRangeException(nameof(pageSize), pageSize, "Page size must be greater than zero.");
+            throw new ArgumentOutOfRangeException(
+                nameof(pageSize),
+                pageSize,
+                $"Page size must be between 1 and {InboxMessagePageRequest.MaxPageSize}.");
         }
     }
 
@@ -1921,6 +1998,54 @@ public sealed class EfCoreInboxStore :
         /// </summary>
         [Column("error_type")]
         public string? ErrorType { get; set; }
+    }
+
+    /// <summary>
+    ///     Throws when a message identifier already exists for another tenant.
+    /// </summary>
+    /// <param name="envelope">The envelope attempted for insert.</param>
+    /// <param name="existing">The conflicting entity already stored or tracked by the context.</param>
+    /// <exception cref="IdempotencyConflictException">
+    ///     The stored row shares the message id but belongs to a different tenant.
+    /// </exception>
+    /// <remarks>
+    ///     The message identifier lookup is global while the idempotency-key lookup is tenant-scoped, so only an
+    ///     identifier match can span tenants. Returning the foreign row would expose its metadata and silently drop
+    ///     the second tenant's message, so a cross-tenant identifier hit is always a conflict, regardless of the
+    ///     configured conflict mode.
+    /// </remarks>
+    private static void ThrowIfCrossTenantMessageIdMatch(InboxEnvelope envelope, InboxMessageEntity existing)
+    {
+        if (existing.Id == envelope.Id &&
+            !string.Equals(
+                EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
+                EfCoreIdempotencyResolution.NormalizeTenantId(existing.TenantId),
+                StringComparison.Ordinal))
+        {
+            throw new IdempotencyConflictException(
+                $"An inbox message with message id '{envelope.Id}' already exists for another tenant.");
+        }
+    }
+
+    /// <summary>
+    ///     Throws when a batch message identifier already exists for another tenant.
+    /// </summary>
+    /// <param name="envelope">The envelope attempted for insert.</param>
+    /// <param name="existing">The envelope already resolved in the batch.</param>
+    /// <exception cref="IdempotencyConflictException">
+    ///     The resolved envelope shares the message id but belongs to a different tenant.
+    /// </exception>
+    private static void ThrowIfCrossTenantMessageIdMatch(InboxEnvelope envelope, InboxEnvelope existing)
+    {
+        if (existing.Id == envelope.Id &&
+            !string.Equals(
+                EfCoreIdempotencyResolution.NormalizeTenantId(envelope.TenantId),
+                EfCoreIdempotencyResolution.NormalizeTenantId(existing.TenantId),
+                StringComparison.Ordinal))
+        {
+            throw new IdempotencyConflictException(
+                $"An inbox message with message id '{envelope.Id}' already exists for another tenant.");
+        }
     }
 
     /// <summary>

@@ -10,7 +10,7 @@ using Npgsql;
 namespace LiteBus.Storage.IntegrationTests.PostgreSql;
 
 /// <summary>
-///     Verifies the PostgreSQL recurring command lease: mutual exclusion per name, release on dispose and on expiry, background renewal, stolen-lease shutdown, pooler-friendly connections, schema bootstrap, and the schema probe.
+///     Verifies the PostgreSQL recurring command lease: mutual exclusion per name, release on dispose and on expiry, background renewal, stolen-lease shutdown, lease-loss signalling, pooler-friendly connections, schema bootstrap, and the schema probe.
 /// </summary>
 public sealed class PostgreSqlRecurringCommandLeaseTests : IClassFixture<PostgreSqlFixture>
 {
@@ -95,8 +95,9 @@ public sealed class PostgreSqlRecurringCommandLeaseTests : IClassFixture<Postgre
     [SkippableFact]
     public async Task TryAcquireAsync_AfterExpiryWithoutRenewal_ShouldGrantLeaseToAnotherHolder()
     {
-        // The renewal is parked an hour out so the one-second lease lapses without renewal during the test.
-        var options = CreateOptions(TimeSpan.FromSeconds(1), TimeSpan.FromHours(1));
+        // The renewal is parked near the duration so the row can be lapsed with SQL before the first renewal fires.
+        // Parking it past the duration is refused by options validation, so natural expiry cannot be awaited here.
+        var options = CreateOptions(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(29));
         await PostgreSqlRecurringLeaseSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
 
         var firstLease = new PostgreSqlRecurringCommandLease(_fixture.DataSource, options);
@@ -111,7 +112,7 @@ public sealed class PostgreSqlRecurringCommandLeaseTests : IClassFixture<Postgre
 
         await using (first!.ConfigureAwait(false))
         {
-            await WaitUntilExpiredAsync(_fixture.DataSource, options, name).ConfigureAwait(false);
+            await ExpireLeaseAsync(_fixture.DataSource, options, name).ConfigureAwait(false);
 
             var second = await secondLease.TryAcquireAsync(name, CancellationToken.None).ConfigureAwait(false);
             second.Should().NotBeNull();
@@ -123,6 +124,76 @@ public sealed class PostgreSqlRecurringCommandLeaseTests : IClassFixture<Postgre
                 secondRow!.Holder.Should().NotBe(firstRow!.Holder);
             }
         }
+    }
+
+    [SkippableFact]
+    public async Task TryAcquireAsync_WhenSameHolderReacquires_ShouldReturnNull()
+    {
+        var options = CreateOptions();
+        await PostgreSqlRecurringLeaseSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
+
+        // One lease instance means one holder identity, so the second acquisition races the first from the same holder.
+        var lease = new PostgreSqlRecurringCommandLease(_fixture.DataSource, options);
+        var name = "lease-" + Guid.NewGuid();
+
+        var first = await lease.TryAcquireAsync(name, CancellationToken.None).ConfigureAwait(false);
+        first.Should().NotBeNull();
+
+        await using (first!.ConfigureAwait(false))
+        {
+            var second = await lease.TryAcquireAsync(name, CancellationToken.None).ConfigureAwait(false);
+            second.Should().BeNull();
+        }
+    }
+
+    [SkippableFact]
+    public void LeaseOptions_WhenRenewIntervalIsNotBelowDuration_ShouldThrow()
+    {
+        var above = () => new PostgreSqlRecurringLeaseOptions
+        {
+            LeaseDuration = TimeSpan.FromSeconds(30),
+            RenewInterval = TimeSpan.FromMinutes(1)
+        }.Validate();
+
+        above.Should().Throw<ArgumentOutOfRangeException>();
+
+        var equal = () => new PostgreSqlRecurringLeaseOptions
+        {
+            LeaseDuration = TimeSpan.FromSeconds(30),
+            RenewInterval = TimeSpan.FromSeconds(30)
+        }.Validate();
+
+        equal.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [SkippableFact]
+    public async Task SchemaInitializer_ShouldResolveTheDataSourceOwnerSoShutdownDisposesIt()
+    {
+        var services = new ServiceCollection();
+        services.AddLiteBus(registry =>
+        {
+            registry.AddMessaging(_ => { });
+            registry.AddCommands(builder =>
+            {
+                builder.UsePostgreSqlRecurringLease(pg =>
+                {
+                    pg.UseConnectionString("Host=localhost;Database=litebus_owner_probe;Username=postgres");
+                });
+            });
+        });
+
+        var provider = services.BuildServiceProvider();
+
+        // Resolving the initializer is what host startup does; it must pull the owner into existence so container
+        // disposal later disposes the module-owned data source even when no loop ever resolves the lease.
+        _ = provider.GetRequiredService<PostgreSqlRecurringLeaseSchemaInitializer>();
+        var dataSource = provider.GetRequiredService<PostgreSqlRecurringLeaseRegistration>().DataSource;
+
+        await provider.DisposeAsync().ConfigureAwait(false);
+
+        var act = () => dataSource.CreateConnection();
+
+        act.Should().Throw<ObjectDisposedException>();
     }
 
     [SkippableFact]
@@ -215,6 +286,52 @@ public sealed class PostgreSqlRecurringCommandLeaseTests : IClassFixture<Postgre
 
             var row = await ReadLeaseRowAsync(_fixture.DataSource, options, name).ConfigureAwait(false);
             row.Should().BeNull();
+        }
+    }
+
+    [SkippableFact]
+    public async Task LeaseLost_AfterLeaseIsStolen_ShouldCancel()
+    {
+        var options = CreateOptions(TimeSpan.FromSeconds(30), TimeSpan.FromMilliseconds(200));
+        await PostgreSqlRecurringLeaseSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
+
+        var lease = new PostgreSqlRecurringCommandLease(_fixture.DataSource, options);
+        var name = "lease-" + Guid.NewGuid();
+
+        var handle = await lease.TryAcquireAsync(name, CancellationToken.None).ConfigureAwait(false);
+        handle.Should().NotBeNull();
+        handle!.LeaseLost.IsCancellationRequested.Should().BeFalse();
+
+        await using (handle.ConfigureAwait(false))
+        {
+            await StealLeaseAsync(_fixture.DataSource, options, name, "intruder").ConfigureAwait(false);
+            await WaitForLeaseLostAsync(handle).ConfigureAwait(false);
+
+            handle.LeaseLost.IsCancellationRequested.Should().BeTrue();
+        }
+    }
+
+    [SkippableFact]
+    public async Task LeaseLost_WhenRenewalFails_ShouldCancel()
+    {
+        var options = CreateOptions(TimeSpan.FromSeconds(30), TimeSpan.FromMilliseconds(200));
+        await PostgreSqlRecurringLeaseSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
+
+        var lease = new PostgreSqlRecurringCommandLease(_fixture.DataSource, options);
+        var name = "lease-" + Guid.NewGuid();
+
+        var handle = await lease.TryAcquireAsync(name, CancellationToken.None).ConfigureAwait(false);
+        handle.Should().NotBeNull();
+        handle!.LeaseLost.IsCancellationRequested.Should().BeFalse();
+
+        await using (handle.ConfigureAwait(false))
+        {
+            await DropTableAsync(_fixture.DataSource, options).ConfigureAwait(false);
+            await WaitForLeaseLostAsync(handle).ConfigureAwait(false);
+
+            handle.LeaseLost.IsCancellationRequested.Should().BeTrue();
+
+            await PostgreSqlRecurringLeaseSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
         }
     }
 
@@ -361,34 +478,6 @@ public sealed class PostgreSqlRecurringCommandLeaseTests : IClassFixture<Postgre
         return new LeaseRow(reader.GetString(0), reader.GetDateTime(1), reader.GetDateTime(2), reader.GetDateTime(3));
     }
 
-    private static async Task<bool> IsExpiredAsync(NpgsqlDataSource dataSource, PostgreSqlRecurringLeaseOptions options, string leaseName)
-    {
-        var sql = $"SELECT expires_at <= now() FROM {PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName)} WHERE lease_name = @leaseName;";
-
-        using var connection = await dataSource.OpenConnectionAsync().ConfigureAwait(false);
-        using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("leaseName", leaseName);
-
-        return await command.ExecuteScalarAsync().ConfigureAwait(false) is true;
-    }
-
-    private static async Task WaitUntilExpiredAsync(NpgsqlDataSource dataSource, PostgreSqlRecurringLeaseOptions options, string leaseName)
-    {
-        var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(30);
-
-        while (DateTimeOffset.UtcNow < deadline)
-        {
-            if (await IsExpiredAsync(dataSource, options, leaseName).ConfigureAwait(false))
-            {
-                return;
-            }
-
-            await Task.Delay(50).ConfigureAwait(false);
-        }
-
-        throw new TimeoutException($"Lease '{leaseName}' did not expire within 30 seconds.");
-    }
-
     private static async Task WaitUntilDatabaseTimePassesAsync(NpgsqlDataSource dataSource, DateTime instant)
     {
         var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(30);
@@ -408,6 +497,20 @@ public sealed class PostgreSqlRecurringCommandLeaseTests : IClassFixture<Postgre
         }
 
         throw new TimeoutException("The database clock did not pass the original expiry within 30 seconds.");
+    }
+
+    private static async Task ExpireLeaseAsync(NpgsqlDataSource dataSource, PostgreSqlRecurringLeaseOptions options, string leaseName)
+    {
+        var sql = $"UPDATE {PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName)} SET expires_at = now() - interval '1 second' WHERE lease_name = @leaseName;";
+
+        using var connection = await dataSource.OpenConnectionAsync().ConfigureAwait(false);
+        using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("leaseName", leaseName);
+
+        if (await command.ExecuteNonQueryAsync().ConfigureAwait(false) != 1)
+        {
+            throw new InvalidOperationException($"Lease '{leaseName}' has no row to expire.");
+        }
     }
 
     private static async Task StealLeaseAsync(NpgsqlDataSource dataSource, PostgreSqlRecurringLeaseOptions options, string leaseName, string holder)
@@ -451,6 +554,23 @@ public sealed class PostgreSqlRecurringCommandLeaseTests : IClassFixture<Postgre
         }
 
         throw new TimeoutException("No lease renewal warning was logged within 30 seconds.");
+    }
+
+    private static async Task WaitForLeaseLostAsync(IRecurringCommandLeaseHandle handle)
+    {
+        var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(30);
+
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (handle.LeaseLost.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await Task.Delay(25).ConfigureAwait(false);
+        }
+
+        throw new TimeoutException("The lease-loss token was not cancelled within 30 seconds.");
     }
 
     private sealed record LeaseRow(string Holder, DateTime AcquiredAt, DateTime ExpiresAt, DateTime RenewedAt);

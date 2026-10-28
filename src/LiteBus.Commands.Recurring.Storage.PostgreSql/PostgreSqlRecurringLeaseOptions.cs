@@ -73,7 +73,8 @@ public sealed record PostgreSqlRecurringLeaseOptions : PostgreSqlSchemaStoreOpti
     ///     Validates the lease timing values before the lease is used.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
-    ///     <see cref="LeaseDuration" /> or the effective renewal interval is zero or negative.
+    ///     <see cref="LeaseDuration" /> or the effective renewal interval is zero or negative, or
+    ///     <see cref="RenewInterval" /> is set at or above <see cref="LeaseDuration" />.
     /// </exception>
     public void Validate()
     {
@@ -82,6 +83,7 @@ public sealed record PostgreSqlRecurringLeaseOptions : PostgreSqlSchemaStoreOpti
         if (RenewInterval.HasValue)
         {
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(RenewInterval.Value.Ticks);
+            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(RenewInterval.Value.Ticks, LeaseDuration.Ticks, nameof(RenewInterval));
         }
         else
         {

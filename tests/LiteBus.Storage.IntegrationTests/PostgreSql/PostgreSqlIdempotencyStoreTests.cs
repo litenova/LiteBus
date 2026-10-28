@@ -36,8 +36,9 @@ public sealed class PostgreSqlIdempotencyStoreTests : IClassFixture<PostgreSqlFi
 
         var first = await store.TryClaimAsync(key, "fingerprint-a").ConfigureAwait(false);
         first.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
+        first.ClaimToken.Should().NotBeNullOrWhiteSpace();
 
-        await store.CompleteAsync(key, """{"receipt":"r-1"}""").ConfigureAwait(false);
+        await store.CompleteAsync(key, first.ClaimToken!, """{"receipt":"r-1"}""").ConfigureAwait(false);
 
         var repeat = await store.TryClaimAsync(key, "fingerprint-a").ConfigureAwait(false);
         repeat.Outcome.Should().Be(IdempotencyClaimOutcome.AlreadyCompleted);
@@ -68,8 +69,8 @@ public sealed class PostgreSqlIdempotencyStoreTests : IClassFixture<PostgreSqlFi
         var store = new PostgreSqlIdempotencyStore(_fixture.DataSource, options);
         var key = $"idem:{Guid.NewGuid():N}";
 
-        await store.TryClaimAsync(key, "fingerprint-a").ConfigureAwait(false);
-        await store.CompleteAsync(key, """{"receipt":"r-1"}""").ConfigureAwait(false);
+        var first = await store.TryClaimAsync(key, "fingerprint-a").ConfigureAwait(false);
+        await store.CompleteAsync(key, first.ClaimToken!, """{"receipt":"r-1"}""").ConfigureAwait(false);
 
         var mismatch = await store.TryClaimAsync(key, "fingerprint-b").ConfigureAwait(false);
         mismatch.Outcome.Should().Be(IdempotencyClaimOutcome.FingerprintMismatch);
@@ -100,7 +101,7 @@ public sealed class PostgreSqlIdempotencyStoreTests : IClassFixture<PostgreSqlFi
         taken.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
 
         // The takeover stored the new caller's fingerprint with the refreshed claim.
-        await store.CompleteAsync(key, payload: null).ConfigureAwait(false);
+        await store.CompleteAsync(key, taken.ClaimToken!, payload: null).ConfigureAwait(false);
 
         var replay = await store.TryClaimAsync(key, "fingerprint-b").ConfigureAwait(false);
         replay.Outcome.Should().Be(IdempotencyClaimOutcome.AlreadyCompleted);
@@ -120,17 +121,96 @@ public sealed class PostgreSqlIdempotencyStoreTests : IClassFixture<PostgreSqlFi
         var first = await store.TryClaimAsync(key, fingerprint: null).ConfigureAwait(false);
         first.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
 
-        await store.ReleaseAsync(key).ConfigureAwait(false);
+        await store.ReleaseAsync(key, first.ClaimToken!).ConfigureAwait(false);
 
         var retry = await store.TryClaimAsync(key, fingerprint: null).ConfigureAwait(false);
         retry.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
 
-        await store.CompleteAsync(key, null).ConfigureAwait(false);
-        await store.ReleaseAsync(key).ConfigureAwait(false);
+        await store.CompleteAsync(key, retry.ClaimToken!, null).ConfigureAwait(false);
+        await store.ReleaseAsync(key, retry.ClaimToken!).ConfigureAwait(false);
 
         var repeat = await store.TryClaimAsync(key, fingerprint: null).ConfigureAwait(false);
         repeat.Outcome.Should().Be(IdempotencyClaimOutcome.AlreadyCompleted);
         repeat.Payload.Should().BeNull();
+    }
+
+    [SkippableFact]
+    public async Task LateSettle_AfterTakeover_ShouldLeaveTheNewClaimantAlone()
+    {
+        var options = CreateOptions();
+        await PostgreSqlIdempotencySchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
+        var store = new PostgreSqlIdempotencyStore(_fixture.DataSource, options);
+        var key = $"idem:{Guid.NewGuid():N}";
+
+        var first = await store.TryClaimAsync(key, "fingerprint-a").ConfigureAwait(false);
+        await BackdateClaimAsync(options, key, options.ClaimTimeout.Add(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
+
+        var taken = await store.TryClaimAsync(key, "fingerprint-b").ConfigureAwait(false);
+        taken.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
+
+        // The superseded claimant settles late with the token it was granted.
+        await store.CompleteAsync(key, first.ClaimToken!, "stale-payload").ConfigureAwait(false);
+        await store.ReleaseAsync(key, first.ClaimToken!).ConfigureAwait(false);
+
+        // The new claimant still holds the key: neither marked applied nor freed.
+        var racing = await store.TryClaimAsync(key, "fingerprint-b").ConfigureAwait(false);
+        racing.Outcome.Should().Be(IdempotencyClaimOutcome.InFlight);
+
+        await store.CompleteAsync(key, taken.ClaimToken!, "fresh-payload").ConfigureAwait(false);
+
+        var replay = await store.TryClaimAsync(key, "fingerprint-b").ConfigureAwait(false);
+        replay.Outcome.Should().Be(IdempotencyClaimOutcome.AlreadyCompleted);
+        replay.Payload.Should().Be("fresh-payload");
+    }
+
+    [SkippableFact]
+    public async Task Complete_OnAMissingKey_ShouldNotInsertAnAppliedRow()
+    {
+        var options = CreateOptions();
+        await PostgreSqlIdempotencySchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
+        var store = new PostgreSqlIdempotencyStore(_fixture.DataSource, options);
+        var key = $"idem:{Guid.NewGuid():N}";
+
+        await store.CompleteAsync(key, Guid.NewGuid().ToString("N"), "payload").ConfigureAwait(false);
+
+        // No applied row was left behind, so the key is still claimable.
+        var claim = await store.TryClaimAsync(key, "fingerprint-a").ConfigureAwait(false);
+        claim.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
+    }
+
+    [SkippableFact]
+    public async Task EnsureAsync_ShouldCreateSingleVersion1SchemaWithClaimToken()
+    {
+        PostgreSqlIdempotencySchema.CurrentSchemaVersion.Should().Be(1);
+        PostgreSqlIdempotencySchema.SqlFiles.Select(file => file.RelativePath).Should().Equal(
+            PostgreSqlIdempotencySchemaSqlPaths.V1Create,
+            PostgreSqlIdempotencySchemaSqlPaths.V1EnsureIndexes);
+
+        var options = CreateOptions();
+        await PostgreSqlIdempotencySchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
+        await PostgreSqlIdempotencySchema.ValidateAsync(_fixture.DataSource, options).ConfigureAwait(false);
+
+        var hasClaimToken = await HasColumnAsync(options, "claim_token").ConfigureAwait(false);
+        hasClaimToken.Should().BeTrue();
+
+        var recordedVersion = await ReadRecordedVersionAsync(options).ConfigureAwait(false);
+        recordedVersion.Should().Be(1);
+    }
+
+    [SkippableFact]
+    public void Constructor_WithNonPositiveClaimTimeout_ShouldThrow()
+    {
+        var zero = () => new PostgreSqlIdempotencyStore(
+            _fixture.DataSource,
+            new PostgreSqlIdempotencyStoreOptions { ClaimTimeout = TimeSpan.Zero });
+
+        zero.Should().Throw<ArgumentOutOfRangeException>();
+
+        var negative = () => new PostgreSqlIdempotencyStore(
+            _fixture.DataSource,
+            new PostgreSqlIdempotencyStoreOptions { ClaimTimeout = TimeSpan.FromMinutes(-1) });
+
+        negative.Should().Throw<ArgumentOutOfRangeException>();
     }
 
     [SkippableFact]
@@ -339,6 +419,55 @@ public sealed class PostgreSqlIdempotencyStoreTests : IClassFixture<PostgreSqlFi
         command.Parameters.AddWithValue("key", key);
 
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Reports whether the idempotency table carries a column.
+    /// </summary>
+    /// <param name="options">The store options identifying the table.</param>
+    /// <param name="columnName">The column name to look for.</param>
+    /// <returns><see langword="true" /> when the column exists; otherwise, <see langword="false" />.</returns>
+    private async Task<bool> HasColumnAsync(PostgreSqlIdempotencyStoreOptions options, string columnName)
+    {
+        var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using var configuredConnection = connection.ConfigureAwait(false);
+
+        var command = new NpgsqlCommand(
+            "SELECT COUNT(*) FROM information_schema.columns "
+            + "WHERE table_schema = @schema AND table_name = @table AND column_name = @column",
+            connection);
+        await using var configuredCommand = command.ConfigureAwait(false);
+        command.Parameters.AddWithValue("schema", options.SchemaName);
+        command.Parameters.AddWithValue("table", options.TableName);
+        command.Parameters.AddWithValue("column", columnName);
+
+        var count = await command.ExecuteScalarAsync().ConfigureAwait(false);
+
+        return count is long rows && rows > 0;
+    }
+
+    /// <summary>
+    ///     Reads the recorded schema version for the idempotency table.
+    /// </summary>
+    /// <param name="options">The store options identifying the table.</param>
+    /// <returns>The recorded version, or <see langword="null" /> when no version row exists.</returns>
+    private async Task<int?> ReadRecordedVersionAsync(PostgreSqlIdempotencyStoreOptions options)
+    {
+        var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
+        await using var configuredConnection = connection.ConfigureAwait(false);
+
+        var command = new NpgsqlCommand(
+            $"SELECT version FROM {PostgreSqlIdentifier.Qualify(options.MetadataSchemaName, options.MetadataTableName)} "
+            + "WHERE component = @component AND schema_name = @schemaName AND table_name = @tableName",
+            connection);
+        await using var configuredCommand = command.ConfigureAwait(false);
+        command.Parameters.AddWithValue("component", PostgreSqlIdempotencySchema.ComponentName);
+        command.Parameters.AddWithValue("schemaName", options.SchemaName);
+        command.Parameters.AddWithValue("tableName", options.TableName);
+
+        var result = await command.ExecuteScalarAsync().ConfigureAwait(false);
+
+        return result is int version ? version : null;
     }
 
     /// <summary>

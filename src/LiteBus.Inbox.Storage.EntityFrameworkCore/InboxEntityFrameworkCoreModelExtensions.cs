@@ -97,7 +97,8 @@ public static class InboxEntityFrameworkCoreModelExtensions
             .HasColumnName("lease_owner");
 
         entity.Property(message => message.LeaseGeneration)
-            .HasColumnName("lease_generation");
+            .HasColumnName("lease_generation")
+            .IsConcurrencyToken();
 
         entity.Property(message => message.LeaseExpiresAt)
             .HasColumnName("lease_expires_at")

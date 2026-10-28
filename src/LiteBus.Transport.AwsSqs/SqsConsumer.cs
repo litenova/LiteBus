@@ -1,6 +1,9 @@
 using System;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using LiteBus.Transport.Abstractions;
@@ -105,6 +108,10 @@ public sealed class SqsConsumer : IMessageConsumer
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     A faulted consume loop is captured into the stop signal instead of thrown here, so the terminal failure
+    ///     surfaces through <see cref="WaitUntilStoppedAsync" />.
+    /// </remarks>
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -132,6 +139,12 @@ public sealed class SqsConsumer : IMessageConsumer
                     catch (OperationCanceledException)
                     {
                         // Expected when cancellation stops the consume loop.
+                    }
+#pragma warning disable CA1031 // A faulted loop surfaces through WaitUntilStoppedAsync, not StopAsync.
+                    catch (Exception exception)
+#pragma warning restore CA1031
+                    {
+                        SignalStopped(exception);
                     }
                 }
             }
@@ -221,7 +234,9 @@ public sealed class SqsConsumer : IMessageConsumer
     ///     While a handler runs, message visibility is extended once per half visibility timeout so the receipt
     ///     handle cannot expire mid-handler. When a handler throws, the message visibility is extended using
     ///     exponential backoff derived from <c>ApproximateReceiveCount</c>. When an entire received batch fails,
-    ///     poll backoff is applied before the next <c>ReceiveMessage</c> call.
+    ///     poll backoff is applied before the next <c>ReceiveMessage</c> call. A message that cannot be mapped
+    ///     because its body or packed headers are malformed is deleted as poison and skipped, so one bad delivery
+    ///     cannot stall the loop or every restart after it.
     /// </remarks>
     /// <param name="options">The consumer options for the active subscription.</param>
     /// <param name="handler">The handler invoked for each delivery.</param>
@@ -293,10 +308,30 @@ public sealed class SqsConsumer : IMessageConsumer
                                 token)
                     };
 
-                    var transportMessage = SqsMessageMapper.ToTransportMessage(
-                        message,
-                        options.Destination,
-                        ackHandlers);
+                    TransportMessage transportMessage;
+
+                    try
+                    {
+                        transportMessage = SqsMessageMapper.ToTransportMessage(
+                            message,
+                            options.Destination,
+                            ackHandlers);
+                    }
+                    catch (FormatException)
+                    {
+                        await DeletePoisonMessageAsync(message, options.Destination, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+                    catch (JsonException)
+                    {
+                        await DeletePoisonMessageAsync(message, options.Destination, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+                    catch (EncoderFallbackException)
+                    {
+                        await DeletePoisonMessageAsync(message, options.Destination, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
 
                     var outcome = await InvokeHandlerWithVisibilityExtensionAsync(
                             boundedHandler,
@@ -332,9 +367,50 @@ public sealed class SqsConsumer : IMessageConsumer
         {
             // Expected during consumer shutdown.
         }
+#pragma warning disable CA1031 // Terminal loop failures surface through WaitUntilStoppedAsync; the signal preserves the fault before rethrow.
+        catch (Exception exception)
+#pragma warning restore CA1031
+        {
+            SignalStopped(exception);
+            throw;
+        }
         finally
         {
             SignalStopped();
+        }
+    }
+
+    /// <summary>
+    ///     Deletes one poison message that can never be mapped to the transport model.
+    /// </summary>
+    /// <remarks>
+    ///     Mapping poison can never be processed, so the message is deleted instead of requeued. Deletion is
+    ///     best-effort: a failed delete leaves the message queued for redelivery, and the loop continues with the
+    ///     next delivery either way.
+    /// </remarks>
+    /// <param name="message">The received SQS message that failed mapping.</param>
+    /// <param name="queueUrl">The queue URL owning the receipt handle.</param>
+    /// <param name="cancellationToken">The token used to cancel the consume loop.</param>
+    /// <returns>A task that completes when the poison delete has been attempted.</returns>
+    private async Task DeletePoisonMessageAsync(Message message, string queueUrl, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _sqsClient.DeleteMessageAsync(
+                new DeleteMessageRequest
+                {
+                    QueueUrl = queueUrl,
+                    ReceiptHandle = message.ReceiptHandle
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (AmazonClientException)
+        {
+            // Best-effort: the poison message stays queued for redelivery when the delete fails.
         }
     }
 
@@ -350,8 +426,15 @@ public sealed class SqsConsumer : IMessageConsumer
     /// <summary>
     ///     Marks the current consume session as stopped.
     /// </summary>
-    private void SignalStopped()
+    /// <param name="exception">The broker failure that stopped the session, when one was supplied.</param>
+    private void SignalStopped(Exception? exception = null)
     {
+        if (exception is not null)
+        {
+            _stoppedTcs.TrySetException(exception);
+            return;
+        }
+
         _stoppedTcs.TrySetResult();
     }
 }

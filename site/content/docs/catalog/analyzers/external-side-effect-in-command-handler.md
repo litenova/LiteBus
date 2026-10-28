@@ -17,7 +17,7 @@ LB1024 reports command handlers that inject an external side-effect type through
 - `ICommandHandler<TCommand, TResult>`
 - `IAsyncMessageHandler<TMessage>`, `IAsyncMessageHandler<TMessage, TResult>`, or `IMessageHandler<TMessage, TResult>` whose message type is a command
 
-It reports a constructor parameter whose type is the forbidden type, derives from it, or implements it. The default forbidden types are:
+It reports a public constructor parameter whose type is the forbidden type, derives from it, or implements it. Private constructors are skipped, matching the transactional-constructor rules. The default forbidden types are:
 
 - `System.Net.Http.HttpClient`
 - `System.Net.Http.IHttpClientFactory`
@@ -92,6 +92,7 @@ Source: `tests/LiteBus.Analyzers.UnitTests/ExternalSideEffectInCommandHandlerAna
 | `EventHandlerInjectingHttpClient_ProducesNoDiagnostic` | Event handlers are out of scope |
 | `MessagingHandlerForCommandInjectingHttpClient_ProducesDiagnostic` | Messaging-level handlers for commands are covered |
 | `CommandHandlerWithMethodParameter_ProducesNoDiagnostic` | Non-constructor parameters are out of scope |
+| `CommandHandlerWithPrivateSideEffectConstructor_ProducesNoDiagnostic` | Private constructors are out of scope |
 | `CustomForbiddenType_ProducesDiagnostic` | Configured forbidden type reports `LB1024` |
 | `CustomForbiddenTypeList_ReplacesDefaults` | Configured list replaces the defaults |
 | `PerTreeConfiguration_Applies` | Per-file `.editorconfig` section configures the rule |

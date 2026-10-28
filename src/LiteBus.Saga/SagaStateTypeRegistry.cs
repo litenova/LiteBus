@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Saga.Abstractions;
 
 namespace LiteBus.Saga;
@@ -54,5 +56,25 @@ public sealed class SagaStateTypeRegistry : ISagaStateTypeRegistry
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sagaDefinitionId);
         return _stateTypes.TryGetValue(sagaDefinitionId, out var stateType) ? stateType : null;
+    }
+
+    /// <summary>
+    ///     Throws when a mapped contract names a saga definition with no registered state type.
+    /// </summary>
+    /// <exception cref="DurableStorageConfigurationException">
+    ///     A contract mapping names a saga definition identifier with no registered state type.
+    /// </exception>
+    internal void ValidateContractMappings()
+    {
+        var missing = _contractMappings
+            .Where(mapping => !_stateTypes.ContainsKey(mapping.Value))
+            .OrderBy(mapping => mapping.Key, StringComparer.Ordinal)
+            .Select(mapping => $"Saga contract '{mapping.Key}' maps to saga definition '{mapping.Value}', which has no registered state type.")
+            .ToArray();
+
+        if (missing.Length > 0)
+        {
+            throw new DurableStorageConfigurationException(string.Join(" ", missing));
+        }
     }
 }

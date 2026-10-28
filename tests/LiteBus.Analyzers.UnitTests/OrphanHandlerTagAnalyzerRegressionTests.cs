@@ -194,4 +194,36 @@ public sealed class OrphanHandlerTagAnalyzerRegressionTests
             (DiagnosticDescriptors.OrphanHandlerTag, 0, new object[] { "OrphanTaggedHandler", "orphan-a" }),
             (DiagnosticDescriptors.OrphanHandlerTag, 0, new object[] { "OrphanTaggedHandler", "orphan-b" }));
     }
+
+    /// <summary>
+    ///     Verifies that a partial handler with two declarations reports its orphan tag once at the first declaration.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task OrphanHandlerTag_ShouldReportOnceForPartialHandlerAcrossTwoDeclarations()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+
+                              [HandlerTag("orphan")]
+                              public sealed partial class {|#0:OrphanTaggedHandler|} : ICommandHandler<SampleCommand>
+                              {
+                                  public Task HandleAsync(SampleCommand message, CancellationToken cancellationToken = default) => Task.CompletedTask;
+                              }
+
+                              public sealed partial class OrphanTaggedHandler;
+
+                              public sealed record SampleCommand : ICommand;
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<OrphanHandlerTagAnalyzer>(
+            source,
+            DiagnosticDescriptors.OrphanHandlerTag,
+            0,
+            "OrphanTaggedHandler",
+            "orphan");
+    }
 }

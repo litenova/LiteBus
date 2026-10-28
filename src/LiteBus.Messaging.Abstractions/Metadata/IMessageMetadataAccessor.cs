@@ -60,11 +60,14 @@ public interface IMessageMetadataAccessor
     /// <param name="messageType">The message type to read. A closed generic message resolves to its generic type definition.</param>
     /// <returns>The metadata declared for that message type.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="messageType" /> is <see langword="null" />.</exception>
-    /// <exception cref="MessageMetadataNotFoundException">The type is not registered as a message.</exception>
+    /// <exception cref="MessageMetadataNotFoundException">Neither the type nor a registered base type covers it.</exception>
+    /// <exception cref="AmbiguousMessageResolveException">Several registered types cover the unregistered type equally well.</exception>
     /// <remarks>
     ///     An unregistered type is reported rather than answered with an empty collection. A handler asking about a
     ///     message that never reached the registry is looking at a registration bug, and an empty answer would hide it
-    ///     behind a permission check that silently passes.
+    ///     behind a permission check that silently passes. An unregistered runtime type that the default resolve
+    ///     strategy mediates through a base descriptor reads that descriptor's metadata, exactly as if the type had been
+    ///     registered.
     /// </remarks>
     IMessageMetadata ForMessage(Type messageType);
 
@@ -73,7 +76,8 @@ public interface IMessageMetadataAccessor
     /// </summary>
     /// <typeparam name="TMessage">The message type to read.</typeparam>
     /// <returns>The metadata declared for that message type.</returns>
-    /// <exception cref="MessageMetadataNotFoundException">The type is not registered as a message.</exception>
+    /// <exception cref="MessageMetadataNotFoundException">Neither the type nor a registered base type covers it.</exception>
+    /// <exception cref="AmbiguousMessageResolveException">Several registered types cover the unregistered type equally well.</exception>
     IMessageMetadata ForMessage<TMessage>()
         where TMessage : notnull;
 
@@ -87,7 +91,8 @@ public interface IMessageMetadataAccessor
     ///     <see langword="true" /> when the message declares a value of that type; otherwise, <see langword="false" />.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="messageType" /> is <see langword="null" />.</exception>
-    /// <exception cref="MessageMetadataNotFoundException">The type is not registered as a message.</exception>
+    /// <exception cref="MessageMetadataNotFoundException">Neither the type nor a registered base type covers it.</exception>
+    /// <exception cref="AmbiguousMessageResolveException">Several registered types cover the unregistered type equally well.</exception>
     /// <remarks>
     ///     This is the shape a cross-cutting handler wants: one call that answers both whether the declaration is
     ///     present and what it says.
@@ -104,7 +109,8 @@ public interface IMessageMetadataAccessor
     /// <returns>
     ///     <see langword="true" /> when the message declares a value of that type; otherwise, <see langword="false" />.
     /// </returns>
-    /// <exception cref="MessageMetadataNotFoundException">The type is not registered as a message.</exception>
+    /// <exception cref="MessageMetadataNotFoundException">Neither the type nor a registered base type covers it.</exception>
+    /// <exception cref="AmbiguousMessageResolveException">Several registered types cover the unregistered type equally well.</exception>
     bool TryGet<TMessage, TValue>([MaybeNullWhen(false)] out TValue value)
         where TMessage : notnull
         where TValue : notnull;

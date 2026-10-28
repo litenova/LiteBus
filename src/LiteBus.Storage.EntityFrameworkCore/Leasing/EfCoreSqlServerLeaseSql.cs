@@ -100,6 +100,7 @@ internal static class EfCoreSqlServerLeaseSql
                INSERTED.[visible_after],
                INSERTED.[status],
                INSERTED.[attempt_count],
+               INSERTED.[idempotency_key],
                INSERTED.[lease_owner],
                INSERTED.[lease_expires_at],
                INSERTED.[last_error],

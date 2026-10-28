@@ -22,7 +22,7 @@ This rule keeps publisher and consumer runtime behavior aligned to one broker SD
 | `ILiteBusBuilder.AddAwsSqsTransport(...)` | Registers the shared AWS SQS root transport |
 | `ILiteBusBuilder.AddAzureServiceBusTransport(...)` | Registers the shared Azure Service Bus root transport |
 | `ILiteBusBuilder.AddInMemoryTransport(...)` | Registers the shared in-memory root transport |
-| `LiteBusConfigurationException` | Reports duplicate service or module composition |
+| `ModuleCompositionException` | Refuses a second transport module, naming both modules; extends `LiteBusConfigurationException` |
 
 ## Packages
 
@@ -60,6 +60,10 @@ This rule keeps publisher and consumer runtime behavior aligned to one broker SD
 | `Build_SecondTransportModule_ShouldThrow` | `LiteBus.Transport.UnitTests` (`Kafka/`) |
 | `Build_SecondTransportModule_ShouldThrow` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
 | `Build_ShouldRejectDuplicateTransportRegistration` | `LiteBus.Transport.UnitTests` (`AzureServiceBus/`) |
+| `Build_WithSecondTransportModule_ShouldThrowNamingBothModules` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `Build_SecondTransportModule_ShouldNameBothModules` | `LiteBus.Transport.UnitTests` (`Kafka/`) |
+| `RegisterIfNeeded_SecondTransportModule_ThrowsNamingBothModules` | `LiteBus.Transport.UnitTests` (`AwsSqs/`) |
+| `Build_AzureThenInMemory_ShouldRefuseSecondTransportNamingBoth` | `LiteBus.Transport.UnitTests` (`AzureServiceBus/`) |
 | `InboxDispatchExtensions_ShouldRegisterTransportDispatcher` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
 | `OutboxDispatchExtensions_ShouldRegisterTransportDispatcher` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |
 | `InboxIngressExtensions_ShouldRegisterIngressServices` | `LiteBus.Durable.IntegrationTests` (`Registration/`) |

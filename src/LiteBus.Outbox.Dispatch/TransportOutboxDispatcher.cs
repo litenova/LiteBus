@@ -135,7 +135,7 @@ public sealed class TransportOutboxDispatcher : IOutboxDispatcher
     /// </summary>
     /// <param name="message">The outbox envelope being dispatched.</param>
     /// <returns>The route passed to the transport publisher.</returns>
-    /// <exception cref="LiteBusDispatchException">The configured route resolver returned null or whitespace.</exception>
+    /// <exception cref="LiteBusDispatchException">The tenant routing strategy or route resolver returned null or whitespace.</exception>
     /// <remarks>
     ///     The tenant routing strategy wins when registered. Otherwise the configured
     ///     <see cref="TransportOutboxDispatcherOptions.ResolveRoute" /> delegate wins over
@@ -145,10 +145,19 @@ public sealed class TransportOutboxDispatcher : IOutboxDispatcher
     {
         if (_tenantRoutingStrategy is not null)
         {
-            return _tenantRoutingStrategy.ResolveRoute(
+            var strategyRoute = _tenantRoutingStrategy.ResolveRoute(
                 message.TenantId,
                 message.ContractName,
                 message.Topic);
+
+            if (string.IsNullOrWhiteSpace(strategyRoute))
+            {
+                throw new LiteBusDispatchException(
+                    $"Outbox dispatch failed for message '{message.Id:D}' (contract '{message.ContractName}' version {message.ContractVersion}): " +
+                    "the configured tenant routing strategy returned null or whitespace. Configure the strategy to return a non-empty route for every envelope.");
+            }
+
+            return strategyRoute;
         }
 
         if (_options.ResolveRoute is not null)

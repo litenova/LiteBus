@@ -35,13 +35,13 @@ services.AddLiteBus(builder =>
 
 ## Claim Behavior
 
-A claim inserts the key with its fingerprint and lets the primary key refuse the duplicate. An insert that lands is granted. An insert refused by a row already marked applied reports the stored payload for the repeat, or a fingerprint mismatch when the stored fingerprint and the incoming one are both set and differ. An insert refused by a row still waiting to settle reports in-flight, and the pipeline denies the delivery with `idempotency.in-flight` so the caller retries after the first delivery settles.
+A claim inserts the key with its fingerprint and lets the primary key refuse the duplicate. An insert that lands is granted with a claim token fenced into the row. An insert refused by a row already marked applied reports the stored payload for the repeat, or a fingerprint mismatch when the stored fingerprint and the incoming one are both set and differ. An insert refused by a row still waiting to settle reports in-flight, and the pipeline denies the delivery with `idempotency.in-flight` so the caller retries after the first delivery settles. A completion or release lands only while the row still carries the token the caller was granted: a settle that arrives after a takeover is a no-op, and completing a key the caller does not hold inserts nothing.
 
 Both shipped stores answer a held key the same way, because two deliveries racing across processes are the case idempotency exists to win. The in-memory store is still a test double: it forgets on restart and shares nothing across processes, so it cannot make a claim about the system.
 
 ## Claim Timeout
 
-An unsettled claim blocks its key until `ClaimTimeout` passes, five minutes by default. A claimant that crashes without settling would otherwise block its key until an operator intervenes, so a claim older than the timeout is taken over: the new caller refreshes the row and is granted the key. The takeover compares the `claimed_at` value it read, so two callers racing to take over the same expired claim cannot both win. Keep the timeout comfortably longer than the slowest mediation that claims through the store, so a live claimant always settles first.
+An unsettled claim blocks its key until `ClaimTimeout` passes, five minutes by default. A claimant that crashes without settling would otherwise block its key until an operator intervenes, so a claim older than the timeout is taken over: the new caller refreshes the row with a new token and is granted the key. The takeover compares the `claimed_at` value it read, so two callers racing to take over the same expired claim cannot both win. Keep the timeout comfortably longer than the slowest mediation that claims through the store, so a live claimant always settles first. The timeout must be positive: zero or negative is rejected when the module builds, because it would make every unsettled claim immediately takeover-eligible.
 
 ```csharp
 pg.UseOptions(new PostgreSqlIdempotencyStoreOptions
@@ -58,7 +58,7 @@ Nothing expires an applied key. The store grows by one row per applied key until
 
 ## Schema Management
 
-The table defaults to `public.litebus_idempotency_keys` with `idempotency_key` as the primary key, the recorded `payload`, the `fingerprint` the key was claimed with, the `is_completed` flag that separates an in-flight claim from an applied key, and `claimed_at` and `completed_at` timestamps. Schema creation follows the same three ownership models as the other PostgreSQL stores, and the `idempotency.postgresql.schema` probe reports whether the table matches the expected version. See [PostgreSQL Schema Management](postgresql-schema-management.md).
+The table defaults to `public.litebus_idempotency_keys` at schema version 1, with `idempotency_key` as the primary key, the recorded `payload`, the `fingerprint` the key was claimed with, the `claim_token` fencing the current claim, the `is_completed` flag that separates an in-flight claim from an applied key, and `claimed_at` and `completed_at` timestamps. Schema creation follows the same three ownership models as the other PostgreSQL stores, and the `idempotency.postgresql.schema` probe reports whether the table matches the expected version. See [PostgreSQL Schema Management](postgresql-schema-management.md).
 
 ## Limitations
 

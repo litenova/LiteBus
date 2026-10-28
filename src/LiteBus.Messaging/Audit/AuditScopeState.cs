@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Audit;
@@ -27,5 +27,10 @@ internal sealed class AuditScopeState
     /// <summary>
     ///     Gets the additional non-identifying properties attached by the handler.
     /// </summary>
-    public Dictionary<string, string> Properties { get; } = new(StringComparer.Ordinal);
+    /// <remarks>
+    ///     Event handlers running in parallel over one mediation write through <see cref="IAuditScope.WithProperty" />
+    ///     concurrently, so this is a concurrent dictionary rather than a plain one. Two handlers racing to set the
+    ///     same name still leave whichever landed last.
+    /// </remarks>
+    public ConcurrentDictionary<string, string> Properties { get; } = new(StringComparer.Ordinal);
 }

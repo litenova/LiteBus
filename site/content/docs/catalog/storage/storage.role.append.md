@@ -20,6 +20,7 @@
 - Batch append preserves request ordering in the returned append-result list. A later slot that duplicates an earlier slot reports the existing outcome.
 - Strict identical replay compares tenants through normalized values, so a null request tenant matches a stored empty-string unscoped row and returns the existing outcome instead of throwing.
 - Entity Framework batch recovery reinserts rows still missing after a unique violation and chains the database error as the inner exception when the retry also fails; non-unique failures are rethrown instead of reported as existing rows.
+- Outbox rows addressed to one handler by per-handler delivery store the handler full name in the `handler` column; stores persist it as an opaque value and return it on lease and query.
 
 ## Concurrency Model
 

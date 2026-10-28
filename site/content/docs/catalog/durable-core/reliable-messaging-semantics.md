@@ -65,7 +65,7 @@ Duplicate delivery is expected at every boundary after the initial durable write
 
 - Exactly-once end-to-end delivery
 - Distributed transactions spanning broker and database
-- Built-in handler-level idempotency record store (planned on [Roadmap](../../roadmap/README.md))
+- Mediation idempotency, which is a separate shipped capability (`IdempotencyDeclaration` with `IIdempotencyStore`; see [Idempotency](../../concepts/idempotency.md)) rather than part of durable delivery semantics
 
 ## Observability
 
@@ -266,10 +266,10 @@ Reliability semantics surface through processor state, pass counters, lease-loss
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
 | Plain SendAsync vs AcceptAsync crash comparison | Yes | Documented only; no side-by-side test | Integration | Low |
-| Distributed transaction broker + database | No (by design) | N/A |: |: |
+| Distributed transaction broker + database | No (by design) | Not supported | N/A | N/A |
 
 ### Out-of-Scope Use Cases
 
 - Exactly-once end-to-end delivery
-- Built-in handler-level idempotency record store
+- Mediation idempotency record store (shipped on the mediation axis; see [Idempotency](../../concepts/idempotency.md))
 - Cross-broker transactional commit

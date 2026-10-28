@@ -58,6 +58,9 @@ public static class PayloadProtection
     /// <param name="context">The metadata authenticated by contextual encryptors.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The protected payload text.</returns>
+    /// <remarks>
+    ///     The context tenant identifier is normalized by <see cref="PayloadProtectionContext" /> so unscoped messages authenticate identically on encrypt and decrypt.
+    /// </remarks>
     public static Task<string> ProtectAsync(
         string payload,
         IPayloadEncryptor? encryptor,
@@ -77,6 +80,9 @@ public static class PayloadProtection
     /// <param name="context">The metadata authenticated by contextual encryptors.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The decrypted serialized payload.</returns>
+    /// <remarks>
+    ///     The context tenant identifier is normalized by <see cref="PayloadProtectionContext" /> so unscoped messages authenticate identically on encrypt and decrypt.
+    /// </remarks>
     public static Task<string> UnprotectAsync(
         string payload,
         IPayloadEncryptor? encryptor,

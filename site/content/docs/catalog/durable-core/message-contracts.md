@@ -28,7 +28,7 @@ Module builders register message types in `IMessageContractRegistry` with explic
 - **`Register<TMessage>(string name, int version = 1)`**: Compose-time registration on inbox or outbox module builder `Contracts` surface.
 - **`RegisterFromAssembly(Assembly assembly)`**: Batch registration of attributed types from an assembly.
 
-Contract lookup at accept/enqueue always uses `message.GetType()`, not only the generic type parameter on typed overloads.
+Contract lookup at accept/enqueue always uses `message.GetType()`, not only the generic type parameter on typed overloads. The outbox envelope factory consults an optional `IMessageContractResolver` (registered with `OutboxModuleBuilder.UseContractResolver`); `DeclaredTypeMessageContractResolver` resolves from the declared parameter type instead of the runtime instance type. When none is registered, writers use the runtime message instance type.
 
 ### Registration
 
@@ -73,8 +73,8 @@ Register before first accept/enqueue of each message type. Closed generic shapes
 
 ## Non-Goals
 
-- Automatic contract migration or payload upgrader hooks (planned)
-- JSON Schema export CLI (planned)
+- Automatic contract migration or payload upgrader hooks (upgrader hooks for in-flight envelopes are planned on [Roadmap](../../roadmap/README.md))
+- JSON Schema export CLI (a contract catalog CLI with JSON Schema export is planned on [Roadmap](../../roadmap/README.md))
 - CLR assembly-qualified names as persisted identity
 
 ## Observability

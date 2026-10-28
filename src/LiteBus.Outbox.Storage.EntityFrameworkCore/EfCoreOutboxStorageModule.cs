@@ -140,6 +140,11 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<
                 transactionalOutboxType,
                 serviceProvider => CreateTransactionalOutbox(serviceProvider, moduleBuilder),
                 InstanceLifetime.Scoped));
+
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(ITransactionalOutbox),
+                serviceProvider => CreateTransactionalOutboxAdapter(serviceProvider, moduleBuilder),
+                InstanceLifetime.Scoped));
         }
     }
 
@@ -161,6 +166,23 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<
             serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>(),
             dbContext,
             serviceProvider.GetRequiredService<IOutboxEnvelopeFactory>())!;
+    }
+
+    /// <summary>
+    ///     Creates a non-generic transactional outbox adapter over the configured generic writer.
+    /// </summary>
+    /// <param name="serviceProvider">The application service provider.</param>
+    /// <param name="moduleBuilder">The configured module builder.</param>
+    /// <returns>The transactional outbox adapter instance.</returns>
+    private static object CreateTransactionalOutboxAdapter(
+        IServiceProvider serviceProvider,
+        EfCoreOutboxStorageModuleBuilder moduleBuilder)
+    {
+        var transactionalOutboxType = typeof(ITransactionalOutbox<>).MakeGenericType(moduleBuilder.DbContextType!);
+        var inner = serviceProvider.GetRequiredService(transactionalOutboxType);
+        var adapterType = typeof(TransactionalOutboxAdapter<>).MakeGenericType(moduleBuilder.DbContextType!);
+
+        return Activator.CreateInstance(adapterType, inner)!;
     }
 
     /// <summary>

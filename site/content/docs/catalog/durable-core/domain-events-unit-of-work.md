@@ -25,12 +25,27 @@ return OutboxEnqueueItem<OrderPlacedIntegrationEvent>.From(
 
 Mapping at this boundary also lets the application copy correlation, causation, and tenant metadata from the command context without adding those concerns to the domain event.
 
+## Domain Event Staging
+
+`OutboxModuleBuilder.StageCollectedEvents()` registers the default scoped `IDomainEventCollector` and a completion handler that drains the collector into `ITransactionalOutbox` when a mediation completes successfully, ordered at `HandlerPriorities.Persistence` before the application commit at `HandlerPriorities.UnitOfWork`, so staged rows join the unit of work that produced them. A handler records consequences with `Collect` instead of publishing inline; `Drain` returns every collected event destructively in collection order, so a retried mediation stages only what was collected after the previous drain.
+
+```csharp
+registry.AddOutbox(outbox =>
+{
+    outbox.StageCollectedEvents();
+});
+```
+
+Staging runs only on `MediationOutcome.Succeeded`: a failed mediation stages nothing. The staging handler resolves `ITransactionalOutbox` lazily and only when the drain is non-empty, so mediations that collect nothing never touch it. The application must register a scoped non-generic `ITransactionalOutbox` (the ambient PostgreSQL provider, the Entity Framework Core interceptor adapter, or the Marten writer); collecting events without one fails staging with a descriptive error. Entity Framework Core registers the non-generic adapter over `ITransactionalOutbox<TContext>` only when `EnableSaveChangesInterceptor()` is set. When `UseAmbientTrace` is also enabled, staged envelopes stamp ambient trace.
+
 ## Public Surface
 
 | Surface | Role |
 | --- | --- |
 | `ITransactionalOutbox` | Stages outbox envelopes through a store bound to the caller's transaction |
 | `ITransactionalOutbox<TContext>` | Stages envelopes through an existing EF Core context |
+| `IDomainEventCollector` | Scoped per mediation; `Collect` records a domain event and `Drain` returns every collected event destructively |
+| `OutboxModuleBuilder.StageCollectedEvents()` | Registers the collector and the staging completion handler at `HandlerPriorities.Persistence` |
 | `OutboxEnqueueItem<TEvent>` | Carries one typed integration event and its durable metadata |
 | `OutboxEnqueueMetadata` | Defines identity, idempotency, visibility, trace, tenant, and publication target |
 | `IEventMediator` | Publishes non-durable in-process events after commit |
@@ -69,6 +84,9 @@ Domain event collection has no LiteBus meter because it is application-owned. Af
 ## Test Coverage
 
 - `DomainEventOutboxPatternTests.HandleAsync_WithRecordedDomainEvent_ShouldDrainMapAndEnqueueIntegrationEvent` defines an aggregate buffer, explicit collector, explicit mapper, handler, and bound transactional writer. It verifies the aggregate buffer is cleared and the stored envelope carries the registered contract, topic, deterministic idempotency key, and mapped payload.
+- `DomainEventStagingTests.PublishAsync_should_stage_collected_events_on_success` verifies collected events drain into `ITransactionalOutbox` when the mediation succeeds, and `PublishAsync_should_stage_nothing_on_failure` verifies a failed mediation stages nothing.
+- `DomainEventStagingTests.Staging_should_run_before_the_unit_of_work_band` verifies the staging completion handler runs at `HandlerPriorities.Persistence`, ahead of the application commit.
+- `DomainEventStagingTests.PublishAsync_without_collected_events_should_not_require_a_transactional_outbox` verifies an empty drain never touches the outbox, and `PublishAsync_with_collected_events_but_no_transactional_outbox_should_throw` verifies collected events without a registered outbox fail with an error naming `StageCollectedEvents`.
 - `EfCoreOutboxTransactionalIntegrationTests` verifies aggregate data and outbox rows commit or roll back together through one EF Core context.
 - `PostgreSqlOutboxTransactionalIntegrationTests` verifies domain writes and outbox rows share one PostgreSQL transaction.
 - `EfCoreOutboxProcessorEndToEndTests` verifies a committed integration event reaches the configured event handler through the outbox processor.

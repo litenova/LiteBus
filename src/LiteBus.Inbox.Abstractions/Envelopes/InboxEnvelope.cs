@@ -202,18 +202,23 @@ public sealed record InboxEnvelope
     /// <summary>
     ///     Returns a new envelope representing successful dispatch completion.
     /// </summary>
+    /// <param name="completedAt">
+    ///     The completion timestamp, or <see langword="null" /> to leave <see cref="CompletedAt" /> unchanged for the
+    ///     store to stamp. Processors pass the processor clock so completion times stay on one clock with retention.
+    /// </param>
     /// <returns>The envelope after successful processing.</returns>
     /// <exception cref="InvalidOperationException">
     ///     The envelope is not in the <see cref="InboxStatus.Processing" /> state.
     /// </exception>
-    public InboxEnvelope AsCompleted()
+    public InboxEnvelope AsCompleted(DateTimeOffset? completedAt = null)
     {
         EnsureStatus(InboxStatus.Processing);
 
         return this with
         {
             Status = InboxStatus.Completed,
-            LastError = null
+            LastError = null,
+            CompletedAt = completedAt ?? CompletedAt
         };
     }
 

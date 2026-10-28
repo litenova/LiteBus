@@ -95,34 +95,6 @@ internal static class LiteBusSymbols
     }
 
     /// <summary>
-    ///     Gets implemented handler interfaces that match one of the supplied open generic metadata names.
-    /// </summary>
-    /// <param name="type">The handler type symbol.</param>
-    /// <param name="interfaceMetadataNames">Open generic interface metadata names.</param>
-    /// <returns>The matching implemented interfaces.</returns>
-    internal static ImmutableArray<INamedTypeSymbol> GetImplementedHandlerInterfaces(
-        INamedTypeSymbol type,
-        params string[] interfaceMetadataNames)
-    {
-        var builder = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
-
-        foreach (var candidate in type.AllInterfaces)
-        {
-            var metadataName = candidate.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-
-            foreach (var expected in interfaceMetadataNames)
-            {
-                if (metadataName == expected)
-                {
-                    builder.Add(candidate);
-                }
-            }
-        }
-
-        return builder.ToImmutable();
-    }
-
-    /// <summary>
     ///     Builds the CLR metadata name for a named type symbol.
     /// </summary>
     /// <param name="symbol">The named type symbol.</param>

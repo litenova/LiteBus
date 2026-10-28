@@ -14,11 +14,15 @@ namespace LiteBus.Testing;
 /// <remarks>
 ///     Implements the writer, lease, state, dead-letter, retention, and diagnostics roles on one process-local instance.
 ///     Prefer this type over wiring production storage modules when tests only need deterministic inbox behaviour.
+///     The transactional writer marker is included so tests can resolve an in-memory
+///     <see cref="ITransactionalInbox" /> without a database; writes commit immediately because the in-memory
+///     backend has no transaction boundary to enlist in.
 /// </remarks>
 public sealed class TestInboxStore :
     IInboxStore,
     IInboxProcessingStore,
-    IInboxOperationsStore
+    IInboxOperationsStore,
+    ITransactionalInboxStore
 {
     /// <summary>
     ///     Gets the underlying in-memory store that owns envelope state.

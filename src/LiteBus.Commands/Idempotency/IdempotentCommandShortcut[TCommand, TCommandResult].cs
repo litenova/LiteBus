@@ -21,9 +21,11 @@ namespace LiteBus.Commands.Idempotency;
 ///     </para>
 ///     <para>
 ///         A repeat can only be answered with a value if the first attempt recorded one, which is what
-///         <see cref="IdempotencyDeclaration.ReplayResult" /> asks the store to do. Without it, a result-producing
-///         command is left to run again: LiteBus will not invent an answer, and the alternative of returning
-///         <see langword="default" /> would hand the caller a zero or a null that looks like a real result.
+///         <see cref="IdempotencyDeclaration.ReplayResult" /> asks the store to do. Without it, a repeat of an applied
+///         result-producing command raises <see cref="PipelineContractException" /> naming the fix: LiteBus will not
+///         invent an answer, and the alternative of returning <see langword="default" /> would hand the caller a zero
+///         or a null that looks like a real result. Re-running the handler instead would apply an applied key twice,
+///         which is what idempotency exists to prevent.
 ///     </para>
 ///     <para>
 ///         A key another delivery is still applying is denied rather than answered, because nobody yet knows what the
@@ -33,7 +35,8 @@ namespace LiteBus.Commands.Idempotency;
 ///     </para>
 ///     <para>
 ///         A granted key is recorded in the execution-context data as a <see cref="ClaimedIdempotencyKey" />, so the
-///         completion handler settles exactly the claim this mediation holds and never one another delivery holds.
+///         completion handler settles exactly the claim this mediation holds and never one another delivery holds. The
+///         record carries the token fencing the grant, which the store matches before it settles.
 ///     </para>
 /// </remarks>
 internal sealed class IdempotentCommandShortcut<TCommand, TCommandResult> : ICommandShortcut<TCommand, TCommandResult>
@@ -95,7 +98,20 @@ internal sealed class IdempotentCommandShortcut<TCommand, TCommandResult> : ICom
 
         if (claim.Outcome == IdempotencyClaimOutcome.Granted)
         {
-            AmbientExecutionContext.GetCurrentOrDefault()?.Data.Set(new ClaimedIdempotencyKey(resolved.Value.Key));
+            var claimToken = claim.ClaimToken;
+
+            if (string.IsNullOrWhiteSpace(claimToken))
+            {
+                throw new PipelineContractException(
+                    $"'{typeof(TCommand).Name}' was granted its idempotency key, but the store "
+                    + $"'{StoreTypeName}' returned no claim token. A granted claim must carry the token "
+                    + "CompleteAsync and ReleaseAsync match before they settle.");
+            }
+
+            AmbientExecutionContext.GetCurrentOrDefault()?.Data.Set(new ClaimedIdempotencyKey(
+                resolved.Value.Key,
+                claimToken,
+                resolved.Value.Declaration.ReplayResult));
             return Shortcut<TCommandResult>.None;
         }
 
@@ -115,7 +131,10 @@ internal sealed class IdempotentCommandShortcut<TCommand, TCommandResult> : ICom
 
         if (claim.Outcome != IdempotencyClaimOutcome.AlreadyCompleted)
         {
-            return Shortcut<TCommandResult>.None;
+            throw new PipelineContractException(
+                $"'{typeof(TCommand).Name}' claimed its idempotency key, but the store '{StoreTypeName}' answered "
+                + $"with an unrecognized outcome '{claim.Outcome}' ({(int) claim.Outcome}). A store must answer "
+                + "Granted, AlreadyCompleted, InFlight, or FingerprintMismatch.");
         }
 
         if (!resolved.Value.Declaration.ReplayResult)
@@ -140,4 +159,9 @@ internal sealed class IdempotentCommandShortcut<TCommand, TCommandResult> : ICom
 
         return Shortcut<TCommandResult>.Answer((TCommandResult) result, "the command was already applied");
     }
+
+    /// <summary>
+    ///     Gets the store type name reported when the store breaks its half of the claim contract.
+    /// </summary>
+    private string StoreTypeName => _store.GetType().FullName ?? _store.GetType().Name;
 }

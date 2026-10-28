@@ -137,7 +137,7 @@ Access is synchronised, so event handlers running in parallel over one context c
 
 ### Items Dictionary
 
-The `Items` dictionary is a key-value collection (`IDictionary<string, object>`) for sharing state between handlers in the same pipeline. Reach for it when the key comes from outside the process, or when the value is a flag rather than an object. Prefer `Data` for anything with a type worth keying on: the string key is invented at both ends, the cast is unchecked, and a rename in one stage becomes a runtime failure in another.
+The `Items` dictionary is a key-value collection (`IDictionary<string, object>`) for sharing state between handlers in the same pipeline. Reach for it when the key comes from outside the process, or when the value is a flag rather than an object. Prefer `Data` for anything with a type worth keying on: the string key is invented at both ends, the cast is unchecked, and a rename in one stage becomes a runtime failure in another. Event handlers running in parallel over one mediation may read and write `Items` concurrently, and may push audit scope state concurrently; two handlers racing to set the same key leave whichever landed last.
 
 Seed `Items` per call through the mediation settings object. `CommandMediationSettings.Items`, `QueryMediationSettings.Items`, and `EventMediationSettings.Items` are copied into the context when the mediation starts, so every stage sees the seeded values:
 

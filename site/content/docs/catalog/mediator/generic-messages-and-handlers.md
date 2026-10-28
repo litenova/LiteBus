@@ -31,7 +31,7 @@ public sealed class GetByIdQueryHandler<TEntity> : IQueryHandler<GetByIdQuery<TE
 | `IQuery<TResult>` / `IStreamQuery<TResult>` with generic message type | Generic query contract |
 | `IEvent` or typed plain event with generic payload | Generic event contract |
 | `RegisterFromAssembly(...)` on semantic builders | Registers generic messages/handlers discovered in assembly |
-| `MessageRegistry.Find(Type)` | Resolves an exact closed descriptor before an open generic-definition fallback |
+| `IMessageReader.Find(Type)` | Resolves an exact closed descriptor before an open generic-definition fallback |
 
 ## Packages
 

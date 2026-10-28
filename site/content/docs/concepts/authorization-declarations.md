@@ -67,7 +67,7 @@ registry.AddMessaging(messaging => messaging
     .RequireDeclaration<AuthorizationDeclaration, ICommand>());
 ```
 
-Every registered command must then declare its position or record an exemption from it, and composition fails naming every offender rather than the first. Scope on a type rather than a namespace: a namespace is a string a refactoring tool moves without telling anyone, so a requirement keyed on one silently stops applying when a folder is renamed, and for an authorization rule that failure is a command that used to be guarded and now is not.
+Every registered command must then declare its position or record an exemption from it, and composition fails naming every offender rather than the first. Scope on a type rather than a namespace: a namespace is a string a refactoring tool moves without telling anyone, so a requirement keyed on one silently stops applying when a folder is renamed, and for an authorization rule that failure is a command left unguarded.
 
 At compile time, with `LB1020`:
 

@@ -5,8 +5,8 @@ using LiteBus.Testing.Mediation;
 namespace LiteBus.Mediator.UnitTests.Idempotency;
 
 /// <summary>
-///     Verifies the in-memory store answers like a durable one: in-flight claims, fingerprint comparison, and takeover
-///     after the claim timeout.
+///     Verifies the in-memory store answers like a durable one: in-flight claims, fingerprint comparison, fenced
+///     settlement, and takeover after the claim timeout.
 /// </summary>
 [Collection("Sequential")]
 public sealed class InMemoryIdempotencyStoreTests : LiteBusTestBase
@@ -20,6 +20,7 @@ public sealed class InMemoryIdempotencyStoreTests : LiteBusTestBase
         var second = await store.TryClaimAsync("key-1", fingerprint: null).ConfigureAwait(false);
 
         first.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
+        first.ClaimToken.Should().NotBeNullOrWhiteSpace();
         second.Outcome.Should().Be(IdempotencyClaimOutcome.InFlight);
     }
 
@@ -40,9 +41,10 @@ public sealed class InMemoryIdempotencyStoreTests : LiteBusTestBase
 
         var taken = await store.TryClaimAsync("key-1", "fingerprint-b").ConfigureAwait(false);
         taken.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
+        taken.ClaimToken.Should().NotBe(first.ClaimToken);
 
         // The takeover stored the new caller's fingerprint with the refreshed claim.
-        await store.CompleteAsync("key-1", payload: null).ConfigureAwait(false);
+        await store.CompleteAsync("key-1", taken.ClaimToken!, payload: null).ConfigureAwait(false);
 
         var replay = await store.TryClaimAsync("key-1", "fingerprint-b").ConfigureAwait(false);
         replay.Outcome.Should().Be(IdempotencyClaimOutcome.AlreadyCompleted);
@@ -52,12 +54,73 @@ public sealed class InMemoryIdempotencyStoreTests : LiteBusTestBase
     }
 
     [Fact]
+    public async Task A_late_completion_from_a_superseded_claimant_settles_nothing()
+    {
+        var time = new TestTimeProvider();
+        var store = new InMemoryIdempotencyStore(time, TimeSpan.FromMinutes(5));
+
+        var first = await store.TryClaimAsync("key-1", "fingerprint-a").ConfigureAwait(false);
+        time.Advance(TimeSpan.FromMinutes(6));
+        var taken = await store.TryClaimAsync("key-1", "fingerprint-b").ConfigureAwait(false);
+        taken.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
+
+        // The superseded claimant succeeds late and settles with the token it was granted.
+        await store.CompleteAsync("key-1", first.ClaimToken!, "stale-payload").ConfigureAwait(false);
+
+        // The new claimant's work is neither marked applied nor answered with the stale payload.
+        var racing = await store.TryClaimAsync("key-1", "fingerprint-b").ConfigureAwait(false);
+        racing.Outcome.Should().Be(IdempotencyClaimOutcome.InFlight);
+
+        await store.CompleteAsync("key-1", taken.ClaimToken!, "fresh-payload").ConfigureAwait(false);
+
+        var replay = await store.TryClaimAsync("key-1", "fingerprint-b").ConfigureAwait(false);
+        replay.Outcome.Should().Be(IdempotencyClaimOutcome.AlreadyCompleted);
+        replay.Payload.Should().Be("fresh-payload");
+    }
+
+    [Fact]
+    public async Task A_late_release_from_a_superseded_claimant_frees_nothing()
+    {
+        var time = new TestTimeProvider();
+        var store = new InMemoryIdempotencyStore(time, TimeSpan.FromMinutes(5));
+
+        var first = await store.TryClaimAsync("key-1", fingerprint: null).ConfigureAwait(false);
+        time.Advance(TimeSpan.FromMinutes(6));
+        var taken = await store.TryClaimAsync("key-1", fingerprint: null).ConfigureAwait(false);
+        taken.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
+
+        // The superseded claimant fails late and releases with the token it was granted.
+        await store.ReleaseAsync("key-1", first.ClaimToken!).ConfigureAwait(false);
+
+        // The new claimant still holds the key, so no third delivery can claim it concurrently.
+        var racing = await store.TryClaimAsync("key-1", fingerprint: null).ConfigureAwait(false);
+        racing.Outcome.Should().Be(IdempotencyClaimOutcome.InFlight);
+
+        await store.ReleaseAsync("key-1", taken.ClaimToken!).ConfigureAwait(false);
+
+        var retry = await store.TryClaimAsync("key-1", fingerprint: null).ConfigureAwait(false);
+        retry.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
+    }
+
+    [Fact]
+    public async Task A_completion_for_a_key_the_caller_does_not_hold_inserts_nothing()
+    {
+        var store = new InMemoryIdempotencyStore();
+
+        await store.CompleteAsync("key-1", Guid.NewGuid().ToString("N"), "payload").ConfigureAwait(false);
+
+        // No applied row was left behind, so the key is still claimable and carries no fingerprint gap.
+        var claim = await store.TryClaimAsync("key-1", "fingerprint-a").ConfigureAwait(false);
+        claim.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
+    }
+
+    [Fact]
     public async Task An_applied_key_with_a_matching_fingerprint_replays_the_payload()
     {
         var store = new InMemoryIdempotencyStore();
 
-        await store.TryClaimAsync("key-1", "fingerprint-a").ConfigureAwait(false);
-        await store.CompleteAsync("key-1", """{"receipt":"r-1"}""").ConfigureAwait(false);
+        var first = await store.TryClaimAsync("key-1", "fingerprint-a").ConfigureAwait(false);
+        await store.CompleteAsync("key-1", first.ClaimToken!, """{"receipt":"r-1"}""").ConfigureAwait(false);
 
         var replay = await store.TryClaimAsync("key-1", "fingerprint-a").ConfigureAwait(false);
 
@@ -70,8 +133,8 @@ public sealed class InMemoryIdempotencyStoreTests : LiteBusTestBase
     {
         var store = new InMemoryIdempotencyStore();
 
-        await store.TryClaimAsync("key-1", "fingerprint-a").ConfigureAwait(false);
-        await store.CompleteAsync("key-1", payload: null).ConfigureAwait(false);
+        var first = await store.TryClaimAsync("key-1", "fingerprint-a").ConfigureAwait(false);
+        await store.CompleteAsync("key-1", first.ClaimToken!, payload: null).ConfigureAwait(false);
 
         var replay = await store.TryClaimAsync("key-1", "fingerprint-b").ConfigureAwait(false);
 
@@ -83,8 +146,8 @@ public sealed class InMemoryIdempotencyStoreTests : LiteBusTestBase
     {
         var store = new InMemoryIdempotencyStore();
 
-        await store.TryClaimAsync("key-1", "fingerprint-a").ConfigureAwait(false);
-        await store.CompleteAsync("key-1", "payload").ConfigureAwait(false);
+        var first = await store.TryClaimAsync("key-1", "fingerprint-a").ConfigureAwait(false);
+        await store.CompleteAsync("key-1", first.ClaimToken!, "payload").ConfigureAwait(false);
 
         // Either side missing a fingerprint means no comparison is possible, so the repeat is answered.
         var replay = await store.TryClaimAsync("key-1", fingerprint: null).ConfigureAwait(false);
@@ -98,8 +161,8 @@ public sealed class InMemoryIdempotencyStoreTests : LiteBusTestBase
     {
         var store = new InMemoryIdempotencyStore();
 
-        await store.TryClaimAsync("key-1", fingerprint: null).ConfigureAwait(false);
-        await store.CompleteAsync("key-1", "payload").ConfigureAwait(false);
+        var first = await store.TryClaimAsync("key-1", fingerprint: null).ConfigureAwait(false);
+        await store.CompleteAsync("key-1", first.ClaimToken!, "payload").ConfigureAwait(false);
 
         var replay = await store.TryClaimAsync("key-1", "fingerprint-b").ConfigureAwait(false);
 
@@ -112,14 +175,14 @@ public sealed class InMemoryIdempotencyStoreTests : LiteBusTestBase
     {
         var store = new InMemoryIdempotencyStore();
 
-        await store.TryClaimAsync("key-1", fingerprint: null).ConfigureAwait(false);
-        await store.ReleaseAsync("key-1").ConfigureAwait(false);
+        var first = await store.TryClaimAsync("key-1", fingerprint: null).ConfigureAwait(false);
+        await store.ReleaseAsync("key-1", first.ClaimToken!).ConfigureAwait(false);
 
         var retry = await store.TryClaimAsync("key-1", fingerprint: null).ConfigureAwait(false);
         retry.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
 
-        await store.CompleteAsync("key-1", payload: null).ConfigureAwait(false);
-        await store.ReleaseAsync("key-1").ConfigureAwait(false);
+        await store.CompleteAsync("key-1", retry.ClaimToken!, payload: null).ConfigureAwait(false);
+        await store.ReleaseAsync("key-1", retry.ClaimToken!).ConfigureAwait(false);
 
         var replay = await store.TryClaimAsync("key-1", fingerprint: null).ConfigureAwait(false);
         replay.Outcome.Should().Be(IdempotencyClaimOutcome.AlreadyCompleted);
@@ -131,6 +194,16 @@ public sealed class InMemoryIdempotencyStoreTests : LiteBusTestBase
     public void The_claim_timeout_defaults_to_five_minutes()
     {
         new InMemoryIdempotencyStore().ClaimTimeout.Should().Be(TimeSpan.FromMinutes(5));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void A_non_positive_claim_timeout_is_rejected(int minutes)
+    {
+        var act = () => new InMemoryIdempotencyStore(claimTimeout: TimeSpan.FromMinutes(minutes));
+
+        act.Should().Throw<ArgumentOutOfRangeException>();
     }
 }
 

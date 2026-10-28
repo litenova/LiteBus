@@ -41,4 +41,45 @@ public sealed class ExplicitMessageContractRegistrationAnalyzerRegressionTests
             0,
             "ProcessPaymentCommand");
     }
+
+    /// <summary>
+    ///     Verifies that <c>Register</c> on a same-shaped handler registry with an assembly scan does not satisfy the explicit registration rule.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task AttributedMessageRegisteredOnlyThroughScanShapedRegistry_ProducesDiagnostic()
+    {
+        const string source = """
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+
+                              [MessageContract("payments.process-payment", 1)]
+                              public sealed record {|#0:ProcessPaymentCommand|}(int PaymentId) : ICommand;
+
+                              public static class HandlerConfiguration
+                              {
+                                  public static void Configure(HandlerRegistry registry)
+                                  {
+                                      registry.Register<ProcessPaymentCommand>();
+                                  }
+                              }
+
+                              public sealed class HandlerRegistry
+                              {
+                                  public void Register<T>()
+                                  {
+                                  }
+
+                                  public void RegisterFromAssembly(System.Reflection.Assembly assembly)
+                                  {
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<ExplicitMessageContractRegistrationAnalyzer>(
+            source,
+            DiagnosticDescriptors.ExplicitMessageContractRegistration,
+            0,
+            "ProcessPaymentCommand");
+    }
 }

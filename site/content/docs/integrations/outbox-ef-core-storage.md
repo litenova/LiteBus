@@ -72,7 +72,9 @@ interceptor.Enqueue(appDbContext, envelope);
 await appDbContext.SaveChangesAsync(cancellationToken);
 ```
 
-`LiteBusOutboxSaveChangesInterceptor` copies queued envelopes into `IOutboxDbContext.OutboxMessages` during `SavingChanges`, so domain entities and outbox rows share one EF transaction.
+`LiteBusOutboxSaveChangesInterceptor` copies queued envelopes into `IOutboxDbContext.OutboxMessages` during `SavingChanges`, so domain entities and outbox rows share one EF transaction. The flushed rows carry the full staged envelope, including the per-handler delivery target, so targeted envelopes keep their addressing through the interceptor path.
+
+When `EnableSaveChangesInterceptor()` is set, the module also registers the non-generic `ITransactionalOutbox` over `ITransactionalOutbox<TContext>`, so `StageCollectedEvents()` drains collected domain events into the ambient EF transaction.
 
 ## Default Table and Columns
 
@@ -147,7 +149,7 @@ Register storage and a dispatcher before `EnableOutboxProcessor()`; module build
 | `ReturnExisting` (default) | Returns the existing receipt without inserting a second row. |
 | `Strict` | Throws `IdempotencyConflictException` before `SaveChanges`, but only when the conflicting row differs. A byte-identical replay returns the existing receipt. |
 
-`Strict` compares message id, contract name, contract version, payload, topic, idempotency key, correlation id, causation id, and tenant id. Rows that match on all nine fields return the stored receipt; any difference throws.
+`Strict` compares message id, contract name, contract version, payload, topic, handler, idempotency key, correlation id, causation id, and tenant id. Rows that match on all ten fields return the stored receipt; any difference throws.
 
 The `LiteBusOutboxSaveChangesInterceptor` path does not dedupe at enqueue time. A duplicate `(tenant_id, idempotency_key)` pair in the same `SaveChanges` batch surfaces as a `DbUpdateException` from the unique index and aborts the caller transaction. Use `ReturnExisting` on `IOutbox` / `ITransactionalOutbox` when you need silent dedupe; reserve the interceptor for envelopes staged without idempotency keys or when duplicate keys should fail the unit of work.
 

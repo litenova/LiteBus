@@ -54,6 +54,10 @@ builder.AddInbox(inbox =>
 
 Set the destination to `string.Empty` to publish through RabbitMQ's default exchange and set the route to the target queue name. LiteBus uses that queue route as the publisher circuit scope. Named exchanges use the exchange name, so a failure on one exchange does not open another exchange's circuit.
 
+Neutral consumers started through `IMessageConsumer` with default `TransportConsumerOptions` use unlimited AMQP prefetch: `PrefetchCount` defaults to `0`, which maps to RabbitMQ's unlimited native prefetch window. The `MaxInFlightMessages` admission limit bounds concurrent handlers but does not stop the broker from pushing prefetched deliveries into client memory, so set an explicit `PrefetchCount` when consuming from a large backlog with slow handlers.
+
+The `StartAsync` cancellation token cancels subscription startup only. Cancelling or disposing it after startup completes does not affect deliveries; call `StopAsync` to end the subscription.
+
 ## Options Reference
 
 | Type | Property | Default | Notes |
@@ -99,6 +103,8 @@ For the transport-level acknowledgement mapping (`AcceptAsync` to `basic.ack`, a
 Handler exceptions propagate to ingress, which applies `RequeueOnFailure` through `ReturnToQueueAsync` or `DiscardAsync`. Poison failures (unknown contract, oversize body, malformed payload) are never requeued.
 
 With `Mandatory = true` (the default on dispatch options), a publication the broker returns as unroutable fails with `AmqpMessageReturnedException`, so the leased envelope retries instead of being silently dropped. Set `Mandatory = false` to let the broker drop unroutable messages while publication succeeds.
+
+Each delivery settles at most once: a repeat acknowledgement for the same delivery is ignored, and the consumer skips its failure-path requeue when the handler already settled before throwing.
 
 ## Operations
 

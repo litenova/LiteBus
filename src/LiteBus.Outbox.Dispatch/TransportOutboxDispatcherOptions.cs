@@ -47,7 +47,8 @@ public sealed class TransportOutboxDispatcherOptions
     /// </summary>
     /// <value>
     ///     When set, the dispatch module registers it as the <see cref="ITenantRoutingStrategy" /> the dispatcher
-    ///     resolves, so a multi-tenant host routes each tenant partition to its own destination.
+    ///     resolves, so a multi-tenant host routes each tenant partition to its own destination. Its result must be
+    ///     non-empty; an empty result fails the dispatch with <see cref="LiteBus.Outbox.Abstractions.Exceptions.LiteBusDispatchException" />.
     /// </value>
     public ITenantRoutingStrategy? TenantRoutingStrategy { get; set; }
 

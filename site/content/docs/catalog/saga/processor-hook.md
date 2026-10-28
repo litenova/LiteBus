@@ -11,7 +11,7 @@
 
 On `PrepareDispatchScope` and at the start of `AfterDispatchAsync`, the hook attaches the scope identified by `IProcessorEnvelope.MessageId`. The synchronous prepare phase sets `AsyncLocal` state on the same logical flow that calls the dispatcher. Message IDs also prevent concurrent deliveries for one saga correlation from overwriting each other's state snapshots.
 
-On `AfterDispatchAsync`, if the handler marked state dirty, the hook saves once with the observed version and propagates `SagaConcurrencyException` on conflict. It does not reload and replace a newer row with a stale handler-owned snapshot. If the handler called `Complete()`, the hook records completion and may reload and retry up to three attempts because completion is idempotent. Handler-thrown exceptions skip save. The processor then calls `AbandonDispatchScope`, which removes the keyed context entry before retry or dead-letter handling.
+On `AfterDispatchAsync`, the hook compares the current state with the JSON snapshot taken when it was loaded. If the handler marked state dirty through `SetState` or changed the loaded instance in place, the hook saves once with the observed version and propagates `SagaConcurrencyException` on conflict. It does not reload and replace a newer row with a stale handler-owned snapshot. A dispatch that only reads state saves nothing, so reading state and then calling `Complete()` completes the saga. If the handler called `Complete()`, the hook records completion and may reload and retry up to three attempts because completion is idempotent. Handler-thrown exceptions skip save. The processor calls `AfterDispatchAsync` on the persist token before inbox terminal persistence, so a shutdown during the saga save does not leave an executed command to run again. The processor then calls `AbandonDispatchScope`, which removes the keyed context entry before retry or dead-letter handling.
 
 Dispatches for the same tenant, saga definition, and correlation identifier are serialized inside one hook instance. The gate covers state load, handler dispatch, hook persistence, and scope cleanup, so two workers in one process cannot both load the same saga version. Separate processes still require the store's optimistic concurrency checks.
 
@@ -31,7 +31,7 @@ Each save and completion records the inbox message identifier in `last_applied_m
 ## Packages
 
 - `LiteBus.Saga`
-- `LiteBus.DurableMessaging.Abstractions` (implements `IProcessorEnvelopeHook`)
+- `LiteBus.DurableMessaging.Abstractions` (`IProcessorEnvelopeHook` in `LiteBus.Messaging.Abstractions.Processing`)
 - `LiteBus.Saga.Abstractions` (store and registry dependencies)
 
 ## Requires
@@ -53,6 +53,7 @@ Each save and completion records the inbox message identifier in `last_applied_m
 - Dirty-state conflicts propagate without automatic state merge.
 - Completion-only conflicts may retry up to three attempts.
 - `SetState` and `Complete` in the same dispatch throw `InvalidOperationException` before persist.
+- State changes are detected by comparing serialized state with the load snapshot; in-place mutations persist without `SetState`, and a read-only dispatch saves nothing.
 - Only a `LastAppliedMessageId` match suppresses dispatch; new messages on a completed saga dispatch with an inactive scope and no saga mutation.
 - `Complete()` with no prior save stores the initial snapshot first, then completes the new row instead of reporting a concurrency conflict.
 - Saga save runs after successful handler dispatch but before inbox terminal persistence.
@@ -90,6 +91,42 @@ The saga hook does not emit dedicated meters or activities.
 - **Test kind**: Unit
 - **Description**: Direct hook invocation after `BeforeDispatchAsync` with both `SetState` and `Complete` on active scope.
 - **Behavior**: `AfterDispatchAsync` persist guard.
+- **Expected outcome**: `InvalidOperationException`; no store write.
+- **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
+
+#### `SagaPureReadTests.AfterDispatchAsync_WhenDispatchOnlyReadsState_SkipsSave`
+
+- **Use case**: A dispatch that reads state without changing it performs no store write.
+- **Test kind**: Unit
+- **Description**: Handler calls `GetState` and returns the snapshot unchanged.
+- **Behavior**: The hook compares current state with the load snapshot and finds no changes.
+- **Expected outcome**: No save and no row created for the new saga.
+- **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
+
+#### `SagaPureReadTests.AfterDispatchAsync_WhenStateIsReadThenCompleted_CompletesSaga`
+
+- **Use case**: Reading state and then calling `Complete()` completes the saga.
+- **Test kind**: Unit
+- **Description**: Handler reads state, changes nothing, and calls `Complete()`.
+- **Behavior**: A read carries no changes, so completion is not combined with a state change.
+- **Expected outcome**: The saga row completes without a concurrency conflict.
+- **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
+
+#### `SagaPureReadTests.AfterDispatchAsync_WhenStateChangesInPlace_PersistsWithoutSetState`
+
+- **Use case**: In-place mutation of the `GetState` instance persists without `SetState`.
+- **Test kind**: Unit
+- **Description**: Handler mutates the returned state object and never calls `SetState`.
+- **Behavior**: The serialized state differs from the load snapshot, so the hook saves.
+- **Expected outcome**: The stored row carries the mutation at the next version.
+- **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
+
+#### `SagaPureReadTests.AfterDispatchAsync_WhenInPlaceChangeCombinesWithComplete_ThrowsInvalidOperationException`
+
+- **Use case**: An in-place change combined with `Complete()` is rejected like `SetState` plus `Complete()`.
+- **Test kind**: Unit
+- **Description**: Handler mutates state in place and calls `Complete()` in one dispatch.
+- **Behavior**: Change detection reports changes, so the persist guard throws.
 - **Expected outcome**: `InvalidOperationException`; no store write.
 - **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
 

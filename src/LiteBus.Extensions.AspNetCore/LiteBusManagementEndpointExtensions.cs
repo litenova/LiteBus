@@ -70,6 +70,10 @@ public static partial class LiteBusManagementEndpointExtensions
         ArgumentNullException.ThrowIfNull(options.DiagnosticChecks);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.DiagnosticChecks.MaxParallelism);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.DiagnosticChecks.Timeout.Ticks);
+        if (options.DiagnosticChecks.RunTimeout is { } runTimeout)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(runTimeout.Ticks);
+        }
         if (options.DefaultDrainTimeout > options.MaxDrainTimeout)
         {
             throw new ArgumentException("DefaultDrainTimeout cannot exceed MaxDrainTimeout.", nameof(options));
@@ -224,8 +228,12 @@ public static partial class LiteBusManagementEndpointExtensions
         LiteBusManagementOptions options,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(context, async () => Results.Ok(
-            await manager.QueryAsync(parameters.ToFilter(), parameters.ToPageRequest(options.MaxPageSize), cancellationToken).ConfigureAwait(false)));
+        return ExecuteAsync(context, async () =>
+        {
+            ValidateBulkRequest(parameters.MessageIds, options);
+            return Results.Ok(
+                await manager.QueryAsync(parameters.ToFilter(), parameters.ToPageRequest(options.MaxPageSize), cancellationToken).ConfigureAwait(false));
+        });
     }
 
     /// <summary>
@@ -494,8 +502,12 @@ public static partial class LiteBusManagementEndpointExtensions
         LiteBusManagementOptions options,
         CancellationToken cancellationToken)
     {
-        return ExecuteAsync(context, async () => Results.Ok(
-            await manager.QueryAsync(parameters.ToFilter(), parameters.ToPageRequest(options.MaxPageSize), cancellationToken).ConfigureAwait(false)));
+        return ExecuteAsync(context, async () =>
+        {
+            ValidateBulkRequest(parameters.MessageIds, options);
+            return Results.Ok(
+                await manager.QueryAsync(parameters.ToFilter(), parameters.ToPageRequest(options.MaxPageSize), cancellationToken).ConfigureAwait(false));
+        });
     }
 
     /// <summary>

@@ -80,8 +80,9 @@ public sealed record IdempotencyDeclaration
     ///     Gets the prefix that separates this message's keys from every other message's.
     /// </summary>
     /// <value>
-    ///     The scope, or <see langword="null" /> to use the message type's name. Set it when two message types share
-    ///     one key space on purpose, such as a command and the event that replays it.
+    ///     The scope, or <see langword="null" /> to use the message type's full name. Set it when two message types
+    ///     share one key space on purpose, such as a command and the event that replays it. A blank scope is rejected
+    ///     when the key is resolved, because every command with a blank scope would share one key space.
     /// </value>
     public string? Scope { get; init; }
 
@@ -96,7 +97,10 @@ public sealed record IdempotencyDeclaration
     /// <remarks>
     ///     Replaying costs a serialized copy of every result in the store, and makes the store hold data the message
     ///     produced rather than only the fact that it ran. Turn it on for a message whose caller needs the same answer
-    ///     twice, such as an endpoint a client retries; leave it off for a redelivered message nobody is waiting on.
+    ///     twice, such as an endpoint a client retries; leave it off for a redelivered message nobody is waiting on. A
+    ///     declaration created by <see cref="KeyedByContext" /> that replays results should also set a fingerprint
+    ///     through <see cref="WithFingerprint{TMessage}" />: without one, any repeat of the key is answered with the
+    ///     stored result, even a different request reusing a predictable key.
     /// </remarks>
     public bool ReplayResult { get; init; }
 

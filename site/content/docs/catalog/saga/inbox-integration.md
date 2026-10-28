@@ -19,7 +19,7 @@ The callback must select exactly one store through `UseInMemoryStorage()`, `UseP
 
 | Surface | Package | Role |
 | --- | --- | --- |
-| `InboxModuleBuilder.EnableSaga(Action<SagaModuleBuilder>?)` | `LiteBus.Saga.InboxIntegration` | Main saga registration entry point on inbox builder |
+| `InboxModuleBuilder.EnableSaga(Action<SagaModuleBuilder>)` | `LiteBus.Saga.InboxIntegration` | Main saga registration entry point on inbox builder |
 | `SagaModuleBuilder.UseInMemoryStorage()` | `LiteBus.Saga` | Explicit process-local store selection |
 | `SagaModuleBuilder.UsePostgreSqlStorage(...)` | `LiteBus.Saga.Storage.PostgreSql` | Explicit durable store selection |
 | `SagaModule` | `LiteBus.Saga` | Registers hook, context, registry, and selected store |

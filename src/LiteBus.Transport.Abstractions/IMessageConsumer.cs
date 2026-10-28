@@ -24,7 +24,11 @@ public interface IMessageConsumer : IAsyncDisposable
     ///     <see cref="TransportMessage.ReturnToQueueAsync" /> before returning.
     /// </param>
     /// <param name="cancellationToken">The token used to cancel startup.</param>
-    /// <returns>A task that completes when the consumer subscription is active.</returns>
+    /// <returns>
+    ///     A task that completes when the consume loop has been initiated. Startup and subscription failures surface
+    ///     through <see cref="WaitUntilStoppedAsync" />. Transports that subscribe synchronously complete after the
+    ///     subscription is active.
+    /// </returns>
     Task StartAsync(
         TransportConsumerOptions options,
         Func<TransportMessage, CancellationToken, Task> handler,

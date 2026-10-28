@@ -91,7 +91,7 @@ public sealed class IdempotencyDenialTests : LiteBusTestBase
         var provider = BuildProvider(store, applications, recorder, trail);
 
         // Delivery A holds the claim while B arrives for the same key.
-        await store.TryClaimAsync("ApplyPaymentCommand:p-1", fingerprint: null).ConfigureAwait(false);
+        await store.TryClaimAsync($"{typeof(ApplyPaymentCommand).FullName}:p-1", fingerprint: null).ConfigureAwait(false);
 
         var result = await provider.GetRequiredService<ICommandMediator>()
             .TrySendAsync(new ApplyPaymentCommand { PaymentId = "p-1" }).ConfigureAwait(false);
@@ -118,7 +118,7 @@ public sealed class IdempotencyDenialTests : LiteBusTestBase
         var trail = new RecordingAuditTrail();
         var provider = BuildProvider(store, applications, recorder, trail);
 
-        await store.TryClaimAsync("ApplyPaymentCommand:p-1", fingerprint: null).ConfigureAwait(false);
+        await store.TryClaimAsync($"{typeof(ApplyPaymentCommand).FullName}:p-1", fingerprint: null).ConfigureAwait(false);
 
         var act = async () => await provider.GetRequiredService<ICommandMediator>()
             .SendAsync(new ApplyPaymentCommand { PaymentId = "p-1" }).ConfigureAwait(false);
@@ -145,7 +145,7 @@ public sealed class IdempotencyDenialTests : LiteBusTestBase
         var trail = new RecordingAuditTrail();
         var provider = BuildProvider(store, applications, recorder, trail);
 
-        await store.TryClaimAsync("RepeatablePaymentCommand:p-4", fingerprint: null).ConfigureAwait(false);
+        await store.TryClaimAsync($"{typeof(RepeatablePaymentCommand).FullName}:p-4", fingerprint: null).ConfigureAwait(false);
 
         var result = await provider.GetRequiredService<ICommandMediator>()
             .TrySendAsync(new RepeatablePaymentCommand { PaymentId = "p-4" }).ConfigureAwait(false);
@@ -237,7 +237,7 @@ public sealed class IdempotencyDenialTests : LiteBusTestBase
         var mediator = provider.GetRequiredService<ICommandMediator>();
 
         // A crashed delivery left its claim unsettled; once the timeout passes the next delivery takes it over.
-        await store.TryClaimAsync("ApplyPaymentCommand:p-1", fingerprint: null).ConfigureAwait(false);
+        await store.TryClaimAsync($"{typeof(ApplyPaymentCommand).FullName}:p-1", fingerprint: null).ConfigureAwait(false);
         time.Advance(TimeSpan.FromMinutes(6));
 
         await mediator.SendAsync(new ApplyPaymentCommand { PaymentId = "p-1" }).ConfigureAwait(false);

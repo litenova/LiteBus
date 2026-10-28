@@ -54,6 +54,15 @@ internal static class RecurringCommandLogMessages
             "Recurring command {CommandType} skipped a pass because the '{LeaseName}' lease is held by another instance. The loop continues at its normal interval.");
 
     /// <summary>
+    ///     The delegate that writes a lease-lost event.
+    /// </summary>
+    private static readonly Action<ILogger, string, string, Exception?> LeaseLostMessage =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Warning,
+            new EventId(2106, nameof(LeaseLost)),
+            "Recurring command {CommandType} lost the '{LeaseName}' lease mid-pass: renewal stopped, so another instance may take over. The busy period ends and the loop backs off.");
+
+    /// <summary>
     ///     Writes the loop start event.
     /// </summary>
     /// <param name="logger">The logger receiving the event.</param>
@@ -105,5 +114,16 @@ internal static class RecurringCommandLogMessages
     internal static void LeaseSkipped(ILogger logger, string commandType, string leaseName)
     {
         LeaseSkippedMessage(logger, commandType, leaseName, null);
+    }
+
+    /// <summary>
+    ///     Writes a lease-lost event.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="commandType">The command type sent by the loop.</param>
+    /// <param name="leaseName">The lease name that was lost.</param>
+    internal static void LeaseLost(ILogger logger, string commandType, string leaseName)
+    {
+        LeaseLostMessage(logger, commandType, leaseName, null);
     }
 }

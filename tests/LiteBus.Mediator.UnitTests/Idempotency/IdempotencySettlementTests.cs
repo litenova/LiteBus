@@ -23,7 +23,7 @@ public sealed class IdempotencySettlementTests : LiteBusTestBase
         var provider = BuildProvider(store, applications, static _ => { });
 
         // Delivery A holds the claim while B arrives for the same key.
-        await store.TryClaimAsync("ApplyPaymentCommand:p-9", fingerprint: null).ConfigureAwait(false);
+        await store.TryClaimAsync($"{typeof(ApplyPaymentCommand).FullName}:p-9", fingerprint: null).ConfigureAwait(false);
 
         var mediator = provider.GetRequiredService<ICommandMediator>();
 
@@ -41,7 +41,7 @@ public sealed class IdempotencySettlementTests : LiteBusTestBase
 
         applications.Count.Should().Be(0);
         store.ReleaseCalls.Should().BeEmpty();
-        store.HeldKeys.Should().Contain("ApplyPaymentCommand:p-9");
+        store.HeldKeys.Should().Contain($"{typeof(ApplyPaymentCommand).FullName}:p-9");
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class IdempotencySettlementTests : LiteBusTestBase
             applications,
             static builder => { builder.Register<DenyingPaymentGuard>(); });
 
-        await store.TryClaimAsync("ApplyPaymentCommand:p-9", fingerprint: null).ConfigureAwait(false);
+        await store.TryClaimAsync($"{typeof(ApplyPaymentCommand).FullName}:p-9", fingerprint: null).ConfigureAwait(false);
 
         var act = async () => await provider.GetRequiredService<ICommandMediator>()
             .SendAsync(new ApplyPaymentCommand { PaymentId = "p-9" }).ConfigureAwait(false);
@@ -64,7 +64,7 @@ public sealed class IdempotencySettlementTests : LiteBusTestBase
 
         applications.Count.Should().Be(0);
         store.ReleaseCalls.Should().BeEmpty();
-        store.HeldKeys.Should().Contain("ApplyPaymentCommand:p-9");
+        store.HeldKeys.Should().Contain($"{typeof(ApplyPaymentCommand).FullName}:p-9");
     }
 
     [Fact]
@@ -83,8 +83,11 @@ public sealed class IdempotencySettlementTests : LiteBusTestBase
         // The idempotency shortcut claimed first and a later shortcut answered, so the handler never ran and the
         // granted key is released rather than leaked.
         applications.Count.Should().Be(0);
-        store.ClaimCalls.Should().ContainSingle().Which.Should().Be("ApplyPaymentCommand:p-7");
-        store.ReleaseCalls.Should().ContainSingle().Which.Should().Be("ApplyPaymentCommand:p-7");
+        store.ClaimCalls.Should().ContainSingle().Which.Should().Be($"{typeof(ApplyPaymentCommand).FullName}:p-7");
+        store.ReleaseCalls.Should().ContainSingle().Which.Should().Be($"{typeof(ApplyPaymentCommand).FullName}:p-7");
+
+        // The release carries the token the grant returned, so the store settles exactly the recorded claim.
+        store.ReleaseTokens.Should().Equal(store.GrantedTokens);
     }
 
     /// <summary>
@@ -135,16 +138,16 @@ public sealed class IdempotencySettlementTests : LiteBusTestBase
                 throw new InvalidOperationException($"the key '{key}' is still being applied");
             }
 
-            return Task.FromResult(IdempotencyClaim.Granted);
+            return Task.FromResult(IdempotencyClaim.Granted(Guid.NewGuid().ToString("N")));
         }
 
-        public Task CompleteAsync(string key, string? payload, CancellationToken cancellationToken = default)
+        public Task CompleteAsync(string key, string claimToken, string? payload, CancellationToken cancellationToken = default)
         {
             _claimed.Remove(key);
             return Task.CompletedTask;
         }
 
-        public Task ReleaseAsync(string key, CancellationToken cancellationToken = default)
+        public Task ReleaseAsync(string key, string claimToken, CancellationToken cancellationToken = default)
         {
             ReleaseCalls.Add(key);
             _claimed.Remove(key);
@@ -156,22 +159,31 @@ public sealed class IdempotencySettlementTests : LiteBusTestBase
     {
         public List<string> ClaimCalls { get; } = [];
 
+        public List<string> GrantedTokens { get; } = [];
+
         public List<string> ReleaseCalls { get; } = [];
+
+        public List<string> ReleaseTokens { get; } = [];
 
         public Task<IdempotencyClaim> TryClaimAsync(string key, string? fingerprint, CancellationToken cancellationToken = default)
         {
             ClaimCalls.Add(key);
-            return Task.FromResult(IdempotencyClaim.Granted);
+
+            var granted = Guid.NewGuid().ToString("N");
+            GrantedTokens.Add(granted);
+
+            return Task.FromResult(IdempotencyClaim.Granted(granted));
         }
 
-        public Task CompleteAsync(string key, string? payload, CancellationToken cancellationToken = default)
+        public Task CompleteAsync(string key, string claimToken, string? payload, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
 
-        public Task ReleaseAsync(string key, CancellationToken cancellationToken = default)
+        public Task ReleaseAsync(string key, string claimToken, CancellationToken cancellationToken = default)
         {
             ReleaseCalls.Add(key);
+            ReleaseTokens.Add(claimToken);
             return Task.CompletedTask;
         }
     }

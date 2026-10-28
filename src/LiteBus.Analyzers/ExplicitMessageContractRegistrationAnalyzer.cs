@@ -75,8 +75,8 @@ public sealed class ExplicitMessageContractRegistrationAnalyzer : DiagnosticAnal
     /// <param name="context">The syntax node analysis context.</param>
     /// <param name="candidates">The declared types, one entry per declaration node.</param>
     /// <remarks>
-    ///     One entry is recorded per declaration node rather than per symbol, so a partial type with two
-    ///     declarations reports twice, at the same first location.
+    ///     One entry is recorded per declaration node; the compilation-end action deduplicates by symbol so a partial
+    ///     type with two declarations reports once, at its first location.
     /// </remarks>
     private static void AnalyzeTypeDeclaration(SyntaxNodeAnalysisContext context, ConcurrentBag<INamedTypeSymbol> candidates)
     {
@@ -111,6 +111,7 @@ public sealed class ExplicitMessageContractRegistrationAnalyzer : DiagnosticAnal
         var order = CompilationEndOrdering.GetSyntaxTreeOrder(context.Compilation);
 
         var ordered = candidates
+            .Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default)
             .Select(symbol => (Symbol: symbol, Location: symbol.Locations.FirstOrDefault() ?? Location.None))
             .OrderBy(entry => CompilationEndOrdering.GetOrderKey(entry.Location, order)?.TreeIndex ?? int.MaxValue)
             .ThenBy(entry => CompilationEndOrdering.GetOrderKey(entry.Location, order)?.SpanStart ?? int.MaxValue)

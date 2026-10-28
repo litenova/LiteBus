@@ -144,4 +144,23 @@ public sealed class ReservedHandlerPriorityAnalyzerTests
             "ShipOrderHandler",
             1_000_000);
     }
+
+    /// <summary>
+    ///     Verifies that a reserved priority on a type implementing no handler interface produces no diagnostic, because the attribute is inert there.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task ReservedPriorityOnNonHandler_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using LiteBus.Messaging.Abstractions;
+
+                              [HandlerPriority(HandlerPriorities.Persistence)]
+                              public sealed class RetryPolicy
+                              {
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<ReservedHandlerPriorityAnalyzer>(source);
+    }
 }

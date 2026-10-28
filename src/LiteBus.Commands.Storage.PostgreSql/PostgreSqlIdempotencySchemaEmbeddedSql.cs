@@ -6,7 +6,7 @@ namespace LiteBus.Commands.Storage.PostgreSql;
 internal static class PostgreSqlIdempotencySchemaEmbeddedSql
 {
     /// <summary>
-    ///     The embedded resource path for the version 1 idempotency create script.
+    ///     The embedded resource path for the current idempotency create script.
     /// </summary>
     internal const string V1Create = "idempotency/v1/create.sql";
 

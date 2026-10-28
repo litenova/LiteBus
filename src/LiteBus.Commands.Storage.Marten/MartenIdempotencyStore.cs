@@ -34,10 +34,11 @@ namespace LiteBus.Commands.Storage.Marten;
 ///         key twice. Keep the timeout longer than the longest mediation that claims through the store.
 ///     </para>
 ///     <para>
-///         Completion and release are last-writer-wins on an unsettled claim. Release only deletes a claim that is
-///         still unsettled when the session commits, so a release racing a completion cannot reopen an applied key.
-///         A completion that lands after a takeover marks the new claimant's work applied, which is the late-settle
-///         hazard the timeout guidance above exists to bound.
+///         Every grant carries a token fenced into the document, and a settle lands only while the document still
+///         carries it. A completion or release that arrives after a takeover is a no-op instead of marking the new
+///         claimant's work applied or freeing its live claim. Release additionally only deletes a claim that is still
+///         unsettled when the session commits, so a release racing a completion cannot reopen an applied key, and a
+///         completion for a key the caller does not hold stores nothing.
 ///     </para>
 ///     <para>
 ///         The store holds no mutable state and opens a new session per call, so one singleton instance serves every
@@ -107,15 +108,18 @@ public sealed class MartenIdempotencyStore : IIdempotencyStore
 
                     if (existing is null)
                     {
+                        var granted = Guid.NewGuid().ToString("N");
+
                         session.Store(new MartenIdempotencyRecord
                         {
                             Id = key,
                             Fingerprint = fingerprint,
-                            ClaimedAt = now
+                            ClaimedAt = now,
+                            ClaimToken = granted
                         });
 
                         await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                        return IdempotencyClaim.Granted;
+                        return IdempotencyClaim.Granted(granted);
                     }
 
                     if (existing.IsCompleted)
@@ -130,12 +134,14 @@ public sealed class MartenIdempotencyStore : IIdempotencyStore
                         return IdempotencyClaim.InFlight;
                     }
 
+                    var taken = Guid.NewGuid().ToString("N");
                     existing.Fingerprint = fingerprint;
                     existing.ClaimedAt = now;
+                    existing.ClaimToken = taken;
                     session.Store(existing);
 
                     await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                    return IdempotencyClaim.Granted;
+                    return IdempotencyClaim.Granted(taken);
                 }
             }
             catch (Exception exception) when (IsClaimConflict(exception))
@@ -146,9 +152,10 @@ public sealed class MartenIdempotencyStore : IIdempotencyStore
     }
 
     /// <inheritdoc />
-    public async Task CompleteAsync(string key, string? payload, CancellationToken cancellationToken = default)
+    public async Task CompleteAsync(string key, string claimToken, string? payload, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentException.ThrowIfNullOrWhiteSpace(claimToken);
 
         while (true)
         {
@@ -163,40 +170,34 @@ public sealed class MartenIdempotencyStore : IIdempotencyStore
                     var now = _timeProvider.GetUtcNow();
                     var existing = await session.LoadAsync<MartenIdempotencyRecord>(key, cancellationToken).ConfigureAwait(false);
 
-                    if (existing is null)
-                    {
-                        session.Store(new MartenIdempotencyRecord
-                        {
-                            Id = key,
-                            IsCompleted = true,
-                            Payload = payload,
-                            ClaimedAt = now,
-                            CompletedAt = now
-                        });
-                    }
-                    else
+                    // Only the holder completes. A completion for a missing document, or one carrying a token the
+                    // document no longer carries after a takeover, stores nothing instead of marking the new
+                    // claimant's work applied or leaving an applied document with no fingerprint behind.
+                    if (existing is not null &&
+                        string.Equals(existing.ClaimToken, claimToken, StringComparison.Ordinal))
                     {
                         existing.IsCompleted = true;
                         existing.Payload = payload;
                         existing.CompletedAt = now;
                         session.Store(existing);
+                        await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                     }
 
-                    await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                     return;
                 }
             }
             catch (Exception exception) when (IsClaimConflict(exception))
             {
-                // A concurrent claimant or takeover committed first; the next pass completes over the winner.
+                // A concurrent claimant or takeover committed first; the next pass re-reads before deciding.
             }
         }
     }
 
     /// <inheritdoc />
-    public async Task ReleaseAsync(string key, CancellationToken cancellationToken = default)
+    public async Task ReleaseAsync(string key, string claimToken, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentException.ThrowIfNullOrWhiteSpace(claimToken);
 
         while (true)
         {
@@ -210,9 +211,12 @@ public sealed class MartenIdempotencyStore : IIdempotencyStore
                 {
                     var existing = await session.LoadAsync<MartenIdempotencyRecord>(key, cancellationToken).ConfigureAwait(false);
 
-                    // Only an unsettled claim is removed, and the serializable session makes the read and the delete
-                    // atomic: a completion racing this delete fails one side with a conflict, and the retry re-reads.
-                    if (existing is { IsCompleted: false })
+                    // Only an unsettled claim still carrying the token is removed, and the serializable session makes
+                    // the read and the delete atomic: a completion racing this delete fails one side with a conflict,
+                    // and the retry re-reads. A late release from a superseded claimant cannot free the new
+                    // claimant's live claim.
+                    if (existing is { IsCompleted: false } &&
+                        string.Equals(existing.ClaimToken, claimToken, StringComparison.Ordinal))
                     {
                         session.Delete<MartenIdempotencyRecord>(key);
                         await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

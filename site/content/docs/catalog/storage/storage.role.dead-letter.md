@@ -55,7 +55,7 @@ Both methods return `RequeueResult` with requested and actual requeue counts.
 
 ## Concrete Example
 
-An operator requeues three dead-lettered message ids. The result reports `requested = 3`, `requeued = 2` when one id is no longer in dead-letter status.
+An operator requeues three dead-lettered message ids. The result reports `requested = 3`, `requeued = 2` when one id has left dead-letter status.
 
 ## Related Docs
 

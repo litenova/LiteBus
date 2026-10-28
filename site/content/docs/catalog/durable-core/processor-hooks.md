@@ -17,10 +17,11 @@ Saga uses this seam to load and persist correlated state. Inbox and outbox packa
 | --- | --- | --- |
 | `BeforeDispatchAsync` | After lease acquisition and before axis dispatch | May perform asynchronous I/O such as saga state loading |
 | `PrepareDispatchScope` | Immediately before the dispatcher call | Synchronous so `AsyncLocal` assignments occur on the dispatch flow |
-| `AfterDispatchAsync` | After successful dispatch and before terminal persistence | Runs while the message lease remains active |
+| `ShouldDispatch` | After scope preparation, before the dispatcher call | Combined with `&=` across hooks; every hook is asked even after one declines; a `false` skips the dispatcher but after-hooks still run and the success persists |
+| `AfterDispatchAsync` | After successful dispatch and before terminal persistence | Runs on the persist token while the message lease remains active |
 | `AbandonDispatchScope` | After cancellation, failed dispatch, or an interrupted after-hook sequence | Releases in-memory state; must not persist business changes |
 
-`PrepareDispatchScope` and `AbandonDispatchScope` have default no-op implementations. A hook that owns ambient or keyed state implements both methods as a pair.
+`PrepareDispatchScope`, `ShouldDispatch`, and `AbandonDispatchScope` have default implementations (`ShouldDispatch` defaults to `true`). A hook that owns ambient or keyed state implements the scope pair together.
 
 ## Failure Semantics
 
@@ -35,15 +36,15 @@ An `AfterDispatchAsync` exception follows `ProcessorHookFailurePolicy`:
 
 The runner invokes `AbandonDispatchScope` for every hook when an after-hook stops the sequence. This removes state owned by hooks that had not yet reached their normal cleanup path.
 
-Inbox defaults to `DeadLetter`. In-process outbox dispatch also defaults to `DeadLetter`. Transport outbox dispatch defaults to `CompleteDespiteHookFailure` because the broker send has already succeeded and another send could duplicate the message.
+`HookFailurePolicy` is `null` by default, which means the dispatcher recommendation, and an explicit value always wins. Inbox resolves an unset policy to `DeadLetter`. In-process outbox dispatch also resolves to `DeadLetter`. Transport outbox dispatch resolves to `CompleteDespiteHookFailure` because the broker send has already succeeded and another send could duplicate the message.
 
 ## Public Surface
 
 | Surface | Package | Role |
 | --- | --- | --- |
-| `IProcessorEnvelopeHook` | `LiteBus.DurableMessaging.Abstractions` | Axis-neutral lifecycle contract |
-| `IProcessorEnvelope` | `LiteBus.DurableMessaging.Abstractions` | Read-only message ID, contract, trace, and tenant metadata |
-| `ProcessorHookFailurePolicy` | `LiteBus.DurableMessaging.Abstractions` | Post-dispatch failure policy |
+| `IProcessorEnvelopeHook` | `LiteBus.DurableMessaging.Abstractions` (`LiteBus.Messaging.Abstractions.Processing` namespace) | Axis-neutral lifecycle contract |
+| `IProcessorEnvelope` | `LiteBus.DurableMessaging.Abstractions` (`LiteBus.Messaging.Abstractions.Processing` namespace) | Read-only message ID, contract, trace, and tenant metadata |
+| `ProcessorHookFailurePolicy` | `LiteBus.DurableMessaging.Abstractions` (`LiteBus.Messaging.Abstractions.Processing` namespace) | Post-dispatch failure policy |
 | `InboxProcessorOptions.HookFailurePolicy` | `LiteBus.Inbox.Abstractions` | Inbox policy selection |
 | `OutboxProcessorOptions.HookFailurePolicy` | `LiteBus.Outbox.Abstractions` | Outbox policy selection |
 

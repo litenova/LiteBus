@@ -430,6 +430,40 @@ public sealed class ExternalSideEffectInCommandHandlerAnalyzerTests
     }
 
     /// <summary>
+    ///     Verifies that a private test-seam constructor injecting <c>HttpClient</c> produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandHandlerWithPrivateSideEffectConstructor_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Net.Http;
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserCommandHandler : ICommandHandler<CreateUserCommand>
+                              {
+                                  public CreateUserCommandHandler()
+                                      : this(new HttpClient())
+                                  {
+                                  }
+
+                                  private CreateUserCommandHandler(HttpClient client)
+                                  {
+                                  }
+
+                                  public Task HandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
+                                      => Task.CompletedTask;
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<ExternalSideEffectInCommandHandlerAnalyzer>(source);
+    }
+
+    /// <summary>
     ///     Verifies that the rule is a warning in <c>LiteBus.Handlers</c> that stays off until enabled.
     /// </summary>
     [Fact]

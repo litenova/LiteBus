@@ -44,6 +44,7 @@ The adapter also registers an `IServiceProvider` wrapper so factory registration
 
 ## Invariants
 
+- A second `AddLiteBus` call on the same container builder throws `ModuleCompositionException`.
 - Duplicate module registration throws configuration exception.
 - Manifest output is created once and registered as singleton in the Autofac container.
 - Each dispatch opens and disposes a child lifetime scope.

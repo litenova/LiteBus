@@ -45,8 +45,9 @@ public sealed class MartenIdempotencyStoreTests : IClassFixture<PostgreSqlFixtur
 
         var first = await store.TryClaimAsync(key, "fp-1").ConfigureAwait(false);
         first.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
+        first.ClaimToken.Should().NotBeNullOrWhiteSpace();
 
-        await store.CompleteAsync(key, """{"receipt":"r-1"}""").ConfigureAwait(false);
+        await store.CompleteAsync(key, first.ClaimToken!, """{"receipt":"r-1"}""").ConfigureAwait(false);
 
         var repeat = await store.TryClaimAsync(key, "fp-1").ConfigureAwait(false);
         repeat.Outcome.Should().Be(IdempotencyClaimOutcome.AlreadyCompleted);
@@ -61,8 +62,8 @@ public sealed class MartenIdempotencyStoreTests : IClassFixture<PostgreSqlFixtur
         var store = new MartenIdempotencyStore(documentStore);
         var key = $"idem:{Guid.NewGuid():N}";
 
-        await store.TryClaimAsync(key, "fp-1").ConfigureAwait(false);
-        await store.CompleteAsync(key, "receipt").ConfigureAwait(false);
+        var first = await store.TryClaimAsync(key, "fp-1").ConfigureAwait(false);
+        await store.CompleteAsync(key, first.ClaimToken!, "receipt").ConfigureAwait(false);
 
         var repeat = await store.TryClaimAsync(key, "fp-2").ConfigureAwait(false);
 
@@ -78,11 +79,11 @@ public sealed class MartenIdempotencyStoreTests : IClassFixture<PostgreSqlFixtur
         var claimedWithoutFingerprint = $"idem:{Guid.NewGuid():N}";
         var replayedWithoutFingerprint = $"idem:{Guid.NewGuid():N}";
 
-        await store.TryClaimAsync(claimedWithoutFingerprint, null).ConfigureAwait(false);
-        await store.CompleteAsync(claimedWithoutFingerprint, "receipt-a").ConfigureAwait(false);
+        var firstClaim = await store.TryClaimAsync(claimedWithoutFingerprint, null).ConfigureAwait(false);
+        await store.CompleteAsync(claimedWithoutFingerprint, firstClaim.ClaimToken!, "receipt-a").ConfigureAwait(false);
 
-        await store.TryClaimAsync(replayedWithoutFingerprint, "fp-1").ConfigureAwait(false);
-        await store.CompleteAsync(replayedWithoutFingerprint, "receipt-b").ConfigureAwait(false);
+        var secondClaim = await store.TryClaimAsync(replayedWithoutFingerprint, "fp-1").ConfigureAwait(false);
+        await store.CompleteAsync(replayedWithoutFingerprint, secondClaim.ClaimToken!, "receipt-b").ConfigureAwait(false);
 
         var first = await store.TryClaimAsync(claimedWithoutFingerprint, "fp-9").ConfigureAwait(false);
         first.Outcome.Should().Be(IdempotencyClaimOutcome.AlreadyCompleted);
@@ -128,7 +129,7 @@ public sealed class MartenIdempotencyStoreTests : IClassFixture<PostgreSqlFixtur
         var takeover = await store.TryClaimAsync(key, "fp-2").ConfigureAwait(false);
         takeover.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
 
-        await store.CompleteAsync(key, "receipt").ConfigureAwait(false);
+        await store.CompleteAsync(key, takeover.ClaimToken!, "receipt").ConfigureAwait(false);
 
         var replay = await store.TryClaimAsync(key, "fp-2").ConfigureAwait(false);
         replay.Outcome.Should().Be(IdempotencyClaimOutcome.AlreadyCompleted);
@@ -149,13 +150,13 @@ public sealed class MartenIdempotencyStoreTests : IClassFixture<PostgreSqlFixtur
         var first = await store.TryClaimAsync(key, "fp-1").ConfigureAwait(false);
         first.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
 
-        await store.ReleaseAsync(key).ConfigureAwait(false);
+        await store.ReleaseAsync(key, first.ClaimToken!).ConfigureAwait(false);
 
         var retry = await store.TryClaimAsync(key, "fp-1").ConfigureAwait(false);
         retry.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
 
-        await store.CompleteAsync(key, null).ConfigureAwait(false);
-        await store.ReleaseAsync(key).ConfigureAwait(false);
+        await store.CompleteAsync(key, retry.ClaimToken!, null).ConfigureAwait(false);
+        await store.ReleaseAsync(key, retry.ClaimToken!).ConfigureAwait(false);
 
         var repeat = await store.TryClaimAsync(key, "fp-1").ConfigureAwait(false);
         repeat.Outcome.Should().Be(IdempotencyClaimOutcome.AlreadyCompleted);
@@ -203,6 +204,51 @@ public sealed class MartenIdempotencyStoreTests : IClassFixture<PostgreSqlFixtur
     }
 
     [SkippableFact]
+    public async Task LateSettle_AfterTakeover_ShouldLeaveTheNewClaimantAlone()
+    {
+        var documentStore = CreateDocumentStore();
+        await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
+        var clock = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        var store = new MartenIdempotencyStore(documentStore, new MartenIdempotencyStoreOptions(), clock);
+        var key = $"idem:{Guid.NewGuid():N}";
+
+        var first = await store.TryClaimAsync(key, "fp-1").ConfigureAwait(false);
+        clock.Advance(TimeSpan.FromMinutes(6));
+
+        var taken = await store.TryClaimAsync(key, "fp-2").ConfigureAwait(false);
+        taken.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
+
+        // The superseded claimant settles late with the token it was granted.
+        await store.CompleteAsync(key, first.ClaimToken!, "stale-payload").ConfigureAwait(false);
+        await store.ReleaseAsync(key, first.ClaimToken!).ConfigureAwait(false);
+
+        // The new claimant still holds the key: neither marked applied nor freed.
+        var racing = await store.TryClaimAsync(key, "fp-2").ConfigureAwait(false);
+        racing.Outcome.Should().Be(IdempotencyClaimOutcome.InFlight);
+
+        await store.CompleteAsync(key, taken.ClaimToken!, "fresh-payload").ConfigureAwait(false);
+
+        var replay = await store.TryClaimAsync(key, "fp-2").ConfigureAwait(false);
+        replay.Outcome.Should().Be(IdempotencyClaimOutcome.AlreadyCompleted);
+        replay.Payload.Should().Be("fresh-payload");
+    }
+
+    [SkippableFact]
+    public async Task Complete_OnAMissingKey_ShouldNotInsertAnAppliedDocument()
+    {
+        var documentStore = CreateDocumentStore();
+        await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
+        var store = new MartenIdempotencyStore(documentStore);
+        var key = $"idem:{Guid.NewGuid():N}";
+
+        await store.CompleteAsync(key, Guid.NewGuid().ToString("N"), "payload").ConfigureAwait(false);
+
+        // No applied document was left behind, so the key is still claimable.
+        var claim = await store.TryClaimAsync(key, "fp-1").ConfigureAwait(false);
+        claim.Outcome.Should().Be(IdempotencyClaimOutcome.Granted);
+    }
+
+    [SkippableFact]
     public async Task Constructor_WithNonPositiveClaimTimeout_ShouldThrow()
     {
         var documentStore = CreateDocumentStore();
@@ -227,8 +273,8 @@ public sealed class MartenIdempotencyStoreTests : IClassFixture<PostgreSqlFixtur
     private static async Task WarmUpSchemaAsync(MartenIdempotencyStore store)
     {
         var warmupKey = $"idem:warmup:{Guid.NewGuid():N}";
-        await store.TryClaimAsync(warmupKey, null).ConfigureAwait(false);
-        await store.ReleaseAsync(warmupKey).ConfigureAwait(false);
+        var warmup = await store.TryClaimAsync(warmupKey, null).ConfigureAwait(false);
+        await store.ReleaseAsync(warmupKey, warmup.ClaimToken!).ConfigureAwait(false);
     }
 
     private static async Task<IdempotencyClaimOutcome> ClaimAsync(MartenIdempotencyStore store, string key, string? fingerprint)

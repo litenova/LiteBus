@@ -98,6 +98,13 @@ internal sealed class SingleStreamHandlerMediationEnumerable<TMessage, TMessageR
     /// <param name="linkedToken">The linked cancellation token for stream enumeration.</param>
     /// <returns>An asynchronous stream of results produced by the handler.</returns>
     /// <exception cref="NoHandlerFoundException">Thrown when no handler is found for the message type.</exception>
+    /// <remarks>
+    ///     A fault the recoverable filter excludes, such as a resolution failure or a cancellation during
+    ///     enumeration, bypasses the error handlers but is still recorded before completion runs, so completion
+    ///     never observes <see cref="MediationOutcome.Succeeded" /> for a mediation that threw. When error handlers
+    ///     recover, the outcome stays <see cref="MediationOutcome.Failed" /> but no exception is recorded, which is
+    ///     what distinguishes a recovered fault from one that propagated.
+    /// </remarks>
     private static async IAsyncEnumerable<TMessageResult> MediateAsync(
         TMessage message,
         IMessageDependencies messageDependencies,
@@ -145,6 +152,28 @@ internal sealed class SingleStreamHandlerMediationEnumerable<TMessage, TMessageR
                 await messageDependencies
                     .RunAsyncErrorHandlers(message, observedResult, fault, executionContext)
                     .ConfigureAwait(false);
+
+                // Reaching here means an error handler recovered: the stage rethrows otherwise. The outcome stays
+                // Failed so the audit trail still records that a fault occurred, but no exception is recorded, which
+                // is what distinguishes a recovered fault from one that propagated and what lets a completion-handler
+                // fault propagate instead of being suppressed into an exception nobody receives.
+                failure = null;
+            }
+
+            // Records a fault the recoverable filter excludes, such as a resolution failure or a cancellation during
+            // enumeration, before it reaches the completion stage. An iterator cannot catch around a yield, so the
+            // outer try carries no catch and every yield-free fault boundary records through here instead. An ending
+            // already recorded, such as a refusal the pre stages decided, keeps what it recorded: only a mediation
+            // with no recorded failure is marked here.
+            void RecordUnroutedFault(Exception fault)
+            {
+                if (failure is not null)
+                {
+                    return;
+                }
+
+                outcome = fault is OperationCanceledException ? MediationOutcome.Canceled : MediationOutcome.Failed;
+                failure = fault;
             }
 
             // Enumerates one stream to its end, routing any fault and stopping there. The handler's stream and a
@@ -163,6 +192,13 @@ internal sealed class SingleStreamHandlerMediationEnumerable<TMessage, TMessageR
                 catch (Exception fault) when (MediationExceptionFilters.IsRecoverableMediationException(fault))
                 {
                     await RouteFaultAsync(fault, source).ConfigureAwait(false);
+                }
+#pragma warning disable CA1031 // A non-recoverable fault must still be recorded before completion handlers run.
+                catch (Exception unrouted)
+#pragma warning restore CA1031
+                {
+                    RecordUnroutedFault(unrouted);
+                    throw;
                 }
 
                 if (enumerator is null)
@@ -193,6 +229,13 @@ internal sealed class SingleStreamHandlerMediationEnumerable<TMessage, TMessageR
                                 hasItem = false;
                                 item = default;
                             }
+#pragma warning disable CA1031 // A non-recoverable fault must still be recorded before completion handlers run.
+                            catch (Exception unrouted)
+#pragma warning restore CA1031
+                            {
+                                RecordUnroutedFault(unrouted);
+                                throw;
+                            }
                         }
 
                         if (!hasItem)
@@ -207,7 +250,21 @@ internal sealed class SingleStreamHandlerMediationEnumerable<TMessage, TMessageR
                 {
                     using (AmbientExecutionContext.CreateScope(executionContext))
                     {
-                        await enumerator.DisposeAsync().ConfigureAwait(false);
+                        try
+                        {
+                            await enumerator.DisposeAsync().ConfigureAwait(false);
+                        }
+#pragma warning disable CA1031 // A non-recoverable fault must still be recorded before completion handlers run.
+                        catch (Exception unrouted)
+#pragma warning restore CA1031
+                        {
+                            RecordUnroutedFault(unrouted);
+
+                            // Matches await foreach, whose generated finally also lets a disposal fault replace the body's exception.
+#pragma warning disable CA2219
+                            throw;
+#pragma warning restore CA2219
+                        }
                     }
                 }
             }
@@ -271,15 +328,24 @@ internal sealed class SingleStreamHandlerMediationEnumerable<TMessage, TMessageR
                 {
                     await RouteFaultAsync(fault, stream).ConfigureAwait(false);
                 }
+#pragma warning disable CA1031 // A non-recoverable fault must still be recorded before completion handlers run.
+                catch (Exception unrouted)
+#pragma warning restore CA1031
+                {
+                    RecordUnroutedFault(unrouted);
+                    throw;
+                }
 
                 if (pipelineStopped)
                 {
                     // A decision stopped the pipeline for the handler, so the caller gets whatever stream it supplied
                     // and the reactions to work that never happened do not run. A refusal resolved through a mapper
-                    // arrives here as that mapped stream; without a mapper the refusal already threw above.
+                    // arrives here as that mapped stream; without a mapper the refusal already threw above. It is
+                    // enumerated through the same runner as the handler's stream, so a fault in it is offered to the
+                    // error stage and the ambient scope wraps every advance, exactly as on the main path.
                     if (stream is not null)
                     {
-                        await foreach (var item in stream.WithCancellation(linkedToken).ConfigureAwait(false))
+                        await foreach (var item in EnumerateAsync(stream).WithCancellation(linkedToken).ConfigureAwait(false))
                         {
                             yield return item;
                         }
@@ -313,6 +379,13 @@ internal sealed class SingleStreamHandlerMediationEnumerable<TMessage, TMessageR
                 catch (Exception fault) when (MediationExceptionFilters.IsRecoverableMediationException(fault))
                 {
                     await RouteFaultAsync(fault, stream).ConfigureAwait(false);
+                }
+#pragma warning disable CA1031 // A non-recoverable fault must still be recorded before completion handlers run.
+                catch (Exception unrouted)
+#pragma warning restore CA1031
+                {
+                    RecordUnroutedFault(unrouted);
+                    throw;
                 }
 
                 if (overrideStream is null)

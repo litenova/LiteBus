@@ -3,7 +3,7 @@
 - **ID**: `mediator.commands`
 - **Name**: Commands
 - **Maturity**: GA
-- **Summary**: Executes state-changing messages through exactly one main handler, plus pre, post, and error stages.
+- **Summary**: Executes state-changing messages through exactly one main handler, plus decision, pre, post, error, and completion stages.
 - **Guide**: [Command module](../../concepts/commands.md)
 
 ## What It Does
@@ -32,11 +32,15 @@ var id = await commandMediator.SendAsync(new CreateProductCommand("keyboard"), c
 | `ICommand<TResult>` | Result command contract |
 | `ICommandMediator.SendAsync(ICommand, CommandMediationSettings?, CancellationToken)` | Send void command |
 | `ICommandMediator.SendAsync<TResult>(ICommand<TResult>, CommandMediationSettings?, CancellationToken)` | Send result command |
+| `ICommandMediator.TrySendAsync` / `ICommandMediator.EvaluateAsync` | Refusal as a `MediationResult` value; guard and validator evaluation as a `MediationDecision` |
 | `ICommandHandler<TCommand>` | Main handler for void command |
 | `ICommandHandler<TCommand, TResult>` | Main handler for result command |
-| `ICommandPreHandler<TCommand>` / `ICommandValidator<TCommand>` | Pre stage |
+| `ICommandGuard<TCommand>` / `ICommandValidator<TCommand>` / `ICommandShortcut<TCommand>` / `ICommandShortcut<TCommand, TCommandResult>` / `ICommandPreHandler<TCommand>` | Decision and pre stages, in framework-fixed order |
+| `ICommandRefusalMapper<TCommand, TCommandResult>` | Turns a refusal into the value a result-command caller receives |
 | `ICommandPostHandler<TCommand>` / `ICommandPostHandler<TCommand, TResult>` | Post stage |
 | `ICommandErrorHandler<TCommand>` / `ICommandErrorHandler<TCommand, TResult>` | Error stage |
+| `ICommandCompletionHandler` / `ICommandCompletionHandler<TCommand>` / `ICommandCompletionHandler<TCommand, TCommandResult>` | Completion stage, on every outcome path |
+| `ThrowingCommandValidator<TCommand, TException>` | Migration adapter for a validator whose body still reports failure by throwing |
 | `CommandMediatorExtensions.SendAsync(..., string tag, ...)` | Single-tag routing sugar |
 
 ## Packages
@@ -66,7 +70,7 @@ var id = await commandMediator.SendAsync(new CreateProductCommand("keyboard"), c
 
 ## Observability
 
-No dedicated mediator OpenTelemetry meter or activity source exists in the commands axis.
+Command mediation is covered by the shared `LiteBus.Mediation` activity source and meter: one span per mediation plus duration, count, and decision instruments, with per-stage spans and metrics opt-in through `MessageModuleBuilder.UseTelemetry`. See [Handler pipeline](handler-pipeline.md) for the instrument table.
 
 Operational alternatives:
 - Use application logging in command handlers and pipeline handlers.
@@ -82,14 +86,14 @@ Operational alternatives:
 | `Send_CreateProductCommand_ShouldGoThroughHandlersCorrectly` | `LiteBus.Mediator.UnitTests` |
 | `Send_UpdateProductCommand_ShouldGoThroughHandlersCorrectly` | `LiteBus.Mediator.UnitTests` |
 | `Send_LogActivityCommand_ShouldGoThroughHandlersCorrectly` | `LiteBus.Mediator.UnitTests` |
-| `mediating_a_command_that_is_short_circuited_by_a_gate_goes_through_correct_handlers` | `LiteBus.Mediator.UnitTests` |
+| `mediating_a_command_answered_by_a_shortcut_goes_through_correct_handlers` | `LiteBus.Mediator.UnitTests` |
 | `Send_CommandWithResult_PostHandlerOverridesResult` | `LiteBus.Mediator.UnitTests` |
 | `Send_CommandWithResult_WhenErrorHandlerSetsHandledResult_ShouldReturnFallbackResult` | `LiteBus.Mediator.UnitTests` |
 | `Send_Command_WithErrorHandler_ShouldPassTypedContextAndExplicitCancellationToken` | `LiteBus.Mediator.UnitTests` |
 
 ### Untested
 
-- Command-specific telemetry emission from mediator axis itself (feature not implemented).
+- Per-stage span and metric emission for command mediation under the opt-in telemetry flags.
 - Large fan-in registration stress for thousands of command handlers in a single module.
 
 ### Out-of-Scope

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Audit;
@@ -11,7 +12,9 @@ namespace LiteBus.Messaging.Audit;
 /// <remarks>
 ///     The scope holds no state of its own. It reads and writes <see cref="IExecutionContext.Items" />, which flows with
 ///     the mediation across await points and is discarded when the mediation ends. This makes the scope safe to register
-///     as a singleton and correct under concurrency, because two mediations never share an execution context.
+///     as a singleton and correct under concurrency, because two mediations never share an execution context. Parallel
+///     event handlers sharing one mediation share one scope state: the first write wins the creation race, later writes
+///     land in the same state, and two handlers racing to set the same property leave whichever landed last.
 /// </remarks>
 internal sealed class AmbientAuditScope : IAuditScope
 {
@@ -19,6 +22,11 @@ internal sealed class AmbientAuditScope : IAuditScope
     ///     The execution-context item key under which the mutable scope state is stored.
     /// </summary>
     internal const string ItemKey = "__LiteBus.Audit.Scope";
+
+    /// <summary>
+    ///     Guards the check-then-set in <see cref="GetOrCreate" /> against parallel event handlers.
+    /// </summary>
+    private static readonly Lock Gate = new();
 
     /// <inheritdoc />
     public AuditActor? Actor => Find()?.Actor;
@@ -31,7 +39,7 @@ internal sealed class AmbientAuditScope : IAuditScope
 
     /// <inheritdoc />
     public IReadOnlyDictionary<string, string> Properties =>
-        Find()?.Properties ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        (IReadOnlyDictionary<string, string>?) Find()?.Properties ?? new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// <inheritdoc />
     public IAuditScope WithActor(AuditActor actor)
@@ -91,13 +99,18 @@ internal sealed class AmbientAuditScope : IAuditScope
     {
         var executionContext = AmbientExecutionContext.Current;
 
-        if (executionContext.Items.TryGetValue(ItemKey, out var stored) && stored is AuditScopeState state)
+        lock (Gate)
         {
-            return state;
-        }
+            if (executionContext.Items.TryGetValue(ItemKey, out var stored) && stored is AuditScopeState state)
+            {
+                return state;
+            }
 
-        var created = new AuditScopeState();
-        executionContext.Items[ItemKey] = created;
-        return created;
+            // Two parallel event handlers reaching here together must share one state: creating two and letting one
+            // overwrite the other would lose whatever the loser pushed.
+            var created = new AuditScopeState();
+            executionContext.Items[ItemKey] = created;
+            return created;
+        }
     }
 }

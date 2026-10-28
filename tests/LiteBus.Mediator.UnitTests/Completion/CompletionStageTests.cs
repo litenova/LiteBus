@@ -79,7 +79,10 @@ public sealed class CompletionStageTests : LiteBusTestBase
 
         var observed = recorder.Observed.Single().Context;
         observed.Outcome.Should().Be(MediationOutcome.Failed);
-        observed.Exception.Should().BeOfType<InvalidOperationException>();
+
+        // The registered error handler recovers the fault, so the caller receives no exception and completion
+        // records none either: Failed with no exception is a recovered fault, Failed with one is a propagated fault.
+        observed.Exception.Should().BeNull();
         observed.Faulted.Should().BeTrue();
     }
 

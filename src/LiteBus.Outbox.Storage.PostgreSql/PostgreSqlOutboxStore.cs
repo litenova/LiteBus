@@ -144,17 +144,19 @@ public sealed class PostgreSqlOutboxStore :
     ///     Initializes a new instance of the <see cref="PostgreSqlOutboxStore" /> class bound to an existing transaction.
     /// </summary>
     /// <param name="dataSource">The PostgreSQL data source.</param>
+    /// <param name="options">The store options carried from the parent store.</param>
     /// <param name="tableName">The fully qualified outbox table name.</param>
     /// <param name="transactionConnection">The existing open PostgreSQL connection.</param>
     /// <param name="transaction">The existing PostgreSQL transaction.</param>
     private PostgreSqlOutboxStore(
         NpgsqlDataSource dataSource,
+        PostgreSqlOutboxStoreOptions options,
         string tableName,
         NpgsqlConnection? transactionConnection,
         NpgsqlTransaction? transaction)
     {
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
-        _options = new PostgreSqlOutboxStoreOptions();
+        _options = options ?? throw new ArgumentNullException(nameof(options));
         _tableName = tableName ?? throw new ArgumentNullException(nameof(tableName));
         _transactionConnection = transactionConnection;
         _transaction = transaction;
@@ -459,7 +461,7 @@ public sealed class PostgreSqlOutboxStore :
         command.Parameters.AddWithValue("batch_size", request.BatchSize);
         command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
         command.Parameters.AddWithValue("lease_duration", request.LeaseDuration);
-        AddNullableTextParameter(command, "tenant_id", request.TenantId);
+        AddNullableTextParameter(command, "tenant_id", NormalizeTenantFilter(request.TenantId));
 
         return await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
     }
@@ -819,6 +821,8 @@ public sealed class PostgreSqlOutboxStore :
                         envelope.IdempotencyKey,
                         cancellationToken).ConfigureAwait(false);
 
+                ThrowIfCrossTenantMessageIdHit(envelope.Id, envelope.TenantId, existing);
+
                 results[index] = new OutboxAppendResult(
                     existing,
                     OutboxEnqueueOutcome.AlreadyEnqueued);
@@ -849,7 +853,7 @@ public sealed class PostgreSqlOutboxStore :
             throw new InvalidOperationException("The supplied connection must already be open.");
         }
 
-        return new PostgreSqlOutboxStore(_dataSource, _tableName, connection, transaction);
+        return new PostgreSqlOutboxStore(_dataSource, _options, _tableName, connection, transaction);
     }
 
     /// <summary>
@@ -873,7 +877,7 @@ public sealed class PostgreSqlOutboxStore :
             using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
-            var scopedStore = new PostgreSqlOutboxStore(_dataSource, _tableName, connection, transaction);
+            var scopedStore = new PostgreSqlOutboxStore(_dataSource, _options, _tableName, connection, transaction);
 
             var result = await scopedStore.PersistTerminalGroupsAsync(
                     published,
@@ -1231,13 +1235,18 @@ public sealed class PostgreSqlOutboxStore :
     /// </summary>
     /// <remarks>
     ///     Used by writers that stage the insert in another unit of work, such as the Marten transactional outbox, and
-    ///     so must resolve idempotency before the row is written rather than from a skipped insert.
+    ///     so must resolve idempotency before the row is written rather than from a skipped insert. A row that shares
+    ///     the message id but belongs to a different tenant is reported as a conflict rather than returned, so the
+    ///     caller never receives another tenant envelope metadata.
     /// </remarks>
     /// <param name="messageId">The message id of the pending insert.</param>
     /// <param name="tenantId">The tenant identifier of the pending insert.</param>
     /// <param name="idempotencyKey">The optional idempotency key of the pending insert.</param>
     /// <param name="cancellationToken">A token used to cancel the lookup.</param>
     /// <returns>The stored envelope, or <see langword="null" /> when no row matches.</returns>
+    /// <exception cref="Messaging.Abstractions.DurableMessaging.IdempotencyConflictException">
+    ///     A row with the same message id belongs to a different tenant.
+    /// </exception>
     internal async Task<OutboxEnvelope?> FindExistingOrDefaultAsync(
         Guid messageId,
         string? tenantId,
@@ -1266,7 +1275,40 @@ public sealed class PostgreSqlOutboxStore :
 
         command.CommandText = sql;
 
-        return await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false);
+        var existing = await ReadSingleOrDefaultAsync(command, cancellationToken).ConfigureAwait(false);
+
+        if (existing is not null)
+        {
+            ThrowIfCrossTenantMessageIdHit(messageId, tenantId, existing);
+        }
+
+        return existing;
+    }
+
+    /// <summary>
+    ///     Throws when an idempotency lookup resolved a row that shares the message id but belongs to another tenant.
+    /// </summary>
+    /// <param name="messageId">The message id of the pending insert.</param>
+    /// <param name="tenantId">The tenant identifier of the pending insert.</param>
+    /// <param name="existing">The stored envelope resolved by message id or idempotency key.</param>
+    /// <exception cref="Messaging.Abstractions.DurableMessaging.IdempotencyConflictException">
+    ///     The resolved row belongs to a different tenant.
+    /// </exception>
+    /// <remarks>
+    ///     The idempotency-key branch is tenant-scoped, so only the global message-id branch can return a foreign row.
+    ///     Throwing regardless of conflict mode keeps the foreign tenant identifier, contract, and trace metadata out
+    ///     of the receipt and ensures the second tenant message is never silently dropped.
+    /// </remarks>
+    private static void ThrowIfCrossTenantMessageIdHit(Guid messageId, string? tenantId, OutboxEnvelope existing)
+    {
+        var requestedTenant = Messaging.Abstractions.DurableMessaging.DurableTenantId.Normalize(tenantId);
+        var storedTenant = Messaging.Abstractions.DurableMessaging.DurableTenantId.Normalize(existing.TenantId);
+
+        if (!string.Equals(requestedTenant, storedTenant, StringComparison.Ordinal))
+        {
+            throw new Messaging.Abstractions.DurableMessaging.IdempotencyConflictException(
+                $"An outbox message with message id '{messageId}' already exists for a different tenant.");
+        }
     }
 
     /// <summary>
@@ -1581,7 +1623,7 @@ public sealed class PostgreSqlOutboxStore :
         AddNullableTextParameter(command, "topic", filter.Topic);
         AddNullableTextParameter(command, "correlation_id", filter.CorrelationId);
         AddNullableTextParameter(command, "causation_id", filter.CausationId);
-        AddNullableTextParameter(command, "tenant_id", filter.TenantId);
+        AddNullableTextParameter(command, "tenant_id", NormalizeTenantFilter(filter.TenantId));
         AddNullableTimestampParameter(command, "created_after", filter.CreatedAfter);
         AddNullableTimestampParameter(command, "created_before", filter.CreatedBefore);
     }
@@ -1637,6 +1679,16 @@ public sealed class PostgreSqlOutboxStore :
         {
             throw new ArgumentOutOfRangeException(nameof(pageSize), pageSize, "Page size must be greater than zero.");
         }
+    }
+
+    /// <summary>
+    ///     Normalizes a tenant filter value so blank tenants match unscoped rows while a null filter stays unrestricted.
+    /// </summary>
+    /// <param name="tenantId">The tenant filter supplied by the caller.</param>
+    /// <returns><see langword="null" /> when unrestricted; otherwise the normalized tenant identifier.</returns>
+    private static string? NormalizeTenantFilter(string? tenantId)
+    {
+        return tenantId is null ? null : PostgreSqlIdempotencyResolution.NormalizeTenantParameter(tenantId);
     }
 
     /// <summary>

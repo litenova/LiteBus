@@ -29,7 +29,8 @@ public sealed record OutboxLeaseRequest
 
     /// <summary>
     ///     Gets the optional tenant identifier used to isolate leased messages. A <see langword="null" /> value means
-    ///     no tenant restriction; an empty string leases only unscoped rows.
+    ///     no tenant restriction; an empty or blank string leases only unscoped rows. Stored and requested tenants
+    ///     compare through <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.DurableTenantId" /> normalization.
     /// </summary>
     public string? TenantId { get; init; }
 }

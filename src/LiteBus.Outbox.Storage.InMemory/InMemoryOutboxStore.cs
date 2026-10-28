@@ -729,10 +729,14 @@ public sealed class InMemoryOutboxStore :
     /// </summary>
     /// <param name="envelope">The envelope to store.</param>
     /// <returns>The stored envelope and its insertion outcome.</returns>
+    /// <exception cref="IdempotencyConflictException">
+    ///     A row with the same message id belongs to a different tenant.
+    /// </exception>
     private OutboxAppendResult AddCore(OutboxEnvelope envelope)
     {
         if (_envelopes.TryGetValue(envelope.Id, out var existingById))
         {
+            ThrowIfCrossTenantMessageIdMatch(envelope, existingById);
             ThrowIfStrictConflict(envelope, existingById);
             return new OutboxAppendResult(existingById, OutboxEnqueueOutcome.AlreadyEnqueued);
         }
@@ -808,6 +812,32 @@ public sealed class InMemoryOutboxStore :
         }
 
         return envelope;
+    }
+
+    /// <summary>
+    ///     Throws when a message identifier already exists for another tenant.
+    /// </summary>
+    /// <param name="envelope">The envelope attempted for insert.</param>
+    /// <param name="existing">The stored envelope that conflicts with the attempt.</param>
+    /// <exception cref="IdempotencyConflictException">
+    ///     The stored envelope belongs to a different tenant.
+    /// </exception>
+    /// <remarks>
+    ///     The message identifier lookup is global while the idempotency-key index is tenant-scoped, so only an
+    ///     identifier match can span tenants. Returning the foreign row would expose its metadata and silently drop
+    ///     the second tenant's message, so a cross-tenant identifier hit is always a conflict, regardless of the
+    ///     configured conflict mode.
+    /// </remarks>
+    private static void ThrowIfCrossTenantMessageIdMatch(OutboxEnvelope envelope, OutboxEnvelope existing)
+    {
+        if (!string.Equals(
+                DurableTenantId.Normalize(envelope.TenantId),
+                DurableTenantId.Normalize(existing.TenantId),
+                StringComparison.Ordinal))
+        {
+            throw new IdempotencyConflictException(
+                $"An outbox message with message id '{envelope.Id}' already exists for a different tenant.");
+        }
     }
 
     /// <summary>

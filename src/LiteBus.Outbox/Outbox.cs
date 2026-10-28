@@ -56,7 +56,7 @@ public sealed class Outbox : IOutbox
         CancellationToken cancellationToken = default)
         where TEvent : notnull
     {
-        return _writerCore.EnqueueAsync(item, (envelope, token) => _store.AddAsync(envelope, token), cancellationToken);
+        return _writerCore.EnqueueAsync(item, (envelopes, token) => OutboxWriterCore.AppendAsync(_store, envelopes, token), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -64,7 +64,7 @@ public sealed class Outbox : IOutbox
         OutboxEnqueueItem item,
         CancellationToken cancellationToken = default)
     {
-        return _writerCore.EnqueueAsync(item, (envelope, token) => _store.AddAsync(envelope, token), cancellationToken);
+        return _writerCore.EnqueueAsync(item, (envelopes, token) => OutboxWriterCore.AppendAsync(_store, envelopes, token), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -74,7 +74,7 @@ public sealed class Outbox : IOutbox
     {
         return _writerCore.EnqueueBatchAsync(
             items,
-            (envelopes, token) => _store.AddBatchAsync(envelopes, token),
+            (envelopes, token) => OutboxWriterCore.AppendAsync(_store, envelopes, token),
             cancellationToken);
     }
 }

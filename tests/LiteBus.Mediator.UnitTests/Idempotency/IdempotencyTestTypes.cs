@@ -331,13 +331,13 @@ public sealed class ForgetfulIdempotencyStore : IIdempotencyStore
     }
 
     /// <inheritdoc />
-    public Task CompleteAsync(string key, string? payload, CancellationToken cancellationToken = default)
+    public Task CompleteAsync(string key, string claimToken, string? payload, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }
 
     /// <inheritdoc />
-    public Task ReleaseAsync(string key, CancellationToken cancellationToken = default)
+    public Task ReleaseAsync(string key, string claimToken, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }

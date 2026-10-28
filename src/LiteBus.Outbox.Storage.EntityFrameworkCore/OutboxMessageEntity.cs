@@ -71,6 +71,10 @@ public sealed class OutboxMessageEntity
     /// <summary>
     ///     Gets or sets the monotonic lease fencing generation.
     /// </summary>
+    /// <remarks>
+    ///     Configured as an Entity Framework concurrency token, so a tracked update that lost a lease race fails
+    ///     instead of overwriting the row claimed by the new holder.
+    /// </remarks>
     public long LeaseGeneration { get; set; }
 
     /// <summary>

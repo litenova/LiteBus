@@ -183,9 +183,17 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
                 break;
             }
 
-            if (_hostOptions.RetryPollInterval > TimeSpan.Zero)
+            var restartDelay = _hostOptions.RetryPollInterval > TimeSpan.Zero
+                ? _hostOptions.RetryPollInterval
+                : TransportInboxIngressHostOptions.MinimumRestartDelay;
+
+            try
             {
-                await Task.Delay(_hostOptions.RetryPollInterval, stoppingToken).ConfigureAwait(false);
+                await Task.Delay(restartDelay, stoppingToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
             }
         }
     }
@@ -289,6 +297,10 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     /// <summary>
     ///     Starts and records the timer-triggered flush task.
     /// </summary>
+    /// <remarks>
+    ///     A completed previous aggregate is replaced rather than chained so long-lived consumers do not retain one
+    ///     <c>WhenAll</c> node per partial-batch flush until the next restart.
+    /// </remarks>
     private void StartBatchFlush()
     {
         lock (_batchSync)
@@ -299,9 +311,9 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
             }
 
             var flushTask = OnBatchFlushTimerElapsedAsync();
-            _activeBatchFlushTask = _activeBatchFlushTask is null
-                ? flushTask
-                : Task.WhenAll(_activeBatchFlushTask, flushTask);
+            _activeBatchFlushTask = _activeBatchFlushTask is { IsCompleted: false } active
+                ? Task.WhenAll(active, flushTask)
+                : flushTask;
         }
     }
 
@@ -483,7 +495,9 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
     ///     Batch accept and settlement failures use broad <see cref="Exception" /> handlers because store and broker
     ///     faults cannot be narrowed without losing isolated handling. Failures are logged before per-message fallback
     ///     acceptance or before settlement continues with the remaining deliveries. Cancellation skips the fallback,
-    ///     releases admission for the whole batch, and rethrows so buffered deliveries stay unacknowledged.
+    ///     releases admission for the whole batch, and rethrows so buffered deliveries stay unacknowledged. A
+    ///     cancellation raised while the per-message fallback is running aborts the remaining deliveries, releases
+    ///     their admission, and rethrows instead of logging each one as a flush failure.
     /// </remarks>
     private async Task AcceptAndAcknowledgeBatchAsync(
         List<TransportMessage> messages,
@@ -508,19 +522,28 @@ public sealed class TransportInboxIngressConsumer : IBackgroundService, IDisposa
         {
             BatchAcceptFallbackMessage(_logger, messages.Count, exception);
 
-            foreach (var message in messages)
+            for (var messageIndex = 0; messageIndex < messages.Count; messageIndex++)
             {
                 try
                 {
-                    await AcceptAndAcknowledgeAsync(message, cancellationToken).ConfigureAwait(false);
+                    await AcceptAndAcknowledgeAsync(messages[messageIndex], cancellationToken).ConfigureAwait(false);
+                    ReleaseBatchAdmission();
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Shutdown cancelled the fallback: release admission for the current and remaining deliveries
+                    // so the gate is whole, then rethrow so they stay unacknowledged for broker redelivery.
+                    for (var releaseIndex = messageIndex; releaseIndex < messages.Count; releaseIndex++)
+                    {
+                        ReleaseBatchAdmission();
+                    }
+
+                    throw;
                 }
                 catch (Exception settlementException)
                 {
                     // Release admission for the complete batch even when a transport cannot settle one delivery.
                     TransportInboxIngressLogMessages.BatchFlushFailed(_logger, settlementException);
-                }
-                finally
-                {
                     ReleaseBatchAdmission();
                 }
             }

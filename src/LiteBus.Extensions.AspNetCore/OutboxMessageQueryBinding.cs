@@ -10,6 +10,11 @@ namespace LiteBus.Extensions.AspNetCore;
 public sealed class OutboxMessageQueryBinding
 {
     /// <summary>
+    ///     The page size used when the query omits <c>pageSize</c>.
+    /// </summary>
+    public const int DefaultPageSize = 50;
+
+    /// <summary>
     ///     Gets the message identifier that must match when set.
     /// </summary>
     [FromQuery]
@@ -70,10 +75,11 @@ public sealed class OutboxMessageQueryBinding
     public DateTimeOffset? CreatedBefore { get; init; }
 
     /// <summary>
-    ///     Gets the maximum number of items to return in one page.
+    ///     Gets the maximum number of items to return in one page, or <see langword="null" /> when the query omits
+    ///     <c>pageSize</c>, which returns <see cref="DefaultPageSize" /> items.
     /// </summary>
     [FromQuery]
-    public int PageSize { get; init; } = 50;
+    public int? PageSize { get; init; }
 
     /// <summary>
     ///     Gets the opaque cursor returned by a previous page.
@@ -111,14 +117,16 @@ public sealed class OutboxMessageQueryBinding
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPageSize);
 
-        if (PageSize <= 0 || PageSize > maxPageSize)
+        var pageSize = PageSize ?? DefaultPageSize;
+
+        if (pageSize <= 0 || pageSize > maxPageSize)
         {
-            throw new ArgumentOutOfRangeException(nameof(maxPageSize), PageSize, $"PageSize must be between 1 and {maxPageSize}.");
+            throw new ArgumentOutOfRangeException(nameof(maxPageSize), pageSize, $"PageSize must be between 1 and {maxPageSize}.");
         }
 
         return new OutboxMessagePageRequest
         {
-            PageSize = PageSize,
+            PageSize = pageSize,
             Cursor = Cursor
         };
     }

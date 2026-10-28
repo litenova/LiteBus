@@ -18,6 +18,8 @@ Route resolution order:
 | Inbox | `ITenantRoutingStrategy` if registered, else `ResolveRoute` delegate, else `ContractName` |
 | Outbox | `ITenantRoutingStrategy` if registered, else `ResolveRoute` delegate, else non-empty `Topic`, else `ContractName` |
 
+The tenant strategy wins whenever one is registered. On the outbox axis a `ResolveRoute` delegate or tenant routing strategy that returns null or whitespace fails the dispatch with `LiteBusDispatchException` naming the envelope. On the inbox axis a `ResolveRoute` delegate that returns null or whitespace fails the dispatch with `InboxDispatchException` naming the envelope. On the outbox axis the strategy is set through `TransportOutboxDispatcherOptions.TenantRoutingStrategy`; on the inbox axis it is constructor-injected into `TransportInboxDispatcher`.
+
 ## Packages
 
 | Package | Role |
@@ -39,6 +41,7 @@ Route resolution order:
 
 - Stored payload bytes are published as-is after optional unprotect; deserialization is for validation only when `ValidatePayloadBeforeDispatch` is true.
 - `MessageId` on the transport request is the envelope GUID string.
+- The outbox dispatcher fills `MessageGroupId` and `DeduplicationKey` on every publish request; broker adapters apply them only where the broker supports ordered groups (SQS FIFO queue URLs ending in `.fifo`).
 - One explicitly selected root transport module is shared by dispatch and ingress.
 - Dispatch throws on transport failure; the processor owns retry and dead-letter state.
 
@@ -77,7 +80,8 @@ Throws when contract resolution, validation, or transport publish fails. Does no
 | --- | --- |
 | Package | `LiteBus.Outbox.Dispatch` |
 | Implements | `IOutboxDispatcher.DispatchAsync` |
-| Flow | Same as inbox transport dispatcher; route prefers envelope `Topic` before resolver and contract name |
+| Flow | Same as inbox transport dispatcher; route prefers tenant strategy, then resolver, then envelope `Topic`, then contract name |
+| FIFO addressing | `MessageGroupId` is the tenant id when present, otherwise the contract name; `DeduplicationKey` is the idempotency key when present, otherwise the message id; the inbox dispatcher sets neither |
 
 ### `TransportInboxDispatchModule.Build(IModuleConfiguration)`
 
@@ -103,7 +107,8 @@ Throws when contract resolution, validation, or transport publish fails. Does no
 | `ContentType` | `application/json` | Wire MIME type |
 | `Persistent` | `true` | Broker durability flag (AMQP) |
 | `Mandatory` | `true` | Fail publish with `AmqpMessageReturnedException` when unroutable (AMQP) |
-| `ResolveRoute` | `null` | Per-envelope route override delegate |
+| `ResolveRoute` | `null` | Per-envelope route override delegate; wins over `Topic` on the outbox axis and must return a non-empty route |
+| `TenantRoutingStrategy` | `null` | Outbox only: per-tenant destination override, registered as the `ITenantRoutingStrategy` the dispatcher resolves |
 | `ValidatePayloadBeforeDispatch` | `false` | Deserialize before publish to catch contract wiring errors |
 
 ### Optional Dependencies (Constructor Injection)
@@ -148,6 +153,9 @@ Register transport tracing through `AddLiteBusTransportInstrumentation()` from `
 | `DispatchAsync_ShouldPublishEnvelopeThroughTransport` | `LiteBus.Outbox.UnitTests` (`Dispatch/`) |
 | `DispatchAsync_when_validate_payload_disabled_should_publish_without_deserializing` | `LiteBus.Outbox.UnitTests` (`Dispatch/`) |
 | `DispatchAsync_when_validate_payload_enabled_should_throw_before_publish` | `LiteBus.Outbox.UnitTests` (`Dispatch/`) |
+| `DispatchAsync_WhenIdempotencyKeyAndTenantIdAreSet_ShouldMapFifoFields` | `LiteBus.Outbox.UnitTests` (`Dispatch/`, `TransportOutboxDispatcherFifoFieldsTests`) |
+| `DispatchAsync_WhenIdempotencyKeyAndTenantIdAreMissing_ShouldFallBackToMessageIdAndContractName` | `LiteBus.Outbox.UnitTests` (`Dispatch/`, `TransportOutboxDispatcherFifoFieldsTests`) |
+| `DispatchAsync_WhenIdempotencyKeyAndTenantIdAreBlank_ShouldFallBackToMessageIdAndContractName` | `LiteBus.Outbox.UnitTests` (`Dispatch/`, `TransportOutboxDispatcherFifoFieldsTests`) |
 | `ProcessPendingAsync_ShouldPublishEnvelopeToKafkaTopic` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Kafka/`) |
 | `ProcessPendingAsync_WhenTopicMissing_ShouldUseContractNameAsRoute` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Kafka/`, `Dispatch/Outbox/AwsSqs/`, `Dispatch/Outbox/InMemory/`, `Dispatch/Outbox/AzureServiceBus/`) |
 | `ProcessPendingAsync_WhenBrokerUnreachable_ShouldMarkFailedWithVisibleAfter` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Kafka/`, `Dispatch/Outbox/AwsSqs/`) |

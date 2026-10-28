@@ -16,7 +16,7 @@ An integrator declares audit positions through `IMessageDefinition<TMessage>.Des
 
 LB1018 is implemented by `MissingAuditDeclarationAnalyzer`, which delegates to `DeclarationAnalysis.CollectUndeclared` with `AuditDeclaration` as the required value type (see `src/LiteBus.Analyzers/MissingAuditDeclarationAnalyzer.cs` and `src/LiteBus.Analyzers/Analysis/DeclarationAnalysis.cs`, documented in [Analyzers](../reference/analyzers.md)). `DeclarationAnalysis.CollectDefinedMessageTypes` already recognises both definition shapes: the keyed `IMessageDefinition<TMessage, TValue>` contract (settled by type arguments) and the describing `IMessageDefinition<TMessage>` contract, whose `Describe` body is read by `DescribeDeclares` for `Declare`, `Exempt`, `Audited`, and `NotAudited` calls. Bodies that cannot be read (missing syntax reference, collector passed to a helper) are treated as declared, and definitions in referenced assemblies are not scanned: only the analyzed assembly is enumerated.
 
-Outcome: `Describe` reading shipped in 7.0.0-preview.4, so the blanket report predates the fix. Direct `Audited`, `NotAudited`, `Declare`, and `Exempt` calls in a `Describe` body in the analyzed assembly are recognised, while three boundaries remain: application extension methods on `IMessageDeclarations` are skipped, definitions in referenced assemblies are not collected, and unreadable bodies fail open to declared. The runtime path has none of these blind spots, because registration executes `Describe` against a real collector, which is why `RequireDeclaration` plus `RequireUniqueAuditActions` plus `RequireAuditActionFormat` is the gap-free backstop behind the analyzer.
+Outcome: `Describe` reading is part of the shipped analyzer, so the blanket report predates it. Direct `Audited`, `NotAudited`, `Declare`, and `Exempt` calls in a `Describe` body in the analyzed assembly are recognised, while three boundaries remain: application extension methods on `IMessageDeclarations` are skipped, definitions in referenced assemblies are not collected, and unreadable bodies fail open to declared. The runtime path has none of these blind spots, because registration executes `Describe` against a real collector, which is why `RequireDeclaration` plus `RequireUniqueAuditActions` plus `RequireAuditActionFormat` is the gap-free backstop behind the analyzer.
 
 ### Options
 
@@ -95,7 +95,7 @@ An integrator reports that an open generic pipeline handler closes over both a b
 
 The report was accurate and depended on registration order. `MessageRegistry.TryCloseOpenGenericHandler` closes an open generic over every registered message that fits its constraint, and a base interface such as `ICommand` is a registered message as soon as any handler names it, so `Guard<T> where T : ICommand` was also closed as `Guard<ICommand>`. That closure was linked indirectly to commands registered after it but not to commands already committed, so the guard ran twice for a command registered last and once for a command registered first.
 
-Outcome: fixed. `MessageDescriptor.AddDescriptor` now keeps only the direct closure when two closures of one generic handler definition reach a message through the same contract, in either arrival order (see `src/LiteBus.Messaging/Registry/Descriptors/MessageDescriptor.cs`). A different handler type that names the base interface still runs indirectly, before direct handlers, as designed. A handler class that implements both a base and a concrete contract still runs twice, and `LiteBusCompositionSummary.DuplicateStageCoverages` reports it at startup. Regression tests pin both registration orders and the assembly scan order.
+Outcome: fixed. `MessageDescriptor.AddDescriptor` keeps only the direct closure when two closures of one generic handler definition reach a message through the same contract, in either arrival order (see `src/LiteBus.Messaging/Registry/Descriptors/MessageDescriptor.cs`). A different handler type that names the base interface still runs indirectly, before direct handlers, as designed. A handler class that implements both a base and a concrete contract still runs twice, and `LiteBusCompositionSummary.DuplicateStageCoverages` reports it at startup. Regression tests pin both registration orders and the assembly scan order.
 
 ### Options
 
@@ -237,7 +237,7 @@ Outcome: shipped. `IUnitOfWork` in `LiteBus.Messaging.Abstractions` commits work
 
 ### Recommendation
 
-Closed: ship the contract. The timing rule (commit once, only on success, after staging) is the same in every application, while the commit itself stays application code, so the boundary the recipe taught is now the boundary the library enforces.
+Closed: ship the contract. The timing rule (commit once, only on success, after staging) is the same in every application, while the commit itself stays application code, so the boundary the recipe taught is the boundary the library enforces.
 
 ## Fault Refusals From Any Stage
 
@@ -256,7 +256,7 @@ Outcome: shipped. `IFaultRefusalClassifier` plus `MessageModuleBuilder.UseFaultR
 
 ### Recommendation
 
-Closed: ship the classifier. A commit fault is the common case the pipeline previously could not express, and classifying it where the mediation already ends keeps one refusal path instead of two error paths.
+Closed: ship the classifier. A commit fault reaches the caller as a refusal the caller branches on, and classifying it where the mediation already ends keeps one refusal path instead of two error paths.
 
 ## The Marten Command Package
 

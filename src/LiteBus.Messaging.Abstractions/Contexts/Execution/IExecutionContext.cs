@@ -45,7 +45,8 @@ public interface IExecutionContext
     ///     This collection provides a mechanism for different components in the pipeline (such as pre-handlers,
     ///     post-handlers, or custom middleware) to share state or influence behavior without modifying the
     ///     command contract itself. For instance, a flag could be set to bypass a certain validation
-    ///     step under specific, controlled conditions.
+    ///     step under specific, controlled conditions. Event handlers running in parallel over one mediation may read
+    ///     and write concurrently; two handlers racing to set the same key leave whichever landed last.
     /// </remarks>
     public IDictionary<string, object> Items { get; }
 

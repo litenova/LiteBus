@@ -75,6 +75,10 @@ LiteBus does not expose a Kafka `PrefetchCount` setting. The Confluent.Kafka .NE
 
 The offset is committed only after `TransportMessage.AcceptAsync` succeeds. On transient accept failure with `RequeueOnFailure = true`, `ReturnToQueueAsync` seeks the consumer back to the failed offset before the next consume, with the seek backoff schedule from `KafkaTransportOptions` (`SeekFailureBackoffInitial`, `SeekFailureBackoffMax`, `SeekFailureBackoffMultiplier`). Poison failures (unknown contract, oversize body, malformed payload) are never requeued.
 
+Each consumer instance owns a dedicated Confluent client: starting a second subscription does not replace the first, and consumers that share `ConsumerGroupId` coordinate as one group. `StopAsync` closes the owned client so group membership is released promptly instead of lingering until the session timeout. When the consume loop faults, `StopAsync` completes without throwing and the terminal failure propagates from `WaitUntilStoppedAsync`.
+
+A transient poll error backs off for one second and resumes polling; only a fatal client error faults the loop. A requeue seek that fails transiently, for example when a rebalance revokes the partition, retries with the seek backoff schedule until it succeeds or shutdown cancels it.
+
 `Safety` carries the provider-neutral limits: `MaxMessageBytes` (default 4 MiB) rejects oversize bodies before deserialization, `RequireStableIdentity` (default `true`) requires a stable broker delivery id, `TrustApplicationHeaders` (default `false`) keeps application headers from overriding broker identity and tenant metadata, and `AuthorizeDeliveryAsync` optionally authorizes each delivery before accept. The enforced handler concurrency is 1: raising `Safety.MaxInFlightMessages` alone does not parallelize the Kafka adapter.
 
 ## Guarantees and Non-Guarantees

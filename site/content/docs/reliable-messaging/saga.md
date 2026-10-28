@@ -67,7 +67,7 @@ builder.AddInbox(inbox =>
 });
 ```
 
-Single-contract workflows may use `MapState<TState>(contractName)`, which registers the definition identifier and state type with the same name. `RegisterState<TState>(id)` is an alias of `DefineState<TState>(id)`; both register one saga state type for one stable definition identifier.
+Single-contract workflows may use `MapState<TState>(contractName)`, which registers the definition identifier and state type with the same name. `RegisterState<TState>(id)` is an alias of `DefineState<TState>(id)`; both register one saga state type for one stable definition identifier. Module build fails when a `MapContract` definition identifier has no registered state type, so a misspelled identifier cannot leave the saga silently inactive.
 
 Register command handlers normally through `AddCommands`. Saga handlers are standard `ICommandHandler<TCommand>` implementations.
 

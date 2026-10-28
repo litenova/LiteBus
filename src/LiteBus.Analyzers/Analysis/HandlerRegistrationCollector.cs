@@ -13,8 +13,9 @@ namespace LiteBus.Analyzers.Analysis;
 /// </summary>
 /// <remarks>
 ///     One instance serves one compilation. Symbol actions feed source types through <see cref="Add" /> while
-///     <see cref="ToRegistrations" /> runs at compilation end, where it sorts the gathered source facts and
-///     appends registrations from referenced assemblies.
+///     <see cref="ToSourceRegistrations" /> and <see cref="ToRegistrations" /> run at compilation end, where they
+///     sort the gathered source facts, with <see cref="ToRegistrations" /> additionally appending registrations
+///     from referenced assemblies.
 /// </remarks>
 internal sealed class HandlerRegistrationCollector
 {
@@ -66,6 +67,28 @@ internal sealed class HandlerRegistrationCollector
     }
 
     /// <summary>
+    ///     Gets the handler registrations declared in the analyzed assembly, in discovery order.
+    /// </summary>
+    /// <returns>The handler registrations declared in the analyzed assembly.</returns>
+    /// <remarks>
+    ///     Rules that report a location the author can fix use these candidates, while rules that only need handlers
+    ///     as satisfiers use <see cref="ToRegistrations" />, which additionally appends referenced assemblies.
+    /// </remarks>
+    internal ImmutableArray<HandlerRegistration> ToSourceRegistrations()
+    {
+        var compilation = _typeCache.Compilation;
+        var order = CompilationEndOrdering.GetSyntaxTreeOrder(compilation);
+
+        return [.. _sourceGroups
+            .SelectMany(group => group)
+            .Select(registration => (Registration: registration, Key: CompilationEndOrdering.GetOrderKey(registration.Location, order)))
+            .OrderBy(entry => entry.Key?.TreeIndex ?? int.MaxValue)
+            .ThenBy(entry => entry.Key?.SpanStart ?? int.MaxValue)
+            .ThenBy(entry => LiteBusSymbols.GetMetadataName(entry.Registration.HandlerType), StringComparer.Ordinal)
+            .Select(entry => entry.Registration)];
+    }
+
+    /// <summary>
     ///     Gets all handler registrations: gathered source facts in discovery order, then referenced assemblies.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -73,16 +96,9 @@ internal sealed class HandlerRegistrationCollector
     internal ImmutableArray<HandlerRegistration> ToRegistrations(CancellationToken cancellationToken = default)
     {
         var compilation = _typeCache.Compilation;
-        var order = CompilationEndOrdering.GetSyntaxTreeOrder(compilation);
         var builder = ImmutableArray.CreateBuilder<HandlerRegistration>();
 
-        builder.AddRange(_sourceGroups
-            .SelectMany(group => group)
-            .Select(registration => (Registration: registration, Key: CompilationEndOrdering.GetOrderKey(registration.Location, order)))
-            .OrderBy(entry => entry.Key?.TreeIndex ?? int.MaxValue)
-            .ThenBy(entry => entry.Key?.SpanStart ?? int.MaxValue)
-            .ThenBy(entry => LiteBusSymbols.GetMetadataName(entry.Registration.HandlerType), StringComparer.Ordinal)
-            .Select(entry => entry.Registration));
+        builder.AddRange(ToSourceRegistrations());
 
         foreach (var reference in compilation.References)
         {

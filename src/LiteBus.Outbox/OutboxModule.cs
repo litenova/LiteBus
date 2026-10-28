@@ -71,6 +71,17 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
                 "Call UseInProcessDispatch, a broker-specific Use*Dispatch extension, or RegisterDispatcher inside AddOutboxModule(...).");
         }
 
+        if (_builder.IsPerHandlerDeliveryEnabled &&
+            !_builder.IsPerHandlerDeliveryWithTransportDispatchAllowed &&
+            _builder.DispatcherModule is { PublishesFullEventPerEnvelope: true })
+        {
+            throw new DurableStorageConfigurationException(
+                "EnablePerHandlerDelivery writes one envelope per subscribed handler, but the configured transport " +
+                "dispatcher publishes the full event once per envelope, so each event would be published once per " +
+                "handler. Use in-process dispatch with per-handler delivery, or call " +
+                "AllowPerHandlerDeliveryWithTransportDispatch when the duplicate broker publication is intended.");
+        }
+
         if (_builder.IsOutboxProcessorEnabled)
         {
             _builder.ProcessorHostOptions.Validate();

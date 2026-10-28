@@ -23,7 +23,8 @@ public sealed record DiagnosticCheckRunOptions
     /// <value>
     ///     The run budget. When <see langword="null" /> (the default), the budget is derived from the probe count,
     ///     <see cref="MaxParallelism" />, and <see cref="Timeout" />. Probes still running when the budget expires are
-    ///     reported as unhealthy.
+    ///     reported as unhealthy. A negative value is rejected when health or management endpoints are registered and
+    ///     when a run starts.
     /// </value>
     public TimeSpan? RunTimeout { get; init; }
 }

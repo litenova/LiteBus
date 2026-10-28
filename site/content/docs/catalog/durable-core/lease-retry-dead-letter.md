@@ -32,7 +32,7 @@ The predicate receives the exception that ended the dispatch; returning `true` d
 ### Consumer Contracts
 
 - **`ProcessorOptions`**: Shared base for inbox/outbox processor options including lease and retry settings.
-- **`RetryOptions`**: `MaxAttempts`, initial delay, backoff strategy (`Fixed`, `Exponential`, or `Schedule` with an explicit `Delays` ladder), multiplier, jitter, and an optional `IsPermanentFailure` classifier that dead-letters matching failures on first failure.
+- **`RetryOptions`**: `MaxAttempts` (default 5), `InitialDelay` (default 5 seconds), `MaxDelay` cap (default 5 minutes), backoff strategy (`Fixed`, `Exponential` default, or `Schedule` with an explicit `Delays` ladder), jitter (default on), and an optional `IsPermanentFailure` classifier that dead-letters matching failures on first failure. `Schedule` reads one delay per attempt from `Delays`; an attempt past the end of the ladder repeats the last entry, and `MaxDelay` does not clamp ladder entries. `RetryOptions.Validate()` runs when the module builds and when a processor is constructed directly, so an empty or negative ladder fails fast instead of aborting the first dispatch-failure pass.
 - **`IInboxLeaseStore` / `IOutboxLeaseStore`**: Atomic claim of due pending or failed-visible rows.
 - **`LeaseRenewalRequest`**: Heartbeat input carrying envelope id, lease owner, fencing generation, extension duration, and an in-memory expiry fallback.
 - **`LeaseReleaseRequest`**: Release input carrying message id, lease owner, and fencing generation for a dispatch the processor cancelled.
@@ -57,10 +57,12 @@ The predicate receives the exception that ended the dispatch; returning `true` d
 
 ### Configuration
 
-- **`LeaseDuration`**: Claim TTL; stale processing rows become reclaimable after expiry.
-- **`LeaseHeartbeatInterval`**: Renewal cadence; must be `<= LeaseDuration / 2`.
+- **`BatchSize`**: Maximum rows leased per pass (default 20).
+- **`LeaseDuration`**: Claim TTL (default one minute); stale processing rows become reclaimable after expiry.
+- **`LeaseHeartbeatInterval`**: Renewal cadence (default 15 seconds); must be `<= LeaseDuration / 2`. `TimeSpan.Zero` disables heartbeat renewal.
+- **`DispatcherConcurrency`**: Parallel dispatch workers per pass (default 1).
 - **`Retry`**: `MaxAttempts`, delay, fixed, exponential, or explicit-schedule backoff, optional jitter.
-- **`LeaseOwner`**: Optional operator label with an opaque random session suffix per processor instance. The suffix fences stale sessions that reuse the same configured label.
+- **`LeaseOwner`**: Optional operator label with an opaque random session suffix per processor instance. The suffix fences stale sessions that reuse the same configured label. When omitted, the processor builds a value from machine name, process id, and a random suffix.
 
 ### Extension Points
 
@@ -329,13 +331,40 @@ Lease and retry outcomes surface through processor counters on meters `LiteBus.I
 - **Expected outcome**: Only the current generation persists terminal state
 - **Remarks**: The outbox contract suite runs the equivalent assertion
 
+#### `InboxPermanentFailureTests.ProcessPendingAsync_WhenClassifierMarksFailurePermanent_ShouldDeadLetterOnFirstAttempt`
+
+- **Use case**: When `IsPermanentFailure` recognizes the failure, the inbox row dead-letters on that attempt
+- **Test kind**: Unit
+- **Description**: Inbox processor with a matching permanent-failure classifier
+- **Behavior**: Single dispatch failure recognized by the classifier
+- **Expected outcome**: DeadLettered status regardless of `MaxAttempts`
+- **Remarks**: `LiteBus.Inbox.UnitTests`; the outbox twin is `OutboxPermanentFailureTests.ProcessPendingAsync_WhenClassifierMarksFailurePermanent_ShouldDeadLetterOnFirstAttempt`
+
+#### `InboxPermanentFailureTests.ProcessPendingAsync_WhenClassifierThrows_ShouldScheduleRetry`
+
+- **Use case**: When the permanent-failure classifier throws, the retry schedule is kept
+- **Test kind**: Unit
+- **Description**: Inbox processor with a throwing classifier
+- **Behavior**: Dispatch failure with a faulty classifier
+- **Expected outcome**: Failed status with retry visibility instead of dead letter
+- **Remarks**: `LiteBus.Inbox.UnitTests`; the outbox twin is `OutboxPermanentFailureTests.ProcessPendingAsync_WhenClassifierThrows_ShouldScheduleRetry`
+
+#### `RetryScheduleTests.A_schedule_returns_each_delay_in_order`
+
+- **Use case**: When `Schedule` backoff is configured, each attempt waits its ladder entry
+- **Test kind**: Unit
+- **Description**: `RetryOptions` with `Backoff = RetryBackoff.Schedule` and explicit `Delays`
+- **Behavior**: `CalculateDelay` per attempt number
+- **Expected outcome**: Each delay in ladder order; attempts past the end repeat the last entry
+- **Remarks**: `LiteBus.Outbox.UnitTests`; companion tests cover the unclamped tail, the jitter bound, and the refused empty or negative ladder
+
 ### Untested Use Cases
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| Infinite retry without dead letter | No (by design) | N/A |: |: |
+| Infinite retry without dead letter | No (by design) | Not supported | N/A | N/A |
 | Broker-native DLQ for inbox ingress | Partial | Ingress discard/requeue tested separately | Integration | Low |
-| Global ordering across workers | No | N/A |: |: |
+| Global ordering across workers | No | Not supported | N/A | N/A |
 
 ### Out-of-Scope Use Cases
 

@@ -87,6 +87,12 @@ public sealed class MissingMessageContractRegistrationAnalyzer : DiagnosticAnaly
     /// <param name="context">The compilation analysis context.</param>
     /// <param name="handlers">The handler registration collector.</param>
     /// <param name="contracts">The contract registration collector.</param>
+    /// <remarks>
+    ///     Only handlers declared in the analyzed assembly are candidates, and only registrations invoked in the
+    ///     analyzed compilation satisfy the rule. A registration that lives in a dependent project is compiled
+    ///     separately and stays invisible here; co-locate the registration with the handler or suppress the
+    ///     diagnostic.
+    /// </remarks>
     private static void AnalyzeCompilationEnd(
         CompilationAnalysisContext context,
         HandlerRegistrationCollector handlers,
@@ -95,7 +101,7 @@ public sealed class MissingMessageContractRegistrationAnalyzer : DiagnosticAnaly
         var registeredContracts = contracts.ToRegisteredTypes();
         var registeredAssemblies = contracts.ToRegisteredAssemblies();
 
-        var matches = handlers.ToRegistrations(context.CancellationToken)
+        var matches = handlers.ToSourceRegistrations()
             .Where(handler => handler.Pipeline is "command" or "event")
             .ToList();
 

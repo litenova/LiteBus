@@ -275,6 +275,7 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
             ContractVersion = entity.ContractVersion,
             Payload = entity.Payload,
             Topic = entity.Topic,
+            Handler = entity.Handler,
             CreatedAt = entity.CreatedAt,
             VisibleAfter = entity.VisibleAfter,
             Status = entity.Status,
@@ -308,6 +309,7 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
             envelope.ContractVersion == existing.ContractVersion &&
             string.Equals(envelope.Payload, existing.Payload, StringComparison.Ordinal) &&
             string.Equals(envelope.Topic, existing.Topic, StringComparison.Ordinal) &&
+            string.Equals(envelope.Handler, existing.Handler, StringComparison.Ordinal) &&
             string.Equals(envelope.IdempotencyKey, existing.IdempotencyKey, StringComparison.Ordinal) &&
             string.Equals(envelope.CorrelationId, existing.CorrelationId, StringComparison.Ordinal) &&
             string.Equals(envelope.CausationId, existing.CausationId, StringComparison.Ordinal) &&

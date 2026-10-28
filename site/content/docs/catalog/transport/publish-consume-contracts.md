@@ -50,7 +50,7 @@ These abstractions isolate dispatch and ingress from broker SDK APIs.
 | `Destination` | `string` | Queue, topic, or destination name |
 | `SubscriptionName` | `string?` | Named subscription for topic-based brokers |
 | `MaxInFlightMessages` | `int` | Requested cap on concurrent LiteBus handler calls, default 32; enforced as 1 except on Azure Service Bus, where the lower of this and `MaxConcurrentCalls` applies |
-| `PrefetchCount` | `int` | Native RabbitMQ or Azure Service Bus prefetch, default 0 |
+| `PrefetchCount` | `int` | Native RabbitMQ or Azure Service Bus prefetch, default 0, which maps to the broker-native unlimited prefetch window on AMQP; set an explicit bound for large backlogs |
 | `ReceiveBatchSize` | `int` | Messages requested per SQS receive call, default 1 and valid from 1 through 10 |
 | `MaxConcurrentCalls` | `int?` | Native Azure Service Bus callback concurrency |
 | `DeclareDestination` | `bool` | Declare destination before consume (default `true`; honored by AMQP only) |
@@ -93,8 +93,11 @@ The limits match the current provider contracts:
 ## Invariants
 
 - Contracts stay broker-neutral and do not reference SDK types.
-- Handler acknowledgement remains explicit via `TransportMessage` methods.
+- Handler acknowledgement remains explicit via `TransportMessage` methods; the handler must call `AcceptAsync`, `DiscardAsync`, or `ReturnToQueueAsync` before returning.
 - One broker module registration per process (`transport.single-broker-registration`).
+- Transport publishers are singletons and consumers are transient in all five adapters, so a dispatched envelope reuses its publisher while each subscription holds its own consumer.
+- `StartAsync` returns a task that completes when the consume loop has been initiated; startup and subscription failures surface through `WaitUntilStoppedAsync`, and transports that subscribe synchronously complete after the subscription is active.
+- Calling `StartAsync` twice on one consumer instance throws `InvalidOperationException`.
 
 ## Non-Goals
 

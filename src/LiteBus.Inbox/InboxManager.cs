@@ -79,6 +79,14 @@ internal sealed class InboxManager : IInboxManager
         ArgumentNullException.ThrowIfNull(filter);
         ArgumentNullException.ThrowIfNull(pageRequest);
 
+        if (pageRequest.PageSize <= 0 || pageRequest.PageSize > InboxMessagePageRequest.MaxPageSize)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(pageRequest),
+                pageRequest.PageSize,
+                $"Page size must be between 1 and {InboxMessagePageRequest.MaxPageSize}.");
+        }
+
         return _operationsStore.QueryAsync(filter, pageRequest, cancellationToken);
     }
 

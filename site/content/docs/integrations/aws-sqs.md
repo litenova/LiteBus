@@ -90,11 +90,15 @@ The root transport registers `transport.sqs.connectivity`. Configure `Connectivi
 
 `Safety` carries the provider-neutral limits: `MaxMessageBytes` (default 4 MiB) rejects oversize bodies before deserialization, `RequireStableIdentity` (default `true`) requires a stable broker delivery id, `TrustApplicationHeaders` (default `false`) keeps application headers from overriding broker identity and tenant metadata, and `AuthorizeDeliveryAsync` optionally authorizes each delivery before accept. The enforced handler concurrency is 1: raising `Safety.MaxInFlightMessages` alone does not parallelize the SQS adapter.
 
+A message without SQS system attributes counts as a first delivery when requeue backoff is computed. When the consume loop faults, `StopAsync` completes without throwing and the terminal failure propagates from `WaitUntilStoppedAsync`.
+
 ## Wire Encoding
 
 SQS message bodies are strings. LiteBus uses strict UTF-8 decoding and the SQS Unicode ranges before sending a plain body. Invalid UTF-8 and disallowed control bytes are base64-encoded with a `litebus-content-encoding: base64` message attribute, preserving the original bytes. Correlation identifiers use the canonical `correlation-id` header (`TransportHeaders.CorrelationId`).
 
 SQS permits ten message attributes per message. LiteBus keeps mapper-owned route, content type, identifier, correlation, and encoding attributes separate. When the complete header set would exceed ten attributes, the remaining headers are serialized into `litebus-headers`; ingress expands that attribute before contract mapping.
+
+A received message whose body cannot be decoded (an invalid body with the `base64` marker) or whose packed `litebus-headers` attribute is malformed can never be processed, so the consumer deletes it and continues with the next delivery instead of faulting the loop.
 
 ## Guarantees and Non-Guarantees
 

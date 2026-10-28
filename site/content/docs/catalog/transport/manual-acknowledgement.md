@@ -41,7 +41,7 @@ Each adapter maps these calls to its native API. The Architecture resilience mat
 
 ## Invariants
 
-- Handlers that return without calling an ack method leave deliveries unacknowledged; broker behavior varies (peek-lock renewal, visibility timeout, or uncommitted Kafka offset).
+- Handlers that return without calling an ack method leave deliveries unacknowledged; broker behavior varies (peek-lock renewal, visibility timeout, or uncommitted Kafka offset). The in-memory adapter returns an unsettled delivery to the destination with `Redelivered = true` instead of dropping it, so a missing settle never loses the delivery silently.
 - Raw `IMessageConsumer` hosts have no LiteBus redelivery cap at the transport layer; poison handling requires `DiscardAsync`, broker DLQ policy, or inbox ingress.
 - Kafka commits offset on `AcceptAsync` or `DiscardAsync`; only `ReturnToQueueAsync` seeks back without committing before the next read.
 

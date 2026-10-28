@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Idempotency;
 
 namespace LiteBus.Commands.Idempotency;
 
@@ -25,7 +24,14 @@ namespace LiteBus.Commands.Idempotency;
 ///         Only the claim the same mediation was granted is settled. The shortcut records each granted key as a
 ///         <see cref="ClaimedIdempotencyKey" />, and without that record this handler returns: a denial, a validation
 ///         failure, a repeat answered from the store, and a claim denied as in-flight or mismatched all end here
-///         holding nothing, so settling by recomputing the key would delete another delivery's in-flight claim.
+///         holding nothing, so settling by recomputing the key would delete another delivery's in-flight claim. The
+///         record carries the token fencing the grant, so a settle that arrives after a takeover is a no-op instead of
+///         corrupting the new claimant.
+///     </para>
+///     <para>
+///         The record also carries whether the declaration asked for the result to be replayed, so nothing here
+///         re-runs the key or fingerprint selectors. A handler that mutates the message cannot turn its own success
+///         into a resolution failure at settle time.
 ///     </para>
 ///     <para>
 ///         Anything but <see cref="MediationOutcome.Succeeded" /> releases the recorded key, including
@@ -36,11 +42,6 @@ namespace LiteBus.Commands.Idempotency;
 [HandlerPriority(HandlerPriorities.Persistence)]
 internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
 {
-    /// <summary>
-    ///     Reads the declaration that decides whether a result is recorded for replay.
-    /// </summary>
-    private readonly IdempotencyKeyResolver _keys;
-
     /// <summary>
     ///     Serializes the result recorded for replay.
     /// </summary>
@@ -54,19 +55,15 @@ internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
     /// <summary>
     ///     Initializes a new instance of the <see cref="IdempotencyCompletionHandler" /> class.
     /// </summary>
-    /// <param name="keys">Reads the declaration from the message type's metadata.</param>
     /// <param name="store">Remembers which keys have been applied.</param>
     /// <param name="serializer">Serializes the result recorded for replay.</param>
     public IdempotencyCompletionHandler(
-        IdempotencyKeyResolver keys,
         IIdempotencyStore store,
         IMessageSerializer serializer)
     {
-        ArgumentNullException.ThrowIfNull(keys);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(serializer);
 
-        _keys = keys;
         _store = store;
         _serializer = serializer;
     }
@@ -85,23 +82,16 @@ internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
             return;
         }
 
-        var resolved = _keys.Resolve(context.Message);
-
-        if (resolved is null)
-        {
-            return;
-        }
-
         if (context.Outcome != MediationOutcome.Succeeded)
         {
-            await _store.ReleaseAsync(claimed.Value, CancellationToken.None).ConfigureAwait(false);
+            await _store.ReleaseAsync(claimed.Value, claimed.ClaimToken, CancellationToken.None).ConfigureAwait(false);
             return;
         }
 
-        var payload = resolved.Value.Declaration.ReplayResult && context.MessageResult is not null
+        var payload = claimed.ReplayResult && context.MessageResult is not null
             ? await _serializer.SerializeAsync(context.MessageResult, CancellationToken.None).ConfigureAwait(false)
             : null;
 
-        await _store.CompleteAsync(claimed.Value, payload, CancellationToken.None).ConfigureAwait(false);
+        await _store.CompleteAsync(claimed.Value, claimed.ClaimToken, payload, CancellationToken.None).ConfigureAwait(false);
     }
 }

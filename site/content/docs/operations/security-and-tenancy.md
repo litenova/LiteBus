@@ -63,10 +63,12 @@ Implement `IContextualPayloadEncryptor` instead when ciphertext must not move be
 | --- | --- |
 | `MessageId` | The durable message identifier |
 | `ContractName`, `ContractVersion` | The stable contract stored beside the payload |
-| `TenantId` | The tenant identifier stored beside the payload, when set |
+| `TenantId` | The tenant identifier stored beside the payload, or null for unscoped messages |
 | `Axis` | `inbox` or `outbox` |
 
 Use the context as AEAD associated data so decryption fails when a ciphertext is copied to another message, contract, tenant, or axis. Existing `IPayloadEncryptor` implementations keep working: `PayloadProtection` calls the contextual overloads only when the registered encryptor implements `IContextualPayloadEncryptor`, and otherwise calls the plain methods.
+
+The inbox and outbox protectors forward the contextual overloads when the configured encryptor implements `IContextualPayloadEncryptor`. `TenantId` normalizes null, empty, and whitespace values to null so unscoped messages round-trip; use the normalized value as associated data.
 
 ## Key Rotation
 

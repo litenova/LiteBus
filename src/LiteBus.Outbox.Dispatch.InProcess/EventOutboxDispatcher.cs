@@ -209,9 +209,10 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     /// <returns>A delegate that publishes through <see cref="IEventMediator.PublishAsync{TEvent}" />.</returns>
     /// <exception cref="LiteBusDispatchException">The publish delegate could not be created for the message type.</exception>
     /// <remarks>
-    ///     The final <see cref="Exception" /> handler covers any reflection failure from <c>MakeGenericMethod</c> or
-    ///     delegate creation because the dispatch boundary must report an unusable event type as
-    ///     <see cref="LiteBusDispatchException" /> with registration guidance.
+    ///     The delegate is built with <c>CreateDelegate</c> rather than <c>MethodInfo.Invoke</c> so handler failures
+    ///     surface unwrapped and registration guidance still matches. The final <see cref="Exception" /> handler covers
+    ///     any reflection failure from <c>MakeGenericMethod</c> or delegate creation because the dispatch boundary must
+    ///     report an unusable event type as <see cref="LiteBusDispatchException" /> with registration guidance.
     /// </remarks>
     private static Func<IEventMediator, object, EventMediationSettings?, CancellationToken, Task> CreatePublishDelegate(Type messageType)
     {
@@ -219,8 +220,7 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         {
             var closedMethod = PublishTypedAsyncMethod.MakeGenericMethod(messageType);
 
-            return (mediator, messageInstance, settings, cancellationToken) =>
-                (Task) closedMethod.Invoke(null, [mediator, messageInstance, settings, cancellationToken])!;
+            return closedMethod.CreateDelegate<Func<IEventMediator, object, EventMediationSettings?, CancellationToken, Task>>();
         }
 #pragma warning disable CA1031 // Reflection over any event type can fail; the dispatch boundary reports it as LiteBusDispatchException.
         catch (Exception exception)

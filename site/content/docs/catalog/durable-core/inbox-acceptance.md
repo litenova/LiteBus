@@ -26,6 +26,7 @@ Receipts confirm storage only. They do not contain business results from command
 
 - **`AcceptAsync<TMessage>(InboxAcceptItem<TMessage>, CancellationToken)`**: Primary typed accept with full metadata.
 - **`AcceptAsync<TMessage>(TMessage, CancellationToken)`**: Body-only sugar equivalent to `InboxAcceptItem<T>.From(message)`.
+- **`InboxAcceptItem<TMessage>.FromAmbient(message)`**: Body-only accept that stamps `MessageTrace.FromAmbient()` onto the item, so a command accepted inside a mediation carries the ambient correlation, causation, and distributed trace context; outside a mediation the item equals `From(message)`.
 - **`AcceptAsync(InboxAcceptItem, CancellationToken)`**: Runtime-type accept for heterogeneous payloads; contract lookup uses `message.GetType()`.
 - **`AcceptBatchAsync(IReadOnlyList<InboxAcceptItem>, CancellationToken)`**: Batch accept in one store round trip.
 
@@ -35,6 +36,7 @@ Typical call sites: HTTP controllers deferring work, ingress handlers after brok
 
 - **`AddInbox()`** with **`Use*Storage()`** registered inside the same inbox module builder (required before first accept).
 - **`Contracts.Register<TMessage>(name, version)`** or **`RegisterFromAssembly`** for each stored message type.
+- **`UseAmbientTrace()`** on the inbox builder stamps `MessageTrace.FromAmbient()` onto every accepted envelope whose item trace is `MessageTrace.None`; an explicit item trace always wins, and outside a mediation the envelope stays untraced.
 - Default **`IInbox`** registers transient against the singleton non-transactional store.
 
 ### Configuration
@@ -68,6 +70,7 @@ Typical call sites: HTTP controllers deferring work, ingress handlers after brok
 - Open generic contract definitions are rejected
 - Default `IInbox` commits immediately through the singleton store (not joined to domain transactions)
 - `AlreadyAccepted` outcome returns existing row for duplicate message id or tenant-scoped idempotency key without re-executing completed handlers
+- A message id that already exists for another tenant throws `IdempotencyConflictException` in every conflict mode instead of returning the foreign row
 
 ## Non-Goals
 
@@ -192,6 +195,24 @@ No dedicated accept counter. Writer failures surface as store exceptions.
 - **Expected outcome**: Other metadata fields unchanged
 - **Remarks**: `LiteBus.Inbox.Abstractions.UnitTests`
 
+#### `AmbientAcceptItemTests.FromAmbient_inside_a_processor_built_scope_stamps_the_distributed_trace`
+
+- **Use case**: When a command is accepted with `FromAmbient` inside a traced mediation, the item carries the ambient distributed trace
+- **Test kind**: Unit
+- **Description**: `InboxAcceptItem<T>.FromAmbient(message)` inside a processor-built scope
+- **Behavior**: Ambient trace factory on the accept item
+- **Expected outcome**: Item trace holds the ambient correlation, causation, and trace context
+- **Remarks**: `LiteBus.Inbox.UnitTests`; companion tests cover the incoming-message-id fallback and the untraced result outside any scope
+
+#### `InboxAmbientTraceTests.UseAmbientTrace_flows_from_the_module_builder_to_accepted_envelopes`
+
+- **Use case**: When `UseAmbientTrace` is registered on the inbox builder, untraced accepts inherit the ambient trace
+- **Test kind**: Unit
+- **Description**: Inbox module with the ambient-trace opt-in enabled
+- **Behavior**: Accept with `MessageTrace.None` inside a traced mediation
+- **Expected outcome**: Stored envelope carries the ambient trace; explicit item traces are kept
+- **Remarks**: `LiteBus.Inbox.UnitTests` (`AmbientTrace/`)
+
 #### `InboxCompositeModuleTests.NestedConfiguration_ShouldAcceptAndProcessCommand`
 
 - **Use case**: When inbox is configured through nested composite modules, accept and process completes end-to-end
@@ -275,4 +296,4 @@ No dedicated accept counter. Writer failures surface as store exceptions.
 
 - Synchronous `ICommandMediator.SendAsync` (mediator axis)
 - Handler-level side-effect idempotency (application concern)
-- SQL Server transactional accept (not shipped)
+- Dedicated SQL Server store (the EF Core adapter supports the SQL Server provider; a dedicated adapter is planned on [Roadmap](../../roadmap/README.md))

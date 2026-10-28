@@ -1,4 +1,3 @@
-using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands;
@@ -11,9 +10,10 @@ namespace LiteBus.Commands.Recurring;
 /// <remarks>
 ///     <para>
 ///         The guarantee is per name while the handle is held: at most one holder across the deployment owns a given
-///         lease name at any moment. Disposing the returned handle releases the lease. An implementation whose backing
-///         store can promise it also releases the lease automatically when the holder's process dies, so a crashed
-///         replica cannot block the loop forever.
+///         lease name at any moment. Disposing the returned handle releases the lease, and the handle cancels
+///         <see cref="IRecurringCommandLeaseHandle.LeaseLost" /> when the lease is lost while held. An implementation
+///         whose backing store can promise it also releases the lease automatically when the holder's process dies, so
+///         a crashed replica cannot block the loop forever.
 ///     </para>
 ///     <para>
 ///         Register an implementation through a child module on <see cref="CommandModuleBuilder" />, so composition can
@@ -30,9 +30,10 @@ public interface IRecurringCommandLease
     /// <param name="leaseName">The lease name; loops default it to the command type's full name.</param>
     /// <param name="cancellationToken">A token that cancels the acquisition attempt.</param>
     /// <returns>
-    ///     A handle that releases the lease when disposed asynchronously, or <see langword="null" /> when another
-    ///     holder owns the lease.
+    ///     A handle that releases the lease when disposed asynchronously and signals loss through
+    ///     <see cref="IRecurringCommandLeaseHandle.LeaseLost" />, or <see langword="null" /> when another holder owns
+    ///     the lease.
     /// </returns>
-    /// <exception cref="ArgumentException"><paramref name="leaseName" /> is null, empty, or whitespace.</exception>
-    Task<IAsyncDisposable?> TryAcquireAsync(string leaseName, CancellationToken cancellationToken);
+    /// <exception cref="System.ArgumentException"><paramref name="leaseName" /> is null, empty, or whitespace.</exception>
+    Task<IRecurringCommandLeaseHandle?> TryAcquireAsync(string leaseName, CancellationToken cancellationToken);
 }

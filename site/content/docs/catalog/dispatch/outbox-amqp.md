@@ -78,7 +78,8 @@ services.AddLiteBus(litebus =>
 | `ContentType` | `application/json` | Outgoing MIME content type |
 | `Persistent` | `true` | Durable message flag |
 | `Mandatory` | `true` | Fail publish with `AmqpMessageReturnedException` when unroutable |
-| `ResolveRoute` | `null` | Route selector after topic fallback |
+| `ResolveRoute` | `null` | Route selector; wins over envelope `Topic` and must return a non-empty route |
+| `TenantRoutingStrategy` | `null` | Per-tenant destination override, registered as the `ITenantRoutingStrategy` the dispatcher resolves |
 | `ValidatePayloadBeforeDispatch` | `false` | Deserialize payload before publish for validation |
 
 Outbox route order is tenant strategy, then `ResolveRoute`, then envelope `Topic`, then contract name.
@@ -123,7 +124,7 @@ Outbox route order is tenant strategy, then `ResolveRoute`, then envelope `Topic
 | `ProcessPendingAsync_ShouldPublishEnvelopeToAmqpQueue` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Amqp/`) |
 | `ProcessPendingAsync_WhenTopicMissing_ShouldUseContractNameAsRoutingKey` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Amqp/`) |
 | `ProcessPendingAsync_ShouldPublishToAmqpAndMarkPostgreSqlEnvelopePublished` | `LiteBus.Durable.IntegrationTests` (`Dispatch/Outbox/Amqp/`) |
-| `PublishAsync_WithMandatoryAndReturnedMessage_ShouldThrow` | `LiteBus.Transport.UnitTests` (`Amqp/`) |
+| `TransportPublishRequest_Mandatory_ShouldDefaultToTrue` | `LiteBus.Transport.UnitTests` (`Amqp/`, `AmqpPublishRequestDefaultsTests`) |
 | `PublishAsync_WithMandatoryAndNoBinding_ShouldThrow` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
 | `PublishAsync_WithMandatoryFalseAndNoBinding_ShouldSucceed` | `LiteBus.Transport.IntegrationTests` (`Amqp/`) |
 

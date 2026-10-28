@@ -27,7 +27,17 @@ public sealed class TestOutboxStore :
     /// <summary>
     ///     Gets the underlying in-memory store that owns envelope state.
     /// </summary>
-    private readonly InMemoryOutboxStore _inner = new();
+    private readonly InMemoryOutboxStore _inner;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="TestOutboxStore" /> class.
+    /// </summary>
+    /// <param name="options">Optional store limits applied to the backing in-memory implementation.</param>
+    /// <param name="timeProvider">Optional clock used for lease expiry when requests omit an explicit timestamp.</param>
+    public TestOutboxStore(InMemoryOutboxStoreOptions? options = null, TimeProvider? timeProvider = null)
+    {
+        _inner = new InMemoryOutboxStore(options, timeProvider);
+    }
 
     /// <inheritdoc />
     public Task<RequeueResult> RequeueAsync(IReadOnlyList<Guid> messageIds, CancellationToken cancellationToken = default)

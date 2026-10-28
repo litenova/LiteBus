@@ -15,6 +15,8 @@ In command/query single-handler flows, priority affects pre and post handler ord
 - `HandlersWithinSamePriorityConcurrencyMode`
 - `HandlerFaultMode`
 
+`HandlerPriorities` reserves a priority window for handlers shipped by LiteBus, so ordering against them is a documented guarantee. Application handlers belong below `ReservedFloor` (`1_000_000`), where an unannotated handler already sits at `Default` (`0`), or at or above `ReservedCeiling` (`2_000_000`); `UnitOfWork` (`ReservedCeiling + 100`) is the commit position for completion handlers. The named LiteBus stages inside the window are `Persistence` (`ReservedFloor + 100`) and `Observability` (`ReservedFloor + 200`), and only those two may be reordered relative to each other between releases. Analyzer rule `LB1022` reports an application value inside the window.
+
 ## Public Surface
 
 ```csharp
@@ -30,6 +32,8 @@ public sealed class ValidateOrderPreHandler : ICommandPreHandler<PlaceOrderComma
 | --- | --- |
 | `[HandlerPriority(int)]` | Declares handler priority |
 | `IHandlerDescriptor.Priority` | Resolved priority metadata |
+| `HandlerPriorities.Default` / `ReservedFloor` / `Persistence` / `Observability` / `ReservedCeiling` / `UnitOfWork` | The reserved framework window and the two application bands around it |
+| Analyzer `LB1022` | Compile-time warning for a priority inside the reserved window |
 | `EventExecutionSettings.PriorityGroupsConcurrencyMode` | Cross-group execution mode |
 | `EventExecutionSettings.HandlersWithinSamePriorityConcurrencyMode` | Intra-group execution mode |
 | `EventExecutionSettings.FaultMode` | Error surfacing mode for sibling handlers |
@@ -49,6 +53,9 @@ public sealed class ValidateOrderPreHandler : ICommandPreHandler<PlaceOrderComma
 ## Invariants
 
 - Default priority is `0` when attribute is absent.
+- Application handlers belong below `ReservedFloor` or at or above `ReservedCeiling`; the floor itself is reserved and the ceiling itself is the first value above the window.
+- The band from `ReservedCeiling` up to `UnitOfWork` holds application infrastructure that runs after every LiteBus handler and still before the commit.
+- Priority orders handlers inside a stage and never reorders the stages; in the completion stage it is the only ordering rule across the merged direct and indirect sets.
 - Lower priority executes first in sequential group mode.
 - Parallel group mode removes strict cross-priority completion ordering.
 - Both fault modes wait for already-started parallel tasks. `ContinueAndAggregate` runs every handler in the group and combines the failures, while `PropagateFirst` stops the group and surfaces one failure. The mode never carries across priority groups. When every collected failure is cancellation, `ContinueAndAggregate` rethrows `OperationCanceledException` instead of aggregating; mixed cancellation and faults still aggregate.

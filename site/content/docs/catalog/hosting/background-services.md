@@ -11,7 +11,7 @@
 
 `IBackgroundService` defines the host-independent loop contract: `ExecuteAsync(CancellationToken)`. Modules register implementation types through `IModuleConfiguration.RegisterBackgroundService(Type)`. Host bridges resolve and run these through a single orchestrator.
 
-Inbox/outbox processors and ingress consumers are the main implementations.
+Shipped loops are the inbox and outbox processor services with their cleanup services, the transport inbox ingress consumer, and one `RecurringCommandBackgroundService<TCommand>` per recurring registration. The recurring loop sends one command per pass on `RecurringCommandHostOptions`, survives failing passes with `ErrorBackoff`, and single-flights through `IRecurringCommandLease` when `RequireLease` is set; see [mediator.recurring-commands](../mediator/recurring-commands.md) and [Recurring commands](../../integrations/recurring-commands.md).
 
 ## Public Surface
 
@@ -82,6 +82,24 @@ No generic background-service meter exists. Service-specific metrics are emitted
 - **Expected outcome**: loop execute counter increments
 - **Remarks**: `tests/LiteBus.Runtime.UnitTests/MicrosoftBackgroundServiceHostingExtensionsTests.cs`
 
+#### `RecurringCommandHostTests.Loop_sends_the_command_repeatedly`
+
+- **Use case**: recurring loop sends one command per pass
+- **Test kind**: Unit
+- **Description**: registers a recurring command with a short interval
+- **Behavior**: runs the loop and counts sends
+- **Expected outcome**: the command is sent repeatedly until cancelled
+- **Remarks**: `tests/LiteBus.Mediator.UnitTests/UseCases/Commands/RecurringCommandHostTests.cs`
+
+#### `RecurringCommandHostTests.Loop_survives_a_failing_pass_and_keeps_sending`
+
+- **Use case**: failing pass does not end the loop
+- **Test kind**: Unit
+- **Description**: registers a recurring command whose handler throws once
+- **Behavior**: runs the loop past the failure
+- **Expected outcome**: the loop logs, backs off, and keeps sending
+- **Remarks**: `tests/LiteBus.Mediator.UnitTests/UseCases/Commands/RecurringCommandHostTests.cs`
+
 ### Untested Use Cases
 
 | Gap | Priority | Notes |
@@ -94,4 +112,5 @@ No generic background-service meter exists. Service-specific metrics are emitted
 
 ## Deep Docs
 
+- [Recurring commands](../../integrations/recurring-commands.md)
 - [Hosted services](../../architecture/hosted-services.md)

@@ -30,6 +30,7 @@
 
 - Conflicting non-collection bindings for same service type fail.
 - Collection registrations require collection-marked descriptors.
+- A service registered both singly and as collection items fails composition.
 - Duplicate equivalent descriptors are ignored.
 
 ## Non-Goals
@@ -38,7 +39,7 @@
 
 ## Observability
 
-No direct telemetry. Registration conflicts throw `LiteBusConfigurationException`.
+No direct telemetry. Registration conflicts throw `ModuleCompositionException`.
 
 ## Test Coverage
 

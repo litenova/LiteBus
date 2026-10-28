@@ -16,6 +16,17 @@ Quick map from capability to documentation and primary packages. For install com
 | Completion stage | [The handler pipeline](../concepts/handler-pipeline.md#completion-observing-how-mediation-ended) | Core mediator packages |
 | Auditing | [Auditing](../concepts/auditing.md) | `LiteBus.Messaging`, axis packages |
 | In-process idempotency | [In-process idempotency](../concepts/idempotency.md) | `LiteBus.Messaging`, `LiteBus.Commands` |
+| Idempotency outcomes and stores | [In-process idempotency](../concepts/idempotency.md#what-happens-on-each-path) | `LiteBus.Commands.Storage.PostgreSql`, `LiteBus.Commands.Storage.Marten` |
+| PostgreSQL idempotency store | [PostgreSQL idempotency store](../integrations/commands-postgresql-idempotency-store.md) | `LiteBus.Commands.Storage.PostgreSql` |
+| Marten unit of work, idempotency, and audit | [Marten unit of work, idempotency, and audit](../integrations/commands-marten.md) | `LiteBus.Commands.Storage.Marten` |
+| ASP.NET Core Idempotency-Key filter | [ASP.NET Core idempotency key](../integrations/aspnetcore-idempotency-key.md) | `LiteBus.Extensions.AspNetCore` |
+| Unit of work (`IUnitOfWork`) | [Domain events and unit of work](../reliable-messaging/domain-events-and-unit-of-work.md#command-pipeline-boundary) | `LiteBus.Messaging.Abstractions`, axis packages |
+| Fault refusal classification | [The handler pipeline](../concepts/handler-pipeline.md#turning-faults-into-refusals) | `LiteBus.Messaging`, `LiteBus.Storage.PostgreSql` |
+| Shortcut denial | [The handler pipeline](../concepts/handler-pipeline.md#shortcut-contracts) | Core mediator packages |
+| Authorization declarations and guards | [Authorization declarations](../concepts/authorization-declarations.md) | `LiteBus.Messaging.Abstractions` |
+| Audit selectors | [Auditing](../concepts/auditing.md#declaring-what-the-message-already-knows) | `LiteBus.Messaging` |
+| Recurring commands and single-flight lease | [Recurring commands](../integrations/recurring-commands.md) | `LiteBus.Commands.Recurring`, `LiteBus.Commands.Recurring.Storage.PostgreSql` |
+| Recording mediator doubles | [Application testing](../testing/application-testing.md#recording-mediator-doubles) | `LiteBus.Testing.Mediation` |
 | Message definitions | [Message definitions](../concepts/message-definitions.md) | `LiteBus.Messaging.Abstractions` |
 | Required declarations | [Required declarations](../catalog/analyzers/required-declarations.md) | `LiteBus.Messaging`, `LiteBus.Analyzers` |
 | Execution context | [Execution context](../concepts/execution-context.md) | `LiteBus.Messaging.Abstractions` |
@@ -40,6 +51,9 @@ Quick map from capability to documentation and primary packages. For install com
 | Delivery semantics | [Reliable messaging semantics](../reliable-messaging/semantics.md) | Metadata on `*Item` |
 | Atomic domain + durable writes | [Transactional messaging writes](../reliable-messaging/transactional-writes.md) | `ITransactionalInbox` / `ITransactionalOutbox` |
 | Domain events to outbox | [Domain events and unit of work](../reliable-messaging/domain-events-and-unit-of-work.md) | `OutboxEnqueueMetadata` |
+| Domain event staging | [Outbox](../reliable-messaging/outbox.md#domain-event-staging) | `StageCollectedEvents()`, `IDomainEventCollector` |
+| Per-handler outbox delivery | [Outbox](../reliable-messaging/outbox.md#per-handler-delivery) | `EnablePerHandlerDelivery()` |
+| Ambient trace | [Inbox](../reliable-messaging/inbox.md#ambient-trace-opt-in), [Outbox](../reliable-messaging/outbox.md#ambient-trace-option) | `UseAmbientTrace()` |
 
 ## Storage
 
@@ -48,8 +62,11 @@ Quick map from capability to documentation and primary packages. For install com
 | PostgreSQL | `LiteBus.Inbox.Storage.PostgreSql` | `LiteBus.Outbox.Storage.PostgreSql` |
 | Entity Framework Core | `LiteBus.Inbox.Storage.EntityFrameworkCore` | `LiteBus.Outbox.Storage.EntityFrameworkCore` |
 | InMemory | `LiteBus.Inbox.Storage.InMemory` | `LiteBus.Outbox.Storage.InMemory` |
+| Marten | - | `LiteBus.Outbox.Storage.Marten` |
 
 Shared PostgreSQL primitives: `LiteBus.Storage.PostgreSql`.
+
+Command idempotency stores: `LiteBus.Commands.Storage.PostgreSql` ([PostgreSQL idempotency store](../integrations/commands-postgresql-idempotency-store.md)) and `LiteBus.Commands.Storage.Marten` ([Marten unit of work, idempotency, and audit](../integrations/commands-marten.md)).
 
 ## Dispatch
 
@@ -93,7 +110,7 @@ Transport platform: `LiteBus.Transport.*`. Kafka transport is GA; AWS SQS and Az
 
 ## Analyzers
 
-See [Analyzers](analyzers.md) for LB1001-LB1022; LB1002 and LB1006 are reserved and never shipped. Highlights:
+See [Analyzers](analyzers.md) for LB1001-LB1024; LB1002 and LB1006 are reserved and never shipped. Highlights:
 
 | Rule | Topic |
 | --- | --- |
@@ -104,6 +121,8 @@ See [Analyzers](analyzers.md) for LB1001-LB1022; LB1002 and LB1006 are reserved 
 | LB1019 | Untyped shortcut on a message that produces a result |
 | LB1020 / LB1021 | Message states no position on a required declaration; required declaration type not found |
 | LB1022 | `[HandlerPriority]` value inside the range LiteBus reserves for its own handlers |
+| LB1023 | Command handler sends or publishes another message through a mediator inside its handle method |
+| LB1024 | Command handler injects an external side-effect type through its constructor |
 
 ## Related Documentation
 

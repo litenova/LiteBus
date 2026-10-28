@@ -39,6 +39,7 @@ Applications own state POCOs and completion rules; LiteBus does not generate sta
 
 - Contract names must match `IProcessorEnvelope.ContractName` / inbox contract registry entries.
 - Unmapped contracts dispatch without saga scope.
+- Module build fails with `DurableStorageConfigurationException` when a `MapContract` definition identifier has no registered state type, naming the contract and definition.
 - State types require public parameterless constructors for activation and deserialization.
 
 ## Non-Goals
@@ -49,7 +50,7 @@ Applications own state POCOs and completion rules; LiteBus does not generate sta
 
 ## Observability
 
-None at registration time. Misconfigured mappings surface at runtime as inactive saga scope (`ISagaContext.IsActive == false`) with no dedicated diagnostic.
+None at registration time. A contract mapped to a definition with no registered state type fails module build; unmapped contracts surface at runtime as inactive saga scope (`ISagaContext.IsActive == false`) with no dedicated diagnostic.
 
 **What to use instead**
 

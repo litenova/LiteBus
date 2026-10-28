@@ -9,7 +9,7 @@
 
 `TransportInboxIngressHandler` is the broker-neutral accept path. For each delivery it validates body size and optional authorization, reads contract name and version from LiteBus transport headers, resolves the CLR type through `IContractReader`, deserializes the JSON body, maps headers to `InboxAcceptMetadata`, and calls `IInbox.AcceptAsync(InboxAcceptItem)`.
 
-Batch mode delegates to `IInbox.AcceptBatchAsync` after building an `InboxAcceptItem` per message. Header mapping failures wrap `TransportHeaderMappingException` as `InboxIngressException`.
+Batch mode delegates to `IInbox.AcceptBatchAsync` after building an `InboxAcceptItem` per message. Both the single and batch paths wrap `TransportHeaderMappingException` as `InboxIngressException`, so invalid headers report the same exception shape on either path.
 
 ## Accept Pipeline
 

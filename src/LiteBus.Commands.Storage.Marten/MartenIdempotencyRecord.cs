@@ -40,6 +40,12 @@ public sealed class MartenIdempotencyRecord
     public string? Payload { get; set; }
 
     /// <summary>
+    ///     Gets or sets the token fencing the current claim, or <see langword="null" /> for a document written before
+    ///     fencing existed, which no settle matches.
+    /// </summary>
+    public string? ClaimToken { get; set; }
+
+    /// <summary>
     ///     Gets or sets when the current claim was granted, read from the store clock.
     /// </summary>
     public DateTimeOffset ClaimedAt { get; set; }

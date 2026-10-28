@@ -34,6 +34,7 @@ The store enforces the same optimistic concurrency rules as PostgreSQL. A new ro
 - Process-local only; data is lost on restart.
 - Same composite key shape (tenant, definition, correlation) with the same whitespace-to-empty tenant normalization as the PostgreSQL store.
 - Query returns most recently updated rows first and rejects `Take` values less than 1.
+- Purge with no predicate and no `Take` throws `ArgumentException`; a set `Take` deletes at most that many of the oldest matches.
 - `CompletedBefore` compares the recorded completion update time, not the current clock at query time.
 - Cannot be combined with another storage selection in one saga composition.
 
@@ -95,6 +96,15 @@ None.
 - **Description**: Covers insert and update versions, stale and completed writes, missing and repeated completion, concurrent completion, delimiter-safe identifiers, query ordering, `Take` validation, timestamps, and `CompletedBefore` purge.
 - **Behavior**: Store APIs execute against one process-local instance with a controlled clock.
 - **Expected outcome**: Conflicts throw `SagaConcurrencyException`; query and purge return deterministic results.
+- **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
+
+#### `SagaPurgeBoundTests`
+
+- **Use case**: Purge bounds refuse unbounded deletes and delete oldest first under `Take`.
+- **Test kind**: Unit
+- **Description**: Covers empty-filter rejection, non-positive `Take` rejection, `Take`-only oldest-first delete, and predicate-only full delete.
+- **Behavior**: Purge APIs execute against one process-local instance with a controlled clock.
+- **Expected outcome**: `ArgumentException` for an empty filter, `ArgumentOutOfRangeException` for a non-positive `Take`, and exact deleted-row counts otherwise.
 - **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
 
 ### Untested Use Cases

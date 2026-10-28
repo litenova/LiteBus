@@ -251,6 +251,31 @@ const FEATURES: readonly Feature[] = [
   },
 ];
 
+/** The feature rows grouped by axis, in display order; each title names an entry in `FEATURES`. */
+const FEATURE_GROUPS: readonly Readonly<{ title: string; titles: readonly string[] }>[] = [
+  {
+    title: 'Mediation',
+    titles: [
+      'Commands and Queries',
+      'Events',
+      'Handler Pipeline',
+      'Decisions as Values',
+      'Declared Metadata',
+      'Auditing',
+      'Idempotency',
+      'Unit of Work and Domain Events',
+    ],
+  },
+  {
+    title: 'Durable Messaging',
+    titles: ['Durable Inbox', 'Transactional Outbox', 'Sagas', 'Brokers and Stores'],
+  },
+  {
+    title: 'Tooling and Operations',
+    titles: ['Compile-Time Checks', 'Operations'],
+  },
+];
+
 /**
  * Landing page for the LiteBus site: the hero with the install command, the three-step editor,
  * and the feature rows that link into the documentation.
@@ -382,18 +407,23 @@ export default async function HomePage() {
               <p className="sub">
                 Mediation in one package. Everything else is an opt-in package you add when you need it.
               </p>
-              <div className="feats">
-                {FEATURES.map((feature) => (
-                  <Link key={feature.title} className="feat" href={feature.href}>
-                    <span className="sym">{feature.symbol}</span>
-                    <b>{feature.title}</b>
-                    <span className="d">{feature.text}</span>
-                    <span className="go">
-                      {feature.link} {'->'}
-                    </span>
-                  </Link>
-                ))}
-              </div>
+              {FEATURE_GROUPS.map((group) => (
+                <div key={group.title} className="feat-group">
+                  <h3>{group.title}</h3>
+                  <div className="feats">
+                    {FEATURES.filter((feature) => group.titles.includes(feature.title)).map((feature) => (
+                      <Link key={feature.title} className="feat" href={feature.href}>
+                        <span className="sym">{feature.symbol}</span>
+                        <b>{feature.title}</b>
+                        <span className="d">{feature.text}</span>
+                        <span className="go">
+                          {feature.link} {'->'}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
 

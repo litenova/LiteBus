@@ -263,6 +263,10 @@ A shortcut that answers is a different event. A cache hit or a replayed idempote
 | The pipeline threw | `Failed` | `Failed` |
 | The caller cancelled | `Canceled` | `Canceled` |
 
+A fault an error handler recovered is still recorded as `Failed`: the outcome records that a fault occurred, while the completion context carries no exception to distinguish it from a fault that propagated to the caller.
+
+A message mediated through a base descriptor because its own runtime type was never registered is audited under that descriptor's declaration, exactly as if the type had been registered. Whether a mediation leaves a record never depends on scan coverage.
+
 An application that refuses by **throwing** rather than through a guard owns the exception type, so LiteBus cannot classify it. Register a mapper to have that exception recorded as a denial:
 
 ```csharp

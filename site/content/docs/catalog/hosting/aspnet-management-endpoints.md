@@ -36,7 +36,7 @@ Hosts that map through `IEndpointRouteBuilder` can call `AddLiteBusManagementEnd
 | `LiteBusManagementOptions.DiagnosticChecks` | Sets per-probe timeout and parallelism for the health route |
 | `LiteBusManagementOptions.DefaultDrainTimeout` | Supplies the processor drain timeout when the query omits one |
 | `LiteBusManagementOptions.MaxPageSize` | Caps one query page at 100 rows by default |
-| `LiteBusManagementOptions.MaxBulkMessageIds` | Caps one requeue or purge identifier list at 1,000 by default |
+| `LiteBusManagementOptions.MaxBulkMessageIds` | Caps one requeue, purge, or query identifier list at 1,000 by default |
 | `LiteBusManagementOptions.MaxDrainTimeout` | Caps a requested drain timeout at five minutes by default |
 
 ## Routes
@@ -95,7 +95,7 @@ Management routes do not define a separate meter. Use `LiteBus.Inbox` and `LiteB
 - Drain timeout query values must be positive; missing or non-positive values use `DefaultDrainTimeout`, and values above `MaxDrainTimeout` are rejected.
 - Drain routes enforce the `LiteBusManagementOptions` instance passed to `AddLiteBusManagementEndpoints`, not a separately registered instance.
 - Query page sizes cannot exceed `MaxPageSize`.
-- Requeue and purge identifier lists cannot exceed `MaxBulkMessageIds`.
+- Requeue, purge, and query identifier lists cannot exceed `MaxBulkMessageIds`.
 - Route prefix trimming never creates consecutive slashes.
 
 ## Non-Goals

@@ -48,7 +48,7 @@ Ingress requires the root `AmqpTransportModule` registered by `AddAmqpTransport`
 
 Publishers must send `litebus-contract-name` and `litebus-contract-version`. Ingress defaults to broker-scoped idempotency from the AMQP `message-id` (or the `litebus-message-id` header when `Safety.TrustApplicationHeaders` is `true`) so redelivery after a successful accept does not create duplicate inbox rows.
 
-Optional `litebus-idempotency-key` and `tenant-id` headers are ignored unless `AmqpInboxIngressOptions.Safety.TrustApplicationHeaders` is `true` on an authenticated broker binding. Use `Safety.AuthorizeDeliveryAsync` to enforce tenant or contract policy before accept.
+Optional `litebus-idempotency-key`, `tenant-id`, `litebus-visible-after`, and `litebus-visible-after-delay` headers are ignored unless `AmqpInboxIngressOptions.Safety.TrustApplicationHeaders` is `true` on an authenticated broker binding. Correlation headers are always honored. Use `Safety.AuthorizeDeliveryAsync` to enforce tenant or contract policy before accept.
 
 `Safety.MaxMessageBytes` caps the ingress body size (default 4 MiB). Oversize deliveries throw `InboxIngressException`, which the acknowledgement policy never requeues, so the delivery is discarded even when `RequeueOnFailure` is `true`.
 

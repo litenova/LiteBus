@@ -33,7 +33,10 @@ public sealed class MessageCompletionContext
     /// <remarks>
     ///     Present when <see cref="Outcome" /> is <see cref="MediationOutcome.Failed" /> or
     ///     <see cref="MediationOutcome.Canceled" />, and also on a <see cref="MediationOutcome.Denied" /> mediation whose
-    ///     refusal was not mapped to a value, where it is the exception the caller receives.
+    ///     refusal was not mapped to a value, where it is the exception the caller receives. A
+    ///     <see cref="MediationOutcome.Failed" /> mediation whose fault an error handler recovered carries no
+    ///     exception: the outcome records that a fault occurred, and the absence of an exception is what
+    ///     distinguishes it from a fault that propagated to the caller.
     /// </remarks>
     public Exception? Exception { get; init; }
 

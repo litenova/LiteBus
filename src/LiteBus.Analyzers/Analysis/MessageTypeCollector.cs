@@ -12,8 +12,9 @@ namespace LiteBus.Analyzers.Analysis;
 /// </summary>
 /// <remarks>
 ///     One instance serves one compilation and one <see cref="MessageKind" />. Symbol actions feed source types
-///     through <see cref="Add" /> while <see cref="ToMessageTypes" /> and <see cref="ToOpenGenericMainHandlers" />
-///     run at compilation end, where they sort the gathered source facts and append referenced assemblies.
+///     through <see cref="Add" />. <see cref="ToMessageTypes" /> returns the analyzed assembly's own messages in
+///     discovery order, while <see cref="ToOpenGenericMainHandlers" /> additionally appends referenced assemblies,
+///     whose handlers still satisfy coverage.
 /// </remarks>
 internal sealed class MessageTypeCollector
 {
@@ -28,7 +29,7 @@ internal sealed class MessageTypeCollector
     private readonly string[] _handlerMetadataNames;
 
     /// <summary>
-    ///     The message types already added, shared by the source and referenced assembly passes.
+    ///     The message types already added from source symbols.
     /// </summary>
     private readonly ConcurrentDictionary<INamedTypeSymbol, byte> _processedMessages = new(SymbolEqualityComparer.Default);
 
@@ -84,11 +85,14 @@ internal sealed class MessageTypeCollector
     }
 
     /// <summary>
-    ///     Gets all message types: gathered source facts in discovery order, then referenced assemblies.
+    ///     Gets the message types declared in the analyzed assembly, in discovery order.
     /// </summary>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>All discovered message type registrations.</returns>
-    internal ImmutableArray<MessageTypeRegistration> ToMessageTypes(CancellationToken cancellationToken = default)
+    /// <returns>The message type registrations declared in the analyzed assembly.</returns>
+    /// <remarks>
+    ///     Only types declared in the analyzed assembly are candidates. A message from a referenced assembly cannot be
+    ///     annotated from here, so reporting it would produce a diagnostic with no available fix.
+    /// </remarks>
+    internal ImmutableArray<MessageTypeRegistration> ToMessageTypes()
     {
         var compilation = _typeCache.Compilation;
         var order = CompilationEndOrdering.GetSyntaxTreeOrder(compilation);
@@ -100,22 +104,6 @@ internal sealed class MessageTypeCollector
             .ThenBy(entry => entry.Key?.SpanStart ?? int.MaxValue)
             .ThenBy(entry => LiteBusSymbols.GetMetadataName(entry.Registration.MessageType), StringComparer.Ordinal)
             .Select(entry => entry.Registration));
-
-        foreach (var reference in compilation.References)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (compilation.GetAssemblyOrModuleSymbol(reference) is not IAssemblySymbol assemblySymbol ||
-                !HandlerAnalysis.ShouldScanReferencedAssembly(assemblySymbol, compilation.Assembly))
-            {
-                continue;
-            }
-
-            foreach (var module in assemblySymbol.Modules)
-            {
-                CollectMessagesFromNamespace(module.GlobalNamespace, builder);
-            }
-        }
 
         return builder.ToImmutable();
     }
@@ -206,75 +194,6 @@ internal sealed class MessageTypeCollector
             MessageAnalysis.ImplementsAnyMainHandlerInterface(symbol, _typeCache, _handlerMetadataNames))
         {
             _sourceOpenGenericHandlers.Add(LiteBusSymbols.RetargetToCompilation(_typeCache.Compilation, symbol));
-        }
-    }
-
-    /// <summary>
-    ///     Walks a referenced assembly namespace and registers message types declared beneath it.
-    /// </summary>
-    /// <param name="namespaceSymbol">The namespace to walk.</param>
-    /// <param name="builder">The registration builder.</param>
-    private void CollectMessagesFromNamespace(INamespaceSymbol namespaceSymbol, ImmutableArray<MessageTypeRegistration>.Builder builder)
-    {
-        foreach (var member in namespaceSymbol.GetMembers())
-        {
-            if (member is INamespaceSymbol nestedNamespace)
-            {
-                CollectMessagesFromNamespace(nestedNamespace, builder);
-            }
-            else if (member is INamedTypeSymbol namedType)
-            {
-                AddReferencedMessage(namedType, builder);
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Adds a message type registration for one referenced assembly type and its nested types.
-    /// </summary>
-    /// <param name="symbol">The candidate type symbol.</param>
-    /// <param name="builder">The registration builder.</param>
-    private void AddReferencedMessage(INamedTypeSymbol symbol, ImmutableArray<MessageTypeRegistration>.Builder builder)
-    {
-        if (!_processedMessages.TryAdd(symbol, 0))
-        {
-            return;
-        }
-
-        if (!MessageAnalysis.IsAnalyzableMessageType(symbol) ||
-            !MessageAnalysis.ImplementsAnyMarkerInterface(symbol, _typeCache, _markerMetadataNames))
-        {
-            foreach (var nestedType in symbol.GetTypeMembers())
-            {
-                AddReferencedMessage(nestedType, builder);
-            }
-
-            return;
-        }
-
-        var compilation = _typeCache.Compilation;
-        symbol = LiteBusSymbols.RetargetToCompilation(compilation, symbol);
-
-        if (_kind == MessageKind.Query && MessageAnalysis.IsStreamQueryType(symbol, _typeCache))
-        {
-            foreach (var nestedType in symbol.GetTypeMembers())
-            {
-                AddReferencedMessage(nestedType, builder);
-            }
-
-            return;
-        }
-
-        var location = LiteBusSymbols.GetDiagnosticLocation(
-            compilation,
-            symbol.Locations.FirstOrDefault(locationCandidate => locationCandidate.IsInSource) ??
-            symbol.Locations.FirstOrDefault() ??
-            Location.None);
-        builder.Add(new MessageTypeRegistration(symbol, location));
-
-        foreach (var nestedType in symbol.GetTypeMembers())
-        {
-            AddReferencedMessage(nestedType, builder);
         }
     }
 

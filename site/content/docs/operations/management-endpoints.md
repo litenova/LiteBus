@@ -48,7 +48,7 @@ When `AllowAnonymousManagement` is `false` (the default) and no `AuthorizationPo
 | `DefaultDrainTimeout` | 30 seconds | Drain timeout when the request omits an override |
 | `MaxDrainTimeout` | 5 minutes | Largest drain timeout accepted from a request |
 | `MaxPageSize` | 100 | Largest message-query page accepted from a request |
-| `MaxBulkMessageIds` | 1,000 | Largest selective requeue or purge identifier set |
+| `MaxBulkMessageIds` | 1,000 | Largest selective requeue, purge, or query identifier set |
 | `RoutePrefix` | `litebus` | Route group prefix |
 
 ## Route Inventory
@@ -80,7 +80,7 @@ For field-level request and response detail, see the contributor contract in [AS
 
 | Parameter | Applies to | Notes |
 | --- | --- | --- |
-| `messageId`, `messageIds` | Both axes | Match one row or an identifier set |
+| `messageId`, `messageIds` | Both axes | Match one row or an identifier set; sets larger than `MaxBulkMessageIds` return **400** |
 | `statuses` | Both axes | Match `InboxStatus` or `OutboxStatus` values |
 | `contractName` | Both axes | Match the stable contract name |
 | `topic` | Outbox only | Match the publication topic |

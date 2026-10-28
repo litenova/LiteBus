@@ -1,3 +1,6 @@
+using System;
+using Microsoft.AspNetCore.Http;
+
 namespace LiteBus.Extensions.AspNetCore;
 
 /// <summary>
@@ -29,4 +32,28 @@ public sealed class IdempotencyKeyFilterOptions
     ///     response.
     /// </value>
     public int MaxKeyLength { get; set; } = 255;
+
+    /// <summary>
+    ///     Gets or sets the resolver that supplies the tenant the idempotency key is scoped to.
+    /// </summary>
+    /// <value>
+    ///     A function reading the tenant from the current request, or <see langword="null" /> (the default) when keys
+    ///     are not tenant-scoped. A blank or missing tenant resolves to no tenant scope, so single-tenant endpoints
+    ///     leave this unset.
+    /// </value>
+    /// <remarks>
+    ///     A multi-tenant endpoint should set this. Without a tenant scope, two tenants sending one key string for
+    ///     one command share a store row, and one tenant's repeat is answered with the other's stored result whenever
+    ///     the fingerprints match or either side carries none. The resolved tenant travels with the key into the
+    ///     mediation and prefixes the stored key.
+    /// </remarks>
+    /// <example>
+    ///     <code><![CDATA[
+    /// group.WithIdempotencyKey(options =>
+    /// {
+    ///     options.TenantResolver = context => context.User.FindFirst("tenant_id")?.Value;
+    /// });
+    /// ]]></code>
+    /// </example>
+    public Func<HttpContext, string?>? TenantResolver { get; set; }
 }

@@ -113,14 +113,18 @@ public sealed class PostgreSqlWorkSignal : IAsyncDisposable, IDisposable
 
         if (listenerLoopTask is not null)
         {
+#pragma warning disable CA1031 // Disposal must not fail: the listener loop can fault with a BCL transport exception racing shutdown.
             try
             {
                 await listenerLoopTask.ConfigureAwait(false);
             }
-            catch (OperationCanceledException)
+            catch (Exception)
             {
-                // Expected when the listener loop is cancelled during disposal.
+                // The listener loop's last-resort catch is filtered on cancellation, so an exception raised after
+                // cancellation was requested faults the task instead of looping. Disposal still has to close the
+                // listener connection and wake waiters, so the fault is swallowed here.
             }
+#pragma warning restore CA1031
         }
 
         listenerLoopCts?.Dispose();

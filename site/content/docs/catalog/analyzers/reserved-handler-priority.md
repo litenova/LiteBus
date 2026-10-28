@@ -9,7 +9,7 @@
 
 ## Trigger Conditions
 
-`LB1022` reports when a class carries `[HandlerPriority(int)]` with a value greater than or equal to `HandlerPriorities.ReservedFloor` (`1_000_000`) and less than `HandlerPriorities.ReservedCeiling` (`2_000_000`).
+`LB1022` reports when a handler type carries `[HandlerPriority(int)]` with a value greater than or equal to `HandlerPriorities.ReservedFloor` (`1_000_000`) and less than `HandlerPriorities.ReservedCeiling` (`2_000_000`). A class that implements no handler interface is skipped even when it carries the attribute, because the attribute is inert there.
 
 The floor itself is reported because it is the first reserved value; the ceiling itself is clean because it is the first value above the window.
 
@@ -87,3 +87,4 @@ Source: `tests/LiteBus.Analyzers.UnitTests/ReservedHandlerPriorityAnalyzerTests.
 | `PriorityAtTheReservedCeiling_ProducesNoDiagnostic` | `HandlerPriorities.UnitOfWork` is valid |
 | `PriorityInsideTheReservedRange_ProducesDiagnostic` | `HandlerPriorities.Persistence` reports `LB1022` |
 | `PriorityOnTheReservedFloor_ProducesDiagnostic` | `HandlerPriorities.ReservedFloor` reports `LB1022` |
+| `ReservedPriorityOnNonHandler_ProducesNoDiagnostic` | Reserved value on a non-handler type is skipped |

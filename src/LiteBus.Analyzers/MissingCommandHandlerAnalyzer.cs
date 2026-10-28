@@ -72,6 +72,11 @@ public sealed class MissingCommandHandlerAnalyzer : DiagnosticAnalyzer
     /// <param name="context">The compilation analysis context.</param>
     /// <param name="handlers">The handler registration collector.</param>
     /// <param name="commands">The command type collector.</param>
+    /// <remarks>
+    ///     Only commands declared in the analyzed assembly are candidates, while handlers from eligible referenced
+    ///     assemblies still satisfy coverage. A handler that lives in a dependent project is compiled separately and
+    ///     stays invisible here; co-locate the handler with the command or suppress the diagnostic.
+    /// </remarks>
     private static void AnalyzeCompilationEnd(
         CompilationAnalysisContext context,
         HandlerRegistrationCollector handlers,
@@ -83,7 +88,7 @@ public sealed class MissingCommandHandlerAnalyzer : DiagnosticAnalyzer
 
         var openGenericHandlers = commands.ToOpenGenericMainHandlers(context.CancellationToken);
 
-        foreach (var command in commands.ToMessageTypes(context.CancellationToken))
+        foreach (var command in commands.ToMessageTypes())
         {
             if (MessageAnalysis.HasMainHandler(
                     command.MessageType,

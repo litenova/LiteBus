@@ -20,12 +20,13 @@ public static class AutofacDiagnosticHostingExtensions
     ///     Thrown when <paramref name="builder" /> or <paramref name="diagnosticChecks" /> is <see langword="null" />.
     /// </exception>
     /// <exception cref="ModuleCompositionException">
-    ///     Thrown when one implementation type is listed under two probe names.
+    ///     Thrown when one implementation type is listed under two probe names, or when two implementation types share
+    ///     one probe name.
     /// </exception>
     /// <remarks>
-    ///     The module configuration manifest already refuses one implementation type under two names, so when this
-    ///     method is called from <c>AddLiteBus</c> with the manifest descriptors the conflict branch below is
-    ///     unreachable. The local tracking guards direct calls with a hand-built descriptor list.
+    ///     The module configuration manifest already refuses both conflict directions, so when this method is called
+    ///     from <c>AddLiteBus</c> with the manifest descriptors the conflict branches below are unreachable. The local
+    ///     tracking guards direct calls with a hand-built descriptor list.
     /// </remarks>
     public static void RegisterDiagnosticChecks(
         this ContainerBuilder builder,
@@ -35,6 +36,7 @@ public static class AutofacDiagnosticHostingExtensions
         ArgumentNullException.ThrowIfNull(diagnosticChecks);
 
         var registeredNamesByType = new Dictionary<Type, string>();
+        var registeredTypesByName = new Dictionary<string, Type>(StringComparer.Ordinal);
 
         foreach (var descriptor in diagnosticChecks)
         {
@@ -50,7 +52,16 @@ public static class AutofacDiagnosticHostingExtensions
                 continue;
             }
 
+            if (registeredTypesByName.TryGetValue(descriptor.Name, out var registeredType))
+            {
+                throw new ModuleCompositionException(
+                    $"Diagnostic check name '{descriptor.Name}' is already registered by type " +
+                    $"'{registeredType.FullName ?? registeredType.Name}' and cannot also be registered by type " +
+                    $"'{descriptor.ImplementationType.FullName ?? descriptor.ImplementationType.Name}'.");
+            }
+
             registeredNamesByType.Add(descriptor.ImplementationType, descriptor.Name);
+            registeredTypesByName.Add(descriptor.Name, descriptor.ImplementationType);
 
             builder.RegisterType(descriptor.ImplementationType)
                 .AsSelf()

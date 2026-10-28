@@ -4,7 +4,7 @@ LiteBus mediation runs in the calling process and persists nothing by itself. Du
 
 > **This page is for** anyone relying on LiteBus durability in production: a developer choosing stores and transports, or an operator reading dashboards and runbooks.
 >
-> **After reading it** you know which guarantees need explicit registration, where concurrency is capped at one, and which upgrade needs a deploy-window note. For the inbox contract in full, go on to the [Inbox](../reliable-messaging/inbox.md).
+> **After reading it** you know which guarantees need explicit registration, where concurrency is capped at one, and where duplicate delivery needs handler-side idempotency. For the inbox contract in full, go on to the [Inbox](../reliable-messaging/inbox.md).
 
 ## Mediation Alone Persists Nothing
 
@@ -42,11 +42,33 @@ Keep host and database clocks synchronized, and keep retry delays larger than th
 
 Match runbooks and queries on the prefix, not on an exact owner name.
 
-## Upgrading Across the AMQP Ingress Key Change
+## AMQP Ingress Keys Are Queue-Scoped
 
-Broker ingress deduplicates redeliveries with a broker-scoped key of the form `ingress:{destination}:{brokerMessageId}`. For AMQP, the destination changed from the exchange to the queue, so two queues bound to one exchange no longer share a key. See [Inbox](../reliable-messaging/inbox.md).
+Broker ingress deduplicates redeliveries with a broker-scoped key of the form `ingress:{destination}:{brokerMessageId}`. For AMQP, the destination is the queue, so two queues bound to one exchange hold separate keys. See [Inbox](../reliable-messaging/inbox.md).
 
-During the upgrade window, a delivery accepted under the exchange-scoped key and redelivered after the new mapping creates a second row, and both rows execute. Roll out when redelivery is unlikely, and keep handlers idempotent across the window.
+A redelivery that arrives under a different key than its accepted row creates a second row, and both rows execute. Keep handlers idempotent so a duplicate redelivery is harmless.
+
+## Idempotency Claims Are Separate From the Change
+
+The shipped idempotency stores claim the key on their own connection or session, not inside the handler's transaction. A crash between the claim commit and the handler commit leaves the key claimed for work that never happened, and only a mediation that ends inside the process settles its claim. See [In-Process Idempotency](../concepts/idempotency.md).
+
+An unsettled claim blocks its key until the store's claim timeout passes, five minutes by default, after which a new caller takes the claim over. Keep the timeout longer than the slowest mediation that claims through the store, so a live claimant always settles first. Nothing expires an applied key; purge rows whose repeats stopped being plausible.
+
+## Per-Handler Delivery Trades Rows for Isolated Retry
+
+Under `EnablePerHandlerDelivery`, one enqueue writes one envelope per subscribed handler instead of one envelope per event. A handler added after enqueue never receives those events, because its envelope was never written, and a handler removed before dispatch leaves envelopes with no matching subscriber. Use it only with in-process dispatch: broker dispatchers publish the full event per envelope, so per-handler envelopes would duplicate broker publication. Composition throws `DurableStorageConfigurationException` when per-handler delivery meets a transport dispatcher unless `AllowPerHandlerDeliveryWithTransportDispatch` acknowledges the duplication. See [Outbox](../reliable-messaging/outbox.md#per-handler-delivery).
+
+## The Unit of Work Commits Only Success
+
+`IUnitOfWork.CommitAsync` runs once per mediation that ended `Succeeded`, and never for a denial, a validation failure, a shortcut answer, a fault, or a cancellation. A shortcut answer reports success without committing, because the main handler never ran and staged nothing. LiteBus never opens or owns the transaction; the application opens it and the commit flushes it. A commit that throws fails the mediation with that exception. See [Domain Events and Unit of Work](../reliable-messaging/domain-events-and-unit-of-work.md#command-pipeline-boundary).
+
+## Recurring Single-Flight Has No Standing Leader
+
+Under `RequireLease`, every pass races for the named lease and the winner varies from pass to pass. A holder whose process dies stops renewing, so its pass blocks the loop until `LeaseDuration` lapses; size the duration from how quickly a replacement pass must run after a crash. See [Recurring Commands](../integrations/recurring-commands.md#running-on-several-replicas).
+
+## In-Memory Stores Are Per-Process Doubles
+
+`InMemoryIdempotencyStore` and the in-memory inbox and outbox stores forget everything on restart and share nothing across processes, so two replicas behind a load balancer both apply the same message. Use the PostgreSQL or Marten adapters when an idempotency claim must hold across processes, and the PostgreSQL or Entity Framework Core adapters when durable envelopes must survive a restart. See [In-Process Idempotency](../concepts/idempotency.md).
 
 ## No Trimming or NativeAOT Guarantee
 
@@ -58,3 +80,4 @@ When trimming matters, register handlers explicitly with `Register<T>` or `Regis
 
 - Read the [Inbox](../reliable-messaging/inbox.md) and [Outbox](../reliable-messaging/outbox.md) contracts for the full accept and enqueue paths.
 - Read the [Saga](../reliable-messaging/saga.md) contract for correlation and duplicate suppression.
+- Read [In-Process Idempotency](../concepts/idempotency.md) for claim outcomes and store contracts.

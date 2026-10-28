@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -26,7 +27,7 @@ internal sealed class ExecutionContext : IExecutionContext
 
         CancellationToken = cancellationToken;
         Tags = tags.ToList();
-        Items = new Dictionary<string, object>(items);
+        Items = new ConcurrentDictionary<string, object>(items);
         Data = new HandleContextData();
         HandledAt = timeProvider.GetUtcNow();
     }

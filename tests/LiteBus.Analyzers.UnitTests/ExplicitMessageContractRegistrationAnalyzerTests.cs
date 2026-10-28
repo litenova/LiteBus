@@ -43,19 +43,42 @@ public sealed class ExplicitMessageContractRegistrationAnalyzerTests
 
                               public static class ModuleConfiguration
                               {
-                                  public static void Configure(ContractsRegistry contracts)
+                                  public static void Configure(MessageContractBuilder contracts)
                                   {
                                       contracts.Register<ProcessPaymentCommand>("payments.process-payment", 1);
                                   }
                               }
+                              """;
 
-                              public sealed class ContractsRegistry
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<ExplicitMessageContractRegistrationAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies that a <c>Register</c> extension on <c>IContractWriter</c> satisfies the explicit registration rule.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task AttributedMessageRegisteredThroughWriterExtension_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+
+                              [MessageContract("payments.process-payment", 1)]
+                              public sealed record ProcessPaymentCommand(int PaymentId) : ICommand;
+
+                              public static class ModuleConfiguration
                               {
-                                  public void Register<T>(string name, int version)
+                                  public static void Configure(IContractWriter contracts)
                                   {
+                                      contracts.Register<ProcessPaymentCommand>();
                                   }
+                              }
 
-                                  public void RegisterFromAssembly(System.Reflection.Assembly assembly)
+                              public static class ContractWriterExtensions
+                              {
+                                  public static void Register<TMessage>(this IContractWriter writer)
+                                      where TMessage : notnull
                                   {
                                   }
                               }

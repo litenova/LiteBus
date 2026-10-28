@@ -38,10 +38,11 @@ Typical deployment: application enqueues domain events via `IOutbox`; processor 
 
 ### Configuration
 
-- **`OutboxProcessorOptions`**: Same lease/retry/concurrency shape as inbox; **`HookFailurePolicy`** defaults differ by dispatcher kind.
-- **Transport dispatchers**: Default `HookFailurePolicy = CompleteDespiteHookFailure`.
-- **In-process dispatch**: Default `HookFailurePolicy = DeadLetter`.
+- **`OutboxProcessorOptions`**: Same lease/retry/concurrency shape as inbox; **`HookFailurePolicy`** is `null` by default, which means the dispatcher recommendation (`IOutboxDispatcherModule.DefaultHookFailurePolicy`), and an explicit value wins.
+- **Transport dispatchers**: Recommend `HookFailurePolicy = CompleteDespiteHookFailure`, because the broker send already succeeded.
+- **In-process dispatch**: Inherits the `DeadLetter` default.
 - **`ValidatePayloadBeforeDispatch`**: When enabled on transport options, dispatcher deserializes before broker publish.
+- **`InProcessOutboxDispatchOptions.RequireHandler`** (default `true`, set through `UseInProcessDispatch(dispatch => ...)`): A dispatched message with no handler fails the attempt, retries, and dead-letters; `false` marks the message published without any handler having run.
 
 Set `Retry.IsPermanentFailure` to dead-letter application failures that can never succeed on retry; see [Permanent Failures](lease-retry-dead-letter.md#permanent-failures).
 
@@ -68,8 +69,8 @@ Set `Retry.IsPermanentFailure` to dead-letter application failures that can neve
 ## Invariants
 
 - Publication is at-least-once; crash after broker ack may republish on retry
-- Transport dispatchers default `HookFailurePolicy = CompleteDespiteHookFailure`
-- In-process dispatch defaults `HookFailurePolicy = DeadLetter`
+- An unset `HookFailurePolicy` resolves to the dispatcher recommendation: transport dispatchers report `CompleteDespiteHookFailure`, in-process dispatch inherits `DeadLetter`
+- In-process dispatch requires a handler by default (`RequireHandler = true`); a message with no handler fails the attempt instead of marking published
 - `ValidatePayloadBeforeDispatch` on transport options controls pre-dispatch deserialization
 - Batch enqueue uses parallel serialization in envelope factory (writer concern, not processor)
 
@@ -277,13 +278,31 @@ Outbox processor instrumentation uses meter `LiteBus.Outbox` (`LiteBusOutboxTele
 - **Expected outcome**: `litebus.outbox.processor.loop_errors` incremented
 - **Remarks**: `LiteBus.Outbox.UnitTests`
 
+#### `InProcessOutboxDispatchRequireHandlerTests.A_message_with_no_handler_is_not_marked_published`
+
+- **Use case**: When in-process dispatch finds no handler, the attempt fails instead of marking published
+- **Test kind**: Unit
+- **Description**: Default `RequireHandler = true` with no registered handler
+- **Behavior**: `ProcessPendingAsync` on a handlerless envelope
+- **Expected outcome**: Failed status with retry; never silently published
+- **Remarks**: `LiteBus.Outbox.UnitTests` (`Dispatch/InProcess/`)
+
+#### `InProcessOutboxDispatchRequireHandlerTests.Turning_RequireHandler_off_restores_the_silent_no_op`
+
+- **Use case**: When `RequireHandler` is disabled, a handlerless dispatch completes
+- **Test kind**: Unit
+- **Description**: `UseInProcessDispatch(dispatch => dispatch.RequireHandler = false)`
+- **Behavior**: `ProcessPendingAsync` on a handlerless envelope
+- **Expected outcome**: Published status without any handler having run
+- **Remarks**: `LiteBus.Outbox.UnitTests` (`Dispatch/InProcess/`)
+
 ### Untested Use Cases
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| Two-phase broker ack before terminal persist | No | Not shipped |: |: |
-| Cross-broker fan-out from one envelope | Yes | Single dispatcher only; fan-out is app logic |: |: |
-| Synchronous enqueue-and-publish API | No | Separate writer and processor |: |: |
+| Two-phase broker ack before terminal persist | No | Not supported | N/A | N/A |
+| Cross-broker fan-out from one envelope | Yes | Single dispatcher only; fan-out is app logic | N/A | N/A |
+| Synchronous enqueue-and-publish API | No | Separate writer and processor | N/A | N/A |
 
 ### Out-of-Scope Use Cases
 

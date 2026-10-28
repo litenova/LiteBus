@@ -12,7 +12,8 @@ namespace LiteBus.Mediator.UnitTests.UseCases.Commands;
 
 /// <summary>
 ///     Covers the recurring command loop: that it sends, that it keeps sending after a failure, that a result
-///     reporting more work skips the interval, and that it composes through the command module builder.
+///     reporting more work skips the interval, that post-start option mutation does not change pacing, and that it
+///     composes through the command module builder.
 /// </summary>
 public sealed class RecurringCommandHostTests
 {
@@ -177,6 +178,32 @@ public sealed class RecurringCommandHostTests
         });
 
         act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public async Task Mutating_options_after_start_does_not_change_loop_pacing()
+    {
+        var log = new SendLog();
+        await using var serviceProvider = BuildProvider(log, host => host.Interval = TimeSpan.FromMilliseconds(50));
+        var declaration = serviceProvider.GetRequiredService<RecurringCommandDeclaration<DrainCommand>>();
+
+        var service = ResolveLoop<DrainCommand>(serviceProvider);
+        using var cancellation = new CancellationTokenSource();
+
+        var run = service.ExecuteAsync(cancellation.Token);
+        await log.WaitForSendsAsync(2).ConfigureAwait(false);
+
+        declaration.HostOptions.Interval = TimeSpan.Zero;
+        declaration.HostOptions.ErrorBackoff = TimeSpan.Zero;
+
+        var sendsAtMutation = log.Count;
+        await Task.Delay(TimeSpan.FromMilliseconds(300)).ConfigureAwait(false);
+
+        await cancellation.CancelAsync().ConfigureAwait(false);
+        await run.ConfigureAwait(false);
+
+        // Still paced at 50 ms: a handful of passes, not an unthrottled flood.
+        (log.Count - sendsAtMutation).Should().BeLessThan(20);
     }
 
     private static ServiceProvider BuildProvider(SendLog log, Action<RecurringCommandHostOptions> configure)

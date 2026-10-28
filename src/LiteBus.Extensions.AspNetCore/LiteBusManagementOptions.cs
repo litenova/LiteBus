@@ -70,7 +70,7 @@ public sealed class LiteBusManagementOptions
     public int MaxPageSize { get; set; } = 100;
 
     /// <summary>
-    ///     Gets or sets the maximum number of message identifiers accepted by one bulk request.
+    ///     Gets or sets the maximum number of message identifiers accepted by one bulk request or message query filter.
     /// </summary>
     /// <value>The default is 1,000.</value>
     public int MaxBulkMessageIds { get; set; } = 1000;

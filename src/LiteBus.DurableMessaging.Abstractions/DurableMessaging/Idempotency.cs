@@ -93,8 +93,23 @@ public abstract record Idempotency
                 + "the call happens outside the command's mediation.");
         }
 
-        var key = suffix is null ? claimed.Value : $"{claimed.Value}:{suffix}";
+        var key = suffix is null ? claimed.Value : $"{claimed.Value}:{EscapeSuffix(suffix)}";
 
         return new Keyed(key, conflictMode);
+    }
+
+    /// <summary>
+    ///     Escapes a suffix so the composed durable key cannot collide with a different key and suffix pair.
+    /// </summary>
+    /// <param name="suffix">The suffix to escape.</param>
+    /// <returns>The suffix with backslashes doubled and separators escaped.</returns>
+    /// <remarks>
+    ///     The composed key stays readable: a suffix without a backslash or a separator passes through unchanged. The
+    ///     escaping follows the same backslash scheme the command key resolver uses, so the last raw separator always
+    ///     marks the boundary between the claimed key and the suffix.
+    /// </remarks>
+    private static string EscapeSuffix(string suffix)
+    {
+        return suffix.Replace("\\", "\\\\").Replace(":", "\\:");
     }
 }

@@ -71,8 +71,8 @@ public interface IOutbox
     /// <param name="items">The enqueue commands carrying heterogeneous runtime types and durable metadata.</param>
     /// <param name="cancellationToken">A token used to cancel serialization or the store write.</param>
     /// <returns>
-    ///     Receipts containing message ids, contract references, storage times, and trace metadata in the same order as
-    ///     <paramref name="items" />.
+    ///     One receipt per item, or one receipt per envelope flattened in item order, then handler-name order within
+    ///     each item, when per-handler delivery is enabled.
     /// </returns>
     Task<IReadOnlyList<OutboxReceipt>> EnqueueBatchAsync(
         IReadOnlyList<OutboxEnqueueItem> items,

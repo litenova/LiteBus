@@ -7,7 +7,7 @@
 
 ## What It Does
 
-`AddRecurring` declares a child module of `CommandModule` that registers a `RecurringCommandBackgroundService<TCommand>` through the host manifest. Each pass opens its own dispatch scope, resolves `ICommandMediator`, and sends one command produced by the registered factory. A pass that throws is logged and the loop continues after `ErrorBackoff`, except a pass the `IsConcurrencyConflict` predicate classifies as an optimistic-concurrency conflict, which is logged at Information (EventId 2104) and waits `Interval`; an exception never escapes the loop. A result implementing `IRecurringWorkReport` with `HasMoreWork` set skips the interval so the next pass starts immediately. With `RequireLease`, each pass first acquires the named `IRecurringCommandLease`; a pass that cannot acquire it is skipped at Debug (EventId 2105), and one acquired lease covers the whole busy period.
+`AddRecurring` declares a child module of `CommandModule` that registers a `RecurringCommandBackgroundService<TCommand>` through the host manifest. Each pass opens its own dispatch scope, resolves `ICommandMediator`, and sends one command produced by the registered factory. A pass that throws is logged and the loop continues after `ErrorBackoff`, except a pass the `IsConcurrencyConflict` predicate classifies as an optimistic-concurrency conflict, which is logged at Information (EventId 2104) and waits `Interval`; an exception never escapes the loop. A result implementing `IRecurringWorkReport` with `HasMoreWork` set skips the interval so the next pass starts immediately. With `RequireLease`, each pass first acquires the named `IRecurringCommandLease`; a pass that cannot acquire it is skipped at Debug (EventId 2105), and one acquired lease covers the whole busy period. When the held lease is lost mid-pass, the loop ends the busy period, releases the handle, and waits `ErrorBackoff`; the in-flight send is cancelled through a token linked to the loss signal.
 
 ## Public Surface
 
@@ -19,9 +19,10 @@
 | `CommandModuleBuilder.AddRecurring<TCommand>(Action<RecurringCommandHostOptions>?)` | Declares a loop for a command with a parameterless constructor |
 | `IRecurringWorkReport.HasMoreWork` | Optional result contract that skips the interval when work remains |
 | `RecurringCommandHostOptions` | `Enabled`, `Interval`, `StartupDelay`, `ErrorBackoff`, `IsConcurrencyConflict` (default `IsConcurrencyConflictByTypeName`; `null` treats conflicts as failures), `RequireLease`, `LeaseName` (default command type full name) |
-| `IRecurringCommandLease.TryAcquireAsync` | Named single-flight acquisition returning a releasing handle, or `null` when held |
+| `IRecurringCommandLease.TryAcquireAsync` | Named single-flight acquisition returning a releasing handle that signals loss, or `null` when held |
+| `IRecurringCommandLeaseHandle.LeaseLost` | Token cancelled when the held lease is taken by another holder or renewals fail |
 | `CommandModuleBuilder.UsePostgreSqlRecurringLease` | Registers the renewable PostgreSQL lease-row single-flight from `LiteBus.Commands.Recurring.Storage.PostgreSql` |
-| `PostgreSqlRecurringLeaseOptions` | Leases table schema and name, `LeaseDuration` (default 30 seconds), `RenewInterval` (default one third of the duration) |
+| `PostgreSqlRecurringLeaseOptions` | Leases table schema and name, `LeaseDuration` (default 30 seconds), `RenewInterval` (default null, meaning one third of the duration; an explicit value must stay below the duration) |
 | `RecurringCommandDeclaration<TCommand>` | The registered factory and options, resolved by the loop |
 
 ### Registration
@@ -33,7 +34,7 @@
 
 ### Configuration
 
-- Timing values are validated when the module builds, so a zero or negative interval or error backoff fails at boot.
+- Timing values are validated when the module builds, so a zero or negative interval or error backoff fails at boot. The loop snapshots the validated values when it starts, so post-start option mutation does not change the pacing of a running loop.
 - `Enabled = false` logs once and never sends.
 - `IsConcurrencyConflict` defaults to `IsConcurrencyConflictByTypeName`, which matches a type name ending in `ConcurrencyException` in the inner or aggregate chain.
 - `RequireLease = true` makes each pass acquire the named lease first; a pass that cannot acquire it is skipped at Debug and the loop waits `Interval`.
@@ -57,6 +58,7 @@
 - A pass failure never ends the loop.
 - Cancellation of the host token ends the loop without waiting out the interval.
 - By default the loop runs on every host instance; with `RequireLease` each pass runs on at most one instance and one lease covers the busy period.
+- A lost lease ends the busy period: the loop releases the handle, waits `ErrorBackoff`, and cancels the in-flight send through a linked token.
 
 ## Non-Goals
 
@@ -73,6 +75,7 @@
 | `2103` `PassFailed` | Error | A send threw; the loop continues after `ErrorBackoff` |
 | `2104` `PassConflicted` | Information | A send lost a concurrency race; the loop continues at `Interval` |
 | `2105` `LeaseSkipped` | Debug | The lease was held elsewhere, so the pass was skipped; the loop continues at `Interval` |
+| `2106` `LeaseLost` | Warning | The held lease was taken or renewals failed, so the busy period ends and the loop backs off |
 | `2110` `LeaseRenewalStolen` | Warning | The lease was taken by another holder, so renewal stopped and the row was left alone |
 | `2111` `LeaseRenewalFailed` | Warning | A lease renewal failed, so renewal stopped and the lease expires on the database clock |
 
@@ -99,6 +102,10 @@
 | `RecurringCommandLeaseTests.Lease_is_released_even_when_the_send_throws` | `LiteBus.Mediator.UnitTests` |
 | `RecurringCommandLeaseTests.Lease_release_failure_does_not_end_the_loop` | `LiteBus.Mediator.UnitTests` |
 | `RecurringCommandLeaseTests.One_lease_covers_the_busy_period` | `LiteBus.Mediator.UnitTests` |
+| `RecurringCommandLeaseTests.Lease_loss_stops_the_busy_period_releases_and_backs_off` | `LiteBus.Mediator.UnitTests` |
+| `RecurringCommandLeaseTests.Lease_loss_cancels_the_in_flight_send` | `LiteBus.Mediator.UnitTests` |
+| `RecurringCommandLeaseTests.Shutdown_with_a_held_lease_and_failing_release_completes_cleanly` | `LiteBus.Mediator.UnitTests` |
+| `RecurringCommandHostTests.Mutating_options_after_start_does_not_change_loop_pacing` | `LiteBus.Mediator.UnitTests` |
 | `RecurringCommandLeaseTests.Composition_fails_when_require_lease_has_no_lease` | `LiteBus.Mediator.UnitTests` |
 | `RecurringCommandLeaseTests.Lease_name_defaults_to_the_command_type_full_name` | `LiteBus.Mediator.UnitTests` |
 | `RecurringCommandLeaseTests.Custom_lease_name_is_used_when_configured` | `LiteBus.Mediator.UnitTests` |
@@ -106,6 +113,11 @@
 | `PostgreSqlRecurringCommandLeaseTests.TryAcquireAsync_WhenNamesDiffer_ShouldGrantBoth` | `LiteBus.Storage.IntegrationTests` |
 | `PostgreSqlRecurringCommandLeaseTests.TryAcquireAsync_WhenTwoHoldersRace_ShouldGrantExactlyOne` | `LiteBus.Storage.IntegrationTests` |
 | `PostgreSqlRecurringCommandLeaseTests.TryAcquireAsync_AfterExpiryWithoutRenewal_ShouldGrantLeaseToAnotherHolder` | `LiteBus.Storage.IntegrationTests` |
+| `PostgreSqlRecurringCommandLeaseTests.TryAcquireAsync_WhenSameHolderReacquires_ShouldReturnNull` | `LiteBus.Storage.IntegrationTests` |
+| `PostgreSqlRecurringCommandLeaseTests.LeaseOptions_WhenRenewIntervalIsNotBelowDuration_ShouldThrow` | `LiteBus.Storage.IntegrationTests` |
+| `PostgreSqlRecurringCommandLeaseTests.SchemaInitializer_ShouldResolveTheDataSourceOwnerSoShutdownDisposesIt` | `LiteBus.Storage.IntegrationTests` |
+| `PostgreSqlRecurringCommandLeaseTests.LeaseLost_AfterLeaseIsStolen_ShouldCancel` | `LiteBus.Storage.IntegrationTests` |
+| `PostgreSqlRecurringCommandLeaseTests.LeaseLost_WhenRenewalFails_ShouldCancel` | `LiteBus.Storage.IntegrationTests` |
 | `PostgreSqlRecurringCommandLeaseTests.TryAcquireAsync_WithRenewal_ShouldStayHeldPastOriginalExpiry` | `LiteBus.Storage.IntegrationTests` |
 | `PostgreSqlRecurringCommandLeaseTests.Renewal_AfterLeaseIsStolen_ShouldStopAndWarnOnce` | `LiteBus.Storage.IntegrationTests` |
 | `PostgreSqlRecurringCommandLeaseTests.Renewal_WhenTableIsDropped_ShouldStopWithoutResurrectingTheRow` | `LiteBus.Storage.IntegrationTests` |

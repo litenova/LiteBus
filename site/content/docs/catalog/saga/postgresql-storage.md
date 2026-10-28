@@ -41,6 +41,7 @@ Schema version **1** defines the current saga table, including the applied-messa
 - Save and complete operations update `last_applied_message_id` with the inbox message identifier when the hook supplies one.
 - `tenant_id` participates in the primary key. A missing or whitespace tenant identifier is stored as an empty string.
 - An omitted `TenantId` query or purge predicate includes every tenant. An explicit whitespace predicate selects unscoped rows.
+- Purge with no predicate and no `Take` throws `ArgumentException`; a set `Take` deletes at most that many of the oldest matches.
 - The saga schema is separate from inbox message rows; saga persistence and the inbox terminal update do not share a transaction.
 
 ## Non-Goals
@@ -174,6 +175,33 @@ The PostgreSQL saga store does not emit dedicated meters.
 - **Description**: Starts two `CompleteAsync` operations against version 1 of one PostgreSQL row.
 - **Behavior**: The update predicate checks version and completion state atomically.
 - **Expected outcome**: One call succeeds, one throws `SagaConcurrencyException`, and the stored row reaches completed version 2.
+- **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
+
+#### `PostgreSqlSagaPurgeBoundTests.PurgeAsync_WithEmptyFilter_ThrowsArgumentException`
+
+- **Use case**: An unscoped, unbounded purge is refused instead of deleting every saga row.
+- **Test kind**: Integration
+- **Description**: `PurgeAsync` with a default filter against PostgreSQL.
+- **Behavior**: The store rejects a filter with no predicates and no `Take`.
+- **Expected outcome**: `ArgumentException`.
+- **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
+
+#### `PostgreSqlSagaPurgeBoundTests.PurgeAsync_WithNonPositiveTake_ThrowsArgumentOutOfRange`
+
+- **Use case**: A zero or negative `Take` limit is rejected before any delete.
+- **Test kind**: Integration
+- **Description**: `PurgeAsync` with `Take` 0 and -1 against PostgreSQL.
+- **Behavior**: The store validates the limit before building the delete.
+- **Expected outcome**: `ArgumentOutOfRangeException` for both values.
+- **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
+
+#### `PostgreSqlSagaPurgeBoundTests.PurgeAsync_WithTake_DeletesOldestMatchesFirst`
+
+- **Use case**: A `Take`-only purge removes at most `Take` rows, oldest first.
+- **Test kind**: Integration
+- **Description**: Twelve rows with deterministic timestamps, then a `Take` 10 purge.
+- **Behavior**: The store orders matches by update time ascending and deletes the first ten.
+- **Expected outcome**: Ten rows removed; the two newest rows remain.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
 
 ### Untested Use Cases

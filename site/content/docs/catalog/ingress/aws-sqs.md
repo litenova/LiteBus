@@ -9,7 +9,7 @@
 
 `UseAwsSqsIngress` registers `AwsSqsInboxIngressModule`. The module maps the queue URL, `ReceiveBatchSize`, requeue policy, and shared safety record into transport ingress options. A root `AwsSqsTransportModule` supplies the SQS client.
 
-SQS visibility timeout and delete-on-ack semantics are implemented in the transport consumer; ingress applies shared accept-then-ack ordering on top.
+SQS visibility timeout and delete-on-ack semantics are implemented in the transport consumer; ingress applies shared accept-then-ack ordering on top. The enforced `Safety.MaxInFlightMessages` bound is 1.
 
 ## Beta Rationale
 
@@ -112,7 +112,7 @@ SQS ingress uses shared mapper defaults:
 | Setting | Default | Result |
 | --- | --- | --- |
 | `RequireStableIdentity` | true | Missing broker id fails closed |
-| `Safety.TrustApplicationHeaders` | false | App idempotency and tenant headers are ignored |
+| `Safety.TrustApplicationHeaders` | false | App idempotency, tenant, and visibility headers are ignored |
 | Broker-scoped idempotency key | `ingress:{destination}:{brokerMessageId}` | Duplicate SQS deliveries map to same inbox dedup key when id is stable |
 
 ## Test Coverage

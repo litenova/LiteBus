@@ -13,6 +13,7 @@
 - `Items` string-keyed data
 - `Data` type-keyed store (`IHandleContextData`)
 - `Tags`
+- `HandledAt`, read once from the messaging `TimeProvider` when the mediation starts
 - `MessageResult`
 - `SuppressPostHandlers()`
 
@@ -39,6 +40,8 @@ public sealed class ContextAwarePreHandler : ICommandPreHandler<CreateOrderComma
 | `IExecutionContext.Data` | Type-keyed store for handing a resolved object from one stage to a later one |
 | `IExecutionContext.Tags` | Effective routing tags |
 | `IExecutionContext.CancellationToken` | Effective cancellation token |
+| `IExecutionContext.HandledAt` | The instant the mediation started; one clock reading shared by every stage |
+| `MessageModuleBuilder.UseTimeProvider(TimeProvider)` | Pins the clock `HandledAt` is read from, for tests |
 | `IExecutionContext.MessageResult` | Result override written by a post-handler |
 | `IExecutionContext.SuppressPostHandlers()` | Skips the post-handlers that have not run yet |
 | `Verdict` | Refuses a message from a guard, with a reason and an optional code |
@@ -63,9 +66,11 @@ public sealed class ContextAwarePreHandler : ICommandPreHandler<CreateOrderComma
 ## Invariants
 
 - Context is scoped to one mediation call.
+- `HandledAt` is read once when the context is created, so every stage of one mediation observes the same instant and advancing the clock mid-mediation does not move it; a nested mediation creates its own context and reads its own instant.
 - `Current` throws `NoExecutionContextException` when accessed outside scope, and so does resolving `IExecutionContext` from the container outside a mediation.
 - The dispatch scope is a child of the root provider, not of the ambient request scope, so an application's scoped services in a handler are per mediation and are not the request's instances.
 - `Data` holds one value per type in its unkeyed slot; a keyed entry and the unkeyed entry of the same type are separate slots and neither clears the other.
+- `Items` and the audit scope state are safe for concurrent use by parallel event handlers; two handlers racing to set one key leave whichever landed last, and parallel audit writes share one scope state.
 - A shortcut that stops a result-returning command or query supplies the result through its answer, not through the context; a refusal supplies none, and the value a refused caller receives comes from a registered refusal mapper.
 - `MessageResult` write in void command flow is ignored by strategy return path.
 
@@ -94,6 +99,9 @@ Operational alternatives:
 | `mediating_event_with_items_in_settings_propagates_context_correctly` | `LiteBus.Mediator.UnitTests` |
 | `Send_TwoCommandsSequentially_OverrideDoesNotLeakBetweenCalls` | `LiteBus.Mediator.UnitTests` |
 | `Send_Command_ShouldRetainAmbientScopeUntilHandlerContinuationCompletes` | `LiteBus.Mediator.UnitTests` |
+| `HandledAt_is_read_once_when_the_mediation_starts` | `LiteBus.Mediator.UnitTests` |
+| `Nested_mediation_reads_its_own_instant` | `LiteBus.Mediator.UnitTests` |
+| `Each_mediation_reads_a_fresh_instant` | `LiteBus.Mediator.UnitTests` |
 
 ### Untested
 

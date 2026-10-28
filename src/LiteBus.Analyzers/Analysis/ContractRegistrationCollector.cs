@@ -34,11 +34,6 @@ internal sealed class ContractRegistrationCollector
     private readonly INamedTypeSymbol? _contractBuilder;
 
     /// <summary>
-    ///     The <c>MessageModuleBuilder</c> symbol, when the compilation references it.
-    /// </summary>
-    private readonly INamedTypeSymbol? _messageModuleBuilder;
-
-    /// <summary>
     ///     The <c>CommandModuleBuilder</c> symbol, when the compilation references it.
     /// </summary>
     private readonly INamedTypeSymbol? _commandModuleBuilder;
@@ -72,7 +67,6 @@ internal sealed class ContractRegistrationCollector
         _contractWriter = compilation.GetTypeByMetadataName("LiteBus.Messaging.Abstractions.IContractWriter");
         _contractRegistry = compilation.GetTypeByMetadataName("LiteBus.Messaging.Abstractions.IMessageContractRegistry");
         _contractBuilder = compilation.GetTypeByMetadataName("LiteBus.Messaging.Abstractions.MessageContractBuilder");
-        _messageModuleBuilder = compilation.GetTypeByMetadataName("LiteBus.Messaging.MessageModuleBuilder");
         _commandModuleBuilder = compilation.GetTypeByMetadataName("LiteBus.Commands.CommandModuleBuilder");
         _eventModuleBuilder = compilation.GetTypeByMetadataName("LiteBus.Events.EventModuleBuilder");
         _queryModuleBuilder = compilation.GetTypeByMetadataName("LiteBus.Queries.QueryModuleBuilder");
@@ -158,9 +152,9 @@ internal sealed class ContractRegistrationCollector
     /// <param name="invocation">The invocation node.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <remarks>
-    ///     <c>Register</c> on a contract writer surface counts, as does <c>Register</c> on any other scan-capable
-    ///     surface. <c>Register</c> on the message, command, event, and query module builders only records handler
-    ///     and message types and never satisfies durable contract registration.
+    ///     Only <c>Register</c> on a contract writer surface counts. <c>Register</c> on any other type, including the
+    ///     message, command, event, and query module builders, only records handler and message types and never
+    ///     satisfies durable contract registration.
     /// </remarks>
     private void AddRegisteredType(SemanticModel semanticModel, InvocationExpressionSyntax invocation, CancellationToken cancellationToken)
     {
@@ -370,10 +364,9 @@ internal sealed class ContractRegistrationCollector
     /// <param name="method">The invoked method symbol.</param>
     /// <returns><see langword="true" /> when the method registers a contract.</returns>
     /// <remarks>
-    ///     <c>Register</c> on a contract writer surface always counts. <c>Register</c> on any other type counts
-    ///     when that type also offers an assembly scan, which distinguishes contract registries from unrelated
-    ///     <c>Register</c> methods. The message, command, event, and query module builders are excluded: their
-    ///     <c>Register</c> only records handler and message types.
+    ///     <c>Register</c> on a contract writer surface always counts, including extension methods whose receiver is
+    ///     a writer surface. <c>Register</c> on any other type never counts, even when that type also offers an
+    ///     assembly scan: a same-shaped handler registry or test double records something else.
     /// </remarks>
     private bool IsContractRegisterMethod(IMethodSymbol method)
     {
@@ -392,15 +385,7 @@ internal sealed class ContractRegistrationCollector
             return true;
         }
 
-        if (MatchesTypeDefinition(method.ContainingType, _messageModuleBuilder) ||
-            MatchesTypeDefinition(method.ContainingType, _commandModuleBuilder) ||
-            MatchesTypeDefinition(method.ContainingType, _eventModuleBuilder) ||
-            MatchesTypeDefinition(method.ContainingType, _queryModuleBuilder))
-        {
-            return false;
-        }
-
-        return HasAssemblyScanMember(method.ContainingType);
+        return IsContractWriterExtension(method);
     }
 
     /// <summary>
@@ -423,14 +408,25 @@ internal sealed class ContractRegistrationCollector
     }
 
     /// <summary>
-    ///     Determines whether the type offers an assembly scan member.
+    ///     Determines whether the method is an extension method whose receiver is a durable contract writer surface.
     /// </summary>
-    /// <param name="containingType">The invoked method containing type.</param>
-    /// <returns><see langword="true" /> when the type declares or inherits a scan member.</returns>
-    private static bool HasAssemblyScanMember(INamedTypeSymbol containingType)
+    /// <param name="method">The invoked method symbol.</param>
+    /// <returns><see langword="true" /> when the extension receiver is a contract writer surface.</returns>
+    /// <remarks>
+    ///     <see cref="IMethodSymbol.ReducedFrom" /> carries the original signature including the <c>this</c>
+    ///     parameter, while the reduced symbol drops it, so the original is preferred the same way module builder
+    ///     detection prefers it.
+    /// </remarks>
+    private bool IsContractWriterExtension(IMethodSymbol method)
     {
-        return !containingType.GetMembers("RegisterFromAssembly").IsEmpty ||
-               !containingType.GetMembers("AddFromAssembly").IsEmpty;
+        var declaredMethod = method.ReducedFrom ?? method;
+
+        if (declaredMethod is not { IsExtensionMethod: true, Parameters.Length: > 0 })
+        {
+            return false;
+        }
+
+        return declaredMethod.Parameters[0].Type is INamedTypeSymbol receiver && IsContractWriterType(receiver);
     }
 
     /// <summary>

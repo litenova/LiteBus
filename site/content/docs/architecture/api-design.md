@@ -30,6 +30,14 @@ This page defines the current LiteBus public API model: named types, CLR shapes,
 - **Durable writers** use `*Item` plus `*Metadata`. Scheduling and visibility belong on metadata (`MessageVisibility`), not separate scheduler interfaces.
 - **Framework bindings** use `*Binding` for ASP.NET management and similar adapter input. Bindings map once at the adapter edge; they are not writer `*Item` types.
 
+### Transport Naming Notes
+
+Three transport types keep names outside the suffix rows their shapes map to. Each is the neutral contract every adapter implements for its operation, so the names stay fixed across adapters.
+
+- `TransportPublishRequest` carries a required `Body` plus delivery metadata (`Destination`, `Route`, headers, persistence, and identity fields), which is the `*Item` shape of one atomic command: payload plus per-operation metadata.
+- `AmqpPublishRequest` carries a required `Body` plus AMQP delivery metadata (`Exchange`, `RoutingKey`, headers, persistence, and identity fields), which is the same `*Item` shape on the AMQP-native publish contract.
+- `TransportConsumerOptions` carries one subscription's destination, prefetch, batching, and declaration settings with no message body, which is the `*Request` shape of operation input without a domain payload body. It is passed per `StartAsync` call rather than registered once at composition time.
+
 ## CLR Kind Selection
 
 Public types use a consistent CLR kind per role.

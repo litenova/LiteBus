@@ -12,7 +12,9 @@ When a type like `OpenGenericPreHandler<TCommand> : ICommandPreHandler<TCommand>
 
 Closed descriptors are inserted into normal handler collections and participate in priority, filtering, and pipeline semantics like non-generic handlers.
 
-One parameter binds the message type. Two are closed when the handler implements a typed contract over both in order (for example `ICommandPostHandler<TCommand, TCommandResult>`); any other arity throws `UnsupportedOpenGenericHandlerException`, and analyzer rule `LB1005` covers the same shape at compile time.
+One parameter binds the message type. Two are closed when the handler implements a typed contract over both in order (for example `ICommandPostHandler<TCommand, TCommandResult>`), with the second binding the result type the message declares through `IProducesResult<TMessageResult>`; a message declaring no result is skipped the way a constraint mismatch is. Any other arity throws `UnsupportedOpenGenericHandlerException`, and analyzer rule `LB1005` covers the same shape at compile time.
+
+One open generic registration runs once per mediated message, whatever the registration order. An open generic closed over a base interface applies indirectly to every message beneath it, so `Guard<T> where T : ICommand` can close both as `Guard<ICommand>` and as `Guard<PlaceOrder>`; when both closures of one generic handler definition reach a message through the same contract, the direct closure wins and the indirect one is dropped for that message. A different handler type that names the base interface is a separate registration and still runs, and a class that implements both the base and the concrete contract runs twice for that message, once per contract; the composition summary reports every such handler type on `LiteBusCompositionSummary.DuplicateStageCoverages`, and `Explain` marks each step with `IsClosedOpenGeneric`.
 
 `MessageModuleBuilder.RequireExplicitOpenGenerics()` makes scan-found open generics fail composition until each one is named with `Register(typeof(X<>))`. It is opt-in because scans have picked up open generics since v4; `LiteBusCompositionSummary` reports the closures either way.
 
@@ -37,6 +39,8 @@ builder.Register(typeof(CommandLoggingPreHandler<>));
 | `RegisterFromAssembly(Assembly)` | Auto-discovers open generic handlers |
 | `MessageModuleBuilder.RequireExplicitOpenGenerics()` | Fails composition on unnamed scan-found open generics |
 | `LiteBusCompositionSummary.OpenGenericHandlers` | Open generic closures per composition, for visibility either way |
+| `LiteBusCompositionSummary.DuplicateStageCoverages` | Handler types covering one message's stage twice, once directly and once through a base type |
+| `IProducesResult<TMessageResult>` | Marker stating a message's result type so an arity-2 handler can bind its second parameter |
 | `UnsupportedOpenGenericHandlerException` | Runtime guard for unsupported open generic shape |
 | Analyzer `LB1005` | Compile-time warning for unsupported open generic shape |
 
@@ -58,6 +62,7 @@ builder.Register(typeof(CommandLoggingPreHandler<>));
 - Generic constraints are enforced before closing.
 - Registration order does not matter; handlers close for prior and future message registrations.
 - Closed handlers receive the same routing and priority behavior as explicit handlers.
+- When both closures of one generic handler definition reach a message through the same contract, the direct closure wins and the indirect one is dropped for that message, so one registration runs once per mediated message.
 
 ## Non-Goals
 
@@ -85,6 +90,10 @@ Available signals:
 | `Send_OpenGenericRegisteredBeforeCommand_ShouldStillApply` | `LiteBus.Mediator.UnitTests` |
 | `Send_OpenGenericRegisteredAfterCommand_ShouldStillApply` | `LiteBus.Mediator.UnitTests` |
 | `RegisterFromAssembly_DiscoversOpenGenericHandlers_WithoutExplicitRegistration` | `LiteBus.Mediator.UnitTests` |
+| `An_open_generic_guard_closed_over_the_base_interface_before_the_command_runs_once` | `LiteBus.Mediator.UnitTests` |
+| `A_class_implementing_the_base_and_the_concrete_guard_is_reported_and_runs_twice` | `LiteBus.Mediator.UnitTests` |
+| `Open_generic_post_error_and_completion_handlers_run_once_beside_closed_base_handlers` | `LiteBus.Mediator.UnitTests` |
+| `Single_run_shapes_are_not_reported` | `LiteBus.Mediator.UnitTests` |
 
 ### Untested
 

@@ -9,7 +9,7 @@
 
 `ISagaStore` is the durable boundary for saga. `LoadAsync` returns null when no row exists (new saga starts with default state in the hook). `SaveAsync` persists state JSON with expected version for optimistic locking. `CompleteAsync` marks an instance completed without creating phantom rows when version matches; when `Complete()` is the first saga interaction, the hook saves the initial snapshot through `SaveAsync` first and then completes the new row.
 
-Operational APIs `QueryAsync` and `PurgeAsync` accept `SagaQueryFilter` and `SagaPurgeFilter` for retention jobs and support tooling. Value objects `SagaSaveItem<TState>`, `SagaCompleteItem`, `SagaInstance<TState>`, and `SagaInstanceSummary` model store inputs and query results.
+Operational APIs `QueryAsync` and `PurgeAsync` accept `SagaQueryFilter` and `SagaPurgeFilter` for retention jobs and support tooling. `SagaPurgeFilter.Take` bounds a purge to at most that many of the oldest matching rows; a purge with no predicate and no `Take` throws `ArgumentException`, and a zero or negative `Take` throws `ArgumentOutOfRangeException`. Value objects `SagaSaveItem<TState>`, `SagaCompleteItem`, `SagaInstance<TState>`, and `SagaInstanceSummary` model store inputs and query results.
 
 Custom stores implement `ISagaStore` and expose an `ISagaStorageModule` selected explicitly through `SagaModuleBuilder.RegisterStorage`.
 
@@ -37,6 +37,7 @@ Custom stores implement `ISagaStore` and expose an `ISagaStorageModule` selected
 - Save and complete throw `SagaConcurrencyException` when stored version does not match expected version.
 - Load of completed instance returns `IsCompleted` true; the hook leaves the scope inactive so the handler still runs but cannot mutate saga state.
 - Query default `Take` is 100 rows.
+- A save without an applied message id keeps the existing duplicate-dispatch marker instead of erasing it.
 
 ## Non-Goals
 
@@ -99,6 +100,42 @@ The saga store does not emit dedicated OpenTelemetry instruments.
 - **Behavior**: `CompletedBefore` implies completed state and uses the row's last update timestamp.
 - **Expected outcome**: Each call returns the exact deleted-row count, and active state remains loadable.
 - **Remarks**: `tests/LiteBus.Storage.IntegrationTests/PostgreSql/`.
+
+#### `SagaPurgeBoundTests.PurgeAsync_WithEmptyFilter_ThrowsArgumentException`
+
+- **Use case**: An unscoped, unbounded purge is refused instead of deleting every saga row.
+- **Test kind**: Unit
+- **Description**: `PurgeAsync` with a default filter against the in-memory store.
+- **Behavior**: The store rejects a filter with no predicates and no `Take`.
+- **Expected outcome**: `ArgumentException`.
+- **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
+
+#### `SagaPurgeBoundTests.PurgeAsync_WithNonPositiveTake_ThrowsArgumentOutOfRange`
+
+- **Use case**: A zero or negative `Take` limit is rejected before any delete.
+- **Test kind**: Unit
+- **Description**: `PurgeAsync` with `Take` 0 and -1 against the in-memory store.
+- **Behavior**: The store validates the limit before building the delete.
+- **Expected outcome**: `ArgumentOutOfRangeException` for both values.
+- **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
+
+#### `SagaPurgeBoundTests.PurgeAsync_WithTake_DeletesOldestMatchesFirst`
+
+- **Use case**: A `Take`-only purge removes at most `Take` rows, oldest first.
+- **Test kind**: Unit
+- **Description**: Fifteen rows with deterministic timestamps, then a `Take` 10 purge.
+- **Behavior**: The store orders matches by update time ascending and deletes the first ten.
+- **Expected outcome**: Ten rows removed; the five newest rows remain.
+- **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
+
+#### `SagaPurgeBoundTests.PurgeAsync_WithCompletedBeforeAndNoTake_DeletesEveryMatch`
+
+- **Use case**: A predicate-only purge still deletes every match.
+- **Test kind**: Unit
+- **Description**: Three old completed rows, one recent completed row, and one active row.
+- **Behavior**: `CompletedBefore` without `Take` selects all matching rows.
+- **Expected outcome**: Three rows removed; the recent completed and active rows remain.
+- **Remarks**: `tests/LiteBus.Storage.UnitTests/Saga/`.
 
 #### `PostgreSqlSagaOrchestrationDepthTests.ProcessPendingAsync_two_workflow_steps_should_advance_single_saga_instance`
 

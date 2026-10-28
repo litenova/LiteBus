@@ -53,6 +53,8 @@ builder.AddInbox(inbox =>
 
 When a destination reaches capacity, `PublishAsync` waits asynchronously until a delivery settles or the caller cancels. The transport does not drop old or new writes. `AcceptAsync` and `DiscardAsync` release the delivery's capacity reservation; `ReturnToQueueAsync` re-enqueues with `Redelivered = true` and retains the reservation, so a waiting publisher cannot take the only slot and deadlock redelivery.
 
+A handler that returns successfully without settling is treated as unprocessed: the delivery is returned to the destination with `Redelivered = true` instead of being dropped, so always settle with `AcceptAsync`, `DiscardAsync`, or `ReturnToQueueAsync` before returning.
+
 ## Guarantees and Non-Guarantees
 
 | Guaranteed | Not guaranteed |

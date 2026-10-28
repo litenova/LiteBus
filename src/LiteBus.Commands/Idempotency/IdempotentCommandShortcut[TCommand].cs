@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Concurrent;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Idempotency;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Commands.Idempotency;
 
@@ -28,7 +31,8 @@ namespace LiteBus.Commands.Idempotency;
 ///     </para>
 ///     <para>
 ///         A granted key is recorded in the execution-context data as a <see cref="ClaimedIdempotencyKey" />, so the
-///         completion handler settles exactly the claim this mediation holds and never one another delivery holds.
+///         completion handler settles exactly the claim this mediation holds and never one another delivery holds. The
+///         record carries the token fencing the grant, which the store matches before it settles.
 ///     </para>
 ///     <para>
 ///         The registry does not close this shortcut for a command that produces a result, since an untyped shortcut
@@ -42,6 +46,11 @@ internal sealed class IdempotentCommandShortcut<TCommand> : ICommandShortcut<TCo
     ///     Resolves the scoped key from the command's declaration.
     /// </summary>
     private readonly IdempotencyKeyResolver _keys;
+
+    /// <summary>
+    ///     Caches, per runtime command type, whether the command declares a result through <see cref="ICommand{TCommandResult}" />.
+    /// </summary>
+    private static readonly ConcurrentDictionary<Type, bool> DeclaresResultByType = new();
 
     /// <summary>
     ///     Remembers which keys have been applied.
@@ -67,6 +76,13 @@ internal sealed class IdempotentCommandShortcut<TCommand> : ICommandShortcut<TCo
     {
         ArgumentNullException.ThrowIfNull(message);
 
+        // A command that declares a result belongs to the typed shortcut, which can replay that result. This closure can reach
+        // one through a base type, and claiming here would make the typed shortcut see its own key as in flight.
+        if (DeclaresResultByType.GetOrAdd(message.GetType(), DeclaresResult))
+        {
+            return Shortcut.None;
+        }
+
         var resolved = _keys.Resolve(message);
 
         if (resolved is null)
@@ -80,7 +96,20 @@ internal sealed class IdempotentCommandShortcut<TCommand> : ICommandShortcut<TCo
 
         if (claim.Outcome == IdempotencyClaimOutcome.Granted)
         {
-            AmbientExecutionContext.GetCurrentOrDefault()?.Data.Set(new ClaimedIdempotencyKey(resolved.Value.Key));
+            var claimToken = claim.ClaimToken;
+
+            if (string.IsNullOrWhiteSpace(claimToken))
+            {
+                throw new PipelineContractException(
+                    $"'{typeof(TCommand).Name}' was granted its idempotency key, but the store "
+                    + $"'{StoreTypeName}' returned no claim token. A granted claim must carry the token "
+                    + "CompleteAsync and ReleaseAsync match before they settle.");
+            }
+
+            AmbientExecutionContext.GetCurrentOrDefault()?.Data.Set(new ClaimedIdempotencyKey(
+                resolved.Value.Key,
+                claimToken,
+                resolved.Value.Declaration.ReplayResult));
             return Shortcut.None;
         }
 
@@ -103,6 +132,24 @@ internal sealed class IdempotentCommandShortcut<TCommand> : ICommandShortcut<TCo
                 IdempotencyRefusalCodes.FingerprintMismatch);
         }
 
-        return Shortcut.None;
+        throw new PipelineContractException(
+            $"'{typeof(TCommand).Name}' claimed its idempotency key, but the store '{StoreTypeName}' answered with "
+            + $"an unrecognized outcome '{claim.Outcome}' ({(int) claim.Outcome}). A store must answer Granted, "
+            + "AlreadyCompleted, InFlight, or FingerprintMismatch.");
     }
+
+    /// <summary>
+    ///     Determines whether a command type declares a result.
+    /// </summary>
+    /// <param name="commandType">The runtime command type.</param>
+    /// <returns><see langword="true" /> when the type implements <see cref="ICommand{TCommandResult}" />.</returns>
+    private static bool DeclaresResult(Type commandType)
+    {
+        return commandType.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(ICommand<>));
+    }
+
+    /// <summary>
+    ///     Gets the store type name reported when the store breaks its half of the claim contract.
+    /// </summary>
+    private string StoreTypeName => _store.GetType().FullName ?? _store.GetType().Name;
 }

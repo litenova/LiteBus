@@ -167,10 +167,10 @@ public async Task ProductsController_Create_ShouldReturnCreatedResult()
 | Double | Records | Returns |
 | --- | --- | --- |
 | `TestCommandMediator` | `Commands` for `SendAsync` and `TrySendAsync`; `Evaluated` for `EvaluateAsync` | `default(TCommandResult)` for result sends; `MediationResult.Succeeded()` for `TrySendAsync`; `MediationDecision.Allowed` for `EvaluateAsync` |
-| `TestQueryMediator` | `Queries` for `QueryAsync`, `StreamAsync`, and `TryQueryAsync`; `Evaluated` for `EvaluateAsync` | `NextResult` cast to the query result type |
+| `TestQueryMediator` | `Queries` for `QueryAsync`, `StreamAsync`, and `TryQueryAsync`; `Evaluated` for `EvaluateAsync` | `NextResult` cast to the query result type, consumed once per call; a stub of the wrong type throws `InvalidCastException` |
 | `TestEventMediator` | `Events` for both `PublishAsync` overloads | Nothing to return |
 
-Each double has a `Clear` method that empties its recordings. Use them when the test asserts that a message was sent, not what the pipeline did with it:
+Each double has a `Clear` method that empties its recordings. All doubles are thread-safe and their recording properties return snapshots, so concurrent sends are all recorded and a held reference never observes later messages. `NextResult` is single-use: each query, stream, or tried query consumes it, so stub it before every call. Use them when the test asserts that a message was sent, not what the pipeline did with it:
 
 ```csharp
 var commands = new TestCommandMediator();
@@ -330,7 +330,7 @@ Testing support is split so a mediator test does not pull in durable storage or 
 | `LiteBus.Testing` | `ManualTimeProvider`, `LiteBusTestBase` |
 | `LiteBus.Testing.Mediation` | `TestCommandMediator`, `TestQueryMediator`, `TestEventMediator` |
 | `LiteBus.Testing.Transport` | `TestMessageTransport` |
-| `LiteBus.Testing.DurableMessaging` | `TestInboxStore`, `TestOutboxStore`, `InboxOutboxTestHost`, store-role and processor-pass helpers, test transactional outbox, `ScriptedOutboxDispatcher`, `StoreSchemaContract` |
+| `LiteBus.Testing.DurableMessaging` | `TestInboxStore`, `TestOutboxStore`, `InboxOutboxTestHost`, store-role and processor-pass helpers, test transactional inbox and outbox, `ScriptedOutboxDispatcher`, `StoreSchemaContract` |
 | `LiteBus.Testing.Hosting` | Generic Host start, stop, manifest, and background-service helpers |
 
 The durable-messaging package can bind every inbox or outbox store role to one shared instance:
@@ -368,7 +368,7 @@ await ProcessorPassHelpers.RunInboxPassAsync(host.Services, CancellationToken.No
 
 ### Store Doubles and Lease Chaos
 
-`TestInboxStore` and `TestOutboxStore` implement the writer, processing, and operations roles on one process-local instance backed by the in-memory store. Each one exposes `Get(messageId)` to read a stored envelope and `Clear` to empty the store between tests:
+`TestInboxStore` and `TestOutboxStore` implement the writer, processing, and operations roles on one process-local instance backed by the in-memory store. Each one exposes `Get(messageId)` to read a stored envelope and `Clear` to empty the store between tests. Both doubles accept optional store options and a `TimeProvider` through their constructors, and both carry the transactional writer marker so the test transactional helpers can bind them:
 
 ```csharp
 var store = new TestInboxStore(timeProvider: timeProvider);
@@ -452,11 +452,11 @@ StoreSchemaContract.AssertCompatible(
     new StoreSchemaExpectation { Component = "outbox", ExpectedVersion = 1, RecordedVersion = 1 });
 ```
 
-Three limits apply. The in-memory transactional outbox writes immediately because there is no transaction to enlist in, so it proves enqueue and processor behavior, not rollback. A drain stops when a pass leases nothing, so rows hidden behind a retry backoff need a manual clock advance plus another drain; a drain that still leases after `maxPasses` throws `InvalidOperationException`. The schema assertion checks component, version, and pinned schema and table names only, because `StoreSchemaInfo` exposes no column list. Inbox twins exist: `DrainInboxAsync` and the `IInboxDiagnosticsStore` overload of `AssertCompatibleAsync`.
+Three limits apply. The in-memory transactional outbox writes immediately because there is no transaction to enlist in, so it proves enqueue and processor behavior, not rollback. A drain stops when a pass leases nothing, so rows hidden behind a retry backoff need a manual clock advance plus another drain; a drain that still leases after `maxPasses` throws `InvalidOperationException`. The schema assertion checks component, version, and pinned schema and table names only, because `StoreSchemaInfo` exposes no column list. Inbox twins exist: `DrainInboxAsync`, the `IInboxDiagnosticsStore` overload of `AssertCompatibleAsync`, and `AddTestTransactionalInbox`, which binds one shared `TestInboxStore` to every inbox role plus an in-memory `ITransactionalInbox`.
 
 ### Transport Publisher Double
 
-`TestMessageTransport`, from `LiteBus.Testing.Transport`, implements `ITransportPublisher` only. It records every publication in `Published`, throws a one-shot `NextPublishException` on the next publish, and throws `InvalidOperationException` from every publish while `IsDisconnected` is true. `Clear` empties the recordings and resets the failure state:
+`TestMessageTransport`, from `LiteBus.Testing.Transport`, implements `ITransportPublisher` only. It records every publication in `Published`, throws a one-shot `NextPublishException` on the next publish (consumed atomically, so exactly one concurrent publish observes it), and throws `InvalidOperationException` from every publish while `IsDisconnected` is true. `Clear` empties the recordings and resets the failure state:
 
 ```csharp
 var transport = new TestMessageTransport

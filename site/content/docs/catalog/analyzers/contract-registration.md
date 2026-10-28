@@ -25,7 +25,9 @@ Reports for attributed durable message types when all of the following are true:
 - Type is durable (`ICommand`, `ICommand<TResult>`, or `IEvent`).
 - Type is not explicitly registered by `Register` or assembly scanning (`RegisterFromAssembly` or `AddFromAssembly`).
 
-Only contract surfaces satisfy either rule: `Register` on the message, command, event, or query axis builders records message and handler types and does not count, and `RegisterFromAssembly` counts everywhere except on the command, event, and query axis builders. Assembly scans count when the argument is `typeof(T)`, `typeof(T).Assembly`, a local initialized to either form, or `Assembly.GetExecutingAssembly()` / `Assembly.GetCallingAssembly()`; any other shape does not count.
+Only contract surfaces satisfy either rule: `Register` on the message, command, event, or query axis builders records message and handler types and does not count, and `RegisterFromAssembly` counts everywhere except on the command, event, and query axis builders. A `Register` extension method whose receiver is a contract writer surface counts as well. Assembly scans count when the argument is `typeof(T)`, `typeof(T).Assembly`, a local initialized to either form, or `Assembly.GetExecutingAssembly()` / `Assembly.GetCallingAssembly()`; any other shape does not count.
+
+Both rules analyze one compilation: only handlers and attributed types declared in the analyzed assembly are candidates, and only registrations invoked in the analyzed compilation satisfy them. A registration that lives in a dependent project stays invisible; co-locate it with the handler or attributed type, or suppress the diagnostic. A partial type with two declarations reports once, at its first location. See [Analyzers](../../reference/analyzers.md).
 
 ## Bad Example
 
@@ -78,7 +80,7 @@ This avoids both warnings:
 
 ## Test Coverage
 
-Source: `tests/LiteBus.Analyzers.UnitTests/MissingMessageContractRegistrationAnalyzerTests.cs`, `tests/LiteBus.Analyzers.UnitTests/ExplicitMessageContractRegistrationAnalyzerTests.cs`
+Source: `tests/LiteBus.Analyzers.UnitTests/MissingMessageContractRegistrationAnalyzerTests.cs`, `tests/LiteBus.Analyzers.UnitTests/ExplicitMessageContractRegistrationAnalyzerTests.cs`, `tests/LiteBus.Analyzers.UnitTests/ExplicitMessageContractRegistrationAnalyzerRegressionTests.cs`, `tests/LiteBus.Analyzers.UnitTests/ContractRegistrationCompilationEndTests.cs`
 
 | Test method | Verifies |
 | --- | --- |
@@ -92,8 +94,13 @@ Source: `tests/LiteBus.Analyzers.UnitTests/MissingMessageContractRegistrationAna
 | `HandledMessageCoveredByExecutingAssemblyScan_ProducesNoDiagnostic` | `Assembly.GetExecutingAssembly()` scan satisfies `LB1007` |
 | `HandledMessageCoveredByLocalAssemblyVariable_ProducesNoDiagnostic` | Scan through a `typeof(T).Assembly` local satisfies `LB1007` |
 | `QueryHandler_ProducesNoDiagnostic` | Query handlers are excluded from `LB1007` |
+| `HandledMessageRegisteredOnlyThroughScanShapedRegistry_ProducesDiagnostic` | Same-shaped `Register` with a scan does not satisfy `LB1007` |
 | `AttributedMessageWithoutExplicitRegistration_ProducesDiagnostic` | Attributed durable type without registration reports `LB1017` |
 | `AttributedMessageWithExplicitRegister_ProducesNoDiagnostic` | Explicit `Register<T>` satisfies `LB1017` |
+| `AttributedMessageRegisteredThroughWriterExtension_ProducesNoDiagnostic` | `Register` extension on `IContractWriter` satisfies `LB1017` |
 | `AttributedMessageCoveredByRegisterFromAssembly_ProducesNoDiagnostic` | `RegisterFromAssembly` satisfies `LB1017` |
 | `AttributedMessageCoveredByExecutingAssemblyScan_ProducesNoDiagnostic` | `Assembly.GetExecutingAssembly()` scan satisfies `LB1017` |
 | `AttributedMessageCoveredByLocalAssemblyVariable_ProducesNoDiagnostic` | Scan through a `typeof(T).Assembly` local satisfies `LB1017` |
+| `AttributedMessageRegisteredOnlyThroughScanShapedRegistry_ProducesDiagnostic` | Same-shaped `Register` with a scan does not satisfy `LB1017` |
+| `PartialAttributedMessageAcrossTwoFiles_ReportsOnceAtFirstDeclaration` | Partial attributed type reports once at its first declaration |
+| `HandlerInReferencedAssemblyWithoutRegistration_ProducesNoDiagnostic` | Referenced assembly handler without registration is not reported |

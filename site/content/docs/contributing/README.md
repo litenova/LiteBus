@@ -50,7 +50,7 @@ Public types and members in test helpers, shared fixtures, and sample entry poin
 
 ## Changelog
 
-Update `Changelog.md` in the version's cumulative `## v7.0.0` section as work lands when your change alters public API or documented behavior. Docs-only changes that alter no behavior need no changelog entry. Cutting a preview after the first adds a `## v7.0.0-preview.N` delta section holding only what changed since the previous preview, in the same commit as the version bump.
+Update `Changelog.md` in the version's cumulative section as work lands when your change alters public API or documented behavior. Docs-only changes that alter no behavior need no changelog entry.
 
 ## Pull Request Expectations
 

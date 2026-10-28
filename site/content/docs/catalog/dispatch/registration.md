@@ -9,7 +9,7 @@
 
 Dispatch adapters register as child modules of `InboxModule` or `OutboxModule`. `InboxModuleBuilder.RegisterDispatcher` and `OutboxModuleBuilder.RegisterDispatcher` accept an `IInboxDispatcherModule` or `IOutboxDispatcherModule` implementation. Each broker-specific `Use*Dispatch` extension constructs the matching dispatcher module, which requires a transport registered once at the root.
 
-Calling more than one dispatcher registration method on the same builder throws `LiteBusConfigurationException` at compose time. Module graph validation ensures required parents and transports exist before any dispatcher module builds.
+Calling more than one dispatcher registration method on the same builder throws `DurableStorageConfigurationException` at compose time. Module graph validation ensures required parents and transports exist before any dispatcher module builds.
 
 ## Packages
 
@@ -67,7 +67,7 @@ services.AddLiteBus(litebus =>
 | Returns | `InboxModuleBuilder` for chaining |
 | Role | Low-level registration; stores the dispatcher child module for `InboxModule.Build()` |
 
-Throws `LiteBusConfigurationException` when a second dispatcher module is registered on the same builder.
+Throws `DurableStorageConfigurationException` when a second dispatcher module is registered on the same builder.
 
 ### `OutboxModuleBuilder.RegisterDispatcher(IOutboxDispatcherModule)`
 
@@ -85,13 +85,14 @@ Throws `LiteBusConfigurationException` when a second dispatcher module is regist
 | Registers | `CommandInboxDispatchModule` to `CommandInboxDispatcher` as `IInboxDispatcher` |
 | Requires | `AddCommands` and contract registration for handled command types |
 
-### `OutboxModuleBuilder.UseInProcessDispatch()`
+### `OutboxModuleBuilder.UseInProcessDispatch(Action<InProcessOutboxDispatchOptionsBuilder>? configure = null)`
 
 | | |
 | --- | --- |
 | Package | `LiteBus.Outbox.Dispatch.InProcess` |
 | Registers | `EventOutboxDispatchModule` to `EventOutboxDispatcher` as `IOutboxDispatcher` |
 | Requires | `AddEvents` and contract registration for published event types |
+| Options | `RequireHandler` (default `true`): fail the attempt when no handler is registered |
 
 ### Broker `Use*Dispatch` Extensions (Inbox and Outbox)
 

@@ -55,8 +55,8 @@ public sealed class CommandKeyIdempotencyTests : LiteBusTestBase
 
         await mediator.SendAsync(new CommandKeyProbeCommand { PaymentId = "p-1" }).ConfigureAwait(false);
 
-        capture.Plain.Should().Be(new DurableIdempotency.Keyed("CommandKeyProbeCommand:p-1"));
-        capture.Suffixed.Should().Be(new DurableIdempotency.Keyed("CommandKeyProbeCommand:p-1:paid"));
+        capture.Plain.Should().Be(new DurableIdempotency.Keyed($"{typeof(CommandKeyProbeCommand).FullName}:p-1"));
+        capture.Suffixed.Should().Be(new DurableIdempotency.Keyed($"{typeof(CommandKeyProbeCommand).FullName}:p-1:paid"));
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public sealed class CommandKeyIdempotencyTests : LiteBusTestBase
         await mediator.SendAsync(new CommandKeyProbeCommand { PaymentId = "p-1" }).ConfigureAwait(false);
 
         capture.Strict.Should().Be(new DurableIdempotency.Keyed(
-            "CommandKeyProbeCommand:p-1:paid",
+            $"{typeof(CommandKeyProbeCommand).FullName}:p-1:paid",
             IdempotencyConflictMode.Strict));
     }
 

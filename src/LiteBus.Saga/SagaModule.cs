@@ -53,6 +53,8 @@ public sealed class SagaModule : ICompositeModule
                 "SagaModule.Build was called without a prior DeclareChildren call. Register the module through IModuleRegistry.");
         }
 
+        _builder.ValidateContractMappings();
+
         var registry = _builder.CollectRegistry();
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(

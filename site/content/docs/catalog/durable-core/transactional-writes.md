@@ -75,7 +75,7 @@ Transactional writers insert envelope rows inside a transaction the application 
 
 - Joining broker ingress to domain transactions at the edge
 - Processor participation in application request transactions
-- SQL Server transactional stores (planned)
+- Dedicated SQL Server transactional stores (the EF Core adapter supports the SQL Server provider; a dedicated adapter is planned on [Roadmap](../../roadmap/README.md))
 
 ## Observability
 
@@ -278,12 +278,39 @@ No dedicated transactional-write meter. Success and failure appear through appli
 - **Expected outcome**: All rows on commit
 - **Remarks**:
 
+#### `MartenQueuedTransactionalOutboxTests.A_Marten_document_and_an_outbox_row_commit_together`
+
+- **Use case**: Marten queued writer commits with documents
+- **Test kind**: Integration
+- **Description**: `UseMartenTransactionalOutbox` with a scoped Marten session
+- **Behavior**: Document write plus outbox enqueue, then `SaveChangesAsync`
+- **Expected outcome**: Both committed in one save
+- **Remarks**: `LiteBus.Storage.IntegrationTests` (`PostgreSql/`)
+
+#### `MartenQueuedTransactionalOutboxTests.Neither_the_document_nor_the_outbox_row_is_stored_without_save_changes`
+
+- **Use case**: Marten queued writer rolls back with documents
+- **Test kind**: Integration
+- **Description**: Staged document and envelope without save
+- **Behavior**: Session disposed before `SaveChangesAsync`
+- **Expected outcome**: Neither row stored
+- **Remarks**: `LiteBus.Storage.IntegrationTests` (`PostgreSql/`)
+
+#### `MartenQueuedTransactionalOutboxTests.Composing_both_the_ambient_provider_and_the_Marten_writer_throws`
+
+- **Use case**: Marten writer rejects the ambient provider combination
+- **Test kind**: Integration
+- **Description**: `EnableAmbientTransactionProvider` plus `UseMartenTransactionalOutbox` on one builder
+- **Behavior**: Module build with both transactional routes
+- **Expected outcome**: Configuration exception at build
+- **Remarks**: `LiteBus.Storage.IntegrationTests` (`PostgreSql/`)
+
 ### Untested Use Cases
 
 | Use case | Supported? | Gap | Suggested test kind | Priority |
 | --- | --- | --- | --- | --- |
-| Ingress joined to domain transaction | No (by design) | N/A |: |: |
-| SQL Server transactional stores | No | Not shipped |: |: |
+| Ingress joined to domain transaction | No (by design) | Not supported | N/A | N/A |
+| SQL Server transactional stores | Partial | EF Core adapter works with the SQL Server provider; a dedicated adapter is not shipped | N/A | N/A |
 
 ### Out-of-Scope Use Cases
 

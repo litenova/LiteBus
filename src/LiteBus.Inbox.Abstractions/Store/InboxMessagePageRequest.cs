@@ -6,9 +6,15 @@ namespace LiteBus.Inbox.Abstractions;
 public sealed record InboxMessagePageRequest
 {
     /// <summary>
+    ///     Gets the largest page size accepted by inbox message queries.
+    /// </summary>
+    /// <value>The maximum page size. Requests above this value are rejected.</value>
+    public const int MaxPageSize = 1000;
+
+    /// <summary>
     ///     Gets the maximum number of items to return in one page.
     /// </summary>
-    /// <value>The page size. Defaults to 50.</value>
+    /// <value>The page size. Defaults to 50. Must be between 1 and <see cref="MaxPageSize" />.</value>
     public int PageSize { get; init; } = 50;
 
     /// <summary>

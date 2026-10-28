@@ -92,6 +92,8 @@ inbox.UseEntityFrameworkCoreStorage(o =>
 - A null tenant filter leaves query, purge, and lease unrestricted; an empty tenant filter matches only unscoped rows.
 - Batch inserts that fail after a concurrent commit resolve stored rows as `AlreadyAccepted` and re-insert rolled-back rows; persistent failures surface with the original database error chained.
 - Transactional batch staging rejects strict same-identifier duplicates with changed payloads before anything is staged.
+- Single-add strict checks apply to rows staged on the same context, so a differing staged duplicate throws `IdempotencyConflictException` like the batch and persisted paths.
+- SQLite and in-memory tracked renew, release, and terminal persist compare `lease_generation` through an Entity Framework concurrency token; a lost race reports skipped instead of overwriting the new holder.
 
 ## Non-Goals
 

@@ -74,7 +74,7 @@ Optional constructor dependency: `IInboxPayloadProtector` for encrypted payloads
 
 ### `CommandInboxDispatchModule.Build(IModuleConfiguration)`
 
-Registers `IInboxDispatcher` to `CommandInboxDispatcher`. Registering a second dispatcher on the same builder throws `LiteBusConfigurationException` from `InboxModuleBuilder.RegisterDispatcher`.
+Registers `IInboxDispatcher` to `CommandInboxDispatcher`. Registering a second dispatcher on the same builder throws `DurableStorageConfigurationException` from `InboxModuleBuilder.RegisterDispatcher`.
 
 ## Observability
 

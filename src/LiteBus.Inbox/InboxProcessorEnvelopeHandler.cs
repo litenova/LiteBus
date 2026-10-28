@@ -135,14 +135,14 @@ internal static class InboxProcessorEnvelopeHandler
             if (!ProcessorHookRunner.ShouldDispatch(hooks, hookEnvelope))
             {
                 dispatchCompleted = true;
-                return envelope.AsCompleted();
+                return envelope.AsCompleted(clock.GetUtcNow());
             }
 
             var stopwatch = Stopwatch.StartNew();
             await dispatcher.DispatchAsync(envelope, cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
             InboxProcessorTelemetry.RecordDispatchDuration(stopwatch.Elapsed);
-            var completed = envelope.AsCompleted();
+            var completed = envelope.AsCompleted(clock.GetUtcNow());
             dispatchCompleted = true;
             return completed;
         }

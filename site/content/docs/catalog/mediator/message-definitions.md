@@ -46,16 +46,22 @@ public sealed class PlaceOrderCommandDefinition :
 | `IMessageDefinition` | Non-generic marker used for discovery |
 | `IMessageDefinition<TMessage, TValue>` | One declaration, keyed by `TValue` and checked by the compiler |
 | `IMessageDefinition<TMessage>` | Any number of declarations from one `Describe(IMessageDeclarations)` method |
-| `IMessageDeclarations` | `Declare<TValue>`, `Audited`, `NotAudited`, `Exempt<TValue>` |
+| `IMessageDeclarations` | `Declare<TValue>`, `Audited`, `NotAudited`, `Authorized`, `AuthorizationExempt`, `Exempt<TValue>` |
 | `IMessageDeclarationExemptionSource` | Implemented by an attribute that records an exemption, aggregated into one `DeclarationExemptions` value |
+| `[DeclarationExempt(typeof(TValue), rationale)]` | Records that a message deliberately declares nothing for one metadata type; repeatable, aggregated into `DeclarationExemptions` |
+| `[MessageDeclaration(typeof(TValue))]` | States on an attribute class which metadata value it declares, so analyzers can read it; registration fails when it names a different type than `IMessageDeclarationSource.DeclarationType` |
 | `MessageModuleBuilder.DeclareDefault<TScope, TValue>(value)` | Declares a value for every message assignable to a marker, overridden by a message that states its own |
 | `MessageDeclarationItem` / `IMessageWriter.AddDeclaration` | A declaration made from composition code rather than a definition class |
+| `MessageModuleBuilder.RequireDeclaration<TValue>()` / `RequireDeclaration<TValue, TScope>()` / `RequireDeclaration<TValue>(predicate, description)` | Fails composition for every registered message that neither declares the value nor records an exemption; unscoped, marker-scoped, or predicate-scoped |
+| `MessageDeclarationException` | Names every offending message, grouped by the omitted declaration and the violated scope |
 | `MessageModuleBuilder.ValidateComposition(Action<IMessageCatalog>)` | Runs an application convention over every registered message at composition |
-| `IMessageCatalog` / `MessageCatalogEntry` | The read-only view a composition check asserts over |
+| `IMessageCatalog` / `MessageCatalogEntry` | The read-only view a composition check asserts over, with `Count` and an `Audited()` filter |
 | `IMessageDeclarationSource` | Implemented by an attribute that declares metadata |
 | `IMessageMetadata` | Read side exposed on the message descriptor |
 | `IMessageDescriptor.Metadata` | Resolved metadata for one message type |
-| `IAuditDefinition<TMessage>` | The declaration shipped by LiteBus |
+| `IMessageMetadataAccessor` | Reads resolved metadata from application code through `ForMessage` and `TryGet`; an unregistered runtime type reads the metadata of the descriptor it mediates through, and only a type nothing covers raises `MessageMetadataNotFoundException` |
+| `IAuditDefinition<TMessage>` | The audit declaration shipped by LiteBus |
+| `IAuthorizationDefinition<TMessage>` | The authorization declaration shipped by LiteBus |
 
 ## Packages
 
@@ -77,7 +83,11 @@ public sealed class PlaceOrderCommandDefinition :
 - Two definitions declaring the same value type for one message throw `LiteBusConfigurationException` at registration.
 - Two declarations covering one message where neither type is more derived than the other throw `LiteBusConfigurationException`.
 - Metadata is resolved once per message type at registration, not per dispatch.
+- Metadata follows the descriptor the mediation resolved: an unregistered runtime type mediated through a base descriptor reads that descriptor's metadata, exactly as if it had been registered; only a type nothing registered covers raises `MessageMetadataNotFoundException`, and an ambiguous fallback raises `AmbiguousMessageResolveException`.
 - Open generic message shapes are matched exactly, because assignability between generic type definitions is not meaningful.
+- A `RequireDeclaration` requirement is satisfied by a declaration of the value type or by a recorded exemption for it; every other message fails composition, named in full rather than one at a time.
+- A marker-scoped requirement covers every message assignable to the marker and leaves the messages outside it alone; a predicate requirement names its own scope in the error.
+- A `Describe` body that declares nothing, or that declares one value type twice, fails registration.
 
 ## Non-Goals
 
@@ -102,6 +112,26 @@ No definition-specific meter or activity source. Binding failures surface as `Li
 | `Attributes_that_do_not_declare_metadata_are_not_collected` | `LiteBus.Mediator.UnitTests` |
 | `A_declaration_over_a_marker_interface_covers_the_messages_beneath_it` | `LiteBus.Mediator.UnitTests` |
 | `Two_definitions_declaring_the_same_value_for_one_message_are_reported_at_registration` | `LiteBus.Mediator.UnitTests` |
+| `One_describe_method_declares_several_values_for_one_message` | `LiteBus.Mediator.UnitTests` |
+| `Describe_records_an_audit_exemption_and_an_application_exemption_in_one_set` | `LiteBus.Mediator.UnitTests` |
+| `A_requirement_scoped_to_a_marker_leaves_the_messages_outside_it_alone` | `LiteBus.Mediator.UnitTests` |
+| `A_requirement_scoped_to_a_marker_still_reports_a_message_inside_it` | `LiteBus.Mediator.UnitTests` |
+| `A_requirement_scoped_to_the_command_axis_does_not_reach_queries` | `LiteBus.Mediator.UnitTests` |
+| `An_unscoped_requirement_still_covers_every_message` | `LiteBus.Mediator.UnitTests` |
+| `A_predicate_requirement_names_its_own_scope_in_the_error` | `LiteBus.Mediator.UnitTests` |
+| `Declaring_one_value_type_twice_in_one_describe_is_reported` | `LiteBus.Mediator.UnitTests` |
+| `A_describe_that_declares_nothing_is_reported` | `LiteBus.Mediator.UnitTests` |
+| `A_composition_check_asserts_over_every_registered_message` | `LiteBus.Mediator.UnitTests` |
+| `The_catalog_holds_every_registered_message_and_filters_the_audited_ones` | `LiteBus.Mediator.UnitTests` |
+| `Duplicate_audit_actions_are_reported_at_composition` | `LiteBus.Mediator.UnitTests` |
+| `An_audit_action_breaking_the_format_is_reported_at_composition` | `LiteBus.Mediator.UnitTests` |
+| `The_default_audit_action_format_accepts_the_documented_convention` | `LiteBus.Mediator.UnitTests` |
+| `An_undeclared_message_fails_composition_naming_the_message_and_the_value` | `LiteBus.Mediator.UnitTests` |
+| `Every_offender_is_named_rather_than_the_first` | `LiteBus.Mediator.UnitTests` |
+| `A_recorded_exemption_satisfies_the_requirement` | `LiteBus.Mediator.UnitTests` |
+| `An_exemption_for_another_value_does_not_satisfy_this_requirement` | `LiteBus.Mediator.UnitTests` |
+| `An_exemption_is_readable_with_its_rationale` | `LiteBus.Mediator.UnitTests` |
+| `Several_exemptions_on_one_message_are_aggregated` | `LiteBus.Mediator.UnitTests` |
 
 ### Untested
 

@@ -10,6 +10,10 @@ namespace LiteBus.Testing;
 /// <summary>
 ///     Records commands sent through <see cref="ICommandMediator" /> for test assertions.
 /// </summary>
+/// <remarks>
+///     All members are thread-safe. Recording properties return snapshots, so a held reference never observes later
+///     sends and mutating it never affects the recorded history.
+/// </remarks>
 public sealed class TestCommandMediator : ICommandMediator
 {
     /// <summary>
@@ -23,19 +27,42 @@ public sealed class TestCommandMediator : ICommandMediator
     private readonly List<object> _evaluated = [];
 
     /// <summary>
-    ///     Gets the commands recorded since construction or the last <see cref="Clear" /> call.
+    ///     Gets the lock that serializes recording mutations and snapshot reads.
     /// </summary>
-    public IReadOnlyList<object> Commands => _commands;
+    private readonly object _sync = new();
 
     /// <summary>
-    ///     Gets the commands evaluated since construction or the last <see cref="Clear" /> call.
+    ///     Gets a snapshot of the commands recorded since construction or the last <see cref="Clear" /> call.
+    /// </summary>
+    public IReadOnlyList<object> Commands
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return [.. _commands];
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Gets a snapshot of the commands evaluated since construction or the last <see cref="Clear" /> call.
     /// </summary>
     /// <value>
     ///     Separate from <see cref="Commands" />, because an evaluation asks whether a command may happen and does not
     ///     perform it. Asserting that a control evaluated a command is a different assertion from asserting it sent
     ///     one.
     /// </value>
-    public IReadOnlyList<object> Evaluated => _evaluated;
+    public IReadOnlyList<object> Evaluated
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return [.. _evaluated];
+            }
+        }
+    }
 
     /// <inheritdoc />
     public Task SendAsync(
@@ -44,7 +71,12 @@ public sealed class TestCommandMediator : ICommandMediator
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-        _commands.Add(command);
+
+        lock (_sync)
+        {
+            _commands.Add(command);
+        }
+
         return Task.CompletedTask;
     }
 
@@ -55,7 +87,12 @@ public sealed class TestCommandMediator : ICommandMediator
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-        _commands.Add(command);
+
+        lock (_sync)
+        {
+            _commands.Add(command);
+        }
+
         return Task.FromResult(default(TCommandResult)!);
     }
 
@@ -66,7 +103,12 @@ public sealed class TestCommandMediator : ICommandMediator
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-        _commands.Add(command);
+
+        lock (_sync)
+        {
+            _commands.Add(command);
+        }
+
         return Task.FromResult(MediationResult.Succeeded());
     }
 
@@ -77,7 +119,12 @@ public sealed class TestCommandMediator : ICommandMediator
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-        _commands.Add(command);
+
+        lock (_sync)
+        {
+            _commands.Add(command);
+        }
+
         return Task.FromResult(MediationResult<TCommandResult>.Succeeded(default!));
     }
 
@@ -92,7 +139,12 @@ public sealed class TestCommandMediator : ICommandMediator
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-        _evaluated.Add(command);
+
+        lock (_sync)
+        {
+            _evaluated.Add(command);
+        }
+
         return Task.FromResult(MediationDecision.Allowed);
     }
 
@@ -101,7 +153,10 @@ public sealed class TestCommandMediator : ICommandMediator
     /// </summary>
     public void Clear()
     {
-        _commands.Clear();
-        _evaluated.Clear();
+        lock (_sync)
+        {
+            _commands.Clear();
+            _evaluated.Clear();
+        }
     }
 }

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Linq;
+using LiteBus.Analyzers.Analysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
@@ -58,20 +59,32 @@ public sealed class ReservedHandlerPriorityAnalyzer : DiagnosticAnalyzer
                 return;
             }
 
+            var typeCache = new LiteBusTypeCache(compilationStart.Compilation);
+
             compilationStart.RegisterSymbolAction(
-                symbolContext => AnalyzeType(symbolContext, attributeSymbol),
+                symbolContext => AnalyzeType(symbolContext, attributeSymbol, typeCache),
                 SymbolKind.NamedType);
         });
     }
 
     /// <summary>
-    ///     Reports a type whose handler priority falls inside the reserved range.
+    ///     Reports a handler type whose handler priority falls inside the reserved range.
     /// </summary>
     /// <param name="context">The symbol analysis context.</param>
     /// <param name="attributeSymbol">The resolved <c>HandlerPriorityAttribute</c> symbol.</param>
-    private static void AnalyzeType(SymbolAnalysisContext context, INamedTypeSymbol attributeSymbol)
+    /// <param name="typeCache">The per-compilation type cache.</param>
+    /// <remarks>
+    ///     Types that implement no handler interface are skipped: the attribute is inert there, so reporting an
+    ///     ordering effect that does not exist would mislead.
+    /// </remarks>
+    private static void AnalyzeType(SymbolAnalysisContext context, INamedTypeSymbol attributeSymbol, LiteBusTypeCache typeCache)
     {
         var type = (INamedTypeSymbol) context.Symbol;
+
+        if (!HandlerAnalysis.IsHandlerType(type, typeCache))
+        {
+            return;
+        }
 
         var attribute = type
             .GetAttributes()

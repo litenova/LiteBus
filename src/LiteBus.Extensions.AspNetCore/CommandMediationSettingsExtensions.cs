@@ -23,6 +23,11 @@ public static class CommandMediationSettingsExtensions
     ///         items under the key <see cref="IdempotencyKeyGuard" /> reads. When the filter is absent, or the header
     ///         was optional and missing, there is no entry and the settings pass through unchanged.
     ///     </para>
+    ///     <para>
+    ///         A tenant the filter resolved travels alongside the key into the trace tenant entry, so the stored key
+    ///         is scoped to the calling tenant. Without it, two tenants sending one key string for one command share
+    ///         a store row.
+    ///     </para>
     ///     <code><![CDATA[
     /// var settings = new CommandMediationSettings().WithIdempotencyKey(context);
     /// var result = await mediator.TrySendAsync(command, settings, cancellationToken).ConfigureAwait(false);
@@ -38,6 +43,13 @@ public static class CommandMediationSettingsExtensions
         if (context.Items.TryGetValue(IdempotencyKeyItemKeys.HttpContextItem, out var value) && value is string key)
         {
             settings.Items[IdempotencyKeyItemKeys.MediationItem] = new SuppliedIdempotencyKey(key);
+        }
+
+        if (context.Items.TryGetValue(IdempotencyKeyItemKeys.TenantHttpContextItem, out var tenantValue) &&
+            tenantValue is string tenant &&
+            !string.IsNullOrWhiteSpace(tenant))
+        {
+            settings.Items[MessageTraceContextKeys.TenantId] = tenant;
         }
 
         return settings;

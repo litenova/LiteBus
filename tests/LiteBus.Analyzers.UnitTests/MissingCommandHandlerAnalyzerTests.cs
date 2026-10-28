@@ -202,11 +202,11 @@ public sealed class MissingCommandHandlerAnalyzerTests
     }
 
     /// <summary>
-    ///     Verifies that a command declared only in a referenced assembly without a handler produces LB1008.
+    ///     Verifies that a command declared only in a referenced assembly without a handler produces no diagnostic, because candidates are scoped to the analyzed assembly.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
     [Fact]
-    public Task CommandInReferencedAssemblyWithoutHandler_ProducesDiagnostic()
+    public Task CommandInReferencedAssemblyWithoutHandler_ProducesNoDiagnostic()
     {
         const string source = """
                               public sealed class Placeholder
@@ -230,10 +230,109 @@ public sealed class MissingCommandHandlerAnalyzerTests
             commandsReference,
             messagingReference);
 
-        return AnalyzerTest.VerifyDiagnosticWithReferencesAsync<MissingCommandHandlerAnalyzer>(
+        return AnalyzerTest.VerifyNoDiagnosticsWithReferencesAsync<MissingCommandHandlerAnalyzer>(
             source,
-            DiagnosticDescriptors.MissingCommandHandler,
-            ["CreateUserCommand"],
+            commandsReference,
+            messagingReference,
+            referencedProject);
+    }
+
+    /// <summary>
+    ///     Verifies that a command declared in the analyzed assembly with its handler in a referenced assembly produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandWithHandlerInReferencedAssembly_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using Contracts;
+
+                              public sealed record SpecializedCommand : BaseCommand;
+                              """;
+
+        const string contractsAssembly = """
+                                         using LiteBus.Commands.Abstractions;
+
+                                         namespace Contracts;
+
+                                         public abstract record BaseCommand : ICommand;
+                                         """;
+
+        const string handlersAssembly = """
+                                        using System.Threading;
+                                        using System.Threading.Tasks;
+                                        using Contracts;
+                                        using LiteBus.Commands.Abstractions;
+
+                                        namespace Handlers;
+
+                                        public sealed class BaseCommandHandler : ICommandHandler<BaseCommand>
+                                        {
+                                            public Task HandleAsync(BaseCommand command, CancellationToken cancellationToken = default)
+                                                => Task.CompletedTask;
+                                        }
+                                        """;
+
+        var commandsReference = MetadataReference.CreateFromFile(typeof(ICommand).Assembly.Location);
+        var messagingReference = MetadataReference.CreateFromFile(typeof(HandlerPriorityAttribute).Assembly.Location);
+        var contractsProject = AnalyzerTest.CompileToMetadataReference(
+            "ContractsAssembly",
+            contractsAssembly,
+            commandsReference,
+            messagingReference);
+        var handlersProject = AnalyzerTest.CompileToMetadataReference(
+            "HandlersAssembly",
+            handlersAssembly,
+            commandsReference,
+            messagingReference,
+            contractsProject);
+
+        return AnalyzerTest.VerifyNoDiagnosticsWithReferencesAsync<MissingCommandHandlerAnalyzer>(
+            source,
+            commandsReference,
+            messagingReference,
+            contractsProject,
+            handlersProject);
+    }
+
+    /// <summary>
+    ///     Verifies that a command declared in the analyzed assembly with an open generic handler in a referenced assembly produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandWithOpenGenericHandlerInReferencedAssembly_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+                              """;
+
+        const string referencedAssembly = """
+                                          using System.Threading;
+                                          using System.Threading.Tasks;
+                                          using LiteBus.Commands.Abstractions;
+
+                                          namespace Handlers;
+
+                                          public sealed class GenericCommandHandler<TCommand> : ICommandHandler<TCommand>
+                                              where TCommand : ICommand
+                                          {
+                                              public Task HandleAsync(TCommand command, CancellationToken cancellationToken = default)
+                                                  => Task.CompletedTask;
+                                          }
+                                          """;
+
+        var commandsReference = MetadataReference.CreateFromFile(typeof(ICommand).Assembly.Location);
+        var messagingReference = MetadataReference.CreateFromFile(typeof(HandlerPriorityAttribute).Assembly.Location);
+        var referencedProject = AnalyzerTest.CompileToMetadataReference(
+            "HandlersAssembly",
+            referencedAssembly,
+            commandsReference,
+            messagingReference);
+
+        return AnalyzerTest.VerifyNoDiagnosticsWithReferencesAsync<MissingCommandHandlerAnalyzer>(
+            source,
             commandsReference,
             messagingReference,
             referencedProject);

@@ -9,7 +9,7 @@
 
 `UseAmqpIngress` registers `AmqpInboxIngressModule` as an inbox child. The module maps `AmqpInboxIngressOptions` to `TransportInboxIngressOptions`, requires a root `AmqpTransportModule`, registers `TransportInboxIngressHandler` and optional `TransportInboxIngressConsumer`, and registers `AmqpInboxIngressHandler` for AMQP-shaped manual accept.
 
-RabbitMQ message ids map to broker-scoped identity and idempotency by default. Queue declaration, native prefetch, and requeue behavior stay on `AmqpInboxIngressOptions`; trust, authorization, maximum-in-flight work, and batch acceptance use its shared `Safety` record.
+RabbitMQ message ids map to broker-scoped identity and idempotency by default. The idempotency key is scoped to the consuming queue (`ingress:{queue}:{id}`), so two queues bound to one exchange do not share a key. Queue declaration, native prefetch, and requeue behavior stay on `AmqpInboxIngressOptions`; trust, authorization, maximum-in-flight work, and batch acceptance use its shared `Safety` record. `AmqpInboxIngressOptions` defaults are `PrefetchCount` 10, `DeclareQueue` true, `DurableQueue` true, and `RequeueOnFailure` true; the enforced `Safety.MaxInFlightMessages` bound is 1.
 
 ## Public Surface
 
@@ -108,9 +108,11 @@ EventId 3002 (loop restart), 3003 (batch flush failed), 3004 (ack failed after a
 
 | Test method | Project |
 | --- | --- |
-| `UseAmqpIngress_WithTransportModule_ShouldRegisterIngressHandler` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
-| `UseAmqpIngress_WithRootTransport_ShouldResolveConsumer` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
+| `UseAmqpIngress_WithEnabledIngressConsumer_ShouldRegisterConsumerInManifest` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
+| `UseAmqpIngress_WithDisabledIngressConsumer_ShouldOmitConsumerFromManifest` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
 | `AcceptAsync_ShouldDeserializeAndWriteToInboxWithMappedHeaders` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
+| `AcceptAsync_FromTwoQueuesBoundToOneExchange_ShouldProduceTwoRowsWithQueueScopedKeys` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
+| `AcceptAsync_WithoutQueueName_ShouldFallBackToExchange` | `LiteBus.Inbox.UnitTests` (`Ingress/Amqp/`) |
 | `PublishThroughRabbitMq_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | `PublishThroughLavinMq_ShouldAcceptProcessAndDispatchCommand` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
 | `EnableBatchAccept_AtBatchSize_ShouldFlushAllMessages` | `LiteBus.Durable.IntegrationTests` (`Ingress/Amqp/`) |
@@ -129,7 +131,7 @@ EventId 3002 (loop restart), 3003 (batch flush failed), 3004 (ack failed after a
 ### Untested
 
 - LavinMQ-specific failure modes beyond the single end-to-end happy path.
-- Queue declaration with `DeclareDestination` and `DurableDestination` against a live broker.
+- Queue declaration with `DeclareQueue` and `DurableQueue` against a live broker.
 - AMQP connection breaker recovery during ingress consume.
 - `RequeueOnFailure = false` poison drain on RabbitMQ (covered for InMemory and AWS SQS ingress).
 

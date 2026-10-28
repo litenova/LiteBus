@@ -1,6 +1,6 @@
 # Validation
 
-A validator answers one question about a message: is it well-formed. LiteBus runs validators as their own pipeline stage, after guards and before shortcuts, and a failure is a return value rather than an exception. This page explains why validation is its own stage, what the caller receives when a message fails, and how to move a validator that used to throw.
+A validator answers one question about a message: is it well-formed. LiteBus runs validators as their own pipeline stage, after guards and before shortcuts, and a failure is a return value rather than an exception. This page explains why validation is its own stage, what the caller receives when a message fails, and how to move a validator that reports failures by throwing.
 
 It assumes the stage model from [The Handler Pipeline](handler-pipeline.md).
 
@@ -120,9 +120,9 @@ A message that produces no result, and any event, has nothing a mapper could ret
 
 ## Moving a Validator That Threw
 
-Before v7, `ICommandValidator<TCommand>.ValidateAsync` returned `Task` and reported a failure by throwing. That reported malformed input as a fault: error handlers saw it, the mediation reported `Failed`, and an audit trail could not tell it apart from a database timeout.
+A validator that reports a failure by throwing reports malformed input as a fault: error handlers see it, the mediation reports `Failed`, and an audit trail cannot tell it apart from a database timeout.
 
-The change is a compile error rather than a silent behavior change, which is deliberate. Return the failures instead of raising:
+The validator contract returns the failures instead of raising, and a throwing body fails to compile against it, which is deliberate. Return the failures instead of raising:
 
 ```csharp
 // Before
@@ -200,7 +200,7 @@ Only the exception type you name is caught, so a genuine fault inside a validato
 
 Adapted and converted validators mix in one mediation, because the stage collects across both. A half-converted codebase behaves correctly rather than only after the last file lands.
 
-The adapter is scaffolding. It cannot recover the behavior the change exists for: a throwing body stops at the first problem, so a message with three malformed fields still reports one failure. Give the adapter a deletion date, or the codebase keeps the validation model v7 replaced.
+The adapter is scaffolding. It cannot recover the behavior the contract exists for: a throwing body stops at the first problem, so a message with three malformed fields still reports one failure. Give the adapter a deletion date, or the codebase keeps reporting only the first failure per message.
 
 ## Next
 

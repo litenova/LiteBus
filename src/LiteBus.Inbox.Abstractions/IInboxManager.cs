@@ -18,6 +18,9 @@ public interface IInboxManager
     /// <param name="pageRequest">The page size and continuation cursor.</param>
     /// <param name="cancellationToken">A token that cancels the query.</param>
     /// <returns>A page of matching envelopes and an optional cursor for the next page.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     The requested page size is less than 1 or greater than <see cref="InboxMessagePageRequest.MaxPageSize" />.
+    /// </exception>
     Task<InboxMessagePage> QueryAsync(
         InboxMessageFilter filter,
         InboxMessagePageRequest pageRequest,

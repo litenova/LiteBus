@@ -39,14 +39,14 @@ ingress.UseOptions(new AwsSqsInboxIngressOptions
 | `TransportInboxIngressOptions.Safety` | default safety record | Provider-neutral ingress safety settings |
 | `Safety.MaxMessageBytes` | 4 MiB | Reject oversized bodies before deserialize; zero disables the limit |
 | `Safety.RequireStableIdentity` | true | Fail when broker delivery id is missing |
-| `Safety.TrustApplicationHeaders` | false | Honor application idempotency, tenant, and message id headers |
+| `Safety.TrustApplicationHeaders` | false | Honor application idempotency, tenant, message id, and visibility headers |
 | `Safety.AuthorizeDeliveryAsync` | null | Host callback before deserialize and accept |
-| `Safety.MaxInFlightMessages` | 32 | Cap concurrent LiteBus delivery handlers |
+| `Safety.MaxInFlightMessages` | 32 | Requested cap on concurrent LiteBus delivery handlers; the enforced bound is 1 except on Azure Service Bus, where the lower of this value and `MaxConcurrentCalls` applies |
 | `Safety.EnableBatchAccept` | false | Enable buffered inbox batch accepts |
 | `Safety.BatchSize` | 10 | Deliveries stored in one inbox batch |
 | `Safety.BatchMaxWait` | 200 ms | Partial batch flush delay |
 
-Each ingress module calls `Safety.Validate()` during composition. Negative message limits or wait durations, zero batch sizes, and zero maximum-in-flight values fail before the host starts. AWS also rejects `ReceiveBatchSize` outside 1 through 10. Azure rejects negative prefetch and non-positive `MaxConcurrentCalls`.
+Each ingress module calls `Safety.Validate()` during composition. Negative message limits or wait durations, zero batch sizes, and zero maximum-in-flight values fail before the host starts. `EnableBatchAccept` with `BatchMaxWait` of zero fails as well, because a zero wait never flushes partial batches. AWS also rejects `ReceiveBatchSize` outside 1 through 10. Azure rejects negative prefetch and non-positive `MaxConcurrentCalls`.
 
 ## Broker Option Parity
 
@@ -80,6 +80,7 @@ Each ingress module calls `Safety.Validate()` during composition. Negative messa
 - `Safety.TrustApplicationHeaders` stays false unless the broker binding authenticates upstream publishers.
 - `Safety.RequireStableIdentity=true` and broker message ids provide deterministic duplicate absorption across retries.
 - `Safety.MaxInFlightMessages` is independent from broker prefetch, receive batch size, and native callback concurrency.
+- Raising `Safety.MaxInFlightMessages` above 1 does not parallelize AMQP, Kafka, AWS SQS, or in-memory ingress; those adapters run one handler at a time.
 
 ## Non-Goals
 
