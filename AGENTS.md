@@ -468,6 +468,24 @@ Keep each package's dependency graph minimal and aligned with its dependency rol
 - Keep one integration surface per concern. Put observability, health, and diagnostics in framework-neutral contracts such as `IDiagnosticCheck` and OpenTelemetry meters on public constants, or in dedicated `*.Extensions.*` adapter packages.
 - Justify every new reference in review. If a feature can be expressed with an existing abstraction, manifest entry, or documented application code, prefer that over a new package dependency.
 
+### Dependency versions and runtime compatibility
+
+A shipped assembly binds to the exact types and members it was compiled against, while an application resolves the highest version any of its packages requests. When a dependency's new major removes or reshapes one of those members, the application fails at runtime with `TypeLoadException` or `MissingMethodException`, and the solution's tests stay green because they run on the pinned version. Issue #167 was that failure: the 7.0.0 EF Core storage packages were compiled against EF Core 9 and broke on EF Core 10.
+
+- Compile each adapter against the major of its SDK that applications on the target framework run. When a framework ships with a new major of an SDK family, such as EF Core with .NET, move the adapter to it in the same release line rather than holding it back for a test-only dependency.
+- Keep a floor as low as the code allows when raising it would force consumers onto a version another of their dependencies does not support. `Npgsql` stays at 9.0.5 because Marten 9 is built against Npgsql 9, while the tests run on Npgsql 10. Write the reason next to the version in `Directory.Packages.props`.
+- Never hold a shipped dependency back only because a test dependency lags. Replace the test dependency instead, as the MySQL tests did when Pomelo had no EF Core 10 release.
+- The `Consumer Smoke` CI job (`smoke/LiteBus.ConsumerSmoke`) restores the packed packages with third-party dependencies floating to their latest stable releases and is part of the `CI result` gate. When a package gains a code path that binds to an SDK at runtime, such as a new store operation or a new SDK call, add it to the smoke application. When the job fails on a new dependency release, treat it as a consumer outage in waiting, not as noise.
+- When moving an SDK to a new major, read its breaking-change list against the call sites. EF Core 10 changed parameterized collections to one parameter per element, which hit SQL Server's 2,100-parameter limit, and that change compiled cleanly.
+
+### Provider-neutral storage code
+
+- Recognize a database error from the structured code the driver attaches, never from message text, which servers localize and providers reword. Read `DbException.SqlState` first, then the public `Number` (SQL Server, both MySQL drivers) or `SqliteExtendedErrorCode` / `SqliteErrorCode` (SQLite) properties by name when the package must not reference a driver. `EfCoreUniqueViolation` and `RecurringCommandHostOptions.IsConcurrencyOrDatabaseConflict` are the patterns. A message match is a last resort for a provider that carries no code.
+- Walk the whole exception graph: the `InnerException` chain and every exception in `AggregateException.InnerExceptions`. A batched commit reports several failures in one aggregate, and its `InnerException` is only the first.
+- Give every column an explicit store type per provider. A type name such as `TEXT` means different things on different servers: deprecated non-Unicode text with a code page on SQL Server and a 64 KB limit on MySQL. Timestamps keep sub-second precision (`datetime(6)` on MySQL). Cover new columns with a round-trip contract test that uses a value at the provider's edge, such as a payload over 64 KB with characters outside any single-byte code page.
+- Bound caller-sized collections in LINQ `Contains` filters. On SQL Server, send them as one parameter through `EfCoreCollectionParameters`, because EF Core 10 sends one parameter per element and SQL Server allows 2,100 per command.
+- A change to an EF Core model column type produces a migration in every consumer on that provider. Treat it as an upgrade step: list it under Breaking in the changelog with the exact column changes, and add it to the migration guide.
+
 ## New package checklist
 
 Answer these questions before adding a project:
@@ -504,12 +522,36 @@ Answer these questions before adding a project:
 - `Changelog.md` holds the current major line only. When a new major version ships, move the previous major's sections to the top of `Changelog.Archive.md`, below its intro, and keep the `## Earlier Releases` pointer as the last section of `Changelog.md`. The release workflow reads one section from `Changelog.md`, and the site publishes that file as `/docs/changelog`, so the archive only needs to stay linked.
 - CI proves a commit once, and the tag publishes it. `ci.yml` runs every gate on each push to `main` and to version branches. Pushing a `v*` tag runs `release.yml`, which reruns no tests. It checks the tag and changelog, requires a successful CI push run on the tagged commit, and waits up to 45 minutes for a run that is still running. It then builds, packs, and publishes to nuget.org through trusted publishing, to GitHub Packages, and as a GitHub release. Push the branch before the tag. Do not run `gh release create` by hand for a pushed tag, because it races the workflow or makes the workflow fail.
 
+### Choosing the version number
+
+The tag sets the version; nothing in the repository holds it. Choose it from what changed for an application already on the previous release:
+
+| Bump | When |
+| --- | --- |
+| Patch (`7.1.1`) | Bug fixes only: no new public API, no changed default, no EF Core model change, no dependency floor raised past a major. |
+| Minor (`7.2.0`) | Any additive public API, a changed default an application can opt out of, an EF Core model change that produces a migration, or a dependency floor raised to a new major when the old major no longer works with the target framework's current stack. List every upgrade step under Breaking and in the migration guide. |
+| Major (`8.0.0`) | A removed or renamed public API, a changed persisted envelope or telemetry contract (see Public contract stability), a new target framework, or a dependency major that an application on the current stack must actively migrate to. |
+
+Version 7.1.0 is the worked example of a minor. It added `EfCoreRelationalProviderNames.OracleMySql` and `IsConcurrencyOrDatabaseConflict`, changed the recurring-command conflict default, produced SQL Server and MySQL migrations, and moved the EF Core storage packages from EF Core 9 to 10, because the 7.0.0 build did not run on EF Core 10 at all.
+
+### Release checklist
+
+Before pushing a stable tag:
+
+1. Rename the working changelog section to the version being released and check its Added, Changed, Fixed, and Breaking subsections against `git log <previous-tag>..HEAD`.
+2. Add an upgrade section for the version to the current migration guide under `site/content/docs/migration/` when the changelog has a Breaking entry.
+3. Set `latestRelease` in `site/lib/site.ts`.
+4. Merge to `main`, wait for the `CI result` gate, including `Consumer Smoke`, on the merge commit, then push the tag from that commit.
+
 ## Testing
 
 - Run unit tests locally and leave integration suites to CI. Local verification runs the `tests/*.UnitTests` projects with `dotnet test tests/<Project>.UnitTests --no-build`. Do not run `dotnet test LiteBus.slnx` or the `*.IntegrationTests` projects locally, because they start PostgreSQL, SQL Server, MySQL, and broker containers through Testcontainers and take far longer on one machine than in CI. `ci.yml` shards them across runners on every push, and the project is public, so CI minutes are not a constraint. Push the branch and read the CI result instead. Run one integration class locally only when debugging a failure that CI reported.
 - Tests prove behavior, not wiring. Prefer assertions on outcomes such as manifest contents, probe results, processor pass behavior, and store state transitions over tests that only verify that a type appears in dependency injection or that a module builds without exception.
 - Use a fresh `MessageRegistry` or an isolated module configuration per test case. Do not rely on process-wide static state.
 - When fixing manifest ordering, diagnostic registration, telemetry recording, or composite module child expansion, add regression tests.
+- Do not assert on what a fixed delay lets happen. A test that sleeps 150 ms and expects two 20 ms ticks fails on a loaded runner. Wait on a `TaskCompletionSource` that the code under test completes, with a generous timeout, and keep fixed delays only for proving that something did not happen.
+- Put store behavior in the shared contract tests (`tests/LiteBus.Storage.Testing`) so every provider proves it, rather than in one provider's test class. The MySQL suites run on Oracle's `MySql.EntityFrameworkCore`, because Pomelo has no EF Core 10 release.
+- Run the consumer smoke application locally when changing a dependency version or a storage code path that binds to an SDK at runtime. [Consumer Smoke Test](site/content/docs/testing/integration-tests.md#consumer-smoke-test) gives the commands.
 
 ## Documentation
 

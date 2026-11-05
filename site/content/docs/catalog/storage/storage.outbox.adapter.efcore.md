@@ -242,7 +242,7 @@ Register them through `AddLiteBusOutboxMetrics()`. The instrument names are cons
 
 - **Use case**: MySQL EF outbox contract parity
 - **Test kind**: Contract (integration)
-- **Description**: Runs the full outbox contract suite against MySQL 8.4 through Pomelo
+- **Description**: Runs the full outbox contract suite against MySQL 8.4 through `MySql.EntityFrameworkCore`
 - **Behavior**: Covers ordered concurrent leasing, append outcomes, fencing, queries, and purge
 - **Expected outcome**: Outcomes match the shared contract suite
 - **Remarks**: `LiteBus.Storage.IntegrationTests`

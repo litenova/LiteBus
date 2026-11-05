@@ -147,8 +147,12 @@ public sealed class EfCoreOutboxStore :
                 return new RequeueResult(0, 0);
             }
 
-            var entities = await context.OutboxMessages
-                .Where(message => messageIds.Contains(message.Id) && message.Status == OutboxStatus.DeadLettered)
+            var deadLettered = context.OutboxMessages.Where(message => message.Status == OutboxStatus.DeadLettered);
+            var candidates = EfCoreCollectionParameters.UseSingleParameter(context)
+                ? deadLettered.Where(message => EF.Parameter(messageIds).Contains(message.Id))
+                : deadLettered.Where(message => messageIds.Contains(message.Id));
+
+            var entities = await candidates
                 .ToListAsync(token)
                 .ConfigureAwait(false);
 
@@ -283,7 +287,7 @@ public sealed class EfCoreOutboxStore :
 
         return ExecuteAsync(async (context, token) =>
         {
-            var query = ApplyFilter(context.OutboxMessages.AsQueryable(), filter);
+            var query = ApplyFilter(context.OutboxMessages.AsQueryable(), filter, EfCoreCollectionParameters.UseSingleParameter(context));
             query = ApplyCursor(query, pageRequest.Cursor);
 
             var entities = await query
@@ -309,7 +313,7 @@ public sealed class EfCoreOutboxStore :
                 throw new InvalidOperationException("Purge requires a DbContext-backed outbox database context.");
             }
 
-            var query = ApplyFilter(context.OutboxMessages.AsQueryable(), filter);
+            var query = ApplyFilter(context.OutboxMessages.AsQueryable(), filter, EfCoreCollectionParameters.UseSingleParameter(context));
             return await EfCoreDurableStoreOperations.DeleteMatchingAsync(dbContext, query, token)
                 .ConfigureAwait(false);
         }, cancellationToken);
@@ -556,7 +560,7 @@ public sealed class EfCoreOutboxStore :
                     throw;
                 }
 
-                if (!IsUniqueViolation(ex))
+                if (!EfCoreUniqueViolation.IsUniqueViolation(ex))
                 {
                     DetachFailedInsert(context, entity);
                     throw;
@@ -743,7 +747,7 @@ public sealed class EfCoreOutboxStore :
 
                 if (missing.Count == 0)
                 {
-                    if (!IsUniqueViolation(ex))
+                    if (!EfCoreUniqueViolation.IsUniqueViolation(ex))
                     {
                         throw;
                     }
@@ -798,7 +802,7 @@ public sealed class EfCoreOutboxStore :
                                 retryEx);
                         }
 
-                        if (!IsUniqueViolation(retryEx))
+                        if (!EfCoreUniqueViolation.IsUniqueViolation(retryEx))
                         {
                             throw;
                         }
@@ -1736,10 +1740,14 @@ public sealed class EfCoreOutboxStore :
     /// </summary>
     /// <param name="query">The outbox messages to filter.</param>
     /// <param name="filter">The optional predicates applied to stored rows.</param>
+    /// <param name="singleCollectionParameter">
+    ///     Whether the message-id list is sent as one collection parameter, as <see cref="EfCoreCollectionParameters" /> decides.
+    /// </param>
     /// <returns>The filtered query.</returns>
     private static IQueryable<OutboxMessageEntity> ApplyFilter(
         IQueryable<OutboxMessageEntity> query,
-        OutboxMessageFilter filter)
+        OutboxMessageFilter filter,
+        bool singleCollectionParameter)
     {
         if (filter.MessageId is not null)
         {
@@ -1748,7 +1756,10 @@ public sealed class EfCoreOutboxStore :
 
         if (filter.MessageIds is { Count: > 0 })
         {
-            query = query.Where(message => filter.MessageIds.Contains(message.Id));
+            var messageIds = filter.MessageIds;
+            query = singleCollectionParameter
+                ? query.Where(message => EF.Parameter(messageIds).Contains(message.Id))
+                : query.Where(message => messageIds.Contains(message.Id));
         }
 
         var statusValues = MaterializeStatusFilter(filter.Statuses);
@@ -2130,30 +2141,5 @@ public sealed class EfCoreOutboxStore :
             throw new IdempotencyConflictException(
                 $"An outbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
         }
-    }
-
-    /// <summary>
-    ///     Determines whether a database update failure was caused by a unique constraint violation.
-    /// </summary>
-    /// <param name="exception">The database update exception.</param>
-    /// <returns><see langword="true" /> when the failure looks like a unique violation; otherwise, <see langword="false" />.</returns>
-    private static bool IsUniqueViolation(DbUpdateException exception)
-    {
-        for (var current = (Exception) exception; current is not null; current = current.InnerException)
-        {
-            var message = current.Message;
-
-            if (message.Contains("unique", StringComparison.OrdinalIgnoreCase) ||
-                message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) ||
-                message.Contains("23505", StringComparison.Ordinal) ||
-                message.Contains("2627", StringComparison.Ordinal) ||
-                message.Contains("2601", StringComparison.Ordinal) ||
-                message.Contains("1062", StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

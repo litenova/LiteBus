@@ -109,7 +109,7 @@ Override names with `EntityFrameworkCoreOutboxStoreOptions` when needed.
 
 ## Provider-Specific Model Configuration
 
-Pass `EfCoreStorageProvider` to `GetModelBuilderConfiguration()` so payload and trace columns use the correct store types. LiteBus maps `payload` as `TEXT` for every EF provider because protected payloads are opaque strings. PostgreSQL maps `trace_context` as nullable `jsonb` when `EfCoreStorageProvider.PostgreSql` is supplied. Omitting the provider leaves both properties for application-owned column configuration.
+Pass `EfCoreStorageProvider` to `GetModelBuilderConfiguration()` so payload and trace columns use the correct store types. LiteBus maps `payload` as unbounded Unicode text because protected payloads are opaque strings: `TEXT` on PostgreSQL and SQLite, `nvarchar(max)` on SQL Server, and `longtext` on MySQL. SQL Server `text` is a deprecated non-Unicode type and MySQL `text` holds at most 64 KB, so neither is used. PostgreSQL maps `trace_context` as nullable `jsonb` when `EfCoreStorageProvider.PostgreSql` is supplied. Omitting the provider leaves both properties for application-owned column configuration.
 
 ```csharp
 protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -128,7 +128,7 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 
 See [Inbox Entity Framework Core Storage](inbox-ef-core-storage.md) for the full provider column-type table. SQL Server applications should set `SchemaName = "dbo"` in store options so raw lease SQL matches your migrations.
 
-Supported leasing providers match inbox EF storage: PostgreSQL, SQL Server, MySQL (Pomelo), SQLite, and the in-memory provider for tests. MySQL uses `READ COMMITTED`, `FOR UPDATE SKIP LOCKED`, and `IX_LiteBus_Outbox_CreatedAt` for ordered concurrent claims. SQLite stores durable timestamps as UTC ticks and serializes lease writers through its database transaction. The inbox storage page lists the full provider table and the SQLite throughput constraint.
+Supported leasing providers match inbox EF storage: PostgreSQL, SQL Server, MySQL (`MySql.EntityFrameworkCore` or Pomelo), SQLite, and the in-memory provider for tests. MySQL uses `READ COMMITTED`, `FOR UPDATE SKIP LOCKED`, and `IX_LiteBus_Outbox_CreatedAt` for ordered concurrent claims. SQLite stores durable timestamps as UTC ticks and serializes lease writers through its database transaction. The inbox storage page lists the full provider table and the SQLite throughput constraint.
 
 ## Align Store Options with Your EF Model
 

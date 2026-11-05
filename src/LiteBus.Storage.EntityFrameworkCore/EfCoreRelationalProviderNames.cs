@@ -26,6 +26,11 @@ public static class EfCoreRelationalProviderNames
     public const string MySql = "Pomelo.EntityFrameworkCore.MySql";
 
     /// <summary>
+    ///     The Oracle MySQL provider name, reported by <c>MySql.EntityFrameworkCore</c>.
+    /// </summary>
+    public const string OracleMySql = "MySql.EntityFrameworkCore";
+
+    /// <summary>
     ///     The SQLite provider name.
     /// </summary>
     public const string Sqlite = "Microsoft.EntityFrameworkCore.Sqlite";

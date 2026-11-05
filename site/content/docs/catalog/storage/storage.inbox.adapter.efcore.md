@@ -273,7 +273,7 @@ Register through `AddLiteBusInboxMetrics()`. The constants live on `LiteBusInbox
 
 - **Use case**: MySQL EF inbox contract parity
 - **Test kind**: Contract (integration)
-- **Description**: Full inbox contract suite against MySQL 8.4 through Pomelo
+- **Description**: Full inbox contract suite against MySQL 8.4 through `MySql.EntityFrameworkCore`
 - **Behavior**: Ordered concurrent leasing, append outcomes, fencing, queries, and purge
 - **Expected outcome**: Same outcomes as the shared contract suite
 - **Remarks**: `LiteBus.Storage.IntegrationTests`

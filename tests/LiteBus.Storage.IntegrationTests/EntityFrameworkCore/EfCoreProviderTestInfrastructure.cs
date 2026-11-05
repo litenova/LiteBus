@@ -129,7 +129,7 @@ internal static class EfCoreProviderTestInfrastructure
                 storeOptions),
             EfCoreStorageProvider.MySql => new IntegrationInboxDbContext(
                 new DbContextOptionsBuilder<IntegrationInboxDbContext>()
-                    .UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)).Options,
+                    .UseMySQL(connectionString).Options,
                 storeOptions,
                 EfCoreStorageProvider.MySql),
             EfCoreStorageProvider.SqlServer => new IntegrationInboxDbContext(
@@ -165,7 +165,7 @@ internal static class EfCoreProviderTestInfrastructure
                 storeOptions),
             EfCoreStorageProvider.MySql => new IntegrationOutboxDbContext(
                 new DbContextOptionsBuilder<IntegrationOutboxDbContext>()
-                    .UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)).Options,
+                    .UseMySQL(connectionString).Options,
                 storeOptions,
                 EfCoreStorageProvider.MySql),
             EfCoreStorageProvider.SqlServer => new IntegrationOutboxDbContext(

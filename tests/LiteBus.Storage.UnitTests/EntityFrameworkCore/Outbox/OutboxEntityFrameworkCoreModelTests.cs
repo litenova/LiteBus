@@ -93,6 +93,21 @@ public sealed class OutboxEntityFrameworkCoreModelTests
     }
 
     [Fact]
+    public void GetModelBuilderConfiguration_ShouldMapTimestampsToMicrosecondDatetimeOnMySql()
+    {
+        var modelBuilder = new ModelBuilder();
+        modelBuilder.GetModelBuilderConfiguration(provider: EfCoreStorageProvider.MySql);
+
+        var entity = modelBuilder.Model.FindEntityType(typeof(OutboxMessageEntity));
+        var timestamps = entity!.GetProperties()
+            .Where(property => property.ClrType == typeof(DateTimeOffset) || property.ClrType == typeof(DateTimeOffset?))
+            .ToList();
+
+        timestamps.Should().HaveCount(7);
+        timestamps.Should().AllSatisfy(property => property.GetColumnType().Should().Be("datetime(6)"));
+    }
+
+    [Fact]
     public void GetModelBuilderConfiguration_ShouldMarkLeaseGenerationAsConcurrencyToken()
     {
         var modelBuilder = new ModelBuilder();

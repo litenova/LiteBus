@@ -10,6 +10,9 @@
 # shards together run exactly the solution's tests: the integration filter is split by project and by the storage
 # PostgreSQL namespace, and the integration-other shard runs that filter over everything outside the four
 # integration projects, so a matching class elsewhere still runs.
+# The consumer-smoke job restores the packed packages with third-party dependencies floating to their latest stable
+# releases and runs the storage packages on PostgreSQL, so a dependency release that breaks the shipped assemblies
+# fails here before it reaches an application.
 #
 # Skip waiver policy:
 #   - [Fact(Skip = ...)] is blocked by verify-no-fact-skips.sh on all branches except quarantine.
@@ -193,6 +196,49 @@ jobs:
           path: |
             artifacts/*.nupkg
             artifacts/*.snupkg
+
+  consumer-smoke:
+    name: Consumer Smoke
+    # Restores the packed packages the way an application does, with every third-party dependency floating to its
+    # latest stable release and no lock file, then runs the EF Core and Marten stores on PostgreSQL. The solution's
+    # own tests run on the versions LiteBus pins, so a dependency release that removes an API the shipped assemblies
+    # call (issue #167) shows up only here.
+    needs: [ plan, build ]
+    if: needs.plan.outputs.run == 'true'
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: smoke
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready --username postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Download Packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nuget-packages
+          path: artifacts
+
+      - name: Run Consumer Smoke Test
+        env:
+          LITEBUS_SMOKE_POSTGRES: Host=localhost;Port=5432;Username=postgres;Password=smoke;Database=litebus_smoke
+        run: dotnet run --project smoke/LiteBus.ConsumerSmoke --configuration Release -p:LiteBusVersion=${{ env.CI_PACKAGE_VERSION }}
 
   test:
     name: Test (${{ matrix.name }})
@@ -389,14 +435,14 @@ jobs:
     name: CI result
     # One job that is green only when every gate passed (or the plan skipped a duplicate run), so a branch rule or
     # the release workflow can depend on a single name.
-    needs: [ plan, docs, build, test, coverage ]
+    needs: [ plan, docs, build, consumer-smoke, test, coverage ]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Check every gate
         env:
           RUN: ${{ needs.plan.outputs.run }}
-          RESULTS: ${{ needs.docs.result }} ${{ needs.build.result }} ${{ needs.test.result }} ${{ needs.coverage.result }}
+          RESULTS: ${{ needs.docs.result }} ${{ needs.build.result }} ${{ needs.consumer-smoke.result }} ${{ needs.test.result }} ${{ needs.coverage.result }}
         run: |
           if [ "${RUN}" != "true" ]; then
             echo "Skipped: the push run of this commit is the check of record."
@@ -404,7 +450,7 @@ jobs:
           fi
           for result in ${RESULTS}; do
             if [ "${result}" != "success" ]; then
-              echo "::error::A CI gate did not succeed (docs, build, test, coverage: ${RESULTS})."
+              echo "::error::A CI gate did not succeed (docs, build, consumer smoke, test, coverage: ${RESULTS})."
               exit 1
             fi
           done

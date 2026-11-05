@@ -19,6 +19,7 @@ public sealed class EfCoreStorageExceptionTests
     [InlineData(EfCoreRelationalProviderNames.PostgreSql, EfCoreStorageProvider.PostgreSql)]
     [InlineData(EfCoreRelationalProviderNames.SqlServer, EfCoreStorageProvider.SqlServer)]
     [InlineData(EfCoreRelationalProviderNames.MySql, EfCoreStorageProvider.MySql)]
+    [InlineData(EfCoreRelationalProviderNames.OracleMySql, EfCoreStorageProvider.MySql)]
     [InlineData(EfCoreRelationalProviderNames.Sqlite, EfCoreStorageProvider.Sqlite)]
     public void ResolveProviderName_ShouldMapSupportedProviders(
         string providerName,

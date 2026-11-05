@@ -18,4 +18,8 @@
         <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="LiteBus.Storage.IntegrationTests, PublicKey=$(LiteBusPublicKey)"/>
+    </ItemGroup>
+
 </Project>

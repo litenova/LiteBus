@@ -22,7 +22,7 @@ With `RequireLease`, each pass first acquires the named `IRecurringCommandLease`
 | `CommandModuleBuilder.AddRecurring<TCommand>(Func<TCommand>, Action<RecurringCommandHostOptions>?)` | Declares a loop with an explicit command factory |
 | `CommandModuleBuilder.AddRecurring<TCommand>(Action<RecurringCommandHostOptions>?)` | Declares a loop for a command with a parameterless constructor |
 | `IRecurringWorkReport.HasMoreWork` | Optional result contract that skips the interval when work remains |
-| `RecurringCommandHostOptions` | `Enabled`, `Interval`, `StartupDelay`, `ErrorBackoff`, `IsConcurrencyConflict` (default `IsConcurrencyConflictByTypeName`; when `null`, conflicts are treated as failures), `RequireLease`, `LeaseName` (default command type full name) |
+| `RecurringCommandHostOptions` | `Enabled`, `Interval`, `StartupDelay`, `ErrorBackoff`, `IsConcurrencyConflict` (default `IsConcurrencyOrDatabaseConflict`; when `null`, conflicts are treated as failures), `RequireLease`, `LeaseName` (default command type full name) |
 | `IRecurringCommandLease.TryAcquireAsync` | Named single-flight acquisition. Returns a releasing handle that signals loss, or `null` when the lease is held |
 | `IRecurringCommandLeaseHandle.LeaseLost` | Token cancelled when the held lease is taken by another holder or renewals fail |
 | `CommandModuleBuilder.UsePostgreSqlRecurringLease` | Registers the renewable PostgreSQL lease-row single-flight from `LiteBus.Commands.Recurring.Storage.PostgreSql` |
@@ -40,7 +40,7 @@ With `RequireLease`, each pass first acquires the named `IRecurringCommandLease`
 
 - Timing values are validated when the module builds, so a zero or negative interval or error backoff fails at boot. The loop snapshots the validated values when it starts, so post-start option mutation does not change the pacing of a running loop.
 - With `Enabled = false`, the loop logs once and never sends.
-- `IsConcurrencyConflict` defaults to `IsConcurrencyConflictByTypeName`, which matches a type name ending in `ConcurrencyException` in the inner or aggregate chain.
+- `IsConcurrencyConflict` defaults to `IsConcurrencyOrDatabaseConflict`. It matches a type name ending in `ConcurrencyException`, or a database deadlock or serialization failure (SQLSTATE `40001` or `40P01`, error number 1205 or 1213, or SQLite busy or locked), anywhere in the inner or aggregate chain. `IsConcurrencyConflictByTypeName` keeps the type-name match alone.
 - `RequireLease = true` makes each pass acquire the named lease first. A pass that cannot acquire it is skipped at Debug and the loop waits `Interval`.
 - `LeaseName` defaults to the command type's full name. Loops sharing a name single-flight against each other.
 

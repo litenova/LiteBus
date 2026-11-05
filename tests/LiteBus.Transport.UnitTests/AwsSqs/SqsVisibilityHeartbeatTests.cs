@@ -14,18 +14,25 @@ public sealed class SqsVisibilityHeartbeatTests
     public async Task RunWithVisibilityExtension_LongHandler_ExtendsVisibilityPeriodically()
     {
         var extensions = 0;
+        var secondExtension = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        // The handler runs until the heartbeat has extended twice, so the assertion does not depend on how many
+        // 20 ms intervals a loaded runner fits into a fixed delay.
         var result = await SqsVisibilityHeartbeat.RunWithVisibilityExtensionAsync(
             _ =>
             {
-                Interlocked.Increment(ref extensions);
+                if (Interlocked.Increment(ref extensions) >= 2)
+                {
+                    secondExtension.TrySetResult();
+                }
+
                 return Task.CompletedTask;
             },
             TimeSpan.FromMilliseconds(20),
             TimeProvider.System,
             async handlerToken =>
             {
-                await Task.Delay(150, handlerToken).ConfigureAwait(false);
+                await secondExtension.Task.WaitAsync(TimeSpan.FromSeconds(10), handlerToken).ConfigureAwait(false);
                 return 7;
             },
             CancellationToken.None).ConfigureAwait(false);
@@ -41,18 +48,20 @@ public sealed class SqsVisibilityHeartbeatTests
     public async Task RunWithVisibilityExtension_AfterHandler_StopsExtending()
     {
         var extensions = 0;
+        var firstExtension = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await SqsVisibilityHeartbeat.RunWithVisibilityExtensionAsync(
             _ =>
             {
                 Interlocked.Increment(ref extensions);
+                firstExtension.TrySetResult();
                 return Task.CompletedTask;
             },
             TimeSpan.FromMilliseconds(20),
             TimeProvider.System,
             async handlerToken =>
             {
-                await Task.Delay(60, handlerToken).ConfigureAwait(false);
+                await firstExtension.Task.WaitAsync(TimeSpan.FromSeconds(10), handlerToken).ConfigureAwait(false);
                 return 0;
             },
             CancellationToken.None).ConfigureAwait(false);
@@ -95,18 +104,23 @@ public sealed class SqsVisibilityHeartbeatTests
     public async Task RunWithVisibilityExtension_FailedExtension_StopsLoopAndCompletesHandler()
     {
         var extensions = 0;
+        var failedExtension = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var result = await SqsVisibilityHeartbeat.RunWithVisibilityExtensionAsync<int>(
             _ =>
             {
                 Interlocked.Increment(ref extensions);
+                failedExtension.TrySetResult();
                 throw new InvalidOperationException("receipt handle expired");
             },
             TimeSpan.FromMilliseconds(20),
             TimeProvider.System,
             async handlerToken =>
             {
-                await Task.Delay(150, handlerToken).ConfigureAwait(false);
+                await failedExtension.Task.WaitAsync(TimeSpan.FromSeconds(10), handlerToken).ConfigureAwait(false);
+
+                // Several more intervals pass after the failure, so a loop that kept extending would show it.
+                await Task.Delay(100, handlerToken).ConfigureAwait(false);
                 return 9;
             },
             CancellationToken.None).ConfigureAwait(false);

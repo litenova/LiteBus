@@ -9,26 +9,28 @@
         <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.8.0"/>
         <PackageVersion Include="NuGet.Versioning" Version="7.9.0"/>
         <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556"/>
-        <!-- Held on EF Core 9.x: Pomelo.EntityFrameworkCore.MySql has no EF Core 10 provider. -->
-        <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.21"/>
-        <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.21"/>
-        <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.21"/>
-        <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.13"/>
-        <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.13"/>
-        <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.13"/>
-        <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.13"/>
-        <PackageVersion Include="Marten" Version="9.51.0"/>
-        <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.13"/>
-        <PackageVersion Include="OpenTelemetry" Version="1.20.0"/>
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.13"/>
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.13"/>
+        <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.14"/>
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.14"/>
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14"/>
+        <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.14"/>
+        <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14"/>
+        <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.14"/>
+        <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14"/>
+        <PackageVersion Include="Marten" Version="9.57.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.14"/>
+        <PackageVersion Include="OpenTelemetry" Version="1.20.1"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14"/>
         <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0"/>
-        <PackageVersion Include="Npgsql" Version="9.0.5"/>
-        <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4"/>
+        <PackageVersion Include="Npgsql" Version="10.0.3"/>
+        <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3"/>
         <PackageVersion Include="Testcontainers" Version="4.16.0"/>
-        <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.21"/>
-        <PackageVersion Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0"/>
-        <!-- Held on 2.1.x to match the SQLitePCLRaw major that the EF Core 9 SQLite provider was built against. -->
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.14"/>
+        <!-- Oracle's provider: Pomelo.EntityFrameworkCore.MySql has no EF Core 10 release yet. -->
+        <PackageVersion Include="MySql.EntityFrameworkCore" Version="10.0.12"/>
+        <!-- Lifts the vulnerable System.Security.Cryptography.Pkcs 9.0.11 that MySql.Data pulls in transitively. -->
+        <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.14"/>
+        <!-- Held on 2.1.x to match the SQLitePCLRaw major that the EF Core 10 SQLite provider was built against. -->
         <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.14"/>
         <PackageVersion Include="Testcontainers.PostgreSql" Version="4.16.0"/>
         <PackageVersion Include="Testcontainers.MsSql" Version="4.16.0"/>
@@ -39,7 +41,7 @@
         <PackageVersion Include="Testcontainers.LocalStack" Version="4.16.0"/>
         <PackageVersion Include="Testcontainers.ServiceBus" Version="4.16.0"/>
         <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.21.0"/>
-        <PackageVersion Include="AWSSDK.SQS" Version="4.0.100.19"/>
+        <PackageVersion Include="AWSSDK.SQS" Version="4.0.100.23"/>
         <PackageVersion Include="Confluent.Kafka" Version="2.16.0"/>
         <PackageVersion Include="RabbitMQ.Client" Version="7.2.2"/>
         <PackageVersion Include="xunit" Version="2.9.3"/>
