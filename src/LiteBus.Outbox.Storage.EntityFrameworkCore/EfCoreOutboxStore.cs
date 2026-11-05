@@ -560,7 +560,7 @@ public sealed class EfCoreOutboxStore :
                     throw;
                 }
 
-                if (!IsUniqueViolation(ex))
+                if (!EfCoreUniqueViolation.IsUniqueViolation(ex))
                 {
                     DetachFailedInsert(context, entity);
                     throw;
@@ -747,7 +747,7 @@ public sealed class EfCoreOutboxStore :
 
                 if (missing.Count == 0)
                 {
-                    if (!IsUniqueViolation(ex))
+                    if (!EfCoreUniqueViolation.IsUniqueViolation(ex))
                     {
                         throw;
                     }
@@ -802,7 +802,7 @@ public sealed class EfCoreOutboxStore :
                                 retryEx);
                         }
 
-                        if (!IsUniqueViolation(retryEx))
+                        if (!EfCoreUniqueViolation.IsUniqueViolation(retryEx))
                         {
                             throw;
                         }
@@ -2141,30 +2141,5 @@ public sealed class EfCoreOutboxStore :
             throw new IdempotencyConflictException(
                 $"An outbox message with idempotency key '{envelope.IdempotencyKey}' or message id '{envelope.Id}' already exists.");
         }
-    }
-
-    /// <summary>
-    ///     Determines whether a database update failure was caused by a unique constraint violation.
-    /// </summary>
-    /// <param name="exception">The database update exception.</param>
-    /// <returns><see langword="true" /> when the failure looks like a unique violation; otherwise, <see langword="false" />.</returns>
-    private static bool IsUniqueViolation(DbUpdateException exception)
-    {
-        for (var current = (Exception) exception; current is not null; current = current.InnerException)
-        {
-            var message = current.Message;
-
-            if (message.Contains("unique", StringComparison.OrdinalIgnoreCase) ||
-                message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) ||
-                message.Contains("23505", StringComparison.Ordinal) ||
-                message.Contains("2627", StringComparison.Ordinal) ||
-                message.Contains("2601", StringComparison.Ordinal) ||
-                message.Contains("1062", StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

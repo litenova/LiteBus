@@ -52,6 +52,23 @@ public sealed class PostgreSqlConstraintRefusalClassifierTests
     }
 
     [Fact]
+    public void Violation_after_the_first_failure_of_an_aggregate_is_found()
+    {
+        var classifier = new PostgreSqlConstraintRefusalClassifier(
+            new Dictionary<string, string> { ["ux_orders_reference"] = "ORDER_REFERENCE_TAKEN" });
+
+        // A batched commit reports every failure in one AggregateException, and its InnerException is only the first.
+        var aggregate = new AggregateException(
+            new InvalidOperationException("an unrelated failure in the same batch"),
+            new InvalidOperationException("the session failed", Conflict("ux_orders_reference")));
+
+        var recognized = classifier.TryClassify(aggregate, out var refusal);
+
+        recognized.Should().BeTrue();
+        refusal.Code.Should().Be("ORDER_REFERENCE_TAKEN");
+    }
+
+    [Fact]
     public void Unmapped_constraint_passes_through()
     {
         var classifier = new PostgreSqlConstraintRefusalClassifier(

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
@@ -42,8 +43,8 @@ namespace LiteBus.Commands.Storage.Marten;
 ///     </para>
 ///     <para>
 ///         The store holds no mutable state and opens a new session per call, so one singleton instance serves every
-///         mediation. The <c>PostgresException</c> type used to recognize a lost race arrives transitively with Marten;
-///         this package adds no Npgsql reference of its own.
+///         mediation. A lost race is recognized by the state of a <c>PostgresException</c> anywhere among the
+///         exceptions a failed session reports, including every exception inside an <see cref="AggregateException" />.
 ///     </para>
 /// </remarks>
 public sealed class MartenIdempotencyStore : IIdempotencyStore
@@ -251,9 +252,9 @@ public sealed class MartenIdempotencyStore : IIdempotencyStore
     /// </summary>
     /// <param name="exception">The failure a claim session raised, whatever wrapper Marten put around it.</param>
     /// <returns><see langword="true" /> when a storage error in the chain reports a claim conflict state.</returns>
-    private static bool IsClaimConflict(Exception exception)
+    internal static bool IsClaimConflict(Exception exception)
     {
-        for (Exception? current = exception; current is not null; current = current.InnerException)
+        foreach (var current in EnumerateExceptions(exception))
         {
             if (current is PostgresException postgres && IsClaimConflictState(postgres.SqlState))
             {
@@ -262,6 +263,41 @@ public sealed class MartenIdempotencyStore : IIdempotencyStore
         }
 
         return false;
+    }
+
+    /// <summary>
+    ///     Enumerates an exception, its inner exceptions, and every exception an <see cref="AggregateException" />
+    ///     carries, depth first.
+    /// </summary>
+    /// <param name="exception">The exception to start from.</param>
+    /// <returns>Every exception reachable from <paramref name="exception" />.</returns>
+    /// <remarks>
+    ///     A batched commit can report several failures in one <see cref="AggregateException" />, and its
+    ///     <see cref="Exception.InnerException" /> is only the first of them, so walking that chain alone can miss
+    ///     the storage error that matters.
+    /// </remarks>
+    private static IEnumerable<Exception> EnumerateExceptions(Exception exception)
+    {
+        var pending = new Stack<Exception>();
+        pending.Push(exception);
+
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+            yield return current;
+
+            if (current is AggregateException aggregate)
+            {
+                for (var index = aggregate.InnerExceptions.Count - 1; index >= 0; index--)
+                {
+                    pending.Push(aggregate.InnerExceptions[index]);
+                }
+            }
+            else if (current.InnerException is { } inner)
+            {
+                pending.Push(inner);
+            }
+        }
     }
 
     /// <summary>

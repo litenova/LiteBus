@@ -72,8 +72,9 @@ public sealed class PostgreSqlConstraintRefusalClassifier : IFaultRefusalClassif
         refusal = default;
 
         // A commit fault usually arrives wrapped: the store, the session, or the unit of work adds its own layer
-        // around the PostgresException, so the whole chain is walked rather than just the top exception.
-        for (var current = exception; current is not null; current = current.InnerException)
+        // around the PostgresException, and a batched commit can aggregate several, so every reachable exception
+        // is checked rather than just the top one.
+        foreach (var current in EnumerateExceptions(exception))
         {
             if (current is PostgresException postgres
                 && postgres.SqlState is UniqueViolationSqlState or ExclusionViolationSqlState
@@ -88,6 +89,41 @@ public sealed class PostgreSqlConstraintRefusalClassifier : IFaultRefusalClassif
         }
 
         return false;
+    }
+
+    /// <summary>
+    ///     Enumerates an exception, its inner exceptions, and every exception an <see cref="AggregateException" />
+    ///     carries, depth first.
+    /// </summary>
+    /// <param name="exception">The exception to start from.</param>
+    /// <returns>Every exception reachable from <paramref name="exception" />.</returns>
+    /// <remarks>
+    ///     A batched commit can report several failures in one <see cref="AggregateException" />, and its
+    ///     <see cref="Exception.InnerException" /> is only the first of them, so walking that chain alone can miss
+    ///     the storage error that matters.
+    /// </remarks>
+    private static IEnumerable<Exception> EnumerateExceptions(Exception exception)
+    {
+        var pending = new Stack<Exception>();
+        pending.Push(exception);
+
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+            yield return current;
+
+            if (current is AggregateException aggregate)
+            {
+                for (var index = aggregate.InnerExceptions.Count - 1; index >= 0; index--)
+                {
+                    pending.Push(aggregate.InnerExceptions[index]);
+                }
+            }
+            else if (current.InnerException is { } inner)
+            {
+                pending.Push(inner);
+            }
+        }
     }
 
     /// <summary>

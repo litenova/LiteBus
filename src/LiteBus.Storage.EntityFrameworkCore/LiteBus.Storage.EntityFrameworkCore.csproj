@@ -13,6 +13,7 @@
     <ItemGroup>
         <InternalsVisibleTo Include="LiteBus.Inbox.Storage.EntityFrameworkCore, PublicKey=$(LiteBusPublicKey)"/>
         <InternalsVisibleTo Include="LiteBus.Outbox.Storage.EntityFrameworkCore, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Storage.UnitTests, PublicKey=$(LiteBusPublicKey)"/>
     </ItemGroup>
 
 </Project>

@@ -109,7 +109,7 @@ Override names with `EntityFrameworkCoreOutboxStoreOptions` when needed.
 
 ## Provider-Specific Model Configuration
 
-Pass `EfCoreStorageProvider` to `GetModelBuilderConfiguration()` so payload and trace columns use the correct store types. LiteBus maps `payload` as `TEXT` for every EF provider because protected payloads are opaque strings. PostgreSQL maps `trace_context` as nullable `jsonb` when `EfCoreStorageProvider.PostgreSql` is supplied. Omitting the provider leaves both properties for application-owned column configuration.
+Pass `EfCoreStorageProvider` to `GetModelBuilderConfiguration()` so payload and trace columns use the correct store types. LiteBus maps `payload` as unbounded Unicode text because protected payloads are opaque strings: `TEXT` on PostgreSQL and SQLite, `nvarchar(max)` on SQL Server, and `longtext` on MySQL. SQL Server `text` is a deprecated non-Unicode type and MySQL `text` holds at most 64 KB, so neither is used. PostgreSQL maps `trace_context` as nullable `jsonb` when `EfCoreStorageProvider.PostgreSql` is supplied. Omitting the provider leaves both properties for application-owned column configuration.
 
 ```csharp
 protected override void OnModelCreating(ModelBuilder modelBuilder)

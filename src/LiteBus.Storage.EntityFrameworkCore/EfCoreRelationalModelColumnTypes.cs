@@ -14,10 +14,24 @@ public static class EfCoreRelationalModelColumnTypes
     /// </summary>
     /// <param name="provider">The target storage provider.</param>
     /// <returns>The provider-specific column type.</returns>
+    /// <remarks>
+    ///     The payload is stored as unbounded Unicode text rather than a JSON type, because a payload encryptor or a
+    ///     custom serializer may write content that is not JSON. On SQL Server that is <c>nvarchar(max)</c>, because
+    ///     <c>text</c> is a deprecated non-Unicode type that loses characters outside the database code page. On
+    ///     MySQL it is <c>longtext</c>, because <c>text</c> holds at most 64 KB.
+    /// </remarks>
+    /// <exception cref="EfCoreStorageNotSupportedException">Thrown when no column type is defined for the provider.</exception>
     public static string GetPayloadColumnType(EfCoreStorageProvider provider)
     {
-        _ = provider;
-        return "TEXT";
+        return provider switch
+        {
+            EfCoreStorageProvider.PostgreSql => "TEXT",
+            EfCoreStorageProvider.SqlServer => "nvarchar(max)",
+            EfCoreStorageProvider.MySql => "longtext",
+            EfCoreStorageProvider.Sqlite => "TEXT",
+            EfCoreStorageProvider.InMemory => "TEXT",
+            _ => throw new EfCoreStorageNotSupportedException($"Payload column types are not defined for provider '{provider}'.")
+        };
     }
 
     /// <summary>

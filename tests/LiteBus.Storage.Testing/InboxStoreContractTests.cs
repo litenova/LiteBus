@@ -986,6 +986,31 @@ public abstract class InboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that a payload larger than 64 KB with characters outside any single-byte code page round-trips.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    /// <remarks>
+    ///     MySQL <c>text</c> holds at most 64 KB, and SQL Server <c>text</c> keeps only characters in the database code
+    ///     page, so a store mapping the payload to either loses data here.
+    /// </remarks>
+    [SkippableFact]
+    public async Task EnqueueAsync_WithLargeUnicodePayload_ShouldRoundTripThePayload()
+    {
+        var store = CreateStore();
+        var messageId = Guid.NewGuid();
+        var payload = "{\"note\":\"" + string.Concat(Enumerable.Repeat("Grüße, 漢字, 😀 ", 6_000)) + "\"}";
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, BaseTime) with { Payload = payload }).ConfigureAwait(false);
+
+        var page = await store.MessageQuery.QueryAsync(
+            new InboxMessageFilter { MessageId = messageId },
+            new InboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
+
+        page.Items.Should().ContainSingle();
+        page.Items[0].Payload.Should().Be(payload);
+    }
+
+    /// <summary>
     ///     Verifies that message queries filter by status and support keyset pagination.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>

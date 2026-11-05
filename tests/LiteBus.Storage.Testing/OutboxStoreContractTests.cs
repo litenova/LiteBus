@@ -1140,6 +1140,31 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that a payload larger than 64 KB with characters outside any single-byte code page round-trips.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    /// <remarks>
+    ///     MySQL <c>text</c> holds at most 64 KB, and SQL Server <c>text</c> keeps only characters in the database code
+    ///     page, so a store mapping the payload to either loses data here.
+    /// </remarks>
+    [SkippableFact]
+    public async Task EnqueueAsync_WithLargeUnicodePayload_ShouldRoundTripThePayload()
+    {
+        var store = CreateStore();
+        var messageId = Guid.NewGuid();
+        var payload = "{\"note\":\"" + string.Concat(Enumerable.Repeat("Grüße, 漢字, 😀 ", 6_000)) + "\"}";
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, BaseTime) with { Payload = payload }).ConfigureAwait(false);
+
+        var page = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { MessageId = messageId },
+            new OutboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
+
+        page.Items.Should().ContainSingle();
+        page.Items[0].Payload.Should().Be(payload);
+    }
+
+    /// <summary>
     ///     Verifies every outbox message predicate composes consistently for query and purge operations.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
