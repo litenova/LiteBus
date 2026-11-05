@@ -10,11 +10,13 @@ This patch release fixes the EF Core storage packages on EF Core 10 and moves ev
 
 - The EF Core inbox, outbox, and shared storage packages are built against EF Core 10 (#167). Version 7.0.0 was built against EF Core 9.0.21, and EF Core 10 removed `SetPropertyCalls<TSource>`, the type the EF Core 9 `ExecuteUpdate` API compiles against. On EF Core 10, every store path that calls `ExecuteUpdateAsync` threw `TypeLoadException`. The outbox processor leased rows, failed to renew the lease and to persist the outcome, and never published them.
 - `EfCoreProviderResolver` recognizes Oracle's `MySql.EntityFrameworkCore` provider as `EfCoreStorageProvider.MySql`, alongside Pomelo. `EfCoreRelationalProviderNames.OracleMySql` holds its provider name.
+- On SQL Server, the EF Core stores send the message-id list of `RequeueAsync` and of a `MessageIds` query or purge filter as a single JSON parameter, as EF Core 9 did. EF Core 10 sends a list as one parameter per element by default, and SQL Server rejects a command with more than 2,100 parameters, so requeuing or filtering a few thousand messages failed.
 
 ### Changed
 
 - The EF Core storage packages require EF Core 10. `Microsoft.EntityFrameworkCore` and `Microsoft.EntityFrameworkCore.Relational` move to 10.0.14. An application that must stay on EF Core 9 stays on LiteBus 7.0.0. That includes MySQL through `Pomelo.EntityFrameworkCore.MySql`, which has no EF Core 10 release yet. Use `MySql.EntityFrameworkCore` 10.x for MySQL on EF Core 10.
-- `Npgsql` moves to 10.0.3, matching the EF Core 10 PostgreSQL provider. `Microsoft.Extensions.*` move to 10.0.14, OpenTelemetry to 1.20.1, Marten to 9.57.0, and `AWSSDK.SQS` to 4.0.100.23. Roslyn stays on 4.8.0, `SQLitePCLRaw` stays on 2.1.x to match the EF Core 10 SQLite provider, and `StyleCop.Analyzers` stays on 1.2.0-beta.556.
+- `Microsoft.Extensions.*` move to 10.0.14, OpenTelemetry to 1.20.1, Marten to 9.57.0, and `AWSSDK.SQS` to 4.0.100.23. Roslyn stays on 4.8.0, `SQLitePCLRaw` stays on 2.1.x to match the EF Core 10 SQLite provider, and `StyleCop.Analyzers` stays on 1.2.0-beta.556.
+- The `Npgsql` floor stays at 9.0.5, because Marten 9 is built against Npgsql 9 and LiteBus calls no Npgsql 10 API, so a Marten application is not forced onto Npgsql 10. The tests run on Npgsql 10.0.3, the version the EF Core 10 PostgreSQL provider requires.
 - The MySQL storage integration tests run on `MySql.EntityFrameworkCore` instead of Pomelo.
 
 ## v7.0.0

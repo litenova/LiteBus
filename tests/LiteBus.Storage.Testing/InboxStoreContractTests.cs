@@ -942,6 +942,50 @@ public abstract class InboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that replay, query, and purge accept more message ids than SQL Server allows command parameters.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    /// <remarks>
+    ///     EF Core 10 sends a list as one parameter per element by default, and SQL Server rejects more than 2,100.
+    /// </remarks>
+    [SkippableFact]
+    public async Task MessageIdLists_LargerThanSqlServerParameterLimit_ShouldMatchStoredRows()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var deadLetteredId = Guid.NewGuid();
+        var pendingId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(deadLetteredId, now)).ConfigureAwait(false);
+        var leased = await store.LeaseStore.LeasePendingAsync(new InboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "large-list-worker",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        }).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("manual replay"))]).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now.AddSeconds(1))).ConfigureAwait(false);
+
+        Guid[] messageIds = [deadLetteredId, pendingId, .. Enumerable.Range(0, 2_500).Select(_ => Guid.NewGuid())];
+
+        var requeued = await store.DeadLetterStore.RequeueAsync(messageIds).ConfigureAwait(false);
+
+        requeued.Requested.Should().Be(messageIds.Length);
+        requeued.Requeued.Should().Be(1);
+
+        var page = await store.MessageQuery.QueryAsync(
+            new InboxMessageFilter { MessageIds = messageIds },
+            new InboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
+
+        page.Items.Select(envelope => envelope.Id).Should().BeEquivalentTo([deadLetteredId, pendingId]);
+
+        var deleted = await store.PurgeStore.PurgeAsync(new InboxMessageFilter { MessageIds = messageIds }).ConfigureAwait(false);
+
+        deleted.Should().Be(2);
+    }
+
+    /// <summary>
     ///     Verifies that message queries filter by status and support keyset pagination.
     /// </summary>
     /// <returns>A task that completes when the check finishes.</returns>

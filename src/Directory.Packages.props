@@ -12,7 +12,8 @@
         <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14"/>
         <PackageVersion Include="OpenTelemetry" Version="1.20.1"/>
         <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.403" PrivateAssets="All"/>
-        <PackageVersion Include="Npgsql" Version="10.0.3"/>
+        <!-- Floor stays on Npgsql 9.x: Marten 9 is built against Npgsql 9, and LiteBus uses no Npgsql 10 API. The tests run on Npgsql 10. -->
+        <PackageVersion Include="Npgsql" Version="9.0.5"/>
         <PackageVersion Include="Marten" Version="9.57.0"/>
         <PackageVersion Include="AWSSDK.SQS" Version="4.0.100.23"/>
         <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.21.0"/>

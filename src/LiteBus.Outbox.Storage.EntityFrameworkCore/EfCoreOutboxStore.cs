@@ -147,8 +147,12 @@ public sealed class EfCoreOutboxStore :
                 return new RequeueResult(0, 0);
             }
 
-            var entities = await context.OutboxMessages
-                .Where(message => messageIds.Contains(message.Id) && message.Status == OutboxStatus.DeadLettered)
+            var deadLettered = context.OutboxMessages.Where(message => message.Status == OutboxStatus.DeadLettered);
+            var candidates = EfCoreCollectionParameters.UseSingleParameter(context)
+                ? deadLettered.Where(message => EF.Parameter(messageIds).Contains(message.Id))
+                : deadLettered.Where(message => messageIds.Contains(message.Id));
+
+            var entities = await candidates
                 .ToListAsync(token)
                 .ConfigureAwait(false);
 
@@ -283,7 +287,7 @@ public sealed class EfCoreOutboxStore :
 
         return ExecuteAsync(async (context, token) =>
         {
-            var query = ApplyFilter(context.OutboxMessages.AsQueryable(), filter);
+            var query = ApplyFilter(context.OutboxMessages.AsQueryable(), filter, EfCoreCollectionParameters.UseSingleParameter(context));
             query = ApplyCursor(query, pageRequest.Cursor);
 
             var entities = await query
@@ -309,7 +313,7 @@ public sealed class EfCoreOutboxStore :
                 throw new InvalidOperationException("Purge requires a DbContext-backed outbox database context.");
             }
 
-            var query = ApplyFilter(context.OutboxMessages.AsQueryable(), filter);
+            var query = ApplyFilter(context.OutboxMessages.AsQueryable(), filter, EfCoreCollectionParameters.UseSingleParameter(context));
             return await EfCoreDurableStoreOperations.DeleteMatchingAsync(dbContext, query, token)
                 .ConfigureAwait(false);
         }, cancellationToken);
@@ -1736,10 +1740,14 @@ public sealed class EfCoreOutboxStore :
     /// </summary>
     /// <param name="query">The outbox messages to filter.</param>
     /// <param name="filter">The optional predicates applied to stored rows.</param>
+    /// <param name="singleCollectionParameter">
+    ///     Whether the message-id list is sent as one collection parameter, as <see cref="EfCoreCollectionParameters" /> decides.
+    /// </param>
     /// <returns>The filtered query.</returns>
     private static IQueryable<OutboxMessageEntity> ApplyFilter(
         IQueryable<OutboxMessageEntity> query,
-        OutboxMessageFilter filter)
+        OutboxMessageFilter filter,
+        bool singleCollectionParameter)
     {
         if (filter.MessageId is not null)
         {
@@ -1748,7 +1756,10 @@ public sealed class EfCoreOutboxStore :
 
         if (filter.MessageIds is { Count: > 0 })
         {
-            query = query.Where(message => filter.MessageIds.Contains(message.Id));
+            var messageIds = filter.MessageIds;
+            query = singleCollectionParameter
+                ? query.Where(message => EF.Parameter(messageIds).Contains(message.Id))
+                : query.Where(message => messageIds.Contains(message.Id));
         }
 
         var statusValues = MaterializeStatusFilter(filter.Statuses);

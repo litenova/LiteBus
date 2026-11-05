@@ -1096,6 +1096,50 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that replay, query, and purge accept more message ids than SQL Server allows command parameters.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    /// <remarks>
+    ///     EF Core 10 sends a list as one parameter per element by default, and SQL Server rejects more than 2,100.
+    /// </remarks>
+    [SkippableFact]
+    public async Task MessageIdLists_LargerThanSqlServerParameterLimit_ShouldMatchStoredRows()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var deadLetteredId = Guid.NewGuid();
+        var pendingId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(deadLetteredId, now)).ConfigureAwait(false);
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 1,
+            LeaseOwner = "large-list-publisher",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        }).ConfigureAwait(false);
+        await store.StateWriter.PersistAsync([leased[0].AsDeadLettered(Failure("manual replay"))]).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now.AddSeconds(1))).ConfigureAwait(false);
+
+        Guid[] messageIds = [deadLetteredId, pendingId, .. Enumerable.Range(0, 2_500).Select(_ => Guid.NewGuid())];
+
+        var requeued = await store.DeadLetterStore.RequeueAsync(messageIds).ConfigureAwait(false);
+
+        requeued.Requested.Should().Be(messageIds.Length);
+        requeued.Requeued.Should().Be(1);
+
+        var page = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { MessageIds = messageIds },
+            new OutboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
+
+        page.Items.Select(envelope => envelope.Id).Should().BeEquivalentTo([deadLetteredId, pendingId]);
+
+        var deleted = await store.PurgeStore.PurgeAsync(new OutboxMessageFilter { MessageIds = messageIds }).ConfigureAwait(false);
+
+        deleted.Should().Be(2);
+    }
+
+    /// <summary>
     ///     Verifies every outbox message predicate composes consistently for query and purge operations.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>

@@ -662,7 +662,7 @@
           "LiteBus.Inbox.Abstractions": "[7.0.0, )",
           "LiteBus.Runtime.Abstractions": "[7.0.0, )",
           "LiteBus.Storage.PostgreSql": "[7.0.0, )",
-          "Npgsql": "[10.0.3, )"
+          "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.messaging": {
@@ -727,7 +727,7 @@
           "LiteBus.Outbox.Abstractions": "[7.0.0, )",
           "LiteBus.Runtime.Abstractions": "[7.0.0, )",
           "LiteBus.Storage.PostgreSql": "[7.0.0, )",
-          "Npgsql": "[10.0.3, )"
+          "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.queries": {
@@ -788,7 +788,7 @@
         "dependencies": {
           "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
           "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "Npgsql": "[10.0.3, )"
+          "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.transport": {

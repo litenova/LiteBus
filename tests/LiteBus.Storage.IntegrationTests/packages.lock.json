@@ -1092,7 +1092,7 @@
           "LiteBus.Runtime.Abstractions": "[7.0.0, )",
           "LiteBus.Storage.PostgreSql": "[7.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )",
-          "Npgsql": "[10.0.3, )"
+          "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.commands.storage.marten": {
@@ -1102,7 +1102,7 @@
           "LiteBus.Messaging.Abstractions": "[7.0.0, )",
           "LiteBus.Runtime.Abstractions": "[7.0.0, )",
           "Marten": "[9.57.0, )",
-          "Npgsql": "[10.0.3, )"
+          "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.commands.storage.postgresql": {
@@ -1112,7 +1112,7 @@
           "LiteBus.Messaging.Abstractions": "[7.0.0, )",
           "LiteBus.Runtime.Abstractions": "[7.0.0, )",
           "LiteBus.Storage.PostgreSql": "[7.0.0, )",
-          "Npgsql": "[10.0.3, )"
+          "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.durablemessaging.abstractions": {
@@ -1250,7 +1250,7 @@
           "LiteBus.Inbox.Abstractions": "[7.0.0, )",
           "LiteBus.Runtime.Abstractions": "[7.0.0, )",
           "LiteBus.Storage.PostgreSql": "[7.0.0, )",
-          "Npgsql": "[10.0.3, )"
+          "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.messaging": {
@@ -1351,7 +1351,7 @@
           "LiteBus.Outbox.Abstractions": "[7.0.0, )",
           "LiteBus.Runtime.Abstractions": "[7.0.0, )",
           "LiteBus.Storage.PostgreSql": "[7.0.0, )",
-          "Npgsql": "[10.0.3, )"
+          "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.queries": {
@@ -1442,7 +1442,7 @@
           "LiteBus.Saga": "[7.0.0, )",
           "LiteBus.Saga.Abstractions": "[7.0.0, )",
           "LiteBus.Storage.PostgreSql": "[7.0.0, )",
-          "Npgsql": "[10.0.3, )"
+          "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.storage.entityframeworkcore": {
@@ -1459,7 +1459,7 @@
         "dependencies": {
           "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
           "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "Npgsql": "[10.0.3, )"
+          "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.storage.testing": {
