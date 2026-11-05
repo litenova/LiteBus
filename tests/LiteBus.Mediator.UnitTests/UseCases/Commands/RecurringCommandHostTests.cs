@@ -163,6 +163,73 @@ public sealed class RecurringCommandHostTests
             .Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData("40001", 0, true)]
+    [InlineData("40P01", 0, true)]
+    [InlineData(null, 1205, true)]
+    [InlineData("40001", 1213, true)]
+    [InlineData("23505", 0, false)]
+    [InlineData(null, 547, false)]
+    public void The_default_conflict_predicate_recognizes_database_deadlocks_and_serialization_failures(
+        string? sqlState,
+        int number,
+        bool expected)
+    {
+        var databaseError = new StubDatabaseException(sqlState, number);
+        var wrapped = new InvalidOperationException(
+            "An error occurred while saving the entity changes.",
+            new AggregateException(new InvalidOperationException("other"), databaseError));
+
+        new RecurringCommandHostOptions().IsConcurrencyConflict!(wrapped).Should().Be(expected);
+    }
+
+    [Fact]
+    public void The_default_conflict_predicate_recognizes_SQLite_busy_and_locked_results()
+    {
+        var predicate = new RecurringCommandHostOptions().IsConcurrencyConflict!;
+
+        predicate(new StubSqliteException(5)).Should().BeTrue();
+        predicate(new StubSqliteException(6)).Should().BeTrue();
+        predicate(new StubSqliteException(19)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void The_default_conflict_predicate_still_recognizes_concurrency_exceptions_by_type_name()
+    {
+        new RecurringCommandHostOptions().IsConcurrencyConflict!(new StubConcurrencyException()).Should().BeTrue();
+    }
+
+    /// <summary>
+    ///     A driver error with a SQLSTATE and an error number, as the SQL Server, MySQL, and PostgreSQL drivers expose.
+    /// </summary>
+    private sealed class StubDatabaseException : System.Data.Common.DbException
+    {
+        public StubDatabaseException(string? sqlState, int number)
+            : base("database error")
+        {
+            SqlState = sqlState;
+            Number = number;
+        }
+
+        public override string? SqlState { get; }
+
+        public int Number { get; }
+    }
+
+    /// <summary>
+    ///     A driver error with a SQLite result code.
+    /// </summary>
+    private sealed class StubSqliteException : System.Data.Common.DbException
+    {
+        public StubSqliteException(int sqliteErrorCode)
+            : base("database error")
+        {
+            SqliteErrorCode = sqliteErrorCode;
+        }
+
+        public int SqliteErrorCode { get; }
+    }
+
     [Fact]
     public void A_negative_interval_is_refused_at_composition()
     {

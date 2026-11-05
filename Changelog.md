@@ -2,27 +2,46 @@
 
 This file records the notable changes in each LiteBus release.
 
-## v7.0.1
+## v7.1.0
 
-This patch release fixes the EF Core storage packages on EF Core 10 and moves every dependency to its current version.
+This release makes the EF Core storage packages work on EF Core 10, fixes the storage defects an audit for the same class of bug found, and adds a CI gate that runs the packed packages against the latest releases of their dependencies. Applications on EF Core 10 should upgrade. An application on SQL Server or MySQL that uses the EF Core storage packages gets an EF Core migration, described under Breaking. An application that must stay on EF Core 9 stays on 7.0.0.
 
-### Fixed
+### Added
 
-- The EF Core inbox, outbox, and shared storage packages are built against EF Core 10 (#167). Version 7.0.0 was built against EF Core 9.0.21, and EF Core 10 removed `SetPropertyCalls<TSource>`, the type the EF Core 9 `ExecuteUpdate` API compiles against. On EF Core 10, every store path that calls `ExecuteUpdateAsync` threw `TypeLoadException`. The outbox processor leased rows, failed to renew the lease and to persist the outcome, and never published them.
-- `EfCoreProviderResolver` recognizes Oracle's `MySql.EntityFrameworkCore` provider as `EfCoreStorageProvider.MySql`, alongside Pomelo. `EfCoreRelationalProviderNames.OracleMySql` holds its provider name.
-- On SQL Server, the EF Core stores send the message-id list of `RequeueAsync` and of a `MessageIds` query or purge filter as a single JSON parameter, as EF Core 9 did. EF Core 10 sends a list as one parameter per element by default, and SQL Server rejects a command with more than 2,100 parameters, so requeuing or filtering a few thousand messages failed.
-- `GetModelBuilderConfiguration` maps the inbox and outbox `payload` column to `nvarchar(max)` on SQL Server and to `longtext` on MySQL. It mapped `TEXT` for every provider, which on SQL Server is the deprecated non-Unicode `text` type, so characters outside the database code page were stored as `?`, and on MySQL holds at most 64 KB, so a larger payload failed to save. PostgreSQL and SQLite keep `TEXT`. An application on SQL Server or MySQL gets a migration that changes the column type, and the change keeps existing rows.
-- The EF Core outbox store recognizes a duplicate insert from the driver's error code: SQLSTATE `23505` on PostgreSQL, error numbers 2627 and 2601 on SQL Server and 1062 and 1586 on MySQL, and extended result codes 2067 and 1555 on SQLite. It matched the words "unique" and "duplicate" and digit runs in the message text, so a server set to another language threw instead of reporting `AlreadyEnqueued`, and a key containing such digits could hide an unrelated failure.
-- `MartenIdempotencyStore` and `PostgreSqlConstraintRefusalClassifier` look inside every exception of an `AggregateException`. A batched commit reports its failures that way, and only the first was checked, so a lost claim race could escape as an exception and a mapped constraint violation could go unclassified.
-- On MySQL, `GetModelBuilderConfiguration` maps every inbox and outbox timestamp to `datetime(6)`. Oracle's `MySql.EntityFrameworkCore` maps `DateTimeOffset` to `datetime` by default, which rounds each timestamp to a whole second, so visibility and lease-expiry times moved by up to half a second and rows created within the same second lost their order. Pomelo already used `datetime(6)`, so a Pomelo schema is unchanged. A schema created with Oracle's provider gets a migration that widens the columns.
+- `EfCoreRelationalProviderNames.OracleMySql` is the provider name of Oracle's `MySql.EntityFrameworkCore`, and `EfCoreProviderResolver` maps it to `EfCoreStorageProvider.MySql` alongside Pomelo. Pomelo has no EF Core 10 release yet, so Oracle's provider is the MySQL option on EF Core 10.
+- `RecurringCommandHostOptions.IsConcurrencyOrDatabaseConflict` recognizes a lost race from a database error as well as from a `*ConcurrencyException` type name: SQLSTATE `40001` (a serialization failure, which MySQL also reports for a deadlock) or `40P01` (a PostgreSQL deadlock), error number 1205 (a SQL Server deadlock victim or a MySQL lock wait timeout) or 1213 (a MySQL deadlock), or SQLite result code 5 or 6 (busy or locked). It is the new default of `IsConcurrencyConflict`.
+- A `Consumer Smoke` CI job restores the packed packages the way an application does, with the EF Core PostgreSQL provider, Npgsql, and Marten floating to their latest stable releases and no lock file, and runs the EF Core outbox and inbox stores and the Marten idempotency store on PostgreSQL. Run against the 7.0.0 packages, it fails with the `TypeLoadException` from #167. The `CI result` gate requires it. See [Consumer Smoke Test](site/content/docs/testing/integration-tests.md#consumer-smoke-test).
 
 ### Changed
 
-- The EF Core storage packages require EF Core 10. `Microsoft.EntityFrameworkCore` and `Microsoft.EntityFrameworkCore.Relational` move to 10.0.14. An application that must stay on EF Core 9 stays on LiteBus 7.0.0. That includes MySQL through `Pomelo.EntityFrameworkCore.MySql`, which has no EF Core 10 release yet. Use `MySql.EntityFrameworkCore` 10.x for MySQL on EF Core 10.
-- `Microsoft.Extensions.*` move to 10.0.14, OpenTelemetry to 1.20.1, Marten to 9.57.0, and `AWSSDK.SQS` to 4.0.100.23. Roslyn stays on 4.8.0, `SQLitePCLRaw` stays on 2.1.x to match the EF Core 10 SQLite provider, and `StyleCop.Analyzers` stays on 1.2.0-beta.556.
+- The EF Core storage packages build against EF Core 10.0.14 and require EF Core 10.
+- `RecurringCommandHostOptions.IsConcurrencyConflict` defaults to `IsConcurrencyOrDatabaseConflict`. A pass that loses a race in the database itself, which a handler writing through raw SQL or a plain `DbUpdateException` reports only as a deadlock or a serialization failure, now logs at Information (EventId 2104) and waits `Interval`, as an optimistic-concurrency conflict already did, instead of logging an error and waiting `ErrorBackoff`. `IsConcurrencyConflictByTypeName` is unchanged; assign it to keep the 7.0.0 behavior.
+- `Microsoft.Extensions.*` move to 10.0.14, OpenTelemetry to 1.20.1, Marten to 9.57.0, SourceLink to 10.0.403, and `AWSSDK.SQS` to 4.0.100.23.
 - The `Npgsql` floor stays at 9.0.5, because Marten 9 is built against Npgsql 9 and LiteBus calls no Npgsql 10 API, so a Marten application is not forced onto Npgsql 10. The tests run on Npgsql 10.0.3, the version the EF Core 10 PostgreSQL provider requires.
+- Roslyn stays on 4.8.0, so the analyzer loads on the compiler the .NET 10 SDK ships. `SQLitePCLRaw` stays on 2.1.x to match the EF Core 10 SQLite provider, and `StyleCop.Analyzers` stays on 1.2.0-beta.556.
 - The MySQL storage integration tests run on `MySql.EntityFrameworkCore` instead of Pomelo.
-- A `Consumer Smoke` CI job restores the packed packages with the EF Core PostgreSQL provider, Npgsql, and Marten floating to their latest stable releases, and runs the EF Core and Marten stores on PostgreSQL. Run against the 7.0.0 packages, it fails with the `TypeLoadException` from #167. See [Consumer Smoke Test](site/content/docs/testing/integration-tests.md#consumer-smoke-test).
+
+### Fixed
+
+- The EF Core inbox, outbox, and shared storage packages work on EF Core 10 (#167). Version 7.0.0 was built against EF Core 9.0.21, and EF Core 10 removed `SetPropertyCalls<TSource>`, the type the EF Core 9 `ExecuteUpdate` API compiles against. On EF Core 10, every store path that calls `ExecuteUpdateAsync` threw `TypeLoadException`: the outbox processor leased rows, failed to renew the lease and to persist the outcome, and never published them.
+- On SQL Server, the EF Core stores send the message-id list of `RequeueAsync` and of a `MessageIds` query or purge filter as a single JSON parameter, as EF Core 9 did. EF Core 10 sends a list as one parameter per element by default, and SQL Server rejects a command with more than 2,100 parameters, so requeuing or filtering a few thousand messages failed.
+- `GetModelBuilderConfiguration` maps the inbox and outbox `payload` column to `nvarchar(max)` on SQL Server and to `longtext` on MySQL. It mapped `TEXT` for every provider. On SQL Server that is the deprecated non-Unicode `text` type, so characters outside the database code page were stored as `?`. On MySQL it holds at most 64 KB, so a larger payload failed to save. PostgreSQL and SQLite keep `TEXT`.
+- On MySQL, `GetModelBuilderConfiguration` maps every inbox and outbox timestamp to `datetime(6)`. Oracle's `MySql.EntityFrameworkCore` maps `DateTimeOffset` to `datetime` by default, which rounds each timestamp to a whole second, so visibility and lease-expiry times moved by up to half a second and rows created within the same second lost their order.
+- The EF Core outbox store recognizes a duplicate insert from the driver's error code: SQLSTATE `23505` on PostgreSQL, error numbers 2627 and 2601 on SQL Server and 1062 and 1586 on MySQL, and extended result codes 2067 and 1555 on SQLite. It matched the words "unique" and "duplicate" and digit runs in the message text, so a server set to another language threw instead of reporting `AlreadyEnqueued`, and a key containing such digits could hide an unrelated failure.
+- `MartenIdempotencyStore` and `PostgreSqlConstraintRefusalClassifier` look inside every exception of an `AggregateException`. A batched commit reports its failures that way, and only the first was checked, so a lost claim race could escape as an exception and a mapped constraint violation could go unclassified.
+- The SQS visibility heartbeat tests wait for the extensions they assert on instead of fixed delays, which failed on loaded CI runners.
+
+### Breaking
+
+- The EF Core storage packages require EF Core 10. An application on EF Core 9 stays on 7.0.0, which includes MySQL through Pomelo until Pomelo ships an EF Core 10 provider.
+- On SQL Server and MySQL, the EF Core model changes column types, so the next `dotnet ef migrations add` produces a migration. Review it and apply it before deploying 7.1.0. On SQL Server, `payload` changes from `text` to `nvarchar(max)` in both tables. On MySQL, `payload` changes from `text` to `longtext`, and on Oracle's provider the timestamp columns change from `datetime` to `datetime(6)`. Pomelo already mapped timestamps to `datetime(6)`. Every change widens the column and keeps existing rows. PostgreSQL and SQLite schemas are unchanged, and so are the tables the `*.Storage.PostgreSql` packages create.
+
+### Documentation
+
+- The v7 migration guide gains [Upgrading from 7.0.0 to 7.1.0](site/content/docs/migration/v7.md#upgrading-from-700-to-710), with the EF Core 10 requirement, the MySQL provider choice, and the column changes each provider's migration makes.
+- The integration testing page describes the [Consumer Smoke Test](site/content/docs/testing/integration-tests.md#consumer-smoke-test) and how to run it locally.
+- The EF Core storage pages list the payload column type per provider, and the recurring command pages describe the new conflict default.
+- `AGENTS.md` gains rules for dependency versions and runtime compatibility, provider-neutral storage code, choosing the version number, the release checklist, and timing-independent tests.
 
 ## v7.0.0
 

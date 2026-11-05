@@ -596,10 +596,10 @@ The solution's tests compile and run against the dependency versions LiteBus pin
 The `Consumer Smoke` CI job runs it on every commit against the packages the build job packed, and the `CI result` gate requires it. To run it locally, pack the packages into `artifacts/`, start PostgreSQL, and point the application at it:
 
 ```bash
-pwsh ./scripts/Pack-Packages.ps1 -OutputDirectory artifacts -Version 7.0.0-local
+pwsh ./scripts/Pack-Packages.ps1 -OutputDirectory artifacts -Version 7.1.0-local
 docker run -d --rm --name litebus-smoke -e POSTGRES_PASSWORD=smoke -p 55432:5432 postgres:16-alpine
 LITEBUS_SMOKE_POSTGRES="Host=localhost;Port=55432;Username=postgres;Password=smoke;Database=litebus_smoke" \
-  dotnet run --project smoke/LiteBus.ConsumerSmoke -p:LiteBusVersion=7.0.0-local
+  dotnet run --project smoke/LiteBus.ConsumerSmoke -p:LiteBusVersion=7.1.0-local
 ```
 
 Use a separate `NUGET_PACKAGES` folder for local runs, so the locally packed versions do not stay in the global package cache.

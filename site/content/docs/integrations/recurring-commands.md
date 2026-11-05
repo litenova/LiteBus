@@ -46,7 +46,7 @@ Each registration gets its own loop and its own options. The loop registers as a
 | `Interval` | 1 minute | Delay between sends when the previous send reported no more work |
 | `StartupDelay` | `TimeSpan.Zero` | Delay after host start before the first send |
 | `ErrorBackoff` | 5 minutes | Delay after a send throws, instead of `Interval` |
-| `IsConcurrencyConflict` | `IsConcurrencyConflictByTypeName` | Predicate recognizing an optimistic-concurrency conflict. A conflict waits `Interval` instead of `ErrorBackoff`, and `null` treats every exception as a failure. |
+| `IsConcurrencyConflict` | `IsConcurrencyOrDatabaseConflict` | Predicate recognizing a lost race: an optimistic-concurrency conflict, a deadlock, or a serialization failure. A conflict waits `Interval` instead of `ErrorBackoff`, and `null` treats every exception as a failure. |
 | `RequireLease` | `false` | When true, each pass first acquires the named lease. A pass that cannot acquire it is skipped at Debug (EventId 2105) and the loop waits `Interval`. |
 | `LeaseName` | Command type full name | The lease name acquired when `RequireLease` is true. Loops sharing a name single-flight against each other. |
 
@@ -74,7 +74,7 @@ Implementing it is optional. A command with no result, or one whose result does 
 
 ## Failure Behavior
 
-A pass that throws is logged, and the loop continues after `ErrorBackoff`, unless the `IsConcurrencyConflict` predicate classifies the exception as an optimistic-concurrency conflict. A conflict is logged at Information (EventId 2104) and the loop waits `Interval`, because another instance already did the work. The default predicate, `IsConcurrencyConflictByTypeName`, matches a type name ending in `ConcurrencyException` anywhere in the inner or aggregate exception chain. Set the predicate to `null` to treat conflicts as failures.
+A pass that throws is logged, and the loop continues after `ErrorBackoff`, unless the `IsConcurrencyConflict` predicate classifies the exception as an optimistic-concurrency conflict. A conflict is logged at Information (EventId 2104) and the loop waits `Interval`, because another instance already did the work. The default predicate, `IsConcurrencyOrDatabaseConflict`, matches a type name ending in `ConcurrencyException`, or a database error that reports a deadlock or a serialization failure, anywhere in the inner or aggregate exception chain. It reads SQLSTATE `40001` (a serialization failure, which MySQL also reports for a deadlock) and `40P01` (a PostgreSQL deadlock), error numbers 1205 (a SQL Server deadlock victim or a MySQL lock wait timeout) and 1213 (a MySQL deadlock), and SQLite result codes 5 (busy) and 6 (locked). `IsConcurrencyConflictByTypeName` keeps the type-name match alone. Set the predicate to `null` to treat conflicts as failures.
 
 An exception never escapes the loop. A failing dependency is usually still failing one interval later, which is why the error delay is longer than the poll interval by default. A longer delay keeps a broken loop from filling the log at the polling rate.
 

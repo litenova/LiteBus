@@ -17,7 +17,7 @@
         <IsPackable>false</IsPackable>
         <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
         <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
-        <LiteBusVersion Condition="'$(LiteBusVersion)' == ''">7.0.0-local</LiteBusVersion>
+        <LiteBusVersion Condition="'$(LiteBusVersion)' == ''">7.1.0-local</LiteBusVersion>
     </PropertyGroup>
 
     <ItemGroup>
