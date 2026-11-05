@@ -22,6 +22,7 @@ This patch release fixes the EF Core storage packages on EF Core 10 and moves ev
 - `Microsoft.Extensions.*` move to 10.0.14, OpenTelemetry to 1.20.1, Marten to 9.57.0, and `AWSSDK.SQS` to 4.0.100.23. Roslyn stays on 4.8.0, `SQLitePCLRaw` stays on 2.1.x to match the EF Core 10 SQLite provider, and `StyleCop.Analyzers` stays on 1.2.0-beta.556.
 - The `Npgsql` floor stays at 9.0.5, because Marten 9 is built against Npgsql 9 and LiteBus calls no Npgsql 10 API, so a Marten application is not forced onto Npgsql 10. The tests run on Npgsql 10.0.3, the version the EF Core 10 PostgreSQL provider requires.
 - The MySQL storage integration tests run on `MySql.EntityFrameworkCore` instead of Pomelo.
+- A `Consumer Smoke` CI job restores the packed packages with the EF Core PostgreSQL provider, Npgsql, and Marten floating to their latest stable releases, and runs the EF Core and Marten stores on PostgreSQL. Run against the 7.0.0 packages, it fails with the `TypeLoadException` from #167. See [Consumer Smoke Test](site/content/docs/testing/integration-tests.md#consumer-smoke-test).
 
 ## v7.0.0
 
