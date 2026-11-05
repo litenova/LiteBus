@@ -114,6 +114,21 @@ public sealed class InboxEntityFrameworkCoreModelTests
     }
 
     [Fact]
+    public void GetModelBuilderConfiguration_ShouldMapTimestampsToMicrosecondDatetimeOnMySql()
+    {
+        var modelBuilder = new ModelBuilder();
+        modelBuilder.GetModelBuilderConfiguration(provider: EfCoreStorageProvider.MySql);
+
+        var entity = modelBuilder.Model.FindEntityType(typeof(InboxMessageEntity));
+        var timestamps = entity!.GetProperties()
+            .Where(property => property.ClrType == typeof(DateTimeOffset) || property.ClrType == typeof(DateTimeOffset?))
+            .ToList();
+
+        timestamps.Should().HaveCount(7);
+        timestamps.Should().AllSatisfy(property => property.GetColumnType().Should().Be("datetime(6)"));
+    }
+
+    [Fact]
     public void GetModelBuilderConfiguration_ShouldLeaveTraceContextProviderNeutralByDefault()
     {
         var modelBuilder = new ModelBuilder();
