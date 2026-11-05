@@ -113,7 +113,7 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 | --- | --- | --- | --- |
 | PostgreSQL | `Npgsql.EntityFrameworkCore.PostgreSQL` | `public` | `TEXT` |
 | SQL Server | `Microsoft.EntityFrameworkCore.SqlServer` | `dbo` (set explicitly) | `TEXT` |
-| MySQL / MariaDB | `Pomelo.EntityFrameworkCore.MySql` | Current connection database | `TEXT` |
+| MySQL / MariaDB | `MySql.EntityFrameworkCore`, or `Pomelo.EntityFrameworkCore.MySql` once it ships for EF Core 10 | Current connection database | `TEXT` |
 | SQLite | `Microsoft.EntityFrameworkCore.Sqlite` | None | `TEXT` |
 
 When the provider argument is omitted, LiteBus leaves payload and trace columns for application-owned fluent configuration. PostgreSQL tables created from LiteBus scripts use `text` for `payload` and `jsonb` for `trace_context`. The EF model must use the same types when it shares those tables.

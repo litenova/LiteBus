@@ -2,6 +2,21 @@
 
 This file records the notable changes in each LiteBus release.
 
+## v7.0.1
+
+This patch release fixes the EF Core storage packages on EF Core 10 and moves every dependency to its current version.
+
+### Fixed
+
+- The EF Core inbox, outbox, and shared storage packages are built against EF Core 10 (#167). Version 7.0.0 was built against EF Core 9.0.21, and EF Core 10 removed `SetPropertyCalls<TSource>`, the type the EF Core 9 `ExecuteUpdate` API compiles against. On EF Core 10, every store path that calls `ExecuteUpdateAsync` threw `TypeLoadException`. The outbox processor leased rows, failed to renew the lease and to persist the outcome, and never published them.
+- `EfCoreProviderResolver` recognizes Oracle's `MySql.EntityFrameworkCore` provider as `EfCoreStorageProvider.MySql`, alongside Pomelo. `EfCoreRelationalProviderNames.OracleMySql` holds its provider name.
+
+### Changed
+
+- The EF Core storage packages require EF Core 10. `Microsoft.EntityFrameworkCore` and `Microsoft.EntityFrameworkCore.Relational` move to 10.0.14. An application that must stay on EF Core 9 stays on LiteBus 7.0.0. That includes MySQL through `Pomelo.EntityFrameworkCore.MySql`, which has no EF Core 10 release yet. Use `MySql.EntityFrameworkCore` 10.x for MySQL on EF Core 10.
+- `Npgsql` moves to 10.0.3, matching the EF Core 10 PostgreSQL provider. `Microsoft.Extensions.*` move to 10.0.14, OpenTelemetry to 1.20.1, Marten to 9.57.0, and `AWSSDK.SQS` to 4.0.100.23. Roslyn stays on 4.8.0, `SQLitePCLRaw` stays on 2.1.x to match the EF Core 10 SQLite provider, and `StyleCop.Analyzers` stays on 1.2.0-beta.556.
+- The MySQL storage integration tests run on `MySql.EntityFrameworkCore` instead of Pomelo.
+
 ## v7.0.0
 
 This is a major release for .NET 10, and this section describes the change from v6.0.2. The release adds a completion stage to the mediation pipeline, 4 named decision stages that decide whether work runs, declarative message metadata, and an audit trail and in-process idempotency built on those 3. Most of the breaking change is in the pre stage. Guards, validators, shortcuts, and pre-handlers are now 4 contracts that the framework distinguishes before it invokes them, so they run in a fixed order. The declaration model is general, not only an auditing feature. An application declares its own metadata, reads it back through an accessor, enforces it at compile time and at composition time, and positions its unit-of-work commit against the framework writers through a named priority band. In-process mediation is observable, a caller can receive a refusal as a value instead of catching it, and a caller can ask whether a message would be permitted without performing it.

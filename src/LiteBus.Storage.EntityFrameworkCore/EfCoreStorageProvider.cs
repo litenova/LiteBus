@@ -21,7 +21,7 @@ public enum EfCoreStorageProvider
     SqlServer = 2,
 
     /// <summary>
-    ///     MySQL or MariaDB through <c>Pomelo.EntityFrameworkCore.MySql</c>.
+    ///     MySQL or MariaDB through <c>Pomelo.EntityFrameworkCore.MySql</c> or <c>MySql.EntityFrameworkCore</c>.
     /// </summary>
     MySql = 3,
 

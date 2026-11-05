@@ -19,7 +19,8 @@
         <PackageReference Include="Marten"/>
         <PackageReference Include="Npgsql"/>
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
-        <PackageReference Include="Pomelo.EntityFrameworkCore.MySql"/>
+        <PackageReference Include="MySql.EntityFrameworkCore"/>
+        <PackageReference Include="System.Security.Cryptography.Pkcs"/>
         <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3"/>
         <PackageReference Include="RabbitMQ.Client"/>
         <PackageReference Include="Testcontainers"/>
