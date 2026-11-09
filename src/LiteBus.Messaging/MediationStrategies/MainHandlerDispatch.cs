@@ -51,9 +51,10 @@ internal static class MainHandlerDispatch
     ///     The descriptor's contract is not an <see cref="IMessageHandler{TMessage,TMessageResult}" /> contract.
     /// </exception>
     /// <remarks>
-    ///     An open generic handler is recorded under its open contract, such as
-    ///     <c>IMessageHandler&lt;ProductViewed&lt;T&gt;, Task&gt;</c>. That contract is closed over the runtime message type
-    ///     first, the same way pipeline stages are, so the invoker matches the closed handler instance.
+    ///     A handler for a generic message is recorded under its open contract, such as
+    ///     <c>IMessageHandler&lt;ProductViewed&lt;T&gt;, Task&gt;</c>. <see cref="RuntimeHandlerBinder" /> closes that
+    ///     contract over the runtime message type from the same bindings that closed the handler instance, so the invoker
+    ///     matches the instance.
     /// </remarks>
     [RequiresUnreferencedCode("Main handler dispatch closes handler contracts over registered message types.")]
     public static object Invoke(
@@ -66,8 +67,8 @@ internal static class MainHandlerDispatch
         ArgumentNullException.ThrowIfNull(handler);
         ArgumentNullException.ThrowIfNull(message);
 
-        var contractType = descriptor.ContractType.ContainsGenericParameters
-            ? PipelineHandlerInvoker.CloseOverRuntimeMessage(descriptor.ContractType, message.GetType())
+        var contractType = RuntimeHandlerBinder.IsOpen(descriptor)
+            ? RuntimeHandlerBinder.Close(descriptor, message.GetType()).ContractType
             : descriptor.ContractType;
 
         var invoker = Invokers.GetOrAdd(contractType, static closedContract => Bind(closedContract));

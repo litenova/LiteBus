@@ -137,6 +137,7 @@ public sealed class CommandMediator : ICommandMediator
         }
         catch (Exception exception) when (MediationExceptionFilters.IsRefusal(exception))
         {
+            EscapedRefusal.Record(capture, exception);
             return MediationResultFactory.FromCapture<TCommandResult>(capture, value: default, hasValue: false);
         }
     }
@@ -239,6 +240,7 @@ public sealed class CommandMediator : ICommandMediator
         {
             // A refusal is the ending this method exists to hand back as a value. Anything else propagates: a fault
             // is not something a boundary should branch on.
+            EscapedRefusal.Record(capture, exception);
             return MediationResultFactory.FromCapture(capture);
         }
 

@@ -20,7 +20,7 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// <summary>
     ///     Direct error handlers registered for <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IErrorHandlerDescriptor> _errorHandlers = [];
+    private readonly CopyOnWriteList<IErrorHandlerDescriptor> _errorHandlers = new();
 
     /// <summary>
     ///     Declarative metadata resolved for <see cref="MessageType" />.
@@ -30,57 +30,57 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// <summary>
     ///     Direct completion handlers registered for <see cref="MessageType" />.
     /// </summary>
-    private readonly List<ICompletionHandlerDescriptor> _completionHandlers = [];
+    private readonly CopyOnWriteList<ICompletionHandlerDescriptor> _completionHandlers = new();
 
     /// <summary>
     ///     Completion handlers registered for a base type or interface of <see cref="MessageType" />.
     /// </summary>
-    private readonly List<ICompletionHandlerDescriptor> _indirectCompletionHandlers = [];
+    private readonly CopyOnWriteList<ICompletionHandlerDescriptor> _indirectCompletionHandlers = new();
 
     /// <summary>
     ///     Direct main handlers registered for <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IMainHandlerDescriptor> _handlers = [];
+    private readonly CopyOnWriteList<IMainHandlerDescriptor> _handlers = new();
 
     /// <summary>
     ///     Error handlers registered for a base type or interface of <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IErrorHandlerDescriptor> _indirectErrorHandlers = [];
+    private readonly CopyOnWriteList<IErrorHandlerDescriptor> _indirectErrorHandlers = new();
 
     /// <summary>
     ///     Main handlers registered for a base type or interface of <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IMainHandlerDescriptor> _indirectHandlers = [];
+    private readonly CopyOnWriteList<IMainHandlerDescriptor> _indirectHandlers = new();
 
     /// <summary>
     ///     Post-handlers registered for a base type or interface of <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IPostHandlerDescriptor> _indirectPostHandlers = [];
+    private readonly CopyOnWriteList<IPostHandlerDescriptor> _indirectPostHandlers = new();
 
     /// <summary>
     ///     Pre-handlers registered for a base type or interface of <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IPreStageHandlerDescriptor> _indirectPreHandlers = [];
+    private readonly CopyOnWriteList<IPreStageHandlerDescriptor> _indirectPreHandlers = new();
 
     /// <summary>
     ///     Direct post-handlers registered for <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IPostHandlerDescriptor> _postHandlers = [];
+    private readonly CopyOnWriteList<IPostHandlerDescriptor> _postHandlers = new();
 
     /// <summary>
     ///     Direct pre-handlers registered for <see cref="MessageType" />.
     /// </summary>
-    private readonly List<IPreStageHandlerDescriptor> _preHandlers = [];
+    private readonly CopyOnWriteList<IPreStageHandlerDescriptor> _preHandlers = new();
 
     /// <summary>
     ///     Refusal mappers registered for this exact message type.
     /// </summary>
-    private readonly List<IRefusalMapperDescriptor> _refusalMappers = [];
+    private readonly CopyOnWriteList<IRefusalMapperDescriptor> _refusalMappers = new();
 
     /// <summary>
     ///     Refusal mappers registered for a base type or interface of this message type.
     /// </summary>
-    private readonly List<IRefusalMapperDescriptor> _indirectRefusalMappers = [];
+    private readonly CopyOnWriteList<IRefusalMapperDescriptor> _indirectRefusalMappers = new();
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="MessageDescriptor" /> class.
@@ -177,40 +177,40 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     public bool IsGeneric { get; }
 
     /// <inheritdoc />
-    public IReadOnlyCollection<IMainHandlerDescriptor> Handlers => _handlers;
+    public IReadOnlyCollection<IMainHandlerDescriptor> Handlers => _handlers.Snapshot;
 
     /// <inheritdoc />
-    public IReadOnlyCollection<IMainHandlerDescriptor> IndirectHandlers => _indirectHandlers;
+    public IReadOnlyCollection<IMainHandlerDescriptor> IndirectHandlers => _indirectHandlers.Snapshot;
 
     /// <inheritdoc />
-    public IReadOnlyCollection<IPostHandlerDescriptor> PostHandlers => _postHandlers;
+    public IReadOnlyCollection<IPostHandlerDescriptor> PostHandlers => _postHandlers.Snapshot;
 
     /// <inheritdoc />
-    public IReadOnlyCollection<IPostHandlerDescriptor> IndirectPostHandlers => _indirectPostHandlers;
+    public IReadOnlyCollection<IPostHandlerDescriptor> IndirectPostHandlers => _indirectPostHandlers.Snapshot;
 
     /// <inheritdoc />
-    public IReadOnlyCollection<IPreStageHandlerDescriptor> PreStageHandlers => _preHandlers;
+    public IReadOnlyCollection<IPreStageHandlerDescriptor> PreStageHandlers => _preHandlers.Snapshot;
 
     /// <inheritdoc />
-    public IReadOnlyCollection<IPreStageHandlerDescriptor> IndirectPreStageHandlers => _indirectPreHandlers;
+    public IReadOnlyCollection<IPreStageHandlerDescriptor> IndirectPreStageHandlers => _indirectPreHandlers.Snapshot;
 
     /// <inheritdoc />
-    public IReadOnlyCollection<IErrorHandlerDescriptor> ErrorHandlers => _errorHandlers;
+    public IReadOnlyCollection<IErrorHandlerDescriptor> ErrorHandlers => _errorHandlers.Snapshot;
 
     /// <inheritdoc />
-    public IReadOnlyCollection<IErrorHandlerDescriptor> IndirectErrorHandlers => _indirectErrorHandlers;
+    public IReadOnlyCollection<IErrorHandlerDescriptor> IndirectErrorHandlers => _indirectErrorHandlers.Snapshot;
 
     /// <inheritdoc />
-    public IReadOnlyCollection<ICompletionHandlerDescriptor> CompletionHandlers => _completionHandlers;
+    public IReadOnlyCollection<ICompletionHandlerDescriptor> CompletionHandlers => _completionHandlers.Snapshot;
 
     /// <inheritdoc />
-    public IReadOnlyCollection<ICompletionHandlerDescriptor> IndirectCompletionHandlers => _indirectCompletionHandlers;
+    public IReadOnlyCollection<ICompletionHandlerDescriptor> IndirectCompletionHandlers => _indirectCompletionHandlers.Snapshot;
 
     /// <inheritdoc />
-    public IReadOnlyCollection<IRefusalMapperDescriptor> RefusalMappers => _refusalMappers;
+    public IReadOnlyCollection<IRefusalMapperDescriptor> RefusalMappers => _refusalMappers.Snapshot;
 
     /// <inheritdoc />
-    public IReadOnlyCollection<IRefusalMapperDescriptor> IndirectRefusalMappers => _indirectRefusalMappers;
+    public IReadOnlyCollection<IRefusalMapperDescriptor> IndirectRefusalMappers => _indirectRefusalMappers.Snapshot;
 
     /// <summary>
     ///     Adds handler descriptors, routing each to direct or indirect collections.
@@ -242,10 +242,18 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     ///         A different handler type closed over the base type, such as a class implementing
     ///         <c>IMessageGuard&lt;ICommand&gt;</c>, is a separate registration and still runs indirectly.
     ///     </para>
+    ///     <para>
+    ///         A pipeline handler written for this message's own generic definition, such as a post-handler for
+    ///         <c>LogActivityCommand&lt;T&gt;</c> on the descriptor of <c>LogActivityCommand&lt;Payload&gt;</c>, belongs to
+    ///         this message rather than to a base type, so it is direct and keeps its place ahead of base-type
+    ///         post-handlers. A main handler for the generic definition stays indirect: it is the fallback a handler
+    ///         registered for the closed message overrides.
+    ///     </para>
     /// </remarks>
     public void AddDescriptor(IHandlerDescriptor descriptor)
     {
-        if (MessageType == descriptor.MessageType)
+        if (MessageType == descriptor.MessageType ||
+            (descriptor is not IMainHandlerDescriptor && IsOwnGenericDefinition(descriptor.MessageType)))
         {
             switch (descriptor)
             {
@@ -307,7 +315,7 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// <param name="direct">The direct collection of this kind.</param>
     /// <param name="indirect">The indirect collection of this kind.</param>
     /// <param name="descriptor">The direct descriptor being linked.</param>
-    private static void AddDirect<TDescriptor>(List<TDescriptor> direct, List<TDescriptor> indirect, TDescriptor descriptor)
+    private static void AddDirect<TDescriptor>(CopyOnWriteList<TDescriptor> direct, CopyOnWriteList<TDescriptor> indirect, TDescriptor descriptor)
         where TDescriptor : IHandlerDescriptor
     {
         indirect.RemoveAll(existing => IsSameGenericClosure(existing, descriptor));
@@ -322,7 +330,7 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// <param name="indirect">The indirect collection of this kind.</param>
     /// <param name="direct">The direct collection of this kind.</param>
     /// <param name="descriptor">The indirect descriptor being linked.</param>
-    private static void AddIndirect<TDescriptor>(List<TDescriptor> indirect, List<TDescriptor> direct, TDescriptor descriptor)
+    private static void AddIndirect<TDescriptor>(CopyOnWriteList<TDescriptor> indirect, CopyOnWriteList<TDescriptor> direct, TDescriptor descriptor)
         where TDescriptor : IHandlerDescriptor
     {
         if (direct.Exists(existing => IsSameGenericClosure(existing, descriptor)))
@@ -331,6 +339,21 @@ internal sealed class MessageDescriptor : IMessageDescriptor
         }
 
         indirect.Add(descriptor);
+    }
+
+    /// <summary>
+    ///     Determines whether a handler is registered for the generic definition this closed message is constructed from.
+    /// </summary>
+    /// <param name="handlerMessageType">The message type the handler descriptor names.</param>
+    /// <returns>
+    ///     <see langword="true" /> when this message is a closed generic type and the handler names its definition, as
+    ///     a handler for <c>LogActivityCommand&lt;T&gt;</c> does for <c>LogActivityCommand&lt;Payload&gt;</c>.
+    /// </returns>
+    private bool IsOwnGenericDefinition(Type handlerMessageType)
+    {
+        return handlerMessageType.IsGenericTypeDefinition &&
+               MessageType is { IsGenericType: true, IsGenericTypeDefinition: false } &&
+               MessageType.GetGenericTypeDefinition() == handlerMessageType;
     }
 
     /// <summary>
@@ -371,7 +394,7 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// </exception>
     private void ThrowIfUntypedShortcutMeetsResult(
         IMainHandlerDescriptor mainHandler,
-        List<IPreStageHandlerDescriptor> preStageHandlers)
+        IEnumerable<IPreStageHandlerDescriptor> preStageHandlers)
     {
         if (!ProducesResult(mainHandler.MessageResultType))
         {
@@ -401,7 +424,7 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     /// </remarks>
     private void ThrowIfUntypedShortcutMeetsResult(
         IPreStageHandlerDescriptor preStageHandler,
-        List<IMainHandlerDescriptor> mainHandlers)
+        IEnumerable<IMainHandlerDescriptor> mainHandlers)
     {
         if (!IsUntypedShortcut(preStageHandler))
         {

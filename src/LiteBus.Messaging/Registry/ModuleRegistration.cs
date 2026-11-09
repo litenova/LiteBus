@@ -24,6 +24,12 @@ internal static class ModuleRegistration
     /// <exception cref="ArgumentNullException">
     ///     <paramref name="configuration" /> or <paramref name="reader" /> is <see langword="null" />.
     /// </exception>
+    /// <remarks>
+    ///     An open generic handler over a bare type parameter, such as <c>Guard&lt;T&gt;</c>, is also registered by its
+    ///     open definition. The registry closes it again for a message type first registered at dispatch, after the
+    ///     container is built, and the container resolves that closure from the open registration. The dependency
+    ///     registry ignores a registration it already holds, so every module registering the same definition is safe.
+    /// </remarks>
     public static void RegisterNewHandlers(IModuleConfiguration configuration, IMessageReader reader, int startIndex)
     {
         ArgumentNullException.ThrowIfNull(configuration);
@@ -33,15 +39,28 @@ internal static class ModuleRegistration
 
         foreach (var handlerDescriptor in newHandlers)
         {
-            var handlerType = handlerDescriptor.HandlerType;
+            RegisterHandlerType(configuration, handlerDescriptor.HandlerType);
+        }
 
-            if (handlerType is { IsClass: true, IsAbstract: false })
-            {
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    handlerType,
-                    handlerType,
-                    InstanceLifetime.Scoped));
-            }
+        foreach (var openGenericHandlerType in reader.OpenGenericClosures.Keys)
+        {
+            RegisterHandlerType(configuration, openGenericHandlerType);
+        }
+    }
+
+    /// <summary>
+    ///     Registers one handler type with scoped lifetime when it can be instantiated.
+    /// </summary>
+    /// <param name="configuration">The module configuration to register the handler with.</param>
+    /// <param name="handlerType">The closed handler type or open generic handler definition.</param>
+    private static void RegisterHandlerType(IModuleConfiguration configuration, Type handlerType)
+    {
+        if (handlerType is { IsClass: true, IsAbstract: false })
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                handlerType,
+                handlerType,
+                InstanceLifetime.Scoped));
         }
     }
 

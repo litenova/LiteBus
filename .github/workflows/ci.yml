@@ -11,8 +11,8 @@
 # PostgreSQL namespace, and the integration-other shard runs that filter over everything outside the four
 # integration projects, so a matching class elsewhere still runs.
 # The consumer-smoke job restores the packed packages with third-party dependencies floating to their latest stable
-# releases and runs the storage packages on PostgreSQL, so a dependency release that breaks the shipped assemblies
-# fails here before it reaches an application.
+# releases, sends generic messages through the mediator, and runs the storage packages on PostgreSQL, so a dependency
+# release or a dispatch regression that breaks the shipped assemblies fails here before it reaches an application.
 #
 # Skip waiver policy:
 #   - [Fact(Skip = ...)] is blocked by verify-no-fact-skips.sh on all branches except quarantine.
@@ -200,9 +200,10 @@ jobs:
   consumer-smoke:
     name: Consumer Smoke
     # Restores the packed packages the way an application does, with every third-party dependency floating to its
-    # latest stable release and no lock file, then runs the EF Core and Marten stores on PostgreSQL. The solution's
-    # own tests run on the versions LiteBus pins, so a dependency release that removes an API the shipped assemblies
-    # call (issue #167) shows up only here.
+    # latest stable release and no lock file. It sends generic messages through the mediator from the packed
+    # packages (issue #169), then runs the EF Core and Marten stores on PostgreSQL. The solution's own tests run on
+    # the versions LiteBus pins, so a dependency release that removes an API the shipped assemblies call (issue #167)
+    # shows up only here.
     needs: [ plan, build ]
     if: needs.plan.outputs.run == 'true'
     runs-on: ubuntu-latest

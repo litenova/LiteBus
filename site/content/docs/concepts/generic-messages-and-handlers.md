@@ -27,7 +27,7 @@ public sealed class CreateEntityCommand<TEntity, TKey> : ICommand<TKey>
 
 ### 2. Implement a Generic Handler
 
-The handler must also be generic, with type parameters that match the message it handles.
+The handler must also be generic, and every one of its type parameters must appear in the message type it handles. [How LiteBus Closes a Generic Handler](#how-litebus-closes-a-generic-handler) gives the full rule.
 
 ```csharp
 /// <summary>
@@ -90,6 +90,32 @@ var userId = await _commandMediator.SendAsync(new CreateEntityCommand<User, int>
     EntityData = newUser
 });
 ```
+
+## How LiteBus Closes a Generic Handler
+
+LiteBus closes a generic handler for each message you send by matching the message type the handler names against the runtime message. For `CreateEntityCommandHandler<TEntity, TKey>`, the handler names `CreateEntityCommand<TEntity, TKey>`, so sending a `CreateEntityCommand<Product, Guid>` binds `TEntity` to `Product` and `TKey` to `Guid`. LiteBus closes the handler type and every contract it implements from those bindings.
+
+The match is structural, so a type parameter can sit anywhere in the message type:
+
+| Handler | Message sent | Closed handler |
+| --- | --- | --- |
+| `ListQueryHandler<T> : IQueryHandler<ListQuery<T>, List<T>>` | `ListQuery<string>` | `ListQueryHandler<string>` |
+| `RenameHandler<TKey, TEntity> : ICommandHandler<RenameCommand<TEntity, TKey>, string>` | `RenameCommand<Product, Guid>` | `RenameHandler<Guid, Product>` |
+| `ListEnvelopeHandler<T> : IQueryHandler<EnvelopeQuery<List<T>>, string>` | `EnvelopeQuery<List<int>>` | `ListEnvelopeHandler<int>` |
+| `EntityChangedHandler<TEntity> : IEventHandler<IEntityChanged<TEntity>>` | `CustomerChanged : IEntityChanged<Customer>` | `EntityChangedHandler<Customer>` |
+
+The last row shows that the match also looks at the message's base types and interfaces, so a generic handler for a generic interface reaches a non-generic message that implements it. The same rule closes pre-handlers, post-handlers, error handlers, and completion handlers.
+
+A handler applies to a message only when the match succeeds and the handler's constraints accept the bound types. The pipeline leaves out every other handler for that message, so two handlers of one generic message can divide its closed types between them. For example, a handler constrained `where T : class` and another constrained `where T : struct` each handle their own half of `DescribeQuery<T>`.
+
+A handler registered for one closed message, such as `IQueryHandler<GetByIdQuery<Order>, Order>`, overrides the generic handler for that message only. Every other closed type still reaches the generic handler.
+
+Open generic pipeline handlers that apply to every message, such as `CommandLoggingPreHandler<T>` or an authorization guard over `T`, reach generic messages too. A closed generic message is registered on its first dispatch, and the registry closes every open generic handler over it then, as [Open Generic Handlers](open-generic-handlers.md) describes.
+
+The mediator throws `PipelineContractException` when a handler cannot be closed at all:
+
+- A type parameter of the handler does not appear in the message type it handles, so no message can bind it.
+- The message implements the handled generic interface more than once with different type arguments, such as both `IEntityChanged<Customer>` and `IEntityChanged<Product>`. Register a handler for the message itself instead.
 
 ## Use Cases for Generic Messages
 

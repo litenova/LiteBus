@@ -15,7 +15,7 @@ When you register an open generic handler such as `CommandLoggingPreHandler<>`, 
 3. For every concrete message type already registered (or registered later), checks whether the message satisfies the handler's generic constraints.
 4. If it does, closes the generic (for example `CommandLoggingPreHandler<CreateProductCommand>`) and links the result into that message's pipeline.
 
-This runs at startup, so closed handlers cost the same as hand-written ones. Registration order does not matter. The registry links open generics to messages discovered both before and after registration. The mechanics are described in [Handler Resolution Internals](../architecture/handler-resolution.md).
+This runs once per message type, so closed handlers cost the same as hand-written ones. Registration order does not matter. The registry links open generics to messages discovered both before and after registration. A message type first seen at dispatch is registered then and gets its closures at that point. That covers a closed generic message such as `CreateEntityCommand<Product>`, which is registered only by its open definition, and a message from an assembly that was not scanned. The mechanics are described in [Handler Resolution Internals](../architecture/handler-resolution.md#messages-registered-at-dispatch).
 
 ## Defining Open Generic Handlers
 

@@ -49,6 +49,7 @@ public sealed class GetByIdQueryHandler<TEntity> : IQueryHandler<GetByIdQuery<TE
 
 - Generic message handlers must still satisfy the single-handler rule for commands and queries.
 - Generic constraints control valid concrete message-handler combinations.
+- A handler for a generic message is closed by matching the message type it handles against the runtime message, its base types, and its interfaces. Its type parameters may be nested, reordered, or in the result type. A handler whose shape or constraints do not fit a message is left out of that message's pipeline.
 - Closed generic handler registrations never share a direct message descriptor.
 - Open generic definitions serve as fallback templates for compatible closed messages.
 
@@ -77,10 +78,14 @@ Operational alternatives:
 | `mediating_generic_event_goes_through_registered_handlers_correctly` | `LiteBus.Mediator.UnitTests` |
 | `Mediating_StreamQuery_WithIndirectHandler_ShouldUseBaseTypeHandler` | `LiteBus.Mediator.UnitTests` |
 | `Register_ClosedGenericHandlers_ShouldKeepIndependentDescriptors` | `LiteBus.Mediator.UnitTests` |
+| `GenericMessageHandlerClosingTests` (11 tests: nested result, two type parameters, reordered parameters, nested message argument, constraint selection, stream query, pre, post, completion, and error handlers, generic event interface, ambiguous and unbindable handlers) | `LiteBus.Mediator.UnitTests` |
+| `OpenGenericHandlersOnGenericMessagesTests` (open generic guard and pre-handler on generic commands, idempotency for a closed generic command, closed handler overriding the open one) | `LiteBus.Mediator.UnitTests` |
+| `DefinitionRegistrationOrderTests` (a definition for a closed generic or derived command, in either registration order) | `LiteBus.Mediator.UnitTests` |
+| `AutofacDispatchTimeClosureTests` | `LiteBus.Runtime.UnitTests` |
+| Generic message dispatch scenario from the packed packages | `smoke/LiteBus.ConsumerSmoke` |
 
 ### Untested
 
-- Deeply nested generic arguments in stream query scenarios.
 - Generic event publish with high parallel handler counts and aggregate failures.
 
 ### Out-of-Scope

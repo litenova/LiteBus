@@ -163,7 +163,7 @@ await eventMediator.PublishAsync(orderConfirmed, settings, cancellationToken);
 
 The mode governs handlers inside one priority group only. When groups run sequentially, a later group does not run after an earlier one failed, because the priority difference states that the later group runs after the earlier one.
 
-Neither mode cancels sibling work. Cancellation stays cooperative through the token you pass to `PublishAsync`. Under `ContinueAndAggregate`, when every collected failure comes from cancellation, the publish reports `Canceled` by rethrowing `OperationCanceledException` instead of aggregating. Mixed cancellation and faults still aggregate into one exception.
+Neither mode cancels sibling work. Cancellation stays cooperative through the token you pass to `PublishAsync`, and cancelling that token stops a sequential group. An `OperationCanceledException` a handler raises while that token is not cancelled, such as an `HttpClient` timeout, is that handler's failure: under `ContinueAndAggregate` the handlers after it still run. When every collected failure comes from cancellation, the publish reports `Canceled` by rethrowing `OperationCanceledException` instead of aggregating. Mixed cancellation and faults still aggregate into one exception.
 
 ## Select Which Handlers Run
 

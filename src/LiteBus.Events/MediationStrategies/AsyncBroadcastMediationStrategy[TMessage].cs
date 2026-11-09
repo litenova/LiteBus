@@ -276,8 +276,11 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
     /// <remarks>
     ///     Under <see cref="HandlerFaultMode.ContinueAndAggregate" /> a handler that throws does not stop the handlers
     ///     behind it, which is what lets independent subscribers stay isolated without moving the group to parallel
-    ///     execution. Cancellation is not a handler fault and stops the group immediately either way, because a
-    ///     cancelled host is not asking for the rest of the broadcast.
+    ///     execution. Cancellation of the publish itself stops the group immediately either way, because a cancelled
+    ///     host is not asking for the rest of the broadcast. An <see cref="OperationCanceledException" /> a handler
+    ///     raises while the publish token is not cancelled, such as an HTTP client timeout, is that handler's failure
+    ///     and is collected like any other. When every collected failure is a cancellation, one is rethrown so the
+    ///     mediation reports <see cref="MediationOutcome.Canceled" />, matching the parallel path.
     /// </remarks>
     private async Task ExecuteHandlersSequentiallyAsync(TMessage message,
                                                         IReadOnlyList<LazyHandler<IMessageHandler, IMainHandlerDescriptor>> orderedHandlers,
@@ -301,14 +304,15 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
             {
                 await ExecuteSingleHandler(message, lazyHandler, executionContext).ConfigureAwait(false);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (executionContext.CancellationToken.IsCancellationRequested)
             {
                 throw;
             }
 #pragma warning disable CA1031 // Do not catch general exception types
             catch (Exception exception)
             {
-                // ContinueAndAggregate keeps the remaining handlers running and collects every failure instead.
+                // ContinueAndAggregate keeps the remaining handlers running and collects every failure instead,
+                // including a cancellation the handler raised itself, such as an HTTP client timeout.
                 exceptions ??= [];
                 exceptions.Add(exception);
             }
@@ -318,6 +322,11 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
         if (exceptions is null)
         {
             return;
+        }
+
+        if (exceptions.TrueForAll(static exception => exception is OperationCanceledException))
+        {
+            throw exceptions[0];
         }
 
         throw exceptions.Count == 1

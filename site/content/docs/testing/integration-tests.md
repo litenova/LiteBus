@@ -591,15 +591,15 @@ dotnet test LiteBus.slnx --filter "Category=TransportLiveAzure"
 
 The solution's tests compile and run against the dependency versions LiteBus pins, so they cannot see a dependency release that removes an API the shipped assemblies call. Issue [#167](https://github.com/litenova/LiteBus/issues/167) was that case: the 7.0.0 EF Core storage packages were built against EF Core 9, and on EF Core 10 every bulk update threw `TypeLoadException`.
 
-`smoke/LiteBus.ConsumerSmoke` is a console application outside `LiteBus.slnx` that restores the packed packages the way an application does. It references the LiteBus packages at one exact version from the local `artifacts/` feed, lets the EF Core PostgreSQL provider, Npgsql, and Marten float to their latest stable releases, and has no lock file. EF Core follows the provider, so a new EF Core major is exercised once a provider ships for it. The application drives the EF Core outbox and inbox stores through enqueue, duplicate detection, leasing, renewal, failure, dead-lettering, requeue, completion, query, purge, and retention, and the Marten idempotency store through claim, completion, and replay, all on PostgreSQL.
+`smoke/LiteBus.ConsumerSmoke` is a console application outside `LiteBus.slnx` that restores the packed packages the way an application does. It references the LiteBus packages at one exact version from the local `artifacts/` feed, lets the EF Core PostgreSQL provider, Npgsql, and Marten float to their latest stable releases, and has no lock file. EF Core follows the provider, so a new EF Core major is exercised once a provider ships for it. The application first sends generic messages through the mediator to handlers registered by their open definitions, in the shapes from issue [#169](https://github.com/litenova/LiteBus/issues/169): a query whose result nests the type parameter, a command with two type parameters and a typed post-handler, a stream query, and a handler for a generic event interface. That scenario needs no database. The application then drives the EF Core outbox and inbox stores through enqueue, duplicate detection, leasing, renewal, failure, dead-lettering, requeue, completion, query, purge, and retention, and the Marten idempotency store through claim, completion, and replay, all on PostgreSQL.
 
 The `Consumer Smoke` CI job runs it on every commit against the packages the build job packed, and the `CI result` gate requires it. To run it locally, pack the packages into `artifacts/`, start PostgreSQL, and point the application at it:
 
 ```bash
-pwsh ./scripts/Pack-Packages.ps1 -OutputDirectory artifacts -Version 7.1.0-local
+pwsh ./scripts/Pack-Packages.ps1 -OutputDirectory artifacts -Version 7.1.1-local
 docker run -d --rm --name litebus-smoke -e POSTGRES_PASSWORD=smoke -p 55432:5432 postgres:16-alpine
 LITEBUS_SMOKE_POSTGRES="Host=localhost;Port=55432;Username=postgres;Password=smoke;Database=litebus_smoke" \
-  dotnet run --project smoke/LiteBus.ConsumerSmoke -p:LiteBusVersion=7.1.0-local
+  dotnet run --project smoke/LiteBus.ConsumerSmoke -p:LiteBusVersion=7.1.1-local
 ```
 
 Use a separate `NUGET_PACKAGES` folder for local runs, so the locally packed versions do not stay in the global package cache.

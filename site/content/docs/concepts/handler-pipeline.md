@@ -106,7 +106,7 @@ Each step also carries `IsIndirect` and `IsClosedOpenGeneric`, so when one open 
 
 ## Command and Query Pipeline
 
-A command or query must resolve to exactly one main handler. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level survives. Direct handlers registered for the message win whenever any survive, and indirect handlers registered for a base type are considered only when no direct handler survives. One direct handler plus one indirect handler resolves without throwing. Both exceptions name the runtime type of the message, even when the caller passed the message typed as `ICommand` or `IQuery`.
+A command or query must resolve to exactly one main handler. Mediation throws `NoHandlerFoundException` when no handler survives filtering and `MultipleHandlerFoundException` when more than one handler at the winning level survives. Direct handlers registered for the message win whenever any survive, and indirect handlers registered for a base type are considered only when no direct handler survives. One direct handler plus one indirect handler resolves without throwing. Among indirect handlers, one registered for the message's own generic definition wins, and otherwise the one registered for the most-derived base type or interface does, as [Polymorphic Dispatch](polymorphic-dispatch.md#message-descriptor-resolution-precedence) describes. Both exceptions name the runtime type of the message, even when the caller passed the message typed as `ICommand` or `IQuery`.
 
 The flow for a result-returning message is:
 
@@ -482,6 +482,8 @@ if (result.IsInvalid)
 | `Value`, `HasValue` | On `MediationResult<TMessageResult>`: the value the caller receives, and whether one was produced. Test `HasValue` before reading `Value`, because a refusal produces none. |
 
 A genuine fault still throws. A database timeout is not something a boundary branches on, so the line stays where the pipeline draws it: a decision is a value, a fault is an exception.
+
+A refusal that reaches the `Try` method from further away is reported the same way. When a handler sends a command its guard denies and lets the `LiteBusMessageDeniedException` escape, or throws `LiteBusMessageDeniedException` or `LiteBusMessageInvalidException` itself, the result is `Denied` or `Invalid` with the reason, code, and failures the exception carries, and no value.
 
 When a refusal mapper is registered, the mapped value arrives in `Value` alongside a denied outcome, so an application that models failure in its own result type sees both its value and the framework classification. This is not a replacement for a mapper. A mapper is for an application whose own result type models failure on every call, while `MediationResult` is for a caller that wants the framework answer and needs no type of its own.
 

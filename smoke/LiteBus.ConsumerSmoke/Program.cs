@@ -10,11 +10,14 @@ using LiteBus.Storage.EntityFrameworkCore;
 using Marten;
 using Microsoft.EntityFrameworkCore;
 
-// Exercises the LiteBus storage packages as an application does: from the packed packages, against the latest stable
-// releases of their third-party dependencies, on a real PostgreSQL server. Every call below runs a code path that
-// binds to a dependency API at runtime (ExecuteUpdate, ExecuteDelete, raw lease SQL, provider error codes, Marten
-// sessions), so a dependency release that removes or changes one of those APIs fails here with the exception an
+// Exercises the LiteBus packages as an application does: from the packed packages, against the latest stable releases
+// of their third-party dependencies. The mediator scenario sends generic messages to handlers registered by their open
+// definitions and needs no database. Every storage call after it runs a code path that binds to a dependency API at
+// runtime (ExecuteUpdate, ExecuteDelete, raw lease SQL, provider error codes, Marten sessions) on a real PostgreSQL
+// server, so a dependency release that removes or changes one of those APIs fails here with the exception an
 // application would see.
+await Smoke.RunAsync("Generic message dispatch", GenericDispatchSmoke.RunAsync).ConfigureAwait(false);
+
 var connectionString = Environment.GetEnvironmentVariable("LITEBUS_SMOKE_POSTGRES")
                        ?? throw new InvalidOperationException("Set LITEBUS_SMOKE_POSTGRES to a PostgreSQL connection string.");
 

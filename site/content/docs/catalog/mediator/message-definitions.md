@@ -83,7 +83,7 @@ public sealed class PlaceOrderCommandDefinition :
 - Two definitions declaring the same value type for one message throw `LiteBusConfigurationException` at registration.
 - Two declarations covering one message where neither type is more derived than the other throw `LiteBusConfigurationException`.
 - Metadata is resolved once per message type at registration, not per dispatch.
-- Metadata follows the descriptor the mediation resolved. An unregistered runtime type mediated through a base descriptor reads that descriptor's metadata, exactly as if it had been registered. Only a type nothing registered covers raises `MessageMetadataNotFoundException`, and an ambiguous fallback raises `AmbiguousMessageResolveException`.
+- Metadata follows the descriptor of the message type. A message type mediated without being registered is registered on its first dispatch, and its descriptor carries the declarations made for its base types and interfaces, exactly as if it had been registered. Reading metadata for a type that was never registered or dispatched falls back to the most-derived registered supertype. Only a type nothing registered covers raises `MessageMetadataNotFoundException`, and an ambiguous fallback raises `AmbiguousMessageResolveException`.
 - Open generic message shapes are matched exactly, because assignability between generic type definitions is not meaningful.
 - A `RequireDeclaration` requirement is satisfied by a declaration of the value type or by a recorded exemption for it. Every other message fails composition, named in full rather than one at a time.
 - A marker-scoped requirement covers every message assignable to the marker and leaves the messages outside it alone. A predicate requirement names its own scope in the error.
