@@ -190,6 +190,7 @@ internal sealed class MessageDependencies : IMessageDependencies
         return MessagingEnumerableExtensions.ToLazyReadOnlyCollection(descriptors
             .Where(d => _handlerPredicate(d))
             .Where(d => d.Tags.Count == 0 || d.Tags.Intersect(_tags).Any())
+            .Where(d => AppliesToMessage(d))
             .OrderBy(d => d.Priority)
             .ThenBy(d => d.RegistrationSequence)
             .Select(d => new LazyHandler<THandler, TDescriptor>
@@ -200,20 +201,32 @@ internal sealed class MessageDependencies : IMessageDependencies
     }
 
     /// <summary>
-    ///     Retrieves the handler type from a descriptor and closes only open generic handler definitions for the current
-    ///     runtime message type. Closed concrete handlers for closed generic messages must be resolved as registered.
+    ///     Determines whether a handler takes part in mediating the current runtime message type.
+    /// </summary>
+    /// <param name="descriptor">The handler descriptor linked to the message.</param>
+    /// <returns>
+    ///     <see langword="false" /> for an open generic handler that cannot be closed over the runtime message, because
+    ///     its message type has another shape or its constraints reject the bound types; otherwise
+    ///     <see langword="true" />.
+    /// </returns>
+    private bool AppliesToMessage(IHandlerDescriptor descriptor)
+    {
+        return !RuntimeHandlerBinder.IsOpen(descriptor) ||
+               RuntimeHandlerBinder.TryClose(descriptor, _messageType) is not null;
+    }
+
+    /// <summary>
+    ///     Retrieves the handler type to resolve for the current runtime message type.
     /// </summary>
     /// <param name="descriptor">The handler descriptor whose service type should be resolved.</param>
-    /// <returns>The closed handler type used for dependency injection resolution.</returns>
+    /// <returns>
+    ///     The handler type closed over the runtime message for an open generic handler, or the registered handler type
+    ///     for every other handler, including a closed handler of a closed generic message.
+    /// </returns>
     private Type GetHandlerType(IHandlerDescriptor descriptor)
     {
-        var handlerType = descriptor.HandlerType;
-
-        if (descriptor.MessageType.IsGenericType && handlerType.IsGenericTypeDefinition)
-        {
-            handlerType = handlerType.MakeGenericType(_messageType.GetGenericArguments());
-        }
-
-        return handlerType;
+        return RuntimeHandlerBinder.IsOpen(descriptor)
+            ? RuntimeHandlerBinder.Close(descriptor, _messageType).HandlerType
+            : descriptor.HandlerType;
     }
 }

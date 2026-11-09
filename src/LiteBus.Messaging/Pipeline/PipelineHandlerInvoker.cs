@@ -152,7 +152,9 @@ internal static class PipelineHandlerInvoker
     [RequiresUnreferencedCode("Pipeline dispatch closes handler contracts over registered message types.")]
     private static PipelineDispatch ResolveRuntimeDispatch(IHandlerDescriptor descriptor, Type runtimeMessageType)
     {
-        var closedContract = CloseOverRuntimeMessage(descriptor.ContractType, runtimeMessageType);
+        var closedContract = RuntimeHandlerBinder.IsOpen(descriptor)
+            ? RuntimeHandlerBinder.Close(descriptor, runtimeMessageType).ContractType
+            : descriptor.ContractType;
 
         if (RuntimeDispatches.TryGetValue(closedContract, out var cached))
         {
@@ -167,61 +169,5 @@ internal static class PipelineHandlerInvoker
 
         RuntimeDispatches[closedContract] = dispatch;
         return dispatch;
-    }
-
-    /// <summary>
-    ///     Closes an open generic handler contract over the runtime message type.
-    /// </summary>
-    /// <param name="openContract">The contract recorded at registration, which contains generic parameters.</param>
-    /// <param name="runtimeMessageType">The concrete runtime type of the message being mediated.</param>
-    /// <returns>The closed contract to dispatch through.</returns>
-    /// <remarks>
-    ///     An open generic handler exposes exactly one type parameter, which the registry enforces, so every open
-    ///     argument on the contract is closed by the type arguments of the runtime message type.
-    /// </remarks>
-    internal static Type CloseOverRuntimeMessage(Type openContract, Type runtimeMessageType)
-    {
-        if (!openContract.ContainsGenericParameters)
-        {
-            return openContract;
-        }
-
-        var messageArguments = runtimeMessageType.IsGenericType
-            ? runtimeMessageType.GetGenericArguments()
-            : [];
-
-        var contractArguments = openContract.GetGenericArguments();
-        var closedArguments = new Type[contractArguments.Length];
-
-        for (var index = 0; index < contractArguments.Length; index++)
-        {
-            closedArguments[index] = CloseArgument(contractArguments[index], runtimeMessageType, messageArguments);
-        }
-
-        return openContract.GetGenericTypeDefinition().MakeGenericType(closedArguments);
-    }
-
-    /// <summary>
-    ///     Closes one contract type argument over the runtime message type.
-    /// </summary>
-    /// <param name="argument">The contract type argument, which may contain generic parameters.</param>
-    /// <param name="runtimeMessageType">The concrete runtime type of the message being mediated.</param>
-    /// <param name="messageArguments">The type arguments of the runtime message type.</param>
-    /// <returns>The closed type argument.</returns>
-    private static Type CloseArgument(Type argument, Type runtimeMessageType, Type[] messageArguments)
-    {
-        if (!argument.ContainsGenericParameters)
-        {
-            return argument;
-        }
-
-        if (argument.IsGenericParameter)
-        {
-            return messageArguments.Length > 0 ? messageArguments[0] : runtimeMessageType;
-        }
-
-        return messageArguments.Length > 0
-            ? argument.GetGenericTypeDefinition().MakeGenericType(messageArguments)
-            : runtimeMessageType;
     }
 }
