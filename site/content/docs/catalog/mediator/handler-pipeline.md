@@ -170,6 +170,7 @@ Operational alternatives:
 | `A_guard_runs_before_a_shortcut_even_when_scope_and_priority_favour_the_shortcut` | `LiteBus.Mediator.UnitTests` |
 | `The_four_stages_run_as_guards_then_validators_then_shortcuts_then_pre_handlers` | `LiteBus.Mediator.UnitTests` |
 | `Send_CommandWithResult_PostHandlerOverridesResult` | `LiteBus.Mediator.UnitTests` |
+| `TryMediationEscapedRefusalTests` (a refusal a handler lets escape reaches `TrySendAsync` and `TryQueryAsync`) | `LiteBus.Mediator.UnitTests` |
 | `Send_Command_WithErrorHandler_ShouldPassTypedContextAndExplicitCancellationToken` | `LiteBus.Mediator.UnitTests` |
 | `Send_Command_WithObservingErrorHandler_ShouldRethrowByDefault` | `LiteBus.Mediator.UnitTests` |
 | `Send_CommandWithResult_WhenErrorHandlerSetsHandledResult_ShouldReturnFallbackResult` | `LiteBus.Mediator.UnitTests` |

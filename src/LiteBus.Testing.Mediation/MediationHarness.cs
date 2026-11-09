@@ -157,6 +157,7 @@ public sealed class MediationHarness<TMessage>
         catch (Exception exception) when (MediationExceptionFilters.IsRefusal(exception))
         {
             // Reported in the result. A test asserting a denial should read it, not catch it.
+            EscapedRefusal.Record(capture, exception);
         }
 
         return Describe(capture, value: null, hasValue: false);
@@ -194,6 +195,7 @@ public sealed class MediationHarness<TMessage>
         }
         catch (Exception exception) when (MediationExceptionFilters.IsRefusal(exception))
         {
+            EscapedRefusal.Record(capture, exception);
             return Describe(capture, value: null, hasValue: false);
         }
     }

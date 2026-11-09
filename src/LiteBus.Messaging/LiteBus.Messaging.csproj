@@ -15,6 +15,7 @@
         <InternalsVisibleTo Include="LiteBus.Storage.UnitTests, PublicKey=$(LiteBusPublicKey)"/>
         <InternalsVisibleTo Include="LiteBus.Storage.IntegrationTests, PublicKey=$(LiteBusPublicKey)"/>
         <InternalsVisibleTo Include="LiteBus.Saga.InboxIntegration, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Testing.Mediation, PublicKey=$(LiteBusPublicKey)"/>
     </ItemGroup>
 
     <ItemGroup>

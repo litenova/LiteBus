@@ -105,6 +105,7 @@ public sealed class QueryMediator : IQueryMediator
         }
         catch (Exception exception) when (MediationExceptionFilters.IsRefusal(exception))
         {
+            EscapedRefusal.Record(capture, exception);
             return MediationResultFactory.FromCapture<TQueryResult>(capture, value: default, hasValue: false);
         }
     }
