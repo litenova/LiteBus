@@ -93,6 +93,8 @@ Operational alternatives:
 | `Send_OpenGenericRegisteredAfterCommand_ShouldStillApply` | `LiteBus.Mediator.UnitTests` |
 | `RegisterFromAssembly_DiscoversOpenGenericHandlers_WithoutExplicitRegistration` | `LiteBus.Mediator.UnitTests` |
 | `An_open_generic_guard_closed_over_the_base_interface_before_the_command_runs_once` | `LiteBus.Mediator.UnitTests` |
+| `OpenGenericHandlersOnGenericMessagesTests` (open generic guard and pre-handler on generic commands) | `LiteBus.Mediator.UnitTests` |
+| `AutofacDispatchTimeClosureTests` | `LiteBus.Runtime.UnitTests` |
 | `A_class_implementing_the_base_and_the_concrete_guard_is_reported_and_runs_twice` | `LiteBus.Mediator.UnitTests` |
 | `Open_generic_post_error_and_completion_handlers_run_once_beside_closed_base_handlers` | `LiteBus.Mediator.UnitTests` |
 | `Single_run_shapes_are_not_reported` | `LiteBus.Mediator.UnitTests` |

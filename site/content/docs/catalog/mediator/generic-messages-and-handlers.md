@@ -79,6 +79,9 @@ Operational alternatives:
 | `Mediating_StreamQuery_WithIndirectHandler_ShouldUseBaseTypeHandler` | `LiteBus.Mediator.UnitTests` |
 | `Register_ClosedGenericHandlers_ShouldKeepIndependentDescriptors` | `LiteBus.Mediator.UnitTests` |
 | `GenericMessageHandlerClosingTests` (11 tests: nested result, two type parameters, reordered parameters, nested message argument, constraint selection, stream query, pre, post, completion, and error handlers, generic event interface, ambiguous and unbindable handlers) | `LiteBus.Mediator.UnitTests` |
+| `OpenGenericHandlersOnGenericMessagesTests` (open generic guard and pre-handler on generic commands, idempotency for a closed generic command, closed handler overriding the open one) | `LiteBus.Mediator.UnitTests` |
+| `DefinitionRegistrationOrderTests` (a definition for a closed generic or derived command, in either registration order) | `LiteBus.Mediator.UnitTests` |
+| `AutofacDispatchTimeClosureTests` | `LiteBus.Runtime.UnitTests` |
 | Generic message dispatch scenario from the packed packages | `smoke/LiteBus.ConsumerSmoke` |
 
 ### Untested

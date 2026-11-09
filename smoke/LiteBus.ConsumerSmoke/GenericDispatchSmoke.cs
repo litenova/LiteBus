@@ -16,7 +16,9 @@ namespace LiteBus.ConsumerSmoke;
 /// <remarks>
 ///     Each handler's type parameters sit somewhere other than the message's only type argument: nested in the result,
 ///     spread over two parameters, nested in a streamed item, or in an interface a non-generic event implements. The
-///     mediator has to close the handler and its contract from the runtime message for every one of them.
+///     mediator has to close the handler and its contract from the runtime message for every one of them. An open
+///     generic pre-handler over every command also has to reach the generic command, which is registered only by its
+///     open definition.
 /// </remarks>
 internal static class GenericDispatchSmoke
 {
@@ -41,6 +43,7 @@ internal static class GenericDispatchSmoke
                 });
                 liteBus.AddCommands(commands =>
                 {
+                    commands.Register(typeof(SmokeCommandAuditPreHandler<>));
                     commands.Register(typeof(SmokeCreateEntityCommandHandler<,>));
                     commands.Register(typeof(SmokeCreateEntityCommandPostHandler<,>));
                 });
@@ -75,8 +78,13 @@ internal static class GenericDispatchSmoke
             .PublishAsync(new SmokeCustomerChangedEvent(customer)).ConfigureAwait(false);
 
         Smoke.Expect(
-            recorder.Entries.SequenceEqual([$"post:SmokeCustomer:{customer.Id}", "changed:SmokeCustomer"]),
-            "a typed post-handler and a handler for a generic event interface run, " +
+            recorder.Entries.SequenceEqual(
+            [
+                "audit:SmokeCreateEntityCommand`2",
+                $"post:SmokeCustomer:{customer.Id}",
+                "changed:SmokeCustomer"
+            ]),
+            "an open generic pre-handler, a typed post-handler, and a handler for a generic event interface run, " +
             $"recorded: {string.Join(", ", recorder.Entries)}");
     }
 }

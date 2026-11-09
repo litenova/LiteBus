@@ -77,6 +77,7 @@ Operational alternatives:
 | `Find_WhenMidTypeAndBaseTypeAreRegistered_ShouldPreferMostDerivedAssignableDescriptor` | `LiteBus.Mediator.UnitTests` |
 | `Find_WhenMultipleAssignableDescriptorsShareDepth_ShouldThrowAmbiguousMessageResolveException` | `LiteBus.Mediator.UnitTests` |
 | `Mediating_StreamQuery_WithIndirectHandler_ShouldUseBaseTypeHandler` | `LiteBus.Mediator.UnitTests` |
+| `UnregisteredMessageSupertypeTests` (an unregistered command or event reaching every supertype handler, most-derived and ambiguous main handlers with and without registration, concurrent first sends) | `LiteBus.Mediator.UnitTests` |
 
 ### Untested
 

@@ -108,6 +108,10 @@ The last row shows that the match also looks at the message's base types and int
 
 A handler applies to a message only when the match succeeds and the handler's constraints accept the bound types. The pipeline leaves out every other handler for that message, so two handlers of one generic message can divide its closed types between them. For example, a handler constrained `where T : class` and another constrained `where T : struct` each handle their own half of `DescribeQuery<T>`.
 
+A handler registered for one closed message, such as `IQueryHandler<GetByIdQuery<Order>, Order>`, overrides the generic handler for that message only. Every other closed type still reaches the generic handler.
+
+Open generic pipeline handlers that apply to every message, such as `CommandLoggingPreHandler<T>` or an authorization guard over `T`, reach generic messages too. A closed generic message is registered on its first dispatch, and the registry closes every open generic handler over it then, as [Open Generic Handlers](open-generic-handlers.md) describes.
+
 The mediator throws `PipelineContractException` when a handler cannot be closed at all:
 
 - A type parameter of the handler does not appear in the message type it handles, so no message can bind it.

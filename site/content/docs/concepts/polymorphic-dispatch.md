@@ -90,13 +90,19 @@ When LiteBus resolves handlers, its `ActualTypeOrFirstAssignableTypeMessageResol
 
 ### Message Descriptor Resolution Precedence
 
-Main-handler mediation resolves a **message descriptor** before handlers are loaded from that descriptor. The strategy applies the following order:
+Every message is mediated through the descriptor of its own runtime type:
 
-1. **Exact registration**: when the runtime message type (or its generic type definition for constructed generics) is registered, that descriptor wins immediately.
-2. **Most-derived assignable match**: otherwise the strategy scans registered message types assignable from the runtime type and picks the candidate with the highest inheritance depth score (base-type chain length plus implemented interface count).
-3. **Ambiguity guard**: when two or more candidates share the same depth score, mediation throws `AmbiguousMessageResolveException` instead of picking arbitrarily.
+1. **Exact registration**: when the runtime message type is registered, its descriptor already links the handlers of every base type and interface it has.
+2. **Registration on first dispatch**: when it is not registered, but a registered type covers it (a base class, an interface it implements, or the generic definition it is constructed from), the mediator registers the runtime type the first time the message is sent. The new descriptor links the handlers of every covering type, so a derived command runs both the handler on its base class and the pre-handler on its interface. You do not have to register every concrete message.
 
-Indirect pipeline handlers (pre, post, and error) link from every assignable registration on the resolved descriptor. Register base-interface handlers against the interface type. LiteBus routes them through the indirect collections described in [The Handler Pipeline](handler-pipeline.md).
+A command or query then runs exactly one main handler:
+
+1. **Direct handler**: a handler registered for the message type itself wins.
+2. **Generic definition**: otherwise a handler registered for the message's own generic definition, such as `ListQueryHandler<T>` for `ListQuery<string>`.
+3. **Most-derived supertype**: otherwise the handler registered for the most-derived base type or interface, scored as base-type chain length plus implemented interface count.
+4. **Ambiguity guard**: when handlers registered for two or more different types share the highest score, mediation throws `AmbiguousMessageResolveException` instead of picking arbitrarily. Two handlers registered for the same type throw `MultipleHandlerFoundException`.
+
+The same rules apply whether or not the message was registered at startup, so assembly scanning and explicit handler registration produce the same handler. Events run every applicable handler. Register base-interface handlers against the interface type. LiteBus routes them through the indirect collections described in [The Handler Pipeline](handler-pipeline.md).
 
 ## Use Cases
 

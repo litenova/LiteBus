@@ -130,6 +130,35 @@ internal sealed class SmokeCreateEntityCommandPostHandler<TEntity, TKey> : IComm
 }
 
 /// <summary>
+///     Records every command it is closed over, through an open generic pre-handler over a bare type parameter.
+/// </summary>
+/// <typeparam name="TCommand">The command the registry closed this pre-handler over.</typeparam>
+internal sealed class SmokeCommandAuditPreHandler<TCommand> : ICommandPreHandler<TCommand>
+    where TCommand : ICommand
+{
+    /// <summary>
+    ///     The recorder shared with the scenario.
+    /// </summary>
+    private readonly SmokeRecorder _recorder;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="SmokeCommandAuditPreHandler{TCommand}" /> class.
+    /// </summary>
+    /// <param name="recorder">The recorder shared with the scenario.</param>
+    public SmokeCommandAuditPreHandler(SmokeRecorder recorder)
+    {
+        _recorder = recorder;
+    }
+
+    /// <inheritdoc />
+    public Task PreHandleAsync(TCommand message, CancellationToken cancellationToken = default)
+    {
+        _recorder.Record($"audit:{typeof(TCommand).Name}");
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
 ///     One streamed page.
 /// </summary>
 /// <typeparam name="T">The item type.</typeparam>

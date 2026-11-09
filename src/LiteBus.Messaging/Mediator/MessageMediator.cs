@@ -115,6 +115,8 @@ internal sealed class MessageMediator : IMessageMediator
             // Get the actual type of the message.
             var messageType = message.GetType();
 
+            RegisterWhenCoveredOnlyThroughOtherTypes(messageType);
+
             // Find the message descriptor.
             var descriptor = request.MessageResolveStrategy.Find(messageType, _messageReader);
 
@@ -160,5 +162,80 @@ internal sealed class MessageMediator : IMessageMediator
             dispatchScope.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    ///     Registers the runtime message type when the registry covers it only through a base type, an interface, or its
+    ///     generic type definition.
+    /// </summary>
+    /// <param name="messageType">The runtime type of the message being mediated.</param>
+    /// <remarks>
+    ///     <para>
+    ///         Without its own descriptor, a message borrows the descriptor of one registered supertype, which carries only
+    ///         that supertype's handlers. A message whose base class and interface both have handlers would lose the
+    ///         handlers of one of them, and a closed generic message would lose every open generic handler, because those
+    ///         are closed only over registered message types. Registering the runtime type links every handler that
+    ///         applies to it, the same way registering it at composition does.
+    ///     </para>
+    ///     <para>
+    ///         Registration happens once per runtime type: the next mediation finds the exact descriptor. A message type
+    ///         that no registered message covers is left alone, so a message without handlers fails as before.
+    ///     </para>
+    /// </remarks>
+    private void RegisterWhenCoveredOnlyThroughOtherTypes(Type messageType)
+    {
+        if (_messageReader.Find(messageType)?.MessageType == messageType)
+        {
+            return;
+        }
+
+        foreach (var descriptor in _messageReader)
+        {
+            if (Covers(descriptor.MessageType, messageType))
+            {
+                _messageWriter.Register(messageType);
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether a registered message type covers a runtime message type.
+    /// </summary>
+    /// <param name="registeredMessageType">The message type of a registered descriptor.</param>
+    /// <param name="messageType">The runtime message type.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the runtime type is assignable to the registered type, or is constructed from it
+    ///     when the registered type is a generic type definition, directly, through a base type, or through an interface.
+    /// </returns>
+    private static bool Covers(Type registeredMessageType, Type messageType)
+    {
+        if (registeredMessageType.IsAssignableFrom(messageType))
+        {
+            return true;
+        }
+
+        if (!registeredMessageType.IsGenericTypeDefinition)
+        {
+            return false;
+        }
+
+        for (var current = messageType; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == registeredMessageType)
+            {
+                return true;
+            }
+        }
+
+        foreach (var implemented in messageType.GetInterfaces())
+        {
+            if (implemented.IsGenericType && implemented.GetGenericTypeDefinition() == registeredMessageType)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

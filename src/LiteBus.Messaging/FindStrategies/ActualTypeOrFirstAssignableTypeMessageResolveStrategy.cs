@@ -40,7 +40,7 @@ public sealed class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMes
                 continue;
             }
 
-            var depth = GetInheritanceDepth(candidate.MessageType);
+            var depth = MessageTypeDepth.Of(candidate.MessageType);
 
             if (depth > bestDepth)
             {
@@ -67,32 +67,5 @@ public sealed class ActualTypeOrFirstAssignableTypeMessageResolveStrategy : IMes
         }
 
         return bestMatch;
-    }
-
-    /// <summary>
-    ///     Computes an inheritance depth score used to prefer the most-derived registered message type.
-    /// </summary>
-    /// <param name="registeredMessageType">The registered descriptor message type.</param>
-    /// <returns>
-    ///     The base-type chain length plus the registered type's implemented interface count, where larger values
-    ///     indicate more-derived types. Generic type definitions contribute only the chain length.
-    /// </returns>
-    private static int GetInheritanceDepth(Type registeredMessageType)
-    {
-        var depth = 0;
-        var current = registeredMessageType;
-
-        while (current.BaseType is not null)
-        {
-            depth++;
-            current = current.BaseType;
-        }
-
-        if (!registeredMessageType.IsGenericTypeDefinition)
-        {
-            depth += registeredMessageType.GetInterfaces().Length;
-        }
-
-        return depth;
     }
 }
