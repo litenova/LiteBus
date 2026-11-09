@@ -89,6 +89,7 @@ Operational alternatives:
 | `mediating_event_with_handler_predicate_filter_executes_only_matching_handlers` | `LiteBus.Mediator.UnitTests` |
 | `PublishAsync_WithNullEvent_ThrowsArgumentNullException` | `LiteBus.Mediator.UnitTests` |
 | `each_event_reaches_its_own_contract_through_the_generic_overload` | `LiteBus.Mediator.UnitTests` |
+| `ContinueAndAggregateCancellationTests` (a handler timeout under sequential `ContinueAndAggregate`) | `LiteBus.Mediator.UnitTests` |
 | `each_event_reaches_its_own_contract_when_published_as_IEvent` | `LiteBus.Mediator.UnitTests` |
 | `an_erased_publish_passes_the_mediation_cancellation_token_to_the_registered_contract` | `LiteBus.Mediator.UnitTests` |
 
