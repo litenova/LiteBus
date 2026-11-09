@@ -2,6 +2,25 @@
 
 This file records the notable changes in each LiteBus release.
 
+## v7.1.1
+
+This release fixes dispatch to generic handlers of generic messages, which broke in 7.0.0 (#169). An application that registers a generic handler for a generic message, such as `CreateEntityCommandHandler<TEntity, TKey>`, should upgrade. No application code or configuration changes.
+
+### Added
+
+- The `Consumer Smoke` CI job also sends generic messages through the mediator from the packed packages, in the shapes from #169: a query whose result nests the type parameter, a command with two type parameters and a typed post-handler, a stream query, and a handler for a generic event interface. This scenario needs no database. Run against the 7.1.0 packages, it fails with the `InvalidCastException` from #169. See [Consumer Smoke Test](site/content/docs/testing/integration-tests.md#consumer-smoke-test).
+
+### Fixed
+
+- Generic handlers of generic messages are dispatched again when the handler's contract nests a type parameter or the message has more than one (#169). Versions 7.0.0 and 7.1.0 closed the handler and its contract by passing the message's type arguments in order, which fits only a contract whose result is `Task<T>` with `T` as the message's only type argument. `ListQueryHandler<T>` for `ListQuery<T> : IQuery<List<T>>` failed with `InvalidCastException`, and `CreateEntityCommandHandler<TEntity, TKey>` for `CreateEntityCommand<TEntity, TKey> : ICommand<TKey>`, the example in the generic messages guide, failed with `ArgumentException`. The same mismatch broke stream query handlers, and typed post-handlers and completion handlers whose result is not the message's first type argument. Any handler, including pre-handlers and error handlers, also failed when it declared its type parameters in another order than the message or nested one inside a message type argument. The mediator now binds each type parameter by matching the message type the handler names against the runtime message, so all of these shapes reach their handlers.
+- A generic handler for a generic interface, such as `EntityChangedHandler<TEntity> : IEventHandler<IEntityChanged<TEntity>>`, now handles a non-generic message that implements the interface. It failed with `ArgumentException`, because the message has no type arguments of its own.
+- When two generic handlers of one generic message differ in their constraints, such as `where T : class` and `where T : struct`, or in the shape of the message's type argument, such as `EnvelopeQuery<List<T>>` and `EnvelopeQuery<T[]>`, each message now reaches the handler that fits it, as the generic messages guide describes. Every message failed with `MultipleHandlerFoundException`. A handler that fits no shape of a message, or whose constraints reject it, is now left out of that message's pipeline instead of failing to resolve.
+- A generic handler whose type parameter does not appear in the message type it handles, and a message that implements the handled generic interface twice with different type arguments, now fail at dispatch with a `PipelineContractException` that names the handler and the type parameter or interface. They failed with a `MemberAccessException` or `ArgumentException` from reflection.
+
+### Documentation
+
+- The generic messages guide gains [How LiteBus Closes a Generic Handler](site/content/docs/concepts/generic-messages-and-handlers.md#how-litebus-closes-a-generic-handler), which describes how type parameters are bound, which handler shapes it covers, and the two errors it reports.
+
 ## v7.1.0
 
 This release makes the EF Core storage packages work on EF Core 10, fixes the storage defects an audit for the same class of bug found, and adds a CI gate that runs the packed packages against the latest releases of their dependencies. Applications on EF Core 10 should upgrade. An application on SQL Server or MySQL that uses the EF Core storage packages gets an EF Core migration, described under Breaking. An application that must stay on EF Core 9 stays on 7.0.0.

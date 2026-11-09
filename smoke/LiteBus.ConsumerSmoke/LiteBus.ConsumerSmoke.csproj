@@ -4,7 +4,8 @@
         A consumer-shaped smoke test, outside LiteBus.slnx on purpose. It restores the packed LiteBus packages from
         the local feed at one exact version, and lets every third-party dependency float to its latest stable release,
         with no lock file. The solution's own tests compile and run against the versions LiteBus pins, so they cannot
-        see a dependency release that removes an API the shipped assemblies call (issue #167). This project can.
+        see a dependency release that removes an API the shipped assemblies call (issue #167). This project can. It
+        also sends generic messages through the mediator from the packed packages, the shapes of issue #169.
 
         EF Core itself is not referenced: it follows the provider, so a new EF Core major is exercised as soon as a
         provider ships for it, instead of as a provider and EF Core mismatch that no application would run.
@@ -17,16 +18,18 @@
         <IsPackable>false</IsPackable>
         <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
         <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
-        <LiteBusVersion Condition="'$(LiteBusVersion)' == ''">7.1.0-local</LiteBusVersion>
+        <LiteBusVersion Condition="'$(LiteBusVersion)' == ''">7.1.1-local</LiteBusVersion>
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="LiteBus.Extensions.Microsoft.DependencyInjection" Version="[$(LiteBusVersion)]"/>
         <PackageReference Include="LiteBus.Inbox.Storage.EntityFrameworkCore" Version="[$(LiteBusVersion)]"/>
         <PackageReference Include="LiteBus.Outbox.Storage.EntityFrameworkCore" Version="[$(LiteBusVersion)]"/>
         <PackageReference Include="LiteBus.Commands.Storage.Marten" Version="[$(LiteBusVersion)]"/>
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="*"/>
         <PackageReference Include="Npgsql" Version="*"/>
         <PackageReference Include="Marten" Version="*"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="*"/>
     </ItemGroup>
 
 </Project>
