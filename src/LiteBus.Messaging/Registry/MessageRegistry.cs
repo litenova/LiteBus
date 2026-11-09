@@ -431,6 +431,11 @@ internal sealed class MessageRegistry : IMessageRegistry
             ApplyDeclaration(declaration, committed);
         }
 
+        // A message the declaration registered is linked to the handlers registered before it before it commits.
+        // Committing it unlinked would leave an exact descriptor with no handlers, which also hides the base-type
+        // descriptor the mediator would otherwise fall back to.
+        LinkHandlersToPendingMessages();
+
         // And messages awaiting commit, which is where a message registered in the same pass sits.
         ApplyDefinitionsToPendingMessages();
         CommitPendingMessages();
