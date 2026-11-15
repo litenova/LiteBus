@@ -127,6 +127,8 @@ Two rules decide whether the store is correct.
 
 2. Claim inside the transaction that applies the change. A key claimed in one transaction and a change written in another can come apart. A crash between them leaves a key claimed for work that never happened, and the retry is answered as already applied. Write the claim through the same unit of work the handler writes through and let it commit both. See [Auditing](auditing.md#making-a-record-atomic-with-its-change) for where that commit goes. The shape is the same, and the completion handler that settles the claim runs at `HandlerPriorities.Persistence`, which is before an application's commit at `HandlerPriorities.UnitOfWork`.
 
+That second rule describes a store that writes through the application's unit of work. A store that opens its own connection or session and commits it itself, as the shipped PostgreSQL and Marten stores do, cannot settle inside the application's transaction. Such a store implements `ISeparatelyCommittedIdempotencyStore`, and LiteBus settles its keys after the commit instead, as [Settlement Order Against the Unit-of-Work Commit](#settlement-order-against-the-unit-of-work-commit) describes.
+
 Four answers cover what a claim can meet. `Granted` runs the message and `AlreadyCompleted` answers the repeat from the stored record. `InFlight` refuses a delivery whose key another delivery still holds, and `FingerprintMismatch` refuses a repeat whose fingerprint differs from the stored one. Both end the mediation as `Denied`, so `TrySendAsync` returns the denial and `SendAsync` raises `LiteBusMessageDeniedException`. Anything else is a broken store, and the shortcut reports it as `PipelineContractException` naming the store rather than running the handler without a recorded claim.
 
 Every grant carries a claim token fenced into the stored row. The completion handler settles with the token the shortcut was granted, and the store completes or releases only while the stored claim still carries it. A settle that arrives after a claim-timeout takeover is a no-op. A late completion cannot mark the new claimant's work applied, a late release cannot free its live claim, and completing a key the caller does not hold stores nothing.
@@ -140,6 +142,22 @@ An unsettled claim is different. A claimant that crashes without settling would 
 `InMemoryIdempotencyStore` in `LiteBus.Testing.Mediation` is a test double, and it is shipped from the testing package on purpose. It forgets everything on restart, and a second process behind a load balancer shares nothing with the first, so both apply the same message. Idempotency is a property of the whole system, and a per-process store cannot provide it.
 
 The double still answers like a durable store. A held key reports in-flight until its claim outlasts `ClaimTimeout`, and an applied key compares fingerprints. Pass a controlled `TimeProvider` and a short timeout to drive the takeover deterministically in tests.
+
+## Settlement Order Against the Unit-of-Work Commit
+
+The completion handler that settles the claim runs before the application's commit, so for a store that commits its own writes, `CompleteAsync` lands before `IUnitOfWork.CommitAsync`. When that commit then throws, the key is marked complete with no data behind it. The caller sees the commit exception and retries with the same key, the retry is answered as a repeat, and the write is lost while the caller believes it succeeded.
+
+Moving every settlement after the commit would break the other kind of store. A store that writes through the application's unit of work settles inside the application's transaction, and a settlement after the commit lands in a transaction that has already closed, so the key is never recorded and repeats run again once the claim times out. The store has to declare which kind it is. `ISeparatelyCommittedIdempotencyStore` is that declaration: an empty marker interface extending `IIdempotencyStore`, implemented by a store whose `CompleteAsync` and `ReleaseAsync` open their own connection, session or transaction and commit it themselves. Implementing it is a one-line change to the store's declaration; the interface adds no members. Both shipped stores, `PostgreSqlIdempotencyStore` and `MartenIdempotencyStore`, implement it. An application store that writes through the application's unit of work leaves it off and keeps the order it always had.
+
+| Store | Unit of work registered | When the claim settles |
+| --- | --- | --- |
+| Without the marker | Yes or no | At `HandlerPriorities.Persistence`, before the commit, inside the transaction |
+| With the marker | Yes | After `CommitAsync` returns, from the unit-of-work step |
+| With the marker | No | At `HandlerPriorities.Persistence`, as today; there is no commit to wait for |
+
+For a marked store with a unit of work, the completion handler does not settle. It records the pending settlement, the `ClaimedIdempotencyKey`, the outcome, and the serialized replay payload when `ReplayResult` is set, for the unit-of-work step. That step calls `CompleteAsync` after `CommitAsync` returns. When `CommitAsync` throws, it calls `ReleaseAsync` and then rethrows the commit exception unchanged, so the retry runs the handler again instead of being answered as a repeat. A mediation that did not succeed releases a marked store's claim immediately, as today; there is nothing to wait for.
+
+A post-commit `CompleteAsync` that throws is retried up to three times with a short fixed backoff of about 50, 100 and 200 milliseconds. If it still fails, LiteBus logs a warning naming the key and does not fail the mediation, because the data is already committed. The key stays claimed until the store's claim timeout, after which a repeat runs the handler again. That window between the commit and the claim timeout is the cost of committing the data and the key in two separate transactions: a crash or an outage in between leaves committed data whose key is still only claimed, and the next repeat after the timeout re-applies it. Watch for the warning in your logs; a store that stays unreachable turns every committed command into a future re-run.
 
 ## Commands That Produce a Result
 
@@ -171,6 +189,12 @@ Only the mediation that was granted the key settles it. The shortcut records eac
 
 Release is what makes a transient failure survivable. Keeping the key claimed after a database timeout would make the retry a false repeat, which is the opposite of what idempotency is for.
 
+## Idempotency Keys in a Command Batch
+
+Inside a command batch (`ICommandBatchMediator.SendManyAsync` or `TrySendManyAsync`), the completion handler never settles per command, for any store, marked or not. Each command's pending settlement is added to the batch context, and the batch settles every pending claim after the batch ends. For an unmarked store, `CompleteAsync` for every pending claim runs before the batch `CommitAsync`, inside the transaction, as the settlement order above requires. For a marked store, `CompleteAsync` runs after `CommitAsync` returns, with the same retry and logging rule. On rollback, `ReleaseAsync` runs for every pending claim, for both kinds of store, so rerunning the batch executes every handler again.
+
+Two commands in one batch must not resolve to the same scoped idempotency key. The second one stops the batch with a refusal whose code is `litebus.batch.duplicate_idempotency_key` (`IdempotencyRefusalCodes.DuplicateKeyInBatch`), and the batch rolls back. The batch detects it from its pending claims before calling `TryClaimAsync` for the second command, so the refusal does not depend on the store's in-progress answer. See [Command batches](../catalog/mediator/command-batches.md).
+
 ## Keying an Outbox Message by the Command's Key
 
 When a command handler enqueues follow-up events, those envelopes can share the command's idempotency key instead of inventing their own. The durable `Idempotency.FromCommandKey` (in `LiteBus.Messaging.Abstractions.DurableMessaging`) reads the key the shortcut granted the in-flight command and returns it as durable `Keyed` metadata. Pass a suffix when one command enqueues several events so each envelope keys distinctly.
@@ -193,4 +217,4 @@ This is explicit and opt-in. Nothing reads the granted key unless the handler ca
 
 ## Next
 
-Read [The Handler Pipeline](handler-pipeline.md) for the shortcut and completion stages behind this feature, and [Handler Priority](handler-priority.md#the-reserved-framework-window) for how the claim settlement is ordered against your commit.
+Read [The Handler Pipeline](handler-pipeline.md) for the shortcut and completion stages behind this feature, [Handler Priority](handler-priority.md#the-reserved-framework-window) for how the claim settlement is ordered against your commit, and [Command batches](../catalog/mediator/command-batches.md) for how keys settle inside a batch.

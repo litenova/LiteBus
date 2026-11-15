@@ -12,6 +12,12 @@ A command declares the key that identifies it through `IIdempotencyDefinition<TM
 
 A claim meets one of four answers from the `IIdempotencyStore`. `Granted` runs the message, and `AlreadyCompleted` answers the repeat from the stored record. `InFlight` denies a delivery whose key another delivery still holds, and `FingerprintMismatch` denies a repeat whose fingerprint differs from the stored one. Both end the mediation as `Denied`, so `TrySendAsync` returns the denial and `SendAsync` raises `LiteBusMessageDeniedException`. The denial carries a machine-readable code from `IdempotencyRefusalCodes`: `idempotency.in-flight` for a claim still running, and `idempotency.fingerprint-mismatch` for a key reused with different content.
 
+When the key is settled depends on whether the store commits through the application's unit of work. A store that writes through the same unit of work the handler writes through settles at `HandlerPriorities.Persistence`, before the commit at `HandlerPriorities.UnitOfWork`, so the key and the work commit atomically. A store that commits its own writes on its own connection or session, separately from the application's unit of work, implements `ISeparatelyCommittedIdempotencyStore`. When a unit of work is registered, the completion handler does not settle a marked store's claim; the unit-of-work step calls `CompleteAsync` after `CommitAsync` returns, and calls `ReleaseAsync` when the commit throws, rethrowing the commit exception unchanged so the retry runs the handler again instead of being answered as a repeat. Settling a marked store before the commit would leave the key marked complete with no data behind it after a failed commit. Without a registered unit of work there is no commit to wait for, so a marked store settles at the same point as an unmarked one, and a mediation that did not succeed releases a marked store's claim immediately. Both shipped stores implement the marker.
+
+A post-commit `CompleteAsync` that throws is retried up to three times with a short fixed backoff of about 50, 100 and 200 milliseconds, and a settlement that still fails logs a warning naming the key without failing the mediation, because the data is already committed. The key stays claimed until the store's claim timeout, after which a repeat runs the handler again. That window between the commit and the claim timeout is the cost of committing the data and the key in two separate transactions: a crash or an outage in between leaves committed data whose key is still only claimed.
+
+Inside a command batch (`ICommandBatchMediator.SendManyAsync`), the completion handler never settles per command, for any store. Pending claims settle after the batch ends: `CompleteAsync` for every pending claim runs before the batch `CommitAsync` for an unmarked store and after it for a marked store, with the same retry and logging rule; on rollback `ReleaseAsync` runs for every pending claim. Two commands in one batch that resolve to the same scoped key stop the batch: the second is refused with `litebus.batch.duplicate_idempotency_key` (`IdempotencyRefusalCodes.DuplicateKeyInBatch`), detected from the batch's pending claims before the store is asked, and the batch rolls back.
+
 ## Public Surface
 
 ```csharp
@@ -43,9 +49,10 @@ services.AddLiteBus(registry =>
 | `IdempotencyDeclaration.Scope` / `ReplayResult` | Key-space prefix defaulting to the message full type name, and whether a repeat replays the serialized result of the first attempt |
 | `SuppliedIdempotencyKey` | The context-supplied key a guard passes forward through `IExecutionContext.Data` |
 | `IIdempotencyStore` | Remembers applied keys through `TryClaimAsync`, `CompleteAsync(key, claimToken, payload, ct)`, and `ReleaseAsync(key, claimToken, ct)` |
+| `ISeparatelyCommittedIdempotencyStore` | Marks a store that commits its own writes, so its keys settle after the unit-of-work commit |
 | `IdempotencyClaim` / `IdempotencyClaimOutcome` | The store answer: `Granted(claimToken)`, `AlreadyCompleted`, `InFlight`, `FingerprintMismatch` |
-| `IdempotencyRefusalCodes` | `idempotency.in-flight` and `idempotency.fingerprint-mismatch` denial codes |
-| `CommandModuleBuilder.EnableIdempotency()` | Registers the claiming shortcuts and the settling completion handler at `HandlerPriorities.Persistence` |
+| `IdempotencyRefusalCodes` | `idempotency.in-flight`, `idempotency.fingerprint-mismatch`, and `litebus.batch.duplicate_idempotency_key` denial codes |
+| `CommandModuleBuilder.EnableIdempotency()` | Registers the claiming shortcuts and the settling completion handler at `HandlerPriorities.Persistence`; a marked store with a unit of work settles after the commit instead |
 | `Idempotency.FromCommandKey(suffix, conflictMode)` | Derives the key of a staged outbox envelope from the in-flight command's claimed key |
 | `IdempotencyConfigurationException` | Reports a blank key, a blank explicit scope, a missing context key, or another declaration mistake |
 | `IdempotencyStoreDiagnosticCheck` | Probe reporting `litebus.idempotency.store` |
@@ -64,7 +71,7 @@ services.AddLiteBus(registry =>
 - `mediator.commands`
 - `mediator.handler-pipeline`
 - `mediator.message-definitions`
-- `mediator.handler-priority` (settle at `Persistence`, before the commit at `UnitOfWork`)
+- `mediator.handler-priority` (settle at `Persistence`, or after the commit at `UnitOfWork` for a marked store with a unit of work)
 
 ## Invariants
 
@@ -77,6 +84,10 @@ services.AddLiteBus(registry =>
 - The stored key is scoped to the message full type name by default. Tenant, scope, and key segments are escaped before joining, and the mediation tenant is prefixed when the mediation carries one. A command declared with `KeyedByContext()` that replays results sets a fingerprint with `WithFingerprint`, so a different request reusing a predictable key is denied rather than answered with the stored result.
 - An unsettled claim is taken over with a new token by a new caller once it is older than the store's claim timeout, five minutes by default on the shipped stores. The timeout must be positive and is rejected with `ArgumentOutOfRangeException` at build time.
 - Outside a keyed command's mediation, `FromCommandKey` throws `InvalidOperationException`, and it rejects a blank suffix, so a key is never invented silently.
+- A store without the marker settles at `HandlerPriorities.Persistence`, before the commit, so its settle stages into the same transaction that applies the change. A store with the marker and a registered unit of work settles after `CommitAsync` returns, and a failed commit releases its claim and rethrows the commit exception unchanged, so the retry runs the handler again instead of being answered as a repeat. A marked store with no registered unit of work settles at `Persistence` as today, and a mediation that did not succeed releases a marked store's claim immediately.
+- A post-commit `CompleteAsync` that throws is retried up to three times with a fixed backoff of about 50, 100 and 200 milliseconds, then logged as a warning naming the key without failing the mediation. The key stays claimed until the store's claim timeout, after which a repeat runs the handler again.
+- Both shipped stores, `PostgreSqlIdempotencyStore` and `MartenIdempotencyStore`, implement the marker.
+- Inside a command batch, no command settles per command. On commit, `CompleteAsync` for every pending claim runs before `CommitAsync` for an unmarked store and after it for a marked store; on rollback, `ReleaseAsync` runs for every pending claim. Two commands in one batch resolving to the same scoped key stop the batch with `litebus.batch.duplicate_idempotency_key`, detected from the batch's pending claims before the store is asked.
 
 ## Non-Goals
 
@@ -86,7 +97,7 @@ services.AddLiteBus(registry =>
 
 ## Observability
 
-No idempotency-specific meter or activity source. The `litebus.idempotency.store` probe reports `Unhealthy` when idempotency is enabled and no `IIdempotencyStore` is registered.
+No idempotency-specific meter or activity source. The `litebus.idempotency.store` probe reports `Unhealthy` when idempotency is enabled and no `IIdempotencyStore` is registered. A post-commit settlement that fails after its retries logs a warning naming the key, while the mediation still reports success.
 
 Operational alternatives:
 - Read the store directly for applied keys, fingerprints, and in-flight claims.
@@ -158,6 +169,7 @@ Operational alternatives:
 ## References
 
 - [In-process idempotency](../../concepts/idempotency.md)
+- [Command batches](command-batches.md)
 - [The handler pipeline](../../concepts/handler-pipeline.md)
 - [Message definitions](../../concepts/message-definitions.md)
 - [PostgreSQL idempotency store](../../integrations/commands-postgresql-idempotency-store.md)

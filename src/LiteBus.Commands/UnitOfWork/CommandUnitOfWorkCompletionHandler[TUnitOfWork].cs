@@ -1,8 +1,12 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Commands.Idempotency;
 using LiteBus.Messaging.Abstractions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LiteBus.Commands.UnitOfWork;
 
@@ -22,6 +26,15 @@ namespace LiteBus.Commands.UnitOfWork;
 ///         is nothing to commit.
 ///     </para>
 ///     <para>
+///         After the commit returns it settles the idempotency claim the mediation deferred, when there is one: a store
+///         that commits its own writes (see <see cref="ISeparatelyCommittedIdempotencyStore" />) cannot be completed
+///         before the commit, so the idempotency completion handler records a
+///         <see cref="PendingIdempotencySettlement" /> instead of settling, and this handler completes the key here. A
+///         completion that throws is retried three times and then logged without failing the mediation, because the
+///         data is already committed. When the commit itself throws, the deferred claim is released and the commit
+///         exception is rethrown unchanged.
+///     </para>
+///     <para>
 ///         A commit that throws fails the mediation with that exception. The completion stage suppresses a handler fault
 ///         only when the mediation had already failed; after a success the fault propagates to the caller.
 ///     </para>
@@ -32,6 +45,31 @@ internal sealed class CommandUnitOfWorkCompletionHandler<TUnitOfWork> : ICommand
     where TUnitOfWork : class, IUnitOfWork
 {
     /// <summary>
+    ///     The delays before the first, second and third retry of a post-commit idempotency completion.
+    /// </summary>
+    private static readonly TimeSpan[] PostCommitRetryDelays =
+    [
+        TimeSpan.FromMilliseconds(50),
+        TimeSpan.FromMilliseconds(100),
+        TimeSpan.FromMilliseconds(200)
+    ];
+
+    /// <summary>
+    ///     Records a post-commit idempotency settlement that kept failing after its retries.
+    /// </summary>
+    private readonly ILogger<CommandUnitOfWorkCompletionHandler<TUnitOfWork>> _logger;
+
+    /// <summary>
+    ///     Remembers which keys have been applied, or <see langword="null" /> when idempotency is not enabled.
+    /// </summary>
+    private readonly IIdempotencyStore? _store;
+
+    /// <summary>
+    ///     Supplies the delay between post-commit idempotency completion retries.
+    /// </summary>
+    private readonly TimeProvider _timeProvider;
+
+    /// <summary>
     ///     The unit of work committed at the end of mediation.
     /// </summary>
     private readonly TUnitOfWork _unitOfWork;
@@ -40,22 +78,139 @@ internal sealed class CommandUnitOfWorkCompletionHandler<TUnitOfWork> : ICommand
     ///     Initializes a new instance of the <see cref="CommandUnitOfWorkCompletionHandler{TUnitOfWork}" /> class.
     /// </summary>
     /// <param name="unitOfWork">The unit of work committed at the end of mediation.</param>
-    public CommandUnitOfWorkCompletionHandler(TUnitOfWork unitOfWork)
+    /// <param name="store">Remembers which keys have been applied, or <see langword="null" /> when idempotency is not enabled.</param>
+    /// <param name="timeProvider">Supplies the delay between post-commit idempotency completion retries, or <see langword="null" /> for <see cref="TimeProvider.System" />.</param>
+    /// <param name="logger">Records a post-commit idempotency settlement that kept failing after its retries, or <see langword="null" /> to discard it.</param>
+    public CommandUnitOfWorkCompletionHandler(
+        TUnitOfWork unitOfWork,
+        IIdempotencyStore? store = null,
+        TimeProvider? timeProvider = null,
+        ILogger<CommandUnitOfWorkCompletionHandler<TUnitOfWork>>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(unitOfWork);
+
         _unitOfWork = unitOfWork;
+        _store = store;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _logger = logger ?? NullLogger<CommandUnitOfWorkCompletionHandler<TUnitOfWork>>.Instance;
     }
 
     /// <inheritdoc />
-    public Task HandleCompletionAsync(MessageCompletionContext<ICommand> context, CancellationToken cancellationToken)
+    public async Task HandleCompletionAsync(MessageCompletionContext<ICommand> context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
 
         if (context.Outcome != MediationOutcome.Succeeded)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        return _unitOfWork.CommitAsync(cancellationToken);
+#pragma warning disable CA1031 // The deferred claim must be released whatever the commit threw, and the caller must still get the commit exception.
+        try
+        {
+            await _unitOfWork.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            await ReleasePendingSettlementAsync().ConfigureAwait(false);
+            throw;
+        }
+#pragma warning restore CA1031
+
+        await CompletePendingSettlementAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Completes the deferred idempotency claim, retrying a failure three times before logging it.
+    /// </summary>
+    /// <returns>A task representing the asynchronous settlement.</returns>
+    /// <remarks>
+    ///     A completion that still fails after its retries is logged and does not fail the mediation: the data is
+    ///     already committed. The key stays claimed until the store's claim timeout, after which a repeat runs again.
+    /// </remarks>
+    private async Task CompletePendingSettlementAsync()
+    {
+        var store = _store;
+
+        if (store is null || !TryGetPendingSettlement(out var pending))
+        {
+            return;
+        }
+
+        for (var attempt = 0; ; attempt++)
+        {
+            if (attempt > 0)
+            {
+                await Task.Delay(PostCommitRetryDelays[attempt - 1], _timeProvider, CancellationToken.None).ConfigureAwait(false);
+            }
+
+#pragma warning disable CA1031 // Any failure leaves the key claimed, so every kind is retried the same way.
+            try
+            {
+                await store.CompleteAsync(pending.Claimed.Value, pending.Claimed.ClaimToken, pending.Payload, CancellationToken.None).ConfigureAwait(false);
+                return;
+            }
+            catch (Exception exception)
+            {
+                if (attempt >= PostCommitRetryDelays.Length)
+                {
+                    IdempotencySettlementLogMessages.PostCommitCompleteFailed(_logger, pending.Claimed.Value, exception);
+                    return;
+                }
+            }
+#pragma warning restore CA1031
+        }
+    }
+
+    /// <summary>
+    ///     Releases the deferred idempotency claim after the commit threw, preserving the commit exception.
+    /// </summary>
+    /// <returns>A task representing the asynchronous release.</returns>
+    /// <remarks>
+    ///     A release that throws is logged and never replaces the commit exception the caller must see. The key stays
+    ///     claimed until the store's claim timeout, after which a repeat runs again.
+    /// </remarks>
+    private async Task ReleasePendingSettlementAsync()
+    {
+        var store = _store;
+
+        if (store is null || !TryGetPendingSettlement(out var pending))
+        {
+            return;
+        }
+
+#pragma warning disable CA1031 // A release failure must not replace the commit exception, so it is logged and dropped.
+        try
+        {
+            await store.ReleaseAsync(pending.Claimed.Value, pending.Claimed.ClaimToken, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            IdempotencySettlementLogMessages.PostCommitReleaseFailed(_logger, pending.Claimed.Value, exception);
+        }
+#pragma warning restore CA1031
+    }
+
+    /// <summary>
+    ///     Reads the deferred idempotency settlement recorded for this mediation, when there is one.
+    /// </summary>
+    /// <param name="pending">When this method returns <see langword="true" />, the deferred settlement.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the mediation deferred a settlement; otherwise,
+    ///     <see langword="false" />.
+    /// </returns>
+    private static bool TryGetPendingSettlement([NotNullWhen(true)] out PendingIdempotencySettlement? pending)
+    {
+        pending = null;
+
+        var executionContext = AmbientExecutionContext.GetCurrentOrDefault();
+
+        if (executionContext is null || !executionContext.Data.TryGet<PendingIdempotencySettlement>(out var recorded))
+        {
+            return false;
+        }
+
+        pending = recorded;
+        return true;
     }
 }

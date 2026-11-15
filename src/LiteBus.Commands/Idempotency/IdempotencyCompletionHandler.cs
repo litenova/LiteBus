@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Commands.UnitOfWork;
 using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Commands.Idempotency;
@@ -19,6 +20,16 @@ namespace LiteBus.Commands.Idempotency;
 ///         application's commit at <see cref="HandlerPriorities.UnitOfWork" />. A store writing through the same unit of
 ///         work therefore has its settle staged into the transaction that applies the change, which is what makes the
 ///         key and the work atomic.
+///     </para>
+///     <para>
+///         A store that commits its own writes, separately from the application's unit of work (see
+///         <see cref="ISeparatelyCommittedIdempotencyStore" />), is settled after the commit instead of here: on
+///         success this handler records a <see cref="PendingIdempotencySettlement" /> in the execution-context data for
+///         the unit-of-work step, which completes the key after <see cref="IUnitOfWork.CommitAsync" /> returns and
+///         releases it when the commit throws. Completing here would leave the key marked complete with no data behind
+///         it when the commit throws, and the caller's retry would be answered as a repeat. A non-success outcome still
+///         releases the claim here, and a marked store with no unit of work registered settles here as well, because
+///         there is no commit to wait for.
 ///     </para>
 ///     <para>
 ///         Only the claim the same mediation was granted is settled. The shortcut records each granted key as a
@@ -43,6 +54,11 @@ namespace LiteBus.Commands.Idempotency;
 internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
 {
     /// <summary>
+    ///     The command module's unit-of-work registration, or <see langword="null" /> when no unit of work is registered.
+    /// </summary>
+    private readonly CommandUnitOfWorkRegistration? _unitOfWork;
+
+    /// <summary>
     ///     Serializes the result recorded for replay.
     /// </summary>
     private readonly IMessageSerializer _serializer;
@@ -57,15 +73,21 @@ internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
     /// </summary>
     /// <param name="store">Remembers which keys have been applied.</param>
     /// <param name="serializer">Serializes the result recorded for replay.</param>
+    /// <param name="unitOfWork">
+    ///     The command module's unit-of-work registration, present only when <c>UseUnitOfWork</c> was called on the command
+    ///     builder. A unit of work registered only on the query builder leaves it absent.
+    /// </param>
     public IdempotencyCompletionHandler(
         IIdempotencyStore store,
-        IMessageSerializer serializer)
+        IMessageSerializer serializer,
+        CommandUnitOfWorkRegistration? unitOfWork = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(serializer);
 
         _store = store;
         _serializer = serializer;
+        _unitOfWork = unitOfWork;
     }
 
     /// <inheritdoc />
@@ -91,6 +113,12 @@ internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
         var payload = claimed.ReplayResult && context.MessageResult is not null
             ? await _serializer.SerializeAsync(context.MessageResult, CancellationToken.None).ConfigureAwait(false)
             : null;
+
+        if (_store is ISeparatelyCommittedIdempotencyStore && _unitOfWork is not null)
+        {
+            executionContext.Data.Set(new PendingIdempotencySettlement(claimed, context.Outcome, payload));
+            return;
+        }
 
         await _store.CompleteAsync(claimed.Value, claimed.ClaimToken, payload, CancellationToken.None).ConfigureAwait(false);
     }

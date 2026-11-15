@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Commands.UnitOfWork;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Audit;
@@ -126,6 +127,10 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
             unitOfWorkType,
             unitOfWorkType,
             InstanceLifetime.Scoped));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(CommandUnitOfWorkRegistration),
+            new CommandUnitOfWorkRegistration(unitOfWorkType)));
 
         // The completion handler takes the concrete type, so each axis commits its own even when commands and queries
         // name different implementations. The shared interface resolves to the first module's registration instead of
