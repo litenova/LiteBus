@@ -562,6 +562,18 @@ Before pushing a stable tag:
 - The documentation is also served as plain text for agents. `/llms.txt`, `/llms-full.txt`, and a `.md` endpoint per page are generated from the same Markdown and the same page tree that the navigation uses, so a page added to a `meta.json` reaches them with no separate edit. Titles and descriptions are derived from each page's prose, so a page that opens with neither an intro paragraph, a `Summary` metadata field, nor a `## Summary` section reaches the index with no note and fails `site/scripts/check-llms.mjs`. The hand-written parts, the summary and the `Start Here` list, are in `site/lib/llms.ts`. `site/README.md` documents the endpoints.
 - The site documents the branch it is built from. There are no versioned documentation snapshots. `site/content/docs/` is the one documentation set, served at `/docs`. Cutting a release updates `latestRelease` in `site/lib/site.ts`. Old `/v7/` documentation links redirect to the same path without the prefix.
 
+### Docs site design rules
+
+These rules keep the docs site in `site/` from drifting back to generic defaults. Each one came from the 7.2 review against `googlechrome/modern-web-guidance` and the ui-unslop checklist.
+
+- **Follow the system colour scheme.** The site renders the visitor's `prefers-color-scheme` by default. The header toggle overrides it and can return to the system scheme. It keeps `<meta name="color-scheme">` and the CSS `color-scheme` property in sync from the inline script in `site/app/layout.tsx` before first paint.
+- **Measure contrast, never estimate it.** Every text colour meets WCAG 2.2 AA against its background in both schemes: 4.5:1 for body text, 3:1 for large text and focus rings. Muted text on the editor surfaces is the pair most likely to fail.
+- **Keep the editor concept and add no decoration.** Do not add a badge above the headline, a stat strip, an eyebrow label that repeats a heading, a glow, a gradient, or keyboard-key hints on links.
+- **Size targets for touch.** Pointer targets are at least 24 by 24 pixels, and 44 by 44 at phone width, except inline links inside sentences.
+- **Respect reduced motion.** Under `prefers-reduced-motion: reduce`, nothing slides, types or loops, and every animation ends in its final state.
+- **Avoid unparsed CSS.** Do not put a selector the build's CSS parser rejects, such as `:target-current`, into the stylesheet. Keep the class fallback that the script sets.
+- **Verify in a browser.** After a site change, run `npm --prefix site run lint`, `build` and `check`. Then measure the changed pages at 320, 390, 1440 and 2560 pixels in light and dark schemes.
+
 ## Evolving this guide
 
 These instructions and `site/content/docs/` should reflect how the codebase is built. Agents and maintainers may change any rule when the project direction shifts. Propose amendments in the same PR or conversation as the code change that motivates them, so guidance and implementation stay aligned.

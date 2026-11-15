@@ -26,8 +26,10 @@ export type HomeStepperFile = Readonly<{
  * The step list and the editor tabs select the same file. The panel remounts on every selection
  * (through `key`) so the rewrite animation restarts, and an effect wraps each `.line` content in
  * a `.lc` span carrying the `--i` stagger index, keeping the `::before` line number visible
- * while the code is written. Tabs follow the tablist keyboard pattern: arrows move between
- * files, Home and End jump to the first and last file.
+ * while the code is written. The same effect makes the `pre` a labelled scroll region so
+ * keyboard users can scroll long lines. Tabs follow the tablist keyboard pattern: arrows move
+ * between files, Home and End jump to the first and last file. Under reduced motion the rewrite
+ * animation is disabled in CSS and the code renders statically.
  */
 export function HomeStepper({ files }: Readonly<{ files: readonly HomeStepperFile[] }>) {
   const [selected, setSelected] = useState(0);
@@ -47,6 +49,12 @@ export function HomeStepper({ files }: Readonly<{ files: readonly HomeStepperFil
     if (host === null) {
       return;
     }
+    const pre = host.querySelector('pre');
+    if (pre !== null) {
+      pre.setAttribute('tabindex', '0');
+      pre.setAttribute('role', 'region');
+      pre.setAttribute('aria-label', `${files[selected].name} example code`);
+    }
     host.querySelectorAll('.line').forEach((line, index) => {
       const element = line as HTMLElement;
       if (element.querySelector(':scope > .lc') !== null) {
@@ -60,7 +68,7 @@ export function HomeStepper({ files }: Readonly<{ files: readonly HomeStepperFil
       }
       line.appendChild(wrap);
     });
-  }, [selected]);
+  }, [files, selected]);
 
   /** Moves selection and focus across tabs with arrows, Home, and End. */
   function onTabsKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {

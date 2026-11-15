@@ -119,6 +119,7 @@ const FEATURES: readonly Feature[] = [
   },
   {
     symbol: <span className="tk-ifc">IEventMediator</span>,
+
     title: 'Events',
     text: 'Publish a plain .NET type to any number of handlers, with no shared base class.',
     href: '/docs/concepts/events',
@@ -136,7 +137,7 @@ const FEATURES: readonly Feature[] = [
     title: 'Handler Pipeline',
     text: 'Guards, validators, pre-, post-, error and completion handlers run in a fixed order.',
     href: '/docs/concepts/handler-pipeline',
-    link: 'The pipeline',
+    link: 'The Handler Pipeline',
   },
   {
     symbol: (
@@ -149,7 +150,7 @@ const FEATURES: readonly Feature[] = [
     title: 'Durable Inbox',
     text: 'Accept a command into storage first, then run it under a lease with retries.',
     href: '/docs/reliable-messaging/inbox',
-    link: 'The inbox',
+    link: 'Inbox',
   },
   {
     symbol: (
@@ -162,14 +163,14 @@ const FEATURES: readonly Feature[] = [
     title: 'Transactional Outbox',
     text: 'Store an event in the same transaction as your data and publish it after commit.',
     href: '/docs/reliable-messaging/outbox',
-    link: 'The outbox',
+    link: 'Outbox',
   },
   {
     symbol: <span className="tk-ifc">ITransportPublisher</span>,
     title: 'Brokers and Stores',
     text: 'RabbitMQ, Kafka, AWS SQS, Azure Service Bus, PostgreSQL and EF Core, each its own package.',
     href: '/docs/architecture/dependency-graph',
-    link: 'Packages',
+    link: 'Dependency Graph',
   },
   {
     symbol: <span className="tk-ifc">ISagaContext</span>,
@@ -200,7 +201,7 @@ const FEATURES: readonly Feature[] = [
     title: 'Decisions as Values',
     text: 'Guards deny, validators reject and shortcuts answer; TrySendAsync returns the refusal instead of throwing.',
     href: '/docs/concepts/handler-pipeline',
-    link: 'Refusals',
+    link: 'The Handler Pipeline',
   },
   {
     symbol: (
@@ -240,7 +241,7 @@ const FEATURES: readonly Feature[] = [
     title: 'Unit of Work and Domain Events',
     text: 'Commit at a fixed point after the handler, with collected domain events staged into the outbox first.',
     href: '/docs/reliable-messaging/domain-events-and-unit-of-work',
-    link: 'Unit of work',
+    link: 'Domain Events and Unit of Work',
   },
   {
     symbol: <span className="tk-fn">AddLiteBusManagementEndpoints</span>,
@@ -332,11 +333,6 @@ export default async function HomePage() {
         <main id="main" className="grow" tabIndex={-1}>
           <section className="hero">
             <div className="in">
-              <a className="chip" href={changelogUrl}>
-                <span className="pulse" aria-hidden="true" />
-                <b>v{latestRelease}</b>
-                <i>See what changed {'->'}</i>
-              </a>
               <h1>Message Mediation and Durable Messaging for .NET</h1>
               <p className="lead">
                 Commands, queries and events through one handler pipeline, with an opt-in durable inbox, outbox
@@ -344,7 +340,7 @@ export default async function HomePage() {
               </p>
               <div className="actions">
                 <Link className="btn" href="/docs/getting-started">
-                  Get Started
+                  Read the Getting Started guide
                 </Link>
                 <div className="install">
                   <span className="pr" aria-hidden="true">
@@ -359,26 +355,11 @@ export default async function HomePage() {
                   <CopyButton text={INSTALL_COMMAND} />
                 </div>
               </div>
-              <dl className="facts">
-                <div>
-                  <dt>Target</dt>
-                  <dd>.NET 10</dd>
-                </div>
-                <div>
-                  <dt>Language</dt>
-                  <dd>C#</dd>
-                </div>
-                <div>
-                  <dt>License</dt>
-                  <dd>MIT</dd>
-                </div>
-              </dl>
             </div>
           </section>
 
           <section className="sec" aria-labelledby="up-and-running-heading">
             <div className="in">
-              <p className="kicker">{'// Getting Started'}</p>
               <h2 id="up-and-running-heading">Up and Running in Three Steps</h2>
               <p className="sub">Register the modules, write a handler, send a message.</p>
               <HomeStepper files={files} />
@@ -387,14 +368,8 @@ export default async function HomePage() {
                   {'>'}
                 </span>
                 <span>
-                  <b>Getting Started</b>
+                  <b>Read the Getting Started guide</b>
                   <span className="d">Covers queries, events and the durable modules.</span>
-                </span>
-                <span className="go">
-                  <kbd>Enter</kbd>
-                  <span className="arrow" aria-hidden="true">
-                    {'->'}
-                  </span>
                 </span>
               </Link>
             </div>
@@ -402,7 +377,6 @@ export default async function HomePage() {
 
           <section className="sec" aria-labelledby="features-heading">
             <div className="in">
-              <p className="kicker">{'// Features'}</p>
               <h2 id="features-heading">Features</h2>
               <p className="sub">
                 Mediation in one package. Everything else is an opt-in package you add when you need it.
@@ -416,9 +390,7 @@ export default async function HomePage() {
                         <span className="sym">{feature.symbol}</span>
                         <b>{feature.title}</b>
                         <span className="d">{feature.text}</span>
-                        <span className="go">
-                          {feature.link} {'->'}
-                        </span>
+                        <span className="go">{feature.link}</span>
                       </Link>
                     ))}
                   </div>
@@ -429,7 +401,6 @@ export default async function HomePage() {
 
           <section className="sec mediatr" aria-labelledby="mediatr-heading">
             <div className="in">
-              <p className="kicker">{'// MediatR Comparison'}</p>
               <h2 id="mediatr-heading">An MIT-Licensed Alternative to MediatR</h2>
               <p className="sub">
                 MediatR 13.0.0 and later ships under a commercial license. LiteBus is MIT licensed, with separate
@@ -442,12 +413,6 @@ export default async function HomePage() {
                 <span>
                   <b>Compare LiteBus and MediatR</b>
                   <span className="d">The message model, the pipeline, and moving an existing application.</span>
-                </span>
-                <span className="go">
-                  <kbd>Enter</kbd>
-                  <span className="arrow" aria-hidden="true">
-                    {'->'}
-                  </span>
                 </span>
               </Link>
             </div>

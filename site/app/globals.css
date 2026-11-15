@@ -1,64 +1,102 @@
 /* LiteBus Editor theme: tokens, base styles, header, footer, status bar,
-   editor chrome, and code. Dark is the default; [data-theme="light"]
-   overrides every token. Home-only rules live in app/home.css and
-   docs-only rules in app/docs/docs.css. */
+   editor chrome, and code. The system scheme is the default; [data-theme]
+   pins an explicit override from the header toggle. Home-only rules live in
+   app/home.css and docs-only rules in app/docs/docs.css. */
 
-/* Tokens: surfaces, text, accent, logo, and C# syntax roles. */
-:root, [data-theme="dark"] {
-  color-scheme: dark;
+/* Tokens: surfaces, text, accent, logo, and C# syntax roles. The page follows the system
+   scheme by default; `data-theme` pins an explicit override from the header toggle. */
+:root {
+  color-scheme: light dark;
   /* surfaces */
-  --desk: #101115;
-  --bg: #1a1c22;
-  --side: #16181d;
-  --raised: #20232b;
-  --hover: #232733;
-  --line: #3a3f4c;
-  --line-soft: #2e323d;
-  /* text */
-  --fg: #d7dbe4;
-  --dim: #8a92a6;
-  --faint: #5f677a;
+  --desk: #eeeeee;
+  --bg: #ffffff;
+  --side: #f8f8f8;
+  --raised: #f3f3f3;
+  --hover: #f2f2f2;
+  --line: #cccccc;
+  --line-soft: #e0e0e0;
+  /* text: dim and faint both hold 4.5:1 on the light surfaces */
+  --fg: #3b3b3b;
+  --dim: #515151;
+  --faint: #616161;
   /* accent: the only signal colour */
-  --acc: #6ea8fe;
-  --acc-fg: #0b1730;
-  --acc-soft: rgb(110 168 254 / .12);
-  --acc-ring: rgb(110 168 254 / .55);
-  --warn: #e5c07b;
-  --logo-line: #e6e3ea;
-  --logo-route: #fdbf00;
-  /* C# semantic roles */
-  --sx-kw: #82aaff;
-  --sx-ctl: #e38cf5;
-  --sx-cls: #5ed3c3;
-  --sx-ifc: #b5e09a;
-  --sx-st: #7fd4a3;
-  --sx-attr: #5ed3c3;
-  --sx-fn: #e8d48c;
-  --sx-var: #a8d0ff;
-  --sx-fld: #a8d0ff;
-  --sx-prop: #c3cad8;
-  --sx-str: #f0a57c;
-  --sx-num: #b9e3a3;
-  --sx-com: #6f8f78;
-  --sx-pun: #9aa3b5;
-  --sx-ln: #4f5668;
-  --sx-line: rgb(255 255 255 / .035);
+  --acc: #005fb8;
+  --acc-fg: #ffffff;
+  --acc-soft: rgb(0 95 184 / .08);
+  --acc-ring: rgb(0 95 184 / .45);
+  --warn: #895503;
+  --logo-line: #3b3b3b;
+  /* C# semantic roles: VS Code Light+ so light mode reads like the editor most .NET developers use */
+  --sx-kw: #0000ff;
+  --sx-ctl: #af00db;
+  --sx-cls: #267f99;
+  --sx-ifc: #267f99;
+  --sx-st: #267f99;
+  --sx-attr: #267f99;
+  --sx-fn: #795e26;
+  --sx-var: #001080;
+  --sx-fld: #001080;
+  --sx-prop: #001080;
+  --sx-str: #a31515;
+  --sx-num: #098658;
+  --sx-com: #008000;
+  --sx-pun: #3b3b3b;
+  --sx-ln: #6e7681;
+  --sx-line: rgb(0 0 0 / .03);
   /* Outer edges: the window frame, header, status bar and the sidebar and outline edges. */
-  --frame: #3a3f4c;
+  --frame: #b3b3b3;
+  /* Shared by both schemes. */
+  --logo-route: #fdbf00;
   /* type: next/font variables first, then the mock fallbacks */
   --sans: var(--font-sans), 'Source Sans 3', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
   --mono: var(--font-mono), 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
   --ease: cubic-bezier(.2, .7, .2, 1);
   /* Border width for every border and rule line, so all of them change together. */
   --bw: 1.5px;
+  /* Minimum pointer target; touch screens raise it to 44px below. */
+  --target: 24px;
 }
 
-/*
- * Light theme: VS Code's default Light Modern workbench colours, with its Light+ syntax colours for code, so the light
- * mode looks like the editor most .NET developers already use. Panels are #F8F8F8, text #3B3B3B and the accent #005FB8,
- * as in that theme. Borders use #CCCCCC, the widget and input border of the same theme, because these pages separate
- * regions by border more than by background.
- */
+/* System dark scheme for browsers without `light-dark()` support. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --desk: #101115;
+    --bg: #1a1c22;
+    --side: #16181d;
+    --raised: #20232b;
+    --hover: #232733;
+    --line: #3a3f4c;
+    --line-soft: #2e323d;
+    --fg: #d7dbe4;
+    --dim: #9aa3b5;
+    --faint: #8a92a6;
+    --acc: #6ea8fe;
+    --acc-fg: #0b1730;
+    --acc-soft: rgb(110 168 254 / .12);
+    --acc-ring: rgb(110 168 254 / .55);
+    --warn: #e5c07b;
+    --logo-line: #e6e3ea;
+    --sx-kw: #82aaff;
+    --sx-ctl: #e38cf5;
+    --sx-cls: #5ed3c3;
+    --sx-ifc: #b5e09a;
+    --sx-st: #7fd4a3;
+    --sx-attr: #5ed3c3;
+    --sx-fn: #e8d48c;
+    --sx-var: #a8d0ff;
+    --sx-fld: #a8d0ff;
+    --sx-prop: #c3cad8;
+    --sx-str: #f0a57c;
+    --sx-num: #b9e3a3;
+    --sx-com: #6f8f78;
+    --sx-pun: #9aa3b5;
+    --sx-ln: #4f5668;
+    --sx-line: rgb(255 255 255 / .035);
+    --frame: #3a3f4c;
+  }
+}
+
+/* Explicit overrides from the header toggle. */
 [data-theme="light"] {
   color-scheme: light;
   --desk: #eeeeee;
@@ -69,15 +107,14 @@
   --line: #cccccc;
   --line-soft: #e0e0e0;
   --fg: #3b3b3b;
-  --dim: #616161;
-  --faint: #767676;
+  --dim: #515151;
+  --faint: #616161;
   --acc: #005fb8;
   --acc-fg: #ffffff;
   --acc-soft: rgb(0 95 184 / .08);
   --acc-ring: rgb(0 95 184 / .45);
   --warn: #895503;
   --logo-line: #3b3b3b;
-  --logo-route: #fdbf00;
   --sx-kw: #0000ff;
   --sx-ctl: #af00db;
   --sx-cls: #267f99;
@@ -97,6 +134,95 @@
   --frame: #b3b3b3;
 }
 
+[data-theme="dark"] {
+  color-scheme: dark;
+  --desk: #101115;
+  --bg: #1a1c22;
+  --side: #16181d;
+  --raised: #20232b;
+  --hover: #232733;
+  --line: #3a3f4c;
+  --line-soft: #2e323d;
+  --fg: #d7dbe4;
+  --dim: #9aa3b5;
+  --faint: #8a92a6;
+  --acc: #6ea8fe;
+  --acc-fg: #0b1730;
+  --acc-soft: rgb(110 168 254 / .12);
+  --acc-ring: rgb(110 168 254 / .55);
+  --warn: #e5c07b;
+  --logo-line: #e6e3ea;
+  --sx-kw: #82aaff;
+  --sx-ctl: #e38cf5;
+  --sx-cls: #5ed3c3;
+  --sx-ifc: #b5e09a;
+  --sx-st: #7fd4a3;
+  --sx-attr: #5ed3c3;
+  --sx-fn: #e8d48c;
+  --sx-var: #a8d0ff;
+  --sx-fld: #a8d0ff;
+  --sx-prop: #c3cad8;
+  --sx-str: #f0a57c;
+  --sx-num: #b9e3a3;
+  --sx-com: #6f8f78;
+  --sx-pun: #9aa3b5;
+  --sx-ln: #4f5668;
+  --sx-line: rgb(255 255 255 / .035);
+  --frame: #3a3f4c;
+}
+
+/* Where supported, one `light-dark()` definition follows `color-scheme` (system or override)
+   instead of the media query and override blocks above. */
+@supports (color: light-dark(#fff, #000)) {
+  :root, [data-theme="light"], [data-theme="dark"] {
+    --desk: light-dark(#eeeeee, #101115);
+    --bg: light-dark(#ffffff, #1a1c22);
+    --side: light-dark(#f8f8f8, #16181d);
+    --raised: light-dark(#f3f3f3, #20232b);
+    --hover: light-dark(#f2f2f2, #232733);
+    --line: light-dark(#cccccc, #3a3f4c);
+    --line-soft: light-dark(#e0e0e0, #2e323d);
+    --fg: light-dark(#3b3b3b, #d7dbe4);
+    --dim: light-dark(#515151, #9aa3b5);
+    --faint: light-dark(#616161, #8a92a6);
+    --acc: light-dark(#005fb8, #6ea8fe);
+    --acc-fg: light-dark(#ffffff, #0b1730);
+    --acc-soft: light-dark(rgb(0 95 184 / .08), rgb(110 168 254 / .12));
+    --acc-ring: light-dark(rgb(0 95 184 / .45), rgb(110 168 254 / .55));
+    --warn: light-dark(#895503, #e5c07b);
+    --logo-line: light-dark(#3b3b3b, #e6e3ea);
+    --sx-kw: light-dark(#0000ff, #82aaff);
+    --sx-ctl: light-dark(#af00db, #e38cf5);
+    --sx-cls: light-dark(#267f99, #5ed3c3);
+    --sx-ifc: light-dark(#267f99, #b5e09a);
+    --sx-st: light-dark(#267f99, #7fd4a3);
+    --sx-attr: light-dark(#267f99, #5ed3c3);
+    --sx-fn: light-dark(#795e26, #e8d48c);
+    --sx-var: light-dark(#001080, #a8d0ff);
+    --sx-fld: light-dark(#001080, #a8d0ff);
+    --sx-prop: light-dark(#001080, #c3cad8);
+    --sx-str: light-dark(#a31515, #f0a57c);
+    --sx-num: light-dark(#098658, #b9e3a3);
+    --sx-com: light-dark(#008000, #6f8f78);
+    --sx-pun: light-dark(#3b3b3b, #9aa3b5);
+    --sx-ln: light-dark(#6e7681, #4f5668);
+    --sx-line: light-dark(rgb(0 0 0 / .03), rgb(255 255 255 / .035));
+    --frame: light-dark(#b3b3b3, #3a3f4c);
+  }
+}
+
+@media (pointer: coarse) {
+  :root {
+    --target: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --target: 44px;
+  }
+}
+
 /* Base */
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -107,7 +233,11 @@ body {
   font-family: var(--sans);
   font-size: 15px;
   line-height: 1.65;
+  font-size-adjust: from-font;
   -webkit-font-smoothing: antialiased;
+}
+pre, code, kbd, samp {
+  font-size-adjust: from-font;
 }
 a { color: var(--acc); text-decoration: none; }
 a:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -117,6 +247,9 @@ p { margin: 0; }
 img { max-width: 100%; height: auto; }
 ::selection { background: var(--acc); color: var(--acc-fg); }
 :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+@media (forced-colors: active) {
+  :focus-visible { outline-color: CanvasText; }
+}
 .skip-link {
   position: absolute;
   left: 1rem;
@@ -189,6 +322,8 @@ img { max-width: 100%; height: auto; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: var(--target);
+  min-height: var(--target);
   width: 32px;
   height: 32px;
   margin-left: 6px;
@@ -215,7 +350,11 @@ img { max-width: 100%; height: auto; }
 .tt .moon { display: none; }
 [data-theme="light"] .tt .sun { display: none; }
 [data-theme="light"] .tt .moon { display: block; }
-.nav { display: flex; gap: 2px; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .tt .sun { display: none; }
+  :root:not([data-theme]) .tt .moon { display: block; }
+}
+.nav { display: flex; gap: 2px; flex-wrap: wrap; }
 .nav a, .top-r a {
   color: var(--dim);
   font-size: 14px;
@@ -223,6 +362,13 @@ img { max-width: 100%; height: auto; }
   border-radius: 6px;
   transition: color .12s, background-color .12s;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target);
+  min-width: var(--target);
+}
+.brand {
+  min-height: var(--target);
 }
 .nav a:hover, .top-r a:hover { color: var(--fg); background: var(--hover); text-decoration: none; }
 .nav a.on, .nav a[aria-current="page"] { color: var(--fg); }
@@ -235,6 +381,7 @@ img { max-width: 100%; height: auto; }
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: var(--target);
   height: 32px;
   padding: 0 6px 0 12px;
   border: var(--bw) solid var(--line);
@@ -245,6 +392,7 @@ img { max-width: 100%; height: auto; }
   transition: border-color .12s, color .12s;
 }
 .search:hover, .search:focus-within { border-color: var(--acc); color: var(--dim); }
+.search:focus-within { outline: 2px solid var(--acc); outline-offset: 2px; }
 .search > span { flex: 1; }
 .search input[type="search"] {
   flex: 1;
@@ -274,7 +422,7 @@ img { max-width: 100%; height: auto; }
   overflow-y: auto;
 }
 .search-results li { margin: 0; }
-.search-results a { display: block; border-radius: 6px; padding: 6px 10px; color: var(--fg); font-size: 13.5px; line-height: 1.4; }
+.search-results a { display: block; border-radius: 6px; padding: 6px 10px; color: var(--fg); font-size: 13.5px; line-height: 1.4; min-height: var(--target); }
 .search-results a:hover, .search-results a[data-active="true"] { background: var(--hover); text-decoration: none; }
 .search-results b { display: block; font-weight: 600; font-size: 13.5px; }
 .search-results span { display: block; font-size: 12.5px; color: var(--dim); }
@@ -330,6 +478,8 @@ kbd {
   background: var(--raised);
   cursor: pointer;
   transition: color .12s, border-color .12s, opacity .12s;
+  min-height: var(--target);
+  min-width: var(--target);
 }
 .copy:hover { color: var(--fg); border-color: var(--dim); text-decoration: none; }
 .ver {
@@ -344,6 +494,7 @@ kbd {
   padding: 1px 9px 1px 7px;
   white-space: nowrap;
   transition: border-color .12s, color .12s;
+  min-height: var(--target);
 }
 .ver::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--acc); }
 .ver:hover { border-color: var(--acc); color: var(--fg); text-decoration: none; }
@@ -437,7 +588,11 @@ kbd {
   color: var(--faint);
 }
 
-/* Code: one span.line per line, line numbers from a CSS counter. */
+/* Code: one span.line per line, line numbers from a CSS counter. Code blocks and editor
+   surfaces declare their scheme so native UI inside them matches the page scheme. */
+pre.code, .block, .ed {
+  color-scheme: inherit;
+}
 pre.code {
   margin: 0;
   padding: 14px 0 16px;
@@ -452,6 +607,9 @@ pre.code {
    while each line keeps its own whitespace. */
 pre.code code { display: block; min-width: max-content; counter-reset: ln; white-space: normal; }
 [data-theme="light"] pre.code { font-weight: 500; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) pre.code { font-weight: 500; }
+}
 .code .line { display: block; min-height: 1.65em; padding-right: 20px; white-space: pre; transition: background-color .1s; }
 .code .line:hover { background: var(--sx-line); }
 .code .line::before {
@@ -470,8 +628,8 @@ pre.code code { display: block; min-width: max-content; counter-reset: ln; white
 /* Footer and status bar */
 .foot { border-top: var(--bw) solid var(--line-soft); padding: 28px 0; }
 .foot .in { display: flex; justify-content: space-between; gap: 16px 32px; flex-wrap: wrap; font-size: 13.5px; color: var(--dim); }
-.foot nav { display: flex; gap: 20px; flex-wrap: wrap; }
-.foot nav a { color: var(--dim); }
+.foot nav { display: flex; gap: 4px 20px; flex-wrap: wrap; }
+.foot nav a { color: var(--dim); display: inline-flex; align-items: center; min-height: var(--target); min-width: var(--target); }
 .foot nav a:hover { color: var(--fg); }
 .status {
   display: flex;
@@ -492,6 +650,7 @@ pre.code code { display: block; min-width: max-content; counter-reset: ln; white
   color: var(--dim);
   white-space: nowrap;
   transition: background-color .12s, color .12s;
+  min-height: 24px;
 }
 .status a:hover { background: var(--hover); color: var(--fg); text-decoration: none; }
 .status .home { gap: 7px; padding: 0 12px; color: var(--fg); border-right: var(--bw) solid var(--line); }
@@ -538,5 +697,17 @@ pre.code code { display: block; min-width: max-content; counter-reset: ln; white
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  /* Keep color and opacity transitions; disable spatial movement, scaling, and rotation. */
+  *, *::before, *::after {
+    animation: none !important;
+    transition-property: color, background-color, border-color, opacity !important;
+  }
+  /* The install command keeps its full width instead of its pre-typing width of zero. */
+  .typed { width: auto; border-right: 0; }
+  /* The drawer and backdrop appear instantly instead of sliding or fading. */
+  .explorer { transition: none; }
+  .scrim { transition-property: opacity !important; }
+  /* Hover motion ends in its resting state. */
+  .tt:hover svg { transform: none; }
+  .ed-tab::before { transition: none; }
 }

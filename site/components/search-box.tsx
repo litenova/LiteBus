@@ -45,7 +45,8 @@ const maxResults = 8;
  * Searches the documentation.
  *
  * Typing past the minimum length queries the index; arrow keys move through the matches, Enter opens the active one,
- * and Escape clears the box. Ctrl K or Cmd K focuses the box from anywhere on the page.
+ * and Escape clears the box. Choosing a result, pressing Escape, moving focus out of the box, or pointing outside
+ * the box closes the matches. Ctrl K or Cmd K focuses the box from anywhere on the page.
  */
 export function SearchBox() {
   const router = useRouter();
@@ -54,6 +55,7 @@ export function SearchBox() {
   const [active, setActive] = useState(0);
   const isMac = useSyncExternalStore(subscribeToNothing, readIsMac, readIsMacOnServer);
   const inputRef = useRef<HTMLInputElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
 
   // A query below the minimum length shows nothing, whatever an earlier, longer query returned.
@@ -121,14 +123,36 @@ export function SearchBox() {
     };
   }, [query]);
 
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (boxRef.current !== null && event.target instanceof Node && !boxRef.current.contains(event.target)) {
+        setQuery('');
+        setResults([]);
+      }
+    };
+
+    window.addEventListener('pointerdown', onPointerDown);
+
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, []);
+
   return (
-    <div className="search">
+    <div className="search" ref={boxRef}>
       <input
         ref={inputRef}
         type="search"
         value={query}
         onChange={(event) => {
           setQuery(event.target.value);
+        }}
+        onBlur={(event) => {
+          if (event.relatedTarget instanceof Node && boxRef.current?.contains(event.relatedTarget) === true) {
+            return;
+          }
+
+          setResults([]);
         }}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
@@ -149,7 +173,7 @@ export function SearchBox() {
           }
         }}
         placeholder="Search docs"
-        aria-label="Search documentation"
+        aria-label="Search docs"
         autoComplete="off"
         spellCheck={false}
         role="combobox"

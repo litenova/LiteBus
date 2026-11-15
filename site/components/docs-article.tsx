@@ -403,7 +403,7 @@ export async function DocsArticle({ slug }: Readonly<{ slug: string[] }>) {
       );
     },
     table: (props: ComponentProps<'table'>) => (
-      <div className="tbl">
+      <div className="tbl" tabIndex={0} role="region" aria-label="Scrollable table">
         <table {...props} />
       </div>
     ),
@@ -478,7 +478,7 @@ export async function DocsArticle({ slug }: Readonly<{ slug: string[] }>) {
               <Link href={docsBasePath}>Docs</Link>
               {crumbs.map((segment, index) => (
                 <Fragment key={`${segment.name}-${index}`}>
-                  <b>&gt;</b>
+                  <b aria-hidden="true">&gt;</b>
                   <CrumbSegment segment={segment} last={index === crumbs.length - 1} />
                 </Fragment>
               ))}
@@ -509,7 +509,7 @@ export async function DocsArticle({ slug }: Readonly<{ slug: string[] }>) {
       </main>
       <aside className="outline" aria-label="On this page">
         <div className="sticky">
-          <h2 className="xhead">On This Page</h2>
+          <h2 className="xhead">On this page</h2>
           <DocsOutline headings={headings.map((entry) => ({ url: entry.url, title: entry.title }))} />
           <a className="edit" href={editUrl}>
             Edit this page on GitHub
@@ -526,7 +526,7 @@ export async function DocsArticle({ slug }: Readonly<{ slug: string[] }>) {
           </>
         }
       >
-        <a href={changelogUrl} title="Changelog">
+        <a href={changelogUrl} aria-label={`Changelog v${latestRelease}`}>
           v{latestRelease}
         </a>
         <span className="hide-sm">{page.path}</span>
