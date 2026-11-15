@@ -16,7 +16,7 @@ When the key is settled depends on whether the store commits through the applica
 
 A post-commit `CompleteAsync` that throws is retried up to three times with a short fixed backoff of about 50, 100 and 200 milliseconds, and a settlement that still fails logs a warning naming the key without failing the mediation, because the data is already committed. The key stays claimed until the store's claim timeout, after which a repeat runs the handler again. That window between the commit and the claim timeout is the cost of committing the data and the key in two separate transactions: a crash or an outage in between leaves committed data whose key is still only claimed.
 
-Inside a command batch (`ICommandBatchMediator.SendManyAsync`), the completion handler never settles per command, for any store. Pending claims settle after the batch ends: `CompleteAsync` for every pending claim runs before the batch `CommitAsync` for an unmarked store and after it for a marked store, with the same retry and logging rule; on rollback `ReleaseAsync` runs for every pending claim. Two commands in one batch that resolve to the same scoped key stop the batch: the second is refused with `litebus.batch.duplicate_idempotency_key` (`IdempotencyRefusalCodes.DuplicateKeyInBatch`), detected from the batch's pending claims before the store is asked, and the batch rolls back.
+Inside a command batch (`ICommandBatchMediator.SendManyAsync`), the completion handler never settles per command, for any store. Pending claims settle after the batch ends: `CompleteAsync` for every pending claim runs before the batch `CommitAsync` for an unmarked store and after it for a marked store, with the same retry and logging rule; on rollback `ReleaseAsync` runs for every pending claim. Two commands in one batch that resolve to the same scoped key stop the batch: the second is refused with `litebus.batch.duplicate_idempotency_key` (`IdempotencyRefusalCodes.DuplicateKeyInBatch`), detected from the batch's pending claims before the store is asked, and the batch rolls back. See [Command batches](command-batches.md).
 
 ## Public Surface
 
@@ -171,4 +171,5 @@ Operational alternatives:
 - [In-process idempotency](../../concepts/idempotency.md)
 - [The handler pipeline](../../concepts/handler-pipeline.md)
 - [Message definitions](../../concepts/message-definitions.md)
+- [Command batches](command-batches.md)
 - [PostgreSQL idempotency store](../../integrations/commands-postgresql-idempotency-store.md)

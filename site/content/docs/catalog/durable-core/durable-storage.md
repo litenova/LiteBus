@@ -11,6 +11,8 @@ Durable storage persists inbox and outbox envelopes through store interfaces spl
 
 Storage adapters implement narrow roles: append (writer), lease (processor), state persist (processor), dead letter, retention, diagnostics, query, and purge. A single class typically implements all roles on one table set. PostgreSQL inbox and saga components use schema version 1. The PostgreSQL outbox component uses schema version 2, which adds the nullable `handler` column for per-handler delivery. `EnsureAsync` upgrades a version 1 table automatically. EF Core schemas are owned by the application. The shared PostgreSQL primitives are in `LiteBus.Storage.PostgreSql`.
 
+`IOutboxTargetedLeaseStore` is an additional outbox lease role that claims specific envelopes by message identifier for immediate dispatch after commit. It is a separate interface from `IOutboxLeaseStore`, so stores written outside LiteBus keep compiling without it.
+
 ## Public Surface
 
 ### Store Role Interfaces
@@ -23,6 +25,7 @@ Storage adapters implement narrow roles: append (writer), lease (processor), sta
 | Dead letter ops | `IInboxDeadLetterStore` | `IOutboxDeadLetterStore` |
 | Retention | `IInboxRetentionStore` | `IOutboxRetentionStore` |
 | Diagnostics | `IInboxDiagnosticsStore` | `IOutboxDiagnosticsStore` |
+| Targeted lease (immediate dispatch) | None | `IOutboxTargetedLeaseStore` |
 
 Query and purge roles are exposed through manager APIs backed by the same store implementations.
 
@@ -54,6 +57,7 @@ Register storage only inside the **`AddInbox(...)`** and **`AddOutbox(...)`** bu
 
 - Custom stores implement the role interfaces and register through the storage module pattern (see [Custom stores and dispatchers](../../extending/custom-stores-and-dispatchers.md))
 - The shared PostgreSQL infrastructure in **`LiteBus.Storage.PostgreSql`** provides ambient transactions and NOTIFY work signals
+- Custom stores that support immediate dispatch implement `IOutboxTargetedLeaseStore` alongside `IOutboxLeaseStore`. `EnableImmediateDispatch` with a registered store that does not implement it fails at composition with `LiteBusConfigurationException`
 
 ## Store Roles
 
@@ -65,6 +69,15 @@ Register storage only inside the **`AddInbox(...)`** and **`AddOutbox(...)`** bu
 | Dead letter ops | `IInboxDeadLetterStore` | `IOutboxDeadLetterStore` |
 | Retention | `IInboxRetentionStore` | `IOutboxRetentionStore` |
 | Diagnostics | `IInboxDiagnosticsStore` | `IOutboxDiagnosticsStore` |
+| Targeted lease (immediate dispatch) | None | `IOutboxTargetedLeaseStore` |
+
+## Targeted Lease by Identifier
+
+`IOutboxTargetedLeaseStore.LeaseByIdAsync` takes an `OutboxTargetedLeaseRequest` sealed record with `MessageIds`, `LeaseOwner`, `LeaseDuration`, `Now`, and an optional `TenantId`, and returns the claimed `OutboxEnvelope` list.
+
+It leases, atomically, only the listed envelopes that are pending and not under an active lease, regardless of `VisibleAfter`, with the same side effects as `LeasePendingAsync` (owner, expiry, attempt count, lease generation). Envelopes it cannot claim are skipped and not returned, so two callers never both receive one message.
+
+`PostgreSqlOutboxStore`, `EfCoreOutboxStore`, `InMemoryOutboxStore`, and `TestOutboxStore` implement it. A null request tenant means no tenant restriction, and an empty string matches only unscoped rows, matching `LeasePendingAsync` on every adapter.
 
 ## Packages
 

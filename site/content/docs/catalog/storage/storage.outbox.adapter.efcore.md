@@ -19,6 +19,8 @@ The store supports PostgreSQL, SQL Server, MySQL, SQLite, and in-memory EF provi
 
 `OutboxMessageEntity.Handler` maps to the nullable `handler` column, so the EF model carries the per-handler delivery target the same way the PostgreSQL version 2 shape does. Leased, queried, and purged envelopes carry the recorded handler full name.
 
+`EfCoreOutboxStore` implements `IOutboxTargetedLeaseStore` on every supported provider. Relational providers claim with one guarded update per identifier, so no caller-sized identifier list reaches the database; identifier-list queries consult `EfCoreCollectionParameters`, which sends the list as a single collection parameter on SQL Server.
+
 ## Public Surface
 
 ### Consumer Contracts
@@ -30,6 +32,7 @@ The store supports PostgreSQL, SQL Server, MySQL, SQLite, and in-memory EF provi
 | `LiteBusOutboxSaveChangesInterceptor` | Stages enqueues until `SaveChanges` |
 | `OutboxMessageEntity` | Persistence entity for outbox rows |
 | `IOutboxDbContext` | DbContext marker interface |
+| `IOutboxTargetedLeaseStore` | Targeted lease by message identifier for immediate dispatch |
 
 ### Invocation
 
@@ -39,6 +42,7 @@ The store supports PostgreSQL, SQL Server, MySQL, SQLite, and in-memory EF provi
 | `ITransactionalOutbox<TContext>.EnqueueAsync` | Command handlers running in an EF transaction |
 | `EfCoreOutboxStore.UseExistingDbContext` | Callers staging on their own context |
 | `IOutboxLeaseStore.LeasePendingAsync` | Outbox processor |
+| `IOutboxTargetedLeaseStore.LeaseByIdAsync` | Immediate dispatch commit listener |
 
 ### Registration
 
@@ -91,6 +95,9 @@ outbox.UseEntityFrameworkCoreStorage(o =>
 - For renew, release, and terminal persist on SQLite and the in-memory provider, the store compares `lease_generation` through an Entity Framework concurrency token. When a worker loses the race, the store reports skipped instead of overwriting the new holder.
 - Strict comparison includes the `handler` targeting alongside identity, contract, payload, topic, key, correlation, causation, and tenant.
 - Leased envelopes carry the stored `IdempotencyKey` on every EF relational provider, so key readers and FIFO deduplication mapping see the key.
+- `OutboxTargetedLeaseRequest` is a sealed record with `MessageIds`, `LeaseOwner`, `LeaseDuration`, `Now`, and an optional `TenantId`.
+- Targeted lease claims only the listed messages that are pending and not under an active lease, regardless of `VisibleAfter`, with the same side effects as `LeasePendingAsync` (owner, expiry, attempt count, lease generation). Messages it cannot claim are skipped and not returned, and an empty identifier list returns an empty result.
+- `EnableImmediateDispatch` requires the registered store to implement `IOutboxTargetedLeaseStore`. Composition with a store that does not implement it throws `LiteBusConfigurationException`.
 
 ## Non-Goals
 

@@ -21,11 +21,12 @@ This index maps each LiteBus capability to its documentation and primary package
 | Marten unit of work, idempotency, and audit | [Marten unit of work, idempotency, and audit](../integrations/commands-marten.md) | `LiteBus.Commands.Storage.Marten` |
 | ASP.NET Core Idempotency-Key filter | [ASP.NET Core idempotency key](../integrations/aspnetcore-idempotency-key.md) | `LiteBus.Extensions.AspNetCore` |
 | Unit of work (`IUnitOfWork`) | [Domain events and unit of work](../reliable-messaging/domain-events-and-unit-of-work.md#command-pipeline-boundary) | `LiteBus.Messaging.Abstractions`, axis packages |
+| Command batches | [Command batches](../catalog/mediator/command-batches.md) | `LiteBus.Commands`, `LiteBus.Testing.Mediation` |
 | Fault refusal classification | [The handler pipeline](../concepts/handler-pipeline.md#turning-faults-into-refusals) | `LiteBus.Messaging`, `LiteBus.Storage.PostgreSql` |
 | Shortcut denial | [The handler pipeline](../concepts/handler-pipeline.md#shortcut-contracts) | Core mediator packages |
 | Authorization declarations and guards | [Authorization declarations](../concepts/authorization-declarations.md) | `LiteBus.Messaging.Abstractions` |
 | Audit selectors | [Auditing](../concepts/auditing.md#declaring-what-the-message-already-knows) | `LiteBus.Messaging` |
-| Recurring commands and single-flight lease | [Recurring commands](../integrations/recurring-commands.md) | `LiteBus.Commands.Recurring`, `LiteBus.Commands.Recurring.Storage.PostgreSql` |
+| Recurring commands, recurring batches, and single-flight lease | [Recurring commands](../integrations/recurring-commands.md) | `LiteBus.Commands.Recurring`, `LiteBus.Commands.Recurring.Storage.PostgreSql` |
 | Recording mediator doubles | [Application testing](../testing/application-testing.md#recording-mediator-doubles) | `LiteBus.Testing.Mediation` |
 | Message definitions | [Message definitions](../concepts/message-definitions.md) | `LiteBus.Messaging.Abstractions` |
 | Required declarations | [Required declarations](../catalog/analyzers/required-declarations.md) | `LiteBus.Messaging`, `LiteBus.Analyzers` |
@@ -53,6 +54,7 @@ This index maps each LiteBus capability to its documentation and primary package
 | Domain events to outbox | [Domain events and unit of work](../reliable-messaging/domain-events-and-unit-of-work.md) | `OutboxEnqueueMetadata` |
 | Domain event staging | [Outbox](../reliable-messaging/outbox.md#domain-event-staging) | `StageCollectedEvents()`, `IDomainEventCollector` |
 | Per-handler outbox delivery | [Outbox](../reliable-messaging/outbox.md#per-handler-delivery) | `EnablePerHandlerDelivery()` |
+| Outbox immediate dispatch | [Immediate dispatch](../reliable-messaging/immediate-dispatch.md) | `EnableImmediateDispatch()`, `[DispatchImmediately]` |
 | Ambient trace | [Inbox](../reliable-messaging/inbox.md#ambient-trace-opt-in), [Outbox](../reliable-messaging/outbox.md#ambient-trace-option) | `UseAmbientTrace()` |
 
 ## Storage

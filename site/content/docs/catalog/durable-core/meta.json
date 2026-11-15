@@ -15,6 +15,7 @@
                   "message-contracts",
                   "operations-management",
                   "outbox-enqueue",
+                  "outbox-immediate-dispatch",
                   "outbox-processor",
                   "payload-encryption",
                   "processor-hooks",

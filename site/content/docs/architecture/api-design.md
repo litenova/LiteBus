@@ -17,7 +17,7 @@ Before reading this page, read [Architecture](README.md) for the dependency role
 | `*Item` | One command unit (message payload + metadata) | `InboxAcceptItem`, `OutboxEnqueueItem` |
 | `*Metadata` | Per-message durable annotations on an `*Item` | `InboxAcceptMetadata`, `OutboxEnqueueMetadata` |
 | `*Request` | Operation input without a message body | `InboxLeaseRequest`, `TransportPublishRequest` |
-| `*Settings` | Per-invocation mediation tuning | `CommandMediationSettings`, `EventMediationSettings` |
+| `*Settings` | Per-invocation mediation tuning | `CommandMediationSettings`, `EventMediationSettings`, `CommandBatchSettings` |
 | `*Options` | Module, host, processor, or adapter configuration | `ProcessorOptions`, `PostgreSqlInboxStoreOptions` |
 | `*HostOptions` | Background-service lifecycle | `InboxProcessorHostOptions` |
 | `*Filter` | Query or purge predicates | `InboxMessageFilter` |
@@ -26,7 +26,7 @@ Before reading this page, read [Architecture](README.md) for the dependency role
 
 ### Mediation vs Durable Writers
 
-- **Mediation** keeps `*Settings` (`CommandMediationSettings`, `EventMediationSettings`, `QueryMediationSettings`) for per-call pipeline tuning. Custom mediators built on `IMessageMediator` use `MessageMediationRequest<TMessage, TResult>` for strategy and resolve overrides. `CancellationToken` stays on `Mediate` only, not inside the request type.
+- **Mediation** keeps `*Settings` (`CommandMediationSettings`, `EventMediationSettings`, `QueryMediationSettings`) for per-call pipeline tuning. Command batches use `ICommandBatchMediator` with `CommandBatchSettings` for per-batch tuning. The settings carry the `CommandMediationSettings` applied to every command; `TrySendManyAsync` reports a `CommandBatchResult` with one `CommandBatchEntryResult` per command and a `CommandBatchOutcome` of `Committed` or `RolledBack`, with `CancellationToken` as the last method parameter. Custom mediators built on `IMessageMediator` use `MessageMediationRequest<TMessage, TResult>` for strategy and resolve overrides. `CancellationToken` stays on `Mediate` only, not inside the request type.
 - **Durable writers** use `*Item` plus `*Metadata`. Scheduling and visibility belong on metadata (`MessageVisibility`), not on separate scheduler interfaces.
 - **Framework bindings** use `*Binding` for ASP.NET management and similar adapter input. Bindings map once at the adapter edge. They are not writer `*Item` types.
 
@@ -159,7 +159,7 @@ Do not use implicit conversions from the message body to `*Item`. Do not add wri
 | Module and host options | Feature or adapter package that registers the service |
 | Internal envelope projection | Core feature package (`LiteBus.Messaging`, `LiteBus.Inbox`, `LiteBus.Outbox`) as `internal` helpers |
 
-Abstractions packages own the public value-object types. Adapters map them. They do not define alternate option bags for the same concern.
+Abstractions packages own the public value-object types. Adapters map them. They do not define alternate option bags for the same concern. `ICommandBatchMediator`, `CommandBatchSettings`, `CommandBatchResult`, `CommandBatchOutcome`, and `CommandBatchEntryResult` live in `LiteBus.Commands.Abstractions`.
 
 ## Durable Messaging Exemplar
 

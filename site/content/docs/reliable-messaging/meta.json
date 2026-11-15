@@ -5,6 +5,7 @@
     "walkthrough",
     "inbox",
     "outbox",
+    "immediate-dispatch",
     "transactional-writes",
     "domain-events-and-unit-of-work",
     "paged-fan-out",

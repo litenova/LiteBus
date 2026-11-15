@@ -184,7 +184,7 @@ Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, 
 | `LiteBus.Transport.Kafka` | (reserved) | | Adapter meter identity for custom instrumentation |
 | `LiteBus.Transport.InMemory` | (reserved) | | Adapter meter identity for test and CI transports |
 
-Mediation also emits one span per message on the `LiteBus.Mediation` activity source. The span is named `mediate {MessageType}` and tagged with `litebus.message` and `litebus.outcome`, plus `litebus.code` when a decision supplied one. Only a `Failed` outcome sets the error status. Denials and validation refusals keep a success status so error views show faults only. Per-stage child spans are opt-in through `MediationTelemetryOptions.StageSpans`, because mediation volume is orders of magnitude above durable-processing volume.
+Mediation also emits one span per message on the `LiteBus.Mediation` activity source. The span is named `mediate {MessageType}` and tagged with `litebus.message` and `litebus.outcome`, plus `litebus.code` when a decision supplied one. One command batch emits one `litebus.mediation.batch` span (`LiteBusMediationTelemetry.BatchActivityName`) on the same source; each command's `mediate {MessageType}` span is its child, and the batch span carries `litebus.batch.outcome` (`LiteBusMediationTelemetry.BatchOutcomeAttributeName`) with `committed` or `rolled_back`. Only a `Failed` outcome sets the error status. Denials and validation refusals keep a success status so error views show faults only. Per-stage child spans are opt-in through `MediationTelemetryOptions.StageSpans`, because mediation volume is orders of magnitude above durable-processing volume.
 
 Internal processor instrumentation (`InboxProcessorTelemetry`, `OutboxProcessorTelemetry`) records the processor pass counters below. The names are stable for metric export but are not public constants. Dashboards may reference them, but renames are not governed by the public instrument contract until the names are promoted to `LiteBusInboxTelemetry` or `LiteBusOutboxTelemetry`.
 
@@ -337,7 +337,7 @@ Idempotency keys are scoped per tenant across in-memory, EF Core, and PostgreSQL
 
 ### Instrument Stability
 
-Public `const` instrument and activity names on `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, `LiteBusInboxIngressTelemetry`, `LiteBusTransportTelemetry`, and adapter meter types are part of the consumer contract. Renames or removals are breaking changes. Processor pass counters listed in the internal-only catalog above are stable implementation details until they are promoted to public constants on the matching telemetry type.
+Public `const` instrument and activity names on `LiteBusMediationTelemetry`, `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, `LiteBusInboxIngressTelemetry`, `LiteBusTransportTelemetry`, and adapter meter types are part of the consumer contract. Renames or removals are breaking changes. Processor pass counters listed in the internal-only catalog above are stable implementation details until they are promoted to public constants on the matching telemetry type.
 
 ## Ingress Axis
 

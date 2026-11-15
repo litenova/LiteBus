@@ -56,7 +56,11 @@ Typical call sites are command post-handlers draining domain events, application
 
 `EnablePerHandlerDelivery` writes one envelope per subscribed main handler of each enqueued event instead of one envelope per event. Each reaction then has its own retry, dead letter, and replay. A failing reaction retries alone while the healthy reactions publish.
 
-Each envelope records the full name of the handler it is addressed to in the `Handler` column, where `null` means broadcast. In-process dispatch publishes each envelope to that main handler alone. Pipeline observers for the pre-stage, post, error, and completion stages still run on every targeted dispatch.
+Each envelope records the subscriber name of the handler it is addressed to in the `Handler` column, where `null` means broadcast. A main handler carrying `[SubscriberName("billing.order-created")]` (`SubscriberNameAttribute` in `LiteBus.Messaging.Abstractions`, class-level, not inherited) is recorded under that name; any other handler is recorded under its full type name, exactly as before subscriber names existed. Without the attribute, behavior is exactly as in 7.1.1. The rule "subscriber name if present, otherwise full type name" lives in `SubscriberNames` (`LiteBus.Messaging`) and is shared by the envelope factory, the in-process dispatcher, and immediate dispatch. In-process dispatch publishes each envelope to that main handler alone. Pipeline observers for the pre-stage, post, error, and completion stages still run on every targeted dispatch.
+
+A subscriber name survives handler renames. Renaming a handler class or moving its namespace changes its full type name, so envelopes already written for the old name match no handler, and `RequireHandler` fails them repeatedly until they are dead-lettered (or, with `RequireHandler = false`, completes them without running anything). In-process dispatch matches an envelope to a main handler when the recorded value equals the handler's subscriber name or its full type name, so an envelope written before the attribute was added still reaches the handler, as long as the class is not renamed in the same deployment. When adopting subscriber names on existing handlers, add the attribute first, deploy, let the old envelopes drain, and only then rename the class.
+
+A subscriber name must be non-empty, at most 200 characters, and use only letters, digits, `.`, `-` and `_`. When per-handler delivery is enabled, two main handlers of the same event type with the same subscriber name fail composition with `LiteBusConfigurationException` naming both handler types. A subscriber name equal to another handler's full type name is refused the same way.
 
 ```csharp
 registry.AddOutbox(outbox =>
@@ -65,11 +69,13 @@ registry.AddOutbox(outbox =>
 });
 ```
 
-Enqueueing an event with no subscribed main handler throws `NoHandlerFoundException`, matching the default `RequireHandler` rule. Direct and indirect main handlers both count, deduplicated by handler full name. Per-handler envelopes are ordered by handler full name.
+Enqueueing an event with no subscribed main handler throws `NoHandlerFoundException`, matching the default `RequireHandler` rule. Direct and indirect main handlers both count, deduplicated by subscriber name. Per-handler envelopes are ordered by subscriber name.
 
-The writer derives a caller idempotency key per handler as `{key}:{handler}` and preserves the conflict mode. From a caller-supplied message identifier, the writer derives deterministic per-handler identifiers, so a retried enqueue resolves to the same rows. The whole fan-out of one enqueue persists in one batch call, so a mid-fan-out failure never leaves a partial set behind.
+The writer derives a caller idempotency key per handler as `{key}:{subscriber-name}` and preserves the conflict mode. From a caller-supplied message identifier, the writer derives deterministic per-handler identifiers from the supplied value and the subscriber name, so a retried enqueue resolves to the same rows. The whole fan-out of one enqueue persists in one batch call, so a mid-fan-out failure never leaves a partial set behind.
 
-The returned receipt describes the first per-handler envelope in handler-name order. Batch receipts flatten to one receipt per envelope in item order. A handler added after enqueue does not receive already-enqueued events. A handler removed before dispatch leaves its envelopes with no matching subscriber, and `RequireHandler` decides the outcome for those envelopes.
+The returned receipt describes the first per-handler envelope in subscriber-name order. Batch receipts flatten to one receipt per envelope in item order. A handler added after enqueue does not receive already-enqueued events. A handler removed before dispatch leaves its envelopes with no matching subscriber, and `RequireHandler` decides the outcome for those envelopes.
+
+An envelope marked for immediate dispatch is written with `VisibleAfter` set to the enqueue time plus `OutboxImmediateDispatchOptions.FallbackDelay`, using the same clock source as other visibility writes. The background processor does not lease the envelope during that window. If the process stops before dispatching, the envelope becomes visible after the delay and the processor delivers it. This reuses the existing `VisibleAfter` column, so no schema or EF Core model change was needed.
 
 Use per-handler delivery only with in-process dispatch. Broker dispatchers publish the full event per envelope, so per-handler envelopes would duplicate broker publication. When per-handler delivery is combined with a transport dispatcher, composition throws `DurableStorageConfigurationException`, unless `AllowPerHandlerDeliveryWithTransportDispatch` acknowledges the duplication.
 

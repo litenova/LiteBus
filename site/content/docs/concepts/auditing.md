@@ -414,6 +414,28 @@ The commit belongs in the completion stage rather than in a post-handler. A post
 
 Plan for two consequences. A record for a refusal or a failure has to be written out of band, as above. That write has to survive whatever caused the failure. Anything your commit handler does after the commit, such as dispatching the domain events the aggregates recorded, runs with `CancellationToken.None`, because the completion stage is not cancellable.
 
+## Auditing Command Batches
+
+When commands run through `ICommandBatchMediator`, each command's record is built exactly as above but buffered instead of written. The audit writer adds the record to the batch's buffer rather than calling `IAuditTrail.WriteAsync`, and every buffered record carries the property `litebus.batch.id` with the batch identifier, a GUID string generated once per batch. That property lets a review group the records one batch produced:
+
+```csharp
+var batchId = record.Properties["litebus.batch.id"];
+```
+
+A mediation outside a batch writes straight through to the trail, so single-command auditing is unchanged. See [Command batches](../catalog/mediator/command-batches.md).
+
+On commit the buffer is written to `IAuditTrail` in command order, before the batch's single `CommitAsync`. A trail that stages into the same transaction, as the `MartenAuditTrail` above does, stays atomic with the data: the batch's records and the batch's changes commit together.
+
+On rollback the buffer is rewritten before it is written. Each buffered record whose `Outcome` is `AuditOutcome.Succeeded` becomes `AuditOutcome.Failed` with `FailureCode` set to `litebus.batch.rolled_back`, because a success that was rolled back did not happen. The record of the command that stopped the batch keeps its own outcome, whether denial, invalid input, failure, or cancellation. Commands that never ran get no record. The rewritten buffer is written to `IAuditTrail` after `RollbackAsync`:
+
+| Command | Record written on rollback |
+| --- | --- |
+| A command that passed | `Failed` with `litebus.batch.rolled_back` |
+| The command that stopped the batch | Its own outcome and failure code |
+| A command that never ran | No record |
+
+A trail that writes into the rolled-back transaction loses these rollback records with the transaction. That matches what happens to a failed single command whose trail rides the transaction being rolled back: the record cannot survive the rollback it describes. When the rollback records must survive, write them out of band, as the `MartenAuditTrail` above writes refusals and failures to its archive.
+
 ## Application Responsibilities
 
 - Your `IAuditTrail` implementation owns record storage and integrity. A hash chain, an append-only database role, and a retention job are all worth having there rather than in a messaging library.

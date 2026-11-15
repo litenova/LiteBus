@@ -111,7 +111,7 @@ registry.AddCommands(commands => commands
         host => host.Interval = TimeSpan.FromMinutes(5)));
 ```
 
-`CommandModuleBuilder.AddRecurring` from `LiteBus.Commands.Recurring` registers `RecurringCommandBackgroundService<TCommand>` through the manifest, one per registered command type. Each pass opens its own dispatch scope and sends one command.
+`CommandModuleBuilder.AddRecurring` from `LiteBus.Commands.Recurring` registers `RecurringCommandBackgroundService<TCommand>` through the manifest, one per registered command type. Each pass opens its own dispatch scope and sends one command. `CommandModuleBuilder.AddRecurringBatch` from the same package registers `RecurringCommandBatchBackgroundService<TSource>` through the manifest, one per registered source type. Each pass resolves the source from a fresh dispatch scope, reads the batch, and sends it as one batch through `ICommandBatchMediator.TrySendManyAsync`. An empty batch sends nothing and waits `Interval`. A committed batch that reports more work through `HasMoreWork` starts the next pass without waiting, and a batch that a refusal rolls back is logged at Warning (EventId 2107) and waits `ErrorBackoff`.
 
 When a pass throws, the loop logs the failure and continues after `ErrorBackoff`, which defaults to five minutes. When `RecurringCommandHostOptions.IsConcurrencyConflict` classifies a pass as a lost race (an optimistic-concurrency conflict, a deadlock, or a serialization failure), the loop logs at Information (EventId 2104) and waits `Interval`, which defaults to one minute. A result that implements `IRecurringWorkReport` with `HasMoreWork` set to true skips the interval so a backlog clears without idle waits.
 

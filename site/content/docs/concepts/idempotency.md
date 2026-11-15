@@ -191,7 +191,7 @@ Release is what makes a transient failure survivable. Keeping the key claimed af
 
 ## Idempotency Keys in a Command Batch
 
-Inside a command batch (`ICommandBatchMediator.SendManyAsync` or `TrySendManyAsync`), the completion handler never settles per command, for any store, marked or not. Each command's pending settlement is added to the batch context, and the batch settles every pending claim after the batch ends. For an unmarked store, `CompleteAsync` for every pending claim runs before the batch `CommitAsync`, inside the transaction, as the settlement order above requires. For a marked store, `CompleteAsync` runs after `CommitAsync` returns, with the same retry and logging rule. On rollback, `ReleaseAsync` runs for every pending claim, for both kinds of store, so rerunning the batch executes every handler again.
+Inside a command batch (`ICommandBatchMediator.SendManyAsync` or `TrySendManyAsync`), the completion handler never settles per command, for any store, marked or not. Each command's pending settlement is added to the batch context, and the batch settles every pending claim after the batch ends. For an unmarked store, `CompleteAsync` for every pending claim runs before the batch `CommitAsync`, inside the transaction, as the settlement order above requires. For a marked store, `CompleteAsync` runs after `CommitAsync` returns, with the same retry and logging rule. On rollback, `ReleaseAsync` runs for every pending claim, for both kinds of store, so rerunning the batch executes every handler again. See [Command batches](../catalog/mediator/command-batches.md) for the batch execution order.
 
 Two commands in one batch must not resolve to the same scoped idempotency key. The second one stops the batch with a refusal whose code is `litebus.batch.duplicate_idempotency_key` (`IdempotencyRefusalCodes.DuplicateKeyInBatch`), and the batch rolls back. The batch detects it from its pending claims before calling `TryClaimAsync` for the second command, so the refusal does not depend on the store's in-progress answer.
 
@@ -217,4 +217,4 @@ This is explicit and opt-in. Nothing reads the granted key unless the handler ca
 
 ## Next
 
-Read [The Handler Pipeline](handler-pipeline.md) for the shortcut and completion stages behind this feature, [Handler Priority](handler-priority.md#the-reserved-framework-window) for how the claim settlement is ordered against your commit, and command batches for how keys settle inside a batch.
+Read [The Handler Pipeline](handler-pipeline.md) for the shortcut and completion stages behind this feature, [Handler Priority](handler-priority.md#the-reserved-framework-window) for how the claim settlement is ordered against your commit, and [command batches](../catalog/mediator/command-batches.md) for how keys settle inside a batch.

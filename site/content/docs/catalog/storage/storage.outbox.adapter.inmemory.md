@@ -15,6 +15,8 @@ outbox.UseInMemoryStorage();
 
 Combine it with in-process dispatch to test the full mediator loop.
 
+`InMemoryOutboxStore` implements `IOutboxTargetedLeaseStore` under the same process-wide lock, claiming only the listed messages that are pending and not under an active lease, regardless of `VisibleAfter`.
+
 ## Public Surface
 
 ### Consumer Contracts
@@ -24,6 +26,7 @@ Combine it with in-process dispatch to test the full mediator loop.
 | `InMemoryOutboxStore` | Implements all outbox store roles in process |
 | `InMemoryOutboxStorageModuleBuilder` | Options for tuning tests |
 | `IOutboxStore` through `IOutboxOperationsStore` | Same abstractions as relational adapters |
+| `IOutboxTargetedLeaseStore` | Targeted lease by message identifier for immediate dispatch |
 
 ### Invocation
 
@@ -31,6 +34,7 @@ Combine it with in-process dispatch to test the full mediator loop.
 | --- | --- |
 | `IOutboxStore.AddAsync` | Unit tests, samples |
 | `IOutboxLeaseStore.LeasePendingAsync` | Processor tests with in-process dispatch |
+| `IOutboxTargetedLeaseStore.LeaseByIdAsync` | Immediate dispatch tests with in-process dispatch |
 | `ILeaseRenewable.ReleaseLeaseAsync` | Processor tests for cancelled dispatch |
 | `GetAll` (test helper) | Unit tests that filter diagnostics |
 
@@ -74,6 +78,10 @@ outbox.UseInMemoryStorage(o => o.UseTimeProvider(timeProvider));
 - The store normalizes tenants. A null filter or lease tenant means no restriction, while an empty string matches only unscoped rows.
 - Persist validates statuses up front and throws `InvalidOperationException` for non-terminal envelopes, matching relational adapters.
 - Leased and queried envelopes carry the recorded `Handler` value, so per-handler delivery works without a database.
+- `OutboxTargetedLeaseRequest` is a sealed record with `MessageIds`, `LeaseOwner`, `LeaseDuration`, `Now`, and an optional `TenantId`.
+- Targeted lease applies the same side effects as `LeasePendingAsync` (owner, expiry, attempt count, lease generation) and stamps `LastAttemptedAt`. Identifiers that are unknown, already leased, published, or dead-lettered are skipped and not returned, and an empty identifier list returns an empty result.
+- When `Now` is default, the store uses the configured time provider. A zero `LeaseDuration` falls back to `DefaultLeaseDuration`.
+- `EnableImmediateDispatch` requires the registered store to implement `IOutboxTargetedLeaseStore`. Composition with a store that does not implement it throws `LiteBusConfigurationException`.
 
 ## Non-Goals
 
@@ -103,7 +111,7 @@ Register them through `AddLiteBusOutboxMetrics()`. The instrument names are cons
 - **Use case**: Full outbox store contract in memory
 - **Test kind**: Contract (unit)
 - **Description**: Runs the complete shared outbox contract suite against `InMemoryOutboxStore`
-- **Behavior**: Covers enqueue, lease, persist, query, purge, and diagnostics
+- **Behavior**: Covers enqueue, lease (including targeted lease by identifier), persist, query, purge, and diagnostics
 - **Expected outcome**: Results match the `LiteBus.Storage.Testing` expectations
 - **Remarks**: `LiteBus.Storage.UnitTests`
 

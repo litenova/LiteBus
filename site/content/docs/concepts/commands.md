@@ -129,6 +129,27 @@ Task<TCommandResult> SendAsync<TCommandResult>(ICommand<TCommandResult> command,
 
 Pass `CommandMediationSettings` to filter handlers per call with tags or a predicate, or to carry context items through the pipeline. See [Handler Filtering](handler-filtering.md). When a refusal is a routine branch rather than a fault, call `TrySendAsync` and read the outcome value instead of catching an exception. To check whether a command would be permitted without running it, call `EvaluateAsync`. See [Refusal as a Value](handler-pipeline.md#refusal-as-a-value).
 
+## Send Several Commands Atomically
+
+```csharp
+public async Task SettleAsync(
+    DateOnly businessDay,
+    [FromServices] ICommandBatchMediator batches,
+    CancellationToken cancellationToken)
+{
+    IReadOnlyList<ICommand> commands =
+    [
+        new CloseBusinessDayCommand(businessDay),
+        new AccrueFeesCommand(businessDay),
+        new NotifyMerchantsCommand(businessDay),
+    ];
+
+    await batches.SendManyAsync(commands, cancellationToken: cancellationToken);
+}
+```
+
+Inject `ICommandBatchMediator` and call `SendManyAsync` when several commands must commit together or not at all. The batch runs them one at a time in list order through one scope and commits the unit of work once after all of them; the first denial, validation failure, fault, or cancellation stops the batch and rolls back. When a refusal is a routine branch rather than a fault, call `TrySendManyAsync` and read the `CommandBatchResult` instead of catching an exception. See [Command batches](../catalog/mediator/command-batches.md) for the execution order, the idempotency and audit behavior, the telemetry names, and the test double.
+
 ## Defer a Command to the Inbox
 
 ```csharp
