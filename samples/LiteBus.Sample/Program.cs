@@ -103,9 +103,9 @@ app.MapPost(
 
         var result = await batchMediator.TrySendManyAsync(commands, cancellationToken: cancellationToken).ConfigureAwait(false);
 
-        return Results.Ok(new
+        var body = new
         {
-            result.Outcome,
+            Outcome = result.Outcome.ToString(),
             result.FailedIndex,
             result.IsCommitted,
             Entries = result.Entries.Select(static entry => new
@@ -113,9 +113,14 @@ app.MapPost(
                 entry.Index,
                 Command = entry.CommandType.Name,
                 entry.Executed,
-                Outcome = entry.Result?.Outcome.ToString()
+                Outcome = entry.Result?.Outcome.ToString(),
+                entry.Result?.Reason,
+                entry.Result?.Code
             }).ToArray()
-        });
+        };
+
+        // A batch a validator or guard refused rolled back as a whole; 422 tells the client nothing was applied.
+        return result.IsCommitted ? Results.Ok(body) : Results.UnprocessableEntity(body);
     });
 
 app.MapGet(

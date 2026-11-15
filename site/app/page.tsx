@@ -119,7 +119,6 @@ const FEATURES: readonly Feature[] = [
   },
   {
     symbol: <span className="tk-ifc">IEventMediator</span>,
-
     title: 'Events',
     text: 'Publish a plain .NET type to any number of handlers, with no shared base class.',
     href: '/docs/concepts/events',
@@ -333,6 +332,11 @@ export default async function HomePage() {
         <main id="main" className="grow" tabIndex={-1}>
           <section className="hero">
             <div className="in">
+              <a className="chip" href={changelogUrl}>
+                <span className="pulse" aria-hidden="true" />
+                <b>v{latestRelease}</b>
+                <i>See what changed {'->'}</i>
+              </a>
               <h1>Message Mediation and Durable Messaging for .NET</h1>
               <p className="lead">
                 Commands, queries and events through one handler pipeline, with an opt-in durable inbox, outbox
@@ -340,7 +344,7 @@ export default async function HomePage() {
               </p>
               <div className="actions">
                 <Link className="btn" href="/docs/getting-started">
-                  Read the Getting Started guide
+                  Get Started
                 </Link>
                 <div className="install">
                   <span className="pr" aria-hidden="true">
@@ -355,11 +359,26 @@ export default async function HomePage() {
                   <CopyButton text={INSTALL_COMMAND} />
                 </div>
               </div>
+              <dl className="facts">
+                <div>
+                  <dt>Target</dt>
+                  <dd>.NET 10</dd>
+                </div>
+                <div>
+                  <dt>Language</dt>
+                  <dd>C#</dd>
+                </div>
+                <div>
+                  <dt>License</dt>
+                  <dd>MIT</dd>
+                </div>
+              </dl>
             </div>
           </section>
 
           <section className="sec" aria-labelledby="up-and-running-heading">
             <div className="in">
+              <p className="kicker">{'// Getting Started'}</p>
               <h2 id="up-and-running-heading">Up and Running in Three Steps</h2>
               <p className="sub">Register the modules, write a handler, send a message.</p>
               <HomeStepper files={files} />
@@ -368,8 +387,14 @@ export default async function HomePage() {
                   {'>'}
                 </span>
                 <span>
-                  <b>Read the Getting Started guide</b>
+                  <b>Getting Started</b>
                   <span className="d">Covers queries, events and the durable modules.</span>
+                </span>
+                <span className="go">
+                  <kbd>Enter</kbd>
+                  <span className="arrow" aria-hidden="true">
+                    {'->'}
+                  </span>
                 </span>
               </Link>
             </div>
@@ -377,6 +402,7 @@ export default async function HomePage() {
 
           <section className="sec" aria-labelledby="features-heading">
             <div className="in">
+              <p className="kicker">{'// Features'}</p>
               <h2 id="features-heading">Features</h2>
               <p className="sub">
                 Mediation in one package. Everything else is an opt-in package you add when you need it.
@@ -390,7 +416,9 @@ export default async function HomePage() {
                         <span className="sym">{feature.symbol}</span>
                         <b>{feature.title}</b>
                         <span className="d">{feature.text}</span>
-                        <span className="go">{feature.link}</span>
+                        <span className="go">
+                          {feature.link} {'->'}
+                        </span>
                       </Link>
                     ))}
                   </div>
@@ -401,6 +429,7 @@ export default async function HomePage() {
 
           <section className="sec mediatr" aria-labelledby="mediatr-heading">
             <div className="in">
+              <p className="kicker">{'// MediatR Comparison'}</p>
               <h2 id="mediatr-heading">An MIT-Licensed Alternative to MediatR</h2>
               <p className="sub">
                 MediatR 13.0.0 and later ships under a commercial license. LiteBus is MIT licensed, with separate
@@ -413,6 +442,12 @@ export default async function HomePage() {
                 <span>
                   <b>Compare LiteBus and MediatR</b>
                   <span className="d">The message model, the pipeline, and moving an existing application.</span>
+                </span>
+                <span className="go">
+                  <kbd>Enter</kbd>
+                  <span className="arrow" aria-hidden="true">
+                    {'->'}
+                  </span>
                 </span>
               </Link>
             </div>

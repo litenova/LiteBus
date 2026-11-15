@@ -1,4 +1,5 @@
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Dependencies;
 using LiteBus.Runtime.Extensions.Microsoft.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,6 +17,23 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
 
         services.Count(descriptor => descriptor.ServiceType == typeof(IHostedService)).Should().Be(1);
         services.Count(descriptor => descriptor.ServiceType == typeof(RecordingBackgroundService)).Should().Be(1);
+    }
+
+    [Fact]
+    public void RegisterBackgroundServices_WhenModuleRegisteredFactory_ShouldResolveThroughTheFactory()
+    {
+        var services = new ServiceCollection();
+        var fromFactory = new FactoryOnlyBackgroundService("configured by the module");
+        var registry = new DependencyRegistry();
+        registry.Register(new DependencyDescriptor(typeof(FactoryOnlyBackgroundService), _ => fromFactory, InstanceLifetime.Singleton));
+        services.AddSingleton(_ => fromFactory);
+
+        services.RegisterBackgroundServices([], [typeof(FactoryOnlyBackgroundService)], registry);
+
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<FactoryOnlyBackgroundService>().Should().BeSameAs(fromFactory);
+        provider.GetServices<IHostedService>().Should().ContainSingle();
     }
 
     [Fact]
@@ -251,6 +269,21 @@ public sealed class MicrosoftBackgroundServiceHostingExtensionsTests
             {
                 await Task.Delay(10, stoppingToken).ConfigureAwait(false);
             }
+        }
+    }
+
+    private sealed class FactoryOnlyBackgroundService : IBackgroundService
+    {
+        public FactoryOnlyBackgroundService(string setting)
+        {
+            Setting = setting;
+        }
+
+        public string Setting { get; }
+
+        public Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            return Task.CompletedTask;
         }
     }
 

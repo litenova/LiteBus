@@ -26,6 +26,27 @@ public static class MicrosoftBackgroundServiceHostingExtensions
         IReadOnlyList<Type> startupTasks,
         IReadOnlyList<Type> backgroundServices)
     {
+        RegisterBackgroundServices(services, startupTasks, backgroundServices, registry: null);
+    }
+
+    /// <summary>
+    ///     Registers startup task and background service types and a single generic-host orchestrator with the service
+    ///     collection.
+    /// </summary>
+    /// <param name="services">The service collection receiving host execution registrations.</param>
+    /// <param name="startupTasks">The startup task implementation types registered by modules.</param>
+    /// <param name="backgroundServices">The background service implementation types registered by modules.</param>
+    /// <param name="registry">
+    ///     The modules' dependency registry. A type a module registered with a factory or an instance keeps that
+    ///     registration; every other type is registered as a singleton by its type. <see langword="null" /> registers
+    ///     every type by its type.
+    /// </param>
+    public static void RegisterBackgroundServices(
+        this IServiceCollection services,
+        IReadOnlyList<Type> startupTasks,
+        IReadOnlyList<Type> backgroundServices,
+        IDependencyRegistry? registry)
+    {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(startupTasks);
         ArgumentNullException.ThrowIfNull(backgroundServices);
@@ -42,12 +63,18 @@ public static class MicrosoftBackgroundServiceHostingExtensions
 
         foreach (var implementationType in startupTaskTypes)
         {
-            services.Add(ServiceDescriptor.Singleton(implementationType, implementationType));
+            if (!HostingRegistrationHelpers.IsRegisteredWithFactoryOrInstance(registry, implementationType))
+            {
+                services.Add(ServiceDescriptor.Singleton(implementationType, implementationType));
+            }
         }
 
         foreach (var implementationType in backgroundServiceTypes)
         {
-            services.Add(ServiceDescriptor.Singleton(implementationType, implementationType));
+            if (!HostingRegistrationHelpers.IsRegisteredWithFactoryOrInstance(registry, implementationType))
+            {
+                services.Add(ServiceDescriptor.Singleton(implementationType, implementationType));
+            }
         }
 
         services.Add(ServiceDescriptor.Singleton<IHostedService>(serviceProvider =>

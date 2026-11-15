@@ -568,7 +568,7 @@ These rules keep the docs site in `site/` from drifting back to generic defaults
 
 - **Follow the system colour scheme.** The site renders the visitor's `prefers-color-scheme` by default. The header toggle overrides it and can return to the system scheme. It keeps `<meta name="color-scheme">` and the CSS `color-scheme` property in sync from the inline script in `site/app/layout.tsx` before first paint.
 - **Measure contrast, never estimate it.** Every text colour meets WCAG 2.2 AA against its background in both schemes: 4.5:1 for body text, 3:1 for large text and focus rings. Muted text on the editor surfaces is the pair most likely to fail.
-- **Keep the editor concept and add no decoration.** Do not add a badge above the headline, a stat strip, an eyebrow label that repeats a heading, a glow, a gradient, or keyboard-key hints on links.
+- **Keep the editor concept as the maintainer designed it.** The home page keeps its version chip above the headline, the Target, Language and License facts, the `//` section labels, the hero glow and grid, and the key hints on call-to-action rows. The maintainer chose these in 7.2 after reviewing a version without them. Do not remove them as generic decoration, and do not add new decorative elements without the maintainer's agreement.
 - **Size targets for touch.** Pointer targets are at least 24 by 24 pixels, and 44 by 44 at phone width, except inline links inside sentences.
 - **Respect reduced motion.** Under `prefers-reduced-motion: reduce`, nothing slides, types or loops, and every animation ends in its final state.
 - **Avoid unparsed CSS.** Do not put a selector the build's CSS parser rejects, such as `:target-current`, into the stylesheet. Keep the class fallback that the script sets.
