@@ -55,26 +55,15 @@ public sealed class RecurringCommandBatchModule<TSource> : IModule, IRequires<Co
             typeof(TSource),
             InstanceLifetime.Scoped));
 
-        // Each source type gets its own loop and its own options, so the service is built by a factory that captures
-        // this module's options. Registering the options by their own type would collide as soon as two loops exist.
-        var hostOptions = _hostOptions;
+        // The host constructs background services from their constructors, so the options travel in a declaration
+        // keyed by the source type; two recurring batches therefore never share or overwrite each other's options.
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(RecurringCommandBatchDeclaration<TSource>),
+            new RecurringCommandBatchDeclaration<TSource>(_hostOptions)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(RecurringCommandBatchBackgroundService<TSource>),
-            services =>
-            {
-                var scopeFactory = (IMessageDispatchScopeFactory?) services.GetService(typeof(IMessageDispatchScopeFactory));
-                if (scopeFactory is null)
-                {
-                    throw new LiteBusDependencyResolutionException(typeof(IMessageDispatchScopeFactory));
-                }
-
-                var timeProvider = (TimeProvider?) services.GetService(typeof(TimeProvider)) ?? TimeProvider.System;
-                var logger = (ILogger<RecurringCommandBatchBackgroundService<TSource>>?) services.GetService(
-                    typeof(ILogger<RecurringCommandBatchBackgroundService<TSource>>));
-
-                return new RecurringCommandBatchBackgroundService<TSource>(hostOptions, scopeFactory, timeProvider, logger);
-            }));
+            typeof(RecurringCommandBatchBackgroundService<TSource>)));
 
         configuration.RegisterBackgroundService(typeof(RecurringCommandBatchBackgroundService<TSource>));
     }

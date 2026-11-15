@@ -429,18 +429,20 @@ public sealed class EfCoreCommandBatchTests : IClassFixture<PostgreSqlFixture>
         result.Outcome.Should().Be(CommandBatchOutcome.RolledBack);
 
         string[] targets = [firstId.ToString("N"), secondId.ToString("N"), thirdId.ToString("N")];
-        var rows = await ReadAuditRowsAsync(targets).ConfigureAwait(false);
 
-        rows.Should().HaveCount(2);
-
-        var passed = rows.Should().ContainSingle(row => row.TargetId == targets[0]).Which;
+        // The handler names the audit target, and a guard-denied command never reaches its handler, so the
+        // denial record has no target. Find the batch through the passed record, then read every record of it.
+        var passed = (await ReadAuditRowsAsync(targets).ConfigureAwait(false)).Should().ContainSingle().Which;
+        passed.TargetId.Should().Be(targets[0]);
         passed.Outcome.Should().Be((int) AuditOutcome.Failed);
         passed.FailureCode.Should().Be(RolledBackFailureCode);
+        passed.BatchId.Should().NotBeNullOrWhiteSpace();
 
-        var stopping = rows.Should().ContainSingle(row => row.TargetId == targets[1]).Which;
+        var rows = await ReadAuditRowsByBatchAsync(passed.BatchId!).ConfigureAwait(false);
+        rows.Should().HaveCount(2);
+
+        var stopping = rows.Should().ContainSingle(row => row.Id != passed.Id).Which;
         stopping.Outcome.Should().Be((int) AuditOutcome.Denied);
-
-        rows.Select(row => row.BatchId).Distinct().Should().ContainSingle().Which.Should().NotBeNullOrWhiteSpace();
     }
 
     /// <summary>
@@ -714,6 +716,20 @@ public sealed class EfCoreCommandBatchTests : IClassFixture<PostgreSqlFixture>
         }
 
         return keys;
+    }
+
+    /// <summary>
+    ///     Reads every audit row stored for one batch.
+    /// </summary>
+    /// <param name="batchId">The batch identifier recorded on the rows.</param>
+    /// <returns>The stored audit rows of the batch.</returns>
+    private async Task<IReadOnlyList<BatchAuditEntity>> ReadAuditRowsByBatchAsync(string batchId)
+    {
+        var context = CreateAuditContext(_fixture.ConnectionString);
+        await using (context.ConfigureAwait(false))
+        {
+            return await context.AuditRecords.Where(record => record.BatchId == batchId).ToListAsync().ConfigureAwait(false);
+        }
     }
 
     /// <summary>

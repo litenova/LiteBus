@@ -73,21 +73,21 @@ public sealed class RecurringCommandBatchBackgroundService<TSource> : IBackgroun
     /// <summary>
     ///     Initializes a new instance of the <see cref="RecurringCommandBatchBackgroundService{TSource}" /> class.
     /// </summary>
-    /// <param name="hostOptions">The lifecycle and timing settings for the loop.</param>
+    /// <param name="declaration">The registered declaration carrying the lifecycle and timing settings for the loop.</param>
     /// <param name="scopeFactory">Opens the loop scope once, and a fresh scope for the source on each pass.</param>
     /// <param name="timeProvider">Supplies the delay between passes.</param>
     /// <param name="logger">Records pass failures and lifecycle transitions, or null to discard them.</param>
     public RecurringCommandBatchBackgroundService(
-        RecurringCommandHostOptions hostOptions,
+        RecurringCommandBatchDeclaration<TSource> declaration,
         IMessageDispatchScopeFactory scopeFactory,
         TimeProvider timeProvider,
         ILogger<RecurringCommandBatchBackgroundService<TSource>>? logger = null)
     {
-        ArgumentNullException.ThrowIfNull(hostOptions);
+        ArgumentNullException.ThrowIfNull(declaration);
         ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
-        _options = hostOptions;
+        _options = declaration.HostOptions;
         _scopeFactory = scopeFactory;
         _timeProvider = timeProvider;
         _logger = logger ?? NullLogger<RecurringCommandBatchBackgroundService<TSource>>.Instance;

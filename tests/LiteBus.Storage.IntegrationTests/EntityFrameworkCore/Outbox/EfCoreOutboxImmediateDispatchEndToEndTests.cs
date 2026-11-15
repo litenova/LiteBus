@@ -11,6 +11,7 @@ using LiteBus.Storage.IntegrationTests.EntityFrameworkCore;
 using LiteBus.Storage.PostgreSql;
 using LiteBus.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.Outbox;
@@ -511,7 +512,7 @@ public sealed class EfCoreOutboxImmediateDispatchEndToEndTests : LiteBusTestBase
         else
         {
             services.AddDbContextFactory<ImmediateDispatchDbContext>(options =>
-                options.UseNpgsql(connectionString));
+                options.UseNpgsql(connectionString).ReplaceService<IModelCacheKeyFactory, TableNameModelCacheKeyFactory>());
         }
 
         services.AddLiteBus(registry =>
@@ -598,7 +599,7 @@ public sealed class EfCoreOutboxImmediateDispatchEndToEndTests : LiteBusTestBase
     /// <param name="connectionString">The connection string scoped to one test run.</param>
     private static void ConfigureTransactionalOptions(IServiceProvider provider, DbContextOptionsBuilder options, string connectionString)
     {
-        options.UseNpgsql(connectionString);
+        options.UseNpgsql(connectionString).ReplaceService<IModelCacheKeyFactory, TableNameModelCacheKeyFactory>();
         options.AddLiteBusOutboxInterceptor(provider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>());
     }
 
@@ -829,6 +830,21 @@ public sealed class EfCoreOutboxImmediateDispatchEndToEndTests : LiteBusTestBase
         public IReadOnlyList<Type> TrailingCommitListeners { get; init; } = [];
     }
 
+    /// <summary>
+    ///     Keys the EF Core model cache by the outbox and domain table names, so each test's context maps its own
+    ///     tables instead of reusing the model the first test built.
+    /// </summary>
+    private sealed class TableNameModelCacheKeyFactory : IModelCacheKeyFactory
+    {
+        /// <inheritdoc />
+        public object Create(DbContext context, bool designTime)
+        {
+            return context is ImmediateDispatchDbContext immediate
+                ? (context.GetType(), immediate.ModelKey, designTime)
+                : (object) (context.GetType(), designTime);
+        }
+    }
+
     private sealed class ImmediateDispatchDbContext : DbContext, IOutboxDbContext
     {
         private readonly EntityFrameworkCoreOutboxStoreOptions _storeOptions;
@@ -843,6 +859,8 @@ public sealed class EfCoreOutboxImmediateDispatchEndToEndTests : LiteBusTestBase
             _storeOptions = storeOptions;
             _tables = tables;
         }
+
+        public string ModelKey => _storeOptions.SchemaName + "." + _storeOptions.TableName + "|" + _tables;
 
         public DbSet<OutboxMessageEntity> OutboxMessages => Set<OutboxMessageEntity>();
 

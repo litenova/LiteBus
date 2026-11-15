@@ -10,6 +10,7 @@ using LiteBus.Messaging.Audit;
 using LiteBus.Messaging.Idempotency;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Commands;
 
@@ -134,17 +135,33 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
 
         if (moduleBuilder.IdempotencyEnabled)
         {
+            // The concrete registration is the one instance per batch scope; the completion handlers add to it and the
+            // batch reads it through the participant collection, so both must resolve the same object.
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(CommandBatchIdempotencyParticipant),
+                typeof(CommandBatchIdempotencyParticipant),
+                InstanceLifetime.Scoped));
+
             configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
                 typeof(ICommandBatchParticipant),
-                typeof(CommandBatchIdempotencyParticipant),
+                serviceProvider => serviceProvider.GetService(typeof(CommandBatchIdempotencyParticipant))
+                    ?? throw new LiteBusDependencyResolutionException(typeof(CommandBatchIdempotencyParticipant)),
                 InstanceLifetime.Scoped));
         }
 
         if (moduleBuilder.AuditingEnabled)
         {
+            // The concrete registration is the one instance per batch scope; the completion handlers add to it and the
+            // batch reads it through the participant collection, so both must resolve the same object.
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(CommandBatchAuditParticipant),
+                typeof(CommandBatchAuditParticipant),
+                InstanceLifetime.Scoped));
+
             configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
                 typeof(ICommandBatchParticipant),
-                typeof(CommandBatchAuditParticipant),
+                serviceProvider => serviceProvider.GetService(typeof(CommandBatchAuditParticipant))
+                    ?? throw new LiteBusDependencyResolutionException(typeof(CommandBatchAuditParticipant)),
                 InstanceLifetime.Scoped));
         }
 
@@ -174,7 +191,11 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IUnitOfWork),
-            unitOfWorkType,
+            // Resolve the concrete registration, so IUnitOfWork is the same scoped instance the completion handler commits
+            // and the boundary pre-handler begins. A separate type mapping would create a second instance with no
+            // transaction, which an application resolving IUnitOfWork (for example as its transaction provider) would see.
+            serviceProvider => serviceProvider.GetService(unitOfWorkType)
+                ?? throw new LiteBusDependencyResolutionException(unitOfWorkType),
             InstanceLifetime.Scoped));
     }
 }

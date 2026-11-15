@@ -6,6 +6,7 @@ using LiteBus.Messaging.Audit;
 using LiteBus.Messaging.Registry;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Queries;
 
@@ -102,7 +103,11 @@ public sealed class QueryModule : IModule, IRequires<MessageModule>
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IUnitOfWork),
-            unitOfWorkType,
+            // Resolve the concrete registration, so IUnitOfWork is the same scoped instance the completion handler commits
+            // and the boundary pre-handler begins. A separate type mapping would create a second instance with no
+            // transaction, which an application resolving IUnitOfWork (for example as its transaction provider) would see.
+            serviceProvider => serviceProvider.GetService(unitOfWorkType)
+                ?? throw new LiteBusDependencyResolutionException(unitOfWorkType),
             InstanceLifetime.Scoped));
     }
 }
