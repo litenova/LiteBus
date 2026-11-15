@@ -282,7 +282,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     /// <param name="eventType">The runtime event type used for contract lookup and handler resolution.</param>
     /// <param name="metadata">The enqueue metadata applied outside the payload.</param>
     /// <param name="cancellationToken">A token used to cancel serialization.</param>
-    /// <returns>The envelopes ready for store persistence or staging, ordered by handler full name.</returns>
+    /// <returns>The envelopes ready for store persistence or staging, ordered by subscriber name.</returns>
     /// <exception cref="InvalidOperationException">Per-handler delivery is enabled but no message reader was supplied.</exception>
     /// <exception cref="NoHandlerFoundException">Per-handler delivery is enabled but no main handler subscribes to the event.</exception>
     private async Task<IReadOnlyList<OutboxEnvelope>> CreateManyCoreAsync(
@@ -324,7 +324,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     }
 
     /// <summary>
-    ///     Resolves the distinct full names of the main handlers subscribed to an event, in ordinal order.
+    ///     Resolves the distinct subscriber names of the main handlers subscribed to an event, in ordinal order.
     /// </summary>
     /// <param name="messageReader">The registry used to resolve the event descriptor.</param>
     /// <param name="eventType">The runtime event type.</param>
@@ -332,8 +332,8 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     /// <exception cref="NoHandlerFoundException">No main handler subscribes to the event.</exception>
     /// <remarks>
     ///     Direct and indirect main handlers both count: a handler registered for a base event type still runs when the
-    ///     event is published, so it still needs its own envelope. Descriptors are deduplicated by full name because one
-    ///     handler class may implement several contracts for the same event.
+    ///     event is published, so it still needs its own envelope. Descriptors are deduplicated by subscriber name
+    ///     because one handler class may implement several contracts for the same event.
     /// </remarks>
     private static IReadOnlyList<string> ResolveHandlerIdentities(IMessageReader messageReader, Type eventType)
     {
@@ -344,12 +344,12 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
         {
             foreach (var handler in descriptor.Handlers)
             {
-                identities.Add(handler.HandlerType.FullName ?? handler.HandlerType.Name);
+                identities.Add(SubscriberNames.Resolve(handler.HandlerType));
             }
 
             foreach (var handler in descriptor.IndirectHandlers)
             {
-                identities.Add(handler.HandlerType.FullName ?? handler.HandlerType.Name);
+                identities.Add(SubscriberNames.Resolve(handler.HandlerType));
             }
         }
 
@@ -365,7 +365,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     ///     Derives per-handler identity and idempotency metadata so each fanned-out envelope stays unique.
     /// </summary>
     /// <param name="metadata">The enqueue metadata supplied by the caller.</param>
-    /// <param name="handler">The handler full name the envelope is addressed to.</param>
+    /// <param name="handler">The subscriber name the envelope is addressed to.</param>
     /// <returns>Metadata with identity and idempotency derived for one handler.</returns>
     /// <remarks>
     ///     <para>
@@ -404,7 +404,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     ///     Derives a deterministic message identifier for one per-handler envelope from the caller-supplied identifier.
     /// </summary>
     /// <param name="messageId">The message identifier supplied by the caller.</param>
-    /// <param name="handler">The handler full name the envelope is addressed to.</param>
+    /// <param name="handler">The subscriber name the envelope is addressed to.</param>
     /// <returns>A stable identifier unique to the supplied value and handler pair.</returns>
     private static Guid DerivePerHandlerId(Guid messageId, string handler)
     {

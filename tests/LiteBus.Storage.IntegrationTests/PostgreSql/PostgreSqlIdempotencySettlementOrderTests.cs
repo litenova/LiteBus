@@ -732,7 +732,8 @@ public sealed class PostgreSqlIdempotencySettlementOrderTests : IClassFixture<Po
         /// </summary>
         public IdempotencyDeclaration Idempotency =>
             IdempotencyDeclaration.KeyedBy<ApplySettlementOrderCommand>(command => command.OrderId.ToString("N"))
-                with { Scope = "settlement-orders", ReplayResult = true };
+                with
+            { Scope = "settlement-orders", ReplayResult = true };
     }
 
     /// <summary>
@@ -801,7 +802,8 @@ public sealed class PostgreSqlIdempotencySettlementOrderTests : IClassFixture<Po
         /// </summary>
         public IdempotencyDeclaration Idempotency =>
             IdempotencyDeclaration.KeyedBy<ApplyDirectSettlementOrderCommand>(command => command.OrderId.ToString("N"))
-                with { Scope = "settlement-orders", ReplayResult = true };
+                with
+            { Scope = "settlement-orders", ReplayResult = true };
     }
 
     /// <summary>

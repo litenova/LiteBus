@@ -169,7 +169,6 @@ Operational alternatives:
 ## References
 
 - [In-process idempotency](../../concepts/idempotency.md)
-- [Command batches](command-batches.md)
 - [The handler pipeline](../../concepts/handler-pipeline.md)
 - [Message definitions](../../concepts/message-definitions.md)
 - [PostgreSQL idempotency store](../../integrations/commands-postgresql-idempotency-store.md)

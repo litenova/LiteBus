@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,6 +39,23 @@ namespace LiteBus.Commands.UnitOfWork;
 ///         A commit that throws fails the mediation with that exception. The completion stage suppresses a handler fault
 ///         only when the mediation had already failed; after a success the fault propagates to the caller.
 ///     </para>
+///     <para>
+///         When the unit of work implements <see cref="IUnitOfWorkBoundary" />, the boundary pre-handler has already
+///         called <c>BeginAsync</c> before any other pre-handler ran, and recorded a
+///         <see cref="CommandUnitOfWorkBegun" /> marker in the execution-context data. On any outcome other than
+///         <see cref="MediationOutcome.Succeeded" /> this handler calls <c>RollbackAsync</c> with
+///         <see cref="CancellationToken.None" /> when that marker is present. A guard denial, a validation failure,
+///         and a shortcut answer leave no marker, because those stages run before pre-handlers, so they roll back
+///         nothing. A rollback that throws while the mediation already failed propagates to the completion stage,
+///         which records it under <see cref="MediationExceptionData.SuppressedCompletionFaults" /> without replacing
+///         the original failure; without an original failure it is logged instead.
+///     </para>
+///     <para>
+///         After the commit returns and the deferred idempotency settlement is complete, every
+///         <see cref="IUnitOfWorkCommitListener" /> resolved from the mediation scope is notified in registration
+///         order. A listener that throws is logged and does not fail the mediation, because the data is already
+///         committed.
+///     </para>
 /// </remarks>
 /// <typeparam name="TUnitOfWork">The application unit of work this handler commits.</typeparam>
 [HandlerPriority(HandlerPriorities.UnitOfWork)]
@@ -55,7 +73,13 @@ internal sealed class CommandUnitOfWorkCompletionHandler<TUnitOfWork> : ICommand
     ];
 
     /// <summary>
-    ///     Records a post-commit idempotency settlement that kept failing after its retries.
+    ///     The commit listeners notified after the unit of work commits, in registration order.
+    /// </summary>
+    private readonly IEnumerable<IUnitOfWorkCommitListener> _commitListeners;
+
+    /// <summary>
+    ///     Records post-commit work that failed without failing the mediation, such as an idempotency settlement that
+    ///     kept failing after its retries.
     /// </summary>
     private readonly ILogger<CommandUnitOfWorkCompletionHandler<TUnitOfWork>> _logger;
 
@@ -80,12 +104,14 @@ internal sealed class CommandUnitOfWorkCompletionHandler<TUnitOfWork> : ICommand
     /// <param name="unitOfWork">The unit of work committed at the end of mediation.</param>
     /// <param name="store">Remembers which keys have been applied, or <see langword="null" /> when idempotency is not enabled.</param>
     /// <param name="timeProvider">Supplies the delay between post-commit idempotency completion retries, or <see langword="null" /> for <see cref="TimeProvider.System" />.</param>
-    /// <param name="logger">Records a post-commit idempotency settlement that kept failing after its retries, or <see langword="null" /> to discard it.</param>
+    /// <param name="logger">Records post-commit work that failed without failing the mediation, or <see langword="null" /> to discard it.</param>
+    /// <param name="commitListeners">The commit listeners notified after the unit of work commits, or <see langword="null" /> for none.</param>
     public CommandUnitOfWorkCompletionHandler(
         TUnitOfWork unitOfWork,
         IIdempotencyStore? store = null,
         TimeProvider? timeProvider = null,
-        ILogger<CommandUnitOfWorkCompletionHandler<TUnitOfWork>>? logger = null)
+        ILogger<CommandUnitOfWorkCompletionHandler<TUnitOfWork>>? logger = null,
+        IEnumerable<IUnitOfWorkCommitListener>? commitListeners = null)
     {
         ArgumentNullException.ThrowIfNull(unitOfWork);
 
@@ -93,6 +119,7 @@ internal sealed class CommandUnitOfWorkCompletionHandler<TUnitOfWork> : ICommand
         _store = store;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _logger = logger ?? NullLogger<CommandUnitOfWorkCompletionHandler<TUnitOfWork>>.Instance;
+        _commitListeners = commitListeners ?? [];
     }
 
     /// <inheritdoc />
@@ -102,6 +129,7 @@ internal sealed class CommandUnitOfWorkCompletionHandler<TUnitOfWork> : ICommand
 
         if (context.Outcome != MediationOutcome.Succeeded)
         {
+            await RollbackWhenBegunAsync(context).ConfigureAwait(false);
             return;
         }
 
@@ -118,6 +146,75 @@ internal sealed class CommandUnitOfWorkCompletionHandler<TUnitOfWork> : ICommand
 #pragma warning restore CA1031
 
         await CompletePendingSettlementAsync().ConfigureAwait(false);
+        await NotifyCommitListenersAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Rolls back the unit-of-work transaction when the mediation opened one and did not succeed.
+    /// </summary>
+    /// <param name="context">The completion context describing how the mediation ended.</param>
+    /// <returns>A task representing the asynchronous rollback.</returns>
+    /// <remarks>
+    ///     A rollback that throws while the mediation already failed is left to propagate: the completion stage
+    ///     records it under <see cref="MediationExceptionData.SuppressedCompletionFaults" /> without replacing the
+    ///     original failure. Without an original failure it is logged instead, so a rollback fault still cannot fail a
+    ///     mediation that ended without one.
+    /// </remarks>
+    private async Task RollbackWhenBegunAsync(MessageCompletionContext<ICommand> context)
+    {
+        if (_unitOfWork is not IUnitOfWorkBoundary boundary)
+        {
+            return;
+        }
+
+        var executionContext = AmbientExecutionContext.GetCurrentOrDefault();
+
+        if (executionContext is null || !executionContext.Data.Contains<CommandUnitOfWorkBegun>())
+        {
+            return;
+        }
+
+#pragma warning disable CA1031 // A rollback fault must be recorded without replacing the failure that ended the mediation.
+        try
+        {
+            await boundary.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (context.Exception is null)
+        {
+            CommandUnitOfWorkLogMessages.RollbackFailed(_logger, exception);
+        }
+#pragma warning restore CA1031
+    }
+
+    /// <summary>
+    ///     Notifies every registered commit listener that the unit of work committed.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token supplied to the completion stage.</param>
+    /// <returns>A task representing the asynchronous notification.</returns>
+    /// <remarks>
+    ///     Listeners run in registration order, after the deferred idempotency settlement is complete, so a crash
+    ///     between the two leaves the key settled and the staged envelopes to the background processor rather than
+    ///     leaving the key claimed for work a repeat would run again. A listener that throws is logged and does not
+    ///     fail the mediation: the data is already committed.
+    /// </remarks>
+    private async Task NotifyCommitListenersAsync(CancellationToken cancellationToken)
+    {
+        foreach (var listener in _commitListeners)
+        {
+#pragma warning disable CA1031 // A listener runs after the data is committed, so its fault is logged and never fails the mediation.
+            try
+            {
+                await listener.OnCommittedAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                CommandUnitOfWorkLogMessages.CommitListenerFailed(
+                    _logger,
+                    listener.GetType().FullName ?? listener.GetType().Name,
+                    exception);
+            }
+#pragma warning restore CA1031
+        }
     }
 
     /// <summary>

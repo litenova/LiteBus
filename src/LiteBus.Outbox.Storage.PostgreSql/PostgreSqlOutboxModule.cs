@@ -68,6 +68,8 @@ public sealed class PostgreSqlOutboxModule : IOutboxStorageModule, IRequires<Out
 
         configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxLeaseStore), store));
 
+        configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxTargetedLeaseStore), store));
+
         configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxStateWriter), store));
 
         configuration.DependencyRegistry.Register(CreateOwnedRegistration(typeof(IOutboxDeadLetterStore), store));

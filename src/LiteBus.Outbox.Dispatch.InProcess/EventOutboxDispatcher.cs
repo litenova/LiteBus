@@ -274,7 +274,9 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     /// <remarks>
     ///     The predicate restricts main handlers only. Pre-stage, post, error, and completion observers observe every
     ///     mediation by message type rather than by main handler, so they pass through and run on each targeted
-    ///     dispatch exactly as they would on a broadcast.
+    ///     dispatch exactly as they would on a broadcast. The recorded value matches by subscriber name or by full
+    ///     type name, so an envelope written before the handler adopted
+    ///     <see cref="SubscriberNameAttribute" /> still reaches it.
     /// </remarks>
     private static EventRoutingSettings CreateRoutingSettings(OutboxEnvelope message)
     {
@@ -288,10 +290,7 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         return new EventRoutingSettings
         {
             HandlerPredicate = descriptor => descriptor is not IMainHandlerDescriptor ||
-                string.Equals(
-                    descriptor.HandlerType.FullName,
-                    handler,
-                    StringComparison.Ordinal)
+                SubscriberNames.Matches(descriptor.HandlerType, handler)
         };
     }
 }

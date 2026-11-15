@@ -51,6 +51,10 @@ public sealed class InMemoryOutboxStorageModule : IOutboxStorageModule, IRequire
             store));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxTargetedLeaseStore),
+            store));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxStateWriter),
             store));
 

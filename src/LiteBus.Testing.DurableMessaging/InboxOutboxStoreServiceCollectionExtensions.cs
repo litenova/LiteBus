@@ -45,6 +45,11 @@ public static class InboxOutboxStoreServiceCollectionExtensions
     {
         services.AddSingleton<IOutboxStore>(_ => store);
         services.AddSingleton<IOutboxLeaseStore>(_ => store);
+        if (store is IOutboxTargetedLeaseStore targetedLeaseStore)
+        {
+            services.AddSingleton(targetedLeaseStore);
+        }
+
         services.AddSingleton<IOutboxStateWriter>(_ => store);
         services.AddSingleton<IOutboxDeadLetterStore>(_ => store);
         services.AddSingleton<IOutboxRetentionStore>(_ => store);

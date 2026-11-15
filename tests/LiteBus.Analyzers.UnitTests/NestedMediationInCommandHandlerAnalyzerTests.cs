@@ -529,6 +529,158 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
     }
 
     /// <summary>
+    ///     Verifies that a command handler sending a batch of commands produces LB1023.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandHandlerSendingManyCommands_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+                              public sealed record AuditUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserCommandHandler : ICommandHandler<CreateUserCommand>
+                              {
+                                  private readonly ICommandBatchMediator _batchMediator;
+
+                                  public CreateUserCommandHandler(ICommandBatchMediator batchMediator)
+                                  {
+                                      _batchMediator = batchMediator;
+                                  }
+
+                                  public Task HandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
+                                  {
+                                      _ = {|#0:_batchMediator.SendManyAsync(new ICommand[] { new AuditUserCommand(command.Name) }, cancellationToken: cancellationToken)|};
+                                      return Task.CompletedTask;
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<NestedMediationInCommandHandlerAnalyzer>(
+            source,
+            DiagnosticDescriptors.NestedMediationInCommandHandler,
+            0,
+            "CreateUserCommandHandler",
+            "LiteBus.Commands.Abstractions.ICommandBatchMediator.SendManyAsync");
+    }
+
+    /// <summary>
+    ///     Verifies that a command handler trying a batch of commands produces LB1023.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandHandlerTryingManyCommands_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+                              public sealed record AuditUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserCommandHandler : ICommandHandler<CreateUserCommand>
+                              {
+                                  private readonly ICommandBatchMediator _batchMediator;
+
+                                  public CreateUserCommandHandler(ICommandBatchMediator batchMediator)
+                                  {
+                                      _batchMediator = batchMediator;
+                                  }
+
+                                  public Task HandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
+                                  {
+                                      _ = {|#0:_batchMediator.TrySendManyAsync(new ICommand[] { new AuditUserCommand(command.Name) }, cancellationToken: cancellationToken)|};
+                                      return Task.CompletedTask;
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<NestedMediationInCommandHandlerAnalyzer>(
+            source,
+            DiagnosticDescriptors.NestedMediationInCommandHandler,
+            0,
+            "CreateUserCommandHandler",
+            "LiteBus.Commands.Abstractions.ICommandBatchMediator.TrySendManyAsync");
+    }
+
+    /// <summary>
+    ///     Verifies that sending a batch of commands outside a command handler produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task BatchSendOutsideCommandHandler_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+                              public sealed record AuditUserCommand(int UserId) : ICommand;
+
+                              public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
+                              {
+                                  private readonly ICommandBatchMediator _batchMediator;
+
+                                  public GetUserQueryHandler(ICommandBatchMediator batchMediator)
+                                  {
+                                      _batchMediator = batchMediator;
+                                  }
+
+                                  public Task<string> HandleAsync(GetUserQuery query, CancellationToken cancellationToken = default)
+                                  {
+                                      _ = _batchMediator.SendManyAsync(new ICommand[] { new AuditUserCommand(query.UserId) }, cancellationToken: cancellationToken);
+                                      return Task.FromResult("user");
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<NestedMediationInCommandHandlerAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies that trying a batch of commands outside a command handler produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task BatchTrySendOutsideCommandHandler_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Events.Abstractions;
+
+                              public sealed record UserCreatedEvent(string Name) : IEvent;
+                              public sealed record AuditUserCommand(string Name) : ICommand;
+
+                              public sealed class UserCreatedEventHandler : IEventHandler<UserCreatedEvent>
+                              {
+                                  private readonly ICommandBatchMediator _batchMediator;
+
+                                  public UserCreatedEventHandler(ICommandBatchMediator batchMediator)
+                                  {
+                                      _batchMediator = batchMediator;
+                                  }
+
+                                  public Task HandleAsync(UserCreatedEvent message, CancellationToken cancellationToken = default)
+                                  {
+                                      _ = _batchMediator.TrySendManyAsync(new ICommand[] { new AuditUserCommand(message.Name) }, cancellationToken: cancellationToken);
+                                      return Task.CompletedTask;
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<NestedMediationInCommandHandlerAnalyzer>(source);
+    }
+
+    /// <summary>
     ///     Verifies that the rule is a warning in <c>LiteBus.Handlers</c> that stays off until enabled.
     /// </summary>
     [Fact]

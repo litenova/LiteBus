@@ -41,7 +41,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzer : DiagnosticAnalyzer
     /// <summary>
     ///     Mediator method names that nest a unit of work, checked syntactically before binding.
     /// </summary>
-    private static readonly string[] NestedMediationMethodNames = ["SendAsync", "TrySendAsync", "PublishAsync", "Mediate"];
+    private static readonly string[] NestedMediationMethodNames = ["SendAsync", "TrySendAsync", "SendManyAsync", "TrySendManyAsync", "PublishAsync", "Mediate"];
 
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
@@ -185,6 +185,15 @@ public sealed class NestedMediationInCommandHandlerAnalyzer : DiagnosticAnalyzer
             method.Name is "SendAsync" or "TrySendAsync")
         {
             return "LiteBus.Commands.Abstractions.ICommandMediator." + method.Name;
+        }
+
+        var commandBatchMediator = compilation.GetTypeByMetadataName("LiteBus.Commands.Abstractions.ICommandBatchMediator");
+
+        if (commandBatchMediator is not null &&
+            IsMediatorReceiver(receiverType, commandBatchMediator) &&
+            method.Name is "SendManyAsync" or "TrySendManyAsync")
+        {
+            return "LiteBus.Commands.Abstractions.ICommandBatchMediator." + method.Name;
         }
 
         var eventMediator = compilation.GetTypeByMetadataName("LiteBus.Events.Abstractions.IEventMediator");
