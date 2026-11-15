@@ -232,6 +232,11 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
             typeof(StagedImmediateEnvelopes),
             InstanceLifetime.Scoped));
 
+        configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+            typeof(IUnitOfWorkCommitListener),
+            typeof(OutboxImmediateDispatchListener),
+            InstanceLifetime.Scoped));
+
         configuration.RegisterCompositionValidation(() => ValidateImmediateDispatch(configuration.DependencyRegistry));
     }
 

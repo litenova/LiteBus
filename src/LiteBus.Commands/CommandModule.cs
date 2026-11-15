@@ -1,6 +1,8 @@
 using System;
 using System.Linq;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Commands.Batching;
+using LiteBus.Commands.Idempotency;
 using LiteBus.Commands.UnitOfWork;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
@@ -96,7 +98,7 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
                 IdempotencyStoreDiagnosticCheck.CheckName);
         }
 
-        RegisterCommandServices(configuration, moduleBuilder.UnitOfWorkType);
+        RegisterCommandServices(configuration, moduleBuilder);
         // Recorded for the composition summary. Only this module knows how many messages belong to its axis, because
         // the messaging registry does not reference the axis contracts.
         if (configuration.TryGetContext<LiteBusCompositionSummary>(out var summary) && summary is not null)
@@ -111,12 +113,42 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
     ///     Registers command-specific services with the dependency registry.
     /// </summary>
     /// <param name="configuration">The module configuration.</param>
-    /// <param name="unitOfWorkType">The unit of work implementation type registered through the builder, or <see langword="null" /> when the application commits its own way.</param>
-    private static void RegisterCommandServices(IModuleConfiguration configuration, Type? unitOfWorkType)
+    /// <param name="moduleBuilder">The command module builder holding the unit-of-work, auditing and idempotency selections.</param>
+    private static void RegisterCommandServices(IModuleConfiguration configuration, CommandModuleBuilder moduleBuilder)
     {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(moduleBuilder);
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ICommandMediator),
             typeof(CommandMediator)));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(ICommandBatchMediator),
+            typeof(CommandBatchMediator)));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(CommandBatchContext),
+            typeof(CommandBatchContext),
+            InstanceLifetime.Scoped));
+
+        if (moduleBuilder.IdempotencyEnabled)
+        {
+            configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+                typeof(ICommandBatchParticipant),
+                typeof(CommandBatchIdempotencyParticipant),
+                InstanceLifetime.Scoped));
+        }
+
+        if (moduleBuilder.AuditingEnabled)
+        {
+            configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+                typeof(ICommandBatchParticipant),
+                typeof(CommandBatchAuditParticipant),
+                InstanceLifetime.Scoped));
+        }
+
+        var unitOfWorkType = moduleBuilder.UnitOfWorkType;
 
         if (unitOfWorkType is null)
         {

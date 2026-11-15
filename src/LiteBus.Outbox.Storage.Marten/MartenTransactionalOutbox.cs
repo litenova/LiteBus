@@ -27,6 +27,11 @@ namespace LiteBus.Outbox.Storage.Marten;
 public sealed class MartenTransactionalOutbox : ITransactionalOutbox
 {
     /// <summary>
+    ///     Gets the factory used to create envelopes before session staging.
+    /// </summary>
+    private readonly IOutboxEnvelopeFactory _envelopeFactory;
+
+    /// <summary>
     ///     Gets the document session that carries queued outbox inserts until <c>SaveChangesAsync</c>.
     /// </summary>
     private readonly IDocumentSession _session;
@@ -72,6 +77,7 @@ public sealed class MartenTransactionalOutbox : ITransactionalOutbox
         ArgumentNullException.ThrowIfNull(registration);
 
         _session = session;
+        _envelopeFactory = envelopeFactory;
         _writerCore = new OutboxWriterCore(envelopeFactory);
         _lookupStore = new PostgreSqlOutboxStore(registration.DataSource, registration.Options);
         _options = registration.Options;
@@ -141,6 +147,7 @@ public sealed class MartenTransactionalOutbox : ITransactionalOutbox
         var statement = PostgreSqlOutboxSchema.CreateInsertStatement(envelope, _options);
         _session.QueueSqlCommand('?', statement.FormatSql('?'), [.. statement.Values]);
         TrackQueuedEnvelope(envelope);
+        RecordStagedImmediateEnvelope(envelope.Id);
 
         return new OutboxAppendResult(envelope, OutboxEnqueueOutcome.Enqueued);
     }
@@ -201,6 +208,18 @@ public sealed class MartenTransactionalOutbox : ITransactionalOutbox
         {
             _queuedByIdempotencyScope[DurableIdempotencyScope.CreateScopeKey(envelope.TenantId, envelope.IdempotencyKey)] =
                 envelope;
+        }
+    }
+
+    /// <summary>
+    ///     Reports one newly staged envelope to the factory so it records it when marked for immediate dispatch.
+    /// </summary>
+    /// <param name="envelopeId">The staged envelope identifier.</param>
+    private void RecordStagedImmediateEnvelope(Guid envelopeId)
+    {
+        if (_envelopeFactory is OutboxEnvelopeFactory factory)
+        {
+            factory.RecordStagedImmediateEnvelope(envelopeId);
         }
     }
 

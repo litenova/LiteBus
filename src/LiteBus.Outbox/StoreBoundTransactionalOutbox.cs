@@ -11,6 +11,11 @@ namespace LiteBus.Outbox.Abstractions;
 public sealed class StoreBoundTransactionalOutbox : ITransactionalOutbox
 {
     /// <summary>
+    ///     Gets the factory used to create envelopes before store writes.
+    /// </summary>
+    private readonly IOutboxEnvelopeFactory _envelopeFactory;
+
+    /// <summary>
     ///     Gets the bound outbox store participating in the caller transaction.
     /// </summary>
     private readonly ITransactionalOutboxStore _store;
@@ -33,6 +38,7 @@ public sealed class StoreBoundTransactionalOutbox : ITransactionalOutbox
         ArgumentNullException.ThrowIfNull(envelopeFactory);
 
         _store = store;
+        _envelopeFactory = envelopeFactory;
         _writerCore = new OutboxWriterCore(envelopeFactory);
     }
 
@@ -42,7 +48,7 @@ public sealed class StoreBoundTransactionalOutbox : ITransactionalOutbox
         CancellationToken cancellationToken = default)
         where TEvent : notnull
     {
-        return _writerCore.EnqueueAsync(item, (envelopes, token) => OutboxWriterCore.AppendAsync(_store, envelopes, token), cancellationToken);
+        return _writerCore.EnqueueAsync(item, AppendAndRecordAsync, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -50,7 +56,7 @@ public sealed class StoreBoundTransactionalOutbox : ITransactionalOutbox
         OutboxEnqueueItem item,
         CancellationToken cancellationToken = default)
     {
-        return _writerCore.EnqueueAsync(item, (envelopes, token) => OutboxWriterCore.AppendAsync(_store, envelopes, token), cancellationToken);
+        return _writerCore.EnqueueAsync(item, AppendAndRecordAsync, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -60,7 +66,46 @@ public sealed class StoreBoundTransactionalOutbox : ITransactionalOutbox
     {
         return _writerCore.EnqueueBatchAsync(
             items,
-            (envelopes, token) => OutboxWriterCore.AppendAsync(_store, envelopes, token),
+            AppendAndRecordAsync,
             cancellationToken);
+    }
+
+    /// <summary>
+    ///     Appends envelopes to the bound store and reports newly enqueued immediate envelopes for dispatch after the commit.
+    /// </summary>
+    /// <param name="envelopes">The envelopes created for the current enqueue attempt.</param>
+    /// <param name="cancellationToken">A token that cancels the write.</param>
+    /// <returns>One append result per envelope, in input order.</returns>
+    private async Task<IReadOnlyList<OutboxAppendResult>> AppendAndRecordAsync(
+        IReadOnlyList<OutboxEnvelope> envelopes,
+        CancellationToken cancellationToken)
+    {
+        var results = await OutboxWriterCore.AppendAsync(_store, envelopes, cancellationToken).ConfigureAwait(false);
+
+        RecordStagedImmediateEnvelopes(results);
+
+        return results;
+    }
+
+    /// <summary>
+    ///     Reports newly enqueued envelopes to the factory so it records the immediate ones for dispatch after the commit.
+    /// </summary>
+    /// <param name="results">The append results returned by the bound store.</param>
+    private void RecordStagedImmediateEnvelopes(IReadOnlyList<OutboxAppendResult> results)
+    {
+        if (_envelopeFactory is not OutboxEnvelopeFactory factory)
+        {
+            return;
+        }
+
+        for (var index = 0; index < results.Count; index++)
+        {
+            var result = results[index];
+
+            if (result.Outcome == OutboxEnqueueOutcome.Enqueued)
+            {
+                factory.RecordStagedImmediateEnvelope(result.Envelope.Id);
+            }
+        }
     }
 }

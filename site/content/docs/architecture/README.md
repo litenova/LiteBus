@@ -150,6 +150,8 @@ Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, 
 | `LiteBus.Mediation` | `litebus.mediation.count` | `LiteBusMediationTelemetry.CountInstrumentName` | One per completed mediation with tags `litebus.message` and `litebus.outcome`, plus `litebus.code` when a decision stopped the mediation |
 | `LiteBus.Mediation` | `litebus.mediation.stage.duration` | `LiteBusMediationTelemetry.StageDurationInstrumentName` | Histogram in milliseconds per pre stage, opt-in through `MediationTelemetryOptions.StageMetrics` |
 | `LiteBus.Mediation` | `litebus.mediation.decisions` | `LiteBusMediationTelemetry.DecisionsInstrumentName` | One per mediation a stage stopped, with tags `litebus.message`, `litebus.stage`, `litebus.outcome`, `litebus.decided_by` |
+| `LiteBus.Mediation` | `litebus.mediation.batch.duration` | `LiteBusMediationTelemetry.BatchDurationInstrumentName` | Histogram in seconds per command batch, tagged with `litebus.batch.outcome` (`committed` or `rolled_back`) |
+| `LiteBus.Mediation` | `litebus.mediation.batch.size` | `LiteBusMediationTelemetry.BatchSizeInstrumentName` | Histogram of the number of commands in one command batch |
 | `LiteBus.Inbox` | `litebus.inbox.queue.depth` | `LiteBusInboxTelemetry.QueueDepthInstrumentName` | Observable gauge with tag `litebus.inbox.status` |
 | `LiteBus.Inbox` | `litebus.inbox.processor.state` | `LiteBusInboxTelemetry.ProcessorStateInstrumentName` | `0` Running, `1` Paused, `2` Draining |
 | `LiteBus.Inbox` | `litebus.inbox.processor.persist_skipped` | `LiteBusInboxTelemetry.ProcessorPersistSkippedInstrumentName` | Skipped terminal persist when lease owner no longer matches |
@@ -163,6 +165,8 @@ Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, 
 | `LiteBus.Inbox` | `ingress.ack_failed_after_accept` | `LiteBusInboxIngressTelemetry.AckFailedAfterAcceptInstrumentName` | Broker acknowledgement failed after a successful inbox accept |
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_skipped` | `LiteBusOutboxTelemetry.ProcessorPersistSkippedInstrumentName` | Skipped terminal persist when lease owner no longer matches |
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_failed` | `LiteBusOutboxTelemetry.ProcessorPersistFailedInstrumentName` | Terminal persist threw after successful broker publish |
+| `LiteBus.Outbox` | `litebus.outbox.immediate_dispatch.count` | `LiteBusOutboxTelemetry.ImmediateDispatchCountInstrumentName` | One per envelope handled by immediate dispatch after a commit, tagged with `litebus.outbox.immediate_dispatch.outcome` (`published`, `failed`, `skipped`, `timed_out`) |
+| `LiteBus.Outbox` | `litebus.outbox.immediate_dispatch.duration` | `LiteBusOutboxTelemetry.ImmediateDispatchDurationInstrumentName` | Histogram in seconds of immediate dispatch after one commit |
 | `LiteBus.Outbox` | `litebus.outbox.diagnostics.unavailable` | `LiteBusOutboxTelemetry.DiagnosticsUnavailableInstrumentName` | Queue depth probe failed against the backing store |
 | `LiteBus.Outbox` | `litebus.outbox.queue.depth` | `LiteBusOutboxTelemetry.QueueDepthInstrumentName` | Observable gauge with tag `litebus.outbox.status` |
 | `LiteBus.Outbox` | `litebus.outbox.processor.state` | `LiteBusOutboxTelemetry.ProcessorStateInstrumentName` | Same encoding as inbox processor state |

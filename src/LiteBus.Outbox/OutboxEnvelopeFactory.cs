@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -9,6 +12,7 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.ImmediateDispatch;
 
 namespace LiteBus.Outbox;
 
@@ -38,6 +42,21 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     private readonly OutboxEnqueueOptions? _enqueueOptions;
 
     /// <summary>
+    ///     Gets the immediate dispatch options that set the fallback delay for immediate envelopes.
+    /// </summary>
+    private readonly OutboxImmediateDispatchOptions? _immediateDispatchOptions;
+
+    /// <summary>
+    ///     Guards <see cref="_immediateEnvelopeIds" />.
+    /// </summary>
+    private readonly object _immediateGate = new();
+
+    /// <summary>
+    ///     The identifiers of the envelopes this instance marked for immediate dispatch.
+    /// </summary>
+    private readonly HashSet<Guid> _immediateEnvelopeIds = [];
+
+    /// <summary>
     ///     Gets the optional registry used to resolve subscribed main handlers for per-handler delivery.
     /// </summary>
     private readonly IMessageReader? _messageReader;
@@ -51,6 +70,11 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     ///     Gets the optional outbox protector applied before payloads are written to storage.
     /// </summary>
     private readonly IOutboxPayloadProtector? _payloadProtector;
+
+    /// <summary>
+    ///     Gets the optional service provider used to resolve the scoped immediate dispatch tracker.
+    /// </summary>
+    private readonly IServiceProvider? _serviceProvider;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="OutboxEnvelopeFactory" /> class.
@@ -68,6 +92,13 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     ///     <see cref="OutboxEnqueueOptions.PerHandlerDelivery" /> is enabled; composition supplies the shared registry.
     /// </param>
     /// <param name="enqueueOptions">The optional enqueue options. When omitted, ambient trace and per-handler delivery stay off.</param>
+    /// <param name="immediateDispatchOptions">
+    ///     The optional immediate dispatch options. When omitted, no envelope is marked for immediate dispatch.
+    /// </param>
+    /// <param name="serviceProvider">
+    ///     The optional service provider used to resolve the scoped immediate dispatch tracker. When omitted, staged
+    ///     envelopes are not reported for dispatch after the commit.
+    /// </param>
     public OutboxEnvelopeFactory(
         IContractReader contractRegistry,
         IMessageSerializer messageSerializer,
@@ -75,7 +106,9 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
         IOutboxPayloadProtector? payloadProtector = null,
         IMessageContractResolver? contractTypeResolver = null,
         IMessageReader? messageReader = null,
-        OutboxEnqueueOptions? enqueueOptions = null)
+        OutboxEnqueueOptions? enqueueOptions = null,
+        OutboxImmediateDispatchOptions? immediateDispatchOptions = null,
+        IServiceProvider? serviceProvider = null)
     {
         ArgumentNullException.ThrowIfNull(contractRegistry);
 
@@ -90,6 +123,42 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
         _contractTypeResolver = contractTypeResolver;
         _messageReader = messageReader;
         _enqueueOptions = enqueueOptions;
+        _immediateDispatchOptions = immediateDispatchOptions;
+        _serviceProvider = serviceProvider;
+    }
+
+    /// <summary>
+    ///     Records a staged envelope in the scoped immediate dispatch tracker when this instance marked it for
+    ///     immediate dispatch during creation.
+    /// </summary>
+    /// <param name="envelopeId">The staged envelope identifier.</param>
+    /// <remarks>
+    ///     Shipped transactional outbox paths call this after they stage an envelope that was newly enqueued, so the
+    ///     commit listener dispatches exactly the immediate envelopes the mediation staged. Identifiers that this
+    ///     instance did not mark are ignored, so callers pass every staged envelope without deciding immediacy
+    ///     themselves. Duplicate submissions report the existing row instead of staging, so callers pass only
+    ///     <see cref="OutboxEnqueueOutcome.Enqueued" /> results.
+    /// </remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void RecordStagedImmediateEnvelope(Guid envelopeId)
+    {
+        if (_serviceProvider is null)
+        {
+            return;
+        }
+
+        lock (_immediateGate)
+        {
+            if (!_immediateEnvelopeIds.Contains(envelopeId))
+            {
+                return;
+            }
+        }
+
+        if (_serviceProvider.GetService(typeof(StagedImmediateEnvelopes)) is StagedImmediateEnvelopes staged)
+        {
+            staged.Add(envelopeId);
+        }
     }
 
     /// <inheritdoc />
@@ -100,7 +169,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        return CreateCoreAsync(item.Message, item.Message.GetType(), item.Metadata, cancellationToken);
+        return CreateCoreAsync(item.Message, item.Message.GetType(), item.Metadata, item.Message.GetType(), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -110,7 +179,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        return CreateCoreAsync(item.Message, item.MessageType, item.Metadata, cancellationToken);
+        return CreateCoreAsync(item.Message, item.MessageType, item.Metadata, item.MessageType, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -213,6 +282,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     /// <param name="eventInstance">The event instance to serialize.</param>
     /// <param name="eventType">The runtime event type used for contract lookup.</param>
     /// <param name="metadata">The enqueue metadata applied outside the payload.</param>
+    /// <param name="immediateCandidate">The type checked for <see cref="DispatchImmediatelyAttribute" />.</param>
     /// <param name="cancellationToken">A token used to cancel serialization.</param>
     /// <returns>The outbox envelope ready for store persistence or staging.</returns>
     /// <exception cref="ArgumentException">The distributed trace context is not valid JSON text.</exception>
@@ -220,11 +290,13 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
         object eventInstance,
         Type eventType,
         OutboxEnqueueMetadata metadata,
+        Type immediateCandidate,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(eventInstance);
         ArgumentNullException.ThrowIfNull(eventType);
         ArgumentNullException.ThrowIfNull(metadata);
+        ArgumentNullException.ThrowIfNull(immediateCandidate);
 
         if (!eventType.IsInstanceOfType(eventInstance))
         {
@@ -255,7 +327,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
         var (correlationId, causationId, traceContext) = DurableEnvelopeMetadataMapper.ResolveTraceColumns(trace);
         ThrowIfInvalidTraceContext(traceContext, metadata);
 
-        return new OutboxEnvelope
+        var envelope = new OutboxEnvelope
         {
             Id = id,
             ContractName = contract.Name,
@@ -273,6 +345,8 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
             IdempotencyConflictMode = DurableEnvelopeMetadataMapper.ResolveIdempotencyConflictMode(metadata.Idempotency),
             TraceContext = traceContext
         };
+
+        return MarkImmediateWhenEligible(envelope, immediateCandidate, metadata);
     }
 
     /// <summary>
@@ -293,7 +367,7 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     {
         if (_enqueueOptions?.PerHandlerDelivery != true)
         {
-            return [await CreateCoreAsync(eventInstance, eventType, metadata, cancellationToken).ConfigureAwait(false)];
+            return [await CreateCoreAsync(eventInstance, eventType, metadata, eventType, cancellationToken).ConfigureAwait(false)];
         }
 
         if (_messageReader is null)
@@ -309,15 +383,16 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
 
         for (var index = 0; index < handlers.Count; index++)
         {
-            var handler = handlers[index];
+            var (subscriberName, handlerType) = handlers[index];
             var envelope = await CreateCoreAsync(
                     eventInstance,
                     eventType,
-                    DerivePerHandlerMetadata(metadata, handler),
+                    DerivePerHandlerMetadata(metadata, subscriberName),
+                    handlerType,
                     cancellationToken)
                 .ConfigureAwait(false);
 
-            envelopes[index] = envelope with { Handler = handler };
+            envelopes[index] = envelope with { Handler = subscriberName };
         }
 
         return envelopes;
@@ -328,28 +403,30 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
     /// </summary>
     /// <param name="messageReader">The registry used to resolve the event descriptor.</param>
     /// <param name="eventType">The runtime event type.</param>
-    /// <returns>The subscribed handler identities.</returns>
+    /// <returns>The subscribed handler identities with the handler type behind each name.</returns>
     /// <exception cref="NoHandlerFoundException">No main handler subscribes to the event.</exception>
     /// <remarks>
     ///     Direct and indirect main handlers both count: a handler registered for a base event type still runs when the
     ///     event is published, so it still needs its own envelope. Descriptors are deduplicated by subscriber name
     ///     because one handler class may implement several contracts for the same event.
     /// </remarks>
-    private static IReadOnlyList<string> ResolveHandlerIdentities(IMessageReader messageReader, Type eventType)
+    private static IReadOnlyList<(string SubscriberName, Type HandlerType)> ResolveHandlerIdentities(
+        IMessageReader messageReader,
+        Type eventType)
     {
-        var identities = new SortedSet<string>(StringComparer.Ordinal);
+        var identities = new SortedDictionary<string, Type>(StringComparer.Ordinal);
         var descriptor = messageReader.Find(eventType);
 
         if (descriptor is not null)
         {
             foreach (var handler in descriptor.Handlers)
             {
-                identities.Add(SubscriberNames.Resolve(handler.HandlerType));
+                identities.TryAdd(SubscriberNames.Resolve(handler.HandlerType), handler.HandlerType);
             }
 
             foreach (var handler in descriptor.IndirectHandlers)
             {
-                identities.Add(SubscriberNames.Resolve(handler.HandlerType));
+                identities.TryAdd(SubscriberNames.Resolve(handler.HandlerType), handler.HandlerType);
             }
         }
 
@@ -358,7 +435,54 @@ public sealed class OutboxEnvelopeFactory : IOutboxEnvelopeFactory
             throw new NoHandlerFoundException(eventType);
         }
 
-        return [.. identities];
+        return [.. identities.Select(static entry => (entry.Key, entry.Value))];
+    }
+
+    /// <summary>
+    ///     Marks an envelope for immediate dispatch when its candidate carries the dispatch attribute and the item
+    ///     requests immediate visibility.
+    /// </summary>
+    /// <param name="envelope">The envelope created for the current enqueue attempt.</param>
+    /// <param name="immediateCandidate">The type checked for <see cref="DispatchImmediatelyAttribute" />.</param>
+    /// <param name="metadata">The enqueue metadata applied outside the payload.</param>
+    /// <returns>The envelope with the fallback visibility when eligible; otherwise the envelope unchanged.</returns>
+    /// <remarks>
+    ///     With per-handler delivery the candidate is the target handler type; otherwise it is the event type.
+    ///     Scheduled visibility is never immediate. A marked envelope stays invisible to the background processor for
+    ///     the fallback delay, using the same clock source as other visibility writes, so the processor delivers it
+    ///     when the process stops before dispatching.
+    /// </remarks>
+    private OutboxEnvelope MarkImmediateWhenEligible(
+        OutboxEnvelope envelope,
+        Type immediateCandidate,
+        OutboxEnqueueMetadata metadata)
+    {
+        if (_immediateDispatchOptions is null)
+        {
+            return envelope;
+        }
+
+        if (metadata.Visibility is not MessageVisibility.Immediate)
+        {
+            return envelope;
+        }
+
+        if (immediateCandidate.GetCustomAttribute<DispatchImmediatelyAttribute>(inherit: false) is null)
+        {
+            return envelope;
+        }
+
+        var marked = envelope with
+        {
+            VisibleAfter = _clock.GetUtcNow().Add(_immediateDispatchOptions.FallbackDelay)
+        };
+
+        lock (_immediateGate)
+        {
+            _immediateEnvelopeIds.Add(marked.Id);
+        }
+
+        return marked;
     }
 
     /// <summary>

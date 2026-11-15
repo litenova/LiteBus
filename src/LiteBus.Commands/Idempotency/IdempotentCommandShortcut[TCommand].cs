@@ -38,10 +38,21 @@ namespace LiteBus.Commands.Idempotency;
 ///         The registry does not close this shortcut for a command that produces a result, since an untyped shortcut
 ///         cannot carry a value. <see cref="IdempotentCommandShortcut{TCommand, TCommandResult}" /> covers those.
 ///     </para>
+///     <para>
+///         Inside a command batch a key already claimed by an earlier command in the same batch is denied with
+///         <see cref="IdempotencyRefusalCodes.DuplicateKeyInBatch" /> before the store is touched, which stops the
+///         batch and rolls it back. The check reads the batch's pending claims, so the refusal does not depend on
+///         the store's in-progress answer.
+///     </para>
 /// </remarks>
 internal sealed class IdempotentCommandShortcut<TCommand> : ICommandShortcut<TCommand>
     where TCommand : ICommand
 {
+    /// <summary>
+    ///     Holds the keys claimed earlier in the batch, or <see langword="null" /> outside a batch scope.
+    /// </summary>
+    private readonly CommandBatchIdempotencyParticipant? _batchParticipant;
+
     /// <summary>
     ///     Resolves the scoped key from the command's declaration.
     /// </summary>
@@ -62,13 +73,18 @@ internal sealed class IdempotentCommandShortcut<TCommand> : ICommandShortcut<TCo
     /// </summary>
     /// <param name="keys">Resolves the scoped key from the command's declaration.</param>
     /// <param name="store">Remembers which keys have been applied.</param>
-    public IdempotentCommandShortcut(IdempotencyKeyResolver keys, IIdempotencyStore store)
+    /// <param name="batchParticipant">Holds the keys claimed earlier in the batch, or <see langword="null" /> outside a batch scope.</param>
+    public IdempotentCommandShortcut(
+        IdempotencyKeyResolver keys,
+        IIdempotencyStore store,
+        CommandBatchIdempotencyParticipant? batchParticipant = null)
     {
         ArgumentNullException.ThrowIfNull(keys);
         ArgumentNullException.ThrowIfNull(store);
 
         _keys = keys;
         _store = store;
+        _batchParticipant = batchParticipant;
     }
 
     /// <inheritdoc />
@@ -88,6 +104,13 @@ internal sealed class IdempotentCommandShortcut<TCommand> : ICommandShortcut<TCo
         if (resolved is null)
         {
             return Shortcut.None;
+        }
+
+        if (_batchParticipant is not null && _batchParticipant.IsActive && _batchParticipant.ContainsKey(resolved.Value.Key))
+        {
+            return Shortcut.Deny(
+                "the batch already contains a command with the same idempotency key",
+                IdempotencyRefusalCodes.DuplicateKeyInBatch);
         }
 
         var claim = await _store

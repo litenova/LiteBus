@@ -32,6 +32,13 @@ namespace LiteBus.Commands.Idempotency;
 ///         there is no commit to wait for.
 ///     </para>
 ///     <para>
+///         Inside a command batch it never settles per command, for any store. It adds a
+///         <see cref="PendingIdempotencySettlement" /> to the <see cref="CommandBatchIdempotencyParticipant" />
+///         instead, for every mediation that was granted a claim, whether the command passed or stopped the
+///         batch. The batch completes the unmarked stores before its single commit and the marked stores after
+///         it, and releases every pending claim on rollback, so the keys follow the batch outcome.
+///     </para>
+///     <para>
 ///         Only the claim the same mediation was granted is settled. The shortcut records each granted key as a
 ///         <see cref="ClaimedIdempotencyKey" />, and without that record this handler returns: a denial, a validation
 ///         failure, a repeat answered from the store, and a claim denied as in-flight or mismatched all end here
@@ -45,14 +52,20 @@ namespace LiteBus.Commands.Idempotency;
 ///         into a resolution failure at settle time.
 ///     </para>
 ///     <para>
-///         Anything but <see cref="MediationOutcome.Succeeded" /> releases the recorded key, including
-///         <see cref="MediationOutcome.Answered" />. An answer after this mediation claimed means a later shortcut
+///         Outside a batch, anything but <see cref="MediationOutcome.Succeeded" /> releases the recorded key,
+///         including <see cref="MediationOutcome.Answered" />. An answer after this mediation claimed means a later shortcut
 ///         answered, not a repeat, so the granted claim is released rather than leaked.
 ///     </para>
 /// </remarks>
 [HandlerPriority(HandlerPriorities.Persistence)]
 internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
 {
+    /// <summary>
+    ///     Holds the batch's deferred settlements while a command batch runs, or <see langword="null" /> when the
+    ///     mediation runs outside a batch scope.
+    /// </summary>
+    private readonly CommandBatchIdempotencyParticipant? _batchParticipant;
+
     /// <summary>
     ///     The command module's unit-of-work registration, or <see langword="null" /> when no unit of work is registered.
     /// </summary>
@@ -77,10 +90,15 @@ internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
     ///     The command module's unit-of-work registration, present only when <c>UseUnitOfWork</c> was called on the command
     ///     builder. A unit of work registered only on the query builder leaves it absent.
     /// </param>
+    /// <param name="batchParticipant">
+    ///     Holds the batch's deferred settlements while a command batch runs, or <see langword="null" /> when the
+    ///     mediation runs outside a batch scope.
+    /// </param>
     public IdempotencyCompletionHandler(
         IIdempotencyStore store,
         IMessageSerializer serializer,
-        CommandUnitOfWorkRegistration? unitOfWork = null)
+        CommandUnitOfWorkRegistration? unitOfWork = null,
+        CommandBatchIdempotencyParticipant? batchParticipant = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(serializer);
@@ -88,6 +106,7 @@ internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
         _store = store;
         _serializer = serializer;
         _unitOfWork = unitOfWork;
+        _batchParticipant = batchParticipant;
     }
 
     /// <inheritdoc />
@@ -101,6 +120,16 @@ internal sealed class IdempotencyCompletionHandler : ICommandCompletionHandler
 
         if (executionContext is null || !executionContext.Data.TryGet<ClaimedIdempotencyKey>(out var claimed))
         {
+            return;
+        }
+
+        if (_batchParticipant is not null && _batchParticipant.IsActive)
+        {
+            var batchPayload = context.Outcome == MediationOutcome.Succeeded && claimed.ReplayResult && context.MessageResult is not null
+                ? await _serializer.SerializeAsync(context.MessageResult, CancellationToken.None).ConfigureAwait(false)
+                : null;
+
+            _batchParticipant.Add(new PendingIdempotencySettlement(claimed, context.Outcome, batchPayload));
             return;
         }
 

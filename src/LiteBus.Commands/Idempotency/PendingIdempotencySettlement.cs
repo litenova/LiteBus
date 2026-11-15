@@ -18,8 +18,13 @@ namespace LiteBus.Commands.Idempotency;
 ///         when the commit throws.
 ///     </para>
 ///     <para>
-///         One value per mediation is enough: a mediation claims at most one key, so at most one settlement is ever
-///         pending.
+///         Inside a command batch the same record is added to the <see cref="CommandBatchIdempotencyParticipant" />
+///         for every store, marked or not, because the batch settles all of its commands' claims at once after the
+///         outcome is known.
+///     </para>
+///     <para>
+///         One value per mediation is enough: a mediation claims at most one key, so a single command defers at most
+///         one settlement, and a batch holds one per command that was granted a claim.
 ///     </para>
 /// </remarks>
 internal sealed record PendingIdempotencySettlement(ClaimedIdempotencyKey Claimed, MediationOutcome Outcome, string? Payload);

@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Commands.Batching;
 using LiteBus.Commands.Idempotency;
 using LiteBus.Messaging.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -56,6 +57,12 @@ namespace LiteBus.Commands.UnitOfWork;
 ///         order. A listener that throws is logged and does not fail the mediation, because the data is already
 ///         committed.
 ///     </para>
+///     <para>
+///         Inside a command batch this handler does nothing: it neither commits nor rolls back, and it notifies no
+///         listener. The batch calls <c>BeginAsync</c> once before its first command, <c>CommitAsync</c> once after
+///         all commands passed, <c>RollbackAsync</c> when the batch stops or the commit throws, and every commit
+///         listener once after its single commit.
+///     </para>
 /// </remarks>
 /// <typeparam name="TUnitOfWork">The application unit of work this handler commits.</typeparam>
 [HandlerPriority(HandlerPriorities.UnitOfWork)]
@@ -71,6 +78,12 @@ internal sealed class CommandUnitOfWorkCompletionHandler<TUnitOfWork> : ICommand
         TimeSpan.FromMilliseconds(100),
         TimeSpan.FromMilliseconds(200)
     ];
+
+    /// <summary>
+    ///     Tells whether the mediation scope belongs to a command batch, or <see langword="null" /> when the handler
+    ///     was built without a batch context.
+    /// </summary>
+    private readonly CommandBatchContext? _batchContext;
 
     /// <summary>
     ///     The commit listeners notified after the unit of work commits, in registration order.
@@ -106,12 +119,14 @@ internal sealed class CommandUnitOfWorkCompletionHandler<TUnitOfWork> : ICommand
     /// <param name="timeProvider">Supplies the delay between post-commit idempotency completion retries, or <see langword="null" /> for <see cref="TimeProvider.System" />.</param>
     /// <param name="logger">Records post-commit work that failed without failing the mediation, or <see langword="null" /> to discard it.</param>
     /// <param name="commitListeners">The commit listeners notified after the unit of work commits, or <see langword="null" /> for none.</param>
+    /// <param name="batchContext">Tells whether the mediation scope belongs to a command batch, or <see langword="null" /> for a single mediation.</param>
     public CommandUnitOfWorkCompletionHandler(
         TUnitOfWork unitOfWork,
         IIdempotencyStore? store = null,
         TimeProvider? timeProvider = null,
         ILogger<CommandUnitOfWorkCompletionHandler<TUnitOfWork>>? logger = null,
-        IEnumerable<IUnitOfWorkCommitListener>? commitListeners = null)
+        IEnumerable<IUnitOfWorkCommitListener>? commitListeners = null,
+        CommandBatchContext? batchContext = null)
     {
         ArgumentNullException.ThrowIfNull(unitOfWork);
 
@@ -120,12 +135,18 @@ internal sealed class CommandUnitOfWorkCompletionHandler<TUnitOfWork> : ICommand
         _timeProvider = timeProvider ?? TimeProvider.System;
         _logger = logger ?? NullLogger<CommandUnitOfWorkCompletionHandler<TUnitOfWork>>.Instance;
         _commitListeners = commitListeners ?? [];
+        _batchContext = batchContext;
     }
 
     /// <inheritdoc />
     public async Task HandleCompletionAsync(MessageCompletionContext<ICommand> context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
+
+        if (_batchContext?.IsActive == true)
+        {
+            return;
+        }
 
         if (context.Outcome != MediationOutcome.Succeeded)
         {
