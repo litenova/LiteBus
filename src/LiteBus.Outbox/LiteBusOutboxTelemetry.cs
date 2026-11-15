@@ -69,4 +69,21 @@ public static class LiteBusOutboxTelemetry
     ///     Gets the instrument name incremented when terminal persist throws and the processor continues the pass.
     /// </summary>
     public const string ProcessorPersistFailedInstrumentName = "litebus.outbox.processor.persist_failed";
+
+    /// <summary>
+    ///     Gets the instrument name counting envelopes handled by immediate dispatch after a commit, tagged with
+    ///     <see cref="ImmediateDispatchOutcomeAttributeName" />.
+    /// </summary>
+    public const string ImmediateDispatchCountInstrumentName = "litebus.outbox.immediate_dispatch.count";
+
+    /// <summary>
+    ///     Gets the histogram instrument name for the time immediate dispatch took after one commit, in seconds.
+    /// </summary>
+    public const string ImmediateDispatchDurationInstrumentName = "litebus.outbox.immediate_dispatch.duration";
+
+    /// <summary>
+    ///     Gets the attribute key carrying how one immediately dispatched envelope ended: <c>published</c>,
+    ///     <c>failed</c>, <c>skipped</c> or <c>timed_out</c>.
+    /// </summary>
+    public const string ImmediateDispatchOutcomeAttributeName = "litebus.outbox.immediate_dispatch.outcome";
 }

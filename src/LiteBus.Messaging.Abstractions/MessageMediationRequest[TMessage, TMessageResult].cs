@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -70,4 +71,18 @@ public sealed record MessageMediationRequest<TMessage, TMessageResult> where TMe
     ///     The predicate is applied after tag filtering.
     /// </remarks>
     public Func<IHandlerDescriptor, bool> HandlerPredicate { get; init; } = _ => true;
+
+    /// <summary>
+    ///     Gets or initializes a dispatch scope owned by the caller that this mediation resolves its handlers and
+    ///     services from, instead of creating its own.
+    /// </summary>
+    /// <value>
+    ///     The caller's dispatch scope, or <see langword="null" /> (the default) to create and dispose one scope for
+    ///     this mediation.
+    /// </value>
+    /// <remarks>
+    ///     A command batch sets it so every command in the batch shares one unit of work, one transactional outbox
+    ///     and one set of scoped services. The mediator never disposes a scope supplied here; its owner does.
+    /// </remarks>
+    public IMessageDispatchScope? DispatchScope { get; init; }
 }

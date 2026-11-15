@@ -87,4 +87,24 @@ public static class LiteBusMediationTelemetry
     ///     The attribute key carrying the handler type that stopped the mediation.
     /// </summary>
     public const string DecidedByAttributeName = "litebus.decided_by";
+
+    /// <summary>
+    ///     The activity name for one command batch; each command's mediation activity is its child.
+    /// </summary>
+    public const string BatchActivityName = "litebus.mediation.batch";
+
+    /// <summary>
+    ///     The histogram instrument name for the duration of one command batch in seconds.
+    /// </summary>
+    public const string BatchDurationInstrumentName = "litebus.mediation.batch.duration";
+
+    /// <summary>
+    ///     The histogram instrument name for the number of commands in one command batch.
+    /// </summary>
+    public const string BatchSizeInstrumentName = "litebus.mediation.batch.size";
+
+    /// <summary>
+    ///     The attribute key carrying how a command batch ended: <c>committed</c> or <c>rolled_back</c>.
+    /// </summary>
+    public const string BatchOutcomeAttributeName = "litebus.batch.outcome";
 }
