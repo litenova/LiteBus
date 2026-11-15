@@ -1,6 +1,6 @@
 # Recurring Commands
 
-A recurring command sends one command on a fixed interval for the life of the host, without a hand-written hosted service. This page covers registration, options, backlog draining, failure behavior, and limitations.
+A recurring command sends one command on a fixed interval for the life of the host, without a hand-written hosted service. When each pass produces several commands that must commit together, a recurring batch sends them as one batch instead. This page covers registration, options, backlog draining, failure behavior, and limitations.
 
 **Package:** `LiteBus.Commands.Recurring`
 

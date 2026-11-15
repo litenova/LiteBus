@@ -73,7 +73,7 @@ Register storage only inside the **`AddInbox(...)`** and **`AddOutbox(...)`** bu
 
 ## Targeted Lease by Identifier
 
-`IOutboxTargetedLeaseStore.LeaseByIdAsync` takes an `OutboxTargetedLeaseRequest` sealed record with `MessageIds`, `LeaseOwner`, `LeaseDuration`, `Now`, and an optional `TenantId`, and returns the claimed `OutboxEnvelope` list.
+`IOutboxTargetedLeaseStore.LeaseByIdAsync` takes an `OutboxTargetedLeaseRequest` sealed record with `MessageIds`, `LeaseOwner`, `LeaseDuration`, `Now`, and an optional `TenantId`, and returns the claimed `OutboxEnvelope` list. `IOutboxTargetedLeaseStore.ReleaseByIdAsync` takes an `OutboxTargetedReleaseRequest` (`MessageId`, `LeaseOwner`, `LeaseGeneration`, `VisibleAfter`) and returns one leased message to pending, visible from the requested time, when the lease owner and generation still match.
 
 It leases, atomically, only the listed envelopes that are pending and not under an active lease, regardless of `VisibleAfter`, with the same side effects as `LeasePendingAsync` (owner, expiry, attempt count, lease generation). Envelopes it cannot claim are skipped and not returned, so two callers never both receive one message.
 

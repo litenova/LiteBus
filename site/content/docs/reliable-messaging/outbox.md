@@ -408,13 +408,15 @@ builder.AddOutbox(outbox =>
 });
 ```
 
-Each envelope records the full name of the handler it is addressed to in the `Handler` column. Dispatch publishes each envelope to that main handler alone. Pipeline observers (pre-stage, post, error, and completion stages) still run on every targeted dispatch.
+Each envelope records the subscriber name of the handler it is addressed to in the `Handler` column, where `null` means broadcast. A main handler carrying `[SubscriberName("...")]` is recorded under that name; any other handler is recorded under its full type name. Dispatch publishes each envelope to the main handler whose subscriber name or full type name equals the recorded value, so an envelope written before the attribute was added still reaches the handler. Pipeline observers (pre-stage, post, error, and completion stages) still run on every targeted dispatch.
+
+A subscriber name survives handler renames. Renaming a handler class or moving its namespace changes its full type name, so envelopes already written for the old name match no handler. When adopting subscriber names on existing handlers, add the attribute first, deploy, let the old envelopes drain, and only then rename the class.
 
 Enqueueing an event with no subscribed main handler throws `NoHandlerFoundException`. This matches the default `RequireHandler` rule.
 
-The envelope factory derives a caller idempotency key per handler as `{key}:{handler}`. From a caller-supplied message identifier, it derives deterministic per-handler identifiers. A retried enqueue therefore resolves to the same rows.
+The envelope factory derives a caller idempotency key per handler as `{key}:{subscriber-name}`. From a caller-supplied message identifier, it derives deterministic per-handler identifiers from the supplied value and the subscriber name. A retried enqueue therefore resolves to the same rows.
 
-The whole fan-out of one enqueue persists in one batch call, so a mid-fan-out failure never leaves a partial set behind. The returned receipt describes the first per-handler envelope in handler-name order. Batch receipts flatten 1 per envelope in item order.
+The whole fan-out of one enqueue persists in one batch call, so a mid-fan-out failure never leaves a partial set behind. The returned receipt describes the first per-handler envelope in subscriber-name order. Batch receipts flatten 1 per envelope in item order.
 
 The trade-off is storage. Per-handler delivery writes 1 row per handler instead of 1 row per event.
 

@@ -28,6 +28,7 @@ Outbox immediate dispatch runs the outbox envelopes a mediation just staged in p
 - **`EnableImmediateDispatch(configure)`**: Call this on the outbox builder with an optional options callback. The options are read once at composition time and validated.
 - **`OnCommittedAsync(CancellationToken)`**: The framework calls this on every registered listener after the commit. Applications implement it only for their own post-commit work; immediate dispatch registers its own scoped listener.
 - **`LeaseByIdAsync(OutboxTargetedLeaseRequest, CancellationToken)`**: Call this to claim the listed envelopes that are pending and not under an active lease. Envelopes it cannot claim are skipped and not returned.
+- **`ReleaseByIdAsync(OutboxTargetedReleaseRequest, CancellationToken)`**: Call this to give one leased envelope back to the outbox processor, fenced by its lease owner and generation. The envelope returns to pending with the attempt uncounted and `VisibleAfter` set to the requested time. Immediate dispatch uses it when `Timeout` expires, so the processor takes the envelopes it did not reach at once.
 
 Typical call sites are the commit path of a command mediation whose read-model projection must be visible when the caller continues, and command batches whose every command staged immediate envelopes in the shared scope.
 

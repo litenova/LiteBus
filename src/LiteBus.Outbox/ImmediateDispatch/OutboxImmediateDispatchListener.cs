@@ -311,7 +311,7 @@ internal sealed class OutboxImmediateDispatchListener : IUnitOfWorkCommitListene
         {
             if (timeoutSource.Token.IsCancellationRequested)
             {
-                await ReleaseRemainingAsync(ordered, index, stateWriter, clock, logger).ConfigureAwait(false);
+                await ReleaseRemainingAsync(ordered, index, leaseStore, clock, logger).ConfigureAwait(false);
                 return;
             }
 
@@ -328,7 +328,7 @@ internal sealed class OutboxImmediateDispatchListener : IUnitOfWorkCommitListene
 
             if (updated is null)
             {
-                await ReleaseRemainingAsync(ordered, index, stateWriter, clock, logger).ConfigureAwait(false);
+                await ReleaseRemainingAsync(ordered, index, leaseStore, clock, logger).ConfigureAwait(false);
                 return;
             }
 
@@ -462,39 +462,36 @@ internal sealed class OutboxImmediateDispatchListener : IUnitOfWorkCommitListene
     /// </summary>
     /// <param name="ordered">The leased envelopes, in staging order.</param>
     /// <param name="startIndex">The index of the first envelope that was not dispatched.</param>
-    /// <param name="stateWriter">The state writer used to persist the pending releases.</param>
+    /// <param name="leaseStore">The lease store that releases each envelope under its lease owner and generation.</param>
     /// <param name="clock">The time provider used for the release visibility timestamp.</param>
     /// <param name="logger">The logger used for timeout diagnostics.</param>
     /// <returns>A task representing the asynchronous release.</returns>
     /// <remarks>
-    ///     Each envelope is persisted pending with <c>VisibleAfter</c> set to now, so the processor takes it at once
-    ///     instead of waiting for the fallback delay.
+    ///     Each envelope is released through <see cref="IOutboxTargetedLeaseStore.ReleaseByIdAsync" />, fenced by its
+    ///     lease owner and generation, back to pending with <c>VisibleAfter</c> set to now, so the processor takes it at
+    ///     once instead of waiting for the fallback delay. A release the fence rejects means another owner already holds
+    ///     the envelope, and nothing more is needed.
     /// </remarks>
     private static async Task ReleaseRemainingAsync(
         List<OutboxEnvelope> ordered,
         int startIndex,
-        IOutboxStateWriter stateWriter,
+        IOutboxTargetedLeaseStore leaseStore,
         TimeProvider clock,
         ILogger logger)
     {
-        List<OutboxEnvelope> released = [];
+        var now = clock.GetUtcNow();
 
         for (var index = startIndex; index < ordered.Count; index++)
         {
             var envelope = ordered[index];
-            released.Add(envelope.AsReleased() with { VisibleAfter = clock.GetUtcNow() });
-        }
 
-        if (released.Count == 0)
-        {
-            return;
-        }
+            if (envelope.LeaseOwner is not null)
+            {
+                await leaseStore.ReleaseByIdAsync(
+                    new OutboxTargetedReleaseRequest(envelope.Id, envelope.LeaseOwner, envelope.LeaseGeneration, now),
+                    CancellationToken.None).ConfigureAwait(false);
+            }
 
-        await stateWriter.PersistAsync(released, CancellationToken.None).ConfigureAwait(false);
-
-        for (var index = startIndex; index < ordered.Count; index++)
-        {
-            var envelope = ordered[index];
             OutboxImmediateDispatchTelemetry.RecordTimedOut();
             OutboxImmediateDispatchLogMessages.ImmediateDispatchTimedOut(
                 logger,

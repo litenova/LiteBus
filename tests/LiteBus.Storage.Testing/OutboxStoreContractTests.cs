@@ -1661,6 +1661,52 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that a targeted release returns a leased message to pending, visible from the requested time, with
+    ///     the attempt uncounted, and that a release with a stale lease generation changes nothing.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task ReleaseByIdAsync_WhenLeaseMatches_ShouldReturnMessageToPendingVisibleFromRequestedTime()
+    {
+        var store = CreateStore();
+        var targeted = GetTargetedLeaseStore(store);
+        var now = BaseTime;
+        var messageId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
+
+        var leased = await targeted.LeaseByIdAsync(new OutboxTargetedLeaseRequest
+        {
+            MessageIds = [messageId],
+            LeaseOwner = "publisher-1",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        }).ConfigureAwait(false);
+
+        var envelope = leased.Should().ContainSingle().Which;
+        var visibleAfter = now.AddMinutes(2);
+
+        var stale = await targeted.ReleaseByIdAsync(
+            new OutboxTargetedReleaseRequest(messageId, "publisher-1", envelope.LeaseGeneration + 1, visibleAfter)).ConfigureAwait(false);
+        stale.Should().BeFalse();
+
+        var released = await targeted.ReleaseByIdAsync(
+            new OutboxTargetedReleaseRequest(messageId, "publisher-1", envelope.LeaseGeneration, visibleAfter)).ConfigureAwait(false);
+        released.Should().BeTrue();
+
+        var stored = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { MessageId = messageId },
+            new OutboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
+
+        var row = stored.Items.Should().ContainSingle().Which;
+        row.Status.Should().Be(OutboxStatus.Pending);
+        row.LeaseOwner.Should().BeNull();
+        row.AttemptCount.Should().Be(0);
+        row.VisibleAfter.Should().NotBeNull();
+        row.VisibleAfter!.Value.Should().BeCloseTo(visibleAfter, TimeSpan.FromSeconds(1));
+    }
+
+    /// <summary>
     ///     Verifies that a targeted lease skips actively leased, published, dead-lettered, and unknown messages.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>

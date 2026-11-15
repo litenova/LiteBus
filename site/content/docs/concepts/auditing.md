@@ -439,7 +439,7 @@ A trail that writes into the rolled-back transaction loses these rollback record
 ## Application Responsibilities
 
 - Your `IAuditTrail` implementation owns record storage and integrity. A hash chain, an append-only database role, and a retention job are all worth having there rather than in a messaging library.
-- Your application owns the transaction boundary. LiteBus does not open, commit, or roll back anything, because only your application defines what its unit of work contains. It does guarantee a position you can commit from, described under [Making a Record Atomic With Its Change](#making-a-record-atomic-with-its-change) above.
+- Your application owns the transaction boundary. LiteBus never opens or owns the transaction itself: it calls the application's `BeginAsync`, `CommitAsync`, and `RollbackAsync` at defined pipeline points, and the application opens, commits, and rolls back the transaction inside those methods. It does guarantee a position you can commit from, described under [Making a Record Atomic With Its Change](#making-a-record-atomic-with-its-change) above.
 - Your trail implementation owns actor capture. LiteBus does not model identity. Capture the acting account from whatever ambient principal your host provides.
 
 ## Next

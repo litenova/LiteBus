@@ -33,4 +33,24 @@ public interface IOutboxTargetedLeaseStore
     Task<IReadOnlyList<OutboxEnvelope>> LeaseByIdAsync(
         OutboxTargetedLeaseRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Gives one leased message back to the outbox processor without counting the attempt, visible from the
+    ///     requested time.
+    /// </summary>
+    /// <param name="request">The message, the lease owner and generation that fence the release, and the visibility.</param>
+    /// <param name="cancellationToken">A token that cancels the release before it is written.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the message was still leased by the owner and generation and was released;
+    ///     otherwise, <see langword="false" />.
+    /// </returns>
+    /// <remarks>
+    ///     Like <c>ReleaseLeaseAsync</c>, the message returns to pending (or failed when it already carries an error),
+    ///     its lease is cleared and its attempt count decremented; unlike it, <see cref="OutboxEnvelope.VisibleAfter" />
+    ///     is set, so immediate dispatch can hand a message it did not reach back to the processor at once instead of
+    ///     after the fallback delay.
+    /// </remarks>
+    Task<bool> ReleaseByIdAsync(
+        OutboxTargetedReleaseRequest request,
+        CancellationToken cancellationToken = default);
 }
