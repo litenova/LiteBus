@@ -46,8 +46,13 @@ namespace LiteBus.Commands.Storage.Marten;
 ///         mediation. A lost race is recognized by the state of a <c>PostgresException</c> anywhere among the
 ///         exceptions a failed session reports, including every exception inside an <see cref="AggregateException" />.
 ///     </para>
+///     <para>
+///         This store commits its own writes on its own session, separately from the application's unit of work,
+///         so it implements <see cref="ISeparatelyCommittedIdempotencyStore" /> and LiteBus settles its keys after
+///         the unit of work commits.
+///     </para>
 /// </remarks>
-public sealed class MartenIdempotencyStore : IIdempotencyStore
+public sealed class MartenIdempotencyStore : ISeparatelyCommittedIdempotencyStore
 {
     /// <summary>
     ///     Gets the document store each call opens its short claim session from.

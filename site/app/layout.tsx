@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from 'next';
+import type { Metadata } from 'next';
 import { JetBrains_Mono, Source_Sans_3 } from 'next/font/google';
 import './globals.css';
 import {
@@ -31,12 +31,16 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 /**
- * Theme bootstrap: runs before first paint and restores the stored light theme.
+ * Theme bootstrap: runs before first paint and applies the stored scheme override.
  *
- * The server always renders `data-theme="dark"`; this script switches to light only when the
- * visitor chose light before. The site never reads `prefers-color-scheme`.
+ * The server renders no `data-theme`, so the page follows the system scheme through CSS. This
+ * script pins `data-theme`, `<meta name="color-scheme">`, and the theme-color metas only when
+ * the visitor chose light or dark before; otherwise it leaves the system default in place and
+ * restores the media-paired theme colors. It reads the stored value from
+ * `localStorage['litebus-theme']`, where the header toggle keeps `light` or `dark` and removes
+ * the entry to return to the system scheme.
  */
-const themeScript = `try{if(localStorage.getItem('litebus-theme')==='light'){document.documentElement.setAttribute('data-theme','light');var m=document.querySelector('meta[name="theme-color"]');if(m){m.setAttribute('content','#f8f8f8')}}}catch(e){}`;
+const themeScript = `try{var t=localStorage.getItem('litebus-theme');var m=document.querySelector('meta[name="color-scheme"]');var sysDark=window.matchMedia('(prefers-color-scheme: dark)').matches;var light='#f8f8f8';var dark='#16181d';if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);if(m){m.setAttribute('content',t)}}else{document.documentElement.removeAttribute('data-theme');if(m){m.setAttribute('content','light dark')}}var tc=document.querySelectorAll('meta[name="theme-color"]');for(var i=0;i<tc.length;i++){var el=tc[i];if(t==='light'){el.setAttribute('content',light)}else if(t==='dark'){el.setAttribute('content',dark)}else{var media=el.getAttribute('media')||'';if(media.indexOf('light')!==-1){el.setAttribute('content',light)}else if(media.indexOf('dark')!==-1){el.setAttribute('content',dark)}else{el.setAttribute('content',sysDark?dark:light)}}}}catch(e){}`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -95,27 +99,23 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
 };
 
-export const viewport: Viewport = {
-  colorScheme: 'dark light',
-  themeColor: '#16181d',
-};
-
 /**
  * Root layout for every page.
  *
- * Renders `<html>` dark by default with the Source Sans 3 and JetBrains Mono font variables, plus the
- * theme bootstrap script in `<head>`. Pages compose the window themselves from `SiteHeader`, a
- * `.grow` element, `SiteFooter`, and `StatusBar`.
+ * Renders `<html>` without a theme override so the page follows the system scheme, with the
+ * Source Sans 3 and JetBrains Mono font variables. The `<head>` declares both schemes, pairs a
+ * theme color with each scheme media query, and runs the theme bootstrap script immediately
+ * after so the stored override, the color-scheme meta, and the theme colors match from the
+ * first paint. Pages compose the window themselves from `SiteHeader`, a `.grow` element,
+ * `SiteFooter`, and `StatusBar`.
  */
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      data-theme="dark"
-      suppressHydrationWarning
-      className={`${sourceSans.variable} ${jetBrainsMono.variable}`}
-    >
+    <html lang="en" suppressHydrationWarning className={`${sourceSans.variable} ${jetBrainsMono.variable}`}>
       <head>
+        <meta name="color-scheme" content="light dark" />
+        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f8f8f8" />
+        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#16181d" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>{children}</body>

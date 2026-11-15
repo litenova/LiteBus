@@ -38,11 +38,22 @@ namespace LiteBus.Commands.Idempotency;
 ///         completion handler settles exactly the claim this mediation holds and never one another delivery holds. The
 ///         record carries the token fencing the grant, which the store matches before it settles.
 ///     </para>
+///     <para>
+///         Inside a command batch a key already claimed by an earlier command in the same batch is denied with
+///         <see cref="IdempotencyRefusalCodes.DuplicateKeyInBatch" /> before the store is touched, which stops the
+///         batch and rolls it back. The check reads the batch's pending claims, so the refusal does not depend on
+///         the store's in-progress answer.
+///     </para>
 /// </remarks>
 internal sealed class IdempotentCommandShortcut<TCommand, TCommandResult> : ICommandShortcut<TCommand, TCommandResult>
     where TCommand : ICommand<TCommandResult>
     where TCommandResult : notnull
 {
+    /// <summary>
+    ///     Holds the keys claimed earlier in the batch, or <see langword="null" /> outside a batch scope.
+    /// </summary>
+    private readonly CommandBatchIdempotencyParticipant? _batchParticipant;
+
     /// <summary>
     ///     Resolves the scoped key from the command's declaration.
     /// </summary>
@@ -64,10 +75,12 @@ internal sealed class IdempotentCommandShortcut<TCommand, TCommandResult> : ICom
     /// <param name="keys">Resolves the scoped key from the command's declaration.</param>
     /// <param name="store">Remembers which keys have been applied.</param>
     /// <param name="serializer">Deserializes a recorded result for replay.</param>
+    /// <param name="batchParticipant">Holds the keys claimed earlier in the batch, or <see langword="null" /> outside a batch scope.</param>
     public IdempotentCommandShortcut(
         IdempotencyKeyResolver keys,
         IIdempotencyStore store,
-        IMessageSerializer serializer)
+        IMessageSerializer serializer,
+        CommandBatchIdempotencyParticipant? batchParticipant = null)
     {
         ArgumentNullException.ThrowIfNull(keys);
         ArgumentNullException.ThrowIfNull(store);
@@ -76,6 +89,7 @@ internal sealed class IdempotentCommandShortcut<TCommand, TCommandResult> : ICom
         _keys = keys;
         _store = store;
         _serializer = serializer;
+        _batchParticipant = batchParticipant;
     }
 
     /// <inheritdoc />
@@ -90,6 +104,13 @@ internal sealed class IdempotentCommandShortcut<TCommand, TCommandResult> : ICom
         if (resolved is null)
         {
             return Shortcut<TCommandResult>.None;
+        }
+
+        if (_batchParticipant is not null && _batchParticipant.IsActive && _batchParticipant.ContainsKey(resolved.Value.Key))
+        {
+            return Shortcut<TCommandResult>.Deny(
+                "the batch already contains a command with the same idempotency key",
+                IdempotencyRefusalCodes.DuplicateKeyInBatch);
         }
 
         var claim = await _store

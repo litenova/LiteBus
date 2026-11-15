@@ -11,12 +11,15 @@
 | --- | --- |
 | `IOutboxStore` | `AddAsync`, `AddBatchAsync` |
 | `IOutboxLeaseStore` | `LeasePendingAsync`, `RenewLeaseAsync`, `ReleaseLeaseAsync` (via `ILeaseRenewable`) |
+| `IOutboxTargetedLeaseStore` | `LeaseByIdAsync` |
 | `IOutboxStateWriter` | `PersistAsync` |
 | `IOutboxDeadLetterStore` | `RequeueAsync` |
 | `IOutboxRetentionStore` | `DeletePublishedOlderThanAsync` |
 | `IOutboxDiagnosticsStore` | `GetStatusCountsAsync`, `GetSchemaInfoAsync` |
 | `IOutboxMessageQuery` and `IOutboxPurgeStore` | `QueryAsync`, `PurgeAsync` |
 | `ITransactionalOutboxStore` | `AddAsync`, `AddBatchAsync` on existing Npgsql transaction |
+
+`IOutboxTargetedLeaseStore` is a separate interface from `IOutboxLeaseStore`, so third-party stores keep compiling without it. `EnableImmediateDispatch` requires it and fails at composition with `LiteBusConfigurationException` when the registered store does not implement it.
 
 ## SQL Behavior
 
@@ -29,6 +32,8 @@
 - Strict identical replay compares tenants through normalized values, so unscoped null and empty-string tenants match and return `AlreadyEnqueued`.
 - A null filter or lease tenant means no tenant restriction. An empty string matches only unscoped rows.
 - Rows addressed to one handler by per-handler delivery carry the handler full name in the nullable `handler` column. Broadcast rows leave it null.
+- Targeted lease (`LeaseByIdAsync`) claims the `message_id = ANY(@message_ids)` rows that are pending or failed, or publishing with an expired lease, regardless of `visible_after`. Identifiers that are already leased, published, dead-lettered, or unknown are skipped and not returned.
+- The targeted claim sets `status`, `lease_owner`, `lease_expires_at`, `lease_generation`, `attempt_count`, `last_attempted_at`, and `last_lease_owner`, matching `LeasePendingAsync`. An empty identifier list returns an empty result without running SQL.
 
 ## Schema Versions
 
@@ -51,6 +56,7 @@ The statement silently skips conflicting inserts, so idempotency resolution (Str
 - The store records `lease_owner` and `lease_expires_at` when rows are claimed.
 - Persist updates check the lease. A worker that lost its lease reports a skipped or rejected outcome.
 - A new worker can claim expired publishing leases.
+- Targeted lease selects candidates with `FOR UPDATE SKIP LOCKED`, so concurrent callers claim disjoint subsets and never both receive one message.
 - Payload is stored as text so configured encryptors can return opaque ciphertext. Existing tables created with a JSONB payload column require an application migration before encrypted writes use the text parameter type.
 
 ## Indexes
@@ -74,7 +80,7 @@ Schema v2 creates and validates the following (version 1 tables gain the `handle
 
 ### `LiteBus.Storage.IntegrationTests` (`PostgreSql/`)
 
-- `PostgreSqlOutboxStoreTests` inherits the contract suite and covers append, lease, persist, replay, retention, and diagnostics.
+- `PostgreSqlOutboxStoreTests` inherits the contract suite and covers append, lease (including targeted lease by identifier), persist, replay, retention, and diagnostics.
 - `PostgreSqlOutboxEndToEndTests` covers publish success, retry, and dead-letter flows.
 - `PostgreSqlOutboxSchemaUpgradeTests` covers version 1 upgrade to version 2 with row preservation (`EnsureAsync_WhenVersion1TableExists_ShouldUpgradeToVersion2AndPreserveRows`), handler read-back after upgrade (`LeasePendingAsync_AfterVersion1Upgrade_ShouldReturnEnvelopeHandler`), drift naming the upgrade path when initialization is disabled (`RunAsync_WhenInitializationIsDisabled_ShouldThrowDriftNamingUpgradePath`), and direct version 2 creation on a fresh database (`EnsureAsync_WhenDatabaseIsFresh_ShouldCreateVersion2Directly`).
 - `PostgreSqlOutboxWorkSignalNotifyTests` and `PostgreSqlOutboxWorkSignalTests` cover NOTIFY wake and reconnect.

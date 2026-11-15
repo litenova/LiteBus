@@ -33,6 +33,11 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
     private readonly TContext _dbContext;
 
     /// <summary>
+    ///     Gets the factory used to create envelopes before interceptor staging.
+    /// </summary>
+    private readonly IOutboxEnvelopeFactory _envelopeFactory;
+
+    /// <summary>
     ///     Gets the interceptor that queues envelopes until the next <c>SaveChanges</c> call.
     /// </summary>
     private readonly LiteBusOutboxSaveChangesInterceptor _interceptor;
@@ -59,6 +64,7 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
 
         _interceptor = interceptor;
         _dbContext = dbContext;
+        _envelopeFactory = envelopeFactory;
         _writerCore = new OutboxWriterCore(envelopeFactory);
     }
 
@@ -135,6 +141,8 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
             _interceptor.Enqueue(_dbContext, envelope);
         }
 
+        RecordStagedImmediateEnvelopes(staged);
+
         return staged;
     }
 
@@ -163,7 +171,37 @@ public sealed class TransactionalOutbox<TContext> : ITransactionalOutbox<TContex
         }
 
         _interceptor.Enqueue(_dbContext, envelope);
+        RecordStagedImmediateEnvelope(envelope.Id);
         return new OutboxAppendResult(envelope, OutboxEnqueueOutcome.Enqueued);
+    }
+
+    /// <summary>
+    ///     Reports newly staged envelopes to the factory so it records the immediate ones for dispatch after the commit.
+    /// </summary>
+    /// <param name="staged">The staged or existing envelope outcome for every batch item.</param>
+    private void RecordStagedImmediateEnvelopes(OutboxAppendResult[] staged)
+    {
+        for (var index = 0; index < staged.Length; index++)
+        {
+            var result = staged[index];
+
+            if (result.Outcome == OutboxEnqueueOutcome.Enqueued)
+            {
+                RecordStagedImmediateEnvelope(result.Envelope.Id);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Reports one newly staged envelope to the factory so it records it when marked for immediate dispatch.
+    /// </summary>
+    /// <param name="envelopeId">The staged envelope identifier.</param>
+    private void RecordStagedImmediateEnvelope(Guid envelopeId)
+    {
+        if (_envelopeFactory is OutboxEnvelopeFactory factory)
+        {
+            factory.RecordStagedImmediateEnvelope(envelopeId);
+        }
     }
 
     /// <summary>

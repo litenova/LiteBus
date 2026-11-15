@@ -3,13 +3,13 @@
 - **ID**: `runtime.dispatch-scopes`
 - **Name**: Per-mediation DI scopes
 - **Maturity**: GA
-- **Summary**: Each mediation call runs in an isolated service-provider scope created through `IMessageDispatchScopeFactory`.
+- **Summary**: Each mediation call runs in an isolated service-provider scope created through `IMessageDispatchScopeFactory`, except the commands in a command batch, which share one scope.
 
 ## What It Does
 
 The Microsoft DI and Autofac adapters each register one container-specific `IMessageDispatchScopeFactory`. `MessageModule` requires that contract: it never looks for a container itself and never falls back to the root provider on its own.
 
-`MessageMediator` creates one dispatch scope per call and retains it until async work completes. A manual host that intends root-provider resolution registers `RootMessageDispatchScopeFactory` explicitly.
+`MessageMediator` creates one dispatch scope per call and retains it until async work completes. A command batch creates one scope for the whole batch instead, and every command in the batch resolves its handlers, unit of work, outbox, and collector from it. See [Command batches](../mediator/command-batches.md). A manual host that intends root-provider resolution registers `RootMessageDispatchScopeFactory` explicitly.
 
 ## Public Surface
 
@@ -36,14 +36,14 @@ The Microsoft DI and Autofac adapters each register one container-specific `IMes
 
 ## Invariants
 
-- Each mediation operation creates one dispatch scope.
+- Each mediation operation creates one dispatch scope, except the commands in a batch, which share the batch's one scope.
 - Disposing the scope disposes the scoped provider.
 - Composition without a scope factory fails before the container is used.
 - Explicit root dispatch does not dispose the root container.
 
 ## Non-Goals
 
-- Sharing one scope across messages.
+- Sharing one scope across batches, hosts, or unrelated mediations. Only the commands inside one command batch share a scope.
 
 ## Observability
 

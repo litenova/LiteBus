@@ -32,14 +32,34 @@ function hashFor(url: string): string {
 /**
  * The documentation outline with scroll-spy highlighting.
  *
- * Renders one link per level-two section. An IntersectionObserver watches the page's `h2` elements and the entry for
- * the heading nearest the top is current, marked with `cur` and `aria-current`. No entry is current before hydration
- * or while the reader is above the first section.
+ * Renders one link per level-two section. Where the browser supports `scroll-target-group` the
+ * outline container tracks the section in view natively and the script mirrors the native state
+ * to `aria-current` when scrolling ends; elsewhere an IntersectionObserver watches the page's
+ * `h2` elements and the entry for the heading nearest the top is current. The current entry is
+ * marked with `cur` and `aria-current`. No entry is current before hydration or while the reader
+ * is above the first section.
  */
 export function DocsOutline({ headings }: Readonly<{ headings: readonly DocsOutlineEntry[] }>) {
   const [current, setCurrent] = useState<string | null>(null);
 
   useEffect(() => {
+    if (CSS.supports('scroll-target-group: auto')) {
+      /** Mirrors the natively tracked link to the current state. */
+      function syncCurrent(): void {
+        const active = document.querySelector('.outline a:target-current');
+        const href = active?.getAttribute('href');
+
+        setCurrent(href === null || href === undefined ? null : hashFor(href));
+      }
+
+      syncCurrent();
+      document.addEventListener('scrollend', syncCurrent);
+
+      return () => {
+        document.removeEventListener('scrollend', syncCurrent);
+      };
+    }
+
     /** Marks the last heading at or above the passed offset as current. */
     function updateCurrent(): void {
       const sections = Array.from(document.querySelectorAll('#main h2[id]'));

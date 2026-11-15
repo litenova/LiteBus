@@ -82,6 +82,12 @@ internal sealed class MessageMediator : IMessageMediator
     /// <param name="request">The request that controls the mediation process.</param>
     /// <param name="cancellationToken">The token used to cancel the mediation process.</param>
     /// <returns>The result of the message handling.</returns>
+    /// <remarks>
+    ///     When <see cref="MessageMediationRequest{TMessage, TMessageResult}.DispatchScope" /> is set, handlers and
+    ///     scoped services resolve from that scope and the mediator never disposes it, including when the result is
+    ///     asynchronous; the owner disposes it. When it is <see langword="null" />, the mediator creates one
+    ///     <see cref="LazyMessageDispatchScope" /> for the call and disposes it when the pipeline completes.
+    /// </remarks>
     /// <exception cref="NoHandlerFoundException">
     ///     Thrown when no handler is found for the message type and registration on spot
     ///     is disabled.
@@ -106,9 +112,22 @@ internal sealed class MessageMediator : IMessageMediator
         var executionContext = new ExecutionContext(request.Tags, request.Items, _timeProvider, cancellationToken);
 
         // Retain only the dispatch scope until asynchronous mediation results complete. The ambient scope must not leak
-        // into the caller after this method returns.
+        // into the caller after this method returns. A caller-supplied scope is resolved from but never disposed here.
         var executionScope = AmbientExecutionContext.CreateScope(executionContext);
-        var dispatchScope = new LazyMessageDispatchScope(_dispatchScopeFactory);
+        var externalScope = request.DispatchScope;
+        LazyMessageDispatchScope? ownedScope;
+        IMessageDispatchScope dispatchScope;
+
+        if (externalScope is not null)
+        {
+            ownedScope = null;
+            dispatchScope = externalScope;
+        }
+        else
+        {
+            ownedScope = new LazyMessageDispatchScope(_dispatchScopeFactory);
+            dispatchScope = ownedScope;
+        }
 
         try
         {
@@ -141,7 +160,8 @@ internal sealed class MessageMediator : IMessageMediator
                     _messageReader.Count);
             }
 
-            // Resolve handlers from the per-mediation scope so scoped handlers get distinct instances.
+            // Resolve handlers from the mediation scope. Without a caller-supplied scope each mediation gets distinct
+            // scoped instances; with one, every mediation that shares it resolves the same instances.
             var messageDependencies = new MessageDependencies(messageType,
                 descriptor,
                 dispatchScope.ServiceProvider,
@@ -152,6 +172,11 @@ internal sealed class MessageMediator : IMessageMediator
             var result = request.MessageMediationStrategy.Mediate(message, messageDependencies, executionContext);
             executionScope.Dispose();
 
+            if (externalScope is not null)
+            {
+                return result;
+            }
+
             return MediationScopeRetention.RetainUntilPipelineCompletes(
                 result,
                 new MediationResourceScope(dispatchScope));
@@ -159,7 +184,7 @@ internal sealed class MessageMediator : IMessageMediator
         catch
         {
             executionScope.Dispose();
-            dispatchScope.Dispose();
+            ownedScope?.Dispose();
             throw;
         }
     }

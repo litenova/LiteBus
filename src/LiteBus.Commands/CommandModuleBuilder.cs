@@ -178,6 +178,14 @@ public sealed class CommandModuleBuilder
     ///         of <c>SendAsync</c>.
     ///     </para>
     ///     <para>
+    ///         When <typeparamref name="TUnitOfWork" /> implements <see cref="IUnitOfWorkBoundary" />, a pre-handler
+    ///         running before every other pre-handler calls <c>BeginAsync</c> once per mediation, after guards,
+    ///         validators and shortcuts have let the command through, and the completion handler calls
+    ///         <c>RollbackAsync</c> when the mediation does not succeed after the transaction was opened. A unit of
+    ///         work that does not implement the interface behaves exactly as before: nothing is opened and nothing is
+    ///         rolled back.
+    ///     </para>
+    ///     <para>
     ///         LiteBus never opens or owns the transaction; the implementation does. Calling this twice on one builder
     ///         is a configuration error, because two commits would order by registration sequence with no way to say
     ///         which one the transaction belongs to. Registering it on the query module with a different type is
@@ -197,7 +205,14 @@ public sealed class CommandModuleBuilder
 
         UnitOfWorkType = typeof(TUnitOfWork);
 
-        return Register<CommandUnitOfWorkCompletionHandler<TUnitOfWork>>();
+        Register<CommandUnitOfWorkCompletionHandler<TUnitOfWork>>();
+
+        if (typeof(IUnitOfWorkBoundary).IsAssignableFrom(typeof(TUnitOfWork)))
+        {
+            Register<CommandUnitOfWorkBoundaryPreHandler<TUnitOfWork>>();
+        }
+
+        return this;
     }
 
     /// <summary>

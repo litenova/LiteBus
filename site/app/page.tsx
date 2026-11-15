@@ -136,7 +136,7 @@ const FEATURES: readonly Feature[] = [
     title: 'Handler Pipeline',
     text: 'Guards, validators, pre-, post-, error and completion handlers run in a fixed order.',
     href: '/docs/concepts/handler-pipeline',
-    link: 'The pipeline',
+    link: 'The Handler Pipeline',
   },
   {
     symbol: (
@@ -149,7 +149,7 @@ const FEATURES: readonly Feature[] = [
     title: 'Durable Inbox',
     text: 'Accept a command into storage first, then run it under a lease with retries.',
     href: '/docs/reliable-messaging/inbox',
-    link: 'The inbox',
+    link: 'Inbox',
   },
   {
     symbol: (
@@ -162,14 +162,14 @@ const FEATURES: readonly Feature[] = [
     title: 'Transactional Outbox',
     text: 'Store an event in the same transaction as your data and publish it after commit.',
     href: '/docs/reliable-messaging/outbox',
-    link: 'The outbox',
+    link: 'Outbox',
   },
   {
     symbol: <span className="tk-ifc">ITransportPublisher</span>,
     title: 'Brokers and Stores',
     text: 'RabbitMQ, Kafka, AWS SQS, Azure Service Bus, PostgreSQL and EF Core, each its own package.',
     href: '/docs/architecture/dependency-graph',
-    link: 'Packages',
+    link: 'Dependency Graph',
   },
   {
     symbol: <span className="tk-ifc">ISagaContext</span>,
@@ -200,7 +200,7 @@ const FEATURES: readonly Feature[] = [
     title: 'Decisions as Values',
     text: 'Guards deny, validators reject and shortcuts answer; TrySendAsync returns the refusal instead of throwing.',
     href: '/docs/concepts/handler-pipeline',
-    link: 'Refusals',
+    link: 'The Handler Pipeline',
   },
   {
     symbol: (
@@ -240,7 +240,7 @@ const FEATURES: readonly Feature[] = [
     title: 'Unit of Work and Domain Events',
     text: 'Commit at a fixed point after the handler, with collected domain events staged into the outbox first.',
     href: '/docs/reliable-messaging/domain-events-and-unit-of-work',
-    link: 'Unit of work',
+    link: 'Domain Events and Unit of Work',
   },
   {
     symbol: <span className="tk-fn">AddLiteBusManagementEndpoints</span>,

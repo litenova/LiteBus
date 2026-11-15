@@ -20,6 +20,7 @@ A command handler runs inside a unit of work. LB1023 reports command handlers th
 It reports an invocation inside `HandleAsync` or `Handle` when the call goes through one of the mediators:
 
 - `ICommandMediator.SendAsync` or `TrySendAsync` (including the extension-method overloads)
+- `ICommandBatchMediator.SendManyAsync` or `TrySendManyAsync`
 - `IEventMediator.PublishAsync`
 - `IMessageMediator.Mediate`, unless the mediated message is a query
 
@@ -99,4 +100,8 @@ Source: `tests/LiteBus.Analyzers.UnitTests/NestedMediationInCommandHandlerAnalyz
 | `EventHandlerPublishingEvent_ProducesNoDiagnostic` | Event handlers are out of scope |
 | `MessagingHandlerForCommand_ProducesDiagnostic` | Messaging-level handlers for commands are covered |
 | `MessagingHandlerForQuery_ProducesNoDiagnostic` | Messaging-level handlers for queries are out of scope |
+| `CommandHandlerSendingManyCommands_ProducesDiagnostic` | `ICommandBatchMediator.SendManyAsync` reports `LB1023` |
+| `CommandHandlerTryingManyCommands_ProducesDiagnostic` | `ICommandBatchMediator.TrySendManyAsync` reports `LB1023` |
+| `BatchSendOutsideCommandHandler_ProducesNoDiagnostic` | `ICommandBatchMediator.SendManyAsync` outside a command handler is accepted |
+| `BatchTrySendOutsideCommandHandler_ProducesNoDiagnostic` | `ICommandBatchMediator.TrySendManyAsync` outside a command handler is accepted |
 | `Descriptor_IsWarningInHandlersCategoryAndDisabledByDefault` | Rule is a warning in `LiteBus.Handlers`, off by default |

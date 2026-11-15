@@ -43,6 +43,27 @@ internal static class MartenSmoke
             var replay = await store.TryClaimAsync(key, "fp-1").ConfigureAwait(false);
             Smoke.Expect(replay.Outcome == IdempotencyClaimOutcome.AlreadyCompleted, "a completed key replays");
             Smoke.Expect(replay.Payload == "{\"receipt\":\"r-1\"}", "the replay returns the stored payload");
+
+            Smoke.Expect(
+                store is ISeparatelyCommittedIdempotencyStore,
+                "the Marten store settles separately from the unit of work");
+
+            var failedKey = $"smoke:{Guid.NewGuid():N}";
+
+            var firstAttempt = await store.TryClaimAsync(failedKey, "fp-1").ConfigureAwait(false);
+            Smoke.Expect(firstAttempt.Outcome == IdempotencyClaimOutcome.Granted, "a new key is granted before the commit");
+
+            // The unit-of-work commit threw, so the claim is released instead of marked complete.
+            await store.ReleaseAsync(failedKey, firstAttempt.ClaimToken!).ConfigureAwait(false);
+
+            var retry = await store.TryClaimAsync(failedKey, "fp-1").ConfigureAwait(false);
+            Smoke.Expect(retry.Outcome == IdempotencyClaimOutcome.Granted, "a retry after a failed commit runs again");
+
+            await store.CompleteAsync(failedKey, retry.ClaimToken!, "{\"receipt\":\"r-2\"}").ConfigureAwait(false);
+
+            var finalReplay = await store.TryClaimAsync(failedKey, "fp-1").ConfigureAwait(false);
+            Smoke.Expect(finalReplay.Outcome == IdempotencyClaimOutcome.AlreadyCompleted, "the retried key replays once completed");
+            Smoke.Expect(finalReplay.Payload == "{\"receipt\":\"r-2\"}", "the retried replay returns the stored payload");
         }
     }
 }

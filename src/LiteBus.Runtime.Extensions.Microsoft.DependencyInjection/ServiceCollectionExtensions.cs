@@ -78,7 +78,7 @@ public static class ServiceCollectionExtensions
 
         RegisterHostManifest(services, moduleConfiguration);
         services.RegisterDiagnosticChecks(moduleConfiguration.DiagnosticChecks);
-        services.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices);
+        services.RegisterBackgroundServices(moduleConfiguration.StartupTasks, moduleConfiguration.BackgroundServices, moduleConfiguration.DependencyRegistry);
 
         return services;
     }

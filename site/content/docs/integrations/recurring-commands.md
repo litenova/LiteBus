@@ -1,6 +1,6 @@
 # Recurring Commands
 
-A recurring command sends one command on a fixed interval for the life of the host, without a hand-written hosted service. This page covers registration, options, backlog draining, failure behavior, and limitations.
+A recurring command sends one command on a fixed interval for the life of the host, without a hand-written hosted service. When each pass produces several commands that must commit together, a recurring batch sends them as one batch instead. This page covers registration, options, backlog draining, failure behavior, and limitations.
 
 **Package:** `LiteBus.Commands.Recurring`
 
@@ -71,6 +71,51 @@ public sealed class SendDueRemindersCommand : ICommand<SendDueRemindersResult>
 ```
 
 Implementing it is optional. A command with no result, or one whose result does not implement it, waits the full interval between sends.
+
+## Sending a Batch on a Schedule
+
+When each pass produces several commands that must commit together, implement `IRecurringCommandBatchSource` and register it with `AddRecurringBatch`. Each pass resolves the source from a fresh dispatch scope, calls `CreateBatchAsync`, disposes the scope, and sends the returned commands as one batch through `ICommandBatchMediator.TrySendManyAsync`. The source can take scoped dependencies such as a database context. Without this loop, the only way to send a batch on a schedule is a recurring command whose handler calls `SendManyAsync`, which is nested mediation and needs a command type that exists only to start the batch.
+
+```csharp
+public sealed class DueInvoiceBatchSource : IRecurringCommandBatchSource
+{
+    private readonly BillingContext _context;
+
+    public DueInvoiceBatchSource(BillingContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<RecurringCommandBatch> CreateBatchAsync(CancellationToken cancellationToken)
+    {
+        var due = await _context.Invoices
+            .Where(invoice => invoice.DueDate <= DateTimeOffset.UtcNow)
+            .Take(50)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return RecurringCommandBatch.From(
+            due.Select(static invoice => (ICommand)new SendInvoiceReminderCommand(invoice.Id)).ToList(),
+            due.Count >= 50);
+    }
+}
+
+registry.AddCommands(commands => commands
+    .RegisterFromAssembly(typeof(SendInvoiceReminderCommand).Assembly)
+    .UsePostgreSqlRecurringLease(postgres =>
+        postgres.UseConnectionString(configuration.GetConnectionString("OrdersDb")!))
+    .AddRecurringBatch<DueInvoiceBatchSource>(host =>
+    {
+        host.Interval = TimeSpan.FromMinutes(5);
+        host.RequireLease = true;
+    }));
+```
+
+An empty `Commands` list sends nothing and the loop waits `Interval`, so return `RecurringCommandBatch.Empty` when there is nothing to send. A batch whose `HasMoreWork` is true starts the next pass without waiting, reusing the held lease, so a backlog clears in one busy period. The commands run one at a time, in list order, inside one dispatch scope with one unit-of-work commit, and cannot see each other's results.
+
+The source reads in its own scope, outside the batch transaction, so commands must still check the state they change. The lease, not the transaction, keeps two replicas from producing the same batch. `LeaseName` defaults to the source type full name. `RequireLease` without a registered `IRecurringCommandLease` fails composition with `LiteBusConfigurationException`, and registering the same source type twice fails the same way through the duplicate-module rule. Commands the source returns must be registered with the command module.
+
+A batch that a refusal rolls back is logged at Warning (EventId 2107) with the source type, the failing index, the failing command type, and the refusal code, and the loop waits `ErrorBackoff`, so a command refused on every pass does not spin the loop. A fault or a failed commit goes through the same paths as the single-command loop: a conflict classified by `IsConcurrencyConflict` waits `Interval`, and anything else waits `ErrorBackoff`. See [Failure Behavior](#failure-behavior) and [Running on Several Replicas](#running-on-several-replicas).
 
 ## Failure Behavior
 

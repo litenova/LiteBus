@@ -29,7 +29,8 @@ namespace LiteBus.Outbox.Storage.InMemory;
 public sealed class InMemoryOutboxStore :
     IOutboxStore,
     IOutboxProcessingStore,
-    IOutboxOperationsStore
+    IOutboxOperationsStore,
+    IOutboxTargetedLeaseStore
 {
     /// <summary>
     ///     The envelopes keyed by message identifier.
@@ -291,6 +292,30 @@ public sealed class InMemoryOutboxStore :
     }
 
     /// <inheritdoc />
+    public Task<bool> ReleaseByIdAsync(
+        OutboxTargetedReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
+        {
+            if (!_envelopes.TryGetValue(request.MessageId, out var envelope) ||
+                envelope.Status != OutboxStatus.Publishing ||
+                !string.Equals(envelope.LeaseOwner, request.LeaseOwner, StringComparison.Ordinal) ||
+                envelope.LeaseGeneration != request.LeaseGeneration)
+            {
+                return Task.FromResult(false);
+            }
+
+            _envelopes[request.MessageId] = envelope.AsReleased() with { VisibleAfter = request.VisibleAfter };
+            return Task.FromResult(true);
+        }
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
         OutboxLeaseRequest request,
         CancellationToken cancellationToken = default)
@@ -325,6 +350,63 @@ public sealed class InMemoryOutboxStore :
             foreach (var envelope in leased)
             {
                 _envelopes[envelope.Id] = envelope;
+            }
+
+            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>(leased);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxEnvelope>> LeaseByIdAsync(
+        OutboxTargetedLeaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.MessageIds);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+        ArgumentOutOfRangeException.ThrowIfLessThan(request.LeaseDuration, TimeSpan.Zero);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (request.MessageIds.Count == 0)
+        {
+            return Task.FromResult<IReadOnlyList<OutboxEnvelope>>([]);
+        }
+
+        var now = request.Now == default ? _timeProvider.GetUtcNow() : request.Now;
+
+        var leaseDuration = request.LeaseDuration > TimeSpan.Zero
+            ? request.LeaseDuration
+            : _options.DefaultLeaseDuration;
+
+        lock (_sync)
+        {
+            var leaseExpiresAt = now.Add(leaseDuration);
+            var staleCutoff = now.Add(-leaseDuration);
+
+            var leased = new List<OutboxEnvelope>(request.MessageIds.Count);
+
+            foreach (var messageId in request.MessageIds)
+            {
+                if (!_envelopes.TryGetValue(messageId, out var envelope))
+                {
+                    continue;
+                }
+
+                if (!MatchesTenantFilter(request.TenantId, envelope.TenantId))
+                {
+                    continue;
+                }
+
+                if (!IsTargetedClaimable(envelope, now, staleCutoff))
+                {
+                    continue;
+                }
+
+                // The relational stores stamp last_attempted_at in the lease statement itself, so the
+                // in-memory store stamps it here to keep the adapters answering the same question.
+                var claimed = envelope.AsLeased(request.LeaseOwner, leaseExpiresAt) with { LastAttemptedAt = now };
+                _envelopes[messageId] = claimed;
+                leased.Add(claimed);
             }
 
             return Task.FromResult<IReadOnlyList<OutboxEnvelope>>(leased);
@@ -591,6 +673,20 @@ public sealed class InMemoryOutboxStore :
     {
         return envelope.Status is OutboxStatus.Pending or OutboxStatus.Failed &&
                (envelope.VisibleAfter is null || envelope.VisibleAfter <= now) ||
+               envelope is { Status: OutboxStatus.Publishing, LeaseExpiresAt: not null } && envelope.LeaseExpiresAt <= now ||
+               envelope is { Status: OutboxStatus.Publishing, LeaseExpiresAt: null } && envelope.CreatedAt < staleCutoff;
+    }
+
+    /// <summary>
+    ///     Determines whether an envelope can be claimed by identifier at the supplied time, ignoring visibility.
+    /// </summary>
+    /// <param name="envelope">The candidate envelope.</param>
+    /// <param name="now">The current time used for lease expiry checks.</param>
+    /// <param name="staleCutoff">The earliest created timestamp eligible for stale in-flight reclaim.</param>
+    /// <returns><see langword="true" /> when the envelope is eligible for a targeted lease; otherwise, <see langword="false" />.</returns>
+    private static bool IsTargetedClaimable(OutboxEnvelope envelope, DateTimeOffset now, DateTimeOffset staleCutoff)
+    {
+        return envelope.Status is OutboxStatus.Pending or OutboxStatus.Failed ||
                envelope is { Status: OutboxStatus.Publishing, LeaseExpiresAt: not null } && envelope.LeaseExpiresAt <= now ||
                envelope is { Status: OutboxStatus.Publishing, LeaseExpiresAt: null } && envelope.CreatedAt < staleCutoff;
     }

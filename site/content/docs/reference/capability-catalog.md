@@ -2,7 +2,7 @@
 
 LiteBus ships as small packages grouped into feature axes such as mediation, storage, and transport. This catalog is the root index of the capabilities those axes provide. Each entry names one behavior with a stable ID, a maturity tier, its packages, and a link to the page that describes it. It consolidates the per-axis catalogs under `docs/catalog/` without duplicating their full content. Use it for expansion planning, gap analysis, test coverage review, and finding which packages and pages apply to a use case.
 
-The catalog indexes 180 capabilities across 10 axes: 21 analyzers, 16 dispatch, 23 durable core, 16 hosting, 14 ingress, 23 mediator, 18 runtime, 10 saga, 24 storage, and 15 transport.
+The catalog indexes 182 capabilities across 10 axes: 21 analyzers, 16 dispatch, 24 durable core, 16 hosting, 14 ingress, 24 mediator, 18 runtime, 10 saga, 24 storage, and 15 transport.
 
 ---
 
@@ -164,7 +164,7 @@ One row per capability. Packages list primary install targets. Transitive abstra
 | `dispatch.transport-core` | Shared transport dispatchers | dispatch | GA | Broker-neutral inbox and outbox transport dispatch implementations | `LiteBus.Inbox.Dispatch`, `LiteBus.Outbox.Dispatch` | [transport-core.md](../catalog/dispatch/transport-core.md) |
 | `dispatch.transport-envelope-mapping` | Envelope-to-wire header mapping | dispatch | GA | Copy durable metadata to canonical transport headers on publish | `LiteBus.Inbox.Dispatch`, `LiteBus.Outbox.Dispatch` | [transport-envelope-mapping.md](../catalog/dispatch/transport-envelope-mapping.md) |
 
-### Durable Core (23)
+### Durable Core (24)
 
 | ID | Name | Axis | Maturity | Summary | Packages | Deep doc |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -183,6 +183,7 @@ One row per capability. Packages list primary install targets. Transitive abstra
 | `durable-core.message-contracts` | Durable message contracts | durable-core | GA | Stable contract name and version on persisted payloads | `LiteBus.Messaging.Abstractions` | [message-contracts.md](../catalog/durable-core/message-contracts.md) |
 | `durable-core.operations-management` | Operations and management | durable-core | GA | Query, purge, requeue, processor control APIs | `LiteBus.Inbox`, `LiteBus.Outbox` | [operations-management.md](../catalog/durable-core/operations-management.md) |
 | `durable-core.outbox-enqueue` | Outbox enqueue | durable-core | GA | Enqueue integration events for later publication | `LiteBus.Outbox` | [outbox-enqueue.md](../catalog/durable-core/outbox-enqueue.md) |
+| `durable-core.outbox-immediate-dispatch` | Outbox immediate dispatch | durable-core | GA | Dispatch staged envelopes right after the unit-of-work commit, with the outbox processor as fallback | `LiteBus.Outbox` | [outbox-immediate-dispatch.md](../catalog/durable-core/outbox-immediate-dispatch.md) |
 | `durable-core.outbox-per-handler-delivery` | Per-handler outbox delivery | durable-core | GA | Write one envelope per subscribed handler so each reaction retries alone | `LiteBus.Outbox` | [Outbox](../reliable-messaging/outbox.md#per-handler-delivery) |
 | `durable-core.outbox-processor` | Outbox processor | durable-core | GA | Background lease, dispatch, and terminal persistence for outbox | `LiteBus.Outbox` | [outbox-processor.md](../catalog/durable-core/outbox-processor.md) |
 | `durable-core.payload-encryption` | Payload encryption at rest | durable-core | GA | Optional encryptor for stored message bodies | `LiteBus.Inbox`, `LiteBus.Outbox` | [payload-encryption.md](../catalog/durable-core/payload-encryption.md) |
@@ -232,11 +233,12 @@ One row per capability. Packages list primary install targets. Transitive abstra
 | `ingress.transport-consumer` | Ingress background consumer loop | ingress | GA | Long-running broker subscription into accept handler | `LiteBus.Inbox.Ingress` | [transport-consumer.md](../catalog/ingress/transport-consumer.md) |
 | `ingress.transport-handler` | Transport-to-inbox accept handler | ingress | GA | Deserialize delivery and call `IInbox.AcceptAsync` | `LiteBus.Inbox.Ingress` | [transport-handler.md](../catalog/ingress/transport-handler.md) |
 
-### Mediator (23)
+### Mediator (24)
 
 | ID | Name | Axis | Maturity | Summary | Packages | Deep doc |
 | --- | --- | --- | --- | --- | --- | --- |
 | `mediator.commands` | Commands | mediator | GA | State-changing messages with exactly one main handler | `LiteBus.Commands` | [commands.md](../catalog/mediator/commands.md) |
+| `mediator.command-batches` | Command batches | mediator | GA | Send several commands in one scope with one unit-of-work commit, rolling back on the first failure | `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.Testing.Mediation` | [command-batches.md](../catalog/mediator/command-batches.md) |
 | `mediator.events` | Events | mediator | GA | Publish facts to zero or many handlers | `LiteBus.Events` | [events.md](../catalog/mediator/events.md) |
 | `mediator.execution-context` | Execution context | mediator | GA | Share state, suppress post-handlers, and override results within one call | `LiteBus.Messaging.Abstractions` | [execution-context.md](../catalog/mediator/execution-context.md) |
 | `mediator.fault-refusal-classification` | Fault refusal classification | mediator | GA | Turn a recognized fault from any stage into a typed refusal | `LiteBus.Messaging`, `LiteBus.Storage.PostgreSql` | [The handler pipeline](../concepts/handler-pipeline.md#turning-faults-into-refusals) |
@@ -254,7 +256,7 @@ One row per capability. Packages list primary install targets. Transitive abstra
 | `mediator.module-registration` | Module registration | mediator | GA | Register messages and handlers through module builders | `LiteBus.Messaging`, semantic modules | [module-registration.md](../catalog/mediator/module-registration.md) |
 | `mediator.open-generic-handlers` | Open generic handlers | mediator | GA | One handler class closed for every matching message | `LiteBus.Messaging` | [open-generic-handlers.md](../catalog/mediator/open-generic-handlers.md) |
 | `mediator.polymorphic-dispatch` | Polymorphic dispatch | mediator | GA | Target base types or interfaces for pipeline handlers | `LiteBus.Messaging` | [polymorphic-dispatch.md](../catalog/mediator/polymorphic-dispatch.md) |
-| `mediator.recurring-commands` | Recurring commands | mediator | GA | Send one command on a fixed interval through `CommandModuleBuilder.AddRecurring` | `LiteBus.Commands.Recurring` | [recurring-commands.md](../catalog/mediator/recurring-commands.md) |
+| `mediator.recurring-commands` | Recurring commands | mediator | GA | Send one command, or one batch from a source, on a fixed interval through `CommandModuleBuilder.AddRecurring` and `AddRecurringBatch` | `LiteBus.Commands.Recurring` | [recurring-commands.md](../catalog/mediator/recurring-commands.md) |
 | `mediator.recurring-single-flight-lease` | Recurring single-flight lease | mediator | GA | Run a recurring pass on at most one replica through a named lease | `LiteBus.Commands.Recurring.Storage.PostgreSql` | [Recurring commands](../integrations/recurring-commands.md#running-on-several-replicas) |
 | `mediator.shortcut-denial` | Shortcut denial | mediator | GA | Deny a message at the shortcut stage when only that stage can decide | `LiteBus.Messaging.Abstractions` | [The handler pipeline](../concepts/handler-pipeline.md#shortcut-contracts) |
 | `mediator.unit-of-work-commit` | Unit-of-work commit | mediator | GA | Commit staged work from a completion handler after a successful mediation | `LiteBus.Messaging.Abstractions`, `LiteBus.Commands`, `LiteBus.Queries` | [Domain events and unit of work](../reliable-messaging/domain-events-and-unit-of-work.md#command-pipeline-boundary) |
@@ -363,9 +365,9 @@ Dispatch turns leased durable envelopes into side effects through in-process med
 
 Dispatch requires `durable-core.inbox-processor` or `durable-core.outbox-processor`, a matching storage adapter, and, for broker paths, `transport.*` plus ingress on consuming services.
 
-### [Durable Core](../catalog/durable-core/README.md) (23 capabilities)
+### [Durable Core](../catalog/durable-core/README.md) (24 capabilities)
 
-This axis covers accept and enqueue, processors, lease, retry, and dead-letter handling, idempotency, transactional writes, operations, per-handler delivery, domain event staging, ambient trace, and the semantic guarantees behind reliable messaging.
+This axis covers accept and enqueue, processors, lease, retry, and dead-letter handling, idempotency, transactional writes, operations, per-handler delivery, immediate dispatch, domain event staging, ambient trace, and the semantic guarantees behind reliable messaging.
 
 It requires `runtime.contract-registry`, `runtime.message-serialization`, a storage adapter (via `storage.*`), a dispatch adapter (via `dispatch.*`), and, for broker intake, optional `ingress.*`.
 
@@ -381,9 +383,9 @@ Ingress moves broker deliveries into inbox accept. It handles commands only, and
 
 It requires `LiteBus.Inbox.Ingress`, a matching `LiteBus.Transport.*`, inbox storage, and `durable-core.inbox-acceptance`.
 
-### [Mediator](../catalog/mediator/README.md) (23 capabilities)
+### [Mediator](../catalog/mediator/README.md) (24 capabilities)
 
-This axis covers in-process commands, queries, and events. They share one pipeline with priority, filtering, registration, idempotency, authorization, auditing, unit of work, recurring commands, and the mediation test harness.
+This axis covers in-process commands, queries, and events. They share one pipeline with priority, filtering, registration, idempotency, authorization, auditing, unit of work, command batches, recurring commands and batches, and the mediation test harness.
 
 It requires `runtime.message-module`, `runtime.message-mediator`, and the semantic packages (`LiteBus.Commands`, `LiteBus.Queries`, `LiteBus.Events`).
 

@@ -19,25 +19,44 @@
   -webkit-mask-image: radial-gradient(ellipse 46% 64% at 80% 42%, #000 0%, transparent 72%);
   opacity: .55;
 }
-.chip { display: inline-flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12.5px; color: var(--dim); border: var(--bw) solid var(--line); border-radius: 999px; padding: 4px 12px 4px 10px; transition: border-color .12s; }
+.chip { display: inline-flex; align-items: center; gap: 10px; min-height: 24px; font-family: var(--mono); font-size: 12.5px; color: var(--dim); border: var(--bw) solid var(--line); border-radius: 999px; padding: 4px 12px 4px 10px; transition: border-color .12s; }
 .chip:hover { border-color: var(--acc); text-decoration: none; }
 .chip b { color: var(--fg); font-weight: 500; }
 .chip i { font-style: normal; color: var(--acc); }
-.pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--acc); animation: e-pulse 2.4s var(--ease) infinite; flex: none; }
+.pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--acc); flex: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .pulse { animation: e-pulse 2.4s var(--ease) infinite; }
+}
 .hero h1 { font-size: clamp(38px, 5.2vw, 60px); font-weight: 700; letter-spacing: -.035em; line-height: 1.05; margin-top: 24px; max-width: 22ch; }
 .lead { margin-top: 20px; font-size: 18px; line-height: 1.6; color: var(--dim); max-width: 58ch; }
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
-.install { display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 6px 0 14px; border: var(--bw) solid var(--line); border-radius: 6px; background: var(--side); font-family: var(--mono); font-size: 13.5px; color: var(--fg); min-width: 0; max-width: 100%; }
+.install { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 6px 0 14px; border: var(--bw) solid var(--line); border-radius: 6px; background: var(--side); font-family: var(--mono); font-size: 13.5px; color: var(--fg); min-width: 0; max-width: 100%; }
 .install .pr { color: var(--acc); flex: none; }
 .cmdbox { display: inline-grid; min-width: 0; }
 .cmdbox > span { grid-area: 1 / 1; }
 .ghost { visibility: hidden; white-space: nowrap; padding-right: 9px; }
-.typed { display: inline-block; overflow: hidden; white-space: nowrap; width: 0; border-right: 7px solid var(--acc); padding-right: 2px; animation: e-type 1.7s steps(67) .5s forwards, e-caret 1.1s steps(1) infinite; }
+/* The install command renders in full by default and types itself only when motion is welcome. The hidden
+   .ghost above reserves the full width either way, so the hero never shifts while the command appears. */
 .facts { margin: 52px 0 0; padding-top: 22px; border-top: var(--bw) solid var(--line-soft); display: flex; flex-wrap: wrap; row-gap: 16px; max-width: 760px; }
 .facts div { padding: 0 28px; border-left: var(--bw) solid var(--line); }
 .facts div:first-child { padding-left: 0; border-left: 0; }
 .facts dt { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
 .facts dd { margin: 3px 0 0; font-size: 15px; font-weight: 500; color: var(--fg); }
+.typed { display: inline-block; overflow: hidden; white-space: nowrap; width: auto; }
+@media (prefers-reduced-motion: no-preference) {
+  .typed { width: 0; border-right: 7px solid var(--acc); padding-right: 2px; animation: e-type 1.7s steps(67) .5s forwards, e-caret 1.1s steps(1) infinite; }
+}
+/* The install copy button meets the 24px minimum target. The confirmation bubble next to it is both the visible
+   feedback and the live region; it shows and hides with opacity so the message stays announced. */
+.install .copy { min-inline-size: 24px; min-block-size: 24px; }
+.copy-wrap { position: relative; display: inline-flex; flex: none; }
+.copy-tip { position: absolute; bottom: calc(100% + 8px); right: 0; padding: 4px 10px; border: var(--bw) solid var(--line); border-radius: 6px; background: var(--raised); color: var(--fg); font-family: var(--sans); font-size: 12px; line-height: 1.4; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.copy[data-copied] + .copy-tip, .copy[data-failed] + .copy-tip { opacity: 1; }
+/* Touch targets: 44px minimum on coarse pointers. */
+@media (pointer: coarse) {
+  .install .copy { min-block-size: 44px; }
+  .stepper .ed-tab { min-block-size: 44px; }
+}
 
 /* MediatR comparison: the same section rhythm as the others, one paragraph and a link. */
 .mediatr .sub { max-width: 72ch; }
@@ -47,18 +66,25 @@
 .sec { padding: 80px 0; border-top: var(--bw) solid var(--line-soft); }
 .sec h2 { font-size: 30px; font-weight: 700; }
 .sub { margin-top: 8px; color: var(--dim); max-width: 62ch; }
+/* Balanced headings and orphan-free paragraphs. */
+.hero h1, .sec h2, .feat-group h3, .legal h1, .legal h2 { text-wrap: balance; }
+.lead, .sub, .step .d, .feat .d, .next .d, .legal p { text-wrap: pretty; }
 
 /* stepper: three steps drive one fixed-size editor */
 .stepper { margin-top: 36px; display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 28px; align-items: start; }
+/* The stepper and its editor never exceed the content width: at phone widths the tab strip scrolls inside
+   .ed-tabs instead of pushing the page wider. */
+.stepper, .stepper .ed { min-width: 0; max-width: 100%; }
+.stepper .ed-tabs { max-width: 100%; }
 .steplist { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 /* Steps are real buttons; strip the UA button chrome so the mock card holds. */
-.step { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 4px 12px; padding: 14px 14px 14px 12px; border-radius: 8px; border: 1px solid transparent; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; transition: background-color .14s, border-color .14s; }
+.step { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 4px 12px; padding: 14px 14px 14px 12px; border-radius: 8px; border: 1px solid transparent; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; transition: background-color .14s, border-color .14s; min-width: 0; }
 .step:hover { background: var(--hover); }
 .step .num { grid-row: span 3; width: 26px; height: 26px; border-radius: 50%; border: var(--bw) solid var(--line); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 12px; color: var(--dim); transition: background-color .16s, border-color .16s, color .16s; }
 .step b { font-weight: 600; font-size: 15px; }
 .step .d { color: var(--dim); font-size: 14px; line-height: 1.55; }
 .step .d code { font-family: var(--mono); font-size: 12.5px; color: var(--fg); }
-.step .fname { margin-top: 4px; font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+.step .fname { margin-top: 4px; font-family: var(--mono); font-size: 11.5px; color: var(--faint); overflow-wrap: anywhere; }
 .step.on { background: var(--side); border-color: var(--line); }
 .step.on .num { background: var(--acc); border-color: var(--acc); color: var(--acc-fg); }
 /* Tabs are real buttons on the home stepper; strip the UA button chrome. The
@@ -80,10 +106,13 @@ button.ed-tab { background: transparent; border: 0; border-right: var(--bw) soli
 
 /* "rewritten": each line is written left to right, top to bottom, when its
    file opens. The stepper wraps each .line content in .lc so the clip-path
-   animation clips the code while the ::before line number stays visible. */
+   animation clips the code while the ::before line number stays visible. Under
+   reduced motion the code renders statically in its final state. */
 .code .lc { display: inline-block; vertical-align: top; }
-.write .lc { animation: e-write .26s steps(14) both; animation-delay: calc(var(--i) * 55ms + 80ms); }
-.write .line:last-child .lc::after { content: ""; display: inline-block; width: 2px; height: 1.15em; margin-left: 2px; vertical-align: -3px; background: var(--acc); animation: e-blink 1.1s steps(1) infinite; }
+@media (prefers-reduced-motion: no-preference) {
+  .write .lc { animation: e-write .26s steps(14) both; animation-delay: calc(var(--i) * 55ms + 80ms); }
+  .write .line:last-child .lc::after { content: ""; display: inline-block; width: 2px; height: 1.15em; margin-left: 2px; vertical-align: -3px; background: var(--acc); animation: e-blink 1.1s steps(1) infinite; }
+}
 
 /* features, grouped by axis under a small mono label */
 .feat-group { margin-top: 40px; }
@@ -97,7 +126,10 @@ button.ed-tab { background: transparent; border: 0; border-right: var(--bw) soli
 .feat b { grid-column: 1; font-weight: 600; font-size: 15.5px; }
 .feat .d { grid-column: 1; color: var(--dim); font-size: 14px; line-height: 1.55; }
 .feat .go { grid-column: 2; grid-row: 1 / span 3; align-self: center; color: var(--acc); font-family: var(--mono); font-size: 13px; opacity: 0; transform: translateX(-6px); transition: opacity .14s, transform .14s var(--ease); white-space: nowrap; }
-.feat:hover .go { opacity: 1; transform: none; }
+.feat:hover .go, .feat:focus-visible .go { opacity: 1; transform: none; }
+@media (hover: none) {
+  .feat .go { opacity: 1; transform: none; }
+}
 [data-theme="light"] .feat .sym { font-weight: 500; }
 
 /* legal column for the privacy page, sized from the mock docs prose */
@@ -121,8 +153,8 @@ button.ed-tab { background: transparent; border: 0; border-right: var(--bw) soli
   .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .facts div, .facts div:first-child { padding: 0; border-left: 0; }
   .actions { flex-direction: column; align-items: flex-start; gap: 12px; margin-top: 28px; }
-  .actions .btn { height: 38px; padding: 0 16px; font-size: 14px; }
-  .install { width: 100%; height: auto; min-height: 42px; padding: 12px 10px 12px 14px; align-items: flex-start; line-height: 1.5; }
+  .actions .btn { min-height: 44px; padding: 0 16px; font-size: 14px; }
+  .install { width: 100%; min-height: 42px; padding: 12px 10px 12px 14px; align-items: flex-start; line-height: 1.5; }
   .install .copy { margin-top: -1px; }
   .ghost { display: none; }
   .typed { width: auto; white-space: normal; overflow-wrap: anywhere; animation: none; border-right: 0; }
@@ -130,15 +162,8 @@ button.ed-tab { background: transparent; border: 0; border-right: var(--bw) soli
   .steplist { grid-template-columns: minmax(0, 1fr); }
   .step .d { display: block; }
   .stepper .file pre.code { height: calc(14 * 1.65em + 30px); }
-  .next { grid-template-columns: auto minmax(0, 1fr); }
-  .next .go { display: none; }
   .feats { grid-template-columns: minmax(0, 1fr); }
-  .feat .go { display: none; }
+  .feat .go { display: block; grid-column: 1; grid-row: auto; opacity: 1; transform: none; margin-top: 6px; }
   .legal { padding: 28px 0 56px; }
   .legal h1 { font-size: 32px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  /* The global block already disables every animation; without this the
-     install command keeps its pre-typing width of zero. */
-  .typed { width: auto; border-right: 0; }
 }

@@ -114,7 +114,7 @@ LB1021 reports a configured name that does not resolve, because a name that sile
 
 ## Nested Mediation in Command Handlers (LB1023)
 
-LB1023 reports a command handler that sends a command, publishes an event, or mediates another message through `ICommandMediator`, `IEventMediator`, or `IMessageMediator` inside `HandleAsync` or `Handle`. The nested mediation runs a second unit of work inside the first, so the outer commit cannot roll the inner work back. A retry of the outer handler runs the inner work twice. The rule is disabled by default. Enable it once command handlers no longer nest units of work.
+LB1023 reports a command handler that sends a command, sends a batch of commands, publishes an event, or mediates another message through `ICommandMediator`, `ICommandBatchMediator`, `IEventMediator`, or `IMessageMediator` inside `HandleAsync` or `Handle`. The batch methods are `ICommandBatchMediator.SendManyAsync` and `ICommandBatchMediator.TrySendManyAsync`, and the diagnostic names the called method the same way it does for `SendAsync`. The nested mediation runs a second unit of work inside the first, so the outer commit cannot roll the inner work back. A retry of the outer handler runs the inner work twice. The rule is disabled by default. Enable it once command handlers no longer nest units of work.
 
 ```ini
 # .editorconfig

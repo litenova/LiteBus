@@ -32,6 +32,12 @@ namespace LiteBus.Messaging.Abstractions;
 ///         that token, and the store acts only while the stored claim still carries it, so a late settle from a
 ///         claimant that lost its key to a takeover is a no-op instead of corrupting the new claimant.
 ///     </para>
+///     <para>
+///         A store that commits its own writes on its own connection or session, rather than through the application's
+///         unit of work, implements <see cref="ISeparatelyCommittedIdempotencyStore" />. LiteBus then settles its keys
+///         after the unit of work commits, so a failed commit releases the key instead of leaving it marked complete
+///         with no data behind it. A store without the marker settles before the commit, inside the transaction.
+///     </para>
 /// </remarks>
 public interface IIdempotencyStore
 {

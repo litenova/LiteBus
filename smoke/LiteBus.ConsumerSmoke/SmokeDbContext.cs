@@ -21,7 +21,7 @@ internal sealed class SmokeDbContext : DbContext, IInboxDbContext, IOutboxDbCont
     ///     Initializes a new instance of the <see cref="SmokeDbContext" /> class.
     /// </summary>
     /// <param name="options">The context options.</param>
-    private SmokeDbContext(DbContextOptions<SmokeDbContext> options)
+    public SmokeDbContext(DbContextOptions<SmokeDbContext> options)
         : base(options)
     {
     }
@@ -35,6 +35,11 @@ internal sealed class SmokeDbContext : DbContext, IInboxDbContext, IOutboxDbCont
     ///     Gets the outbox messages.
     /// </summary>
     public DbSet<OutboxMessageEntity> OutboxMessages => Set<OutboxMessageEntity>();
+
+    /// <summary>
+    ///     Gets the batch orders written by the command batch scenario.
+    /// </summary>
+    public DbSet<SmokeBatchOrder> SmokeBatchOrders => Set<SmokeBatchOrder>();
 
     /// <summary>
     ///     Creates a context on the smoke database.
@@ -57,5 +62,74 @@ internal sealed class SmokeDbContext : DbContext, IInboxDbContext, IOutboxDbCont
             modelBuilder,
             new EntityFrameworkCoreOutboxStoreOptions(),
             EfCoreStorageProvider.PostgreSql);
+
+        modelBuilder.Entity<SmokeBatchOrder>(entity =>
+        {
+            entity.ToTable("SmokeBatchOrders");
+            entity.HasKey(order => order.OrderId);
+            entity.Property(order => order.OrderId).HasColumnName("order_id");
+            entity.Property(order => order.Total).HasColumnName("total").HasColumnType("numeric");
+        });
+    }
+}
+
+/// <summary>
+///     One batch order row written by the command batch smoke handlers.
+/// </summary>
+internal sealed class SmokeBatchOrder
+{
+    /// <summary>
+    ///     Gets or sets the order identifier.
+    /// </summary>
+    public Guid OrderId { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the order total.
+    /// </summary>
+    public decimal Total { get; set; }
+}
+
+/// <summary>
+///     Commits the scoped smoke context as the mediation unit of work.
+/// </summary>
+internal sealed class SmokeDbContextUnitOfWork : IUnitOfWork, IUnitOfWorkBoundary
+{
+    /// <summary>
+    ///     The scoped context the handlers staged their rows on.
+    /// </summary>
+    private readonly SmokeDbContext _context;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="SmokeDbContextUnitOfWork" /> class.
+    /// </summary>
+    /// <param name="context">The scoped context the handlers staged their rows on.</param>
+    public SmokeDbContextUnitOfWork(SmokeDbContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        _context = context;
+    }
+
+    /// <inheritdoc />
+    public async Task BeginAsync(CancellationToken cancellationToken = default)
+    {
+        await _context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task CommitAsync(CancellationToken cancellationToken = default)
+    {
+        await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await _context.Database.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task RollbackAsync(CancellationToken cancellationToken = default)
+    {
+        if (_context.Database.CurrentTransaction is not null)
+        {
+            await _context.Database.RollbackTransactionAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        _context.ChangeTracker.Clear();
     }
 }

@@ -45,8 +45,13 @@ namespace LiteBus.Commands.Storage.PostgreSql;
 ///         handler joins an application transaction should claim through that same unit of work with a store that can
 ///         see it; this store suits commands applied without one.
 ///     </para>
+///     <para>
+///         This store commits its own writes on its own connection, separately from the application's unit of work,
+///         so it implements <see cref="ISeparatelyCommittedIdempotencyStore" /> and LiteBus settles its keys after
+///         the unit of work commits.
+///     </para>
 /// </remarks>
-public sealed class PostgreSqlIdempotencyStore : IIdempotencyStore
+public sealed class PostgreSqlIdempotencyStore : ISeparatelyCommittedIdempotencyStore
 {
     /// <summary>
     ///     How long an unsettled claim blocks its key before a new caller takes it over.

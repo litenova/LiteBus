@@ -26,6 +26,27 @@ public static class AutofacBackgroundServiceHostingExtensions
         IReadOnlyList<Type> startupTasks,
         IReadOnlyList<Type> backgroundServices)
     {
+        RegisterBackgroundServices(builder, startupTasks, backgroundServices, registry: null);
+    }
+
+    /// <summary>
+    ///     Registers startup task and background service types and a single generic-host orchestrator with the container
+    ///     builder.
+    /// </summary>
+    /// <param name="builder">The container builder receiving host execution registrations.</param>
+    /// <param name="startupTasks">The startup task implementation types registered by modules.</param>
+    /// <param name="backgroundServices">The background service implementation types registered by modules.</param>
+    /// <param name="registry">
+    ///     The modules' dependency registry. A type a module registered with a factory or an instance keeps that
+    ///     registration; every other type is registered as a singleton by its type. <see langword="null" /> registers
+    ///     every type by its type.
+    /// </param>
+    public static void RegisterBackgroundServices(
+        this ContainerBuilder builder,
+        IReadOnlyList<Type> startupTasks,
+        IReadOnlyList<Type> backgroundServices,
+        IDependencyRegistry? registry)
+    {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(startupTasks);
         ArgumentNullException.ThrowIfNull(backgroundServices);
@@ -40,16 +61,22 @@ public static class AutofacBackgroundServiceHostingExtensions
 
         foreach (var implementationType in startupTaskTypes)
         {
-            builder.RegisterType(implementationType)
-                .AsSelf()
-                .SingleInstance();
+            if (!HostingRegistrationHelpers.IsRegisteredWithFactoryOrInstance(registry, implementationType))
+            {
+                builder.RegisterType(implementationType)
+                    .AsSelf()
+                    .SingleInstance();
+            }
         }
 
         foreach (var implementationType in backgroundServiceTypes)
         {
-            builder.RegisterType(implementationType)
-                .AsSelf()
-                .SingleInstance();
+            if (!HostingRegistrationHelpers.IsRegisteredWithFactoryOrInstance(registry, implementationType))
+            {
+                builder.RegisterType(implementationType)
+                    .AsSelf()
+                    .SingleInstance();
+            }
         }
 
         builder.Register(context =>

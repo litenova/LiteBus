@@ -34,5 +34,8 @@ await using (var setup = SmokeDbContext.Create(connectionString))
 await Smoke.RunAsync("EF Core outbox store", () => OutboxSmoke.RunAsync(connectionString)).ConfigureAwait(false);
 await Smoke.RunAsync("EF Core inbox store", () => InboxSmoke.RunAsync(connectionString)).ConfigureAwait(false);
 await Smoke.RunAsync("Marten idempotency store", () => MartenSmoke.RunAsync(connectionString)).ConfigureAwait(false);
+await Smoke.RunAsync("EF Core command batches", () => CommandBatchSmoke.RunAsync(connectionString)).ConfigureAwait(false);
+await Smoke.RunAsync("EF Core immediate dispatch", () => ImmediateDispatchSmoke.RunAsync(connectionString)).ConfigureAwait(false);
+await Smoke.RunAsync("Marten idempotency settlement", () => IdempotencySettlementSmoke.RunAsync(connectionString)).ConfigureAwait(false);
 
 Console.WriteLine("Consumer smoke test passed.");

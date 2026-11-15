@@ -4,6 +4,7 @@
                   "README",
                   "auditing",
                   "authorization-declarations",
+                  "command-batches",
                   "command-idempotency",
                   "commands",
                   "events",

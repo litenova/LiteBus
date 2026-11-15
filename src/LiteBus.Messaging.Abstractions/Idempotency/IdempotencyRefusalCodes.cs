@@ -22,4 +22,10 @@ public static class IdempotencyRefusalCodes
     ///     The code reported when the key was already applied with different content.
     /// </summary>
     public const string FingerprintMismatch = "idempotency.fingerprint-mismatch";
+
+    /// <summary>
+    ///     The code reported when two commands in one command batch resolve to the same idempotency key, which stops
+    ///     and rolls back the batch.
+    /// </summary>
+    public const string DuplicateKeyInBatch = "litebus.batch.duplicate_idempotency_key";
 }

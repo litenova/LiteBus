@@ -22,19 +22,19 @@ export function DocsNotFound() {
           <p className="intro">
             <code>{pathname}</code> is not a documentation page.
           </p>
-          <h2>Start from somewhere that exists</h2>
+          <h2>Open an existing page</h2>
           <ul>
             <li>
-              <Link href={docsBasePath}>Documentation index</Link>
+              <Link href={docsBasePath}>Docs</Link>
             </li>
             <li>
-              <Link href="/">Home</Link>
+              <Link href="/">LiteBus home</Link>
             </li>
           </ul>
         </article>
       </main>
       <StatusBar end={<span>{companyName}</span>}>
-        <a href={changelogUrl} title="Changelog">
+        <a href={changelogUrl} aria-label={`Changelog v${latestRelease}`}>
           v{latestRelease}
         </a>
       </StatusBar>

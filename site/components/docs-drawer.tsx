@@ -10,11 +10,12 @@ import { changelogUrl, latestRelease } from '@/lib/site';
  *
  * Below 860px the explorer leaves the page grid and becomes a drawer that slides in from the left. The menu button
  * opens it; the backdrop, the `x` button in the drawer header, and `Escape` close it, and navigating to a page
- * closes it because the sidebar remounts the drawer for the new path. Focus moves into the drawer on open and back
- * to the menu button on close, Tab stays inside the drawer while it is open, and the header, article, and status bar
- * are inert behind it. The page behind does not scroll while the drawer is open. At wider viewports the menu row and
- * backdrop stay hidden and the explorer renders inline with the header search; the drawer search shows only below
- * 860px, above the navigation groups.
+ * closes it because the sidebar remounts the drawer for the new path. Focus moves to the close button on open and
+ * back to the menu button on close, Tab stays inside the drawer while it is open, and the header, article, and
+ * status bar are inert behind it. While closed on mobile the explorer is inert and hidden so its links are neither
+ * focusable nor announced. The page behind does not scroll while the drawer is open. At wider viewports the menu
+ * row and backdrop stay hidden and the explorer renders inline with the header search; the drawer search shows only
+ * below 860px, above the navigation groups.
  */
 export function DocsDrawer({
   parent,
@@ -22,13 +23,32 @@ export function DocsDrawer({
   navigation,
 }: Readonly<{ parent: string | undefined; current: string; navigation: ReactNode }>) {
   const [open, setOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const navRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const wasOpenRef = useRef(false);
+  const changelogLabel = `Changelog v${latestRelease}`;
+
+  // Tracks the mobile layout so the closed explorer is inert only where it acts as a drawer.
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 860px)');
+
+    const update = () => {
+      setIsMobile(media.matches);
+    };
+
+    update();
+    media.addEventListener('change', update);
+
+    return () => {
+      media.removeEventListener('change', update);
+    };
+  }, []);
 
   // While the drawer is open, lock the page scroll, close on Escape, trap Tab inside the drawer, hide the page
-  // behind it from assistive technology, and move focus into the drawer. When it closes again, focus returns to the
-  // menu button.
+  // behind it from assistive technology, and move focus to the close button. When it closes again, focus returns
+  // to the menu button.
   useEffect(() => {
     if (!open) {
       if (wasOpenRef.current) {
@@ -42,7 +62,7 @@ export function DocsDrawer({
     wasOpenRef.current = true;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    navRef.current?.focus({ preventScroll: true });
+    closeButtonRef.current?.focus({ preventScroll: true });
 
     const inertTargets = [
       document.querySelector('header'),
@@ -80,7 +100,6 @@ export function DocsDrawer({
       const first = items[0];
       const last = items[items.length - 1];
 
-      // Focus starts on the nav itself, which is not tabbable, so an index of -1 wraps like an end.
       if (event.shiftKey && activeIndex <= 0) {
         event.preventDefault();
         last.focus();
@@ -101,6 +120,8 @@ export function DocsDrawer({
       }
     };
   }, [open ]);
+
+  const modal = open && isMobile;
 
   return (
     <>
@@ -123,12 +144,12 @@ export function DocsDrawer({
         <span className="path">
           {parent === undefined ? null : (
             <span className="parent">
-              {parent} <b>&gt;</b>{' '}
+              {parent} <b aria-hidden="true">&gt;</b>{' '}
             </span>
           )}
           {current}
         </span>
-        <a className="ver" href={changelogUrl}>
+        <a className="ver" href={changelogUrl} aria-label={changelogLabel}>
           v{latestRelease}
         </a>
       </div>
@@ -145,15 +166,19 @@ export function DocsDrawer({
         ref={navRef}
         id="docs-nav"
         aria-label="Documentation"
+        role={modal ? 'dialog' : undefined}
+        aria-modal={modal ? true : undefined}
+        inert={!open && isMobile}
         className={open ? 'explorer open' : 'explorer'}
         tabIndex={-1}
       >
         <div className="xws">
-          <b>LiteBus Docs</b>
-          <a className="ver" href={changelogUrl} title="Changelog">
+          <b>Docs</b>
+          <a className="ver" href={changelogUrl} aria-label={changelogLabel}>
             v{latestRelease}
           </a>
           <button
+            ref={closeButtonRef}
             type="button"
             className="xclose"
             aria-label="Close menu"

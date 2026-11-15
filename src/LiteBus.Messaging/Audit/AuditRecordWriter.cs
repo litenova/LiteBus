@@ -20,6 +20,12 @@ namespace LiteBus.Messaging.Audit;
 ///         which the handler populated while it ran, falling back to the declaration's selectors where the scope is
 ///         silent and the value can be read off the message itself.
 ///     </para>
+///     <para>
+///         Inside a command batch, the record is added to the batch's <see cref="AuditRecordBuffer" /> instead of being
+///         written to the trail: the batch placed the buffer in the execution-context items under
+///         <see cref="AuditRecordBuffer.ItemKey" />, and flushes it before its single commit, or rewritten after a
+///         rollback. Outside a batch the record is written straight through to the trail.
+///     </para>
 /// </remarks>
 internal sealed class AuditRecordWriter : IAuditRecordWriter
 {
@@ -120,6 +126,14 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
                 : new Dictionary<string, string>(scope.Properties, StringComparer.Ordinal)
         };
 
+        var buffer = FindBatchBuffer();
+
+        if (buffer is not null)
+        {
+            buffer.Add(record);
+            return;
+        }
+
         await _trail.WriteAsync(record, cancellationToken).ConfigureAwait(false);
     }
 
@@ -179,6 +193,24 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
         }
 
         return executionContext.Items.TryGetValue(key, out var value) ? value as string : null;
+    }
+
+    /// <summary>
+    ///     Finds the command batch buffer for the current mediation, when the mediation runs inside a batch.
+    /// </summary>
+    /// <returns>The buffer, or <see langword="null" /> when no batch placed one in the execution-context items.</returns>
+    private static AuditRecordBuffer? FindBatchBuffer()
+    {
+        var executionContext = AmbientExecutionContext.GetCurrentOrDefault();
+
+        if (executionContext is null)
+        {
+            return null;
+        }
+
+        return executionContext.Items.TryGetValue(AuditRecordBuffer.ItemKey, out var stored)
+            ? stored as AuditRecordBuffer
+            : null;
     }
 
     /// <summary>

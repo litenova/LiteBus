@@ -13,7 +13,7 @@ export function StatusBar({ children, end }: Readonly<{ children?: ReactNode; en
   return (
     <div className="status">
       <div>
-        <Link className="home" href="/">
+        <Link className="home" href="/" aria-label="LiteBus home">
           <Logo size={13} />
           LiteBus
         </Link>

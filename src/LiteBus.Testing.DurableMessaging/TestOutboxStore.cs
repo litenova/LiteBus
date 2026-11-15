@@ -22,6 +22,7 @@ public sealed class TestOutboxStore :
     IOutboxStore,
     IOutboxProcessingStore,
     IOutboxOperationsStore,
+    IOutboxTargetedLeaseStore,
     ITransactionalOutboxStore
 {
     /// <summary>
@@ -93,6 +94,14 @@ public sealed class TestOutboxStore :
     }
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<OutboxEnvelope>> LeaseByIdAsync(
+        OutboxTargetedLeaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return _inner.LeaseByIdAsync(request, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task<bool> RenewLeaseAsync(
         LeaseRenewalRequest request,
         CancellationToken cancellationToken = default)
@@ -106,6 +115,14 @@ public sealed class TestOutboxStore :
         CancellationToken cancellationToken = default)
     {
         return _inner.ReleaseLeaseAsync(request, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> ReleaseByIdAsync(
+        OutboxTargetedReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return _inner.ReleaseByIdAsync(request, cancellationToken);
     }
 
     /// <inheritdoc />

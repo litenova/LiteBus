@@ -150,6 +150,8 @@ Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, 
 | `LiteBus.Mediation` | `litebus.mediation.count` | `LiteBusMediationTelemetry.CountInstrumentName` | One per completed mediation with tags `litebus.message` and `litebus.outcome`, plus `litebus.code` when a decision stopped the mediation |
 | `LiteBus.Mediation` | `litebus.mediation.stage.duration` | `LiteBusMediationTelemetry.StageDurationInstrumentName` | Histogram in milliseconds per pre stage, opt-in through `MediationTelemetryOptions.StageMetrics` |
 | `LiteBus.Mediation` | `litebus.mediation.decisions` | `LiteBusMediationTelemetry.DecisionsInstrumentName` | One per mediation a stage stopped, with tags `litebus.message`, `litebus.stage`, `litebus.outcome`, `litebus.decided_by` |
+| `LiteBus.Mediation` | `litebus.mediation.batch.duration` | `LiteBusMediationTelemetry.BatchDurationInstrumentName` | Histogram in seconds per command batch, tagged with `litebus.batch.outcome` (`committed` or `rolled_back`) |
+| `LiteBus.Mediation` | `litebus.mediation.batch.size` | `LiteBusMediationTelemetry.BatchSizeInstrumentName` | Histogram of the number of commands in one command batch |
 | `LiteBus.Inbox` | `litebus.inbox.queue.depth` | `LiteBusInboxTelemetry.QueueDepthInstrumentName` | Observable gauge with tag `litebus.inbox.status` |
 | `LiteBus.Inbox` | `litebus.inbox.processor.state` | `LiteBusInboxTelemetry.ProcessorStateInstrumentName` | `0` Running, `1` Paused, `2` Draining |
 | `LiteBus.Inbox` | `litebus.inbox.processor.persist_skipped` | `LiteBusInboxTelemetry.ProcessorPersistSkippedInstrumentName` | Skipped terminal persist when lease owner no longer matches |
@@ -163,6 +165,8 @@ Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, 
 | `LiteBus.Inbox` | `ingress.ack_failed_after_accept` | `LiteBusInboxIngressTelemetry.AckFailedAfterAcceptInstrumentName` | Broker acknowledgement failed after a successful inbox accept |
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_skipped` | `LiteBusOutboxTelemetry.ProcessorPersistSkippedInstrumentName` | Skipped terminal persist when lease owner no longer matches |
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_failed` | `LiteBusOutboxTelemetry.ProcessorPersistFailedInstrumentName` | Terminal persist threw after successful broker publish |
+| `LiteBus.Outbox` | `litebus.outbox.immediate_dispatch.count` | `LiteBusOutboxTelemetry.ImmediateDispatchCountInstrumentName` | One per envelope handled by immediate dispatch after a commit, tagged with `litebus.outbox.immediate_dispatch.outcome` (`published`, `failed`, `skipped`, `timed_out`) |
+| `LiteBus.Outbox` | `litebus.outbox.immediate_dispatch.duration` | `LiteBusOutboxTelemetry.ImmediateDispatchDurationInstrumentName` | Histogram in seconds of immediate dispatch after one commit |
 | `LiteBus.Outbox` | `litebus.outbox.diagnostics.unavailable` | `LiteBusOutboxTelemetry.DiagnosticsUnavailableInstrumentName` | Queue depth probe failed against the backing store |
 | `LiteBus.Outbox` | `litebus.outbox.queue.depth` | `LiteBusOutboxTelemetry.QueueDepthInstrumentName` | Observable gauge with tag `litebus.outbox.status` |
 | `LiteBus.Outbox` | `litebus.outbox.processor.state` | `LiteBusOutboxTelemetry.ProcessorStateInstrumentName` | Same encoding as inbox processor state |
@@ -180,7 +184,7 @@ Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, 
 | `LiteBus.Transport.Kafka` | (reserved) | | Adapter meter identity for custom instrumentation |
 | `LiteBus.Transport.InMemory` | (reserved) | | Adapter meter identity for test and CI transports |
 
-Mediation also emits one span per message on the `LiteBus.Mediation` activity source. The span is named `mediate {MessageType}` and tagged with `litebus.message` and `litebus.outcome`, plus `litebus.code` when a decision supplied one. Only a `Failed` outcome sets the error status. Denials and validation refusals keep a success status so error views show faults only. Per-stage child spans are opt-in through `MediationTelemetryOptions.StageSpans`, because mediation volume is orders of magnitude above durable-processing volume.
+Mediation also emits one span per message on the `LiteBus.Mediation` activity source. The span is named `mediate {MessageType}` and tagged with `litebus.message` and `litebus.outcome`, plus `litebus.code` when a decision supplied one. One command batch emits one `litebus.mediation.batch` span (`LiteBusMediationTelemetry.BatchActivityName`) on the same source; each command's `mediate {MessageType}` span is its child, and the batch span carries `litebus.batch.outcome` (`LiteBusMediationTelemetry.BatchOutcomeAttributeName`) with `committed` or `rolled_back`. Only a `Failed` outcome sets the error status. Denials and validation refusals keep a success status so error views show faults only. Per-stage child spans are opt-in through `MediationTelemetryOptions.StageSpans`, because mediation volume is orders of magnitude above durable-processing volume.
 
 Internal processor instrumentation (`InboxProcessorTelemetry`, `OutboxProcessorTelemetry`) records the processor pass counters below. The names are stable for metric export but are not public constants. Dashboards may reference them, but renames are not governed by the public instrument contract until the names are promoted to `LiteBusInboxTelemetry` or `LiteBusOutboxTelemetry`.
 
@@ -333,7 +337,7 @@ Idempotency keys are scoped per tenant across in-memory, EF Core, and PostgreSQL
 
 ### Instrument Stability
 
-Public `const` instrument and activity names on `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, `LiteBusInboxIngressTelemetry`, `LiteBusTransportTelemetry`, and adapter meter types are part of the consumer contract. Renames or removals are breaking changes. Processor pass counters listed in the internal-only catalog above are stable implementation details until they are promoted to public constants on the matching telemetry type.
+Public `const` instrument and activity names on `LiteBusMediationTelemetry`, `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, `LiteBusInboxIngressTelemetry`, `LiteBusTransportTelemetry`, and adapter meter types are part of the consumer contract. Renames or removals are breaking changes. Processor pass counters listed in the internal-only catalog above are stable implementation details until they are promoted to public constants on the matching telemetry type.
 
 ## Ingress Axis
 

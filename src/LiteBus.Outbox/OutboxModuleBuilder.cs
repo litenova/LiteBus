@@ -76,6 +76,12 @@ public sealed class OutboxModuleBuilder
     private bool _perHandlerDelivery;
 
     /// <summary>
+    ///     The immediate dispatch options, created by <see cref="EnableImmediateDispatch" />; <see langword="null" />
+    ///     while immediate dispatch is off.
+    /// </summary>
+    private OutboxImmediateDispatchOptions? _immediateDispatch;
+
+    /// <summary>
     ///     Whether <see cref="AllowPerHandlerDeliveryWithTransportDispatch" /> was called.
     /// </summary>
     private bool _allowPerHandlerDeliveryWithTransportDispatch;
@@ -347,6 +353,38 @@ public sealed class OutboxModuleBuilder
         _allowPerHandlerDeliveryWithTransportDispatch = true;
         return this;
     }
+
+    /// <summary>
+    ///     Dispatches the outbox envelopes a mediation staged right after its unit of work commits, for handlers or
+    ///     events marked with <see cref="DispatchImmediatelyAttribute" />, with the outbox processor as the fallback.
+    /// </summary>
+    /// <param name="configure">An optional callback that sets the timeout, the fallback delay and the wait mode.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         An immediate envelope is written invisible to the outbox processor for
+    ///         <see cref="OutboxImmediateDispatchOptions.FallbackDelay" />. After the commit, LiteBus leases exactly the
+    ///         envelopes the mediation staged and dispatches them through the registered dispatcher, with the processor's
+    ///         success, failure and retry rules. A successful dispatch marks the envelope published, so each healthy
+    ///         handler runs once. A failed one is retried by the processor, and the command still succeeds.
+    ///     </para>
+    ///     <para>
+    ///         Composition requires a registered unit of work, a dispatcher, and a store that implements
+    ///         <see cref="IOutboxTargetedLeaseStore" />, and throws <see cref="LiteBusConfigurationException" /> otherwise.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder EnableImmediateDispatch(Action<OutboxImmediateDispatchOptions>? configure = null)
+    {
+        _immediateDispatch ??= new OutboxImmediateDispatchOptions();
+        configure?.Invoke(_immediateDispatch);
+        return this;
+    }
+
+    /// <summary>
+    ///     Gets the immediate dispatch options, or <see langword="null" /> when <see cref="EnableImmediateDispatch" />
+    ///     was not called.
+    /// </summary>
+    internal OutboxImmediateDispatchOptions? ImmediateDispatchOptions => _immediateDispatch;
 
     /// <summary>
     ///     Gets a value indicating whether <see cref="StageCollectedEvents" /> was called.

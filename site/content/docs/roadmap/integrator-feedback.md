@@ -179,7 +179,9 @@ An integrator's command handlers send buyer notifications inline inside the comm
 
 ### Current Behaviour
 
-No defer API exists. There is no `IAfterCommit`, no `Defer`, and no after-commit variant of `MessageVisibility`. The durable retry and deduplication the ask needs are already expressible on shipped APIs:
+Outcome: half shipped. Immediate dispatch (`OutboxModuleBuilder.EnableImmediateDispatch`, with `[DispatchImmediately]` marking the handlers or events) dispatches the envelopes the mediation staged right after its unit of work commits, and the outbox processor redelivers what it missed (see [Immediate dispatch](../reliable-messaging/immediate-dispatch.md)). That is the after-commit dispatch half of this ask: reactions now run as soon as the commit returns, with retry and deduplication, without a hand-built publish step after commit.
+
+No recording API exists. There is still no `IAfterCommit`, no `Defer`, and no after-commit variant of `MessageVisibility`. The durable retry and deduplication the ask needs are already expressible on shipped APIs:
 
 1. Collect consequences on the aggregate or in `IExecutionContext.Data` during handling.
 2. Stage them through `ITransactionalOutbox` from a completion handler ordered before the `UnitOfWork` commit.
@@ -194,7 +196,7 @@ A library collector would save staging boilerplate but not the per-message event
 
 ### Recommendation
 
-Defer the collector. Recording an effect during mediation and having LiteBus persist it pushes against the rule that mediation and durable persistence stay separate calls with separate semantic types, and a `Defer` API without a commit-boundary hook is incomplete while host-neutral transaction and unit-of-work hooks are themselves still on the roadmap. Revisit alongside those hooks and declared effects, which are its missing prerequisites.
+Keep the `Defer` recording API deferred. Immediate dispatch closed the dispatch half: staged envelopes now reach their reactions right after commit, with processor redelivery as the fallback. Recording an effect during mediation and having LiteBus persist it still pushes against the rule that mediation and durable persistence stay separate calls with separate semantic types, and a `Defer` API without a commit-boundary hook is still incomplete while host-neutral transaction and unit-of-work hooks are themselves still on the roadmap. Revisit alongside those hooks and declared effects, which are its missing prerequisites.
 
 ## A Packaged Fan-Out Cursor
 

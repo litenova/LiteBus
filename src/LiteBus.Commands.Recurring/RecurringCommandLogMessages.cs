@@ -63,6 +63,15 @@ internal static class RecurringCommandLogMessages
             "Recurring command {CommandType} lost the '{LeaseName}' lease mid-pass: renewal stopped, so another instance may take over. The busy period ends and the loop backs off.");
 
     /// <summary>
+    ///     The delegate that writes a batch-refused event.
+    /// </summary>
+    private static readonly Action<ILogger, string, int, string, string, Exception?> BatchRefusedMessage =
+        LoggerMessage.Define<string, int, string, string>(
+            LogLevel.Warning,
+            new EventId(2107, nameof(BatchRefused)),
+            "Recurring batch source {SourceType} rolled back: the command at index {FailedIndex} ({CommandType}) was refused ({RefusalCode}). The loop continues after the configured error backoff.");
+
+    /// <summary>
     ///     Writes the loop start event.
     /// </summary>
     /// <param name="logger">The logger receiving the event.</param>
@@ -125,5 +134,18 @@ internal static class RecurringCommandLogMessages
     internal static void LeaseLost(ILogger logger, string commandType, string leaseName)
     {
         LeaseLostMessage(logger, commandType, leaseName, null);
+    }
+
+    /// <summary>
+    ///     Writes a batch-refused event.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="sourceType">The batch source type whose batch was refused.</param>
+    /// <param name="failedIndex">The index of the command that stopped the batch.</param>
+    /// <param name="commandType">The command type that was refused.</param>
+    /// <param name="refusalCode">The machine-readable code the refusal supplied.</param>
+    internal static void BatchRefused(ILogger logger, string sourceType, int failedIndex, string commandType, string refusalCode)
+    {
+        BatchRefusedMessage(logger, sourceType, failedIndex, commandType, refusalCode, null);
     }
 }

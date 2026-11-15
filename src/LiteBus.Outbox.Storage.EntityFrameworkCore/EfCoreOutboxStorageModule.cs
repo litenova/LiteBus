@@ -84,6 +84,11 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IOutboxTargetedLeaseStore),
+            serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
+            InstanceLifetime.Singleton));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxStateWriter),
             serviceProvider => serviceProvider.GetRequiredService<EfCoreOutboxStore>(),
             InstanceLifetime.Singleton));

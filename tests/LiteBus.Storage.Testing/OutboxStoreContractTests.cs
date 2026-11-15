@@ -1610,6 +1610,366 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
+    ///     Resolves the targeted lease role from the store under test.
+    /// </summary>
+    /// <param name="store">The store contracts under test.</param>
+    /// <returns>The targeted lease store.</returns>
+    private static IOutboxTargetedLeaseStore GetTargetedLeaseStore(OutboxStoreContracts store)
+    {
+        store.Lease.Should().BeAssignableTo<IOutboxTargetedLeaseStore>();
+        return (IOutboxTargetedLeaseStore) store.Lease;
+    }
+
+    /// <summary>
+    ///     Verifies that a targeted lease claims only the listed pending messages and leaves unlisted messages pending.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task LeaseByIdAsync_WhenRequestListsPendingRows_ShouldLeaseOnlyListedRows()
+    {
+        var store = CreateStore();
+        var targeted = GetTargetedLeaseStore(store);
+        var now = BaseTime;
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+        var unlistedId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(firstId, now)).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1))).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(unlistedId, now.AddSeconds(2))).ConfigureAwait(false);
+
+        var leased = await targeted.LeaseByIdAsync(new OutboxTargetedLeaseRequest
+        {
+            MessageIds = [firstId, secondId],
+            LeaseOwner = "publisher-1",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        }).ConfigureAwait(false);
+
+        leased.Select(envelope => envelope.Id).Should().BeEquivalentTo([firstId, secondId]);
+        leased.Should().OnlyContain(envelope => envelope.Status == OutboxStatus.Publishing);
+        leased.Should().OnlyContain(envelope => envelope.LeaseOwner == "publisher-1");
+        leased.Should().OnlyContain(envelope => envelope.LeaseExpiresAt != null);
+        leased.Should().OnlyContain(envelope => envelope.AttemptCount == 1);
+
+        var remaining = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { MessageId = unlistedId },
+            new OutboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
+
+        remaining.Items.Should().ContainSingle();
+        remaining.Items[0].Status.Should().Be(OutboxStatus.Pending);
+    }
+
+    /// <summary>
+    ///     Verifies that a targeted release returns a leased message to pending, visible from the requested time, with
+    ///     the attempt uncounted, and that a release with a stale lease generation changes nothing.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task ReleaseByIdAsync_WhenLeaseMatches_ShouldReturnMessageToPendingVisibleFromRequestedTime()
+    {
+        var store = CreateStore();
+        var targeted = GetTargetedLeaseStore(store);
+        var now = BaseTime;
+        var messageId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
+
+        var leased = await targeted.LeaseByIdAsync(new OutboxTargetedLeaseRequest
+        {
+            MessageIds = [messageId],
+            LeaseOwner = "publisher-1",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        }).ConfigureAwait(false);
+
+        var envelope = leased.Should().ContainSingle().Which;
+        var visibleAfter = now.AddMinutes(2);
+
+        var stale = await targeted.ReleaseByIdAsync(
+            new OutboxTargetedReleaseRequest(messageId, "publisher-1", envelope.LeaseGeneration + 1, visibleAfter)).ConfigureAwait(false);
+        stale.Should().BeFalse();
+
+        var released = await targeted.ReleaseByIdAsync(
+            new OutboxTargetedReleaseRequest(messageId, "publisher-1", envelope.LeaseGeneration, visibleAfter)).ConfigureAwait(false);
+        released.Should().BeTrue();
+
+        var stored = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { MessageId = messageId },
+            new OutboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
+
+        var row = stored.Items.Should().ContainSingle().Which;
+        row.Status.Should().Be(OutboxStatus.Pending);
+        row.LeaseOwner.Should().BeNull();
+        row.AttemptCount.Should().Be(0);
+        row.VisibleAfter.Should().NotBeNull();
+        row.VisibleAfter!.Value.Should().BeCloseTo(visibleAfter, TimeSpan.FromSeconds(1));
+    }
+
+    /// <summary>
+    ///     Verifies that a targeted lease skips actively leased, published, dead-lettered, and unknown messages.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task LeaseByIdAsync_WhenRowsAreLeasedPublishedOrDeadLettered_ShouldSkipUnclaimableRows()
+    {
+        var store = CreateStore();
+        var targeted = GetTargetedLeaseStore(store);
+        var now = BaseTime;
+        var pendingId = Guid.NewGuid();
+        var leasedId = Guid.NewGuid();
+        var publishedId = Guid.NewGuid();
+        var deadLetteredId = Guid.NewGuid();
+        var unknownId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(pendingId, now)).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(leasedId, now.AddSeconds(1))).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(publishedId, now.AddSeconds(2))).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(deadLetteredId, now.AddSeconds(3))).ConfigureAwait(false);
+
+        var setup = await targeted.LeaseByIdAsync(new OutboxTargetedLeaseRequest
+        {
+            MessageIds = [leasedId, publishedId, deadLetteredId],
+            LeaseOwner = "publisher-setup",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        }).ConfigureAwait(false);
+
+        setup.Should().HaveCount(3);
+
+        var toPublish = setup.Single(envelope => envelope.Id == publishedId);
+        var toDeadLetter = setup.Single(envelope => envelope.Id == deadLetteredId);
+
+        await store.StateWriter.PersistAsync([
+            toPublish.AsPublished(DateTimeOffset.UtcNow),
+            toDeadLetter.AsDeadLettered(Failure("poison message"))
+        ]).ConfigureAwait(false);
+
+        var leased = await targeted.LeaseByIdAsync(new OutboxTargetedLeaseRequest
+        {
+            MessageIds = [pendingId, leasedId, publishedId, deadLetteredId, unknownId],
+            LeaseOwner = "publisher-targeted",
+            Now = now.AddMinutes(2),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle().Which.Id.Should().Be(pendingId);
+
+        var stillLeased = await store.MessageQuery.QueryAsync(
+            new OutboxMessageFilter { MessageId = leasedId },
+            new OutboxMessagePageRequest { PageSize = 1 }).ConfigureAwait(false);
+
+        stillLeased.Items.Should().ContainSingle();
+        stillLeased.Items[0].Status.Should().Be(OutboxStatus.Publishing);
+        stillLeased.Items[0].LeaseOwner.Should().Be("publisher-setup");
+    }
+
+    /// <summary>
+    ///     Verifies that a targeted lease claims a pending message even when its visibility timestamp is in the
+    ///     future.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task LeaseByIdAsync_WhenVisibleAfterIsInFuture_ShouldLeaseRow()
+    {
+        var store = CreateStore();
+        var targeted = GetTargetedLeaseStore(store);
+        var messageId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now) with
+        {
+            VisibleAfter = now.AddHours(2)
+        }).ConfigureAwait(false);
+
+        var leased = await targeted.LeaseByIdAsync(new OutboxTargetedLeaseRequest
+        {
+            MessageIds = [messageId],
+            LeaseOwner = "publisher-1",
+            Now = now.AddMinutes(30),
+            LeaseDuration = TimeSpan.FromMinutes(1)
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle().Which.Id.Should().Be(messageId);
+        leased[0].Status.Should().Be(OutboxStatus.Publishing);
+    }
+
+    /// <summary>
+    ///     Verifies that a targeted lease records the owner, expiry, attempt count, and lease generation.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task LeaseByIdAsync_ShouldIncrementAttemptCountAndLeaseGeneration()
+    {
+        var store = CreateStore();
+        var targeted = GetTargetedLeaseStore(store);
+        var messageId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
+
+        var first = await targeted.LeaseByIdAsync(new OutboxTargetedLeaseRequest
+        {
+            MessageIds = [messageId],
+            LeaseOwner = "publisher-1",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        }).ConfigureAwait(false);
+
+        first.Should().ContainSingle();
+        first[0].AttemptCount.Should().Be(1);
+        first[0].LeaseOwner.Should().Be("publisher-1");
+        first[0].LeaseExpiresAt.Should().NotBeNull();
+        first[0].LastAttemptedAt.Should().NotBeNull();
+
+        await store.StateWriter.PersistAsync([first[0].AsFailed(Failure("temporary"), now.AddHours(1))]).ConfigureAwait(false);
+
+        var second = await targeted.LeaseByIdAsync(new OutboxTargetedLeaseRequest
+        {
+            MessageIds = [messageId],
+            LeaseOwner = "publisher-2",
+            Now = now.AddMinutes(2),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        }).ConfigureAwait(false);
+
+        second.Should().ContainSingle();
+        second[0].AttemptCount.Should().Be(2);
+        second[0].LeaseGeneration.Should().Be(first[0].LeaseGeneration + 1);
+        second[0].LeaseOwner.Should().Be("publisher-2");
+        second[0].Status.Should().Be(OutboxStatus.Publishing);
+    }
+
+    /// <summary>
+    ///     Verifies that two concurrent targeted leases claim disjoint message sets.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task LeaseByIdAsync_ConcurrentCallers_ShouldLeaseDisjointMessages()
+    {
+        var store = CreateStore();
+        var targeted = GetTargetedLeaseStore(store);
+        var now = BaseTime;
+        var messageId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now)).ConfigureAwait(false);
+
+        var request = new OutboxTargetedLeaseRequest
+        {
+            MessageIds = [messageId],
+            LeaseOwner = "publisher",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        };
+
+        var firstBatchTask = targeted.LeaseByIdAsync(request with { LeaseOwner = "publisher-a" });
+        var secondBatchTask = targeted.LeaseByIdAsync(request with { LeaseOwner = "publisher-b" });
+        await Task.WhenAll(firstBatchTask, secondBatchTask).ConfigureAwait(false);
+        var firstBatch = await firstBatchTask.ConfigureAwait(false);
+        var secondBatch = await secondBatchTask.ConfigureAwait(false);
+
+        var leasedIds = firstBatch.Select(envelope => envelope.Id)
+            .Concat(secondBatch.Select(envelope => envelope.Id))
+            .ToArray();
+
+        leasedIds.Should().HaveCount(1);
+        leasedIds.Should().OnlyHaveUniqueItems();
+        leasedIds[0].Should().Be(messageId);
+    }
+
+    /// <summary>
+    ///     Verifies that a targeted lease with more identifiers than SQL Server allows as command parameters still
+    ///     claims the stored rows.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    /// <remarks>
+    ///     EF Core 10 sends a list as one parameter per element by default, and SQL Server rejects more than 2,100.
+    /// </remarks>
+    [SkippableFact]
+    public async Task LeaseByIdAsync_WithMoreIdentifiersThanSqlServerParameterLimit_ShouldLeaseMatchingRows()
+    {
+        var store = CreateStore();
+        var targeted = GetTargetedLeaseStore(store);
+        var now = BaseTime;
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(firstId, now)).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(secondId, now.AddSeconds(1))).ConfigureAwait(false);
+
+        Guid[] messageIds = [firstId, secondId, .. Enumerable.Range(0, 2_500).Select(_ => Guid.NewGuid())];
+
+        var leased = await targeted.LeaseByIdAsync(new OutboxTargetedLeaseRequest
+        {
+            MessageIds = messageIds,
+            LeaseOwner = "publisher-1",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5)
+        }).ConfigureAwait(false);
+
+        leased.Select(envelope => envelope.Id).Should().BeEquivalentTo([firstId, secondId]);
+    }
+
+    /// <summary>
+    ///     Verifies that a targeted lease with a tenant filter does not claim a row stored for another tenant.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task LeaseByIdAsync_WhenTenantFilterDoesNotMatchStoredTenant_ShouldNotLeaseRow()
+    {
+        var store = CreateStore();
+        var targeted = GetTargetedLeaseStore(store);
+        var messageId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now) with
+        {
+            TenantId = "tenant-b",
+            IdempotencyKey = "tenant-b-targeted"
+        }).ConfigureAwait(false);
+
+        var leased = await targeted.LeaseByIdAsync(new OutboxTargetedLeaseRequest
+        {
+            MessageIds = [messageId],
+            LeaseOwner = "publisher-a",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1),
+            TenantId = "tenant-a"
+        }).ConfigureAwait(false);
+
+        leased.Should().BeEmpty();
+    }
+
+    /// <summary>
+    ///     Verifies that a targeted lease with a tenant filter claims a row stored for that tenant.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task LeaseByIdAsync_WhenTenantFilterMatchesStoredTenant_ShouldLeaseRow()
+    {
+        var store = CreateStore();
+        var targeted = GetTargetedLeaseStore(store);
+        var messageId = Guid.NewGuid();
+        var now = BaseTime;
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(messageId, now) with
+        {
+            TenantId = "tenant-a",
+            IdempotencyKey = "tenant-a-targeted"
+        }).ConfigureAwait(false);
+
+        var leased = await targeted.LeaseByIdAsync(new OutboxTargetedLeaseRequest
+        {
+            MessageIds = [messageId],
+            LeaseOwner = "publisher-a",
+            Now = now.AddSeconds(1),
+            LeaseDuration = TimeSpan.FromMinutes(1),
+            TenantId = "tenant-a"
+        }).ConfigureAwait(false);
+
+        leased.Should().ContainSingle().Which.Id.Should().Be(messageId);
+    }
+
+    /// <summary>
     ///     Holds the outbox store roles exercised by contract tests.
     /// </summary>
     /// <param name="Writer">The writer role.</param>

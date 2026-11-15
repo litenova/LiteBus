@@ -46,15 +46,16 @@ public sealed record OrderPlaced(Guid OrderId, DateTime OccurredAtUtc) : IDomain
 
 ## Dispatch Timing
 
-Dispatch events at one of three points.
+Dispatch events at one of four points.
 
 | Timing | Use when | Trade-off |
 | --- | --- | --- |
 | Before commit | Handlers must join the same transaction | Handler failures roll back the command |
 | After commit | Handlers can run after state is saved | Handler failures need retry logic |
+| After commit, with the outbox as fallback | Reactions should run as soon as the commit returns, with processor redelivery when immediate dispatch misses | Requires per-handler delivery, idempotent reactions, and monitoring of the fallback rate |
 | Outbox | Publication must survive process failure | Requires an outbox table and processor |
 
-For events that leave the process or update state outside the current aggregate, the outbox is the safest default. Store the outbox row in the same transaction as the aggregate change. Publish it from a background worker.
+For events that leave the process or update state outside the current aggregate, the outbox is the safest default. Store the outbox row in the same transaction as the aggregate change. Publish it from a background worker. When reactions should also run as soon as the commit returns, dispatch them immediately after commit and let the outbox processor redeliver what immediate dispatch missed. See [Immediate dispatch](immediate-dispatch.md).
 
 ## EF Core Interceptor Shape
 
@@ -138,7 +139,7 @@ The completion stage runs on every path. The shipped handler therefore gates on 
 
 A shortcut answer reports success. It still does not commit, because the main handler never ran and staged nothing. When the commit throws, the mediation fails with that exception. A concurrency conflict therefore reaches the caller instead of silently losing the write.
 
-When the store needs an explicit begin, open it from a command pre-handler through the same scoped unit of work. A store such as EF Core needs no explicit begin, because `SaveChangesAsync` is the commit.
+When the store needs an explicit begin, implement `IUnitOfWorkBoundary` on the unit of work. LiteBus calls `BeginAsync` once per mediation, after guards, validators and shortcuts have let the message through and before the first pre-handler runs, and calls `RollbackAsync` when the mediation began and did not succeed. A store such as EF Core needs no explicit begin, because `SaveChangesAsync` is the commit. See [Unit of work](../catalog/mediator/unit-of-work.md).
 
 Pre-handlers run only after guards, validators, and shortcuts have passed. A transaction opened in the pre-handler therefore commits only when the main handler and every post-handler ran without throwing. Use post-handlers for reactions inside the transaction (publish follow-up events, refresh projections). Keep the commit in the completion handler.
 
@@ -147,6 +148,8 @@ Calling `UseUnitOfWork` twice on one builder is a configuration error. You may r
 When validation does not need database locks, run validation before opening a transaction. When publication must survive a process crash, persist domain events to an outbox in the same transaction as the aggregate change. See [The Handler Pipeline](../concepts/handler-pipeline.md) for the stage order and the completion rules.
 
 To move the domain events a handler collected into the outbox before the commit, register `IDomainEventCollector` staging with `OutboxModuleBuilder.StageCollectedEvents()`. Staging runs at `HandlerPriorities.Persistence`, ahead of the unit of work. See [Domain Event Staging](outbox.md#domain-event-staging).
+
+When commands run as a batch through `ICommandBatchMediator`, every command shares one dispatch scope, so each command's staging handler enqueues into the shared scope's `ITransactionalOutbox`. Staged domain events therefore commit with the batch's single commit and roll back when the batch rolls back. No registration change is needed.
 
 ## After-Commit Notifications Through the Outbox
 

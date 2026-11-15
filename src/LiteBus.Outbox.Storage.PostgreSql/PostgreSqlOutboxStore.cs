@@ -43,7 +43,8 @@ public sealed class PostgreSqlOutboxStore :
     IOutboxStore,
     ITransactionalOutboxStore,
     IOutboxProcessingStore,
-    IOutboxOperationsStore
+    IOutboxOperationsStore,
+    IOutboxTargetedLeaseStore
 {
     /// <summary>
     ///     The shared SELECT column list used by batch idempotency lookups.
@@ -467,6 +468,59 @@ public sealed class PostgreSqlOutboxStore :
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<OutboxEnvelope>> LeaseByIdAsync(
+        OutboxTargetedLeaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.MessageIds);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.LeaseDuration, TimeSpan.Zero);
+
+        if (request.MessageIds.Count == 0)
+        {
+            return [];
+        }
+
+        var sql = $"""
+                   WITH candidates AS (
+                       SELECT message_id
+                       FROM {_tableName}
+                       WHERE message_id = ANY(@message_ids)
+                           AND (@tenant_id IS NULL OR tenant_id = @tenant_id)
+                           AND ((status IN (@pending_status, @failed_status))
+                            OR (status = @publishing_status AND lease_expires_at IS NOT NULL AND lease_expires_at <= CURRENT_TIMESTAMP)
+                            OR (status = @publishing_status AND lease_expires_at IS NULL AND created_at < CURRENT_TIMESTAMP - @lease_duration))
+                       FOR UPDATE SKIP LOCKED
+                   )
+                   UPDATE {_tableName} AS outbox
+                   SET
+                       status = @publishing_status,
+                       lease_owner = @lease_owner,
+                       lease_expires_at = CURRENT_TIMESTAMP + @lease_duration,
+                       lease_generation = outbox.lease_generation + 1,
+                       attempt_count = outbox.attempt_count + 1,
+                       last_attempted_at = CURRENT_TIMESTAMP,
+                       last_lease_owner = @lease_owner
+                   FROM candidates
+                   WHERE outbox.message_id = candidates.message_id
+                   RETURNING
+                       {LeasedReturningColumns};
+                   """;
+
+        using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("pending_status", (int) OutboxStatus.Pending);
+        command.Parameters.AddWithValue("failed_status", (int) OutboxStatus.Failed);
+        command.Parameters.AddWithValue("publishing_status", (int) OutboxStatus.Publishing);
+        PostgreSqlParameterExtensions.AddUuidArrayParameter(command, "message_ids", request.MessageIds.ToArray());
+        command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
+        command.Parameters.AddWithValue("lease_duration", request.LeaseDuration);
+        AddNullableTextParameter(command, "tenant_id", NormalizeTenantFilter(request.TenantId));
+
+        return await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<bool> RenewLeaseAsync(
         LeaseRenewalRequest request,
         CancellationToken cancellationToken = default)
@@ -523,6 +577,41 @@ public sealed class PostgreSqlOutboxStore :
         command.Parameters.AddWithValue("message_id", request.MessageId);
         command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
         command.Parameters.AddWithValue("lease_generation", request.LeaseGeneration);
+
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affected > 0;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> ReleaseByIdAsync(
+        OutboxTargetedReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+
+        var sql = $"""
+                   UPDATE {_tableName}
+                   SET
+                       status = CASE WHEN last_error IS NULL THEN @pending_status ELSE @failed_status END,
+                       lease_owner = NULL,
+                       lease_expires_at = NULL,
+                       attempt_count = GREATEST(attempt_count - 1, 0),
+                       visible_after = @visible_after
+                   WHERE message_id = @message_id
+                       AND status = @publishing_status
+                       AND lease_owner = @lease_owner
+                       AND lease_generation = @lease_generation;
+                   """;
+
+        using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("pending_status", (int) OutboxStatus.Pending);
+        command.Parameters.AddWithValue("failed_status", (int) OutboxStatus.Failed);
+        command.Parameters.AddWithValue("publishing_status", (int) OutboxStatus.Publishing);
+        command.Parameters.AddWithValue("message_id", request.MessageId);
+        command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
+        command.Parameters.AddWithValue("lease_generation", request.LeaseGeneration);
+        command.Parameters.AddWithValue("visible_after", request.VisibleAfter.ToUniversalTime());
 
         var affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return affected > 0;

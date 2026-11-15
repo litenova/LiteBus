@@ -42,6 +42,7 @@ namespace LiteBus.Outbox.Storage.EntityFrameworkCore;
 public sealed class EfCoreOutboxStore :
     IOutboxProcessingStore,
     IOutboxOperationsStore,
+    IOutboxTargetedLeaseStore,
     ITransactionalOutboxStore,
     IAsyncDisposable
 {
@@ -407,6 +408,57 @@ public sealed class EfCoreOutboxStore :
     }
 
     /// <inheritdoc />
+    public Task<bool> ReleaseByIdAsync(
+        OutboxTargetedReleaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+
+        var visibleAfter = request.VisibleAfter.ToUniversalTime();
+
+        return ExecuteAsync(async (context, token) =>
+        {
+            if (context is not DbContext dbContext)
+            {
+                throw new InvalidOperationException("Lease release requires a DbContext-backed outbox database context.");
+            }
+
+            var releaseQuery = dbContext.Set<OutboxMessageEntity>()
+                .Where(message =>
+                    message.Id == request.MessageId &&
+                    message.Status == OutboxStatus.Publishing &&
+                    message.LeaseOwner == request.LeaseOwner &&
+                    message.LeaseGeneration == request.LeaseGeneration);
+
+            return await EfCoreDurableStoreOperations.ExecuteUpdateOrTrackAsync(
+                dbContext,
+                () => releaseQuery.ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(
+                            message => message.Status,
+                            message => message.LastError == null ? OutboxStatus.Pending : OutboxStatus.Failed)
+                        .SetProperty(message => message.LeaseOwner, (string?) null)
+                        .SetProperty(message => message.LeaseExpiresAt, (DateTimeOffset?) null)
+                        .SetProperty(
+                            message => message.AttemptCount,
+                            message => message.AttemptCount > 0 ? message.AttemptCount - 1 : 0)
+                        .SetProperty(message => message.VisibleAfter, (DateTimeOffset?) visibleAfter),
+                    token),
+                releaseQuery,
+                entity =>
+                {
+                    entity.Status = entity.LastError == null ? OutboxStatus.Pending : OutboxStatus.Failed;
+                    entity.LeaseOwner = null;
+                    entity.LeaseExpiresAt = null;
+                    entity.AttemptCount = Math.Max(0, entity.AttemptCount - 1);
+                    entity.VisibleAfter = visibleAfter;
+                },
+                token).ConfigureAwait(false);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<OutboxEnvelope>> LeasePendingAsync(
         OutboxLeaseRequest request,
         CancellationToken cancellationToken = default)
@@ -439,6 +491,47 @@ public sealed class EfCoreOutboxStore :
             }
 
             return await LeasePendingRelationalAsync(dbContext, provider, databaseRequest, token).ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<OutboxEnvelope>> LeaseByIdAsync(
+        OutboxTargetedLeaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.MessageIds);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.LeaseDuration, TimeSpan.Zero);
+
+        if (request.MessageIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await ExecuteAsync(async (context, token) =>
+        {
+            if (context is not DbContext dbContext)
+            {
+                throw new InvalidOperationException("Leasing requires a DbContext-backed outbox database context.");
+            }
+
+            var provider = EfCoreProviderResolver.Resolve(dbContext, _options.LeaseProvider);
+
+            if (provider == EfCoreStorageProvider.InMemory)
+            {
+                return await LeaseByIdInMemoryAsync(context, request, token).ConfigureAwait(false);
+            }
+
+            var databaseNow = await EfCoreDatabaseClock.GetUtcNowAsync(dbContext, provider, token).ConfigureAwait(false);
+            var databaseRequest = request with { Now = databaseNow };
+
+            if (provider == EfCoreStorageProvider.Sqlite)
+            {
+                return await LeaseByIdSqliteAsync(dbContext, context, databaseRequest, token).ConfigureAwait(false);
+            }
+
+            return await LeaseByIdRelationalAsync(dbContext, databaseRequest, token).ConfigureAwait(false);
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -1438,6 +1531,180 @@ public sealed class EfCoreOutboxStore :
         try
         {
             var leased = await LeasePendingInMemoryCoreAsync(context, request, cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return leased;
+        }
+        finally
+        {
+            await transaction.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Leases listed messages on a relational provider with one atomic update per identifier.
+    /// </summary>
+    /// <param name="dbContext">The database context.</param>
+    /// <param name="request">The targeted lease request.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The envelopes claimed by this call.</returns>
+    /// <remarks>
+    ///     Each identifier updates in its own statement guarded by the claim predicate, so the affected row count
+    ///     proves the claim: a concurrent lease flips the row to an active lease first and this update matches
+    ///     nothing. A single update over the whole list could not attribute rows back to this caller, because a
+    ///     reload by owner and expiry would also return rows a concurrent lease with the same owner claimed. The
+    ///     per-identifier equality predicate carries no caller-sized collection, so SQL Server never sees an
+    ///     identifier list that would need <see cref="EfCoreCollectionParameters" /> bounding.
+    /// </remarks>
+    private static async Task<IReadOnlyList<OutboxEnvelope>> LeaseByIdRelationalAsync(
+        DbContext dbContext,
+        OutboxTargetedLeaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        var now = request.Now;
+        var leaseExpiresAt = request.Now.Add(request.LeaseDuration);
+        var staleCutoff = request.Now.Add(-request.LeaseDuration);
+        var pendingStatus = OutboxStatus.Pending;
+        var failedStatus = OutboxStatus.Failed;
+        var publishingStatus = OutboxStatus.Publishing;
+        var tenantId = request.TenantId;
+        var normalizedTenantId = tenantId is null ? null : EfCoreIdempotencyResolution.NormalizeTenantId(tenantId);
+        var leaseOwner = request.LeaseOwner;
+
+        var leased = new List<OutboxEnvelope>();
+
+        foreach (var messageId in request.MessageIds)
+        {
+            var affected = await dbContext.Set<OutboxMessageEntity>()
+                .Where(message =>
+                    message.Id == messageId &&
+                    (tenantId == null || message.TenantId == normalizedTenantId) &&
+                    ((message.Status == pendingStatus || message.Status == failedStatus) ||
+                     message.Status == publishingStatus && message.LeaseExpiresAt != null && message.LeaseExpiresAt <= now ||
+                     message.Status == publishingStatus && message.LeaseExpiresAt == null && message.CreatedAt < staleCutoff))
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(message => message.Status, OutboxStatus.Publishing)
+                        .SetProperty(message => message.LeaseOwner, leaseOwner)
+                        .SetProperty(message => message.LastLeaseOwner, leaseOwner)
+                        .SetProperty(message => message.LeaseExpiresAt, leaseExpiresAt)
+                        .SetProperty(message => message.LeaseGeneration, message => message.LeaseGeneration + 1)
+                        .SetProperty(message => message.AttemptCount, message => message.AttemptCount + 1)
+                        .SetProperty(message => message.LastAttemptedAt, now),
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (affected == 0)
+            {
+                continue;
+            }
+
+            var entity = await dbContext.Set<OutboxMessageEntity>()
+                .AsNoTracking()
+                .SingleOrDefaultAsync(message => message.Id == messageId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (entity is not null)
+            {
+                leased.Add(ToEnvelope(entity));
+            }
+        }
+
+        return leased;
+    }
+
+    /// <summary>
+    ///     Leases listed messages using in-memory queries guarded by a process lock.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="request">The targeted lease request.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The envelopes claimed by this call.</returns>
+    private static async Task<IReadOnlyList<OutboxEnvelope>> LeaseByIdInMemoryAsync(
+        IOutboxDbContext context,
+        OutboxTargetedLeaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        await InMemoryLeaseLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            return await LeaseByIdInMemoryCoreAsync(context, request, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            InMemoryLeaseLock.Release();
+        }
+    }
+
+    /// <summary>
+    ///     Leases listed messages from the in-memory or SQLite provider inside the in-process lease lock.
+    /// </summary>
+    /// <param name="context">The database context.</param>
+    /// <param name="request">The targeted lease request.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The envelopes claimed by this call.</returns>
+    private static async Task<IReadOnlyList<OutboxEnvelope>> LeaseByIdInMemoryCoreAsync(
+        IOutboxDbContext context,
+        OutboxTargetedLeaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        var now = request.Now;
+        var leaseExpiresAt = request.Now.Add(request.LeaseDuration);
+        var staleCutoff = request.Now.Add(-request.LeaseDuration);
+        var pendingStatus = OutboxStatus.Pending;
+        var failedStatus = OutboxStatus.Failed;
+        var publishingStatus = OutboxStatus.Publishing;
+        var tenantId = request.TenantId;
+        var normalizedTenantId = tenantId is null ? null : EfCoreIdempotencyResolution.NormalizeTenantId(tenantId);
+        var messageIds = request.MessageIds;
+
+        var identifiers = EfCoreCollectionParameters.UseSingleParameter(context)
+            ? context.OutboxMessages.Where(message => EF.Parameter(messageIds).Contains(message.Id))
+            : context.OutboxMessages.Where(message => messageIds.Contains(message.Id));
+
+        var candidates = await identifiers
+            .Where(message =>
+                (tenantId == null || message.TenantId == normalizedTenantId) &&
+                ((message.Status == pendingStatus || message.Status == failedStatus) ||
+                 message.Status == publishingStatus && message.LeaseExpiresAt != null && message.LeaseExpiresAt <= now ||
+                 message.Status == publishingStatus && message.LeaseExpiresAt == null && message.CreatedAt < staleCutoff))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var message in candidates)
+        {
+            ApplyMutableState(message, ToEnvelope(message).AsLeased(request.LeaseOwner, leaseExpiresAt), now);
+        }
+
+        if (context is DbContext dbContext)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return candidates.Select(ToEnvelope).ToArray();
+    }
+
+    /// <summary>
+    ///     Leases listed SQLite rows inside a serializable transaction so separate processes cannot select the same candidate set.
+    /// </summary>
+    /// <param name="dbContext">The SQLite database context.</param>
+    /// <param name="context">The LiteBus outbox context.</param>
+    /// <param name="request">The targeted lease request.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The rows claimed by this transaction.</returns>
+    private static async Task<IReadOnlyList<OutboxEnvelope>> LeaseByIdSqliteAsync(
+        DbContext dbContext,
+        IOutboxDbContext context,
+        OutboxTargetedLeaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        var transaction = await dbContext.Database
+            .BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            .ConfigureAwait(false);
+
+        try
+        {
+            var leased = await LeaseByIdInMemoryCoreAsync(context, request, cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return leased;
         }

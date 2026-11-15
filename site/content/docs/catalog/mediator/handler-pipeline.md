@@ -137,7 +137,7 @@ public sealed class AuditPreHandler : ICommandPreHandler<CreateOrderCommand>
 ## Non-Goals
 
 - Automatic retries or delayed re-execution on failures.
-- Transaction boundaries across multiple handlers.
+- Transaction boundaries across multiple handlers outside a command batch. A batch commits several commands in one transaction; see [Command batches](command-batches.md).
 - Pipeline-level persistence of stage artifacts.
 
 ## Observability
