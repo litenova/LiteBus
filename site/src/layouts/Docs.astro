@@ -1,0 +1,44 @@
+---
+// The documentation page frame: the sidebar tree, the article column with the
+// breadcrumb, title, meta row, rendered body and pager, and the on-page list.
+// The article body alone is marked for Pagefind; the sidebar, header, footer
+// and pager stay outside it, and the H1 carries the page title as metadata.
+import Breadcrumbs from "../components/Breadcrumbs.astro";
+import DocsSidebar from "../components/DocsSidebar.astro";
+import PageToc from "../components/PageToc.astro";
+import Pager from "../components/Pager.astro";
+import "../styles/code.css";
+import "../styles/docs.css";
+import "../styles/prose.css";
+import { breadcrumbs, navTree, pageNeighbors, readingTime, type DocPage } from "../lib/docs.ts";
+import type { RenderedPage } from "../lib/render-markdown.ts";
+import { repositoryUrl } from "../lib/site.ts";
+
+interface Props {
+  page: DocPage;
+  rendered: RenderedPage;
+}
+
+const { page, rendered } = Astro.props;
+const items = breadcrumbs(page);
+const { prev, next } = pageNeighbors(page);
+const minutes = readingTime(page);
+const editUrl = `${repositoryUrl}/edit/main/site/content/docs/${page.file}`;
+---
+
+<div class="docs-layout">
+  <DocsSidebar tree={navTree} currentUrl={page.url} />
+  <article class="docs-article">
+    <Breadcrumbs items={items} />
+    <h1 data-pagefind-meta="title">{page.title}</h1>
+    <p class="page-meta" data-pagefind-ignore>
+      <span>{minutes} min read</span>
+      <span>Last updated <time datetime={page.lastModified}>{page.lastModified}</time></span>
+      <span><a href={page.mdUrl}>View Markdown</a></span>
+      <span><a href={editUrl}>Edit on GitHub</a></span>
+    </p>
+    <div class="prose" data-pagefind-body set:html={rendered.html} />
+    <Pager prev={prev} next={next} />
+  </article>
+  <PageToc toc={rendered.toc} />
+</div>

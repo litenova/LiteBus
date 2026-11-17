@@ -1,0 +1,70 @@
+---
+// The page served for any path that matches no file: a short message, links to
+// the documentation index and the home page, the search, and the top-level
+// documentation sections. It stays out of search indexes.
+import Base from "../layouts/Base.astro";
+import { navTree } from "../lib/docs.ts";
+import { pageTitle } from "../lib/seo.ts";
+import { docsBasePath, siteName } from "../lib/site.ts";
+
+const sections: { label: string; url?: string }[] = navTree.flatMap((node) => {
+  if (node.type === "separator") return [];
+  if (node.type === "page") return [{ label: node.page.title, url: node.page.url }];
+  if (node.index) return [{ label: node.label, url: node.index.url }];
+  return [{ label: node.label }];
+});
+---
+
+<Base title={pageTitle("That page does not exist")} description={`The requested address is not a ${siteName} documentation page.`} noindex>
+  <section class="missing">
+    <div class="wrap">
+      <h1>That page does not exist</h1>
+      <p><code id="missing-path">The address</code> is not a documentation page.</p>
+      <div class="act">
+        <a class="btn" href={docsBasePath}>Docs</a>
+        <a class="btn btn-outline" href="/">{siteName} home</a>
+        <button class="btn btn-outline" type="button" data-open-search>Search the docs</button>
+      </div>
+      <h2>Open an existing page</h2>
+      <ul class="sections">
+        {sections.map((section) => (
+          <li>{section.url ? <a href={section.url}>{section.label}</a> : <span>{section.label}</span>}</li>
+        ))}
+      </ul>
+    </div>
+  </section>
+  <script is:inline>
+    // The search dialog lives in the header; this button opens it from here.
+    // The missing address is filled in on the client; readers without
+    // JavaScript keep the generic sentence.
+    (function () {
+      var path = document.getElementById("missing-path");
+      if (path) path.textContent = window.location.pathname;
+      var button = document.querySelector("[data-open-search]");
+      if (!(button instanceof HTMLButtonElement)) return;
+      button.addEventListener("click", function () {
+        var trigger = document.querySelector("[data-search-trigger]");
+        if (trigger instanceof HTMLButtonElement) trigger.click();
+      });
+    })();
+  </script>
+</Base>
+
+<style>
+@layer base, components, pages;
+@layer pages {
+  .missing { flex: 1; display: flex; align-items: center; padding: var(--space-24) 0; }
+  .missing .wrap { width: 100%; padding: 0 var(--space-16); }
+  .missing h1 { font-size: 3rem; line-height: 1.05; letter-spacing: -.04em; font-weight: 600; margin: 0 0 var(--space-heading); }
+  .missing p { color: var(--muted-fg); font-size: 1.0625rem; max-width: 56ch; }
+  .missing .act { display: flex; flex-wrap: wrap; gap: var(--gap-inline); margin-top: var(--space-8); }
+  .missing h2 { font-size: 1.25rem; letter-spacing: -.01em; font-weight: 600; margin: var(--space-section) 0 var(--space-heading); }
+  .missing .sections { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--gap-stack); }
+  .missing .sections a { color: var(--accent-text); }
+  .missing .sections span { color: var(--muted-fg); }
+  @media (max-width: 760px) {
+    .missing .wrap { padding: 0 var(--space-4); }
+    .missing h1 { font-size: 2.25rem; }
+  }
+}
+</style>
