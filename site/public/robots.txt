@@ -1,0 +1,5 @@
+# litebus.io: every page is public. Agents read /llms.txt for the documentation index.
+User-agent: *
+Allow: /
+
+Sitemap: https://litebus.io/sitemap.xml

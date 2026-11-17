@@ -1,0 +1,29 @@
+# Redirects for litebus.io (Cloudflare Workers static assets).
+# Static rules come before the splat rules. No trailing-slash variants: with
+# html_handling at its default, a request for /docs/ already redirects to the
+# /docs asset, so every slash form of a served page resolves without a rule.
+
+# The plain-text index answers at the site root; the prefixed forms land there.
+/docs/llms.txt /llms.txt 302
+/docs/llms-full.txt /llms-full.txt 302
+
+# Old /v7/ documentation links point at the same path without the prefix.
+/v7/docs /docs 301
+/v7 /docs 301
+/docs/v7 /docs 301
+
+# Pages that moved in the documentation restructure keep their old URL working.
+/docs/concepts/domain-events-and-unit-of-work /docs/reliable-messaging/domain-events-and-unit-of-work 301
+/docs/concepts/recurring-commands /docs/integrations/recurring-commands 301
+/docs/reference/feature-index-v7 /docs/reference/feature-index 301
+/docs/roadmap/marten-outbox-writer /docs/integrations/outbox-marten-storage 301
+/docs/reference/feature-index-v6 /docs/reference/feature-index 301
+/docs/reference/semantic-validation /docs/contributing/semantic-validation 301
+/docs/migration/from-mediatr /docs/migration/mediatr-differences 301
+/docs/integrations/inbox-amqp /docs/integrations/inbox-amqp-ingress 301
+/docs/catalog/hosting/module-registry /docs/catalog/runtime/module-registry 301
+/docs/catalog/saga/processor-envelope-hooks /docs/catalog/durable-core/processor-hooks 301
+
+# The /v7/ prefixes with trailing paths.
+/v7/docs/* /docs/:splat 301
+/docs/v7/* /docs/:splat 301
