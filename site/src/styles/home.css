@@ -135,6 +135,8 @@
 .cmdbox {
   display: inline-grid;
   min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 .cmdbox > span {
   grid-area: 1 / 1;
@@ -774,10 +776,11 @@
   .ghost {
     display: none;
   }
+  /* The command keeps one line and scrolls inside .cmdbox, so the long
+     package name never pushes the page wider; the Copy button stays visible. */
   .typed {
     width: auto;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
   }
   .facts {
     display: grid;

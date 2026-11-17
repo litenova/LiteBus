@@ -29,6 +29,7 @@ const editUrl = `${repositoryUrl}/edit/main/site/content/docs/${page.file}`;
 <div class="docs-layout">
   <DocsSidebar tree={navTree} currentUrl={page.url} />
   <article class="docs-article">
+    <button type="button" class="btn btn-outline btn-sm docs-browse-btn" data-docs-browse>Browse docs</button>
     <Breadcrumbs items={items} />
     <h1 data-pagefind-meta="title">{page.title}</h1>
     <p class="page-meta" data-pagefind-ignore>
@@ -37,6 +38,7 @@ const editUrl = `${repositoryUrl}/edit/main/site/content/docs/${page.file}`;
       <span><a href={page.mdUrl}>View Markdown</a></span>
       <span><a href={editUrl}>Edit on GitHub</a></span>
     </p>
+    <PageToc toc={rendered.toc} markdownUrl={page.mdUrl} editUrl={editUrl} mobile />
     <div class="prose" data-pagefind-body set:html={rendered.html} />
     <Pager prev={prev} next={next} />
   </article>

@@ -285,20 +285,22 @@ details[open] > .group-h .chev {
 }
 
 /* The page meta row under the title: reading time, last update and page links,
-   as small muted text. */
+   as small muted text. The bottom margin separates it from the body, whose
+   first child has no top margin. The separators trail each item instead of
+   leading the next, so a wrapped line never starts with one. */
 .page-meta {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: var(--gap-inline);
-  margin: 0;
+  margin: 0 0 var(--space-5);
   font-size: 0.8125rem;
   color: var(--muted-fg);
 }
 
-.page-meta > span + span::before {
+.page-meta > span:not(:last-child)::after {
   content: "\00B7";
-  margin-inline-end: var(--gap-inline);
+  margin-inline-start: var(--gap-inline);
   color: var(--rail);
 }
 
@@ -610,6 +612,7 @@ nav[data-toc][data-enhanced] .toc-list > li[data-open] > ul {
 
   .docs-browse-btn {
     display: inline-flex;
+    min-block-size: 44px;
   }
 
   .pager {

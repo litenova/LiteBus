@@ -240,6 +240,15 @@ a, button, summary, .btn { transition: color .12s, background-color .12s, border
   .site-menu { display: block; }
 }
 
+/* Phone widths: the version chip and the GitHub and NuGet buttons move into
+   the site menu disclosure, so the search, theme and menu buttons fit without
+   a horizontal scroll. */
+@media (max-width: 420px) {
+  .site-end > .ver,
+  .site-end > .site-gh,
+  .site-end > .site-nuget { display: none; }
+}
+
 /* Wide screens: the frame widens and the type grows one step. Page styles add
    their own wide-screen sizes. */
 @media (min-width: 100rem) {
