@@ -1,1 +1,5 @@
 content/docs/changelog.md
+node_modules/
+dist/
+.astro/
+.wrangler/
