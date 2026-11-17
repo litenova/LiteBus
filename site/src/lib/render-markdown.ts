@@ -5,7 +5,7 @@
 // build time, then post-processing: GitHub-style heading ids, the leading H1
 // removed for the template, relative links rewritten to site URLs, tables
 // given a scrolling wrapper, and code blocks wrapped in figures.
-import { createMarkdownProcessor, type MarkdownRenderer } from "@astrojs/markdown-remark";
+import { createMarkdownProcessor, type MarkdownRenderer, type RemarkPlugin } from "@astrojs/markdown-remark";
 import { remarkOndine } from "ondine/remark";
 import { decorateCodeBlocks } from "./code-blocks.ts";
 import { resolveDocHref, type DocPage } from "./docs.ts";
@@ -26,7 +26,8 @@ async function renderer(): Promise<MarkdownRenderer> {
       syntaxHighlight: { type: "shiki", excludeLangs: ["mermaid"] },
       shikiConfig: { themes: { light: "github-light", dark: "github-dark" }, defaultColor: false, wrap: false },
       smartypants: false,
-      remarkPlugins: [remarkOndine],
+      // remarkOndine declares a narrower `this` type than the unified plugin type.
+      remarkPlugins: [remarkOndine as unknown as RemarkPlugin],
     });
   }
   return processor;

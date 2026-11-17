@@ -45,56 +45,65 @@ import Icon from "./Icon.astro";
 </style>
 <script>
   (function () {
-    var KEY = "litebus-theme";
-    var LIGHT = "#ffffff";
-    var DARK = "#151217";
-    var button = document.querySelector("[data-theme-button]");
-    if (!(button instanceof HTMLButtonElement)) return;
-    function stored() {
-      try {
-        var value = window.localStorage.getItem(KEY);
-        if (value === "light" || value === "dark" || value === "auto") return value;
-      } catch (err) {
-        /* a blocked store keeps the system theme */
+    type ThemeChoice = "light" | "dark" | "auto";
+
+    const KEY = "litebus-theme";
+    const LIGHT = "#ffffff";
+    const DARK = "#151217";
+    const button = document.querySelector<HTMLButtonElement>("[data-theme-button]");
+    if (button === null) return;
+    init(button);
+
+    function init(button: HTMLButtonElement): void {
+      function stored(): ThemeChoice {
+        try {
+          const value = window.localStorage.getItem(KEY);
+          if (value === "light" || value === "dark" || value === "auto") return value;
+        } catch {
+          /* a blocked store keeps the system theme */
+        }
+        return "auto";
       }
-      return "auto";
-    }
-    function text(choice) {
-      if (choice === "light") return "Theme: Light";
-      if (choice === "dark") return "Theme: Dark";
-      return "Theme: System";
-    }
-    // Applies the choice to the document: data-theme, the color-scheme meta and
-    // the theme-color metas, so the browser chrome matches the resolved scheme.
-    function apply(choice) {
-      if (choice === "light" || choice === "dark") {
-        document.documentElement.setAttribute("data-theme", choice);
-      } else {
-        document.documentElement.removeAttribute("data-theme");
+      function text(choice: ThemeChoice): string {
+        if (choice === "light") return "Theme: Light";
+        if (choice === "dark") return "Theme: Dark";
+        return "Theme: System";
       }
-      var scheme = document.querySelector('meta[name="color-scheme"]');
-      if (scheme) scheme.setAttribute("content", choice === "auto" ? "light dark" : choice);
-      Array.prototype.forEach.call(document.querySelectorAll('meta[name="theme-color"]'), function (meta) {
-        var media = meta.getAttribute("media") || "";
-        if (choice === "light") meta.setAttribute("content", LIGHT);
-        else if (choice === "dark") meta.setAttribute("content", DARK);
-        else if (media.indexOf("light") !== -1) meta.setAttribute("content", LIGHT);
-        else if (media.indexOf("dark") !== -1) meta.setAttribute("content", DARK);
+      // Applies the choice to the document: data-theme, the color-scheme meta and
+      // the theme-color metas, so the browser chrome matches the resolved scheme.
+      function apply(choice: ThemeChoice): void {
+        if (choice === "light" || choice === "dark") {
+          document.documentElement.setAttribute("data-theme", choice);
+        } else {
+          document.documentElement.removeAttribute("data-theme");
+        }
+        const scheme = document.querySelector('meta[name="color-scheme"]');
+        if (scheme) scheme.setAttribute("content", choice === "auto" ? "light dark" : choice);
+        Array.prototype.forEach.call(
+          document.querySelectorAll('meta[name="theme-color"]'),
+          function (meta: Element): void {
+            const media = meta.getAttribute("media") || "";
+            if (choice === "light") meta.setAttribute("content", LIGHT);
+            else if (choice === "dark") meta.setAttribute("content", DARK);
+            else if (media.indexOf("light") !== -1) meta.setAttribute("content", LIGHT);
+            else if (media.indexOf("dark") !== -1) meta.setAttribute("content", DARK);
+          }
+        );
+        button.setAttribute("data-choice", choice);
+        button.setAttribute("aria-label", text(choice));
+        button.setAttribute("title", text(choice));
+      }
+      button.addEventListener("click", function (): void {
+        const current = button.getAttribute("data-choice") || "auto";
+        const next: ThemeChoice = current === "auto" ? "light" : current === "light" ? "dark" : "auto";
+        try {
+          window.localStorage.setItem(KEY, next);
+        } catch {
+          /* a blocked store keeps the choice for this page only */
+        }
+        apply(next);
       });
-      button.setAttribute("data-choice", choice);
-      button.setAttribute("aria-label", text(choice));
-      button.setAttribute("title", text(choice));
+      apply(stored());
     }
-    button.addEventListener("click", function () {
-      var current = button.getAttribute("data-choice") || "auto";
-      var next = current === "auto" ? "light" : current === "light" ? "dark" : "auto";
-      try {
-        window.localStorage.setItem(KEY, next);
-      } catch (err) {
-        /* a blocked store keeps the choice for this page only */
-      }
-      apply(next);
-    });
-    apply(stored());
   })();
 </script>
