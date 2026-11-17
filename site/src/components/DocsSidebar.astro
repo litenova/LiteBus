@@ -1,0 +1,132 @@
+---
+// Left navigation of the docs pages: the documentation tree in reading order,
+// with separators as group labels, pages as links, and folders as collapsible
+// groups that open when they hold the current page. It renders once: an inline
+// column on desktop, and the same markup as a native dialog drawer on phones,
+// opened from the Browse docs button. The drawer adds a filter input over page
+// titles; Esc and the close button close it. The tree is built as a string
+// because Astro components cannot recurse.
+import Icon from "./Icon.astro";
+import { paths } from "../lib/icons.ts";
+import type { DocPage, NavNode } from "../lib/docs.ts";
+
+interface Props {
+  /** The documentation tree in reading order. */
+  tree: NavNode[];
+  /** The URL of the current page, marked with aria-current. */
+  currentUrl: string;
+}
+
+const { tree, currentUrl } = Astro.props;
+
+const escape = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+const iconSvg = (name: string, cls: string): string =>
+  `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${(paths as Record<string, string>)[name] ?? ""}</svg>`;
+
+const link = (page: DocPage): string =>
+  page.url === currentUrl
+    ? `<a class="on" href="${escape(page.url)}" aria-current="page">${escape(page.title)}</a>`
+    : `<a href="${escape(page.url)}">${escape(page.title)}</a>`;
+
+/** Whether a folder holds the current page, through its index or any descendant. */
+const holdsCurrent = (node: NavNode): boolean => {
+  if (node.type === "page") return node.page.url === currentUrl;
+  if (node.type === "separator") return false;
+  if (node.index?.url === currentUrl) return true;
+  return node.children.some(holdsCurrent);
+};
+
+/** One collapsible folder node, open when it holds the current page. The
+    folder's index page comes first inside it, like an overview. */
+const folderTree = (label: string, index: DocPage | undefined, children: NavNode[]): string => {
+  const isOpen = index?.url === currentUrl || children.some(holdsCurrent) ? " open" : "";
+  let inner = index ? link(index) : "";
+  for (const child of children) inner += treeNode(child);
+  return `<details${isOpen}><summary>${escape(label)}${iconSvg("chevron", "icon chev")}</summary><div class="kids">${inner}</div></details>`;
+};
+
+const treeNode = (node: NavNode): string => {
+  if (node.type === "page") return link(node.page);
+  if (node.type === "folder") return folderTree(node.label, node.index, node.children);
+  return "";
+};
+
+/** The tree split at its separators: each separator labels the group of pages
+    and folders after it. Nodes before the first separator form a group without
+    a label. */
+const sidebar = (() => {
+  const groups: { label: string | null; nodes: NavNode[] }[] = [{ label: null, nodes: [] }];
+  for (const node of tree) {
+    if (node.type === "separator") groups.push({ label: node.label, nodes: [] });
+    else groups.at(-1)?.nodes.push(node);
+  }
+  return groups
+    .filter((group) => group.nodes.length > 0)
+    .map((group) => {
+      const inner = group.nodes.map(treeNode).join("");
+      if (group.label === null) return `<div class="tree">${inner}</div>`;
+      return (
+        `<div class="group">` +
+        `<div class="group-h">${escape(group.label)}</div>` +
+        `<div class="tree">${inner}</div></div>`
+      );
+    })
+    .join("");
+})();
+---
+
+<dialog class="side-dialog" id="docs-drawer" aria-label="Browse docs" closedby="any">
+  <div class="drawer-head">
+    <input type="search" data-docs-filter placeholder="Filter pages" aria-label="Filter pages" autocomplete="off" />
+    <button type="button" class="btn btn-ghost btn-icon" command="close" commandfor="docs-drawer" aria-label="Close"><Icon name="close" /></button>
+  </div>
+  <nav class="side" aria-label="Documentation" set:html={sidebar}></nav>
+  <script is:inline>
+    (function () {
+      var dialog = document.getElementById("docs-drawer");
+      if (!(dialog instanceof HTMLDialogElement)) return;
+      var on = dialog.querySelector("a.on");
+      if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest" });
+      // The Browse docs button lives in the docs layout, outside this dialog.
+      Array.prototype.forEach.call(document.querySelectorAll("[data-docs-browse]"), function (button) {
+        button.addEventListener("click", function () {
+          if (!dialog.open) dialog.showModal();
+        });
+      });
+      // closedby="any" closes a modal on a click outside it; a browser without it keeps the listener.
+      if (!("closedBy" in HTMLDialogElement.prototype)) {
+        dialog.addEventListener("click", function (event) {
+          if (event.target === dialog) dialog.close();
+        });
+      }
+      var input = dialog.querySelector("[data-docs-filter]");
+      if (!(input instanceof HTMLInputElement)) return;
+      var saved = null;
+      input.addEventListener("input", function () {
+        var query = input.value.trim().toLowerCase();
+        if (saved === null && query !== "") {
+          saved = Array.prototype.map.call(dialog.querySelectorAll("details"), function (d) { return d.open; });
+        }
+        var links = dialog.querySelectorAll("nav a");
+        Array.prototype.forEach.call(links, function (link) {
+          link.hidden = query !== "" && link.textContent.toLowerCase().indexOf(query) < 0;
+        });
+        Array.prototype.forEach.call(dialog.querySelectorAll("details"), function (d) {
+          var match = d.querySelector("a:not([hidden])");
+          d.hidden = query !== "" && !match;
+          if (query !== "" && match) d.open = true;
+        });
+        if (query === "" && saved !== null) {
+          Array.prototype.forEach.call(dialog.querySelectorAll("details"), function (d, i) { d.open = !!saved[i]; });
+          saved = null;
+        }
+      });
+    })();
+  </script>
+</dialog>

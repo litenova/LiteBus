@@ -1,0 +1,30 @@
+---
+// The pager at the foot of a docs page: the previous and next pages in reading
+// order. Either side may be absent on the first and last pages.
+import Icon from "./Icon.astro";
+import type { DocPage } from "../lib/docs.ts";
+
+interface Props {
+  prev?: DocPage;
+  next?: DocPage;
+}
+
+const { prev, next } = Astro.props;
+---
+
+{(prev || next) && (
+  <nav class="pager" aria-label="Documentation pages" data-pagefind-ignore>
+    {prev && (
+      <a class="pager-prev" href={prev.url}>
+        <small><Icon name="arrow-left" class="icon-sm" />Previous</small>
+        <b>{prev.title}</b>
+      </a>
+    )}
+    {next && (
+      <a class="pager-next" href={next.url}>
+        <small>Next<Icon name="arrow" class="icon-sm" /></small>
+        <b>{next.title}</b>
+      </a>
+    )}
+  </nav>
+)}

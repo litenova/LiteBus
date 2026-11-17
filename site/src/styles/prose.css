@@ -1,0 +1,272 @@
+@layer base, components, pages;
+
+@layer components {
+/* Styles for the rendered page body: every element render-markdown.ts can emit
+   inside .prose, from section headings down to links, lists, tables, code and
+   diagrams. */
+
+.prose {
+  font-size: var(--text);
+  line-height: 1.5;
+  min-width: 0;
+  text-wrap: pretty;
+}
+
+.prose > :first-child {
+  margin-top: 0;
+}
+
+/* Headings */
+
+.prose h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: calc(var(--text) * 1.3);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: var(--space-section) 0 var(--space-heading);
+  scroll-margin-top: calc(var(--top) + var(--space-4));
+}
+
+.prose h2::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.prose h3 {
+  font-size: calc(var(--text) * 1.15);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: var(--space-8) 0 var(--space-3);
+  scroll-margin-top: calc(var(--top) + var(--space-4));
+}
+
+.prose h4 {
+  font-size: var(--text);
+  font-weight: 600;
+  margin: var(--space-6) 0 var(--space-2);
+  scroll-margin-top: calc(var(--top) + var(--space-4));
+}
+
+.prose h2 code,
+.prose h3 code,
+.prose h4 code {
+  font-size: 0.85em;
+}
+
+/* The heading link is hidden until hover or focus, and is still a 24px target. */
+.prose .anchor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 1.5rem;
+  min-block-size: 1.5rem;
+  opacity: 0;
+  color: var(--accent-text);
+  text-decoration: none;
+  font-weight: 400;
+  margin-inline-start: var(--gap-inline);
+}
+
+.prose h2 .anchor {
+  margin-inline-start: 0;
+}
+
+.prose h2:hover .anchor,
+.prose h3:hover .anchor,
+.prose h4:hover .anchor,
+.prose .anchor:focus-visible {
+  opacity: 1;
+}
+
+/* Prose */
+
+.prose p {
+  margin: 0 0 var(--space-block);
+  overflow-wrap: break-word;
+}
+
+.prose a {
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 3px;
+}
+
+.prose a:hover {
+  text-decoration-color: var(--accent);
+}
+
+.prose ul,
+.prose ol {
+  margin: 0 0 var(--space-block);
+  padding-inline-start: var(--space-6);
+  overflow-wrap: break-word;
+}
+
+.prose li + li {
+  margin-top: var(--space-1);
+}
+
+.prose li > ul,
+.prose li > ol {
+  margin-top: var(--space-1);
+  margin-bottom: 0;
+}
+
+.prose blockquote {
+  margin: 0 0 var(--space-block);
+  padding: var(--space-1) 0 var(--space-1) var(--space-4);
+  border-inline-start: 2px solid var(--accent);
+  color: var(--muted-fg);
+}
+
+.prose blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.prose hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: var(--space-6) 0;
+}
+
+.prose img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Code */
+
+.prose code {
+  font-family: var(--mono);
+  font-size: calc(var(--text) * 0.7);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px var(--space-1);
+}
+
+.prose pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--pad-box-y) var(--pad-box-x);
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  margin: 0 0 var(--space-block);
+}
+
+.prose pre code {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* Tables */
+
+.prose .table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 0 0 var(--space-block);
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: calc(var(--text) * 0.8);
+  margin: 0;
+}
+
+.prose thead th {
+  background: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-fg);
+  text-align: start;
+  white-space: nowrap;
+  padding: var(--pad-box-y) var(--pad-box-x);
+  border-bottom: 1px solid var(--border);
+}
+
+.prose tbody td {
+  padding: var(--pad-box-y) var(--pad-box-x);
+  vertical-align: top;
+}
+
+/* Columns keep a readable width instead of squeezing to one word per line; a
+   table wider than its column scrolls inside .table-wrap. */
+.prose thead th,
+.prose tbody td {
+  min-width: 12ch;
+}
+
+.prose tbody tr + tr td {
+  border-top: 1px solid var(--border);
+}
+
+.prose .lbl {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-fg);
+  margin-inline-end: var(--gap-inline);
+}
+
+.prose .note-muted {
+  color: var(--muted-fg);
+}
+
+/* Diagrams: an inlined SVG rendered from a Mermaid fence at build time, in a
+   bordered frame, with its description as the caption. Its colors are the
+   site's tokens, so it follows the theme. */
+.prose .diagram {
+  margin: var(--space-block) 0;
+  padding: var(--space-5) var(--space-4) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  overflow-x: auto;
+}
+.prose .diagram-art {
+  display: block;
+  width: 100%;
+  max-width: 760px;
+  height: auto;
+  margin: 0 auto;
+}
+.prose .diagram figcaption {
+  margin-top: var(--gap-stack);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--muted-fg);
+}
+@media (max-width: 760px) {
+  .prose .diagram-art { min-width: 560px; }
+}
+
+/* Motion: code blocks and tables rise into place as they scroll into view,
+   once, where the browser supports scroll-driven animation. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .prose .code-block,
+    .prose .table-wrap {
+      animation: rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 40%;
+    }
+  }
+}
+}

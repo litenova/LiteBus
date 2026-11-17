@@ -1,0 +1,27 @@
+---
+// The breadcrumb of a docs page: its ancestors, then the page. Every ancestor
+// with a URL links to it; the current page is text. Separators come from CSS,
+// so assistive technology hears one ordered list. The schema.org BreadcrumbList
+// is markup only; the page carries the JSON-LD.
+interface Props {
+  /** The ancestors first and the current page last, which has no URL. */
+  items: { label: string; url?: string }[];
+}
+
+const { items } = Astro.props;
+---
+
+<nav class="crumb breadcrumbs" aria-label="Breadcrumb">
+  <ol itemscope itemtype="https://schema.org/BreadcrumbList">
+    {items.map((item, index) => (
+      <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        {item.url ? (
+          <a itemprop="item" href={item.url}><span itemprop="name">{item.label}</span></a>
+        ) : (
+          <span class="crumb-current" aria-current="page" itemprop="name">{item.label}</span>
+        )}
+        <meta itemprop="position" content={String(index + 1)} />
+      </li>
+    ))}
+  </ol>
+</nav>

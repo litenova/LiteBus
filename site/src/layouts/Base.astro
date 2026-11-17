@@ -1,0 +1,211 @@
+---
+// The shared layout: head, the theme set before first paint, the framed column
+// with the header and footer, and the copy-button behavior. Every page is static
+// and complete without JavaScript; scripts only add the theme, copying, search
+// and the "On this page" tracking.
+import "../styles/site.css";
+import "../styles/docs.css";
+import "../styles/prose.css";
+import "../styles/code.css";
+import Icon from "../components/Icon.astro";
+import Mark from "../components/Mark.astro";
+import Search from "../components/Search.astro";
+import ThemeSwitcher from "../components/ThemeSwitcher.astro";
+import { absoluteUrl, metaDescription, organization, socialImage, website } from "../lib/seo.ts";
+import {
+  changelogUrl,
+  companyName,
+  companyUrl,
+  latestRelease,
+  nugetUrl,
+  repositoryUrl,
+  siteKeywords,
+  siteName,
+} from "../lib/site.ts";
+
+interface Props {
+  /** The full title, already formatted by seo.pageTitle. */
+  title: string;
+  /** Passed through seo.metaDescription inside the layout. */
+  description: string;
+  /** The page's Markdown URL; renders a Markdown alternate link. */
+  mdUrl?: string;
+  /** Keeps the page out of search indexes, such as the 404 page. */
+  noindex?: boolean;
+  /** "article" for a docs page, "website" otherwise. */
+  ogType?: "website" | "article";
+  /** Schema.org objects for this page, written as one JSON-LD graph. */
+  jsonLd?: Record<string, unknown>[];
+  /** The header section this page belongs to. */
+  active?: "docs" | "home" | "privacy";
+}
+
+const { title, mdUrl, noindex = false, ogType = "website", jsonLd = [], active } = Astro.props;
+const description = metaDescription(Astro.props.description);
+const canonical = absoluteUrl(Astro.url.pathname);
+const imageUrl = socialImage.url.startsWith("http") ? socialImage.url : absoluteUrl(socialImage.url);
+const graph = JSON.stringify({ "@context": "https://schema.org", "@graph": [organization, website, ...jsonLd] });
+const changelogLabel = `Changelog v${latestRelease}`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="keywords" content={siteKeywords.join(", ")} />
+    {!noindex && <link rel="canonical" href={canonical} />}
+    {noindex && <meta name="robots" content="noindex, follow" />}
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#151217" />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    {!noindex && <meta property="og:url" content={canonical} />}
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content={String(socialImage.width)} />
+    <meta property="og:image:height" content={String(socialImage.height)} />
+    <meta property="og:image:alt" content={socialImage.alt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={imageUrl} />
+    <meta name="twitter:image:alt" content={socialImage.alt} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+    {mdUrl && <link rel="alternate" type="text/markdown" href={mdUrl} />}
+    <link rel="alternate" type="text/plain" title="LiteBus documentation for language models" href="/llms.txt" />
+    <link rel="preload" href="/fonts/geist-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <script type="application/ld+json" set:html={graph} />
+    <slot name="head" />
+    <script is:inline>
+      // The stored scheme override runs before first paint: it pins data-theme,
+      // the color-scheme meta and the theme-color metas only when the visitor
+      // chose light or dark before; otherwise the system default stays in place.
+      // The header switcher keeps "litebus-theme": "light" or "dark" pins that
+      // scheme, "auto" follows the system.
+      try {
+        var storedTheme = window.localStorage.getItem("litebus-theme");
+        var scheme = document.querySelector('meta[name="color-scheme"]');
+        var lightColor = "#ffffff";
+        var darkColor = "#151217";
+        if (storedTheme === "light" || storedTheme === "dark") {
+          document.documentElement.setAttribute("data-theme", storedTheme);
+          if (scheme) scheme.setAttribute("content", storedTheme);
+        } else {
+          document.documentElement.removeAttribute("data-theme");
+          if (scheme) scheme.setAttribute("content", "light dark");
+        }
+        var themeColors = document.querySelectorAll('meta[name="theme-color"]');
+        for (var i = 0; i < themeColors.length; i++) {
+          var meta = themeColors[i];
+          var media = meta.getAttribute("media") || "";
+          if (storedTheme === "light") meta.setAttribute("content", lightColor);
+          else if (storedTheme === "dark") meta.setAttribute("content", darkColor);
+          else if (media.indexOf("light") !== -1) meta.setAttribute("content", lightColor);
+          else if (media.indexOf("dark") !== -1) meta.setAttribute("content", darkColor);
+        }
+      } catch (err) { /* a blocked store keeps the system theme */ }
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to main content</a>
+    <div class="frame">
+      <header class="site-top site-header">
+        <div class="wrap">
+          <a class="logo" href="/" aria-label="LiteBus home" aria-current={active === "home" ? "page" : undefined}>
+            <Mark size={30} /><span class="logo-name">LiteBus</span>
+          </a>
+          <nav class="site-nav" aria-label="Site">
+            <a href="/docs" aria-current={active === "docs" ? "page" : undefined}>Docs</a>
+          </nav>
+          <div class="site-end">
+            <a class="ver" href={changelogUrl} aria-label={changelogLabel}>v{latestRelease}</a>
+            <Search />
+            <a class="btn btn-ghost btn-icon" href={repositoryUrl} aria-label="LiteBus on GitHub"><Icon name="github" /></a>
+            <a class="btn btn-ghost btn-icon" href={nugetUrl} aria-label="LiteBus on NuGet"><Icon name="nuget" /></a>
+            <ThemeSwitcher />
+            <details class="site-menu">
+              <summary class="btn btn-ghost btn-icon" aria-label="Menu"><Icon name="menu" /></summary>
+              <nav class="site-menu-panel" aria-label="Site menu">
+                <a href="/docs" aria-current={active === "docs" ? "page" : undefined}>Docs</a>
+                <a href={changelogUrl} aria-label={changelogLabel}>Changelog</a>
+              </nav>
+            </details>
+          </div>
+        </div>
+      </header>
+      <main id="content" class="frame-main">
+        <slot />
+      </main>
+      <footer class="site-foot site-footer">
+        <div class="wrap">
+          <span class="brand"><Mark size={16} />LiteBus {latestRelease}</span>
+          <span>MIT license</span>
+          <span>By <a href={companyUrl}>{companyName}</a></span>
+          <span class="spacer"></span>
+          <a href="/privacy">Privacy</a>
+          <a href="/llms.txt" title="LiteBus documentation index for language models">llms.txt</a>
+          <a href="/llms-full.txt" title="LiteBus documentation full text for language models">llms-full.txt</a>
+          <a href={repositoryUrl}>GitHub</a>
+          <a href={nugetUrl}>NuGet</a>
+        </div>
+      </footer>
+    </div>
+    <script is:inline>
+      (function () {
+        // Any element with data-copy or data-copy-url copies its text. Its first .copy-label child,
+        // or the element itself when it has none, shows "Copied" for a moment.
+        function flash(button) {
+          var label = button.querySelector(".copy-label") || (button.children.length === 0 ? button : null);
+          button.setAttribute("data-copied", "");
+          if (label) {
+            var text = label.textContent;
+            label.textContent = "Copied";
+            window.setTimeout(function () { label.textContent = text; button.removeAttribute("data-copied"); }, 1500);
+          } else {
+            window.setTimeout(function () { button.removeAttribute("data-copied"); }, 1500);
+          }
+        }
+        // data-copy holds the text; data-copy-url names a file whose text is fetched and copied,
+        // so a long text such as a whole page stays out of the HTML.
+        document.addEventListener("click", function (event) {
+          var target = event.target;
+          if (!(target instanceof Element)) return;
+          var button = target.closest("[data-copy], [data-copy-url]");
+          if (!button) return;
+          var url = button.getAttribute("data-copy-url");
+          if (url) {
+            fetch(url).then(function (response) { return response.ok ? response.text() : Promise.reject(); })
+              .then(function (text) { return navigator.clipboard.writeText(text); })
+              .then(function () { flash(button); }, function () { window.location.href = url; });
+            return;
+          }
+          var text = button.getAttribute("data-copy") || "";
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () { flash(button); }, function () { /* the text stays visible */ });
+            return;
+          }
+          try {
+            var area = document.createElement("textarea");
+            area.value = text;
+            document.body.appendChild(area);
+            area.select();
+            document.execCommand("copy");
+            document.body.removeChild(area);
+            flash(button);
+          } catch (err) { /* the text stays visible */ }
+        });
+      })();
+    </script>
+  </body>
+</html>

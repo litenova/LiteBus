@@ -1,0 +1,100 @@
+---
+import Icon from "./Icon.astro";
+---
+
+<button
+  type="button"
+  class="btn btn-ghost btn-icon theme-btn"
+  data-theme-button
+  data-choice="auto"
+  aria-label="Theme: System"
+  title="Theme: System"
+>
+  <Icon name="laptop" class="theme-icon icon-auto" />
+  <Icon name="sun" class="theme-icon icon-light" />
+  <Icon name="moon" class="theme-icon icon-dark" />
+</button>
+<style>
+@layer base, components, pages;
+@layer components {
+  :global(.theme-btn .theme-icon) {
+    display: none;
+  }
+  :global(.theme-btn[data-choice="auto"] .icon-auto) {
+    display: block;
+  }
+  :global(.theme-btn[data-choice="light"] .icon-light) {
+    display: block;
+  }
+  :global(.theme-btn[data-choice="dark"] .icon-dark) {
+    display: block;
+  }
+  :global(:root[data-theme="light"] .theme-btn[data-choice="auto"] .icon-auto) {
+    display: none;
+  }
+  :global(:root[data-theme="light"] .theme-btn[data-choice="auto"] .icon-light) {
+    display: block;
+  }
+  :global(:root[data-theme="dark"] .theme-btn[data-choice="auto"] .icon-dark) {
+    display: none;
+  }
+  :global(:root[data-theme="dark"] .theme-btn[data-choice="auto"] .icon-dark) {
+    display: block;
+  }
+}
+</style>
+<script>
+  (function () {
+    var KEY = "litebus-theme";
+    var LIGHT = "#ffffff";
+    var DARK = "#151217";
+    var button = document.querySelector("[data-theme-button]");
+    if (!(button instanceof HTMLButtonElement)) return;
+    function stored() {
+      try {
+        var value = window.localStorage.getItem(KEY);
+        if (value === "light" || value === "dark" || value === "auto") return value;
+      } catch (err) {
+        /* a blocked store keeps the system theme */
+      }
+      return "auto";
+    }
+    function text(choice) {
+      if (choice === "light") return "Theme: Light";
+      if (choice === "dark") return "Theme: Dark";
+      return "Theme: System";
+    }
+    // Applies the choice to the document: data-theme, the color-scheme meta and
+    // the theme-color metas, so the browser chrome matches the resolved scheme.
+    function apply(choice) {
+      if (choice === "light" || choice === "dark") {
+        document.documentElement.setAttribute("data-theme", choice);
+      } else {
+        document.documentElement.removeAttribute("data-theme");
+      }
+      var scheme = document.querySelector('meta[name="color-scheme"]');
+      if (scheme) scheme.setAttribute("content", choice === "auto" ? "light dark" : choice);
+      Array.prototype.forEach.call(document.querySelectorAll('meta[name="theme-color"]'), function (meta) {
+        var media = meta.getAttribute("media") || "";
+        if (choice === "light") meta.setAttribute("content", LIGHT);
+        else if (choice === "dark") meta.setAttribute("content", DARK);
+        else if (media.indexOf("light") !== -1) meta.setAttribute("content", LIGHT);
+        else if (media.indexOf("dark") !== -1) meta.setAttribute("content", DARK);
+      });
+      button.setAttribute("data-choice", choice);
+      button.setAttribute("aria-label", text(choice));
+      button.setAttribute("title", text(choice));
+    }
+    button.addEventListener("click", function () {
+      var current = button.getAttribute("data-choice") || "auto";
+      var next = current === "auto" ? "light" : current === "light" ? "dark" : "auto";
+      try {
+        window.localStorage.setItem(KEY, next);
+      } catch (err) {
+        /* a blocked store keeps the choice for this page only */
+      }
+      apply(next);
+    });
+    apply(stored());
+  })();
+</script>
