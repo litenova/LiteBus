@@ -34,6 +34,8 @@ export interface DocPage {
   section: string;
   /** ISO date (YYYY-MM-DD) of the last git commit touching the file, or the build date. */
   lastModified: string;
+  /** ISO date (YYYY-MM-DD) of the first git commit touching the file, or the build date. */
+  published: string;
 }
 
 /** A node of the documentation navigation tree. */
@@ -139,10 +141,40 @@ function withoutByteOrderMark(content: string): string {
   return content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
 }
 
-/** The text of the first level-one heading. */
-function extractTitle(content: string): string | undefined {
-  return /^#\s+(.+?)\s*$/m.exec(withoutByteOrderMark(content))?.[1];
+/**
+ * The text of the first level-one heading, as plain text.
+ *
+ * Inline code backticks are stripped and HTML entities decoded, so `<title>` and `og:title` hold the words a reader
+ * sees rather than Markdown markers. The rendered H1 keeps its own code formatting from the Markdown renderer.
+ */
+export function extractTitle(content: string): string | undefined {
+  const raw = /^#\s+(.+?)\s*$/m.exec(withoutByteOrderMark(content))?.[1];
+  if (raw === undefined) {
+    return undefined;
+  }
+  return decodeEntities(raw.replace(/`/g, "")).trim();
 }
+
+/**
+ * Text with named HTML entities decoded to the characters they name.
+ *
+ * `&amp;` decodes last, so `&amp;lt;` decodes once to `&lt;` rather than twice to `<`.
+ */
+function decodeEntities(text: string): string {
+  return entityReplacements.reduce(
+    (carry, [pattern, replacement]) => carry.replace(pattern, replacement),
+    text,
+  );
+}
+
+/** The named HTML entities a heading may carry, in decoding order. */
+const entityReplacements: readonly [RegExp, string][] = [
+  [/&lt;/g, "<"],
+  [/&gt;/g, ">"],
+  [/&quot;/g, '"'],
+  [/&#39;|&apos;/g, "'"],
+  [/&amp;/g, "&"],
+];
 
 /** Lines that open a block which is not prose, and so cannot contribute to a description. */
 const nonProsePattern = /^(?:#{1,6}\s|```|~~~|\||>|[-*+]\s|\d+[.)]\s|<|\[!|:::)/;
@@ -168,12 +200,12 @@ const summaryFieldLabel = "summary";
  * Inline Markdown removed from a description, in application order.
  *
  * A description is plain text in a meta tag and in a `llms.txt` list item, so link syntax and emphasis markers have to
- * come out while the words they wrap stay.
+ * come out while the words they wrap stay. Inline code spans are sheltered before these run (see clean), so generic
+ * arguments inside code survive the HTML rule while real tags still come out.
  */
 const inlineReplacements: readonly [RegExp, string][] = [
   [/!\[[^\]]*\]\([^)]*\)/g, ""],
   [/\[([^\]]*)\]\([^)]*\)/g, "$1"],
-  [/`([^`]*)`/g, "$1"],
   [/\*\*([^*]+)\*\*/g, "$1"],
   [/__([^_]+)__/g, "$1"],
   [/(?<![\w*])\*([^*]+)\*(?![\w*])/g, "$1"],
@@ -181,25 +213,34 @@ const inlineReplacements: readonly [RegExp, string][] = [
   [/\s+/g, " "],
 ];
 
-/** Longest description emitted before it is cut at a word boundary. */
-const descriptionLimit = 240;
+/** Longest description emitted, cut at a word boundary when longer. */
+const descriptionLimit = 160;
+
+/** Shortest description emitted; a shorter candidate is extended with following sentences. */
+const descriptionMinimum = 50;
 
 /**
  * A one-line description of a page.
  *
  * The strategies are tried in the order that yields the most specific wording: the intro paragraph a reader would read
- * first, then an explicit `Summary` field, then the `## Summary` section, then any prose the page has at all. A page
- * with none of those, such as one whose body is entirely a table, gets no description rather than a misleading one.
+ * first (the prose between the H1 and the first H2, skipping blockquotes and lead-in lines), then an explicit
+ * `Summary` field anywhere in the body (catalog pages state it in the intro metadata block, analyzer pages under
+ * `## Header`), then the `## Summary` section, then, only as a last resort, the first body paragraph. Each strategy
+ * takes its first sentence and extends it with following sentences until it reaches fifty characters without passing
+ * 160. A page with none of those, such as one whose body is entirely a table, gets no description rather than a
+ * misleading one, and its page falls back to the site description.
  */
-function extractDescription(content: string): string | undefined {
+export function extractDescription(content: string): string | undefined {
   const lines = withoutByteOrderMark(content).split(/\r?\n/);
   const headingIndex = lines.findIndex((line) => /^#\s+/.test(line));
   const body = lines.slice(headingIndex + 1);
   const intro = untilHeading(body);
-  const text =
-    firstProse(intro) ?? summaryField(intro) ?? firstProse(summarySection(body)) ?? firstProse(body);
-
-  return text === undefined ? undefined : clampToSentence(text);
+  return (
+    proseDescription(intro) ??
+    summaryDescription(body) ??
+    proseDescription(summarySection(body)) ??
+    lastResortDescription(body)
+  );
 }
 
 /** The lines of a block that come before its first heading. */
@@ -210,35 +251,78 @@ function untilHeading(lines: readonly string[]): string[] {
 }
 
 /**
- * The first prose paragraph in a block of lines, as plain text.
+ * A block of lines as a description: its first prose sentence, extended while short.
  *
- * Blocks that are not prose are skipped while looking for the paragraph and end it once one has started, so a
- * paragraph is never joined to the table or list that follows it.
+ * Following sentences join first, then list items, so a page that states its conditions as a list still reads as a
+ * sentence. Lead-in paragraphs that end with a colon are skipped rather than quoted as fragments, and fenced code
+ * contributes nothing, so a page whose only remaining prose sits inside an example falls through to the next strategy
+ * instead of quoting code.
  */
-function firstProse(lines: readonly string[]): string | undefined {
-  const paragraph: string[] = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    if (trimmed.length === 0 || nonProsePattern.test(trimmed) || metadataLinePattern.test(trimmed)) {
-      if (paragraph.length > 0) {
-        break;
-      }
-
-      continue;
-    }
-
-    paragraph.push(trimmed);
-  }
-
-  return paragraph.length === 0 ? undefined : clean(paragraph.join(" "));
+function proseDescription(lines: readonly string[]): string | undefined {
+  return assembleDescription(
+    proseParagraphs(lines).flatMap(splitSentences),
+    listItems(lines),
+  );
 }
 
-/** The value of the `Summary` metadata field, when the block declares one. */
-function summaryField(lines: readonly string[]): string | undefined {
+/**
+ * The cleaned prose paragraphs of a block of lines, in order.
+ *
+ * Blocks that are not prose end a paragraph, so text is never joined to the table or list that follows it. A
+ * paragraph that ends with a colon introduces the list or example below it, such as `LB1012 reports when:`, and is
+ * skipped.
+ */
+function proseParagraphs(lines: readonly string[]): string[] {
+  const paragraphs: string[] = [];
+  const current: string[] = [];
+  let fenced = false;
+  const flush = (): void => {
+    if (current.length === 0) {
+      return;
+    }
+    const text = clean(current.join(" "));
+    current.length = 0;
+    if (text !== undefined && !text.endsWith(":")) {
+      paragraphs.push(text);
+    }
+  };
   for (const line of lines) {
-    const field = metadataLinePattern.exec(line.trim());
+    const trimmed = line.trim();
+    if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) {
+      fenced = !fenced;
+      flush();
+      continue;
+    }
+    if (fenced) {
+      continue;
+    }
+    if (trimmed.length === 0 || nonProsePattern.test(trimmed) || metadataLinePattern.test(trimmed)) {
+      flush();
+      continue;
+    }
+    current.push(trimmed);
+  }
+  flush();
+  return paragraphs;
+}
+
+/**
+ * The value of the `Summary` metadata field, when the searched lines declare one.
+ *
+ * Fenced code blocks are skipped, so an example that quotes a metadata block cannot supply the description.
+ */
+function summaryField(lines: readonly string[]): string | undefined {
+  let fenced = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) {
+      fenced = !fenced;
+      continue;
+    }
+    if (fenced) {
+      continue;
+    }
+    const field = metadataLinePattern.exec(trimmed);
 
     if (field?.[1].trim().toLowerCase() === summaryFieldLabel && field[2].trim().length > 0) {
       return clean(field[2]);
@@ -246,6 +330,21 @@ function summaryField(lines: readonly string[]): string | undefined {
   }
 
   return undefined;
+}
+
+/**
+ * The `Summary` metadata field found in a block of lines as a description: its first sentence, extended with its
+ * following sentences while short.
+ *
+ * A field that ends with a colon is a lead-in rather than a description, and is skipped the same way a lead-in
+ * paragraph is.
+ */
+function summaryDescription(lines: readonly string[]): string | undefined {
+  const field = summaryField(lines);
+  if (field === undefined || field.endsWith(":")) {
+    return undefined;
+  }
+  return assembleDescription(splitSentences(field), []);
 }
 
 /** The lines under a `## Summary` heading, up to the next heading. */
@@ -259,53 +358,189 @@ function summarySection(body: readonly string[]): string[] {
   return untilHeading(body.slice(start + 1));
 }
 
-/** Markdown reduced to the plain text a description is. */
+/**
+ * The last-resort description: the first prose paragraph of the body.
+ *
+ * Only a page with no intro paragraph, no `Summary` field, and no `## Summary` section reaches here. The paragraph's
+ * sentences head the description, and following body sentences join while it stays short, so the result still reads as
+ * complete sentences. List items stay out, so a paragraph is never stitched to an item from another section.
+ */
+function lastResortDescription(body: readonly string[]): string | undefined {
+  const paragraphs = proseParagraphs(body);
+  const head = paragraphs[0];
+  if (head === undefined) {
+    return undefined;
+  }
+  const first = splitSentences(head);
+  if (first.length === 0) {
+    return undefined;
+  }
+  const following = paragraphs.slice(1).flatMap(splitSentences);
+  return assembleDescription(first, following);
+}
+
+/** An inline code span, whose text clean keeps verbatim. */
+const codeSpanPattern = /`([^`]*)`/g;
+
+/**
+ * The placeholder an inline code span hides behind while the inline rules run.
+ *
+ * Tildes and hashes survive every inline rule, so the token reaches the restore step intact.
+ */
+function shelterToken(index: number): string {
+  return `~#${index}#~`;
+}
+
+/**
+ * Markdown reduced to the plain text a description is.
+ *
+ * Inline code spans are sheltered behind placeholders before the inline rules run and restored after, so only the
+ * backticks come out: `ICommand<TResult>` in code keeps its generic arguments, and the HTML rule cannot eat them. The
+ * layout escapes the result for its meta attribute.
+ */
 function clean(text: string): string | undefined {
-  const plain = inlineReplacements
-    .reduce((carry, [pattern, replacement]) => carry.replace(pattern, replacement), text)
-    .trim();
+  const spans: string[] = [];
+  const sheltered = text.replace(codeSpanPattern, (_span: string, code: string): string => {
+    spans.push(code);
+    return shelterToken(spans.length - 1);
+  });
+  let plain = inlineReplacements.reduce(
+    (carry, [pattern, replacement]) => carry.replace(pattern, replacement),
+    sheltered,
+  );
+  spans.forEach((code, index) => {
+    plain = plain.split(shelterToken(index)).join(code);
+  });
+  plain = plain.trim();
 
   return plain.length === 0 ? undefined : plain;
 }
 
+/** A sentence terminator: `.`, `!`, or `?` after a non-space character, before whitespace or the end. */
+const sentenceEndPattern = /[^\s]([.!?])(?=\s|$)/;
+
 /**
- * The leading sentence, or a word-boundary cut when there is no sentence break within the limit.
+ * The complete sentences of cleaned prose, in order.
  *
  * A terminator only ends a sentence when the character before it is not a space and the character after it is. That
  * leaves `.NET`, `6.0.2`, and a trailing `*.Extensions.Microsoft.DependencyInjection` intact, which a plainer split on
- * `.` would not.
+ * `.` would not. A trailing fragment without a terminator is dropped, so extension never ends a description
+ * mid-sentence.
  */
-function clampToSentence(text: string): string {
-  const sentence = /[^\s]([.!?])(?=\s|$)/.exec(text);
+function splitSentences(prose: string): string[] {
+  const sentences: string[] = [];
+  let rest = prose.trim();
+  while (rest.length > 0) {
+    const found = sentenceEndPattern.exec(rest);
+    if (found?.index === undefined) {
+      break;
+    }
+    const end = found.index + found[0].length;
+    sentences.push(rest.slice(0, end));
+    rest = rest.slice(end).trim();
+  }
+  return sentences;
+}
 
-  if (sentence?.index !== undefined) {
-    const end = sentence.index + sentence[0].length;
+/** A Markdown list marker: an unordered bullet or an ordered number. */
+const listMarkerPattern = /^(?:[-*+]\s|\d+[.)]\s)/;
 
-    if (end <= descriptionLimit) {
-      return text.slice(0, end);
+/**
+ * The cleaned list items of a block of lines, in order.
+ *
+ * Metadata lines are fields rather than items, so they stay out. Fenced code stays out the same way it does for
+ * prose.
+ */
+function listItems(lines: readonly string[]): string[] {
+  const items: string[] = [];
+  let fenced = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) {
+      fenced = !fenced;
+      continue;
+    }
+    if (fenced || !listMarkerPattern.test(trimmed) || metadataLinePattern.test(trimmed)) {
+      continue;
+    }
+    const text = clean(trimmed.replace(listMarkerPattern, ""));
+    if (text !== undefined) {
+      items.push(text);
     }
   }
+  return items;
+}
 
+/**
+ * Sentences joined into a description, extended with list items while short.
+ *
+ * The first sentence stands alone once it reaches the minimum. Otherwise following sentences join it while each
+ * addition keeps the whole within the limit, then list items join the same way, so a page that states its conditions
+ * as a list still reads as a sentence. Additions stop at the first one that would pass the limit, and the result is
+ * never cut mid-word.
+ *
+ * Items keep joining until the run ends with a sentence terminator, so a lead-in item keeps its object. A run starts
+ * only on an item that ends with a terminator or continuation punctuation, so bare code-name items yield nothing
+ * instead of a keyword list. A run with no sentence that cannot end as complete sentences yields nothing, and its page
+ * falls through to the next strategy instead of quoting a fragment.
+ */
+function assembleDescription(sentences: readonly string[], additions: readonly string[]): string | undefined {
+  if (sentences.length === 0 && additions.length === 0) {
+    return undefined;
+  }
+  let text = sentences[0] ?? "";
+  for (const next of sentences.slice(1)) {
+    if (text.length >= descriptionMinimum || text.length + 1 + next.length > descriptionLimit) {
+      break;
+    }
+    text += ` ${next}`;
+  }
+  for (const next of additions) {
+    if (text.length >= descriptionMinimum && /[.!?]$/.test(text)) {
+      break;
+    }
+    if (text.length === 0 && !/[.!?:,;]$/.test(next)) {
+      break;
+    }
+    if (text.length > 0 && text.length + 1 + next.length > descriptionLimit) {
+      break;
+    }
+    text = text.length === 0 ? next : `${text} ${next}`;
+  }
+  if (text.length === 0 || (sentences.length === 0 && !/[.!?]$/.test(text))) {
+    return undefined;
+  }
+  return clampToLength(text);
+}
+
+/**
+ * Text cut to the description limit at a word boundary, with an ellipsis inside the limit.
+ *
+ * Only a single sentence longer than the limit reaches here; assembly already keeps every joined addition within it.
+ * A run without a space inside the limit is cut at the limit, which no page holds.
+ */
+function clampToLength(text: string): string {
   if (text.length <= descriptionLimit) {
     return text;
   }
-
-  const cut = text.lastIndexOf(" ", descriptionLimit);
-
-  return `${text.slice(0, cut === -1 ? descriptionLimit : cut)}...`;
+  const cut = text.lastIndexOf(" ", descriptionLimit - 3);
+  const head = cut === -1 ? text.slice(0, descriptionLimit - 3) : text.slice(0, cut);
+  return `${head.trimEnd()}...`;
 }
 
 /** Today's date as YYYY-MM-DD, used when git cannot date a file. */
 const buildDate = new Date().toISOString().slice(0, 10);
 
 /**
- * The last-commit date of every tracked file under the content folder.
+ * The first- and last-commit dates of every tracked file under the content folder.
  *
- * One `git log` pass over the whole folder, parsed into a map: the log lists commits newest first, so the first date
- * seen for a file is its last change. Empty when git is unavailable, and then every page takes the build date.
+ * One `git log` pass over the whole folder, parsed into two maps: the log lists commits newest first, so the first
+ * date seen for a file is its last change and the last date seen is its first. Empty when git is unavailable, and
+ * then every page takes the build date.
  */
-function loadLastModified(): Map<string, string> {
-  const dates = new Map<string, string>();
+function loadFileDates(): { publishedByFile: Map<string, string>; lastModifiedByFile: Map<string, string> } {
+  const published = new Map<string, string>();
+  const lastModified = new Map<string, string>();
   try {
     const prefix = execFileSync("git", ["rev-parse", "--show-prefix"], {
       cwd: contentDir,
@@ -327,18 +562,28 @@ function loadLastModified(): Map<string, string> {
         continue;
       }
       const relative = trimmed.startsWith(prefix) ? trimmed.slice(prefix.length) : trimmed;
-      if (date !== "" && !dates.has(relative)) {
-        dates.set(relative, date);
+      if (date !== "") {
+        if (!lastModified.has(relative)) {
+          lastModified.set(relative, date);
+        }
+        published.set(relative, date);
       }
     }
   } catch {
     // Without git every page falls back to the build date below.
   }
-  return dates;
+  return { publishedByFile: published, lastModifiedByFile: lastModified };
 }
 
-/** The last-commit dates by content-relative path, from one git log pass. */
-const lastModifiedByFile = loadLastModified();
+/** The first- and last-commit dates by content-relative path, from one git log pass. */
+const { publishedByFile, lastModifiedByFile } = loadFileDates();
+
+/**
+ * The description for a page that yields none of its own: the first sentence of the site description.
+ *
+ * It reads as a complete sentence and fits the limits, so every page still carries a description.
+ */
+const fallbackDescription = splitSentences(siteDescription)[0] ?? clampToLength(siteDescription);
 
 /** A folder's meta.json: its display title and its ordered child names. */
 interface FolderMeta {
@@ -390,10 +635,11 @@ function toPage(file: string, markdown: string): DocPage {
     url,
     mdUrl: `${url}.md`,
     title,
-    description: extractDescription(markdown) ?? siteDescription,
+    description: extractDescription(markdown) ?? fallbackDescription,
     markdown,
     section: sectionForFile(file),
     lastModified: lastModifiedByFile.get(file) ?? buildDate,
+    published: publishedByFile.get(file) ?? buildDate,
   };
 }
 

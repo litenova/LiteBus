@@ -250,7 +250,8 @@ for (const file of htmlFiles) {
     }
   }
 
-  const descriptions = [...head.matchAll(/<meta\b[^>]*?\bname\s*=\s*"description"[^>]*?>/gi)];
+  // Attribute values may hold a literal ">" (such as "Handler<T>"), so quoted values are skipped whole.
+  const descriptions = [...head.matchAll(/<meta\b(?:[^>"]|"[^"]*")*?\bname\s*=\s*"description"(?:[^>"]|"[^"]*")*>/gi)];
 
   if (descriptions.length !== 1) {
     fail(`${file} has ${descriptions.length} meta descriptions, and every page carries exactly one.`);

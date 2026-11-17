@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 import {
   absoluteMarkdownHref,
   breadcrumbs,
+  extractDescription,
+  extractTitle,
   getPage,
   navTree,
   pageNeighbors,
@@ -18,6 +20,8 @@ import {
   type DocPage,
   type NavNode,
 } from "./docs.ts";
+import { pageTitle } from "./seo.ts";
+import { siteDescription } from "./site.ts";
 
 /** The content folder beside the site sources. */
 const contentDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "content", "docs");
@@ -119,6 +123,147 @@ describe("pages", () => {
     assert.strictEqual(mustGetPage([]).section, "Documentation");
     assert.strictEqual(mustGetPage(["getting-started", "cheat-sheet"]).section, "Getting Started");
     assert.strictEqual(mustGetPage(["catalog", "storage"]).section, "Catalog");
+  });
+
+  it("dates every page's first publication no later than its last change", () => {
+    for (const page of pages) {
+      assert.match(page.published, /^\d{4}-\d{2}-\d{2}$/, page.file);
+      assert.ok(
+        page.published <= page.lastModified,
+        `${page.file}: published ${page.published} after ${page.lastModified}`,
+      );
+    }
+  });
+});
+
+describe("titles", () => {
+  it("strips code markers and decodes entities", () => {
+    assert.strictEqual(
+      extractTitle("# Roadmap: Deep Storage Dedup (`RelationalMessageStore<T>`)"),
+      "Roadmap: Deep Storage Dedup (RelationalMessageStore<T>)",
+    );
+    assert.strictEqual(extractTitle("# Commands &amp; Queries"), "Commands & Queries");
+  });
+
+  it("reads undefined when no level-one heading exists", () => {
+    assert.strictEqual(extractTitle("No heading here."), undefined);
+  });
+
+  it("carries no code markers or entities on any page", () => {
+    for (const page of pages) {
+      assert.ok(!page.title.includes("`"), page.file);
+      assert.ok(!/&\w+;/.test(page.title), page.file);
+    }
+  });
+
+  it("names the storage deduplication page within 60 characters", () => {
+    const page = mustGetPage(["roadmap", "storage-deduplication"]);
+    assert.strictEqual(page.title, "Roadmap: Deep Storage Deduplication");
+    assert.ok(pageTitle(page.title, page.section).length <= 60);
+  });
+});
+
+describe("descriptions", () => {
+  it("skips a lead-in line that ends with a colon", () => {
+    const markdown = [
+      "# Cross-Assembly Handlers",
+      "",
+      "`LB1012` reports when:",
+      "",
+      "- The analyzer collects handler registrations from source.",
+      "- Two registrations share the same handler simple name.",
+      "",
+      "The warning compares simple names across assemblies.",
+    ].join("\n");
+    assert.strictEqual(
+      extractDescription(markdown),
+      "The warning compares simple names across assemblies.",
+    );
+  });
+
+  it("extends a short description with following sentences", () => {
+    assert.strictEqual(
+      extractDescription(
+        "# Glossary\n\nLiteBus documentation uses a fixed vocabulary. Each pipeline word names exactly one thing.",
+      ),
+      "LiteBus documentation uses a fixed vocabulary. Each pipeline word names exactly one thing.",
+    );
+    assert.strictEqual(
+      mustGetPage(["reference", "glossary"]).description,
+      "LiteBus documentation uses a fixed vocabulary. Each pipeline word names exactly one thing.",
+    );
+  });
+
+  it("joins list items when no sentence reaches 50 characters", () => {
+    const markdown = [
+      "# Open Generic Handler Shape",
+      "",
+      "`LB1005` reports when every condition below holds:",
+      "",
+      "- The handler type is generic.",
+      "- The handler uses a bare message type parameter.",
+    ].join("\n");
+    assert.strictEqual(
+      extractDescription(markdown),
+      "The handler type is generic. The handler uses a bare message type parameter.",
+    );
+  });
+
+  it("takes the Summary field from a Header list ahead of body sentences", () => {
+    const markdown = [
+      "# Cross-Assembly Handlers",
+      "",
+      "## Header",
+      "",
+      "- **ID**: `analyzers.cross-assembly-handler-name`",
+      "- **Summary**: Warns when the same handler simple name appears in different assemblies.",
+      "",
+      "## Trigger Conditions",
+      "",
+      "The warning compares simple names across assemblies.",
+    ].join("\n");
+    assert.strictEqual(
+      extractDescription(markdown),
+      "Warns when the same handler simple name appears in different assemblies.",
+    );
+  });
+
+  it("keeps generic arguments from inline code in descriptions", () => {
+    assert.strictEqual(
+      extractDescription(
+        "# Shortcut Contracts\n\nReports `ICommand<TResult>` handlers that answer through the untyped shortcut contract.",
+      ),
+      "Reports ICommand<TResult> handlers that answer through the untyped shortcut contract.",
+    );
+  });
+
+  it("reads the cross-assembly analyzer page from its Summary field", () => {
+    const page = mustGetPage(["catalog", "analyzers", "cross-assembly-handlers"]);
+    assert.ok(
+      page.description.startsWith("Warns when the same handler simple name"),
+      page.description,
+    );
+  });
+
+  it("keeps every page description between 50 and 160 characters", () => {
+    for (const page of pages) {
+      assert.ok(
+        page.description.length >= 50 && page.description.length <= 160,
+        `${page.file}: ${page.description.length} characters: ${page.description}`,
+      );
+    }
+  });
+
+  it("ends no page description with a lead-in colon", () => {
+    for (const page of pages) {
+      assert.ok(!page.description.endsWith(":"), `${page.file}: ${page.description}`);
+    }
+  });
+
+  it("gives no page the bare site description", () => {
+    for (const page of pages) {
+      assert.notStrictEqual(page.description, siteDescription, page.file);
+    }
   });
 });
 
