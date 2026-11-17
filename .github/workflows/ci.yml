@@ -112,12 +112,17 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.1.3
+
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: site/package-lock.json
+          cache: pnpm
+          cache-dependency-path: site/pnpm-lock.yaml
 
       - name: Validate Documentation
         shell: pwsh
@@ -126,14 +131,14 @@ jobs:
       - name: Validate Documentation Site
         working-directory: site
         run: |
-          npm ci
-          if ! npm audit --audit-level=high; then
-            echo "::warning::npm audit (high) reported vulnerabilities. Continuing CI because documentation dependencies are best-effort validated here."
+          pnpm install --frozen-lockfile
+          if ! pnpm audit --audit-level=high; then
+            echo "::warning::pnpm audit (high) reported vulnerabilities. Continuing CI because documentation dependencies are best-effort validated here."
           fi
-          npm run lint
-          npm run typecheck
-          npm run build
-          npm run check
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm check
 
   build:
     name: Build and Package

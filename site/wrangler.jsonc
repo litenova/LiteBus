@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "litebus-site",
+  "compatibility_date": "2026-11-01",
+  // `wrangler deploy` and `wrangler preview` build the site first, so the Worker needs no build command of its own.
+  // The build writes site/dist, which the Worker serves as static assets. It runs in site/, where the
+  // pnpm lockfile and the package.json that names pnpm live; corepack reads that version.
+  // No account_id is committed: Workers Builds supplies the account from the dashboard connection, and a manual
+  // deploy uses the account of `wrangler login`. The maintainer adds an account_id here only when that is preferred.
+  "build": {
+    "command": "corepack enable && pnpm install --frozen-lockfile && pnpm build"
+  },
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  // A branch other than main builds a Preview with `wrangler preview`, which needs this block. The site has no
+  // bindings, so it stays empty. Previews are served on subdomains of litebus.io (<preview-name>.litebus.io),
+  // which the previews_enabled route below turns on once main deploys; every page names its litebus.io address as
+  // canonical, so a Preview is not indexed as a second site. workers.dev serves no Preview.
+  "previews": {},
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "litebus.io", "custom_domain": true, "previews_enabled": true }
+  ]
+}
