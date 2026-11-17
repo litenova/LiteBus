@@ -1,0 +1,418 @@
+---
+// LiteBus home page: the hero with the install command, the three-step
+// editor, the feature groups and the MediatR comparison. All copy matches the
+// previous home page; the code examples are highlighted at build time.
+import Base from "../layouts/Base.astro";
+import HomeStepper from "../components/HomeStepper.astro";
+import "../styles/home.css";
+import { highlight } from "../lib/render-markdown.ts";
+import { softwareSourceCode } from "../lib/seo.ts";
+import { changelogUrl, latestRelease, siteDescription, siteTitle } from "../lib/site.ts";
+
+const INSTALL_COMMAND = "dotnet add package LiteBus.Extensions.Microsoft.DependencyInjection";
+
+/** Program.cs: registers LiteBus and scans the entry assembly for handlers. */
+const REGISTER_SOURCE = `builder.Services.AddLiteBus(bus =>
+{
+    bus.AddMessaging(_ => { });
+    bus.AddCommands(commands =>
+        commands.RegisterFromAssembly(typeof(Program).Assembly));
+});`;
+
+/** CreateProduct.cs: a command record and the handler LiteBus discovers. */
+const HANDLER_SOURCE = `public sealed record CreateProduct(string Name) : ICommand<Guid>;
+
+public sealed class CreateProductHandler : ICommandHandler<CreateProduct, Guid>
+{
+    public Task<Guid> HandleAsync(
+        CreateProduct command,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Guid.NewGuid());
+    }
+}`;
+
+/** ProductsController.cs: an illustrative controller that sends the command. */
+const CONTROLLER_SOURCE = `[ApiController]
+[Route("products")]
+public sealed class ProductsController : ControllerBase
+{
+    private readonly ICommandMediator _mediator;
+
+    public ProductsController(ICommandMediator mediator)
+    {
+        _mediator = mediator;
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        CreateProduct command,
+        CancellationToken cancellationToken)
+    {
+        var id = await _mediator.SendAsync(command, cancellationToken);
+        return Ok(id);
+    }
+}`;
+
+/** One feature row: an API symbol, a title, one sentence, and the doc page it links to. */
+interface Feature {
+  symbolHtml: string;
+  title: string;
+  text: string;
+  href: string;
+  link: string;
+}
+
+const FEATURES: Feature[] = [
+  {
+    symbolHtml: '<span class="tk-ifc">ICommandMediator</span>',
+    title: "Commands and Queries",
+    text: "Separate mediators for writes and reads, so a handler states which one it is.",
+    href: "/docs/concepts/commands",
+    link: "Commands and queries",
+  },
+  {
+    symbolHtml: '<span class="tk-ifc">IEventMediator</span>',
+    title: "Events",
+    text: "Publish a plain .NET type to any number of handlers, with no shared base class.",
+    href: "/docs/concepts/events",
+    link: "Events",
+  },
+  {
+    symbolHtml:
+      '<span class="tk-ifc">ICommandValidator</span><span class="tk-pun">&lt;</span><span class="tk-cls">T</span><span class="tk-pun">&gt;</span>',
+    title: "Handler Pipeline",
+    text: "Guards, validators, pre-, post-, error and completion handlers run in a fixed order.",
+    href: "/docs/concepts/handler-pipeline",
+    link: "The Handler Pipeline",
+  },
+  {
+    symbolHtml:
+      '<span class="tk-ifc">IInbox</span><span class="tk-pun">.</span><span class="tk-fn">AcceptAsync</span>',
+    title: "Durable Inbox",
+    text: "Accept a command into storage first, then run it under a lease with retries.",
+    href: "/docs/reliable-messaging/inbox",
+    link: "Inbox",
+  },
+  {
+    symbolHtml:
+      '<span class="tk-ifc">IOutbox</span><span class="tk-pun">.</span><span class="tk-fn">EnqueueAsync</span>',
+    title: "Transactional Outbox",
+    text: "Store an event in the same transaction as your data and publish it after commit.",
+    href: "/docs/reliable-messaging/outbox",
+    link: "Outbox",
+  },
+  {
+    symbolHtml: '<span class="tk-ifc">ITransportPublisher</span>',
+    title: "Brokers and Stores",
+    text: "RabbitMQ, Kafka, AWS SQS, Azure Service Bus, PostgreSQL and EF Core, each its own package.",
+    href: "/docs/architecture/dependency-graph",
+    link: "Dependency Graph",
+  },
+  {
+    symbolHtml: '<span class="tk-ifc">ISagaContext</span>',
+    title: "Sagas",
+    text: "Keep correlated state across the commands of a long-running workflow.",
+    href: "/docs/reliable-messaging/saga",
+    link: "Sagas",
+  },
+  {
+    symbolHtml: '<span class="squig"><span class="tk-pun">LB1001</span></span>',
+    title: "Compile-Time Checks",
+    text: "Roslyn analyzers catch missing handlers, duplicate handlers and contract gaps at build time.",
+    href: "/docs/reference/analyzers",
+    link: "Analyzers",
+  },
+  {
+    symbolHtml:
+      '<span class="tk-ifc">ICommandMediator</span><span class="tk-pun">.</span><span class="tk-fn">TrySendAsync</span>',
+    title: "Decisions as Values",
+    text: "Guards deny, validators reject and shortcuts answer; TrySendAsync returns the refusal instead of throwing.",
+    href: "/docs/concepts/handler-pipeline",
+    link: "The Handler Pipeline",
+  },
+  {
+    symbolHtml:
+      '<span class="tk-pun">[</span><span class="tk-cls">Audited</span><span class="tk-pun">]</span>',
+    title: "Auditing",
+    text: "Declare what a message audits; LiteBus writes one record per ending, denials and failures included.",
+    href: "/docs/concepts/auditing",
+    link: "Auditing",
+  },
+  {
+    symbolHtml:
+      '<span class="tk-pun">[</span><span class="tk-cls">Authorized</span><span class="tk-pun">]</span>',
+    title: "Declared Metadata",
+    text: "Authorization, audit and your own declarations on the message, enforced at startup and by analyzers.",
+    href: "/docs/concepts/message-definitions",
+    link: "Message definitions",
+  },
+  {
+    symbolHtml: '<span class="tk-cls">Idempotency-Key</span>',
+    title: "Idempotency",
+    text: "Keyed commands run once and replay their result, with PostgreSQL and Marten stores and an ASP.NET Core filter.",
+    href: "/docs/concepts/idempotency",
+    link: "Idempotency",
+  },
+  {
+    symbolHtml: '<span class="tk-ifc">IUnitOfWork</span>',
+    title: "Unit of Work and Domain Events",
+    text: "Commit at a fixed point after the handler, with collected domain events staged into the outbox first.",
+    href: "/docs/reliable-messaging/domain-events-and-unit-of-work",
+    link: "Domain Events and Unit of Work",
+  },
+  {
+    symbolHtml: '<span class="tk-fn">AddLiteBusManagementEndpoints</span>',
+    title: "Operations",
+    text: "Requeue, purge and drain over HTTP, health checks per probe, and OpenTelemetry traces and metrics.",
+    href: "/docs/operations",
+    link: "Operations",
+  },
+];
+
+/** The feature rows grouped by axis, in display order; each title names an entry in FEATURES. */
+interface FeatureGroup {
+  title: string;
+  titles: string[];
+}
+
+const FEATURE_GROUPS: FeatureGroup[] = [
+  {
+    title: "Mediation",
+    titles: [
+      "Commands and Queries",
+      "Events",
+      "Handler Pipeline",
+      "Decisions as Values",
+      "Declared Metadata",
+      "Auditing",
+      "Idempotency",
+      "Unit of Work and Domain Events",
+    ],
+  },
+  {
+    title: "Durable Messaging",
+    titles: ["Durable Inbox", "Transactional Outbox", "Sagas", "Brokers and Stores"],
+  },
+  {
+    title: "Tooling and Operations",
+    titles: ["Compile-Time Checks", "Operations"],
+  },
+];
+
+const [registerHtml, handlerHtml, controllerHtml] = await Promise.all([
+  highlight(REGISTER_SOURCE, "csharp"),
+  highlight(HANDLER_SOURCE, "csharp"),
+  highlight(CONTROLLER_SOURCE, "csharp"),
+]);
+
+const files = [
+  {
+    name: "Program.cs",
+    crumbs: ["src", "Program.cs"],
+    html: registerHtml,
+    title: "Register LiteBus",
+    textHtml: "Scan your assembly for handlers when the host starts.",
+  },
+  {
+    name: "CreateProduct.cs",
+    crumbs: ["src", "CreateProduct.cs", "CreateProductHandler"],
+    html: handlerHtml,
+    title: "Write a handler",
+    textHtml: "A command is a type; its handler is a class LiteBus finds on its own.",
+  },
+  {
+    name: "ProductsController.cs",
+    crumbs: ["src", "Controllers", "ProductsController.cs", "Create"],
+    html: controllerHtml,
+    title: "Send the command",
+    textHtml: "Inject <code>ICommandMediator</code> wherever you need it.",
+  },
+];
+---
+
+<Base title={siteTitle} description={siteDescription} active="home" jsonLd={[softwareSourceCode]}>
+  <section class="hero">
+    <div class="hero-body">
+      <a class="hero-ver" href={changelogUrl}>
+        <span class="pulse" aria-hidden="true"></span>
+        <b>v{latestRelease}</b>
+        <i>See what changed -&gt;</i>
+      </a>
+      <h1>Message Mediation and Durable Messaging for .NET</h1>
+      <p class="tagline">
+        Commands, queries and events through one handler pipeline, with an opt-in durable inbox, outbox and
+        sagas.
+      </p>
+      <div class="actions">
+        <a class="btn btn-lg" href="/docs/getting-started">Get Started</a>
+        <div class="install">
+          <span class="pr" aria-hidden="true">&gt;</span>
+          <span class="cmdbox">
+            <span class="ghost" aria-hidden="true">{INSTALL_COMMAND}</span>
+            <span class="typed">{INSTALL_COMMAND}</span>
+          </span>
+          <span class="copy-wrap">
+            <button
+              type="button"
+              class="copy"
+              data-install-copy={INSTALL_COMMAND}
+              aria-label="Copy install command"
+            >
+              Copy
+            </button>
+            <span class="copy-tip" role="status"></span>
+          </span>
+        </div>
+      </div>
+      <dl class="facts">
+        <div>
+          <dt>Target</dt>
+          <dd>.NET 10</dd>
+        </div>
+        <div>
+          <dt>Language</dt>
+          <dd>C#</dd>
+        </div>
+        <div>
+          <dt>License</dt>
+          <dd>MIT</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="home-sec" aria-labelledby="up-and-running-heading">
+    <div class="home-body">
+      <p class="kicker">// Getting Started</p>
+      <h2 id="up-and-running-heading">Up and Running in Three Steps</h2>
+      <p class="sub">Register the modules, write a handler, send a message.</p>
+      <HomeStepper files={files} />
+      <a class="next" href="/docs/getting-started">
+        <span class="pr" aria-hidden="true">&gt;</span>
+        <span>
+          <b>Getting Started</b>
+          <span class="d">Covers queries, events and the durable modules.</span>
+        </span>
+        <span class="go">
+          <kbd class="kbd">Enter</kbd>
+          <span class="arrow" aria-hidden="true">-&gt;</span>
+        </span>
+      </a>
+    </div>
+  </section>
+
+  <section class="home-sec" aria-labelledby="features-heading">
+    <div class="home-body">
+      <p class="kicker">// Features</p>
+      <h2 id="features-heading">Features</h2>
+      <p class="sub">Mediation in one package. Everything else is an opt-in package you add when you need it.</p>
+      {
+        FEATURE_GROUPS.map((group) => (
+          <div class="feat-group">
+            <h3>{group.title}</h3>
+            <div class="feats">
+              {FEATURES.filter((feature) => group.titles.includes(feature.title)).map((feature) => (
+                <a class="feat" href={feature.href}>
+                  <span class="sym" set:html={feature.symbolHtml} />
+                  <b>{feature.title}</b>
+                  <span class="d">{feature.text}</span>
+                  <span class="go">
+                    {feature.link} -&gt;
+                  </span>
+                </a>
+              ))}
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="home-sec mediatr" aria-labelledby="mediatr-heading">
+    <div class="home-body">
+      <p class="kicker">// MediatR Comparison</p>
+      <h2 id="mediatr-heading">An MIT-Licensed Alternative to MediatR</h2>
+      <p class="sub">
+        MediatR 13.0.0 and later ships under a commercial license. LiteBus is MIT licensed, with separate
+        contracts for commands, queries and events and the durable modules built in.
+      </p>
+      <a class="next" href="/docs/migration/mediatr-differences">
+        <span class="pr" aria-hidden="true">&gt;</span>
+        <span>
+          <b>Compare LiteBus and MediatR</b>
+          <span class="d">The message model, the pipeline, and moving an existing application.</span>
+        </span>
+        <span class="go">
+          <kbd class="kbd">Enter</kbd>
+          <span class="arrow" aria-hidden="true">-&gt;</span>
+        </span>
+      </a>
+    </div>
+  </section>
+
+  <script is:inline>
+    (function () {
+      // The install copy button reports into the bubble beside it, which is
+      // both the visible feedback and the live region. A repeat click
+      // restarts the feedback instead of stacking timers.
+      var lastMessage = "";
+      var timer = null;
+      document.addEventListener("click", function (event) {
+        var target = event.target;
+        if (!(target instanceof Element)) return;
+        var button = target.closest("[data-install-copy]");
+        if (!button) return;
+        var text = button.getAttribute("data-install-copy") || "";
+        var wrap = button.parentElement;
+        var tip = wrap ? wrap.querySelector(".copy-tip") : null;
+        function report(ok) {
+          if (timer !== null) window.clearTimeout(timer);
+          button.removeAttribute("data-copied");
+          button.removeAttribute("data-failed");
+          var message = ok ? "Copied" : "Copy failed";
+          // A repeat gets a trailing no-break space (silent) so a screen
+          // reader announces it again.
+          if (message === lastMessage) message += " ";
+          lastMessage = message;
+          if (tip) tip.textContent = "";
+          button.setAttribute(ok ? "data-copied" : "data-failed", "");
+          window.requestAnimationFrame(function () {
+            if (tip) tip.textContent = message;
+          });
+          timer = window.setTimeout(function () {
+            timer = null;
+            button.removeAttribute("data-copied");
+            button.removeAttribute("data-failed");
+            if (tip) tip.textContent = "";
+          }, 2000);
+        }
+        function fallback() {
+          try {
+            var area = document.createElement("textarea");
+            area.value = text;
+            document.body.appendChild(area);
+            area.select();
+            document.execCommand("copy");
+            document.body.removeChild(area);
+            report(true);
+          } catch (err) {
+            report(false);
+          }
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(
+            function () {
+              report(true);
+            },
+            function () {
+              fallback();
+            },
+          );
+        } else {
+          fallback();
+        }
+      });
+    })();
+  </script>
+</Base>

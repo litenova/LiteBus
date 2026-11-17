@@ -1,0 +1,936 @@
+@layer base, components, pages;
+
+@layer pages {
+/* LiteBus home page: the hero with the install command, the three-step
+   editor, the feature groups and the MediatR comparison. The hero follows
+   the LiteSpec home structure; every color is a token from site.css. */
+
+.hero {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100vh - var(--top) - 72px);
+  padding: var(--space-16) 0;
+}
+
+/* A soft accent glow on the right and a faint grid that fades toward the
+   copy, so the hero has depth without a competing element. Both layers sit
+   behind the content and ignore the pointer. */
+.hero::before,
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.hero::before {
+  background: radial-gradient(ellipse 48% 70% at 82% 38%, var(--accent-soft), transparent 70%);
+}
+.hero::after {
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 48px 48px;
+  -webkit-mask-image: radial-gradient(ellipse 46% 64% at 80% 42%, black 0%, transparent 72%);
+  mask-image: radial-gradient(ellipse 46% 64% at 80% 42%, black 0%, transparent 72%);
+  opacity: 0.55;
+}
+
+.hero-body,
+.home-body {
+  width: 100%;
+  padding: 0 var(--space-16);
+}
+
+/* The release badge: the version, then what changed. It links to the changelog. */
+.hero-ver {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-height: 30px;
+  padding: var(--space-1) var(--space-3);
+  margin-bottom: var(--space-6);
+  border: 1px solid var(--rule-bd);
+  border-radius: 999px;
+  background: var(--rule-bg);
+  color: var(--rule-fg);
+  font: 500 0.8125rem var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.hero-ver:hover {
+  border-color: var(--accent);
+}
+.hero-ver b {
+  font-weight: 500;
+}
+.hero-ver i {
+  font-style: normal;
+  padding-inline-start: var(--space-2);
+  margin-inline-start: var(--space-1);
+  border-inline-start: 1px solid var(--rule-bd);
+  font-family: var(--sans);
+  color: var(--fg-2);
+}
+.pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-text);
+  flex: none;
+}
+
+.hero h1 {
+  font-size: clamp(2.25rem, 3.6vw, 3.75rem);
+  line-height: 1.06;
+  letter-spacing: -0.04em;
+  font-weight: 600;
+  max-width: 20ch;
+  margin: 0 0 var(--space-5);
+}
+
+.tagline {
+  font-size: 1.125rem;
+  line-height: 1.5;
+  color: var(--fg-2);
+  max-width: 60ch;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-10);
+}
+
+.btn-lg {
+  height: 46px;
+  padding: 0 var(--space-6);
+  font-size: 0.9375rem;
+}
+
+/* The install row: a prompt, the command, and a copy button. */
+.install {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 42px;
+  padding: 0 var(--space-2) 0 var(--pad-box-x);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  color: var(--fg);
+  min-width: 0;
+  max-width: 100%;
+}
+.install .pr {
+  color: var(--accent-text);
+  flex: none;
+}
+.cmdbox {
+  display: inline-grid;
+  min-width: 0;
+}
+.cmdbox > span {
+  grid-area: 1 / 1;
+}
+.ghost {
+  visibility: hidden;
+  white-space: nowrap;
+  padding-right: 9px;
+}
+/* The install command renders in full by default and types itself only when
+   motion is welcome. The hidden .ghost above reserves the full width either
+   way, so the hero never shifts while the command appears. */
+.typed {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  width: auto;
+}
+
+/* The install copy button meets the 24px minimum target. The confirmation
+   bubble next to it is both the visible feedback and the live region; it
+   shows and hides with opacity so the message stays announced. */
+.install .copy {
+  flex: none;
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  color: var(--muted-fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 9px;
+  background: var(--muted-strong);
+  cursor: pointer;
+  min-inline-size: 24px;
+  min-block-size: 24px;
+}
+.install .copy:hover {
+  color: var(--fg);
+  border-color: var(--rail);
+}
+.copy-wrap {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+.copy-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted-strong);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+.copy[data-copied] + .copy-tip,
+.copy[data-failed] + .copy-tip {
+  opacity: 1;
+}
+
+.facts {
+  margin: var(--space-12) 0 0;
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: var(--space-4);
+  max-width: 760px;
+}
+.facts div {
+  padding: 0 var(--space-8);
+  border-left: 1px solid var(--border);
+}
+.facts div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.facts dt {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-fg);
+}
+.facts dd {
+  margin: 3px 0 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+/* Motion: the hero's parts rise in turn on the first paint, the glow and
+   grid fade in behind them, the release dot pulses, and the install command
+   types itself. None of this runs under reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero::before,
+  .hero::after {
+    animation: e-fade 1.2s ease-out both;
+  }
+  .hero-ver,
+  .hero h1,
+  .tagline,
+  .actions {
+    animation: e-rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .hero h1 {
+    animation-delay: 0.06s;
+  }
+  .tagline {
+    animation-delay: 0.12s;
+  }
+  .actions {
+    animation-delay: 0.18s;
+  }
+  .pulse {
+    animation: e-pulse 2.4s ease infinite;
+  }
+  .typed {
+    width: 0;
+    border-right: 7px solid var(--accent-text);
+    padding-right: 2px;
+    animation:
+      e-type 1.7s steps(67) 0.5s forwards,
+      e-caret 1.1s steps(1) infinite;
+  }
+}
+
+/* -------------------------------------------------------------- sections */
+.home-sec {
+  padding: var(--space-16) 0;
+  border-top: 1px solid var(--border);
+}
+.home-sec h2 {
+  font-size: 1.875rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.kicker {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--accent-text);
+  margin-bottom: var(--space-3);
+}
+.sub {
+  margin-top: var(--space-2);
+  color: var(--fg-2);
+  max-width: 62ch;
+}
+.step .d,
+.feat .d,
+.next .d {
+  text-wrap: pretty;
+}
+
+/* MediatR comparison: the same section rhythm as the others, one paragraph and a link. */
+.mediatr .sub {
+  max-width: 72ch;
+}
+.mediatr .next {
+  margin-top: var(--space-8);
+}
+
+/* stepper: three steps drive one fixed-size editor */
+.stepper {
+  margin-top: var(--space-10);
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+/* The stepper and its editor never exceed the content width: at phone widths
+   the tab strip scrolls inside .ed-tabs instead of pushing the page wider. */
+.stepper,
+.stepper .ed {
+  min-width: 0;
+  max-width: 100%;
+}
+.stepper .ed-tabs {
+  max-width: 100%;
+}
+.steplist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+/* Steps are real buttons; strip the button chrome so the card holds. */
+.step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 4px var(--space-3);
+  padding: var(--pad-box-y) var(--pad-box-x) var(--pad-box-y) var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 0.14s,
+    border-color 0.14s;
+  min-width: 0;
+}
+.step:hover {
+  background: var(--muted);
+}
+.step .num {
+  grid-row: span 3;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--muted-fg);
+  transition:
+    background-color 0.16s,
+    border-color 0.16s,
+    color 0.16s;
+}
+.step b {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.step .d {
+  color: var(--fg-2);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+.step .d code {
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  color: var(--fg);
+}
+.step .fname {
+  margin-top: var(--space-1);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--faint);
+  overflow-wrap: anywhere;
+}
+.step.on {
+  background: var(--muted);
+  border-color: var(--border);
+}
+.step.on .num {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* Editor window */
+.ed {
+  border: 1px solid var(--rail);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg);
+  min-width: 0;
+}
+.ed-tabs {
+  display: flex;
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+/* Tabs are real buttons on the stepper; strip the button chrome. */
+.ed-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-height: 36px;
+  padding: 0 var(--pad-box-x);
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  color: var(--muted-fg);
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.12s,
+    background-color 0.12s;
+}
+.ed-tab:hover {
+  color: var(--fg);
+}
+.ed-tab::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: var(--accent-text);
+  transform: scaleX(0);
+  transition: transform 0.16s ease;
+}
+.ed-tab .x {
+  opacity: 0;
+  font-family: var(--sans);
+  color: var(--muted-fg);
+  transition: opacity 0.12s;
+}
+.ed-tab:hover .x,
+.ed-tab.on .x {
+  opacity: 1;
+}
+.ed-tab.on {
+  color: var(--fg);
+  background: var(--bg);
+}
+.ed-tab.on::before {
+  transform: scaleX(1);
+}
+.file {
+  display: none;
+}
+.file.on {
+  display: block;
+}
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 28px;
+  padding: 0 var(--pad-card-x);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--faint);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.crumbs b {
+  color: var(--muted-fg);
+  font-weight: 400;
+}
+.ed-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-5);
+  min-height: 26px;
+  align-items: center;
+  padding: 0 var(--pad-box-x);
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--faint);
+}
+
+/* Stepper listings: the highlighted lines with line numbers from a CSS
+   counter. The fixed height keeps the editor the same size for every file;
+   it covers twenty lines plus the vertical padding. */
+.stepper .file pre {
+  margin: 0;
+  padding: var(--space-4) 0;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--fg);
+  background: var(--code-bg);
+  tab-size: 4;
+  height: calc(20 * 1.65em + var(--space-8));
+}
+.stepper .file pre code {
+  display: block;
+  min-width: max-content;
+  counter-reset: ln;
+}
+.stepper .file .line {
+  display: block;
+  min-height: 1.65em;
+  padding-right: var(--pad-box-x);
+  white-space: pre;
+}
+.stepper .file .line::before {
+  counter-increment: ln;
+  content: counter(ln);
+  display: inline-block;
+  width: 2.1em;
+  padding-right: 0.6em;
+  text-align: right;
+  color: var(--faint);
+  user-select: none;
+}
+/* Shiki writes both themes as custom properties on each element;
+   light-dark() picks the one for the scheme the page is in. */
+.stepper .file pre.astro-code,
+.stepper .file pre.astro-code span {
+  color: light-dark(var(--shiki-light), var(--shiki-dark));
+}
+
+/* "rewritten": each line is written left to right, top to bottom, when its
+   file opens. The stepper wraps each .line content in .lc so the clip-path
+   animation clips the code while the ::before line number stays visible.
+   Under reduced motion the code renders statically in its final state. */
+.stepper .file .lc {
+  display: inline-block;
+  vertical-align: top;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .stepper .file.write .lc {
+    animation: e-write 0.26s steps(14) both;
+    animation-delay: calc(var(--i) * 55ms + 80ms);
+  }
+  .stepper .file.write .line:last-child .lc::after {
+    content: "";
+    display: inline-block;
+    width: 2px;
+    height: 1.15em;
+    margin-left: 2px;
+    vertical-align: -3px;
+    background: var(--accent-text);
+    animation: e-blink 1.1s steps(1) infinite;
+  }
+}
+
+/* next action: a command-palette row */
+.next {
+  margin-top: var(--space-5);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--pad-box-x);
+  padding: var(--pad-box-y) var(--pad-card-x) var(--pad-box-y) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--muted);
+  color: var(--fg);
+  transition:
+    border-color 0.14s,
+    background-color 0.14s;
+}
+.next:hover {
+  text-decoration: none;
+  border-color: var(--accent-text);
+  background: var(--accent-subtle);
+}
+.next .pr {
+  font-family: var(--mono);
+  color: var(--accent-text);
+  font-size: 0.9375rem;
+}
+.next b {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.next .d {
+  display: block;
+  color: var(--fg-2);
+  font-size: 0.8125rem;
+}
+.next .go {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  color: var(--muted-fg);
+}
+.next .arrow {
+  color: var(--accent-text);
+  transition: transform 0.16s ease;
+}
+.next:hover .arrow {
+  transform: translateX(3px);
+}
+
+/* features, grouped by axis under a small mono label */
+.feat-group {
+  margin-top: var(--space-10);
+}
+.feat-group h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+.feat-group h3::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.feat-group .feats {
+  margin-top: var(--space-3);
+  border-top: 0;
+}
+.feats {
+  margin-top: var(--space-8);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--space-10);
+  border-top: 1px solid var(--border);
+}
+.feat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--pad-card-x);
+  padding: var(--space-5) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+  transition: background-color 0.14s;
+}
+.feat:hover {
+  text-decoration: none;
+  background: linear-gradient(90deg, var(--accent-subtle), transparent 70%);
+}
+.feat .sym {
+  grid-column: 1;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+}
+.feat b {
+  grid-column: 1;
+  font-weight: 600;
+  font-size: 1rem;
+}
+.feat .d {
+  grid-column: 1;
+  color: var(--fg-2);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+.feat .go {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  align-self: center;
+  color: var(--accent-text);
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition:
+    opacity 0.14s,
+    transform 0.14s ease;
+  white-space: nowrap;
+}
+.feat:hover .go,
+.feat:focus-visible .go {
+  opacity: 1;
+  transform: none;
+}
+@media (hover: none) {
+  .feat .go {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* API symbol roles on the feature rows. */
+.sym .tk-ifc {
+  color: var(--conv-fg);
+}
+.sym .tk-cls {
+  color: var(--pat-fg);
+}
+.sym .tk-fn {
+  color: var(--accent-text);
+}
+.sym .tk-pun {
+  color: var(--muted-fg);
+}
+.sym .squig {
+  text-decoration: underline wavy var(--warn-fg);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+/* ------------------------------------------------------------- responsive */
+@media (max-width: 1020px) {
+  .stepper {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .steplist {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .step .d {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .hero {
+    min-height: 0;
+    padding: var(--space-12) 0 var(--space-16);
+  }
+  .hero-body,
+  .home-body {
+    padding: 0 var(--gutter);
+  }
+  .tagline {
+    font-size: 1rem;
+  }
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .actions .btn {
+    justify-content: center;
+  }
+  .install {
+    width: 100%;
+    min-height: 42px;
+    padding: var(--space-3) var(--space-2) var(--space-3) var(--pad-box-x);
+    align-items: flex-start;
+    line-height: 1.5;
+  }
+  .install .copy {
+    margin-top: -1px;
+  }
+  .ghost {
+    display: none;
+  }
+  .typed {
+    width: auto;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .facts div,
+  .facts div:first-child {
+    padding: 0;
+    border-left: 0;
+  }
+  .home-sec {
+    padding: var(--space-12) 0;
+  }
+  .steplist {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .step .d {
+    display: block;
+  }
+  .stepper .file pre {
+    height: calc(14 * 1.65em + var(--space-8));
+  }
+  .feats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .feat .go {
+    display: block;
+    grid-column: 1;
+    grid-row: auto;
+    opacity: 1;
+    transform: none;
+    margin-top: var(--space-2);
+  }
+}
+
+/* Wide screens: the hero grows with the wider frame. */
+@media (min-width: 100rem) {
+  .hero-body,
+  .home-body {
+    padding: 0 var(--space-24);
+  }
+  .hero h1 {
+    font-size: clamp(3.75rem, 3.6vw, 5rem);
+  }
+  .tagline {
+    font-size: 1.3125rem;
+  }
+  .hero-ver {
+    min-height: 34px;
+    font-size: 0.875rem;
+  }
+  .btn-lg {
+    height: 52px;
+    padding: 0 var(--space-8);
+    font-size: 1rem;
+  }
+}
+
+/* Touch targets: 44px minimum on coarse pointers. */
+@media (pointer: coarse) {
+  .install .copy {
+    min-block-size: 44px;
+  }
+  .stepper .ed-tab {
+    min-block-size: 44px;
+  }
+}
+
+/* Reduced motion: nothing slides, types or loops, and every animation ends
+   in its final state. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-ver,
+  .hero h1,
+  .tagline,
+  .actions,
+  .hero::before,
+  .hero::after,
+  .pulse,
+  .typed,
+  .stepper .file.write .lc,
+  .stepper .file.write .line:last-child .lc::after {
+    animation: none;
+  }
+  .typed {
+    width: auto;
+    border-right: 0;
+  }
+  .feat .go {
+    opacity: 1;
+    transform: none;
+  }
+  .next .arrow,
+  .ed-tab::before {
+    transition: none;
+  }
+  .step,
+  .feat,
+  .next {
+    transition-property: color, background-color, border-color, opacity;
+  }
+}
+
+@keyframes e-rise {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+@keyframes e-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes e-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes e-type {
+  to {
+    width: calc(67ch + 9px);
+  }
+}
+@keyframes e-caret {
+  0%,
+  49% {
+    border-right-color: var(--accent-text);
+  }
+  50%,
+  100% {
+    border-right-color: transparent;
+  }
+}
+@keyframes e-write {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes e-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+}
