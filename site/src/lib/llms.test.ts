@@ -112,7 +112,8 @@ describe("pageMarkdown", () => {
     const page = getPage(["getting-started", "cheat-sheet"]);
     assert.ok(page);
     const markdown = pageMarkdown(["getting-started", "cheat-sheet"]);
-    assert.ok(markdown?.startsWith(`<!-- canonical: ${siteUrl}${page.url} -->\n\n`));
+    assert.ok(markdown);
+    assert.ok(markdown.startsWith(`<!-- canonical: ${siteUrl}${page.url} -->\n\n`));
     assert.ok(markdown.includes(`# ${page.title}`));
     const relative = [...markdown.matchAll(/\]\((\.{1,2}\/[^)]*)\)/g)].map((match) => match[1]);
     assert.deepStrictEqual(relative, []);

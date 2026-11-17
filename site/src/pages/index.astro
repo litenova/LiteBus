@@ -388,14 +388,16 @@ const files = [
           }, 2000);
         }
         function fallback() {
+          // The Clipboard API is missing or rejected the write, so the command
+          // stays selected in a readonly field for a manual copy instead.
           try {
             var area = document.createElement("textarea");
             area.value = text;
+            area.setAttribute("readonly", "");
             document.body.appendChild(area);
+            area.focus();
             area.select();
-            document.execCommand("copy");
-            document.body.removeChild(area);
-            report(true);
+            report(false);
           } catch (err) {
             report(false);
           }

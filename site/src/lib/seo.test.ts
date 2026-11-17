@@ -93,9 +93,9 @@ describe("breadcrumbList", () => {
   it("gives every entry an item, with the current page last under its own URL", () => {
     const page = getPage(["getting-started", "cheat-sheet"]);
     assert.ok(page);
-    const list = breadcrumbList(page) as { itemListElement: Record<string, unknown>[] };
+    const list: Record<string, unknown> = breadcrumbList(page);
     assert.strictEqual(list["@type"], "BreadcrumbList");
-    const entries = list.itemListElement;
+    const entries = list.itemListElement as Record<string, unknown>[];
     assert.ok(entries.length >= 2);
     assert.deepStrictEqual(
       entries.map((entry) => entry.position),
