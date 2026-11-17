@@ -32,6 +32,15 @@ describe("pageTitle", () => {
     assert.strictEqual(pageTitle("Cheat Sheet"), "Cheat Sheet - LiteBus");
   });
 
+  it("drops the section when it repeats the title", () => {
+    assert.strictEqual(pageTitle("Documentation", "Documentation"), "Documentation - LiteBus");
+    assert.strictEqual(pageTitle("Architecture", "Architecture"), "Architecture - LiteBus");
+  });
+
+  it("drops the section when it repeats the title in another case", () => {
+    assert.strictEqual(pageTitle("Architecture", "architecture"), "Architecture - LiteBus");
+  });
+
   it("collapses inner whitespace before measuring", () => {
     assert.strictEqual(pageTitle("  Cheat\n  Sheet ", "Getting Started"), "Cheat Sheet - Getting Started - LiteBus");
   });
@@ -78,6 +87,7 @@ describe("techArticle", () => {
     assert.strictEqual(article["@type"], "TechArticle");
     assert.strictEqual(article.headline, page.title);
     assert.strictEqual(article.url, `${siteUrl}${page.url}`);
+    assert.strictEqual(article.datePublished, page.published);
     assert.strictEqual(article.dateModified, page.lastModified);
     assert.deepStrictEqual(article.isPartOf, { "@id": `${siteUrl}/#website` });
     assert.deepStrictEqual(article.about, { "@id": `${siteUrl}/#software` });
@@ -93,7 +103,8 @@ describe("breadcrumbList", () => {
   it("gives every entry an item, with the current page last under its own URL", () => {
     const page = getPage(["getting-started", "cheat-sheet"]);
     assert.ok(page);
-    const list: Record<string, unknown> = breadcrumbList(page);
+    const list = breadcrumbList(page);
+    assert.ok(list);
     assert.strictEqual(list["@type"], "BreadcrumbList");
     const entries = list.itemListElement as Record<string, unknown>[];
     assert.ok(entries.length >= 2);
@@ -104,6 +115,32 @@ describe("breadcrumbList", () => {
     assert.ok(entries.every((entry) => typeof entry.item === "string" && (entry.item as string).startsWith(siteUrl)));
     assert.strictEqual(entries[0].name, "Docs");
     assert.strictEqual(entries[entries.length - 1].item, `${siteUrl}${page.url}`);
+  });
+
+  it("drops folder crumbs that have no page instead of repeating the current page URL", () => {
+    // The catalog folder has no index page, so its crumb carries no URL.
+    const page = getPage(["catalog", "mediator", "commands"]);
+    assert.ok(page);
+    const list = breadcrumbList(page);
+    assert.ok(list);
+    const entries = list.itemListElement as Record<string, unknown>[];
+    assert.deepStrictEqual(
+      entries.map((entry) => entry.name),
+      ["Docs", "Mediator", page.title],
+    );
+    assert.deepStrictEqual(
+      entries.map((entry) => entry.position),
+      [1, 2, 3],
+    );
+    const items = entries.map((entry) => entry.item);
+    assert.strictEqual(new Set(items).size, items.length);
+    assert.strictEqual(entries[entries.length - 1].item, `${siteUrl}${page.url}`);
+  });
+
+  it("omits the list when fewer than two crumbs would remain", () => {
+    const page = getPage([]);
+    assert.ok(page);
+    assert.strictEqual(breadcrumbList(page), undefined);
   });
 });
 

@@ -5,7 +5,8 @@
 // target present, no rendered link still points at a Markdown source except the "View Markdown" and agent links, the
 // llms.txt index follows the llms.txt shape with absolute resolving links and a note per entry, llms-full.txt
 // reproduces every indexed page with no relative link left, every page carries one h1, title, canonical link, and
-// short meta description with unique titles, the sitemap lists every page and nothing unbuilt, and every redirect
+// short meta description with unique titles, the canonical link and og:url name the page's clean URL, no breadcrumb
+// list names the same URL twice, the sitemap lists every page and nothing unbuilt, and every redirect
 // target resolves. It also keeps the source naming model: each folder label matches its index page H1, and page
 // titles stay unique within a top-level section.
 //
@@ -181,6 +182,9 @@ for (const file of htmlFiles) {
   // A noindex page, such as 404.html, is served at every unknown address, so it names no canonical URL.
   const noindex = /<meta\b[^>]*?name\s*=\s*"robots"[^>]*?noindex/i.test(head);
 
+  // The page's clean URL: index.html is the home page, every other page is its path without .html.
+  const cleanUrl = file === 'index.html' ? `${siteUrl}/` : `${siteUrl}/${file.replace(/\.html$/, '')}`;
+
   if (noindex && canonicals.length === 0) {
     // A noindex page with no canonical link is correct.
   } else if (canonicals.length !== 1) {
@@ -190,6 +194,59 @@ for (const file of htmlFiles) {
 
     if (href !== siteUrl && !href.startsWith(`${siteUrl}/`)) {
       fail(`${file} names '${href}' as canonical, which is not an absolute site URL.`);
+    } else if (!noindex && href !== cleanUrl) {
+      fail(`${file} names '${href}' as canonical, while its clean URL is '${cleanUrl}'.`);
+    }
+  }
+
+  // The shared link of the page is the same clean URL, never a built file name.
+  if (!noindex) {
+    const ogUrls = [...head.matchAll(/<meta\b[^>]*?\bproperty\s*=\s*"og:url"[^>]*?>/gi)];
+
+    if (ogUrls.length !== 1) {
+      fail(`${file} has ${ogUrls.length} og:url tags, and every indexed page carries exactly one.`);
+    } else {
+      const content = /content\s*=\s*"([^"]*)"/i.exec(ogUrls[0][0])?.[1] ?? '';
+
+      if (content !== cleanUrl) {
+        fail(`${file} names '${content}' as og:url, while its clean URL is '${cleanUrl}'.`);
+      }
+    }
+  }
+
+  // No breadcrumb trail names the same URL twice: a folder crumb without a page of its own stays out of the
+  // structured data instead of repeating the current page URL.
+  for (const script of head.matchAll(
+    /<script\b[^>]*?\btype\s*=\s*"application\/ld\+json"[^>]*?>([\s\S]*?)<\/script\s*>/gi,
+  )) {
+    let data;
+
+    try {
+      data = JSON.parse(script[1]);
+    } catch {
+      continue;
+    }
+
+    const nodes = Array.isArray(data?.['@graph']) ? data['@graph'] : [data];
+
+    for (const node of nodes) {
+      if (node === null || typeof node !== 'object' || node['@type'] !== 'BreadcrumbList') {
+        continue;
+      }
+
+      const elements = Array.isArray(node.itemListElement) ? node.itemListElement : [];
+      const seen = new Set();
+
+      for (const element of elements) {
+        const key =
+          typeof element?.item === 'string' ? element.item : JSON.stringify(element?.item ?? null);
+
+        if (seen.has(key)) {
+          fail(`${file} lists '${key}' twice in its breadcrumb structured data.`);
+        }
+
+        seen.add(key);
+      }
     }
   }
 

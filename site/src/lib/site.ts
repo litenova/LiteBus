@@ -52,24 +52,3 @@ export const authorName = companyName;
 
 /** The author link. */
 export const authorUrl = companyUrl;
-
-/** Keywords for the site meta tags. */
-export const siteKeywords = [
-  'LiteBus',
-  '.NET',
-  'dotnet',
-  'mediator',
-  'CQRS',
-  'commands',
-  'queries',
-  'events',
-  'inbox',
-  'outbox',
-  'saga',
-  'durable messaging',
-  'message pipeline',
-  'RabbitMQ',
-  'Kafka',
-  'Azure Service Bus',
-  'AWS SQS',
-];

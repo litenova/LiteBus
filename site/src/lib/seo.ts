@@ -19,14 +19,17 @@ export function absoluteUrl(pathname: string): string {
 
 /**
  * A page title as "Page - Section - LiteBus", or "Page - LiteBus" without a
- * section. The section is dropped when the full form passes 60 characters, so
- * the page title itself is never truncated and titles stay unique.
+ * section. The section is dropped when it repeats the title and when the full
+ * form passes 60 characters, so the page title itself is never truncated and
+ * titles stay unique.
  *
  * The home page does not use this helper; it uses the site title directly.
  */
 export function pageTitle(title: string, section?: string): string {
   const clean = title.replace(/\s+/g, " ").trim();
-  const withSection = section ? `${clean} - ${section} - LiteBus` : `${clean} - LiteBus`;
+  const repeated = section !== undefined && section.trim().toLowerCase() === clean.toLowerCase();
+  const effective = repeated ? undefined : section;
+  const withSection = effective ? `${clean} - ${effective} - LiteBus` : `${clean} - LiteBus`;
   if (withSection.length <= 60) return withSection;
   return `${clean} - LiteBus`;
 }
@@ -93,6 +96,7 @@ export function techArticle(page: DocPage): Record<string, unknown> {
     inLanguage: "en",
     articleSection: page.section,
     version: latestRelease,
+    datePublished: page.published,
     dateModified: page.lastModified,
     mainEntityOfPage: { "@type": "WebPage", "@id": `${absoluteUrl(page.url)}#webpage` },
     image: socialImage.url,
@@ -108,14 +112,23 @@ export function techArticle(page: DocPage): Record<string, unknown> {
   };
 }
 
-/** A breadcrumb trail for search engines, from the visible trail. The visible
- * trail leaves the current page without a URL because it is not a link; here
- * every entry needs its URL, so the current page resolves to its own. */
-export function breadcrumbList(page: DocPage): Record<string, unknown> {
+/**
+ * A breadcrumb trail for search engines, or undefined when fewer than two
+ * crumbs would remain. The visible trail leaves the current page without a URL
+ * because it is not a link, and leaves a folder without a URL when the folder
+ * has no index page. Those folder crumbs stay out of the JSON-LD list instead
+ * of repeating the current page URL; only the last crumb, the current page,
+ * resolves to its own URL. Positions count the kept crumbs.
+ */
+export function breadcrumbList(page: DocPage): Record<string, unknown> | undefined {
   const items = breadcrumbs(page);
+  const kept = items.filter((item, index) => item.url !== undefined || index === items.length - 1);
+  if (kept.length < 2) {
+    return undefined;
+  }
   return {
     "@type": "BreadcrumbList",
-    itemListElement: items.map((item, index) => ({
+    itemListElement: kept.map((item, index) => ({
       "@type": "ListItem",
       position: index + 1,
       name: item.label,

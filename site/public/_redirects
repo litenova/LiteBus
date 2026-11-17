@@ -4,8 +4,8 @@
 # /docs asset, so every slash form of a served page resolves without a rule.
 
 # The plain-text index answers at the site root; the prefixed forms land there.
-/docs/llms.txt /llms.txt 302
-/docs/llms-full.txt /llms-full.txt 302
+/docs/llms.txt /llms.txt 301
+/docs/llms-full.txt /llms-full.txt 301
 
 # Old /v7/ documentation links point at the same path without the prefix.
 /v7/docs /docs 301
