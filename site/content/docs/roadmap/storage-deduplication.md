@@ -1,4 +1,4 @@
-# Roadmap: Deep Storage Dedup (`RelationalMessageStore<T>`)
+# Roadmap: Deep Storage Deduplication
 
 **Priority:** High (maintainability)
 **Production tier:** Not shipped: internal refactor only; no consumer-facing API change when done correctly

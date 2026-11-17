@@ -1,6 +1,6 @@
 # Nested Mediation in Command Handler
 
-A command handler runs inside a unit of work. LB1023 reports command handlers that send or publish another message through a mediator inside the handle method, which nests a second unit of work inside the first.
+A command handler runs inside a unit of work that ends at the commit. LB1023 reports command handlers that send or publish another message through a mediator inside the handle method, which nests a second unit of work inside the first.
 
 ## Header
 
