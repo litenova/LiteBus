@@ -62,7 +62,7 @@ describe("code blocks", () => {
     const { html } = await renderPage(testPage("# Title\n\n```csharp\nvar x = 1;\n```\n"));
     assert.ok(html.includes('<figure class="code-block"'), html);
     assert.ok(html.includes('<span class="code-lang">C#</span>'), html);
-    assert.ok(html.includes('<button type="button" class="copy"'), html);
+    assert.ok(html.includes('<button type="button" class="btn btn-ghost btn-sm code-copy"'), html);
     assert.ok(html.includes('data-copy="var x = 1;"'), html);
   });
 });
@@ -93,7 +93,7 @@ describe("highlight", () => {
     const html = await highlight("var x = 1;", "csharp");
     assert.ok(html.includes('<figure class="code-block"'), html);
     assert.ok(html.includes('<span class="code-lang">C#</span>'), html);
-    assert.ok(html.includes('<button type="button" class="copy"'), html);
+    assert.ok(html.includes('<button type="button" class="btn btn-ghost btn-sm code-copy"'), html);
     assert.ok(html.includes('data-copy="var x = 1;"'), html);
   });
 });

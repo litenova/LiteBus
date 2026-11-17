@@ -1,6 +1,15 @@
+import { paths } from "./icons.ts";
 // Wraps highlighted code blocks in a figure with a header strip that shows the
 // language name and a copy button. Plain pre elements without the astro-code
 // class, such as diagrams rendered to HTML, pass through untouched.
+
+/** The copy icon drawn from the shared line icon set, hidden from assistive technology. */
+function copySvg(): string {
+  return (
+    `<svg class="icon icon-sm" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" ` +
+    `stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths.copy}</svg>`
+  );
+}
 
 /** Escapes a string for an HTML text node or a double-quoted attribute value. */
 function escapeHtml(value: string): string {
@@ -102,7 +111,8 @@ export function decorateCodeBlocks(html: string): string {
       `<figure class="code-block" data-language="${copy}">` +
       `<figcaption class="code-head" data-pagefind-ignore>` +
       `<span class="code-lang">${label}</span>` +
-      `<button type="button" class="copy" data-copy="${dataCopy}" aria-label="Copy code">Copy</button></figcaption>` +
+      `<button type="button" class="btn btn-ghost btn-sm code-copy" data-copy="${dataCopy}" aria-label="Copy code">` +
+      `${copySvg()}<span class="copy-label">Copy</span></button></figcaption>` +
       `${open}${inner}${close}</figure>`
     );
   });

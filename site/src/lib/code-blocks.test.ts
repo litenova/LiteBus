@@ -31,7 +31,9 @@ describe("decorateCodeBlocks", () => {
     assert.ok(html.includes('<span class="code-lang">C#</span>'), html);
     assert.ok(
       html.includes(
-        '<button type="button" class="copy" data-copy="a &lt; b" aria-label="Copy code">Copy</button>',
+        '<button type="button" class="btn btn-ghost btn-sm code-copy" data-copy="a &lt; b" aria-label="Copy code">',
+      ) && html.includes(
+        '<span class="copy-label">Copy</span></button>',
       ),
       html,
     );
