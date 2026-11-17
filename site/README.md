@@ -160,6 +160,8 @@ The site serves the documentation as plain text as well as HTML, following the l
 
 Links in these files point at `.md` endpoints rather than at pages, so following one returns Markdown rather than an application shell. Relative links are rewritten to absolute URLs in all three files, because a relative path resolves to nothing once a page is served on its own or concatenated with every other page. Endpoints answer `text/plain; charset=utf-8` for `.txt` and `text/markdown; charset=utf-8` for `.md`.
 
+A client can also ask for a page's Markdown without using the `.md` URL: requesting the page URL with an `Accept` header that prefers `text/markdown` returns the same Markdown with `Content-Type: text/markdown; charset=utf-8`, `Vary: Accept`, `X-Robots-Tag: noindex`, and a `Link` header naming the HTML page canonical. The `.md` URLs stay the stable, documented form; the header form exists for agents that request page URLs directly. Browsers, whose headers rank HTML first, always receive HTML. The negotiation script is described under Deployment.
+
 The built-site gate in `scripts/check-site.mjs` asserts the shape: the index opens with one H1 and a blockquote summary, every link in it is absolute and reaches a Markdown endpoint that was built, every entry carries a note, and the complete text holds every page the index lists, with no relative link left in it.
 
 #### Routes
@@ -239,7 +241,16 @@ The fixed line icon set in `src/lib/icons.ts` follows the Lucide style on a 24px
 
 ### Deployment
 
-Cloudflare Workers hosts the site as a static-assets-only Worker called `litebus-site`. No script executes, so requests cost nothing on the free plan. `site/wrangler.jsonc` names the Worker, serves `dist/` with trailing-slash HTML handling and `404.html` for unknown paths, and binds the custom domain `litebus.io`. A companion Worker, `litebus-www` (configured by `wrangler.www.jsonc` with `workers/www-redirect.js`), answers `www.litebus.io` by redirecting with a 301 to the identical path and query on `litebus.io`.
+Cloudflare Workers hosts the site as the `litebus-site` Worker, which serves `dist/` as static assets with a small negotiation script in front of the documentation paths. `site/wrangler.jsonc` names the Worker, serves `dist/` with trailing-slash HTML handling and `404.html` for unknown paths, exposes the assets to the script through the `ASSETS` binding, and binds the custom domain `litebus.io`. A companion Worker, `litebus-www` (configured by `wrangler.www.jsonc` with `workers/www-redirect.js`), answers `www.litebus.io` by redirecting with a 301 to the identical path and query on `litebus.io`.
+
+The negotiation script is `site/workers/site.js`. For a `GET` or `HEAD` request to a documentation URL whose `Accept` header prefers `text/markdown` over `text/html`, it answers with that page's `.md` asset as `text/markdown; charset=utf-8`, with `Vary: Accept`, `X-Robots-Tag: noindex`, and a `Link` header naming the HTML page canonical. Every other request is served from static assets unchanged, except that HTML responses under `/docs` gain `Vary: Accept` so caches keep the two variants apart. `run_worker_first` in `wrangler.jsonc` limits the script to `/docs` and `/docs/*`, because only documentation pages have HTML and Markdown variants; every other path is served directly from static assets without running the script. The script has no dependencies: its pure helpers (`prefersMarkdown`, `markdownPathFor`) are plain JavaScript covered by `site/workers/site.test.mjs` (`node --test site/workers/site.test.mjs`).
+
+To check the negotiation against the deployed site, request a docs page with a Markdown `Accept` header and confirm the content type, then request it without the header and confirm the HTML page:
+
+```bash
+curl -i -H "Accept: text/markdown" https://litebus.io/docs/concepts/commands
+curl -i https://litebus.io/docs/concepts/commands
+```
 
 Workers Builds ships the `litebus-site` Worker on each push to `main` and builds a Preview for every other branch. Connect the `litenova/LiteBus` repository in the Cloudflare dashboard with root directory `site`; the build command in `wrangler.jsonc` installs dependencies with pnpm and builds the site into `dist/` before uploading. Each Preview appears on a subdomain of `litebus.io` enabled by the `previews_enabled` route. Because every page declares its `litebus.io` address canonical, no Preview gets indexed as a duplicate site.
 

@@ -14,7 +14,7 @@
     "build": "astro build && pagefind --site dist",
     "preview": "astro preview --port 3100",
     "typecheck": "astro check",
-    "test": "node --test \"src/**/*.test.ts\"",
+    "test": "node --test \"src/**/*.test.ts\" \"workers/*.test.mjs\"",
     "check": "node scripts/check-site.mjs",
     "deploy": "wrangler deploy"
   },

@@ -10,8 +10,15 @@
   "build": {
     "command": "corepack enable && pnpm install --frozen-lockfile && pnpm build"
   },
+  // The negotiation script in ./workers/site.js serves the Markdown variant of a
+  // documentation page when the request Accept header prefers text/markdown.
+  // run_worker_first limits it to /docs paths; every other path is served
+  // directly from static assets without running the script.
+  "main": "./workers/site.js",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/docs", "/docs/*"],
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page"
   },
