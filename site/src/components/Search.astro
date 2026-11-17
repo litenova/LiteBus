@@ -281,12 +281,16 @@ import Icon from "./Icon.astro";
         results.appendChild(empty);
         return;
       }
+      /** Drops the built file extension Pagefind records, so results link to the clean page URL the site serves. */
+      function cleanUrl(url: string): string {
+        return url.replace(/.html(?=#|$)/, "");
+      }
       entries.forEach(function (entry: PagefindResultData): void {
         const item = document.createElement("div");
         item.className = "search-item";
         const link = document.createElement("a");
         link.className = "search-result";
-        link.setAttribute("href", entry.url);
+        link.setAttribute("href", cleanUrl(entry.url));
         const top = document.createElement("span");
         top.className = "search-result-top";
         const title = document.createElement("span");
@@ -316,7 +320,7 @@ import Icon from "./Icon.astro";
         subs.forEach(function (sub: PagefindSubResult): void {
           const subLink = document.createElement("a");
           subLink.className = "search-sub";
-          subLink.setAttribute("href", sub.url);
+          subLink.setAttribute("href", cleanUrl(sub.url));
           subLink.textContent = sub.title;
           item.appendChild(subLink);
         });
