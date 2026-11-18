@@ -1,6 +1,7 @@
 # Release - publish a tag whose commit already passed CI.
 #
-# The release does not rerun the gates. CI (ci.yml) runs every gate on each push to main and to version branches;
+# The release does not rerun the gates. CI (ci.yml) runs the gates that each push to main and to version branches
+# touches, and every gate on a dispatch;
 # pushing a v* tag runs this workflow, which checks the tag and changelog, requires a successful CI push or dispatch
 # run on the exact tagged commit (waiting for one that is still running), then builds the signed packages at the
 # tag's version and publishes them. Push the branch, let CI finish or keep running, then push the tag.
