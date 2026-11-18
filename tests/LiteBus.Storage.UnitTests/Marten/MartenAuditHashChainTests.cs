@@ -69,23 +69,12 @@ public sealed class MartenAuditHashChainTests
     public void Property_insertion_order_does_not_change_the_hash()
     {
         var first = ChainedDocument();
-        var second = new MartenAuditRecord
-        {
-            Id = first.Id,
-            Action = first.Action,
-            Outcome = first.Outcome,
-            OccurredAt = first.OccurredAt,
-            Duration = first.Duration,
-            Category = first.Category,
-            Segment = first.Segment,
-            Sequence = first.Sequence,
-            PreviousHash = first.PreviousHash,
-            Properties = new Dictionary<string, string>
-            {
-                ["warehouse"] = "amsterdam",
-                ["order-total"] = "9.50"
-            }
-        };
+        var second = ChainedDocument();
+
+        // The same entries in the opposite insertion order: every other field stays identical.
+        second.Properties.Clear();
+        second.Properties["warehouse"] = "amsterdam";
+        second.Properties["order-total"] = "9.50";
 
         MartenAuditHashChain.ComputeHash(first).Should().Be(MartenAuditHashChain.ComputeHash(second));
     }

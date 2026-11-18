@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Inbox.Storage.EntityFrameworkCore.Startup;
 
@@ -39,7 +40,15 @@ public sealed class EfCoreInboxDbContextStartupCheck<TContext> : IStartupTask
     /// <inheritdoc />
     public Task RunAsync(CancellationToken cancellationToken)
     {
-        if (_serviceProvider.GetService(typeof(IMessageDispatchScopeFactory)) is IMessageDispatchScopeFactory scopeFactory)
+        // The application container's own scope comes first: the context is registered there, and a LiteBus dispatch
+        // scope over a root provider would resolve the scoped context from the root.
+        if (_serviceProvider.GetService(typeof(IServiceScopeFactory)) is IServiceScopeFactory serviceScopeFactory)
+        {
+            using var serviceScope = serviceScopeFactory.CreateScope();
+
+            ThrowWhenUnresolvable(serviceScope.ServiceProvider);
+        }
+        else if (_serviceProvider.GetService(typeof(IMessageDispatchScopeFactory)) is IMessageDispatchScopeFactory scopeFactory)
         {
             using var scope = scopeFactory.CreateScope();
 

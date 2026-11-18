@@ -16,9 +16,10 @@ namespace LiteBus.Commands.Storage.Marten;
 ///     </para>
 ///     <para>
 ///         The application must configure Marten for conjoined tenancy, with
-///         <c>options.Policies.AllDocumentsAreMultiTenanted()</c> and a multi-tenancy source such as
-///         <c>options.MultiTenantedWithSingleServer(...)</c>. On a store without tenancy, opening a tenant session
-///         fails in Marten rather than filtering silently.
+///         <c>options.Policies.AllDocumentsAreMultiTenanted()</c> and no separate-database tenancy source. A source
+///         such as <c>options.MultiTenantedWithSingleServer(...)</c> keeps each tenant in its own database and
+///         disables the default tenant, so the default session this factory opens outside any tenant would fail. On
+///         a store without tenancy, opening a tenant session fails in Marten rather than filtering silently.
 ///     </para>
 ///     <para>
 ///         The factory holds no mutable state and opens a new session per call, so one singleton instance serves

@@ -117,7 +117,8 @@ public sealed class MartenTenantSessionFactoryTests
 
     private static DocumentStore CreateDocumentStore()
     {
-        // The connection string is never dialled: creating the store and opening sessions touch no database.
+        // Conjoined tenancy keeps every tenant in one database: opening a session only selects the tenant
+        // filter, so the connection string below is never dialled and the default tenant stays available.
         const string connectionString =
             "Host=localhost;Port=1;Database=marten_tenant_factory_tests;Username=postgres;Password=postgres";
 
@@ -125,9 +126,6 @@ public sealed class MartenTenantSessionFactoryTests
         {
             options.Connection(connectionString);
             options.Policies.AllDocumentsAreMultiTenanted();
-            options.MultiTenantedWithSingleServer(
-                connectionString,
-                tenants => tenants.WithTenants(["tenant-a", "tenant-b"]));
         });
     }
 

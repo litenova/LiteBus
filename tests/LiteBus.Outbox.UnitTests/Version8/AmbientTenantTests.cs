@@ -117,7 +117,8 @@ public sealed class AmbientTenantTests : LiteBusTestBase
 
         var store = provider.GetRequiredService<InMemoryOutboxStore>();
         var envelope = store.GetAll().Should().ContainSingle().Subject;
-        envelope.TenantId.Should().BeNull();
+        // The in-memory store normalizes an unscoped tenant to an empty string on write, as it has since 7.x.
+        envelope.TenantId.Should().BeNullOrEmpty();
     }
 
     private static OutboxEnvelopeFactory CreateFactory(OutboxEnqueueOptions options)

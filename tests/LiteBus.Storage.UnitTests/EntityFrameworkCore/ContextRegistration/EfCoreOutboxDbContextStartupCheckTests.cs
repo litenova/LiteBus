@@ -42,7 +42,6 @@ public sealed class EfCoreOutboxDbContextStartupCheckTests
     public async Task RunAsync_WithoutScopedContextRegistration_ShouldThrowNamingAddDbContext()
     {
         using var provider = new ServiceCollection()
-            .AddDbContextFactory<OrdersDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString("N")))
             .AddLiteBus(registry =>
             {
                 registry.AddMessaging(_ =>

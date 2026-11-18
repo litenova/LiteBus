@@ -195,6 +195,7 @@ public sealed class RefusalProblemHttpTests
     private static DefaultHttpContext CreateHttpContext(IRefusalProblemCatalog? catalog = null)
     {
         var services = new ServiceCollection();
+        services.AddLogging();
 
         if (catalog is not null)
         {

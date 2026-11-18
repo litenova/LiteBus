@@ -1,4 +1,6 @@
+using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Events;
 using LiteBus.Events.Abstractions;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
@@ -26,6 +28,12 @@ public sealed class DuplicateDurableModuleRegistrationTests
             {
                 builder.AddMessaging(_ =>
                 {
+                });
+
+                builder.AddCommands(commands =>
+                {
+                    commands.Register<FirstInboxCommand>();
+                    commands.Register<SecondInboxCommand>();
                 });
 
                 builder.AddInbox(inbox =>
@@ -61,6 +69,12 @@ public sealed class DuplicateDurableModuleRegistrationTests
                 {
                 });
 
+                builder.AddEvents(events =>
+                {
+                    events.Register<FirstOutboxEvent>();
+                    events.Register<SecondOutboxEvent>();
+                });
+
                 builder.AddOutbox(outbox =>
                 {
                     outbox.Contracts.Register<FirstOutboxEvent>("test.outbox.first");
@@ -91,6 +105,11 @@ public sealed class DuplicateDurableModuleRegistrationTests
         registry.AddMessageModule(_ =>
         {
         });
+        registry.AddCommandModule(commands =>
+        {
+            commands.Register<FirstInboxCommand>();
+            commands.Register<SecondInboxCommand>();
+        });
         registry.AddInboxModule(inbox =>
         {
             inbox.Contracts.Register<FirstInboxCommand>("test.inbox.first");
@@ -112,6 +131,11 @@ public sealed class DuplicateDurableModuleRegistrationTests
         var registry = new ModuleRegistry();
         registry.AddMessageModule(_ =>
         {
+        });
+        registry.AddEventModule(events =>
+        {
+            events.Register<FirstOutboxEvent>();
+            events.Register<SecondOutboxEvent>();
         });
         registry.AddOutboxModule(outbox =>
         {
