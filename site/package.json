@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "0.9.12",
+    "@types/node": "24.19.2",
     "pagefind": "1.5.2",
     "typescript": "6.0.3",
     "wrangler": "4.151.3"
