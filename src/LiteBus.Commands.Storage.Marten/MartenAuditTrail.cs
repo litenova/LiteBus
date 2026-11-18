@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using Marten;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Commands.Storage.Marten;
 

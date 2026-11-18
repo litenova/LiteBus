@@ -39,6 +39,16 @@ public interface IExecutionContext
     DateTimeOffset HandledAt { get; }
 
     /// <summary>
+    ///     Gets who the mediation runs for: the calling principal and the tenant the work belongs to.
+    /// </summary>
+    /// <remarks>
+    ///     The mediator resolves it once per mediation; see <see cref="ExecutionIdentity" /> for the resolution order.
+    ///     The default implementation returns <see cref="ExecutionIdentity.Anonymous" /> so custom contexts keep
+    ///     compiling.
+    /// </remarks>
+    ExecutionIdentity Identity => ExecutionIdentity.Anonymous;
+
+    /// <summary>
     ///     Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.
     /// </summary>
     /// <remarks>

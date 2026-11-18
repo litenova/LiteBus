@@ -1,5 +1,6 @@
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Auditing;
 using Microsoft.CodeAnalysis;
 
 namespace LiteBus.Analyzers.UnitTests;

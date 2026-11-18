@@ -24,3 +24,7 @@
 | LB1022  | LiteBus.Handlers      | Warning  | Handler priority inside the LiteBus reserved range
 | LB1023  | LiteBus.Handlers      | Warning  | Nested mediation in command handler
 | LB1024  | LiteBus.Handlers      | Warning  | External side effect in command handler
+| LB1025  | LiteBus.Outbox        | Warning  | Non-transactional outbox in command handler
+| LB1026  | LiteBus.Outbox        | Warning  | Transactional outbox context not configured
+| LB1027  | LiteBus.Outbox        | Warning  | Subscriber name reused
+| LB1028  | LiteBus.Declarations  | Info     | Definition mixes concerns

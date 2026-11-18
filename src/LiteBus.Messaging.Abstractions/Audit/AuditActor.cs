@@ -1,6 +1,6 @@
 using System;
 
-namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions.Auditing;
 
 /// <summary>
 ///     Who performed an audited action.

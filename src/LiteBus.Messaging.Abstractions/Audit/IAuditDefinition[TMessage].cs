@@ -1,4 +1,4 @@
-namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions.Auditing;
 
 /// <summary>
 ///     Declares the audit position of <typeparamref name="TMessage" /> from a definition class beside the message.

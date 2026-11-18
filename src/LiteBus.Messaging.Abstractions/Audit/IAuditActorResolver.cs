@@ -1,4 +1,4 @@
-namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions.Auditing;
 
 /// <summary>
 ///     Decides who an audited action is attributed to.

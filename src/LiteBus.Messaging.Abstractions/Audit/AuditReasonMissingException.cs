@@ -1,6 +1,6 @@
 using System;
 
-namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions.Auditing;
 
 /// <summary>
 ///     Thrown when an audited action declares that a reason is required and the handler supplied none.

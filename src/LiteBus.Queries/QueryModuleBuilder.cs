@@ -6,6 +6,7 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Queries.UnitOfWork;
 using LiteBus.Runtime.Abstractions.Exceptions;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Queries;
 

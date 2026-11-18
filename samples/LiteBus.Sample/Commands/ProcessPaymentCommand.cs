@@ -1,5 +1,6 @@
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Sample.Commands;
 

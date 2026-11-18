@@ -7,6 +7,7 @@ using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using ICommand = LiteBus.Commands.Abstractions.ICommand;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Mediator.UnitTests.Metadata;
 

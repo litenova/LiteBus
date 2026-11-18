@@ -1,4 +1,4 @@
-namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions.Auditing;
 
 /// <summary>
 ///     Describes how an audited action ended.

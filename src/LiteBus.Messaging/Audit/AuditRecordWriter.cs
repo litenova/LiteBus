@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Messaging.Audit;
 

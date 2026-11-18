@@ -1,4 +1,4 @@
-namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions.Auditing;
 
 /// <summary>
 ///     Classifies how a mediation ended in the vocabulary of an audit trail.

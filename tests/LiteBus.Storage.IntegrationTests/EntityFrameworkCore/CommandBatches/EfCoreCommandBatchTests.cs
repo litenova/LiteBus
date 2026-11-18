@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using System.Collections.Concurrent;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.CommandBatches;
 

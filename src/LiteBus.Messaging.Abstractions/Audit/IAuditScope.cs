@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions.Auditing;
 
 /// <summary>
 ///     Collects the parts of an audit record that only the handler knows.

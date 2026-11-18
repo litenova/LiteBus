@@ -5,6 +5,7 @@ using LiteBus.Mediator.UnitTests.Auditing;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Mediator.UnitTests.Batching;
 

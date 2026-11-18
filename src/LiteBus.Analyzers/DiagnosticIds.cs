@@ -114,4 +114,24 @@ internal static class DiagnosticIds
     ///     A command handler injects an external side-effect type through its constructor.
     /// </summary>
     internal const string ExternalSideEffectInCommandHandler = "LB1024";
+
+    /// <summary>
+    ///     A command handler injects the non-transactional outbox while the compilation configures the transactional one.
+    /// </summary>
+    internal const string NonTransactionalOutboxInCommandHandler = "LB1025";
+
+    /// <summary>
+    ///     A type injects a transactional outbox for a context no outbox storage call in the compilation configures.
+    /// </summary>
+    internal const string TransactionalOutboxContextNotConfigured = "LB1026";
+
+    /// <summary>
+    ///     Two handlers of different messages share one subscriber name.
+    /// </summary>
+    internal const string SubscriberNameReused = "LB1027";
+
+    /// <summary>
+    ///     One definition class declares more than one metadata concern.
+    /// </summary>
+    internal const string DefinitionMixesConcerns = "LB1028";
 }

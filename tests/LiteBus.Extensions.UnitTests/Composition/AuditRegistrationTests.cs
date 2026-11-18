@@ -8,6 +8,7 @@ using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Extensions.UnitTests.Composition;
 

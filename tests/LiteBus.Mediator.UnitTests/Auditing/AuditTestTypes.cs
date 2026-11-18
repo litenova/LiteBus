@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Mediator.UnitTests.Auditing;
 

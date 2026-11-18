@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Messaging.Audit;
 

@@ -51,7 +51,7 @@ internal sealed class DeclarationSymbols
     /// <summary>
     ///     The metadata name of the audit declaration value type.
     /// </summary>
-    private const string AuditDeclarationMetadataName = "LiteBus.Messaging.Abstractions.AuditDeclaration";
+    private const string AuditDeclarationMetadataName = "LiteBus.Messaging.Abstractions.Auditing.AuditDeclaration";
 
     /// <summary>
     ///     The metadata name of the authorization declaration value type.

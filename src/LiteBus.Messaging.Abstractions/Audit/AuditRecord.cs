@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions.Auditing;
 
 /// <summary>
 ///     One entry in an audit trail: an actor attempted an action against a resource, and this is how it ended.

@@ -109,7 +109,12 @@ internal sealed class MessageMediator : IMessageMediator
         ArgumentNullException.ThrowIfNull(request);
 
         // Create a new execution context for the current scope.
-        var executionContext = new ExecutionContext(request.Tags, request.Items, _timeProvider, cancellationToken);
+        var executionContext = new ExecutionContext(
+            request.Tags,
+            request.Items,
+            _timeProvider,
+            request.Identity ?? ExecutionIdentity.Anonymous,
+            cancellationToken);
 
         // Retain only the dispatch scope until asynchronous mediation results complete. The ambient scope must not leak
         // into the caller after this method returns. A caller-supplied scope is resolved from but never disposed here.

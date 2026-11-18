@@ -63,6 +63,12 @@ public sealed record MessageMediationRequest<TMessage, TMessageResult> where TMe
     public IDictionary<string, object> Items { get; init; } = new Dictionary<string, object>();
 
     /// <summary>
+    ///     Gets the identity the mediation runs for, or <see langword="null" /> to let the mediator resolve it from an
+    ///     enclosing mediation or the registered <see cref="IExecutionIdentityProvider" />.
+    /// </summary>
+    public ExecutionIdentity? Identity { get; init; }
+
+    /// <summary>
     ///     Gets or initializes a predicate function used to filter event handlers by their descriptor.
     /// </summary>
     /// <remarks>

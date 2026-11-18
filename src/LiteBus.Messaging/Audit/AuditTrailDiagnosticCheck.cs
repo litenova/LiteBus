@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Messaging.Audit;
 

@@ -11,6 +11,7 @@ using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Mediator.UnitTests.Auditing;
 

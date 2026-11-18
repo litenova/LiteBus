@@ -8,6 +8,7 @@ using LiteBus.Messaging.Audit;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Messaging;
 

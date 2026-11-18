@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Messaging.Registry;
 
@@ -62,12 +63,7 @@ internal sealed class MessageDeclarationCollector : IMessageDeclarations
         string? targetKind = null,
         bool reasonRequired = false)
     {
-        var declaration = AuditDeclaration.Audited(action) with
-        {
-            Category = category,
-            TargetKind = targetKind,
-            ReasonRequired = reasonRequired
-        };
+        var declaration = AuditDeclaration.Audited(action, category, targetKind, reasonRequired);
 
         Add(typeof(AuditDeclaration), declaration);
         return this;

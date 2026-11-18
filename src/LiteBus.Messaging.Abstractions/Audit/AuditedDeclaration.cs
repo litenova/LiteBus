@@ -1,6 +1,6 @@
 using System;
 
-namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions.Auditing;
 
 /// <summary>
 ///     Declares that mediating a message produces an audit record, and the fixed facts about that record.

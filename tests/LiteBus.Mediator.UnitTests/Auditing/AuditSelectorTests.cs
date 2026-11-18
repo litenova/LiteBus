@@ -5,6 +5,7 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Mediator.UnitTests.Auditing;
 

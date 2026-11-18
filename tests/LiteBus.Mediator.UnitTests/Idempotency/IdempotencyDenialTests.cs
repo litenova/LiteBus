@@ -8,6 +8,7 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using LiteBus.Testing.Mediation;
 using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Mediator.UnitTests.Idempotency;
 

@@ -1,6 +1,6 @@
 using System;
 
-namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions.Auditing;
 
 /// <summary>
 ///     Declares that the annotated message is deliberately not audited, and records why.

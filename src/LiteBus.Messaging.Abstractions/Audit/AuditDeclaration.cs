@@ -1,4 +1,4 @@
-namespace LiteBus.Messaging.Abstractions;
+namespace LiteBus.Messaging.Abstractions.Auditing;
 
 /// <summary>
 ///     States the audit position of a message: either it produces an audit record, or it is deliberately exempt.
@@ -44,11 +44,35 @@ public abstract record AuditDeclaration
     ///     Creates a declaration for a message that produces an audit record.
     /// </summary>
     /// <param name="action">The use-case identity written to the record, such as <c>orders.place-order</c>.</param>
-    /// <returns>The audited declaration, ready to be refined with <c>with</c>.</returns>
+    /// <param name="category">The optional category written to the record, such as <c>grant-change</c>.</param>
+    /// <param name="targetKind">The optional kind of entity the message acts on, such as <c>order</c>.</param>
+    /// <param name="reasonRequired">
+    ///     <see langword="true" /> when mediation must carry a reason, which the audit step enforces.
+    /// </param>
+    /// <returns>
+    ///     The audited declaration. Chain <c>WithTargetFrom&lt;TMessage&gt;</c> or <c>WithReasonFrom&lt;TMessage&gt;</c>
+    ///     on it directly; no <c>with</c> expression is needed.
+    /// </returns>
     /// <exception cref="System.ArgumentException">Thrown when <paramref name="action" /> is null or whitespace.</exception>
-    public static AuditedDeclaration Audited(string action)
+    /// <example>
+    ///     <code>
+    ///     public AuditDeclaration Audit =&gt;
+    ///         AuditDeclaration.Audited("agents.revoke-chat-agent", category: "grant-change", targetKind: "agent-connection")
+    ///             .WithTargetFrom&lt;RevokeChatAgentCommand&gt;(command =&gt; command.ConnectionId.ToString());
+    ///     </code>
+    /// </example>
+    public static AuditedDeclaration Audited(
+        string action,
+        string? category = null,
+        string? targetKind = null,
+        bool reasonRequired = false)
     {
-        return new AuditedDeclaration(action);
+        return new AuditedDeclaration(action)
+        {
+            Category = category,
+            TargetKind = targetKind,
+            ReasonRequired = reasonRequired
+        };
     }
 
     /// <summary>

@@ -5,6 +5,7 @@ using System.Reflection;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Events;
 

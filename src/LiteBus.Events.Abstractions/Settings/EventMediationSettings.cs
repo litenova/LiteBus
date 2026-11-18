@@ -57,4 +57,14 @@ public sealed class EventMediationSettings
     ///     event contract itself.
     /// </remarks>
     public IDictionary<string, object> Items { get; init; } = new Dictionary<string, object>();
+
+    /// <summary>
+    ///     Gets the identity the mediation runs for: the calling principal and the tenant.
+    /// </summary>
+    /// <remarks>
+    ///     Leave it <see langword="null" /> to inherit the identity of an enclosing mediation or to read it from the
+    ///     registered <see cref="IExecutionIdentityProvider" />. Set it when the caller is known only here, such as a
+    ///     job that runs on behalf of one tenant.
+    /// </remarks>
+    public ExecutionIdentity? Identity { get; init; }
 }

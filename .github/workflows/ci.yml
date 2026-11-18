@@ -36,7 +36,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CI_PACKAGE_VERSION: 7.0.0-ci.${{ github.run_number }}
+  CI_PACKAGE_VERSION: 8.0.0-ci.${{ github.run_number }}
   # The integration filter the integration shards narrow.
   INTEGRATION_FILTER: FullyQualifiedName~IntegrationTests&Category!=TransportFast&Category!=TransportDocker&Category!=TransportAzure&Category!=TransportLiveAzure
 

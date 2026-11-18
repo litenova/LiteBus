@@ -137,6 +137,20 @@ internal sealed class ModuleRegistry : IModuleRegistry
     }
 
     /// <inheritdoc />
+    public T? Find<T>() where T : class, IModule
+    {
+        foreach (var module in _orderedModules)
+        {
+            if (module.GetType() == typeof(T))
+            {
+                return (T) module;
+            }
+        }
+
+        return null;
+    }
+
+    /// <inheritdoc />
     public IReadOnlyList<ModuleDescriptor> BuildOrder()
     {
         if (_cachedOrderedModules is not null)

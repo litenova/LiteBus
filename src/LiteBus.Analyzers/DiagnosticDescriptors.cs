@@ -279,4 +279,53 @@ public static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         false,
         description: "The default forbidden types are System.Net.Http.HttpClient and System.Net.Http.IHttpClientFactory. Set litebus.LB1024.forbidden_types in .editorconfig to a comma-separated list of metadata names to replace them.");
+
+    /// <summary>
+    ///     Reports a command handler that injects <c>IOutbox</c> in a compilation that configures the transactional
+    ///     outbox, where the enqueue commits in its own transaction instead of with the domain write.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor NonTransactionalOutboxInCommandHandler = new(
+        DiagnosticIds.NonTransactionalOutboxInCommandHandler,
+        "Non-transactional outbox in command handler",
+        "Command handler '{0}' injects IOutbox, which commits the outbox row in its own transaction. Inject ITransactionalOutbox<TContext> so the row commits with the domain write.",
+        "LiteBus.Outbox",
+        DiagnosticSeverity.Warning,
+        true,
+        description: "Inside a unit of work, IOutbox.EnqueueAsync writes and commits the envelope at once, so a later rollback of the domain write still leaves a published event. ITransactionalOutbox<TContext> stages the envelope in the same DbContext transaction.");
+
+    /// <summary>
+    ///     Reports a transactional outbox injected for a context that no outbox storage call in the compilation configures.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor TransactionalOutboxContextNotConfigured = new(
+        DiagnosticIds.TransactionalOutboxContextNotConfigured,
+        "Transactional outbox context not configured",
+        "'{0}' injects ITransactionalOutbox<{1}>, but no UseDbContext<{1}>() call in this compilation configures that context",
+        "LiteBus.Outbox",
+        DiagnosticSeverity.Warning,
+        true,
+        description: "The rule runs only when the compilation contains at least one UseDbContext<TContext>() call, because the configuring call may otherwise live in another assembly. Resolving the outbox for an unconfigured context fails on the first enqueue.");
+
+    /// <summary>
+    ///     Reports two handlers of different messages that share one subscriber name.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor SubscriberNameReused = new(
+        DiagnosticIds.SubscriberNameReused,
+        "Subscriber name reused",
+        "Subscriber name '{0}' is used by '{1}' and by '{2}'; give each reaction its own name, such as <module>.<event>.<reaction>",
+        "LiteBus.Outbox",
+        DiagnosticSeverity.Warning,
+        true,
+        description: "Per-handler outbox rows record the subscriber name. A name shared by reactions to different events makes rows hard to read in operations tooling and makes renaming one handler change the other's recorded identity.");
+
+    /// <summary>
+    ///     Reports a definition class that implements more than one message definition concern.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor DefinitionMixesConcerns = new(
+        DiagnosticIds.DefinitionMixesConcerns,
+        "Definition mixes concerns",
+        "Definition '{0}' declares {1}; keep one definition class per concern, such as {2}",
+        "LiteBus.Declarations",
+        DiagnosticSeverity.Info,
+        true,
+        description: "Authorization, audit, tenancy and idempotency are unrelated concerns. The registry accepts one class implementing several definitions, but one class per concern keeps each decision readable and reviewable on its own.");
 }

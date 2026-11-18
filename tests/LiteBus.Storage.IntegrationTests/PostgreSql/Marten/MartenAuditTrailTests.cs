@@ -6,6 +6,7 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Storage.IntegrationTests.PostgreSql;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Storage.IntegrationTests.PostgreSql.Marten;
 

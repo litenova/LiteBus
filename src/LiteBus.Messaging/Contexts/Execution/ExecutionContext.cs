@@ -16,20 +16,24 @@ internal sealed class ExecutionContext : IExecutionContext
     /// <param name="tags">The tags associated with the execution context.</param>
     /// <param name="items">The key/value collection for sharing data within the execution context.</param>
     /// <param name="timeProvider">The time provider the handled instant is read from, once.</param>
+    /// <param name="identity">The identity the mediation runs for.</param>
     /// <param name="cancellationToken">The cancellation token associated with the execution context.</param>
     public ExecutionContext(
         IEnumerable<string> tags,
         IDictionary<string, object> items,
         TimeProvider timeProvider,
+        ExecutionIdentity identity,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(identity);
 
         CancellationToken = cancellationToken;
         Tags = tags.ToList();
         Items = new ConcurrentDictionary<string, object>(items);
         Data = new HandleContextData();
         HandledAt = timeProvider.GetUtcNow();
+        Identity = identity;
     }
 
     /// <inheritdoc />
@@ -37,6 +41,9 @@ internal sealed class ExecutionContext : IExecutionContext
 
     /// <inheritdoc />
     public DateTimeOffset HandledAt { get; }
+
+    /// <inheritdoc />
+    public ExecutionIdentity Identity { get; }
 
     /// <inheritdoc />
     public IDictionary<string, object> Items { get; }

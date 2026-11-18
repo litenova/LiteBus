@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Messaging.Audit;
 
