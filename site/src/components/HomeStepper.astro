@@ -1,0 +1,201 @@
+---
+// Getting-started stepper: three steps driving one fixed-size editor.
+//
+// The step list and the editor tabs select the same file. Without JavaScript
+// the first file shows; the script below switches files on click and follows
+// the tablist keyboard pattern on the tabs. It also wraps each rendered code
+// line in a stagger span so the file writes itself in, and labels each
+// listing as a scroll region. Under reduced motion the code renders statically.
+export interface HomeStepperFile {
+  /** File name shown on the tab and under the step text. */
+  name: string;
+  /** Breadcrumb segments shown above the code. */
+  crumbs: string[];
+  /** Highlighted file HTML from highlight(). */
+  html: string;
+  /** Step title shown in the step list. */
+  title: string;
+  /** Step text HTML shown under the title. */
+  textHtml: string;
+}
+
+interface Props {
+  files: HomeStepperFile[];
+}
+
+const { files } = Astro.props;
+
+/** Tab element id for the file at the given index. */
+function tabId(index: number): string {
+  return `home-stepper-tab-${index}`;
+}
+
+/** Panel element id for the file at the given index. */
+function panelId(index: number): string {
+  return `home-stepper-panel-${index}`;
+}
+---
+
+<div class="stepper" data-stepper>
+  <div class="steplist" role="group" aria-label="Steps">
+    {
+      files.map((step, index) => (
+        <button
+          type="button"
+          class={index === 0 ? "step on" : "step"}
+          aria-pressed={index === 0 ? "true" : "false"}
+          data-step={index}
+        >
+          <span class="num" aria-hidden="true">
+            {index + 1}
+          </span>
+          <b>{step.title}</b>
+          <span class="d" set:html={step.textHtml} />
+          <span class="fname">{step.name}</span>
+        </button>
+      ))
+    }
+  </div>
+  <div class="ed">
+    <div class="ed-tabs" role="tablist" aria-label="Example files" data-tabs>
+      {
+        files.map((step, index) => (
+          <button
+            type="button"
+            role="tab"
+            id={tabId(index)}
+            aria-selected={index === 0 ? "true" : "false"}
+            aria-controls={panelId(index)}
+            tabindex={index === 0 ? 0 : -1}
+            class={index === 0 ? "ed-tab on" : "ed-tab"}
+            data-tab={index}
+          >
+            {step.name}
+            <span class="x" aria-hidden="true">
+              x
+            </span>
+          </button>
+        ))
+      }
+    </div>
+    {
+      files.map((step, index) => (
+        <div
+          class={index === 0 ? "file on write" : "file"}
+          role="tabpanel"
+          id={panelId(index)}
+          aria-labelledby={tabId(index)}
+          tabindex={0}
+          data-panel={index}
+          data-name={step.name}
+          hidden={index === 0 ? undefined : true}
+        >
+          <div class="crumbs">
+            {step.crumbs.map((crumb, crumbIndex) => (
+              <span class="crumb">
+                {crumbIndex > 0 && <b aria-hidden="true">&gt;</b>}
+                {crumb}
+              </span>
+            ))}
+          </div>
+          <div set:html={step.html} />
+        </div>
+      ))
+    }
+    <div class="ed-foot" aria-hidden="true">
+      <span>C#</span>
+      <span>UTF-8</span>
+      <span>LF</span>
+    </div>
+  </div>
+</div>
+<script is:inline>
+  (function () {
+    var root = document.querySelector("[data-stepper]");
+    if (!root) return;
+    var steps = Array.prototype.slice.call(root.querySelectorAll("[data-step]"));
+    var tabs = Array.prototype.slice.call(root.querySelectorAll("[data-tab]"));
+    var panels = Array.prototype.slice.call(root.querySelectorAll("[data-panel]"));
+    var tablist = root.querySelector("[data-tabs]");
+    var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // Labels the listing as a scroll region and wraps each line in a stagger
+    // span, keeping the line number visible while the code is written. Runs
+    // once per panel; panels without line spans only get the label.
+    function prepare(panel) {
+      var pre = panel.querySelector("pre");
+      if (pre && !pre.hasAttribute("data-ready")) {
+        pre.setAttribute("tabindex", "0");
+        pre.setAttribute("role", "region");
+        pre.setAttribute("aria-label", (panel.getAttribute("data-name") || "Example") + " example code");
+        pre.setAttribute("data-ready", "");
+      }
+      if (reduce) return;
+      panel.querySelectorAll(".line").forEach(function (line, index) {
+        if (line.querySelector(":scope > .lc")) return;
+        line.style.setProperty("--i", String(index));
+        var wrap = document.createElement("span");
+        wrap.className = "lc";
+        while (line.firstChild) wrap.appendChild(line.firstChild);
+        line.appendChild(wrap);
+      });
+    }
+
+    function select(index, focusTab) {
+      steps.forEach(function (step, i) {
+        var on = i === index;
+        step.classList.toggle("on", on);
+        step.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      tabs.forEach(function (tab, i) {
+        var on = i === index;
+        tab.classList.toggle("on", on);
+        tab.setAttribute("aria-selected", on ? "true" : "false");
+        tab.tabIndex = on ? 0 : -1;
+        if (on && focusTab) tab.focus();
+      });
+      panels.forEach(function (panel, i) {
+        var on = i === index;
+        panel.classList.toggle("on", on);
+        if (on) {
+          panel.removeAttribute("hidden");
+          // Re-adding the class restarts the rewrite animation.
+          panel.classList.remove("write");
+          void panel.offsetWidth;
+          prepare(panel);
+          panel.classList.add("write");
+        } else {
+          panel.classList.remove("write");
+          panel.setAttribute("hidden", "");
+        }
+      });
+    }
+
+    steps.forEach(function (step, i) {
+      step.addEventListener("click", function () {
+        select(i, false);
+      });
+    });
+    tabs.forEach(function (tab, i) {
+      tab.addEventListener("click", function () {
+        select(i, false);
+      });
+    });
+    if (tablist) {
+      tablist.addEventListener("keydown", function (event) {
+        var current = tabs.indexOf(document.activeElement);
+        if (current === -1) return;
+        var next = null;
+        if (event.key === "ArrowRight" || event.key === "ArrowDown") next = (current + 1) % tabs.length;
+        else if (event.key === "ArrowLeft" || event.key === "ArrowUp")
+          next = (current + tabs.length - 1) % tabs.length;
+        else if (event.key === "Home") next = 0;
+        else if (event.key === "End") next = tabs.length - 1;
+        if (next === null) return;
+        event.preventDefault();
+        select(next, true);
+      });
+    }
+    if (panels[0]) prepare(panels[0]);
+  })();
+</script>

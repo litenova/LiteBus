@@ -1,0 +1,91 @@
+---
+// Right "On this page" list of a docs page: its H2 headings with their H3
+// entries nested beneath, then the Markdown and edit links. A small inline
+// script marks the section in view; without JavaScript the list stays a plain
+// set of anchor links. With the mobile flag it renders the same list as a
+// collapsed disclosure for narrow screens instead of the right column.
+import type { TocEntry } from "../lib/render-markdown.ts";
+import Icon from "./Icon.astro";
+import TocList from "./TocList.astro";
+
+interface Props {
+  toc: TocEntry[];
+  /** The Markdown URL of the page, when the page has one. */
+  markdownUrl?: string;
+  /** The GitHub edit URL of the page source, when the page has one. */
+  editUrl?: string;
+  /** Render the collapsed disclosure for narrow screens instead of the right column. */
+  mobile?: boolean;
+}
+
+const { toc, markdownUrl, editUrl, mobile = false } = Astro.props;
+
+const hasLinks = Boolean(markdownUrl && editUrl);
+---
+
+{mobile ? (
+  <details class="toc-mobile" data-pagefind-ignore>
+    <summary>On this page<Icon name="chevron-down" class="icon-sm chev" /></summary>
+    <nav data-toc aria-label="On this page"><TocList entries={toc} /></nav>
+    {hasLinks && (
+      <div class="links">
+        <a href={markdownUrl}><Icon name="file" class="icon-sm" />View as Markdown</a>
+        <a href={editUrl}><Icon name="edit" class="icon-sm" />Edit on GitHub</a>
+      </div>
+    )}
+  </details>
+) : (
+  <aside class="toc">
+    <div class="cap">On this page</div>
+    <nav data-toc aria-label="On this page"><TocList entries={toc} /></nav>
+    {hasLinks && (
+      <div class="links">
+        <a href={markdownUrl}><Icon name="file" class="icon-sm" />View as Markdown</a>
+        <a href={editUrl}><Icon name="edit" class="icon-sm" />Edit on GitHub</a>
+      </div>
+    )}
+    <script is:inline>
+      (function () {
+        var navs = document.querySelectorAll("[data-toc]");
+        if (navs.length === 0 || !("IntersectionObserver" in window)) return;
+        var links = [];
+        Array.prototype.forEach.call(navs, function (nav) {
+          Array.prototype.forEach.call(nav.querySelectorAll('a[href^="#"]'), function (link) {
+            links.push(link);
+          });
+        });
+        var targets = [];
+        var seen = {};
+        links.forEach(function (link) {
+          var id = link.getAttribute("href").slice(1);
+          if (seen[id]) return;
+          seen[id] = true;
+          var el = document.getElementById(id);
+          if (el) targets.push(el);
+        });
+        if (targets.length === 0) return;
+        Array.prototype.forEach.call(navs, function (nav) { nav.setAttribute("data-enhanced", ""); });
+        function mark(id) {
+          links.forEach(function (link) {
+            var top = link.closest(".toc-list > li");
+            if (link.getAttribute("href") === "#" + id) {
+              link.setAttribute("aria-current", "location");
+              if (top) top.setAttribute("data-open", "");
+            } else {
+              link.removeAttribute("aria-current");
+            }
+          });
+          Array.prototype.forEach.call(document.querySelectorAll(".toc-list > li[data-open]"), function (li) {
+            if (!li.querySelector('[aria-current="location"]')) li.removeAttribute("data-open");
+          });
+        }
+        var observer = new IntersectionObserver(function (observed) {
+          observed.forEach(function (entry) {
+            if (entry.isIntersecting) mark(entry.target.id);
+          });
+        }, { rootMargin: "-72px 0px -70% 0px" });
+        targets.forEach(function (target) { observer.observe(target); });
+      })();
+    </script>
+  </aside>
+)}

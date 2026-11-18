@@ -1,0 +1,37 @@
+---
+// One static page per documentation page: the docs root serves /docs and every
+// other page serves its folder path below it, without a trailing slash.
+import Base from "../../layouts/Base.astro";
+import Docs from "../../layouts/Docs.astro";
+import { pages, type DocPage } from "../../lib/docs.ts";
+import { renderPage } from "../../lib/render-markdown.ts";
+import { breadcrumbList, pageTitle, softwareSourceCode, techArticle } from "../../lib/seo.ts";
+
+export function getStaticPaths() {
+  return pages.map((page) => ({
+    params: { slug: page.slug.join("/") || undefined },
+    props: { page },
+  }));
+}
+
+interface Props {
+  page: DocPage;
+}
+
+const { page } = Astro.props;
+const rendered = await renderPage(page);
+const crumbs = breadcrumbList(page);
+---
+
+<Base
+  title={pageTitle(page.title, page.section)}
+  description={page.description}
+  path={page.url}
+  mdUrl={page.mdUrl}
+  ogType="article"
+  active="docs"
+  article={{ published: page.published, modified: page.lastModified, section: page.section }}
+  jsonLd={crumbs === undefined ? [techArticle(page), softwareSourceCode] : [techArticle(page), softwareSourceCode, crumbs]}
+>
+  <Docs page={page} rendered={rendered} />
+</Base>

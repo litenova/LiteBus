@@ -1,0 +1,660 @@
+@layer base, components, pages;
+
+@layer pages {
+/* Docs pages: the three-column layout, the sidebar tree, the breadcrumb, the
+   content header block, the pager and the "On this page" list. The rendered
+   page body itself is styled by prose.css. Every color is a token from
+   site.css. The double names below are the same element: the first name is the
+   component name, the second is the contract name pages may use. */
+
+:is(.doc3, .docs-layout) {
+  --side: 272px;
+  --toc: 208px;
+  flex: 1;
+  display: grid;
+  grid-template-columns: var(--side) minmax(0, 1fr) var(--toc);
+  background: linear-gradient(var(--line), var(--line)) calc(var(--side) - 1px) 0 / 1px 100% no-repeat;
+}
+
+/* Sidebar: one native dialog that is an inline sticky column on desktop and a
+   modal drawer on phones. The divider line is drawn by the layout so it runs to
+   the footer on a short sidebar. */
+:is(.side-dialog, .docs-sidebar) {
+  display: block;
+  position: sticky;
+  top: var(--top);
+  align-self: start;
+  width: auto;
+  max-width: none;
+  max-height: calc(100vh - var(--top));
+  margin: 0;
+  padding: var(--space-4) var(--space-3) var(--space-8);
+  overflow-y: auto;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  font-size: 0.875rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.drawer-head {
+  display: none;
+}
+
+.group {
+  margin-bottom: var(--space-1);
+}
+
+.group-h {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-height: 32px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.group-h.collapse {
+  cursor: pointer;
+  list-style: none;
+}
+
+.group-h.collapse::-webkit-details-marker {
+  display: none;
+}
+
+.group-h.collapse:hover {
+  background: var(--muted);
+}
+
+.group-h .icon {
+  color: var(--muted-fg);
+}
+
+.group-h.open-here .icon {
+  color: var(--accent-text);
+}
+
+.group-h .chev {
+  width: 14px;
+  height: 14px;
+  color: var(--muted-fg);
+  margin-inline-start: auto;
+  transition: transform .15s;
+}
+
+details[open] > .group-h .chev {
+  transform: rotate(90deg);
+}
+
+.group > .tree {
+  margin: var(--space-1) 0 var(--space-3) var(--space-4);
+  padding-inline-start: var(--space-2);
+  border-inline-start: 1px solid var(--rail);
+}
+
+.tree a,
+.tree summary {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-height: 30px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--muted-fg);
+  cursor: pointer;
+  line-height: 1.4;
+  font-size: 0.84375rem;
+}
+
+.tree a:hover,
+.tree summary:hover {
+  color: var(--fg);
+  background: var(--hover);
+}
+
+.tree a.on,
+.tree a[aria-current="page"] {
+  background: var(--accent-soft);
+  color: var(--fg);
+  font-weight: 600;
+  position: relative;
+  scroll-margin-block: var(--space-4);
+}
+
+.tree a.on::before,
+.tree a[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: calc(-1 * var(--space-2) - 2px);
+  top: var(--space-1);
+  bottom: var(--space-1);
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+.tree .tag {
+  margin-inline-start: auto;
+  font-family: var(--mono);
+  font-size: 0.65625rem;
+  font-weight: 500;
+  color: var(--muted-fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 var(--space-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.tree details > summary {
+  list-style: none;
+}
+
+.tree details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.tree summary .chev {
+  margin-inline-start: auto;
+  width: 14px;
+  height: 14px;
+  color: var(--muted-fg);
+  transition: transform .15s;
+}
+
+.tree details[open] > summary .chev {
+  transform: rotate(90deg);
+}
+
+.tree summary .tag + .chev {
+  margin-inline-start: var(--space-1);
+}
+
+.tree .kids {
+  margin: var(--space-1) 0 var(--space-2) var(--space-3);
+  padding-inline-start: var(--space-2);
+  border-inline-start: 1px solid var(--rail);
+}
+
+/* An open folder's own row reads as the head of its block. */
+.tree details[open] > summary {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+/* The drawer filter hides non-matching links and empty folders; the hidden
+   attribute needs an author rule because the tree sets its own display. */
+:is(.side-dialog, .docs-sidebar) .tree a[hidden],
+:is(.side-dialog, .docs-sidebar) details[hidden] {
+  display: none;
+}
+
+/* Content column: the phone browse button, the indexed header and body, and the
+   pager pinned to the bottom of the column. The article fills the column between the
+   sidebar and the on-page list, and every block in it (title, intro, paragraphs,
+   lists, tables, callouts, code and diagrams) takes that full width,
+   so they share one left edge and one right edge. A table wider than the column
+   scrolls inside its own wrapper. */
+:is(.content, .docs-article) {
+  padding: var(--space-10) var(--space-12);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.docs-browse-btn {
+  display: none;
+  align-self: flex-start;
+  margin: 0 0 var(--space-5);
+}
+
+.docs-body {
+  min-width: 0;
+  margin-bottom: var(--space-8);
+}
+
+:is(.crumb, .breadcrumbs) {
+  font-size: 0.8125rem;
+  color: var(--muted-fg);
+}
+
+:is(.crumb, .breadcrumbs) ol {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+:is(.crumb, .breadcrumbs) li {
+  display: inline;
+}
+
+:is(.crumb, .breadcrumbs) li + li::before {
+  content: "/";
+  color: var(--line);
+  margin: 0 var(--gap-inline);
+}
+
+:is(.crumb, .breadcrumbs) .crumb-text {
+  color: var(--muted-fg);
+}
+
+:is(.crumb, .breadcrumbs) .icon {
+  color: var(--accent-text);
+}
+
+:is(.crumb, .breadcrumbs) .crumb-area {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+
+/* Breadcrumb links and the group link are 24px targets. */
+:is(.crumb, .breadcrumbs) li {
+  display: inline-flex;
+  align-items: center;
+}
+
+:is(.crumb, .breadcrumbs) a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 1.5rem;
+  color: var(--fg-2);
+}
+
+:is(.crumb, .breadcrumbs) a:hover {
+  color: var(--fg);
+}
+
+:is(.crumb, .breadcrumbs) .crumb-current {
+  color: var(--fg);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+:is(.content, .docs-article) h1 {
+  font-size: calc(var(--text) * 2.2);
+  letter-spacing: -.03em;
+  font-weight: 600;
+  margin: var(--space-3) 0 var(--space-2);
+}
+
+/* The page meta row under the title: reading time, last update and page links,
+   as small muted text. The bottom margin separates it from the body, whose
+   first child has no top margin. The separators trail each item instead of
+   leading the next, so a wrapped line never starts with one. */
+.page-meta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--gap-inline);
+  margin: 0 0 var(--space-5);
+  font-size: 0.8125rem;
+  color: var(--muted-fg);
+}
+
+.page-meta > span:not(:last-child)::after {
+  content: "\00B7";
+  margin-inline-start: var(--gap-inline);
+  color: var(--line);
+}
+
+.page-meta a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-block-size: 1.5rem;
+  color: var(--fg-2);
+}
+
+.page-meta a:hover {
+  color: var(--fg);
+}
+
+/* With the script running, "On this page" shows the H3 entries of the section
+   in view only, so a long page keeps a short list. Without the
+   script every entry stays visible. */
+nav[data-toc][data-enhanced] .toc-list > li > ul {
+  display: none;
+}
+
+nav[data-toc][data-enhanced] .toc-list > li[data-open] > ul {
+  display: block;
+}
+
+/* The page introduction, shown under the title. Body size in the secondary
+   text color: the intro gives context, and the title above it carries the
+   weight. It takes the full article column, like every block. */
+:is(.content, .docs-article) .page-intro {
+  margin-top: var(--space-3);
+  margin-bottom: var(--space-2);
+  font-size: var(--text);
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+:is(.content, .docs-article) .page-intro > :last-child {
+  margin-bottom: 0;
+}
+
+:is(.content, .docs-article) .tools {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  flex-wrap: wrap;
+  margin: var(--space-5) 0 var(--space-10);
+}
+
+.tools-badge {
+  margin-inline-start: auto;
+}
+
+.pager {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap-cards);
+  margin-top: auto;
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--border);
+}
+
+.pager a {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--pad-card-y) var(--pad-card-x);
+  display: block;
+  min-width: 0;
+}
+
+.pager a:hover {
+  border-color: var(--line);
+  background: var(--accent-subtle);
+}
+
+.pager small {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  font-size: 0.75rem;
+  color: var(--muted-fg);
+}
+
+.pager a:hover small {
+  color: var(--accent-text);
+}
+
+.pager b {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  overflow-wrap: anywhere;
+}
+
+.pager-prev {
+  grid-column: 1;
+}
+
+.pager-next {
+  grid-column: 2;
+  text-align: end;
+}
+
+.pager-next small {
+  justify-content: flex-end;
+}
+
+/* Right column: the section list with the section in view marked, and the
+   page links below it. */
+:is(.toc, .page-toc) {
+  padding: var(--space-10) var(--space-6);
+  font-size: 0.8125rem;
+  position: sticky;
+  top: var(--top);
+  align-self: start;
+  max-height: calc(100vh - var(--top));
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+:is(.toc, .page-toc) .cap {
+  font-size: 0.6875rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted-fg);
+  font-weight: 500;
+  margin-bottom: var(--space-2);
+}
+
+.toc-list,
+.toc-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.toc-list a {
+  display: block;
+  padding: var(--space-1) 0 var(--space-1) var(--space-3);
+  color: var(--muted-fg);
+  border-inline-start: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.toc-list a:hover {
+  color: var(--fg);
+}
+
+.toc-list a[aria-current="location"] {
+  color: var(--accent-text);
+  border-inline-start: 2px solid var(--accent);
+  padding-inline-start: calc(var(--space-3) - 1px);
+  font-weight: 600;
+}
+
+.toc-list a.toc-sub {
+  padding-inline-start: var(--space-6);
+}
+
+.toc-list a.toc-sub[aria-current="location"] {
+  padding-inline-start: calc(var(--space-6) - 1px);
+}
+
+:is(.toc, .page-toc) .links,
+.toc-mobile .links {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: var(--gap-stack);
+}
+
+:is(.toc, .page-toc) .links a,
+.toc-mobile .links a {
+  border: 0;
+  padding: 0;
+  min-block-size: 1.5rem;
+  display: flex;
+  gap: var(--gap-inline);
+  align-items: center;
+  color: var(--muted-fg);
+  font-size: 0.8125rem;
+}
+
+:is(.toc, .page-toc) .links a:hover,
+.toc-mobile .links a:hover {
+  color: var(--accent-text);
+}
+
+/* Narrow screens collapse "On this page" into a disclosure above the body. */
+.toc-mobile {
+  display: none;
+  margin: 0 0 var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.toc-mobile > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  cursor: pointer;
+  list-style: none;
+  padding: var(--pad-box-y) var(--pad-box-x);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.toc-mobile > summary::-webkit-details-marker {
+  display: none;
+}
+
+.toc-mobile > summary .chev {
+  margin-inline-start: auto;
+  transition: transform .15s;
+}
+
+.toc-mobile[open] > summary .chev {
+  transform: rotate(180deg);
+}
+
+.toc-mobile nav {
+  padding: 0 var(--pad-box-x) var(--pad-box-y);
+}
+
+.toc-mobile .links {
+  margin: 0 var(--pad-box-x) var(--pad-box-y);
+  padding-top: var(--pad-box-y);
+}
+
+@media (max-width: 1180px) {
+  :is(.doc3, .docs-layout) {
+    --side: 260px;
+    grid-template-columns: var(--side) minmax(0, 1fr);
+  }
+
+  :is(.doc3, .docs-layout) > :is(.toc, .page-toc) {
+    display: none;
+  }
+
+  .toc-mobile {
+    display: block;
+  }
+}
+
+@media (max-width: 760px) {
+  :is(.doc3, .docs-layout) {
+    grid-template-columns: minmax(0, 1fr);
+    background: none;
+  }
+
+  :is(.side-dialog, .docs-sidebar):not([open]) {
+    display: none;
+  }
+
+  :is(.side-dialog, .docs-sidebar)[open] {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: min(340px, 92vw);
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--fg);
+    border: 0;
+    border-inline-end: 1px solid var(--border);
+  }
+
+  :is(.side-dialog, .docs-sidebar)::backdrop {
+    background: color-mix(in srgb, var(--outside) 80%, transparent);
+  }
+
+  .drawer-head {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-inline);
+    padding: var(--pad-box-y) var(--pad-box-x);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .drawer-head input {
+    flex: 1;
+    min-width: 0;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.8125rem;
+  }
+
+  :is(.side-dialog, .docs-sidebar) .side {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-3);
+  }
+
+  :is(.content, .docs-article) {
+    padding: var(--space-6) var(--space-4) var(--space-12);
+  }
+
+  .docs-browse-btn {
+    display: inline-flex;
+    min-block-size: 44px;
+  }
+
+  .pager {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pager-prev,
+  .pager-next {
+    grid-column: auto;
+    text-align: start;
+  }
+
+  .pager-next small {
+    justify-content: flex-start;
+  }
+}
+
+/* Wide screens: wider side columns and one step larger type, matching the
+   wider frame in site.css. */
+@media (min-width: 100rem) {
+  :is(.doc3, .docs-layout) { --side: 296px; --toc: 248px; }
+  :is(.side-dialog, .docs-sidebar) { font-size: 0.9375rem; }
+  .tree a, .tree summary { font-size: 0.90625rem; min-height: 32px; }
+  .group-h { font-size: 0.875rem; }
+  :is(.content, .docs-article) { padding: var(--space-12) var(--space-16); }
+  :is(.crumb, .breadcrumbs), .page-meta { font-size: 0.875rem; }
+  :is(.toc, .page-toc) { font-size: 0.875rem; }
+  .pager b { font-size: 1rem; }
+}
+
+/* Motion: the page body settles in on load, and the phone drawer slides in
+   from the left edge. */
+@media (prefers-reduced-motion: no-preference) {
+  :is(.content, .docs-article) > .docs-body { animation: rise .32s ease-out both; }
+}
+@media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
+  :is(.side-dialog, .docs-sidebar)[open] { animation: drawer-in .24s cubic-bezier(.2, .7, .2, 1) both; }
+  :is(.side-dialog, .docs-sidebar)[open]::backdrop { animation: fade .24s ease-out both; }
+}
+@keyframes drawer-in { from { translate: -100% 0; } }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "LiteBus documentation",
+  "short_name": "LiteBus",
+  "description": "LiteBus is a mediator and durable messaging library for .NET. Compose commands, queries, events, inbox, and outbox processing from explicit contracts and opt-in adapters.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#1a1c22",
+  "theme_color": "#151217",
+  "categories": ["developer", "productivity", "reference"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "type": "image/png",
+      "sizes": "128x128",
+      "purpose": "any"
+    }
+  ]
+}

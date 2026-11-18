@@ -1,0 +1,39 @@
+---
+// The "On this page" list: each H2 heading with its H3 entries nested beneath.
+// PageToc renders it in the right column and in the narrow-screen disclosure.
+import type { TocEntry } from "../lib/render-markdown.ts";
+
+interface Props {
+  entries: TocEntry[];
+}
+
+const { entries } = Astro.props;
+
+interface Section {
+  head: TocEntry;
+  subs: TocEntry[];
+}
+
+const sections: Section[] = [];
+for (const entry of entries) {
+  if (entry.depth === 2) sections.push({ head: entry, subs: [] });
+  else sections.at(-1)?.subs.push(entry);
+}
+---
+
+<ul class="toc-list">
+  {sections.map((section) => (
+    <li>
+      <a href={`#${section.head.id}`}>{section.head.text}</a>
+      {section.subs.length > 0 && (
+        <ul>
+          {section.subs.map((sub) => (
+            <li>
+              <a class="toc-sub" href={`#${sub.id}`}>{sub.text}</a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  ))}
+</ul>

@@ -1,0 +1,49 @@
+# Response headers for litebus.io (Cloudflare Workers static assets).
+# The :a to :e placeholders match one path segment each, so the .md rules
+# below cover documentation pages up to five segments deep under /docs/.
+# The describedby link follows the llmstxt.org proposal: /llms.txt describes every page.
+
+/*
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; connect-src 'self'; upgrade-insecure-requests
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-DNS-Prefetch-Control: on
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=(), browsing-topics=()
+  Link: </llms.txt>; rel="alternate"; type="text/plain", </llms.txt>; rel="describedby"; type="text/plain"
+
+# Fingerprinted build output and fonts never change under the same name.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+/pagefind/*
+  Cache-Control: public, max-age=3600
+  X-Robots-Tag: noindex
+
+# Agent text: one page's Markdown and the complete text stay out of search
+# results, where the HTML page is the one to show.
+/docs.md
+  Content-Type: text/markdown; charset=utf-8
+  X-Robots-Tag: noindex
+/docs/:a.md
+  Content-Type: text/markdown; charset=utf-8
+  X-Robots-Tag: noindex
+/docs/:a/:b.md
+  Content-Type: text/markdown; charset=utf-8
+  X-Robots-Tag: noindex
+/docs/:a/:b/:c.md
+  Content-Type: text/markdown; charset=utf-8
+  X-Robots-Tag: noindex
+/docs/:a/:b/:c/:d.md
+  Content-Type: text/markdown; charset=utf-8
+  X-Robots-Tag: noindex
+/docs/:a/:b/:c/:d/:e.md
+  Content-Type: text/markdown; charset=utf-8
+  X-Robots-Tag: noindex
+/llms.txt
+  Content-Type: text/plain; charset=utf-8
+/llms-full.txt
+  Content-Type: text/plain; charset=utf-8
+  X-Robots-Tag: noindex

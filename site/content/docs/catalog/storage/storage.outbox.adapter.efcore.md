@@ -3,7 +3,7 @@
 - **ID**: `storage.outbox.adapter.efcore`
 - **Name**: Outbox EF Core adapter
 - **Maturity**: GA
-- **Summary**: Outbox store built on Entity Framework Core. It creates operation contexts through a factory and enqueues transactionally through a typed writer, an existing context, or a SaveChanges interceptor.
+- **Summary**: Outbox store built on Entity Framework Core with transactional enqueue. It creates operation contexts through a factory and enqueues transactionally through a typed writer, an existing context, or a SaveChanges interceptor.
 
 ## What It Does
 

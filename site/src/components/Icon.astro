@@ -1,0 +1,28 @@
+---
+// One inline line icon from a fixed set, drawn on a 24px grid. Icons are
+// decorative unless a label is passed.
+import { paths, githubPath, type IconName } from "../lib/icons.ts";
+
+interface Props {
+  name: IconName;
+  class?: string;
+  label?: string;
+}
+
+const { name, class: className, label } = Astro.props;
+const body = name === "github" ? githubPath : paths[name];
+---
+
+<svg
+  class:list={["icon", className]}
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden={label ? undefined : "true"}
+  role={label ? "img" : undefined}
+  aria-label={label}
+  set:html={body}
+/>

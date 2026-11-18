@@ -1,0 +1,464 @@
+---
+import Icon from "./Icon.astro";
+---
+
+<button type="button" class="search-trigger" data-search-trigger aria-haspopup="dialog" aria-label="Search (Ctrl K)">
+  <Icon name="search" />
+  <span class="search-trigger-label">Search</span>
+  <span class="kbd" data-search-kbd aria-hidden="true">Ctrl K</span>
+</button>
+<dialog class="search-dialog" data-search-dialog aria-label="Search the docs" closedby="any">
+  <div class="search-bar">
+    <Icon name="search" />
+    <input type="text" data-search-input placeholder="Search the docs" aria-label="Search the docs" autocomplete="off" spellcheck="false" />
+    <span class="kbd" aria-hidden="true">Esc</span>
+  </div>
+  <div class="search-results" data-search-results>
+    <p class="search-hint muted">Type to search the documentation.</p>
+  </div>
+</dialog>
+<style>
+@layer base, components, pages;
+@layer components {
+  .search-trigger {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-inline);
+    width: 240px;
+    height: 32px;
+    padding: 0 var(--space-2);
+    background: var(--muted);
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    color: var(--muted-fg);
+    font-size: 0.8125rem;
+    cursor: pointer;
+  }
+  .search-trigger:hover {
+    border-color: var(--border);
+  }
+  .search-trigger-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .search-trigger .kbd {
+    margin-inline-start: auto;
+  }
+  .search-dialog {
+    width: min(640px, 100vw - 32px);
+    margin: 12vh auto 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: none;
+  }
+  .search-dialog::backdrop {
+    background: color-mix(in srgb, var(--outside) 70%, transparent);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .search-dialog[open] { animation: rise .18s ease-out both; }
+    .search-dialog[open]::backdrop { animation: fade .18s ease-out both; }
+  }
+  .search-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-inline);
+    padding: var(--pad-box-y) var(--pad-box-x);
+    border-bottom: 1px solid var(--border);
+    color: var(--muted-fg);
+  }
+  .search-bar input:focus-visible {
+    outline-offset: 0;
+  }
+  .search-bar input {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    outline: none;
+    box-shadow: none;
+    background: transparent;
+    color: var(--fg);
+    font-size: 0.9375rem;
+    font-family: var(--sans);
+  }
+  .search-bar input:focus,
+  .search-bar input:focus-visible {
+    outline: none;
+    box-shadow: none;
+    border: 0;
+  }
+  .search-results {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: var(--space-2);
+  }
+  :global(.search-dialog .search-hint) {
+    margin: 0;
+    padding: var(--space-4) var(--space-3);
+    font-size: 0.8125rem;
+    color: var(--muted-fg);
+  }
+  :global(.search-dialog .search-item) {
+    display: grid;
+  }
+  :global(.search-dialog .search-item + .search-item) {
+    border-top: 1px solid var(--border);
+  }
+  :global(.search-dialog .search-result) {
+    display: grid;
+    gap: var(--space-1);
+    padding: var(--pad-box-y) var(--pad-box-x);
+    border-inline-start: 2px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--fg);
+  }
+  :global(.search-dialog .search-result-top) {
+    display: flex;
+    align-items: baseline;
+    gap: var(--gap-inline);
+  }
+  :global(.search-dialog .search-result-title) {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 500;
+    font-size: 0.875rem;
+  }
+  :global(.search-dialog .search-result-group) {
+    flex: none;
+    font-size: 0.75rem;
+    color: var(--muted-fg);
+    white-space: nowrap;
+  }
+  :global(.search-dialog .search-result-excerpt) {
+    display: block;
+    font-size: 0.8125rem;
+    color: var(--muted-fg);
+  }
+  :global(.search-dialog .search-result-excerpt mark) {
+    background: var(--accent-soft);
+    color: var(--fg);
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+  :global(.search-dialog .search-sub) {
+    display: block;
+    padding: var(--pad-box-y) var(--pad-box-x) var(--pad-box-y) var(--space-8);
+    font-size: 0.8125rem;
+    color: var(--muted-fg);
+    border-inline-start: 2px solid transparent;
+    border-radius: var(--radius-sm);
+  }
+  :global(.search-dialog .search-sub:hover) {
+    color: var(--fg);
+  }
+  :global(.search-dialog a.is-selected) {
+    background: var(--accent-subtle);
+    border-inline-start-color: var(--accent);
+  }
+  @media (max-width: 760px) {
+    .search-trigger {
+      width: 32px;
+      padding: 0;
+      justify-content: center;
+    }
+    .search-trigger-label,
+    .search-trigger .kbd {
+      display: none;
+    }
+  }
+}
+</style>
+<script>
+  (function () {
+    interface PagefindSubResult {
+      url: string;
+      title: string;
+    }
+
+    interface PagefindResultMeta {
+      title?: string;
+      group?: string | string[];
+    }
+
+    interface PagefindResultData {
+      url: string;
+      meta?: PagefindResultMeta;
+      excerpt?: string;
+      sub_results?: PagefindSubResult[];
+    }
+
+    interface PagefindSearchResult {
+      data: () => Promise<PagefindResultData>;
+    }
+
+    interface PagefindSearch {
+      results: PagefindSearchResult[];
+    }
+
+    interface PagefindModule {
+      debouncedSearch: (term: string) => Promise<PagefindSearch | null>;
+    }
+
+    const trigger = document.querySelector<HTMLButtonElement>("[data-search-trigger]");
+    const dialog = document.querySelector<HTMLDialogElement>("[data-search-dialog]");
+    const input = document.querySelector<HTMLInputElement>("[data-search-input]");
+    const results = document.querySelector<HTMLElement>("[data-search-results]");
+    if (trigger === null || dialog === null || input === null || results === null) {
+      return;
+    }
+    init(trigger, dialog, input, results);
+
+    function init(
+      trigger: HTMLButtonElement,
+      dialog: HTMLDialogElement,
+      input: HTMLInputElement,
+      results: HTMLElement
+    ): void {
+    // The shortcut label follows the platform: Cmd K on macOS and iOS, Ctrl K
+    // everywhere else. The markup holds Ctrl K, so readers without JavaScript
+    // keep a correct label on the common case.
+    const kbd = trigger.querySelector("[data-search-kbd]");
+    const platform = typeof navigator === "undefined" ? "" : navigator.platform || "";
+    if (kbd instanceof HTMLElement && /^(mac|iphone|ipad|ipod)/i.test(platform)) {
+      kbd.textContent = "Cmd K";
+      trigger.setAttribute("aria-label", "Search (Cmd K)");
+    }
+
+    const HINT = "Type to search the documentation.";
+    const UNAVAILABLE = "Search is available on the built site.";
+    let selected = -1;
+    let requestId = 0;
+    let pagefindModule: PagefindModule | null = null;
+    let pagefindState = "idle";
+    let pagefindPromise: Promise<PagefindModule | null> | null = null;
+
+    function links(): HTMLAnchorElement[] {
+      return Array.prototype.slice.call(results.querySelectorAll("a"));
+    }
+
+    function showHint(text: string): void {
+      results.innerHTML = "";
+      const hint = document.createElement("p");
+      hint.className = "search-hint muted";
+      hint.textContent = text;
+      results.appendChild(hint);
+      selected = -1;
+    }
+
+    function loadPagefind(): Promise<PagefindModule | null> {
+      if (pagefindState === "ready") return Promise.resolve(pagefindModule);
+      if (pagefindState === "unavailable") return Promise.resolve(null);
+      if (pagefindPromise) return pagefindPromise;
+      pagefindState = "loading";
+      pagefindPromise = (async function (): Promise<PagefindModule | null> {
+        try {
+          const path = "/pagefind/pagefind.js";
+          const mod: PagefindModule = await import(/* @vite-ignore */ path);
+          pagefindModule = mod;
+          pagefindState = "ready";
+          return mod;
+        } catch (err) {
+          pagefindState = "unavailable";
+          pagefindPromise = null;
+          return null;
+        }
+      })();
+      return pagefindPromise;
+    }
+
+    function render(entries: PagefindResultData[], term: string): void {
+      results.innerHTML = "";
+      selected = -1;
+      if (entries.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "search-hint muted";
+        empty.textContent = "No results for " + term;
+        results.appendChild(empty);
+        return;
+      }
+      /** Drops the built file extension Pagefind records, so results link to the clean page URL the site serves. */
+      function cleanUrl(url: string): string {
+        return url.replace(/.html(?=#|$)/, "");
+      }
+      entries.forEach(function (entry: PagefindResultData): void {
+        const item = document.createElement("div");
+        item.className = "search-item";
+        const link = document.createElement("a");
+        link.className = "search-result";
+        link.setAttribute("href", cleanUrl(entry.url));
+        const top = document.createElement("span");
+        top.className = "search-result-top";
+        const title = document.createElement("span");
+        title.className = "search-result-title";
+        title.textContent = (entry.meta && entry.meta.title) || entry.url;
+        top.appendChild(title);
+        const group = entry.meta && entry.meta.group ? String(entry.meta.group) : "";
+        if (group !== "") {
+          const tag = document.createElement("span");
+          tag.className = "search-result-group";
+          tag.textContent = group;
+          top.appendChild(tag);
+        }
+        link.appendChild(top);
+        if (entry.excerpt) {
+          const excerpt = document.createElement("span");
+          excerpt.className = "search-result-excerpt";
+          excerpt.innerHTML = entry.excerpt;
+          link.appendChild(excerpt);
+        }
+        item.appendChild(link);
+        const subs = (entry.sub_results || [])
+          .filter(function (sub: PagefindSubResult): boolean {
+            return sub.url !== entry.url;
+          })
+          .slice(0, 3);
+        subs.forEach(function (sub: PagefindSubResult): void {
+          const subLink = document.createElement("a");
+          subLink.className = "search-sub";
+          subLink.setAttribute("href", cleanUrl(sub.url));
+          subLink.textContent = sub.title;
+          item.appendChild(subLink);
+        });
+        results.appendChild(item);
+      });
+    }
+
+    function paintSelection(): void {
+      links().forEach(function (anchor, index) {
+        anchor.classList.toggle("is-selected", index === selected);
+        if (index === selected) anchor.scrollIntoView({ block: "nearest" });
+      });
+    }
+
+    function move(delta: number): void {
+      const all = links();
+      if (all.length === 0) return;
+      selected = (selected + delta + all.length) % all.length;
+      paintSelection();
+    }
+
+    async function runSearch(term: string): Promise<void> {
+      const id = ++requestId;
+      if (term === "") {
+        if (pagefindState !== "unavailable") showHint(HINT);
+        else showHint(UNAVAILABLE);
+        return;
+      }
+      const mod = await loadPagefind();
+      if (id !== requestId) return;
+      if (mod === null) {
+        showHint(UNAVAILABLE);
+        return;
+      }
+      let search: PagefindSearch | null;
+      try {
+        search = await mod.debouncedSearch(term);
+      } catch {
+        if (id !== requestId) return;
+        showHint("No results for " + term);
+        return;
+      }
+      if (id !== requestId) return;
+      if (search === null) return;
+      const pending = search.results.slice(0, 8).map(async function (
+        result: PagefindSearchResult
+      ): Promise<PagefindResultData | null> {
+        try {
+          return await result.data();
+        } catch {
+          return null;
+        }
+      });
+      const loaded = await Promise.all(pending);
+      if (id !== requestId) return;
+      render(
+        loaded.filter(function (entry: PagefindResultData | null): entry is PagefindResultData {
+          return entry !== null;
+        }),
+        term
+      );
+    }
+
+    function open(): void {
+      if (!dialog.open) dialog.showModal();
+      input.focus();
+      if (pagefindState === "unavailable") showHint(UNAVAILABLE);
+      else if (input.value.trim() === "" && links().length === 0) showHint(HINT);
+    }
+
+    trigger.addEventListener("click", open);
+
+    // closedby="any" closes the modal on a click outside it; a browser without it keeps the listener.
+    if (!("closedBy" in HTMLDialogElement.prototype)) {
+      dialog.addEventListener("click", function (event) {
+        if (event.target === dialog) dialog.close();
+      });
+    }
+
+    dialog.addEventListener("close", function () {
+      selected = -1;
+      paintSelection();
+    });
+
+    results.addEventListener("mouseover", function (event) {
+      const target = event.target instanceof Element ? event.target.closest("a") : null;
+      if (!target) return;
+      const index = links().indexOf(target);
+      if (index !== -1 && index !== selected) {
+        selected = index;
+        paintSelection();
+      }
+    });
+
+    input.addEventListener("input", function (): void {
+      void runSearch(input.value.trim());
+    });
+
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        move(event.key === "ArrowDown" ? 1 : -1);
+      } else if (event.key === "Enter") {
+        const current = links()[selected];
+        if (current) {
+          event.preventDefault();
+          window.location.href = current.getAttribute("href") || "/";
+        }
+      }
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if ((event.ctrlKey || event.metaKey) && (event.key === "k" || event.key === "K")) {
+        event.preventDefault();
+        if (dialog.open) dialog.close();
+        else open();
+        return;
+      }
+      if (
+        event.key === "/" &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !dialog.open
+      ) {
+        const target = event.target;
+        const tag = target instanceof HTMLElement ? target.tagName : "";
+        const typing =
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          (target instanceof HTMLElement && target.isContentEditable);
+        if (!typing) {
+          event.preventDefault();
+          open();
+        }
+      }
+    });
+    }
+  })();
+</script>

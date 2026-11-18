@@ -1,0 +1,302 @@
+/* LiteBus site foundation: the palette, the semantic tokens every component uses,
+   the page frame, the header and footer, and the shared primitives (buttons,
+   badges, keys, icons). Page and component styles build on these tokens and
+   never use a raw color. */
+
+/* Fonts: Geist and Geist Mono (SIL Open Font License, public/fonts/OFL.txt), served from
+   this site as Latin variable fonts. The site's text is ASCII, so Latin covers it. */
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/geist-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url("/fonts/geist-mono-latin.woff2") format("woff2");
+}
+
+@layer base, components, pages;
+
+@layer base {
+/* Palette: warm neutrals ending in charcoal #3e3643, a brand ramp around the
+   LiteBus route yellow #fdbf00 from public/logo.svg, and three muted support
+   hues at the same lightness and low chroma. The logo keeps the LiteBus colors
+   and only the mark uses them.
+
+   Text roles, in both schemes: --fg for body text and headings, --fg-2 for
+   secondary prose, --muted-fg for labels, navigation and meta text (at least
+   6:1 on --bg and --muted), and --faint for decoration only, never for text a
+   reader needs. Lines: --border separates parts inside a component, --rail
+   marks structure (the page frame, the sidebar guides, group dividers). */
+:root {
+  --brand-navy: #0F1B33; --brand-paper: #F6F7FA; --brand-saffron: #EFA73A;
+  --ink-0: #ffffff; --ink-25: #fcfbf9; --ink-50: #f7f5f2; --ink-100: #efebe6; --ink-200: #e5e0d9; --ink-300: #cfc7bd;
+  --ink-500: #77706a; --ink-550: #625a55; --ink-600: #58514c; --ink-700: #3e3643; --ink-800: #2a2430; --ink-900: #19151c; --ink-950: #100d12;
+  --brand-50: #fff9e8; --brand-100: #fdf0c8; --brand-200: #f8e2a0; --brand-300: #fdbf00; --brand-500: #c98f0a; --brand-700: #8a5a00; --brand-800: #6e4704;
+  --sage-50: #f1f5ef; --sage-200: #cddcc7; --sage-700: #4a6843;
+  --slate-50: #eff3f7; --slate-200: #cad6e4; --slate-700: #435a78;
+  --clay-50: #fbf0eb; --clay-200: #efcdbf; --clay-700: #97492e;
+
+  /* Structural line #cfc7bd on #ffffff 1.67:1, on #f7f5f2 1.54:1, on #fff9e8 1.59:1. */
+  --bg: var(--ink-0); --outside: var(--ink-100); --rail: var(--ink-300); --border: var(--ink-200); --line: var(--ink-300); --input: var(--ink-300);
+  /* --muted-fg on --bg 7.79:1, on --muted 7.16:1, on --hover 6.56:1; --fg 18.02:1 and --fg-2 11.58:1 on --bg. */
+  /* Sidebar hover fill #efebe6; --fg on it 15.18:1. */
+  --muted: var(--ink-50); --muted-strong: var(--ink-25); --muted-fg: var(--ink-600); --hover: var(--ink-100); --faint: var(--ink-500); --fg: var(--ink-900); --fg-2: var(--ink-700);
+  /* White on --primary 15.07:1. */
+  --primary: var(--ink-800); --primary-hover: var(--ink-700); --primary-fg: var(--ink-0);
+  /* --accent is decoration only (1.66:1 on --bg); --accent-text on --bg 5.93:1, on --muted 5.45:1. */
+  --accent: var(--brand-300); --accent-text: var(--brand-700); --accent-soft: var(--brand-100); --accent-subtle: var(--brand-50); --accent-ink: var(--ink-700);
+  /* --rule-fg on --rule-bg 7.78:1; --conv-fg on --conv-bg 5.68:1; --pat-fg on --pat-bg 6.34:1; --warn-fg on --warn-bg 5.67:1. */
+  --rule-bg: var(--brand-50); --rule-bd: var(--brand-200); --rule-fg: var(--brand-800);
+  --conv-bg: var(--sage-50); --conv-bd: var(--sage-200); --conv-fg: var(--sage-700);
+  --pat-bg: var(--slate-50); --pat-bd: var(--slate-200); --pat-fg: var(--slate-700);
+  --warn-bg: var(--clay-50); --warn-bd: var(--clay-200); --warn-fg: var(--clay-700);
+  /* Listing body #f7f5f2 on page #ffffff 1.09:1: a faint tint, the frame carries it. */
+  --code-bg: var(--ink-50);
+  --mark-ink: var(--ink-700); --mark-symbol: var(--brand-300);
+
+  /* Spacing: one 4px scale, and the roles every component uses. A padding,
+     margin or gap names a role when one fits and a step otherwise, never a raw
+     length; 1px and 2px offsets that compensate for a border are the exception. */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px;
+  --space-8: 32px; --space-10: 40px; --space-12: 48px; --space-16: 64px; --space-24: 96px;
+  --gutter: var(--space-8);          /* page side padding; --space-4 on a phone */
+  --gap-inline: var(--space-2);      /* between inline items: buttons, badges, icon and label */
+  --gap-stack: var(--space-3);       /* between stacked items inside one component */
+  --gap-cards: var(--space-3);       /* between sibling cards in a list or grid */
+  --pad-card-y: var(--space-4); --pad-card-x: var(--space-5);   /* a card or panel */
+  --pad-box-y: var(--space-3); --pad-box-x: var(--space-4);     /* a compact box, row or header strip */
+  --space-block: var(--space-4);     /* between blocks of running text */
+  --space-heading: var(--space-4);   /* after a section heading, before its content */
+  --space-section: var(--space-12);  /* before a section heading */
+
+  --radius: 8px; --radius-sm: 6px; --radius-lg: 12px;
+  --frame: 1280px; --top: 56px;
+  /* Article body text: fluid from 17px to 20px, so a full-width line of the article
+     column holds about 70 to 80 characters at 1280px and wider. */
+  --text: clamp(1.0625rem, 0.9rem + 0.5vw, 1.25rem);
+  --sans: "Geist", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  color-scheme: light;
+}
+
+/* Dark scheme. --muted-fg on --bg 9.05:1, on --muted 8.35:1, on --muted-strong 8.70:1;
+   --fg 16.36:1 and --fg-2 11.21:1 on --bg; --accent-text 11.17:1 on --bg, 10.31:1 on --muted;
+   --rule-fg 13.07:1, --conv-fg 10.31:1, --pat-fg 10.02:1, --warn-fg 8.85:1 on --bg. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* Structural line #3a333f (matches --input) on #151217 1.53:1, on #1e1a21 1.41:1. */
+    --bg: #151217; --outside: #0b090c; --rail: #4a424f; --border: #2c2630; --line: #3a333f; --input: #3a333f;
+    /* Sidebar hover fill #2c2630 (the inner-divider step) on #151217 1.26:1; --fg on it 12.96:1. */
+    --muted: #1e1a21; --muted-strong: #1a161c; --muted-fg: #bcb4a8; --hover: #2c2630; --faint: #7d756f; --fg: #f4f0ea; --fg-2: #cfc8c0;
+    --primary: #f4f0ea; --primary-hover: var(--ink-200); --primary-fg: #19151c;
+    --accent-text: var(--brand-300); --accent-soft: #fdbf0029; --accent-subtle: #fdbf0014;
+    --rule-bg: #fdbf0014; --rule-bd: #fdbf0040; --rule-fg: #f5d67a;
+    --conv-bg: #8fb08414; --conv-bd: #8fb08440; --conv-fg: #adc9a3;
+    --pat-bg: #8aa3c414; --pat-bd: #8aa3c440; --pat-fg: #adc0da;
+    --warn-bg: #d0866814; --warn-bd: #d0866840; --warn-fg: #e2a58f;
+    /* Listing body #1e1a21 on page #151217 1.08:1: a faint tint, the frame carries it. */
+    --code-bg: var(--muted);
+    --mark-ink: #e6e3ea;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  /* Structural line #3a333f (matches --input) on #151217 1.53:1, on #1e1a21 1.41:1. */
+  --bg: #151217; --outside: #0b090c; --rail: #4a424f; --border: #2c2630; --line: #3a333f; --input: #3a333f;
+  /* Sidebar hover fill #2c2630 (the inner-divider step) on #151217 1.26:1; --fg on it 12.96:1. */
+  --muted: #1e1a21; --muted-strong: #1a161c; --muted-fg: #bcb4a8; --hover: #2c2630; --faint: #7d756f; --fg: #f4f0ea; --fg-2: #cfc8c0;
+  --primary: #f4f0ea; --primary-hover: var(--ink-200); --primary-fg: #19151c;
+  --accent-text: var(--brand-300); --accent-soft: #fdbf0029; --accent-subtle: #fdbf0014;
+  --rule-bg: #fdbf0014; --rule-bd: #fdbf0040; --rule-fg: #f5d67a;
+  --conv-bg: #8fb08414; --conv-bd: #8fb08440; --conv-fg: #adc9a3;
+  --pat-bg: #8aa3c414; --pat-bd: #8aa3c440; --pat-fg: #adc0da;
+  --warn-bg: #d0866814; --warn-bd: #d0866840; --warn-fg: #e2a58f;
+  /* Listing body #1e1a21 on page #151217 1.08:1: a faint tint, the frame carries it. */
+  --code-bg: var(--muted);
+  --mark-ink: #e6e3ea;
+  color-scheme: dark;
+}
+
+/* Base */
+:where(html, body, div, section, article, header, footer, main, nav, aside, dialog, details, summary, p, ul, ol, li, h1, h2, h3, h4, h5, h6, pre, figure, blockquote, table, thead, tbody, tr, th, td, a, span, button, input, select, textarea, label, img, svg, code, small, strong, b, em) { box-sizing: border-box; }
+:where(html, body, div, section, article, header, footer, main, nav, aside, dialog, details, summary, p, ul, ol, li, h1, h2, h3, h4, h5, h6, pre, figure, blockquote, table, thead, tbody, tr, th, td, a, span, button, input, select, textarea, label, img, svg, code, small, strong, b, em)::before,
+:where(html, body, div, section, article, header, footer, main, nav, aside, dialog, details, summary, p, ul, ol, li, h1, h2, h3, h4, h5, h6, pre, figure, blockquote, table, thead, tbody, tr, th, td, a, span, button, input, select, textarea, label, img, svg, code, small, strong, b, em)::after { box-sizing: border-box; }
+html { scroll-padding-top: calc(var(--top) + var(--space-4)); -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); overflow-x: clip;
+  font-family: var(--sans); font-size: 0.9375rem; line-height: 1.5;
+  font-feature-settings: "ss01", "cv11"; -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, h5, h6, p, figure { margin: 0; }
+h1, h2, h3, h4 { text-wrap: balance; }
+p { text-wrap: pretty; }
+a { color: inherit; text-decoration: none; }
+img, svg { display: block; }
+button { font: inherit; color: inherit; }
+code, kbd, pre, .mono { font-family: var(--mono); }
+::selection { background: var(--accent-soft); }
+/* The focus ring is accent-text, not the yellow accent: the accent is about 1.7:1
+   on white and fails the 3:1 contrast required for focus. */
+:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; border-radius: var(--radius-sm); }
+a, button, summary, .btn { transition: color .12s, background-color .12s, border-color .12s; }
+
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.skip-link { position: absolute; inset-inline-start: var(--space-3); top: calc(var(--space-12) * -1); z-index: 50; padding: var(--space-2) var(--space-3); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); }
+.skip-link:focus { top: var(--space-3); }
+
+/* The frame: a centered column at least the viewport tall, so the footer sits at
+   the bottom of a short page. The page background runs edge to edge; two
+   hairlines mark the column's edges, and the header and footer rules cross the
+   whole viewport. */
+.frame {
+  width: 100%; max-width: var(--frame); min-height: 100vh; margin: 0 auto;
+  display: flex; flex-direction: column;
+  border-inline-start: 1px solid var(--border); border-inline-end: 1px solid var(--border);
+}
+.frame-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.wrap { padding: 0 var(--gutter); }
+
+/* Header */
+.site-top { position: sticky; top: 0; z-index: 20; height: var(--top); background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.site-top::after, .site-foot::before { content: ""; position: absolute; inset-inline-start: 50%; width: 100vw; height: 1px; translate: -50% 0; background: var(--border); pointer-events: none; }
+.site-top::after { bottom: -1px; background: var(--line); }
+.site-foot { position: relative; }
+.site-foot::before { top: -1px; }
+.site-top .wrap { height: 100%; display: flex; align-items: center; gap: var(--space-8); }
+.logo { display: flex; align-items: center; gap: var(--gap-inline); min-height: 32px; }
+.logo-name { font-size: 0.9375rem; font-weight: 600; letter-spacing: -0.01em; }
+.mark { flex: none; }
+.site-nav { display: flex; gap: var(--space-6); font-size: 0.875rem; color: var(--fg-2); }
+.site-nav a { position: relative; height: var(--top); display: flex; align-items: center; }
+.site-nav a:hover { color: var(--fg); }
+.site-nav a[aria-current="page"] { color: var(--fg); font-weight: 500; }
+.site-nav a[aria-current="page"]::after { content: ""; position: absolute; inset-inline-start: 0; inset-inline-end: 0; bottom: -1px; height: 2px; background: var(--accent); }
+.site-end { margin-inline-start: auto; display: flex; align-items: center; gap: var(--gap-inline); }
+.site-menu { display: none; position: relative; }
+.site-menu > summary { list-style: none; }
+.site-menu > summary::-webkit-details-marker { display: none; }
+.site-menu-panel { position: absolute; inset-inline-end: 0; top: var(--space-10); min-width: 200px; padding: var(--space-2); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); display: grid; }
+.site-menu-panel a { padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); font-size: 0.875rem; }
+.site-menu-panel a:hover, .site-menu-panel a[aria-current="page"] { background: var(--muted); }
+
+/* Footer */
+
+.site-foot .wrap { min-height: 64px; display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap-stack) var(--space-6); font-size: 0.8125rem; color: var(--muted-fg); }
+.site-foot .brand { display: flex; align-items: center; gap: var(--gap-inline); }
+.site-foot .spacer { margin-inline-start: auto; }
+.site-foot a { display: inline-flex; align-items: center; min-block-size: 1.5rem; }
+.site-foot a:hover { color: var(--fg); }
+
+/* Icons */
+.icon { width: 16px; height: 16px; flex: none; }
+.icon-sm { width: 14px; height: 14px; }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--gap-inline);
+  height: 40px; padding: 0 var(--space-4); border-radius: var(--radius); cursor: pointer;
+  border: 1px solid var(--primary); background: var(--primary); color: var(--primary-fg);
+  font: 500 0.875rem var(--sans); white-space: nowrap;
+}
+.btn:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+.btn-outline { background: var(--bg); color: var(--fg); border-color: var(--border); }
+.btn-outline:hover { background: var(--muted); border-color: var(--border); }
+.btn-ghost { background: transparent; color: var(--fg); border-color: transparent; }
+.btn-ghost:hover { background: var(--muted); border-color: transparent; }
+.btn-sm { height: 32px; padding: 0 var(--space-3); font-size: 0.8125rem; }
+.btn-icon { width: 32px; height: 32px; padding: 0; }
+
+/* Badges and keys */
+.badge {
+  display: inline-flex; align-items: center; gap: var(--gap-inline); height: 22px; padding: 0 var(--space-2);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font: 500 0.75rem var(--sans); color: var(--muted-fg); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.badge-rule, .badge-strength-required { background: var(--rule-bg); border-color: var(--rule-bd); color: var(--rule-fg); }
+.badge-convention, .badge-strength-default { background: var(--conv-bg); border-color: var(--conv-bd); color: var(--conv-fg); }
+.badge-pattern, .badge-strength-advisory { background: var(--pat-bg); border-color: var(--pat-bd); color: var(--pat-fg); }
+.badge-warn { background: var(--warn-bg); border-color: var(--warn-bd); color: var(--warn-fg); }
+.badge-rule::before, .badge-convention::before, .badge-pattern::before,
+.badge-strength-required::before, .badge-strength-default::before, .badge-strength-advisory::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .75; }
+.ver {
+  display: inline-flex; align-items: center; gap: var(--gap-inline); height: 22px; padding: 0 var(--space-2);
+  border: 1px solid var(--rule-bd); background: var(--rule-bg); color: var(--rule-fg);
+  border-radius: var(--radius-sm); font: 500 0.75rem var(--mono); font-variant-numeric: tabular-nums;
+}
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--accent-ink); }
+.kbd { font: 500 0.6875rem var(--mono); border: 1px solid var(--border); border-radius: 4px; padding: 0 var(--space-1); color: var(--muted-fg); background: var(--muted); }
+.must { color: var(--accent-text); font-weight: 700; letter-spacing: .02em; }
+.muted { color: var(--muted-fg); }
+
+@media (max-width: 1020px) {
+  .site-top .wrap { gap: var(--space-4); }
+  .site-nav { gap: var(--space-4); }
+}
+
+@media (max-width: 760px) {
+  :root { --gutter: var(--space-4); }
+  /* The footer: the brand line, then the links on their own row. */
+  .site-foot .wrap { padding-top: var(--space-4); padding-bottom: var(--space-4); }
+  .site-foot .spacer { flex-basis: 100%; height: 0; margin-inline-start: 0; }
+  .wrap { padding: 0 var(--gutter); }
+  .site-nav { display: none; }
+  .site-menu { display: block; }
+}
+
+/* Phone widths: the version chip and the GitHub and NuGet buttons move into
+   the site menu disclosure, so the search, theme and menu buttons fit without
+   a horizontal scroll. */
+@media (max-width: 420px) {
+  .site-end > .ver,
+  .site-end > .site-gh,
+  .site-end > .site-nuget { display: none; }
+}
+
+/* Wide screens: the frame widens and the type grows one step. Page styles add
+   their own wide-screen sizes. */
+@media (min-width: 100rem) {
+  :root { --frame: 1440px; --top: 60px; --gutter: var(--space-10); }
+  body { font-size: 1rem; }
+  .site-nav { font-size: 0.9375rem; gap: var(--space-8); }
+  .btn { height: 42px; font-size: 0.9375rem; }
+  .btn-sm { height: 34px; font-size: 0.875rem; }
+  .btn-icon { width: 34px; height: 34px; }
+  .site-foot .wrap { min-height: 72px; font-size: 0.875rem; }
+}
+@media (min-width: 140rem) {
+  :root { --frame: 1600px; }
+}
+
+/* Motion. Every animation here runs only when the reader allows motion: pages
+   cross-fade on navigation, folding sections open and close by height, and the
+   header gains a shadow once the page scrolls. None of them loops. */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+  .site-top { view-transition-name: site-top; }
+  ::view-transition-old(root) { animation: 140ms ease-out both vt-out; }
+  ::view-transition-new(root) { animation: 220ms ease-out both vt-in; }
+
+  :root { interpolate-size: allow-keywords; }
+  details::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition: block-size .22s ease, content-visibility .22s allow-discrete;
+  }
+  details[open]::details-content { block-size: auto; }
+
+  @supports (animation-timeline: scroll()) {
+    .site-top { animation: top-lift linear both; animation-timeline: scroll(root); animation-range: 0 80px; }
+  }
+}
+@keyframes vt-out { to { opacity: 0; } }
+@keyframes vt-in { from { opacity: 0; } }
+@keyframes top-lift { to { box-shadow: 0 8px 24px -16px color-mix(in srgb, var(--ink-950) 35%, transparent); } }
+@keyframes rise { from { opacity: 0; translate: 0 10px; } }
+@keyframes fade { from { opacity: 0; } }
+}

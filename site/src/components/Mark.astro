@@ -1,0 +1,26 @@
+---
+// The LiteBus mark, drawn inline from the paths in public/icon.svg: a rounded
+// charcoal lightning outline with the yellow route. The outline takes
+// --mark-ink, charcoal on light and pale on dark; the route takes
+// --mark-symbol. Use it at 16px or taller.
+interface Props {
+  /** The height and width in pixels. */
+  size?: number;
+}
+
+const { size = 24 } = Astro.props;
+const outline = "M84 4 36 53l24 23-16 48 48-49-25-21L84 4Z";
+const route = "m68 36-15 16-2 3-1 2 1 4 14 14-11 34 34-34-13-10 2-4-4-5-9-2 4-18Z";
+---
+
+<svg
+  class="mark"
+  width={size}
+  height={size}
+  viewBox="0 0 128 128"
+  aria-hidden="true"
+  focusable="false"
+>
+  <path d={outline} fill="none" stroke="var(--mark-ink)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+  <path d={route} fill="var(--mark-symbol)" />
+</svg>
