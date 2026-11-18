@@ -36,7 +36,7 @@ public sealed class IdempotencyKeyResolver
     /// <param name="message">The message being mediated.</param>
     /// <param name="executionContext">
     ///     The execution context of the mediation in flight, which carries the key for a message declared with
-    ///     <see cref="IdempotencyDeclaration.KeyedByContext" /> and the tenant the key is scoped to. Defaults to the
+    ///     <see cref="IdempotencyDeclaration.KeyedByContext" /> and the identity the key is scoped to. Defaults to the
     ///     ambient context of the mediation in flight, which is what every shipped stage relies on; pass one explicitly
     ///     only in a test.
     /// </param>
@@ -90,9 +90,8 @@ public sealed class IdempotencyKeyResolver
         var scope = declaration.Scope ?? messageType.FullName ?? messageType.Name;
         var tenant = ReadTenant(context);
 
-        var storeKey = tenant is null
-            ? $"{EscapeKeySegment(scope)}:{EscapeKeySegment(key)}"
-            : $"{EscapeKeySegment(tenant)}:{EscapeKeySegment(scope)}:{EscapeKeySegment(key)}";
+        var baseKey = $"{EscapeKeySegment(scope)}:{EscapeKeySegment(key)}";
+        var storeKey = tenant is null ? baseKey : $"{EscapeKeySegment(tenant)}/{baseKey}";
 
         return new ResolvedIdempotencyKey(storeKey, declaration, fingerprint);
     }
@@ -129,17 +128,27 @@ public sealed class IdempotencyKeyResolver
     /// <param name="executionContext">The execution context of the mediation in flight.</param>
     /// <returns>The tenant, or <see langword="null" /> when the mediation carries none.</returns>
     /// <remarks>
-    ///     The tenant arrives the way trace metadata does: inbox dispatchers copy the stored envelope tenant into the
-    ///     mediation items, and an application mediation sets the same entry from its own caller context. Without it,
-    ///     two tenants using one key string for one command would share a store row, and one tenant's repeat would be
-    ///     answered with the other's stored result.
+    ///     The tenant is read from the execution identity the mediator resolved for the mediation, whether it came
+    ///     from the mediation settings, an enclosing mediation, or the registered identity provider. Durable
+    ///     dispatchers restore it from the stored envelope tenant. When the identity carries no tenant, the trace tenant
+    ///     entry in the mediation items is read instead, which is where the ASP.NET Core idempotency filter puts the tenant
+    ///     its resolver returned. Without either, two tenants using one key string for
+    ///     one command would share a store row, and one tenant's repeat would be answered with the other's stored
+    ///     result.
     /// </remarks>
     private static string? ReadTenant(IExecutionContext? executionContext)
     {
-        if (executionContext is not null &&
-            executionContext.Items.TryGetValue(MessageTraceContextKeys.TenantId, out var value) &&
-            value is string tenant &&
-            !string.IsNullOrWhiteSpace(tenant))
+        var identity = executionContext?.Identity;
+
+        if (identity is not null && identity.HasTenant)
+        {
+            return identity.TenantId;
+        }
+
+        if (executionContext is not null
+            && executionContext.Items.TryGetValue(MessageTraceContextKeys.TenantId, out var item)
+            && item is string tenant
+            && !string.IsNullOrWhiteSpace(tenant))
         {
             return tenant;
         }
@@ -154,12 +163,12 @@ public sealed class IdempotencyKeyResolver
     /// <returns>The segment with backslashes doubled and separators escaped.</returns>
     /// <remarks>
     ///     The join is unambiguous because an encoded segment never carries a raw separator: every source backslash is
-    ///     doubled first, so a backslash followed by anything else can only be an escape. Two segments joined by one
-    ///     separator therefore decode to exactly one segment pair, and a tenant-prefixed key carries two separators
-    ///     where an unprefixed one carries one, so no two distinct tenant, scope, and key tuples produce one string.
+    ///     doubled first, so a backslash followed by anything else can only be an escape. Scope and key join with a
+    ///     colon, and a tenant prefix joins with a slash, so a tenant-prefixed key carries a slash where an unprefixed
+    ///     one carries none, and no two distinct tenant, scope, and key tuples produce one string.
     /// </remarks>
     private static string EscapeKeySegment(string value)
     {
-        return value.Replace("\\", "\\\\").Replace(":", "\\:");
+        return value.Replace("\\", "\\\\").Replace(":", "\\:").Replace("/", "\\/");
     }
 }

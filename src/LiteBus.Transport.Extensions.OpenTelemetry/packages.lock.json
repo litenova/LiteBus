@@ -172,8 +172,8 @@
       "litebus.transport": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Transport.Abstractions": "[7.0.0, )"
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.transport.abstractions": {

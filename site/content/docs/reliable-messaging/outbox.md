@@ -383,17 +383,18 @@ outbox.UseInProcessDispatch();
 
 A dispatched message with no registered handler fails the attempt by default. The attempt then retries and eventually dead-letters, rather than being marked `Published`. An immediate `PublishAsync` treats 0 subscribers as a silent no-op, which is defensible when the caller can see there are none. A durable dispatch has no such caller, so the two axes deliberately disagree.
 
-When no handler is registered, the default fails the attempt. A durable dispatch with no subscriber would otherwise mark the row `Published` without effect. With `RequireHandler = false`, if the assembly holding the handlers is never scanned by `AddEvents`, every outbox message is leased, dispatched, and marked `Published` without leaving the process. The backlog reads 0 throughout.
+When no handler is registered, the default fails the attempt. A durable dispatch with no subscriber would otherwise mark the row `Published` without effect. After `AllowEnvelopesWithoutHandler(reason)`, if the assembly holding the handlers is never scanned by `AddEvents`, every outbox message is leased, dispatched, and marked `Published` without leaving the process. The backlog reads 0 throughout.
 
 ```csharp
 // Only when publishing to zero handlers is a state the application deliberately allows.
-outbox.UseInProcessDispatch(dispatch => dispatch.RequireHandler = false);
+outbox.UseInProcessDispatch(dispatch =>
+    dispatch.AllowEnvelopesWithoutHandler("Audit-only events have no subscriber in this service."));
 ```
 
 | Option | Default | Behavior |
 | --- | --- | --- |
 | `RequireHandler` | `true` | A message with no handler fails the dispatch attempt, retries, and dead-letters |
-| `RequireHandler` | `false` | A message with no handler completes and is marked `Published` |
+| `RequireHandler` | `false`, set by `AllowEnvelopesWithoutHandler(reason)` | A message with no handler completes and is marked `Published`; the reason is logged as a warning at startup and listed in the composition summary |
 
 ### Per-Handler Delivery
 
@@ -411,6 +412,38 @@ builder.AddOutbox(outbox =>
 Each envelope records the subscriber name of the handler it is addressed to in the `Handler` column, where `null` means broadcast. A main handler carrying `[SubscriberName("...")]` is recorded under that name; any other handler is recorded under its full type name. Dispatch publishes each envelope to the main handler whose subscriber name or full type name equals the recorded value, so an envelope written before the attribute was added still reaches the handler. Pipeline observers (pre-stage, post, error, and completion stages) still run on every targeted dispatch.
 
 A subscriber name survives handler renames. Renaming a handler class or moving its namespace changes its full type name, so envelopes already written for the old name match no handler. When adopting subscriber names on existing handlers, add the attribute first, deploy, let the old envelopes drain, and only then rename the class.
+
+#### Choosing subscriber names
+
+The module that owns a handler owns its subscriber names. The event segment comes from the contract the handler reacts to, so the name stays readable in operations tooling beside the stored contract name.
+
+Name each reaction `<module>.<event>.<reaction>`, with kebab-case segments that match the contract name prefix:
+
+```csharp
+using LiteBus.Events.Abstractions;
+using LiteBus.Messaging.Abstractions;
+
+[SubscriberName("ledger.entry-posted.cash-projection")]
+public sealed class UpdateCashProjectionOnEntryPosted : IEventHandler<EntryPostedEvent>
+{
+    // ...
+}
+```
+
+The name states the module, the event, and the reaction. `ledger.entry-posted.cash-projection` reads beside the contract `ledger.events.entry-posted` and says which fact caused which update. `cash.projection` omits the event, so two reactions that update the same projection from different events collide. `UpdateCashProjection` is the class name, so it reintroduces the rename coupling the attribute exists to remove.
+
+A name must be non-empty, at most 200 characters, and use only letters, digits, `.`, `-`, and `_`. Composition refuses two main handlers of one event that share a name, or a name equal to another handler's full type name. `LB1027` reports one subscriber name used by handlers of different message types, because that reuse makes outbox rows hard to read and makes renaming one handler change the other's recorded identity.
+
+#### Retiring a subscriber name
+
+Retire a name in four steps: add the new name, deploy, let the old envelopes drain, then remove the old handler:
+
+1. Add a handler carrying the new name alongside the old one.
+2. Deploy both, so new enqueues fan out to the new name while the processor still leases rows addressed to the old one.
+3. Let the old envelopes drain until no row carries the old value in the `Handler` column.
+4. Remove the old handler and its name.
+
+Do not rename the class and the subscriber name in one deployment. Dispatch matches an envelope to a handler by its subscriber name or its full type name, so an envelope written before the change still reaches the handler only when one spelling survives the deployment. A handler removed before its envelopes drain leaves rows with no matching subscriber, and `RequireHandler` decides those rows as described above.
 
 Enqueueing an event with no subscribed main handler throws `NoHandlerFoundException`. This matches the default `RequireHandler` rule.
 

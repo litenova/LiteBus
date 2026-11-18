@@ -12,7 +12,7 @@
 
 Analyzers have no runtime dependency on LiteBus libraries.
 
-## Rule Inventory (LB1001-LB1024)
+## Rule Inventory (LB1001-LB1028)
 
 | ID | Severity | Category | Summary |
 | --- | --- | --- | --- |
@@ -40,10 +40,14 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | LB1022 | Warning | Handlers | `[HandlerPriority]` value falls inside the range LiteBus reserves for its own handlers |
 | LB1023 | Warning (disabled by default) | Handlers | Command handler sends or publishes another message through a mediator inside its handle method |
 | LB1024 | Warning (disabled by default) | Handlers | Command handler injects an external side-effect type through its constructor |
+| LB1025 | Warning | Outbox | Command handler injects `IOutbox` in a compilation that configures the transactional outbox, so the enqueue commits apart from the domain write |
+| LB1026 | Warning | Outbox | Type injects `ITransactionalOutbox<TContext>` for a context no `UseDbContext<TContext>()` call in the compilation configures |
+| LB1027 | Warning | Outbox | One `[SubscriberName]` value is used by handlers of different messages |
+| LB1028 | Info | Declarations | One definition class declares more than one metadata concern |
 
 ## Build-Only Rules
 
-LB1001, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1017, LB1018, LB1020, and LB1021 need facts from the whole compilation. A handler in one file satisfies a command declared in another, and a `Register` call in a module satisfies a contract declared elsewhere. These rules gather facts as each file is analyzed and report once at compilation end. Their descriptors carry the `CompilationEnd` tag.
+LB1001, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1017, LB1018, LB1020, LB1021, LB1026, and LB1027 need facts from the whole compilation. A handler in one file satisfies a command declared in another, and a `Register` call in a module satisfies a contract declared elsewhere. These rules gather facts as each file is analyzed and report once at compilation end. Their descriptors carry the `CompilationEnd` tag.
 
 `dotnet build` and CI report them as usual. Visual Studio and other hosts that analyze one open file at a time do not show them inline while you edit. They appear in the error list after a build, or with full solution analysis enabled. The remaining rules inspect one type or one invocation and report live while you type.
 
@@ -51,7 +55,7 @@ LB1001, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1017, LB1018, LB1020, 
 
 Compilation-end rules analyze one project at a time. They see the syntax of the compilation under analysis plus the types declared in eligible referenced assemblies. Registrations, tag filters, and handlers that live in another project are invisible, so the rule still reports a message handled or registered in an upper layer when it analyzes the lower layer.
 
-Message candidates for LB1007, LB1008, LB1009, LB1011, and LB1017 are scoped to the analyzed assembly, because a message from a referenced assembly cannot be annotated from the compilation being built. Handlers from eligible referenced assemblies still satisfy LB1008 and LB1009 coverage. Keep the handler or the registration call in the same compilation as the message type, or suppress the diagnostic at the declaration with a comment naming the project that owns it. LB1012 is the exception. It compares handler simple names across assemblies by design.
+Message candidates for LB1007, LB1008, LB1009, LB1011, and LB1017 are scoped to the analyzed assembly, because a message from a referenced assembly cannot be annotated from the compilation being built. A contracts assembly that carries `[assembly: MessageContractsRegisteredIn("Module.Assembly")]` hands LB1007 and LB1017 to the named assembly: its own compilation and consuming modules stop reporting those contracts, and the named assembly reports any it does not register. See [Contract Registration](../catalog/analyzers/contract-registration.md). Handlers from eligible referenced assemblies still satisfy LB1008 and LB1009 coverage. Keep the handler or the registration call in the same compilation as the message type, or suppress the diagnostic at the declaration with a comment naming the project that owns it. LB1012 is the exception. It compares handler simple names across assemblies by design.
 
 ## Reserved Handler Priority (LB1022)
 

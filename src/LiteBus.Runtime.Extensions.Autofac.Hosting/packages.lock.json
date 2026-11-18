@@ -109,7 +109,7 @@
       "litebus.runtime.extensions.hosting": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.14, )"
         }
       },

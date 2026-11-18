@@ -86,6 +86,7 @@ public sealed class CommandMediator : ICommandMediator
             MessageMediationStrategy = mediationStrategy,
             Tags = commandMediationSettings.Routing.Tags,
             Items = commandMediationSettings.Items,
+            Identity = commandMediationSettings.Identity,
             HandlerPredicate = commandMediationSettings.Routing.HandlerPredicate
         };
 
@@ -124,6 +125,7 @@ public sealed class CommandMediator : ICommandMediator
             MessageMediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand<TCommandResult>, TCommandResult>(),
             Tags = commandMediationSettings.Routing.Tags,
             Items = WithEndingCapture(commandMediationSettings.Items, capture),
+            Identity = commandMediationSettings.Identity,
             HandlerPredicate = commandMediationSettings.Routing.HandlerPredicate
         };
 
@@ -158,6 +160,7 @@ public sealed class CommandMediator : ICommandMediator
             MessageResolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy(),
             Tags = commandMediationSettings.Routing.Tags,
             Items = commandMediationSettings.Items,
+            Identity = commandMediationSettings.Identity,
             HandlerPredicate = commandMediationSettings.Routing.HandlerPredicate
         };
 
@@ -185,6 +188,7 @@ public sealed class CommandMediator : ICommandMediator
             MessageResolveStrategy = findStrategy,
             Tags = commandMediationSettings.Routing.Tags,
             Items = commandMediationSettings.Items,
+            Identity = commandMediationSettings.Identity,
             HandlerPredicate = commandMediationSettings.Routing.HandlerPredicate
         };
 
@@ -229,6 +233,7 @@ public sealed class CommandMediator : ICommandMediator
             MessageResolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy(),
             Tags = commandMediationSettings.Routing.Tags,
             Items = WithEndingCapture(commandMediationSettings.Items, capture),
+            Identity = commandMediationSettings.Identity,
             HandlerPredicate = commandMediationSettings.Routing.HandlerPredicate
         };
 

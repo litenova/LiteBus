@@ -1,6 +1,7 @@
 using System;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.Storage.EntityFrameworkCore.Startup;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Abstractions.Extensions;
@@ -137,8 +138,18 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<
             typeof(IOutboxWorkSignal),
             typeof(OutboxPollingWorkSignal)));
 
+        configuration.RegisterStartupTask(
+            typeof(EfCoreOutboxDbContextStartupCheck<>).MakeGenericType(moduleBuilder.DbContextType));
+
         if (moduleBuilder.RegisterSaveChangesInterceptor)
         {
+            // The open-generic guard is registered first: containers resolve the closed binding below for the
+            // configured context and only fall back to the guard for a context with no UseDbContext<TContext>() call.
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(ITransactionalOutbox<>),
+                typeof(UnconfiguredTransactionalOutbox<>),
+                InstanceLifetime.Scoped));
+
             var transactionalOutboxType = typeof(ITransactionalOutbox<>).MakeGenericType(moduleBuilder.DbContextType);
 
             configuration.DependencyRegistry.Register(new DependencyDescriptor(

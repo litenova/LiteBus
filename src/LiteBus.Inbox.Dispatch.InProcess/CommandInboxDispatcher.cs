@@ -16,7 +16,9 @@ namespace LiteBus.Inbox.Dispatch.InProcess;
 ///         This dispatcher resolves the CLR type from the stored contract, deserializes the payload, and calls
 ///         <see cref="ICommandMediator.SendAsync(ICommand, CommandMediationSettings?, CancellationToken)" />. It sets
 ///         <see cref="InboxExecutionContextKeys.IsInboxExecution" /> on the mediation settings so pre-handlers,
-///         post-handlers, and error handlers can detect inbox replay.
+///         post-handlers, and error handlers can detect inbox replay. It restores the envelope tenant into
+///         <see cref="CommandMediationSettings.Identity" /> so the dispatched command runs in the stored tenant; a
+///         principal is never persisted on an envelope.
 ///     </para>
 ///     <para>
 ///         Register a custom <see cref="IInboxDispatcher" /> when the inbox needs to execute messages through a
@@ -96,7 +98,10 @@ public sealed class CommandInboxDispatcher : IInboxDispatcher
                 $"Contract '{envelope.ContractName}' version {envelope.ContractVersion} resolved to a type that does not implement ICommand.");
         }
 
-        var mediationSettings = new CommandMediationSettings();
+        var mediationSettings = new CommandMediationSettings
+        {
+            Identity = ExecutionIdentity.ForTenant(envelope.TenantId)
+        };
         mediationSettings.Items[InboxExecutionContextKeys.IsInboxExecution] = true;
         mediationSettings.Items[InboxExecutionContextKeys.MessageId] = envelope.Id;
         mediationSettings.Items[InboxExecutionContextKeys.ContractName] = envelope.ContractName;

@@ -337,11 +337,13 @@ public sealed class InMemoryOutboxStore :
             var leaseExpiresAt = now.Add(leaseDuration);
             var staleCutoff = now.Add(-leaseDuration);
 
-            var leased = _envelopes.Values
+            var candidates = _envelopes.Values
                 .Where(envelope => MatchesTenantFilter(request.TenantId, envelope.TenantId))
                 .Where(envelope => IsAvailable(envelope, now, staleCutoff))
                 .OrderBy(envelope => envelope.CreatedAt)
-                .Take(request.BatchSize)
+                .ToList();
+
+            var leased = TakeWithinPerTenantCap(candidates, request)
                 // The relational stores stamp last_attempted_at in the lease statement itself, so the
                 // in-memory store stamps it here to keep the three adapters answering the same question.
                 .Select(envelope => envelope.AsLeased(request.LeaseOwner, leaseExpiresAt) with { LastAttemptedAt = now })
@@ -660,6 +662,51 @@ public sealed class InMemoryOutboxStore :
                    DurableTenantId.Normalize(storedTenantId),
                    DurableTenantId.Normalize(requestedTenantId),
                    StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Takes available envelopes in lease order while no tenant exceeds the per-tenant lease cap.
+    /// </summary>
+    /// <param name="ordered">The available envelopes in lease order.</param>
+    /// <param name="request">The lease request carrying the batch size and the per-tenant cap.</param>
+    /// <returns>The envelopes claimed by this lease call.</returns>
+    /// <remarks>
+    ///     Envelopes skipped by the cap stay pending in lease order for a later call. Unscoped envelopes count as one
+    ///     tenant. A <see langword="null" /> cap keeps the batch size as the only limit.
+    /// </remarks>
+    private static List<OutboxEnvelope> TakeWithinPerTenantCap(
+        List<OutboxEnvelope> ordered,
+        OutboxLeaseRequest request)
+    {
+        if (request.MaxPerTenant is null)
+        {
+            return ordered.Take(request.BatchSize).ToList();
+        }
+
+        var cap = request.MaxPerTenant.Value;
+        var leasedCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        List<OutboxEnvelope> leased = [];
+
+        foreach (var envelope in ordered)
+        {
+            if (leased.Count >= request.BatchSize)
+            {
+                break;
+            }
+
+            var tenantKey = DurableTenantId.Normalize(envelope.TenantId);
+            leasedCounts.TryGetValue(tenantKey, out var tenantCount);
+
+            if (tenantCount >= cap)
+            {
+                continue;
+            }
+
+            leasedCounts[tenantKey] = tenantCount + 1;
+            leased.Add(envelope);
+        }
+
+        return leased;
     }
 
     /// <summary>

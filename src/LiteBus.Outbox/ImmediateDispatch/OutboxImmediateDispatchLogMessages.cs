@@ -36,6 +36,15 @@ internal static class OutboxImmediateDispatchLogMessages
             "Immediate dispatch in background mode failed. The staged envelopes remain for the outbox processor.");
 
     /// <summary>
+    ///     The delegate that writes a scheduled immediate dispatch skip event.
+    /// </summary>
+    private static readonly Action<ILogger, Guid, string, string, Exception?> ImmediateDispatchScheduledSkippedMessage =
+        LoggerMessage.Define<Guid, string, string>(
+            LogLevel.Debug,
+            new EventId(2013, nameof(ImmediateDispatchScheduledSkipped)),
+            "Immediate dispatch skipped envelope {MessageId} with contract {ContractName} for handler {Handler} because it was staged with scheduled visibility. The outbox processor delivers it once the visibility delay passes.");
+
+    /// <summary>
     ///     Logs that immediate dispatch failed one envelope.
     /// </summary>
     /// <param name="logger">The logger receiving the event.</param>
@@ -67,5 +76,17 @@ internal static class OutboxImmediateDispatchLogMessages
     public static void BackgroundDispatchFailed(ILogger logger, Exception exception)
     {
         BackgroundDispatchFailedMessage(logger, exception);
+    }
+
+    /// <summary>
+    ///     Logs that an immediate-addressed envelope was staged with scheduled visibility.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="messageId">The envelope that was staged.</param>
+    /// <param name="contractName">The stable contract name of the envelope.</param>
+    /// <param name="handler">The handler the envelope targets, or the broadcast marker when it targets every handler.</param>
+    public static void ImmediateDispatchScheduledSkipped(ILogger logger, Guid messageId, string contractName, string handler)
+    {
+        ImmediateDispatchScheduledSkippedMessage(logger, messageId, contractName, handler, null);
     }
 }

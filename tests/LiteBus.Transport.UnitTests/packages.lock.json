@@ -245,7 +245,7 @@
       "litebus.runtime": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.runtime.abstractions": {
@@ -254,8 +254,8 @@
       "litebus.transport": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Transport.Abstractions": "[7.0.0, )"
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.transport.abstractions": {
@@ -264,9 +264,9 @@
       "litebus.transport.amqp": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Transport": "[7.0.0, )",
-          "LiteBus.Transport.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )",
           "RabbitMQ.Client": "[7.2.2, )"
         }
       },
@@ -274,42 +274,42 @@
         "type": "Project",
         "dependencies": {
           "AWSSDK.SQS": "[4.0.100.23, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Transport": "[7.0.0, )",
-          "LiteBus.Transport.Abstractions": "[7.0.0, )"
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.transport.azureservicebus": {
         "type": "Project",
         "dependencies": {
           "Azure.Messaging.ServiceBus": "[7.21.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Transport": "[7.0.0, )",
-          "LiteBus.Transport.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "litebus.transport.inmemory": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Transport": "[7.0.0, )",
-          "LiteBus.Transport.Abstractions": "[7.0.0, )"
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.transport.kafka": {
         "type": "Project",
         "dependencies": {
           "Confluent.Kafka": "[2.16.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Transport": "[7.0.0, )",
-          "LiteBus.Transport.Abstractions": "[7.0.0, )"
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.transport.testing": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Transport.Abstractions": "[7.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )",
           "Xunit.SkippableFact": "[1.5.85, )",
           "xunit": "[2.9.3, )"
         }

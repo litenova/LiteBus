@@ -71,6 +71,11 @@ public sealed class OutboxModuleBuilder
     private bool _useAmbientTrace;
 
     /// <summary>
+    ///     Whether <see cref="UseAmbientTenant" /> was called.
+    /// </summary>
+    private bool _useAmbientTenant;
+
+    /// <summary>
     ///     Whether <see cref="EnablePerHandlerDelivery" /> was called.
     /// </summary>
     private bool _perHandlerDelivery;
@@ -283,7 +288,9 @@ public sealed class OutboxModuleBuilder
     ///         Core interceptor non-generic adapter over <see cref="ITransactionalOutbox{TContext}" />; the staging handler
     ///         resolves it lazily and only when the drain is non-empty, so mediations that collect nothing never touch it.
     ///         When <see cref="UseAmbientTrace" /> is also enabled, staged envelopes stamp
-    ///         <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.MessageTrace.FromAmbient" />.
+    ///         <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.MessageTrace.FromAmbient" />. When
+    ///         <see cref="UseAmbientTenant" /> is also enabled, staged envelopes stamp the ambient execution identity
+    ///         tenant.
     ///     </para>
     /// </remarks>
     public OutboxModuleBuilder StageCollectedEvents()
@@ -308,6 +315,26 @@ public sealed class OutboxModuleBuilder
     public OutboxModuleBuilder UseAmbientTrace()
     {
         _useAmbientTrace = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     Stamps the ambient execution identity tenant onto enqueued envelopes whose items carry no explicit tenant.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         When an item's tenant is
+    ///         <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.TenantScope.Unscoped" />, the envelope factory
+    ///         stores the tenant of <see cref="AmbientExecutionContext" /> instead. An explicit item tenant in
+    ///         <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.TenantScope.Isolated" /> always wins over the
+    ///         ambient value, and outside a mediation the ambient read yields none, so the envelope is identical to one
+    ///         enqueued without this option.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder UseAmbientTenant()
+    {
+        _useAmbientTenant = true;
         return this;
     }
 
@@ -407,7 +434,7 @@ public sealed class OutboxModuleBuilder
     internal IOutboxDispatcherModule? DispatcherModule => _dispatcherModule;
 
     /// <summary>
-    ///     Collects the enqueue options built from the ambient trace and per-handler delivery flags.
+    ///     Collects the enqueue options built from the ambient trace, ambient tenant, and per-handler delivery flags.
     /// </summary>
     /// <returns>The enqueue options the module registers.</returns>
     internal OutboxEnqueueOptions CollectEnqueueOptions()
@@ -415,6 +442,7 @@ public sealed class OutboxModuleBuilder
         return new OutboxEnqueueOptions
         {
             UseAmbientTrace = _useAmbientTrace,
+            UseAmbientTenant = _useAmbientTenant,
             PerHandlerDelivery = _perHandlerDelivery
         };
     }

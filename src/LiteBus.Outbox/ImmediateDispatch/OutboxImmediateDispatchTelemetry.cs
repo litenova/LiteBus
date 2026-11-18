@@ -50,6 +50,12 @@ internal static class OutboxImmediateDispatchTelemetry
         Meter.CreateHistogram<double>(LiteBusOutboxTelemetry.ImmediateDispatchDurationInstrumentName, "s");
 
     /// <summary>
+    ///     Gets the counter for immediate-addressed envelopes staged with scheduled visibility, tagged by contract.
+    /// </summary>
+    private static readonly Counter<long> ScheduledSkippedCounter =
+        Meter.CreateCounter<long>(LiteBusOutboxTelemetry.ImmediateDispatchSkippedScheduledInstrumentName);
+
+    /// <summary>
     ///     Records that immediate dispatch published one envelope.
     /// </summary>
     public static void RecordPublished()
@@ -96,5 +102,16 @@ internal static class OutboxImmediateDispatchTelemetry
     public static void RecordDuration(TimeSpan duration)
     {
         DurationHistogram.Record(duration.TotalSeconds);
+    }
+
+    /// <summary>
+    ///     Records that one immediate-addressed envelope was staged with scheduled visibility.
+    /// </summary>
+    /// <param name="contractName">The stable contract name of the staged envelope.</param>
+    public static void RecordScheduledSkipped(string contractName)
+    {
+        ScheduledSkippedCounter.Add(
+            1,
+            new KeyValuePair<string, object?>(LiteBusOutboxTelemetry.ImmediateDispatchContractAttributeName, contractName));
     }
 }

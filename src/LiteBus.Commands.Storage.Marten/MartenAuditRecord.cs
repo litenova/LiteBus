@@ -21,6 +21,12 @@ namespace LiteBus.Commands.Storage.Marten;
 ///         setters, the same documented exception the entity types of the relational adapters rely on.
 ///         <see cref="Properties" /> stays init-only so the collection itself is never replaced after construction.
 ///     </para>
+///     <para>
+///         When the trail hash chain is enabled, every record also carries its <see cref="Segment" />, its
+///         <see cref="Sequence" /> number inside the segment, the <see cref="PreviousHash" /> of its predecessor,
+///         and its own <see cref="Hash" />. Records written without the chain leave the segment and the hashes empty
+///         and the sequence at zero.
+///     </para>
 /// </remarks>
 public sealed class MartenAuditRecord
 {
@@ -113,4 +119,28 @@ public sealed class MartenAuditRecord
     ///     Gets the additional non-identifying properties attached by the handler.
     /// </summary>
     public Dictionary<string, string> Properties { get; init; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    ///     Gets or sets the hash-chain segment the record was appended to, or <see langword="null" /> when the record
+    ///     was written without the hash chain.
+    /// </summary>
+    public string? Segment { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the sequence number of the record inside its segment, starting at one, or zero when the
+    ///     record was written without the hash chain.
+    /// </summary>
+    public long Sequence { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the chain hash of the previous record in the segment, or <see langword="null" /> for the
+    ///     first record of a segment and for records written without the hash chain.
+    /// </summary>
+    public string? PreviousHash { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the SHA-256 chain hash over the canonical JSON of the record, or <see langword="null" />
+    ///     when the record was written without the hash chain.
+    /// </summary>
+    public string? Hash { get; set; }
 }

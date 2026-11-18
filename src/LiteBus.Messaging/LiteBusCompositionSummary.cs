@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -43,6 +44,11 @@ public sealed class LiteBusCompositionSummary
     ///     The declaration policies the composition enforces, rendered for a reader.
     /// </summary>
     private readonly List<string> _requiredDeclarations = [];
+
+    /// <summary>
+    ///     The safeguards the application turned off on purpose, each with the reason it gave, in recording order.
+    /// </summary>
+    private readonly List<string> _relaxedSafeguards = [];
 
     /// <summary>
     ///     Each handler type covering one message's stage twice, once directly and once through a base type.
@@ -120,6 +126,24 @@ public sealed class LiteBusCompositionSummary
     public int CompositionChecks { get; internal set; }
 
     /// <summary>
+    ///     Gets the safeguards the application turned off on purpose, such as publishing outbox envelopes with no
+    ///     handler, each with the reason it gave.
+    /// </summary>
+    public IReadOnlyList<string> RelaxedSafeguards => _relaxedSafeguards;
+
+    /// <summary>
+    ///     Records a safeguard the application turned off on purpose, so the startup summary names it.
+    /// </summary>
+    /// <param name="description">What was turned off and the reason the application gave.</param>
+    /// <remarks>Called by LiteBus modules in other assemblies during composition; not for application code.</remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void RecordRelaxedSafeguard(string description)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(description);
+        _relaxedSafeguards.Add(description);
+    }
+
+    /// <summary>
     ///     Renders the summary as the startup line an operator reads.
     /// </summary>
     /// <returns>The rendered summary.</returns>
@@ -184,6 +208,11 @@ public sealed class LiteBusCompositionSummary
             report.Append("; ")
                   .Append(CompositionChecks.ToString(CultureInfo.InvariantCulture))
                   .Append(" composition checks");
+        }
+
+        foreach (var safeguard in _relaxedSafeguards)
+        {
+            report.Append("; relaxed safeguard: ").Append(safeguard);
         }
 
         return report.ToString();

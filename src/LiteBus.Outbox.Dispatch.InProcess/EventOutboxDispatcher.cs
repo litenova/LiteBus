@@ -179,8 +179,8 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         return summary +
                " Verify the event type is registered with Contracts.Register, implements IEvent or is a supported POCO " +
                "event, and that AddEventModule registered handlers for the event. When the event handlers live in an " +
-               "assembly AddEvents does not scan, the message is dispatched to nothing; set RequireHandler to false on " +
-               "UseInProcessDispatch only when publishing to zero handlers is intended.";
+               "assembly AddEvents does not scan, the message is dispatched to nothing; call AllowEnvelopesWithoutHandler " +
+               "on UseInProcessDispatch only when publishing to zero handlers is intended.";
     }
 
     /// <summary>
@@ -234,7 +234,7 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     }
 
     /// <summary>
-    ///     Creates event mediation settings with trace metadata copied from the outbox envelope.
+    ///     Creates event mediation settings with trace metadata and tenant identity copied from the outbox envelope.
     /// </summary>
     /// <param name="message">The outbox message whose correlation, causation, and tenant values should be applied.</param>
     /// <param name="options">The dispatch options that decide how a message with no handler is treated.</param>
@@ -244,7 +244,8 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     ///     only that main handler, so the reaction retries alone while pipeline observers still run. When the recorded
     ///     handler no longer subscribes, the predicate matches no main handler and
     ///     <see cref="InProcessOutboxDispatchOptions.RequireHandler" /> decides whether the attempt fails or completes
-    ///     as published.
+    ///     as published. The mediation runs in the tenant recorded on the envelope, restored through
+    ///     <see cref="ExecutionIdentity.ForTenant" /> without the calling principal, which is never persisted.
     /// </remarks>
     private static EventMediationSettings CreateMediationSettings(
         OutboxEnvelope message,
@@ -253,7 +254,8 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         var settings = new EventMediationSettings
         {
             ThrowIfNoHandlerFound = options.RequireHandler,
-            Routing = CreateRoutingSettings(message)
+            Routing = CreateRoutingSettings(message),
+            Identity = ExecutionIdentity.ForTenant(message.TenantId)
         };
 
         MessageProcessorDiagnostics.ApplyTraceMetadata(

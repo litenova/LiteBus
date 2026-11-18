@@ -303,7 +303,8 @@ public static class DiagnosticDescriptors
         "LiteBus.Outbox",
         DiagnosticSeverity.Warning,
         true,
-        description: "The rule runs only when the compilation contains at least one UseDbContext<TContext>() call, because the configuring call may otherwise live in another assembly. Resolving the outbox for an unconfigured context fails on the first enqueue.");
+        description: "The rule runs only when the compilation contains at least one UseDbContext<TContext>() call, because the configuring call may otherwise live in another assembly. Resolving the outbox for an unconfigured context fails on the first enqueue.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
     ///     Reports two handlers of different messages that share one subscriber name.
@@ -315,7 +316,8 @@ public static class DiagnosticDescriptors
         "LiteBus.Outbox",
         DiagnosticSeverity.Warning,
         true,
-        description: "Per-handler outbox rows record the subscriber name. A name shared by reactions to different events makes rows hard to read in operations tooling and makes renaming one handler change the other's recorded identity.");
+        description: "Per-handler outbox rows record the subscriber name. A name shared by reactions to different events makes rows hard to read in operations tooling and makes renaming one handler change the other's recorded identity.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
     ///     Reports a definition class that implements more than one message definition concern.

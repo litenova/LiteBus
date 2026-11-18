@@ -68,6 +68,11 @@ public sealed class InboxModuleBuilder
     private bool _useAmbientTrace;
 
     /// <summary>
+    ///     Whether <see cref="UseAmbientTenant" /> was called.
+    /// </summary>
+    private bool _useAmbientTenant;
+
+    /// <summary>
     ///     The configured storage sub-module, if any.
     /// </summary>
     private IInboxStorageModule? _storageModule;
@@ -127,6 +132,11 @@ public sealed class InboxModuleBuilder
     ///     Gets a value indicating whether untraced accepts inherit the ambient trace.
     /// </summary>
     public bool IsAmbientTraceEnabled => _useAmbientTrace;
+
+    /// <summary>
+    ///     Gets a value indicating whether unscoped accepts inherit the ambient tenant.
+    /// </summary>
+    public bool IsAmbientTenantEnabled => _useAmbientTenant;
 
     /// <summary>
     ///     Activates the background processor that polls for and dispatches
@@ -278,12 +288,29 @@ public sealed class InboxModuleBuilder
     }
 
     /// <summary>
+    ///     Propagates ambient tenant metadata onto accepted envelopes that carry no explicit tenant.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     When enabled and an accepted item carries <see cref="TenantScope.Unscoped" />, the envelope factory stamps
+    ///     the tenant of the ambient execution identity instead. An explicit <see cref="TenantScope.Isolated" /> always
+    ///     wins, and outside a mediation the factory result stays unscoped as before.
+    /// </remarks>
+    public InboxModuleBuilder UseAmbientTenant()
+    {
+        _useAmbientTenant = true;
+        return this;
+    }
+
+    /// <summary>
     ///     Collects the envelope options for factory registration, if any.
     /// </summary>
     /// <returns>The envelope options registered on this builder.</returns>
     internal InboxEnvelopeOptions? CollectEnvelopeOptions()
     {
-        return _useAmbientTrace ? new InboxEnvelopeOptions { UseAmbientTrace = true } : null;
+        return _useAmbientTrace || _useAmbientTenant
+            ? new InboxEnvelopeOptions { UseAmbientTrace = _useAmbientTrace, UseAmbientTenant = _useAmbientTenant }
+            : null;
     }
 
     /// <summary>

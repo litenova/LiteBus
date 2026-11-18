@@ -36,17 +36,16 @@ public sealed record PlaceOrderCommand(Guid CartId) : ICommand<OrderId>;
 Use a [definition](message-definitions.md) when you want real types and shared constants:
 
 ```csharp
-public sealed class PlaceOrderCommandDefinition : IAuditDefinition<PlaceOrderCommand>
+public sealed class PlaceOrderCommandAuditDefinition : IAuditDefinition<PlaceOrderCommand>
 {
-    public AuditDeclaration Audit => AuditDeclaration.Audited(AuditActions.Orders.Place) with
-    {
-        Category = AuditCategories.Money,
-        TargetKind = "order"
-    };
+    public AuditDeclaration Audit => AuditDeclaration.Audited(
+        AuditActions.Orders.Place,
+        category: AuditCategories.Money,
+        targetKind: "order");
 }
 ```
 
-When both are present, the definition wins.
+When both are present, the definition wins. Keep one definition class per concern: an audit position lives in `{Message}AuditDefinition`, separate from the authorization or idempotency definitions for the same message. The registry tolerates one class implementing several definition interfaces, but that layout mixes unrelated decisions.
 
 Messages that are not audited say so, and say why:
 
@@ -111,20 +110,25 @@ The scope holds no state of its own. It reads and writes the ambient execution c
 Not every variable value needs the handler. When the target or the reason can be read from the message itself, declare that on the definition and skip the scope call in every handler:
 
 ```csharp
-public sealed class RefundOrderCommandDefinition : IAuditDefinition<RefundOrderCommand>
+public sealed class RefundOrderCommandAuditDefinition : IAuditDefinition<RefundOrderCommand>
 {
-    public AuditDeclaration Audit => AuditDeclaration.Audited("orders.refund-order")
+    public AuditDeclaration Audit => AuditDeclaration.Audited(
+            "orders.refund-order",
+            category: "money",
+            targetKind: "order",
+            reasonRequired: true)
         .WithTargetFrom<RefundOrderCommand>(command => command.OrderId)
-        .WithReasonFrom<RefundOrderCommand>(command => command.Justification)
-        with { Category = "money", TargetKind = "order", ReasonRequired = true };
+        .WithReasonFrom<RefundOrderCommand>(command => command.Justification);
 }
 ```
+
+Pass `category`, `targetKind`, and `reasonRequired` to `Audited` so the target and reason selectors chain directly on the returned declaration. A `with` expression cannot take a member access without parentheses, so `Audited("...") with { ... }.WithTargetFrom<T>(...)` does not compile. The parenthesized form `(Audited("...") with { ... }).WithTargetFrom<T>(...)` compiles, but the parameters above avoid the `with` expression entirely and match `IMessageDeclarations.Audited(action, category, targetKind, reasonRequired)`.
 
 The writer consults the scope first and runs a selector only when the scope holds no value, so a value a handler supplies overrides the selector. For the reason, the pipeline decision sits between the two. A guard denial or an answer explanation describes the ending, while the selector describes the intent, and the ending is what a `Denied` record must explain.
 
 A selector result that is null or blank means the message carries no value, and `ReasonRequired` applies to the final value, so a required reason may come from the scope or the selector alike. A selector that throws fails the record write, the same way a throwing actor resolver does. A projection bug that silently produced evidence without its target or justification would be worse than a failed mediation.
 
-Selectors are delegates, so attributes cannot carry them. A message that reads its target or reason from itself needs a definition. In a `Describe` body, where the `Audited` helper takes only constants, declare the value directly with `declarations.Declare<AuditDeclaration>(AuditDeclaration.Audited("orders.refund-order").WithReasonFrom<RefundOrderCommand>(command => command.Justification))`. This is the shape described under [Declaring a Value Computed From the Message](message-definitions.md#declaring-a-value-computed-from-the-message), where a delegate computes the value from the message. The selector is built once at registration, so it can only project from the message and cannot resolve services.
+Selectors are delegates, so attributes cannot carry them. A message that reads its target or reason from itself needs a definition. In a `Describe` body, where the `Audited` helper takes only the constant facts, declare a selector position directly with `declarations.Declare<AuditDeclaration>(AuditDeclaration.Audited("orders.refund-order", category: "money", targetKind: "order", reasonRequired: true).WithReasonFrom<RefundOrderCommand>(command => command.Justification))`. This is the shape described under [Declaring a Value Computed From the Message](message-definitions.md#declaring-a-value-computed-from-the-message), where a delegate computes the value from the message. The selector is built once at registration, so it can only project from the message and cannot resolve services.
 
 Some actions are only accountable with a justification. Declare `ReasonRequired = true` and the writer refuses to produce an incomplete record for a successful action, raising `AuditReasonMissingException` instead. A required justification that silently goes missing defeats the requirement, so it is reported rather than recorded as absent.
 

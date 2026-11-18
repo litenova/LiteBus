@@ -41,7 +41,7 @@ internal sealed class StageCollectedDomainEventsCompletionHandler<TMessage> : IM
     private readonly IDomainEventCollector _collector;
 
     /// <summary>
-    ///     The enqueue options that decide whether staged envelopes stamp ambient trace.
+    ///     The enqueue options that decide whether staged envelopes stamp ambient trace and tenant.
     /// </summary>
     private readonly OutboxEnqueueOptions? _enqueueOptions;
 
@@ -102,6 +102,9 @@ internal sealed class StageCollectedDomainEventsCompletionHandler<TMessage> : IM
         var trace = _enqueueOptions?.UseAmbientTrace == true
             ? MessageTrace.FromAmbient()
             : MessageTrace.None.Instance;
+        var tenant = _enqueueOptions?.UseAmbientTenant == true
+            ? ResolveAmbientTenant()
+            : TenantScope.Unscoped.Instance;
         var items = new OutboxEnqueueItem[collected.Count];
 
         for (var index = 0; index < collected.Count; index++)
@@ -111,9 +114,22 @@ internal sealed class StageCollectedDomainEventsCompletionHandler<TMessage> : IM
             items[index] = OutboxEnqueueItem.From(
                 domainEvent,
                 domainEvent.GetType(),
-                OutboxEnqueueMetadata.Immediate with { Trace = trace });
+                OutboxEnqueueMetadata.Immediate with { Trace = trace, Tenant = tenant });
         }
 
         await outbox.EnqueueBatchAsync(items, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Resolves the ambient execution identity tenant as enqueue tenant metadata.
+    /// </summary>
+    /// <returns>The ambient tenant, or <see cref="TenantScope.Unscoped" /> when no mediation carries one.</returns>
+    private static TenantScope ResolveAmbientTenant()
+    {
+        var tenantId = AmbientExecutionContext.GetCurrentOrDefault()?.Identity.TenantId;
+
+        return string.IsNullOrWhiteSpace(tenantId)
+            ? TenantScope.Unscoped.Instance
+            : new TenantScope.Isolated(tenantId);
     }
 }

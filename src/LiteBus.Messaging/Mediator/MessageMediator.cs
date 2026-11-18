@@ -108,17 +108,8 @@ internal sealed class MessageMediator : IMessageMediator
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(request);
 
-        // Create a new execution context for the current scope.
-        var executionContext = new ExecutionContext(
-            request.Tags,
-            request.Items,
-            _timeProvider,
-            request.Identity ?? ExecutionIdentity.Anonymous,
-            cancellationToken);
-
-        // Retain only the dispatch scope until asynchronous mediation results complete. The ambient scope must not leak
-        // into the caller after this method returns. A caller-supplied scope is resolved from but never disposed here.
-        var executionScope = AmbientExecutionContext.CreateScope(executionContext);
+        // The dispatch scope is created before the execution context because identity resolution reads the registered
+        // identity provider from it. A caller-supplied scope is resolved from but never disposed here.
         var externalScope = request.DispatchScope;
         LazyMessageDispatchScope? ownedScope;
         IMessageDispatchScope dispatchScope;
@@ -134,8 +125,34 @@ internal sealed class MessageMediator : IMessageMediator
             dispatchScope = ownedScope;
         }
 
+        ExecutionIdentity identity;
+
         try
         {
+            identity = ResolveIdentity(request.Identity, dispatchScope);
+        }
+        catch
+        {
+            ownedScope?.Dispose();
+            throw;
+        }
+
+        // Retain only the dispatch scope until asynchronous mediation results complete. The ambient scope must not leak
+        // into the caller after this method returns.
+        AmbientExecutionContext.ExecutionContextScope? executionScope = null;
+
+        try
+        {
+            // Create a new execution context for the current scope.
+            var executionContext = new ExecutionContext(
+                request.Tags,
+                request.Items,
+                _timeProvider,
+                identity,
+                cancellationToken);
+
+            executionScope = AmbientExecutionContext.CreateScope(executionContext);
+
             // Get the actual type of the message.
             var messageType = message.GetType();
 
@@ -188,10 +205,45 @@ internal sealed class MessageMediator : IMessageMediator
         }
         catch
         {
-            executionScope.Dispose();
+            executionScope?.Dispose();
             ownedScope?.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    ///     Resolves the identity one mediation runs for, first match wins.
+    /// </summary>
+    /// <param name="requestIdentity">The identity the caller passed on the mediation request, if any.</param>
+    /// <param name="dispatchScope">The dispatch scope the registered identity provider is resolved from.</param>
+    /// <returns>The resolved identity, or <see cref="ExecutionIdentity.Anonymous" /> when nothing supplied one.</returns>
+    /// <remarks>
+    ///     Resolution order: the identity passed on the request (the semantic mediators copy it from their settings),
+    ///     the identity of the enclosing mediation when mediations nest and it is not
+    ///     <see cref="ExecutionIdentity.Anonymous" />, the <see cref="IExecutionIdentityProvider" /> registered in the
+    ///     dispatch scope, and finally <see cref="ExecutionIdentity.Anonymous" />. The enclosing identity is read before
+    ///     the new ambient scope is created, so a nested mediation inherits the identity of its parent.
+    /// </remarks>
+    private static ExecutionIdentity ResolveIdentity(ExecutionIdentity? requestIdentity, IMessageDispatchScope dispatchScope)
+    {
+        if (requestIdentity is not null)
+        {
+            return requestIdentity;
+        }
+
+        var enclosing = AmbientExecutionContext.GetCurrentOrDefault()?.Identity;
+
+        if (enclosing is not null && !enclosing.Equals(ExecutionIdentity.Anonymous))
+        {
+            return enclosing;
+        }
+
+        if (dispatchScope.ServiceProvider.GetService(typeof(IExecutionIdentityProvider)) is IExecutionIdentityProvider provider)
+        {
+            return provider.GetCurrentIdentity() ?? ExecutionIdentity.Anonymous;
+        }
+
+        return ExecutionIdentity.Anonymous;
     }
 
     /// <summary>

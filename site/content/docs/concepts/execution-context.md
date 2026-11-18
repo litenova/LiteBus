@@ -188,8 +188,14 @@ public class AuditPostHandler : ICommandPostHandler<CreateProductCommand>
 
 `HandledAt` is the instant the mediation started, read once from the `TimeProvider` the messaging module uses when the context is created. Every stage of one mediation observes the same instant, so a timestamp written by a guard and a duration measured by a post-handler share one clock reading. Advancing the clock mid-mediation does not move `HandledAt`. A nested mediation creates its own context and reads its own instant.
 
+Handlers and guards that need the handled instant read `IExecutionContext.HandledAt` instead of writing a pre-handler that stamps a timestamp. The context already carries the instant, so a timestamp pre-handler duplicates it and adds a pipeline stage every message pays for.
+
 ```csharp
-var started = AmbientExecutionContext.Current.HandledAt;
+// Injected, in a handler or guard constructor.
+var started = _context.HandledAt;
+
+// Static, where dependency injection is unavailable.
+var ambientStarted = AmbientExecutionContext.Current.HandledAt;
 ```
 
 The default clock is `TimeProvider.System`. Register a test clock with `UseTimeProvider` to pin the instant:

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
@@ -148,11 +149,60 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
     ///     The handler wins over the resolver. A resolver states the rule that holds for every message, and a handler
     ///     that called <see cref="IAuditScope.WithActor" /> knows something the rule does not, so overriding is the
     ///     only precedence that makes the call worth having. A resolver that throws is not caught here: an attribution
-    ///     bug that silently produces unattributed evidence is worse than a failed mediation.
+    ///     bug that silently produces unattributed evidence is worse than a failed mediation. When the application
+    ///     registered no resolver, the principal carried on the ambient execution identity supplies the actor.
     /// </remarks>
     private AuditActor? ResolveActor(MessageCompletionContext context, AuditScopeState? scope)
     {
-        return scope?.Actor ?? _actorResolver?.Resolve(context);
+        if (scope?.Actor is AuditActor scoped)
+        {
+            return scoped;
+        }
+
+        if (_actorResolver is not null)
+        {
+            return _actorResolver.Resolve(context);
+        }
+
+        return ResolveActorFromPrincipal();
+    }
+
+    /// <summary>
+    ///     Resolves the actor from the principal carried on the ambient execution identity.
+    /// </summary>
+    /// <returns>The actor, or <see langword="null" /> when no principal or no usable identifier claim is present.</returns>
+    /// <remarks>
+    ///     The identifier is read from the <see cref="ClaimTypes.NameIdentifier" /> claim, falling back to the
+    ///     <c>sub</c> claim, and reported as <see cref="AuditActor.User" /> with the display name read from the
+    ///     <see cref="ClaimTypes.Name" /> claim. This fallback applies only when the application registered no
+    ///     <see cref="IAuditActorResolver" />: an explicit resolver states the attribution rule, and a principal-derived
+    ///     actor must not silently replace an attribution the resolver deliberately left absent.
+    /// </remarks>
+    private static AuditActor? ResolveActorFromPrincipal()
+    {
+        var principal = AmbientExecutionContext.GetCurrentOrDefault()?.Identity.Principal;
+
+        if (principal is null)
+        {
+            return null;
+        }
+
+        var id = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            id = principal.FindFirst("sub")?.Value;
+        }
+
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return null;
+        }
+
+        var actor = AuditActor.User(id);
+        var displayName = principal.FindFirst(ClaimTypes.Name)?.Value;
+
+        return string.IsNullOrWhiteSpace(displayName) ? actor : actor with { DisplayName = displayName };
     }
 
     /// <summary>

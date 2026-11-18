@@ -50,7 +50,7 @@ Register the matching `Add*Transport(...)` once at the root. Each dispatch exten
 
 ### In-Process Configuration
 
-- **`InProcessOutboxDispatchOptions.RequireHandler`** (default `true`, set through `UseInProcessDispatch(dispatch => ...)`): When a dispatched message has no handler, the attempt fails, retries, and dead-letters. With `false`, the message is marked published without any handler having run. The inbox axis cannot fail this way because command mediation requires exactly one handler.
+- **`InProcessOutboxDispatchOptions.RequireHandler`** (default `true`; turned off only by `UseInProcessDispatch(dispatch => dispatch.AllowEnvelopesWithoutHandler(reason))`): When a dispatched message has no handler, the attempt fails, retries, and dead-letters. With it off, the message is marked published without any handler having run. The inbox axis cannot fail this way because command mediation requires exactly one handler.
 - **Per-handler envelopes**: In-process outbox dispatch publishes a targeted envelope to its recorded `Handler` alone. The pre, post, error, and completion observers still run (see [Per-Handler Delivery](outbox-enqueue.md#per-handler-delivery)).
 
 ### Extension Points

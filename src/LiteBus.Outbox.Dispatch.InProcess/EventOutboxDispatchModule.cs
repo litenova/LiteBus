@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using LiteBus.Events;
+using LiteBus.Messaging;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
@@ -57,5 +58,16 @@ public sealed class EventOutboxDispatchModule :
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxDispatcher),
             typeof(EventOutboxDispatcher)));
+
+        configuration.RegisterStartupTask(typeof(InProcessOutboxMissingHandlerWarningStartupTask));
+
+        if (!_options.RequireHandler)
+        {
+            configuration.GetOrCreateContext(() => new LiteBusCompositionSummary())
+                .RecordRelaxedSafeguard(
+                    "outbox in-process dispatch marks envelopes with no handler as published ("
+                    + (_options.MissingHandlerReason ?? "no reason recorded")
+                    + ")");
+        }
     }
 }

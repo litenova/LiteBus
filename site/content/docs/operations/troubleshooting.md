@@ -69,7 +69,7 @@ This section covers command, query, and event mediation failures. For the stage 
 
 You see `NoHandlerFoundException` with `No handler found for message type '<Type>'`.
 
-Cause: the mediator cannot resolve a descriptor for the message because the message type or a handler for it was never registered. For an immediate publish this throws only when `EventMediationSettings.ThrowIfNoHandlerFound` is true. Otherwise a published event with no handler returns silently. Outbox in-process dispatch is the exception. It requires a handler by default because a durable dispatch has no caller to observe the silence. Set `UseInProcessDispatch(dispatch => dispatch.RequireHandler = false)` only when publishing to zero handlers is a state your application allows.
+Cause: the mediator cannot resolve a descriptor for the message because the message type or a handler for it was never registered. For an immediate publish this throws only when `EventMediationSettings.ThrowIfNoHandlerFound` is true. Otherwise a published event with no handler returns silently. Outbox in-process dispatch is the exception. It requires a handler by default because a durable dispatch has no caller to observe the silence. Call `UseInProcessDispatch(dispatch => dispatch.AllowEnvelopesWithoutHandler(reason))` only when publishing to zero handlers is a state your application allows; the reason is logged as a warning at startup.
 
 Fix:
 

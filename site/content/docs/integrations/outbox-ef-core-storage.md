@@ -12,21 +12,7 @@ For Npgsql outbox storage and shared PostgreSQL schema helpers, see [PostgreSQL 
 
 ## Registration
 
-```csharp
-services.AddDbContextFactory<AppDbContext>(options => options.UseNpgsql(connectionString));
-
-builder.Services.AddLiteBus(builder =>
-{
-    builder.AddMessaging(_ => { });
-    builder.AddOutbox(outbox =>
-    {
-        outbox.Contracts.Register<OrderSubmitted>("orders.events.submitted", 1);
-        outbox.UseEntityFrameworkCoreStorage(options => options.UseDbContext<AppDbContext>());
-        outbox.UseInProcessDispatch();
-        outbox.EnableOutboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(1));
-    });
-});
-```
+Register with the complete file on [ASP.NET Core with EF Core Outbox Registration](../getting-started/aspnetcore-efcore-outbox.md), which marks every statement required or optional with the failure mode of omitting it. The complete file registers both the scoped context (`AddDbContext`) and the factory (`AddDbContextFactory`), each with the outbox interceptor attached. Factory-only registration cannot satisfy `ITransactionalOutbox<TContext>`, which resolves the scoped context from the current scope.
 
 `AppDbContext` must implement `IOutboxDbContext` and expose `DbSet<OutboxMessageEntity> OutboxMessages`. The adapter requires `IDbContextFactory<AppDbContext>` and owns one context per store operation.
 
@@ -48,22 +34,7 @@ await appDbContext.SaveChangesAsync(cancellationToken);
 
 ### `SaveChanges` Interceptor
 
-Register the interceptor in LiteBus and on your `DbContext` options:
-
-```csharp
-builder.AddOutbox(outbox =>
-{
-    outbox.UseEntityFrameworkCoreStorage(storage =>
-    {
-        storage.UseDbContext<AppDbContext>();
-        storage.EnableSaveChangesInterceptor();
-    });
-});
-
-// In AddDbContext / OnConfiguring:
-options.AddLiteBusOutboxInterceptor(
-    serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>());
-```
+Register the interceptor in LiteBus with `EnableSaveChangesInterceptor()` and on your `DbContext` options with `AddLiteBusOutboxInterceptor`, on both `AddDbContext` and `AddDbContextFactory`. The complete file on [ASP.NET Core with EF Core Outbox Registration](../getting-started/aspnetcore-efcore-outbox.md) shows both attachments. `EnforceTransactionalSetup()` fails module build when `EnableSaveChangesInterceptor()` was not called.
 
 Queue envelopes before `SaveChanges`:
 

@@ -5,6 +5,7 @@
     "sample",
     "cheat-sheet",
     "cookbook",
+    "aspnetcore-efcore-outbox",
     "best-practices"
   ]
 }

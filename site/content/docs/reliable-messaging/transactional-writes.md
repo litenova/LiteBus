@@ -96,31 +96,7 @@ Per request, use one connection and one transaction for atomic domain plus messa
 
 ## EF Core (Shared DbContext)
 
-Install `LiteBus.Outbox.Storage.EntityFrameworkCore` and/or `LiteBus.Inbox.Storage.EntityFrameworkCore`. Inject `ITransactionalOutbox<TContext>` or `ITransactionalInbox<TContext>`. Register as follows:
-
-```csharp
-services.AddDbContext<OrdersDbContext>((serviceProvider, options) =>
-    options.UseNpgsql(connectionString)
-        .AddLiteBusOutboxInterceptor(
-            serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
-
-services.AddDbContextFactory<OrdersDbContext>((serviceProvider, options) =>
-    options.UseNpgsql(connectionString)
-        .AddLiteBusOutboxInterceptor(
-            serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
-
-builder.AddOutbox(outbox =>
-{
-    outbox.UseEntityFrameworkCoreStorage(ef =>
-    {
-        ef.UseDbContext<OrdersDbContext>();
-        ef.EnableSaveChangesInterceptor();
-        ef.EnforceTransactionalSetup();
-    });
-    outbox.UseInProcessDispatch();
-    outbox.EnableOutboxProcessor();
-});
-```
+Install `LiteBus.Outbox.Storage.EntityFrameworkCore` and/or `LiteBus.Inbox.Storage.EntityFrameworkCore`. Inject `ITransactionalOutbox<TContext>` or `ITransactionalInbox<TContext>`. Register with the complete file on [ASP.NET Core with EF Core Outbox Registration](../getting-started/aspnetcore-efcore-outbox.md), which marks every statement required or optional with the failure mode of omitting it.
 
 `OrdersDbContext` must implement `IOutboxDbContext` and expose `DbSet<OutboxMessageEntity>`. For full schema steps, see [Outbox Entity Framework Core Storage](../integrations/outbox-ef-core-storage.md).
 

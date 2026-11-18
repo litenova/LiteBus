@@ -2,13 +2,15 @@
 
 A recurring command sends one command on a fixed interval for the life of the host, without a hand-written hosted service. When each pass produces several commands that must commit together, a recurring batch sends them as one batch instead. This page covers registration, options, backlog draining, failure behavior, and limitations.
 
+The registration contract and failure modes are documented on `CommandModuleBuilderRecurringExtensions.AddRecurring`, `AddRecurringBatch`, and `RecurringCommandHostOptions`. This page covers tuning and operations: option sizing, backlog draining, failure signals, lease operations, and SQL examples.
+
 **Package:** `LiteBus.Commands.Recurring`
 
 **Lease package:** `LiteBus.Commands.Recurring.Storage.PostgreSql` (opt-in single-flight)
 
 ## Poll Loop for Batch-Draining Commands
 
-Polling loops that send one batch-draining command share one shape. They send, loop immediately when the batch came back full, sleep when idle, back off on error, and never let an exception escape the loop. `AddRecurring` registers that loop so each job differs only in the command type, the timing values, and the declaration.
+`AddRecurring` registers the poll loop that sends one batch-draining command; the loop contract is documented on `CommandModuleBuilderRecurringExtensions.AddRecurring`. Size the command's batch so a pass completes well within `Interval`, and report a full batch through `IRecurringWorkReport` so a backlog drains without idle waits between passes.
 
 ## Registration
 
@@ -24,17 +26,17 @@ registry.AddCommands(commands => commands
         }));
 ```
 
-The factory is called once per pass, not once at registration, so a command carrying a timestamp or a fresh identifier gets a new one each time. A command with a public parameterless constructor can use the shorter overload:
+The factory timing contract is documented on `AddRecurring`. A command with a public parameterless constructor can use the shorter overload:
 
 ```csharp
 commands.AddRecurring<ExpireStaleHoldsCommand>(host => host.Interval = TimeSpan.FromMinutes(1));
 ```
 
-Each registration stores a `RecurringCommandDeclaration<TCommand>`. It holds the per-pass command factory plus the loop options, resolved as a singleton, so the background loop for one command type finds its own factory and options without positional matching. `AddRecurring` also registers the command type with the command module, so calling only this method is enough for the loop to send.
+Each registration stores a `RecurringCommandDeclaration<TCommand>`. It holds the per-pass command factory plus the loop options, resolved as a singleton, so the background loop for one command type finds its own factory and options without positional matching. See `AddRecurring` for the command registration contract.
 
-A command that implements more than one `ICommand<T>` contract fails composition at registration with `LiteBusConfigurationException`, because a recurring command must declare at most one result type.
+A command declaring more than one `ICommand<T>` contract fails composition; see `AddRecurring` for the single-contract requirement.
 
-Each registration gets its own loop and its own options. The loop registers as an `IBackgroundService` through the host manifest, so it starts and stops with the host like every other LiteBus background service.
+Each registration runs as its own `IBackgroundService` through the host manifest, so it starts and stops with the host like every other LiteBus background service. See `AddRecurring` for the per-registration loop contract.
 
 `AddRecurring` composes through `CommandModuleBuilder.RegisterChildModule`, the seam feature packages use to register inside `AddCommands` rather than as a second top-level module. Child modules are declared during `DeclareChildren` and built in dependency order. `LiteBus.Commands.Recurring` is the worked example of this pattern.
 
@@ -56,7 +58,7 @@ Stagger `StartupDelay` across loops that share a database, so a host start does 
 
 ## Draining a Backlog
 
-When the result implements `IRecurringWorkReport`, the loop sends again immediately instead of waiting out the interval. That clears a backlog in one busy period rather than one batch per interval:
+Report a full batch through `IRecurringWorkReport` so the loop drains without idle waits; see `AddRecurring` and `IRecurringWorkReport` for the re-send contract:
 
 ```csharp
 public sealed record SendDueRemindersResult(int Sent, int BatchSize) : IRecurringWorkReport
@@ -70,11 +72,11 @@ public sealed class SendDueRemindersCommand : ICommand<SendDueRemindersResult>
 }
 ```
 
-Implementing it is optional. A command with no result, or one whose result does not implement it, waits the full interval between sends.
+Reporting is optional. A command with no result, or one whose result does not implement the report, waits the full interval between sends.
 
 ## Sending a Batch on a Schedule
 
-When each pass produces several commands that must commit together, implement `IRecurringCommandBatchSource` and register it with `AddRecurringBatch`. Each pass resolves the source from a fresh dispatch scope, calls `CreateBatchAsync`, disposes the scope, and sends the returned commands as one batch through `ICommandBatchMediator.TrySendManyAsync`. The source can take scoped dependencies such as a database context. Without this loop, the only way to send a batch on a schedule is a recurring command whose handler calls `SendManyAsync`, which is nested mediation and needs a command type that exists only to start the batch.
+When each pass produces several commands that must commit together, implement `IRecurringCommandBatchSource` and register it with `AddRecurringBatch`. Each pass resolves the source from a fresh dispatch scope, calls `CreateBatchAsync`, disposes the scope, and sends the returned commands as one batch through `ICommandBatchMediator.TrySendManyAsync`. The source can take scoped dependencies such as a database context. See `AddRecurringBatch` for the batch loop contract.
 
 ```csharp
 public sealed class DueInvoiceBatchSource : IRecurringCommandBatchSource
@@ -111,15 +113,15 @@ registry.AddCommands(commands => commands
     }));
 ```
 
-An empty `Commands` list sends nothing and the loop waits `Interval`, so return `RecurringCommandBatch.Empty` when there is nothing to send. A batch whose `HasMoreWork` is true starts the next pass without waiting, reusing the held lease, so a backlog clears in one busy period. The commands run one at a time, in list order, inside one dispatch scope with one unit-of-work commit, and cannot see each other's results.
+Return `RecurringCommandBatch.Empty` when there is nothing to send; an empty `Commands` list sends nothing and the loop waits `Interval`. The commands run one at a time, in list order, inside one dispatch scope with one unit-of-work commit, and cannot see each other's results. A batch whose `HasMoreWork` is true starts the next pass without waiting and reuses the held lease; see `AddRecurringBatch` for the busy-period contract.
 
-The source reads in its own scope, outside the batch transaction, so commands must still check the state they change. The lease, not the transaction, keeps two replicas from producing the same batch. `LeaseName` defaults to the source type full name. `RequireLease` without a registered `IRecurringCommandLease` fails composition with `LiteBusConfigurationException`, and registering the same source type twice fails the same way through the duplicate-module rule. Commands the source returns must be registered with the command module.
+The source scope, transaction boundary, lease arbitration, and command registration requirements are documented on `AddRecurringBatch`. `LeaseName` defaults to the source type full name. See `RecurringCommandHostOptions.RequireLease` for the lease composition requirement and the duplicate-module rule.
 
-A batch that a refusal rolls back is logged at Warning (EventId 2107) with the source type, the failing index, the failing command type, and the refusal code, and the loop waits `ErrorBackoff`, so a command refused on every pass does not spin the loop. A fault or a failed commit goes through the same paths as the single-command loop: a conflict classified by `IsConcurrencyConflict` waits `Interval`, and anything else waits `ErrorBackoff`. See [Failure Behavior](#failure-behavior) and [Running on Several Replicas](#running-on-several-replicas).
+A batch that a refusal rolls back is logged at Warning (EventId 2107) with the source type, the failing index, the failing command type, and the refusal code; see `AddRecurringBatch` for the backoff contract. A fault or a failed commit goes through the same paths as the single-command loop: a conflict classified by `IsConcurrencyConflict` waits `Interval`, and anything else waits `ErrorBackoff`. See [Failure Behavior](#failure-behavior) and [Running on Several Replicas](#running-on-several-replicas).
 
 ## Failure Behavior
 
-A pass that throws is logged, and the loop continues after `ErrorBackoff`, unless the `IsConcurrencyConflict` predicate classifies the exception as an optimistic-concurrency conflict. A conflict is logged at Information (EventId 2104) and the loop waits `Interval`, because another instance already did the work. The default predicate, `IsConcurrencyOrDatabaseConflict`, matches a type name ending in `ConcurrencyException`, or a database error that reports a deadlock or a serialization failure, anywhere in the inner or aggregate exception chain. It reads SQLSTATE `40001` (a serialization failure, which MySQL also reports for a deadlock) and `40P01` (a PostgreSQL deadlock), error numbers 1205 (a SQL Server deadlock victim or a MySQL lock wait timeout) and 1213 (a MySQL deadlock), and SQLite result codes 5 (busy) and 6 (locked). `IsConcurrencyConflictByTypeName` keeps the type-name match alone. Set the predicate to `null` to treat conflicts as failures.
+A pass that throws is logged, and the loop continues after `ErrorBackoff`, unless the `IsConcurrencyConflict` predicate classifies the exception as a lost race. A conflict is logged at Information (EventId 2104) and the loop waits `Interval`; see `RecurringCommandHostOptions.IsConcurrencyConflict` for the classification contract. The default predicate, `IsConcurrencyOrDatabaseConflict`, matches an optimistic-concurrency conflict type name or a database deadlock or serialization error anywhere in the inner or aggregate chain; see `RecurringCommandHostOptions.IsConcurrencyOrDatabaseConflict` for the exact SQLSTATE codes, error numbers, and SQLite result codes. `IsConcurrencyConflictByTypeName` keeps the type-name match alone. Set the predicate to `null` to treat conflicts as failures.
 
 An exception never escapes the loop. A failing dependency is usually still failing one interval later, which is why the error delay is longer than the poll interval by default. A longer delay keeps a broken loop from filling the log at the polling rate.
 
@@ -127,7 +129,7 @@ Cancellation ends the loop immediately. The host's shutdown token is passed to t
 
 ## Running on Several Replicas
 
-By default the loop runs on every host instance. A loop that must run on at most one instance at a time opts into single-flight with `RequireLease` and a registered `IRecurringCommandLease`:
+By default the loop runs on every host instance; see `RecurringCommandHostOptions` for the concurrency boundary. A loop that must run on at most one instance at a time opts into single-flight with `RequireLease` and a registered `IRecurringCommandLease`:
 
 ```csharp
 registry.AddCommands(commands => commands
@@ -139,9 +141,9 @@ registry.AddCommands(commands => commands
         host => host.RequireLease = true));
 ```
 
-When `RequireLease` is true, each pass first tries to acquire the named lease. A pass that cannot acquire it is skipped and logged at Debug (EventId 2105), and the loop waits `Interval`. One acquired lease covers the whole busy period. Immediate re-sends driven by `IRecurringWorkReport.HasMoreWork` reuse it, and it is released before the loop waits.
+When `RequireLease` is true, each pass first tries the named lease; see `RecurringCommandHostOptions.RequireLease` for the acquisition and busy-period contract. A skipped pass is logged at Debug (EventId 2105) and the loop waits `Interval`.
 
-Composition fails with `LiteBusConfigurationException` when `RequireLease` is set and no `IRecurringCommandLease` is registered. `LeaseName` selects the lease name and defaults to the command type's full name. Loops that share a name single-flight against each other, so one explicit name can serialize two loops that must never overlap. There is no standing leader. Every pass races for the lease, so the instance that runs varies from pass to pass.
+The lease composition requirement and name default are documented on `RecurringCommandHostOptions.RequireLease` and `LeaseName`. There is no standing leader: every pass races for the lease, so the instance that runs varies from pass to pass. Loops sharing one explicit name single-flight against each other, which serializes two loops that must never overlap.
 
 The lease can be lost mid-pass when another holder takes the row or renewals fail. The handle cancels its `LeaseLost` token, the loop ends the busy period, releases the handle, and waits `ErrorBackoff` instead of sending further passes. The in-flight send runs under a token linked to the loss signal, so a handler that observes cancellation stops with the pass. The loss is logged at Warning (EventId 2106).
 
@@ -173,11 +175,11 @@ There is a second pattern that needs no lease package and works with any store. 
 
 ## Limitations
 
-A recurring command is not a scheduler. There is no cron expression, no wall-clock alignment, no missed-run catch-up, and no notion of a run that was due while the host was down. If the work must happen at a particular time rather than regularly, use a scheduler.
+A recurring command is a poll loop, not a scheduler; see `RecurringCommandHostOptions` for the scheduling boundary. When work must happen at a particular time rather than regularly, use a scheduler.
 
-The loop runs on every host instance by default. A deployment of three replicas sends the command three times per interval, concurrently. That is correct for a command that drains a queue-like table by leasing rows, because the store arbitrates and the instances share the work. A loop that must run on at most one instance at a time opts into single-flight. See [Running on Several Replicas](#running-on-several-replicas).
+The loop runs on every host instance by default; see `RecurringCommandHostOptions` for the concurrency boundary and [Running on Several Replicas](#running-on-several-replicas) for single-flight operations.
 
-Make the handler safe to run concurrently with itself, require the lease, or do not use a recurring command. The usual shape that is safe:
+Make the handler safe for concurrent execution; see `RecurringCommandHostOptions` for the boundary. The usual safe shape claims rows with the database arbitrating:
 
 ```text
 -- Each instance claims its own rows; the database decides who gets what.

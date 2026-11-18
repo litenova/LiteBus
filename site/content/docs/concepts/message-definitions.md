@@ -1,6 +1,6 @@
 # Message Definitions
 
-A message definition declares metadata about a message. These are facts that pipeline stages outside the handler need to read, such as whether the message is audited or what permission it requires. LiteBus resolves definitions once, when the message registry is built, and exposes the result on the message descriptor. This page explains what belongs in a definition, how one class declares several things without them interfering, and how definitions relate to attributes.
+A message definition declares metadata about a message. These are facts that pipeline stages outside the handler need to read, such as whether the message is audited or what permission it requires. LiteBus resolves definitions once, when the message registry is built, and exposes the result on the message descriptor. This page explains what belongs in a definition, why each concern gets its own definition class, and how definitions relate to attributes.
 
 Three words appear throughout and mean different things. A **declaration** is the value, such as `AuditDeclaration` or `RequiredPermission`. A **definition** is the class that declares it. **Metadata** is the resolved collection on the message descriptor.
 
@@ -15,7 +15,7 @@ public sealed record GetStorefrontQuery(Guid StoreId) : IQuery<StorefrontView>;
 
 They stop being the right shape when the declaration needs real types, shared constants, or more than one concern. An attribute argument must be a compile-time constant, so an action code is a magic string and a permission is a magic string, neither checked by the compiler nor updated by a rename refactoring.
 
-A definition is ordinary C# declared beside the message it describes, so a feature folder holds the command, its handler, its validator, and its definition together:
+A definition is ordinary C# declared beside the message it describes, so a feature folder holds the command, its handler, its validator, and one definition class per concern together:
 
 ```
 Organizations/CreateOrganization/
@@ -23,54 +23,68 @@ Organizations/CreateOrganization/
     CreateOrganizationCommandHandler.cs
     CreateOrganizationCommandResult.cs
     CreateOrganizationCommandValidator.cs
-    CreateOrganizationCommandDefinition.cs
+    CreateOrganizationCommandAuditDefinition.cs
+    CreateOrganizationCommandAuthorizationDefinition.cs
 ```
 
 ## Describing a Message
 
-`IMessageDefinition<TMessage>` declares everything a message states through one method:
+`IMessageDefinition<TMessage>` declares what a message states through one method. Keep one definition class per value type, so each concern has a name a review can read on its own:
 
 ```csharp
-internal sealed class PlaceOrderCommandDefinition : IMessageDefinition<PlaceOrderCommand>
+internal sealed class PlaceOrderCommandAuditDefinition : IMessageDefinition<PlaceOrderCommand>
 {
     public void Describe(IMessageDeclarations declarations)
     {
         declarations.Audited("orders.place-order", category: "money", targetKind: "order");
+    }
+}
+
+internal sealed class PlaceOrderCommandAuthorizationDefinition : IMessageDefinition<PlaceOrderCommand>
+{
+    public void Describe(IMessageDeclarations declarations)
+    {
         declarations.Declare(Permissions.Orders.Place);
     }
 }
 ```
 
-`IMessageDeclarations` carries six members: `Declare<TValue>` for any value the application defines, `Audited` and `NotAudited` for the audit position, `Authorized` and `AuthorizationExempt` for the authorization position, and `Exempt<TValue>` for a recorded exemption. Declarations are keyed by value type here exactly as they are in the typed shape below, so a reader looks a value up by its own type whichever way it was declared. Declaring the same value type twice in one `Describe` is a configuration error rather than the second silently replacing the first.
+`IMessageDeclarations` carries six members: `Declare<TValue>` for any value the application defines, `Audited` and `NotAudited` for the audit position, `Authorized` and `AuthorizationExempt` for the authorization position, and `Exempt<TValue>` for a recorded exemption. Declarations are keyed by value type here exactly as they are in the typed shape below, so a reader looks a value up by its own type whichever way it was declared. The registry accepts two definition classes for one message when they declare different value types, and refuses only a second declaration of the same value for the same message. A single `Describe` body may declare two values and the registry applies both, but that is what the registry tolerates rather than the layout to commit. Declaring the same value type twice in one `Describe` is a configuration error rather than the second silently replacing the first.
 
 ## One Interface per Declaration
 
-A definition may also implement one small interface per declaration, each keyed by the type of the value it contributes:
+A definition implements one small interface per declaration, each keyed by the type of the value it contributes. Write one class per concern, named for the message and the concern:
 
 ```csharp
-public sealed class PlaceOrderCommandDefinition :
-    IAuditDefinition<PlaceOrderCommand>,
-    IPermissionDefinition<PlaceOrderCommand>
+public sealed class PlaceOrderCommandAuditDefinition : IAuditDefinition<PlaceOrderCommand>
 {
-    public AuditDeclaration Audit => AuditDeclaration.Audited("orders.place-order") with
-    {
-        Category = "money",
-        TargetKind = "order"
-    };
+    public AuditDeclaration Audit => AuditDeclaration.Audited(
+        "orders.place-order",
+        category: "money",
+        targetKind: "order");
+}
 
+public sealed class PlaceOrderCommandPermissionDefinition : IPermissionDefinition<PlaceOrderCommand>
+{
     public RequiredPermission Required => Permissions.Orders.Place;
 }
 ```
 
 Keying by value type means a definition that only declares one thing is not forced to implement the others, and the compiler checks each value against its key. That is what makes it the better shape for a message declaring exactly one thing, and why `IAuditDefinition<TMessage>` and `IIdempotencyDefinition<TMessage>` are built on it.
 
-For a message declaring more than one value, this shape costs more than it saves. Each of those named interfaces exists because the underlying member is called `Value`, and a message declaring two values without a named interface for the second has to write it as an explicit interface implementation:
+For a message declaring more than one value, write one class per value rather than one class implementing two interfaces. Authorization, audit, and idempotency are unrelated concerns, and one class implementing their interfaces mixes decisions a review reads separately. The registry accepts either layout, because each definition contributes its own type-keyed value and only a second declaration of the same value for the same message is refused. `LB1028` reports a class that implements two or more `IMessageDefinition<TMessage, TValue>` value types as an informational suggestion to split it, for example into `<Message>AuthorizationDefinition` and `<Message>AuditDefinition`.
+
+Each of those named interfaces exists because the underlying member is called `Value`. The same permission declaration without the named interface has to be written as an explicit interface implementation on the same class:
 
 ```csharp
-RequiredPermission IMessageDefinition<PlaceOrderCommand, RequiredPermission>.Value => Permissions.Orders.Place;
+public sealed class PlaceOrderCommandPermissionDefinition
+    : IMessageDefinition<PlaceOrderCommand, RequiredPermission>
+{
+    RequiredPermission IMessageDefinition<PlaceOrderCommand, RequiredPermission>.Value => Permissions.Orders.Place;
+}
 ```
 
-That is the message type and the value type twice each to say one thing. `Describe` is the shape to reach for once a message declares more than one value, and the two mix freely. Both write into the same type-keyed metadata, and one class may implement both.
+That is the message type and the value type twice each to say one thing, which is why a named interface such as `IPermissionDefinition<TMessage>` exists for values a codebase declares often. `Describe` and the typed shape mix freely: both write into the same type-keyed metadata, and the registry tolerates one class implementing both shapes. Keep them separate in committed code, so each file states one decision.
 
 ## Custom Declarations
 
@@ -278,7 +292,7 @@ Two defaults for one scope and value type are a configuration error, as are a de
 
 ### Custom Convention Checks
 
-A requirement covers "did this message state a position". `ValidateComposition` covers everything else a team writes down and then enforces by review:
+A requirement covers "did this message state a position". `ValidateComposition` is the startup hook for custom declaration checks beside `RequireDeclaration`, and covers everything else a team writes down and then enforces by review:
 
 ```csharp
 registry.AddMessaging(messaging => messaging
@@ -350,7 +364,7 @@ public sealed record AuthorizationScope(Func<object, string> Resolve)
         => new(message => resolve((TMessage) message));
 }
 
-public sealed class ArchiveOccurrenceCommandDefinition
+public sealed class ArchiveOccurrenceCommandAuthorizationDefinition
     : IMessageDefinition<ArchiveOccurrenceCommand, AuthorizationScope>
 {
     public AuthorizationScope Value =>
@@ -419,7 +433,7 @@ public sealed record EffectEdge(Type Message, EffectKind Kind, EffectTiming Timi
 
 public sealed record DeclaredEffects(EffectEdge[] Edges);
 
-public sealed class PlaceOrderEffects : IMessageDefinition<PlaceOrderCommand, DeclaredEffects>
+public sealed class PlaceOrderCommandEffectsDefinition : IMessageDefinition<PlaceOrderCommand, DeclaredEffects>
 {
     public DeclaredEffects Value => new DeclaredEffects(
     [

@@ -13,7 +13,7 @@
 
 Use this path when integration events should fan out to local handlers only, in the same service or process, while keeping durable enqueue and at-least-once processor semantics.
 
-A dispatched message with no registered handler fails the attempt by default (`RequireHandler = true`). The failure retries the message and eventually dead-letters it. Set `RequireHandler = false` only when publishing to zero handlers is deliberate. An envelope that records one handler through per-handler delivery publishes to the main handler whose subscriber name or full type name equals the recorded value. Pipeline observers (pre-stage, post, error, and completion stages) still run on every targeted dispatch.
+A dispatched message with no registered handler fails the attempt by default (`RequireHandler = true`). The failure retries the message and eventually dead-letters it. Call `AllowEnvelopesWithoutHandler(reason)` only when publishing to zero handlers is deliberate. The reason is logged as a warning at startup and listed in the composition summary, so the choice cannot sit unnoticed in a committed registration. An envelope that records one handler through per-handler delivery publishes to the main handler whose subscriber name or full type name equals the recorded value. Pipeline observers (pre-stage, post, error, and completion stages) still run on every targeted dispatch.
 
 ## Packages
 
@@ -66,12 +66,14 @@ services.AddLiteBus(litebus =>
 | Registers | `EventOutboxDispatchModule` to `EventOutboxDispatcher` |
 
 ```csharp
-outbox.UseInProcessDispatch(dispatch => dispatch.RequireHandler = false);
+outbox.UseInProcessDispatch(dispatch =>
+    dispatch.AllowEnvelopesWithoutHandler("Audit-only events have no subscriber in this service."));
 ```
 
 | Option | Default | Role |
 | --- | --- | --- |
-| `InProcessOutboxDispatchOptions.RequireHandler` | `true` | Fail the attempt when no handler is registered. `false` completes the dispatch and marks the message published without any handler having run |
+| `InProcessOutboxDispatchOptions.RequireHandler` | `true` | Fail the attempt when no handler is registered. `AllowEnvelopesWithoutHandler(reason)` sets it to `false`, which completes the dispatch and marks the message published without any handler having run |
+| `InProcessOutboxDispatchOptions.MissingHandlerReason` | `null` | The reason passed to `AllowEnvelopesWithoutHandler`, logged at startup and listed in the composition summary |
 
 ### `EventOutboxDispatcher.DispatchAsync(OutboxEnvelope, CancellationToken)`
 
@@ -122,7 +124,7 @@ Register outbox processor metrics through `AddLiteBusOutboxMetrics()`.
 | `InProcessOutboxDispatcher_ShouldPublishPocoEvent` | `LiteBus.Outbox.UnitTests` (`Dispatch/InProcess/`) |
 | `InProcessOutboxDispatcher_ShouldCopyTraceMetadataIntoMediationSettings` | `LiteBus.Outbox.UnitTests` (`Dispatch/InProcess/`) |
 | `A_message_with_no_handler_is_not_marked_published` | `LiteBus.Outbox.UnitTests` (`Dispatch/InProcess/`, `InProcessOutboxDispatchRequireHandlerTests`) |
-| `Turning_RequireHandler_off_restores_the_silent_no_op` | `LiteBus.Outbox.UnitTests` (`Dispatch/InProcess/`, `InProcessOutboxDispatchRequireHandlerTests`) |
+| `Allowing_envelopes_without_handler_restores_the_silent_no_op` | `LiteBus.Outbox.UnitTests` (`Dispatch/InProcess/`, `InProcessOutboxDispatchRequireHandlerTests`) |
 | `EnqueueAsync_should_write_one_envelope_per_subscribed_handler` | `LiteBus.Outbox.UnitTests` (`PerHandlerDelivery/`) |
 | `Drain_should_retry_only_the_failing_reaction` | `LiteBus.Outbox.UnitTests` (`PerHandlerDelivery/`) |
 | `DeadLetter_and_requeue_should_apply_per_handler` | `LiteBus.Outbox.UnitTests` (`PerHandlerDelivery/`) |

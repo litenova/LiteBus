@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
@@ -90,6 +91,13 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
             var messageRegistry = configuration.GetContext<IMessageRegistry>();
 
             configuration.RegisterCompositionValidation(() => ValidateSubscriberNames(messageRegistry));
+        }
+
+        if (_builder.ImmediateDispatchOptions is not null && !_builder.IsPerHandlerDeliveryEnabled)
+        {
+            var messageRegistry = configuration.GetContext<IMessageRegistry>();
+
+            configuration.RegisterCompositionValidation(() => ValidateImmediateDispatchHandlerAttributes(messageRegistry));
         }
 
         if (_builder.IsOutboxProcessorEnabled)
@@ -274,6 +282,54 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
             throw new LiteBusConfigurationException(
                 "EnableImmediateDispatch requires " + string.Join("; ", missing) + ".");
         }
+    }
+
+    /// <summary>
+    ///     Validates that no registered main handler carries <see cref="DispatchImmediatelyAttribute" /> when immediate
+    ///     dispatch is enabled without per-handler delivery.
+    /// </summary>
+    /// <param name="reader">The registry holding every registered message descriptor.</param>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     A registered handler class carries <see cref="DispatchImmediatelyAttribute" /> while per-handler delivery is off.
+    /// </exception>
+    /// <remarks>
+    ///     Runs as a composition validation rather than during <see cref="Build" /> because the modules that
+    ///     register event handlers build after the outbox module, so their handlers are not visible yet while this
+    ///     module builds. Direct and indirect main handlers are validated together because per-handler delivery writes
+    ///     one envelope per handler in both sets, and handler types are deduplicated because one handler class may
+    ///     observe several messages.
+    /// </remarks>
+    private static void ValidateImmediateDispatchHandlerAttributes(IMessageReader reader)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+
+        var attributed = new SortedSet<string>(StringComparer.Ordinal);
+
+        foreach (var descriptor in reader)
+        {
+            var handlerTypes = descriptor.Handlers.Select(static handler => handler.HandlerType)
+                .Concat(descriptor.IndirectHandlers.Select(static handler => handler.HandlerType));
+
+            foreach (var handlerType in handlerTypes)
+            {
+                if (handlerType.GetCustomAttribute<DispatchImmediatelyAttribute>(inherit: false) is not null)
+                {
+                    attributed.Add(handlerType.FullName ?? handlerType.Name);
+                }
+            }
+        }
+
+        if (attributed.Count == 0)
+        {
+            return;
+        }
+
+        throw new LiteBusConfigurationException(
+            "EnableImmediateDispatch is set without per-handler delivery, but the following handler classes carry " +
+            "[DispatchImmediately], which is ignored without per-handler envelopes: " +
+            string.Join(", ", attributed.Select(static name => $"'{name}'")) +
+            ". Call EnablePerHandlerDelivery() inside AddOutboxModule(...) so each handler gets its own envelope, " +
+            "or move [DispatchImmediately] to the event type for event-level immediacy.");
     }
 
     /// <summary>

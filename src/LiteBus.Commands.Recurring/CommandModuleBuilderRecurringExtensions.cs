@@ -50,6 +50,10 @@ public static class CommandModuleBuilderRecurringExtensions
     ///         immediately instead of waiting out the interval, which is what clears a backlog in one busy period
     ///         rather than one batch per interval.
     ///     </para>
+    ///     <para>
+    ///         Tuning, operations, SQL examples, and event ids are documented at
+    ///         https://litebus.io/docs/integrations/recurring-commands.
+    ///     </para>
     /// </remarks>
     /// <example>
     ///     <code><![CDATA[
@@ -112,7 +116,8 @@ public static class CommandModuleBuilderRecurringExtensions
     /// <remarks>
     ///     The overload to reach for when the command carries no configuration of its own. See
     ///     <see cref="AddRecurring{TCommand}(CommandModuleBuilder, Func{TCommand}, Action{RecurringCommandHostOptions})" />
-    ///     for the boundary this feature deliberately does not cross.
+    ///     for the boundary this feature deliberately does not cross. Tuning, operations, SQL examples, and event ids
+    ///     are documented at https://litebus.io/docs/integrations/recurring-commands.
     /// </remarks>
     public static CommandModuleBuilder AddRecurring<TCommand>(
         this CommandModuleBuilder builder,
@@ -162,6 +167,10 @@ public static class CommandModuleBuilderRecurringExtensions
     ///         rather than one batch per interval. A batch a refusal rolls back is logged once at Warning and waits
     ///         <see cref="RecurringCommandHostOptions.ErrorBackoff" />, so a command refused on every pass does not
     ///         spin the loop.
+    ///     </para>
+    ///     <para>
+    ///         Tuning, operations, SQL examples, and event ids are documented at
+    ///         https://litebus.io/docs/integrations/recurring-commands.
     ///     </para>
     /// </remarks>
     /// <example>

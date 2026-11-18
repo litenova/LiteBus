@@ -20,6 +20,10 @@ namespace LiteBus.Commands.Recurring;
 ///         command that assumes it is alone. Make the handler safe to run concurrently with itself, set
 ///         <see cref="RequireLease" /> so the pass runs on at most one instance at a time, or do not use this.
 ///     </para>
+///     <para>
+///         Tuning, operations, SQL examples, and event ids are documented at
+///         https://litebus.io/docs/integrations/recurring-commands.
+///     </para>
 /// </remarks>
 public sealed class RecurringCommandHostOptions
 {
@@ -39,8 +43,7 @@ public sealed class RecurringCommandHostOptions
     ///     Gets or sets the delay after host start before the first send.
     /// </summary>
     /// <value>
-    ///     The default is <see cref="TimeSpan.Zero" />. Stagger this across loops that share a database so a host
-    ///     start does not send every recurring command at once.
+    ///     The default is <see cref="TimeSpan.Zero" />.
     /// </value>
     public TimeSpan StartupDelay { get; set; } = TimeSpan.Zero;
 
@@ -48,8 +51,7 @@ public sealed class RecurringCommandHostOptions
     ///     Gets or sets the delay applied after a send throws, instead of <see cref="Interval" />.
     /// </summary>
     /// <value>
-    ///     The default is five minutes. Must be positive. A failing dependency is usually still failing one interval
-    ///     later, so backing off further keeps a broken loop from filling the log at the polling rate.
+    ///     The default is five minutes. Must be positive.
     /// </value>
     public TimeSpan ErrorBackoff { get; set; } = TimeSpan.FromMinutes(5);
 
@@ -75,7 +77,7 @@ public sealed class RecurringCommandHostOptions
     /// <value>
     ///     The default is <see langword="false" />. When <see langword="true" />, each pass tries
     ///     <see cref="IRecurringCommandLease" /> before sending: a pass that cannot acquire the lease is skipped and
-    ///     logged at Debug (EventId 2105), and the loop waits <see cref="Interval" />. Composition fails when no
+    ///     logged at Debug, and the loop waits <see cref="Interval" />. Composition fails when no
     ///     <see cref="IRecurringCommandLease" /> is registered.
     /// </value>
     /// <remarks>

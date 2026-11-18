@@ -18,38 +18,7 @@ Immediate dispatch replaces the two publications with one path. After the commit
 
 ## Setup
 
-Immediate dispatch is opt-in per outbox module and needs per-handler delivery, so each handler gets its own envelope:
-
-```csharp
-services.AddLiteBus(builder =>
-{
-    builder.AddCommands(commands =>
-    {
-        commands.Register<SubmitOrderCommandHandler>();
-        commands.UseUnitOfWork<OrderUnitOfWork>();
-    });
-
-    builder.AddEvents(events =>
-    {
-        events.Register<OrderProjectionHandler>();
-        events.Register<OrderAuditHandler>();
-    });
-
-    builder.AddOutbox(outbox =>
-    {
-        outbox.Contracts.Register<OrderSubmittedEvent>("orders.events.submitted", 1);
-        outbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
-        outbox.UseInProcessDispatch();
-        outbox.EnablePerHandlerDelivery();
-        outbox.EnableImmediateDispatch(dispatch =>
-        {
-            dispatch.Timeout = TimeSpan.FromSeconds(10);
-            dispatch.FallbackDelay = TimeSpan.FromSeconds(30);
-        });
-        outbox.EnableOutboxProcessor();
-    });
-});
-```
+Immediate dispatch is opt-in per outbox module and needs per-handler delivery, so each handler gets its own envelope. Register the host with the complete file on [ASP.NET Core with EF Core Outbox Registration](../getting-started/aspnetcore-efcore-outbox.md), which already includes `EnablePerHandlerDelivery()` and `EnableImmediateDispatch()` with a 10-second timeout and a 30-second fallback delay. The paragraphs below explain what those two calls require and what the attribute marks.
 
 Mark the handler whose effect must be visible at once with `[DispatchImmediately]`:
 

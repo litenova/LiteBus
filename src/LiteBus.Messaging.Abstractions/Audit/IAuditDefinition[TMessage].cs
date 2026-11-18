@@ -17,13 +17,10 @@ namespace LiteBus.Messaging.Abstractions.Auditing;
 /// </remarks>
 /// <example>
 ///     <code><![CDATA[
-/// public sealed class PlaceOrderCommandDefinition : IAuditDefinition<PlaceOrderCommand>
+/// public sealed class PlaceOrderCommandAuditDefinition : IAuditDefinition<PlaceOrderCommand>
 /// {
-///     public AuditDeclaration Audit => AuditDeclaration.Audited(AuditActions.Orders.Place) with
-///     {
-///         Category = AuditCategories.Money,
-///         TargetKind = "order"
-///     };
+///     public AuditDeclaration Audit =>
+///         AuditDeclaration.Audited(AuditActions.Orders.Place, category: AuditCategories.Money, targetKind: "order");
 /// }
 /// ]]></code>
 /// </example>

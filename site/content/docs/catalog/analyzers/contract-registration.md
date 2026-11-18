@@ -31,7 +31,26 @@ Only contract surfaces satisfy either rule.
 
 An assembly scan counts when its argument is `typeof(T)`, `typeof(T).Assembly`, a local initialized to either form, or `Assembly.GetExecutingAssembly()` / `Assembly.GetCallingAssembly()`. Any other shape does not count.
 
-Both rules analyze one compilation. Only handlers and attributed types declared in the analyzed assembly are candidates, and only registrations invoked in the analyzed compilation satisfy the rules. A registration that lives in a dependent project stays invisible, so co-locate it with the handler or attributed type, or suppress the diagnostic. A partial type with two declarations reports once, at its first location. See [Analyzers](../../reference/analyzers.md).
+Both rules analyze one compilation. Only handlers and attributed types declared in the analyzed assembly are candidates, and only registrations invoked in the analyzed compilation satisfy the rules. A registration that lives in a dependent project stays invisible, so co-locate it with the handler or attributed type, name the registering assembly as described below, or suppress the diagnostic. A partial type with two declarations reports once, at its first location. See [Analyzers](../../reference/analyzers.md).
+
+## Cross-Assembly Registration
+
+A modular monolith keeps published contracts in a small assembly that other modules reference, and registers them where the owning module composes. Without help, LB1017 reports every contract in the contracts assembly, and LB1007 reports every handler of those contracts in a consuming module, because each compilation only sees its own registration calls.
+
+A contracts assembly names its registering assembly with an assembly attribute:
+
+```csharp
+using LiteBus.Messaging.Abstractions;
+
+[assembly: MessageContractsRegisteredIn("Ledger")]
+```
+
+With the attribute in place:
+
+- In every compilation except `Ledger`, a message type declared in the attributed assembly is treated as registered. LB1017 stays silent in the contracts assembly, and LB1007 stays silent for handlers of those contracts in consuming modules.
+- In the `Ledger` compilation, LB1017 reports every `[MessageContract]` type of a referenced assembly that names `Ledger` and has no `Contracts.Register<T>` or `RegisterFromAssembly` covering it. The diagnostic carries no source location because the type is declared in another assembly; the message names the contract type.
+
+Prefer the attribute over suppressing LB1017 in each contracts project, so the registering compilation keeps the check.
 
 ## Bad Example
 
@@ -79,12 +98,13 @@ This avoids both warnings:
 ## Suppression Guidance
 
 - Prefer explicit registration over suppression because predictable contract discovery matters in durable paths.
+- If contracts live in a referenced assembly, prefer `[assembly: MessageContractsRegisteredIn("...")]` over suppression, so the registering compilation still reports missing registrations.
 - If registration happens in generated code or external composition, suppress at the narrowest scope and document where registration occurs.
 - Do not suppress broadly in `.editorconfig` unless a whole project intentionally relies on runtime-only contract discovery.
 
 ## Test Coverage
 
-Source: `tests/LiteBus.Analyzers.UnitTests/MissingMessageContractRegistrationAnalyzerTests.cs`, `tests/LiteBus.Analyzers.UnitTests/ExplicitMessageContractRegistrationAnalyzerTests.cs`, `tests/LiteBus.Analyzers.UnitTests/ExplicitMessageContractRegistrationAnalyzerRegressionTests.cs`, `tests/LiteBus.Analyzers.UnitTests/ContractRegistrationCompilationEndTests.cs`
+Source: `tests/LiteBus.Analyzers.UnitTests/MissingMessageContractRegistrationAnalyzerTests.cs`, `tests/LiteBus.Analyzers.UnitTests/ExplicitMessageContractRegistrationAnalyzerTests.cs`, `tests/LiteBus.Analyzers.UnitTests/ExplicitMessageContractRegistrationAnalyzerRegressionTests.cs`, `tests/LiteBus.Analyzers.UnitTests/ContractRegistrationCompilationEndTests.cs`, `tests/LiteBus.Analyzers.UnitTests/CrossAssemblyContractRegistrationTests.cs`
 
 | Test method | Verifies |
 | --- | --- |
@@ -108,3 +128,16 @@ Source: `tests/LiteBus.Analyzers.UnitTests/MissingMessageContractRegistrationAna
 | `AttributedMessageRegisteredOnlyThroughScanShapedRegistry_ProducesDiagnostic` | Same-shaped `Register` with a scan does not satisfy `LB1017` |
 | `PartialAttributedMessageAcrossTwoFiles_ReportsOnceAtFirstDeclaration` | Partial attributed type reports once at its first declaration |
 | `HandlerInReferencedAssemblyWithoutRegistration_ProducesNoDiagnostic` | Referenced assembly handler without registration is not reported |
+| `AttributedMessageInAssemblyNamingAnotherAssembly_ProducesNoDiagnostic` | Assembly attribute naming another assembly satisfies `LB1017` |
+| `AttributedMessageInAssemblyNamingCurrentCompilation_ProducesDiagnostic` | Assembly attribute naming the analyzed compilation still reports `LB1017` |
+| `UnregisteredReferencedContractNamingCurrentCompilation_ProducesUnlocatedDiagnostic` | Unregistered referenced contract naming the compilation reports unlocated `LB1017` |
+| `ReferencedContractNamingCurrentCompilationWithExplicitRegister_ProducesNoDiagnostic` | `Register<T>` satisfies `LB1017` for a referenced contract |
+| `ReferencedContractNamingCurrentCompilationWithAssemblyScan_ProducesNoDiagnostic` | `RegisterFromAssembly` satisfies `LB1017` for a referenced contract |
+| `ReferencedContractNamingAnotherAssembly_ProducesNoDiagnostic` | Referenced contract naming another assembly is not reported |
+| `ReferencedContractWithoutRegisteringAssemblyAttribute_ProducesNoDiagnostic` | Referenced contract without the attribute is not reported |
+| `NonDurableReferencedContractNamingCurrentCompilation_ProducesNoDiagnostic` | Attributed non-message referenced type is not reported |
+| `TwoUnregisteredReferencedContractsNamingCurrentCompilation_ProduceTwoUnlocatedDiagnostics` | Every unregistered referenced contract is reported |
+| `HandlerOfMessageRegisteredInAnotherAssembly_ProducesNoDiagnostic` | Assembly attribute naming another assembly satisfies `LB1007` |
+| `HandlerOfMessageWithoutRegisteringAssemblyAttribute_ProducesDiagnostic` | Referenced message without the attribute still reports `LB1007` |
+| `HandlerOfMessageRegisteredInCurrentCompilationWithoutRegistration_ProducesDiagnostic` | Handler in the named compilation without registration reports `LB1007` |
+| `HandlerOfMessageRegisteredInCurrentCompilationWithExplicitRegister_ProducesNoDiagnostic` | `Register<T>` satisfies `LB1007` in the named compilation |

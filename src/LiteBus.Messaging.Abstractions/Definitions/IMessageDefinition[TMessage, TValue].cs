@@ -11,18 +11,24 @@ namespace LiteBus.Messaging.Abstractions;
 ///         describes, so a feature folder holds the command, its handler, its validator, and its definition together.
 ///     </para>
 ///     <para>
-///         Definitions are keyed by <typeparamref name="TValue" />, so one class may declare several without being
-///         forced to implement the ones it does not need:
+///         Definitions are keyed by <typeparamref name="TValue" />, so each concern gets its own definition class beside
+///         the message, and a message carries as many definitions as it has concerns:
 ///     </para>
 ///     <code>
-/// public sealed class PlaceOrderCommandDefinition :
-///     IAuditDefinition&lt;PlaceOrderCommand&gt;,
-///     IPermissionDefinition&lt;PlaceOrderCommand&gt;
+/// public sealed class PlaceOrderCommandAuditDefinition : IAuditDefinition&lt;PlaceOrderCommand&gt;
 /// {
 ///     public AuditDeclaration Audit =&gt; AuditDeclaration.Audited("orders.place-order");
+/// }
+///
+/// public sealed class PlaceOrderCommandPermissionDefinition : IPermissionDefinition&lt;PlaceOrderCommand&gt;
+/// {
 ///     public RequiredPermission Required =&gt; Permissions.Orders.Place;
 /// }
 ///     </code>
+///     <para>
+///         The registry also accepts one class that implements several definitions, but authorization, audit, tenancy
+///         and idempotency are unrelated decisions, so keep them in separate classes; analyzer LB1028 suggests the split.
+///     </para>
 ///     <para>
 ///         Because the key is the value type, applications may declare their own definitions over their own value types,
 ///         and the registry applies them without knowing what they mean.

@@ -468,6 +468,11 @@ public sealed class EfCoreOutboxStore :
         ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.LeaseDuration, TimeSpan.Zero);
 
+        if (request.MaxPerTenant is { } maxPerTenant)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(maxPerTenant, 0);
+        }
+
         return await ExecuteAsync(async (context, token) =>
         {
             if (context is not DbContext dbContext)
@@ -488,6 +493,12 @@ public sealed class EfCoreOutboxStore :
             if (provider == EfCoreStorageProvider.Sqlite)
             {
                 return await LeasePendingSqliteAsync(dbContext, context, databaseRequest, token).ConfigureAwait(false);
+            }
+
+            if (databaseRequest.MaxPerTenant is { } cappedMaxPerTenant)
+            {
+                return await LeasePendingCappedRelationalAsync(dbContext, context, databaseRequest, cappedMaxPerTenant, token)
+                    .ConfigureAwait(false);
             }
 
             return await LeasePendingRelationalAsync(dbContext, provider, databaseRequest, token).ConfigureAwait(false);
@@ -1442,6 +1453,142 @@ public sealed class EfCoreOutboxStore :
     }
 
     /// <summary>
+    ///     Leases messages on a relational provider with at most a configured number of envelopes per tenant.
+    /// </summary>
+    /// <param name="dbContext">The database context.</param>
+    /// <param name="context">The LiteBus outbox context.</param>
+    /// <param name="request">The lease request.</param>
+    /// <param name="maxPerTenant">The most envelopes of one tenant this lease call returns.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The envelopes claimed by this call.</returns>
+    /// <remarks>
+    ///     The provider-specific lease statements claim the oldest rows without tenant grouping, so the capped path
+    ///     selects candidates with a provider-neutral query and claims each selected row with its own guarded update:
+    ///     the affected row count proves the claim, and a concurrent lease that flipped the row first makes this
+    ///     update match nothing. The selection reads the eligible backlog oldest first because a busy tenant can hold
+    ///     the oldest rows past any fixed lookahead window.
+    /// </remarks>
+    private static async Task<IReadOnlyList<OutboxEnvelope>> LeasePendingCappedRelationalAsync(
+        DbContext dbContext,
+        IOutboxDbContext context,
+        OutboxLeaseRequest request,
+        int maxPerTenant,
+        CancellationToken cancellationToken)
+    {
+        var now = request.Now;
+        var leaseExpiresAt = request.Now.Add(request.LeaseDuration);
+        var staleCutoff = request.Now.Add(-request.LeaseDuration);
+        var pendingStatus = OutboxStatus.Pending;
+        var failedStatus = OutboxStatus.Failed;
+        var publishingStatus = OutboxStatus.Publishing;
+        var tenantId = request.TenantId;
+        var normalizedTenantId = tenantId is null ? null : EfCoreIdempotencyResolution.NormalizeTenantId(tenantId);
+        var leaseOwner = request.LeaseOwner;
+
+        var eligibleKeys = await context.OutboxMessages
+            .AsNoTracking()
+            .Where(message =>
+                (tenantId == null || message.TenantId == normalizedTenantId) &&
+                ((message.Status == pendingStatus || message.Status == failedStatus) && (message.VisibleAfter == null || message.VisibleAfter <= now) ||
+                 message.Status == publishingStatus && message.LeaseExpiresAt != null && message.LeaseExpiresAt <= now ||
+                 message.Status == publishingStatus && message.LeaseExpiresAt == null && message.CreatedAt < staleCutoff))
+            .OrderBy(message => message.CreatedAt)
+            .ThenBy(message => message.Id)
+            .Select(message => new { message.Id, message.TenantId })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var selected = SelectCappedCandidates(eligibleKeys, static key => key.TenantId, request.BatchSize, maxPerTenant);
+        var leased = new List<OutboxEnvelope>(selected.Count);
+
+        foreach (var candidate in selected)
+        {
+            var messageId = candidate.Id;
+
+            var affected = await dbContext.Set<OutboxMessageEntity>()
+                .Where(message =>
+                    message.Id == messageId &&
+                    (tenantId == null || message.TenantId == normalizedTenantId) &&
+                    ((message.Status == pendingStatus || message.Status == failedStatus) && (message.VisibleAfter == null || message.VisibleAfter <= now) ||
+                     message.Status == publishingStatus && message.LeaseExpiresAt != null && message.LeaseExpiresAt <= now ||
+                     message.Status == publishingStatus && message.LeaseExpiresAt == null && message.CreatedAt < staleCutoff))
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(message => message.Status, OutboxStatus.Publishing)
+                        .SetProperty(message => message.LeaseOwner, leaseOwner)
+                        .SetProperty(message => message.LastLeaseOwner, leaseOwner)
+                        .SetProperty(message => message.LeaseExpiresAt, leaseExpiresAt)
+                        .SetProperty(message => message.LeaseGeneration, message => message.LeaseGeneration + 1)
+                        .SetProperty(message => message.AttemptCount, message => message.AttemptCount + 1)
+                        .SetProperty(message => message.LastAttemptedAt, now),
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (affected == 0)
+            {
+                continue;
+            }
+
+            var entity = await dbContext.Set<OutboxMessageEntity>()
+                .AsNoTracking()
+                .SingleOrDefaultAsync(message => message.Id == messageId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (entity is not null)
+            {
+                leased.Add(ToEnvelope(entity));
+            }
+        }
+
+        return leased;
+    }
+
+    /// <summary>
+    ///     Selects the oldest eligible candidates with at most a configured number of envelopes per tenant.
+    /// </summary>
+    /// <typeparam name="TCandidate">The candidate type.</typeparam>
+    /// <param name="eligible">The eligible candidates ordered oldest first.</param>
+    /// <param name="tenantSelector">Selects the stored tenant identifier of one candidate.</param>
+    /// <param name="batchSize">The maximum number of candidates to select.</param>
+    /// <param name="maxPerTenant">The most candidates selected for one tenant.</param>
+    /// <returns>The selected candidates in their original order.</returns>
+    /// <remarks>
+    ///     Tenants compare by normalized identifier, so unscoped candidates share one tenant budget. Candidates past
+    ///     their tenant budget are skipped without ending the scan, so a later candidate of another tenant still fills
+    ///     the batch.
+    /// </remarks>
+    private static List<TCandidate> SelectCappedCandidates<TCandidate>(
+        List<TCandidate> eligible,
+        Func<TCandidate, string?> tenantSelector,
+        int batchSize,
+        int maxPerTenant)
+    {
+        var selected = new List<TCandidate>(Math.Min(batchSize, eligible.Count));
+        var leasedPerTenant = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (var candidate in eligible)
+        {
+            if (selected.Count >= batchSize)
+            {
+                break;
+            }
+
+            var tenantKey = EfCoreIdempotencyResolution.NormalizeTenantId(tenantSelector(candidate));
+            leasedPerTenant.TryGetValue(tenantKey, out var leased);
+
+            if (leased >= maxPerTenant)
+            {
+                continue;
+            }
+
+            leasedPerTenant[tenantKey] = leased + 1;
+            selected.Add(candidate);
+        }
+
+        return selected;
+    }
+
+    /// <summary>
     ///     Leases messages using in-memory queries guarded by a process lock.
     /// </summary>
     /// <param name="context">The database context.</param>
@@ -1486,16 +1633,32 @@ public sealed class EfCoreOutboxStore :
         var tenantId = request.TenantId;
         var normalizedTenantId = tenantId is null ? null : EfCoreIdempotencyResolution.NormalizeTenantId(tenantId);
 
-        var candidates = await context.OutboxMessages
-            .Where(message =>
-                (tenantId == null || message.TenantId == normalizedTenantId) &&
-                ((message.Status == pendingStatus || message.Status == failedStatus) && (message.VisibleAfter == null || message.VisibleAfter <= now) ||
-                 message.Status == publishingStatus && message.LeaseExpiresAt != null && message.LeaseExpiresAt <= now ||
-                 message.Status == publishingStatus && message.LeaseExpiresAt == null && message.CreatedAt < staleCutoff))
-            .OrderBy(message => message.CreatedAt)
-            .Take(request.BatchSize)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+        var eligible = context.OutboxMessages.Where(message =>
+            (tenantId == null || message.TenantId == normalizedTenantId) &&
+            ((message.Status == pendingStatus || message.Status == failedStatus) && (message.VisibleAfter == null || message.VisibleAfter <= now) ||
+             message.Status == publishingStatus && message.LeaseExpiresAt != null && message.LeaseExpiresAt <= now ||
+             message.Status == publishingStatus && message.LeaseExpiresAt == null && message.CreatedAt < staleCutoff));
+
+        List<OutboxMessageEntity> candidates;
+
+        if (request.MaxPerTenant is { } maxPerTenant)
+        {
+            var ordered = await eligible
+                .OrderBy(message => message.CreatedAt)
+                .ThenBy(message => message.Id)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            candidates = SelectCappedCandidates(ordered, static message => message.TenantId, request.BatchSize, maxPerTenant);
+        }
+        else
+        {
+            candidates = await eligible
+                .OrderBy(message => message.CreatedAt)
+                .Take(request.BatchSize)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         foreach (var message in candidates)
         {

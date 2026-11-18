@@ -36,33 +36,34 @@ if ($projects.Count -eq 0) {
     throw "No source projects were found under '$sourceRoot'."
 }
 
-foreach ($project in $projects) {
-    $arguments = @(
-        "pack",
-        $project.FullName,
-        "--configuration",
-        $Configuration,
-        "--output",
-        $resolvedOutputDirectory
-    )
+# Pack in parallel: each call is mostly process start-up, so a sequential loop over about a hundred projects spends two
+# minutes waiting. A project that fails in parallel (for example a transient file lock on a shared reference) is retried
+# alone before the run fails.
+$throttle = [Math]::Max(2, [Environment]::ProcessorCount)
+$commonArguments = @("--configuration", $Configuration, "--output", $resolvedOutputDirectory)
+if ($NoBuild) { $commonArguments += "--no-build" }
+if ($NoRestore) { $commonArguments += "--no-restore" }
+if (-not [string]::IsNullOrWhiteSpace($Version)) { $commonArguments += "/p:Version=$Version" }
 
-    if ($NoBuild) {
-        $arguments += "--no-build"
+$failed = @(
+    $projects | ForEach-Object -ThrottleLimit $throttle -Parallel {
+        $output = & dotnet pack $_.FullName @using:commonArguments 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            [pscustomobject]@{ Project = $_; Output = ($output -join [Environment]::NewLine) }
+        }
+        else {
+            Write-Host "Packed $($_.BaseName)"
+        }
     }
+)
 
-    if ($NoRestore) {
-        $arguments += "--no-restore"
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($Version)) {
-        $arguments += "/p:Version=$Version"
-    }
-
-    Write-Host "Packing $($project.BaseName)"
-    & dotnet @arguments
+foreach ($failure in $failed) {
+    Write-Host "Retrying $($failure.Project.BaseName) alone after a parallel failure:"
+    Write-Host $failure.Output
+    & dotnet pack $failure.Project.FullName @commonArguments
 
     if ($LASTEXITCODE -ne 0) {
-        throw "Packing '$($project.FullName)' failed with exit code $LASTEXITCODE."
+        throw "Packing '$($failure.Project.FullName)' failed with exit code $LASTEXITCODE."
     }
 }
 

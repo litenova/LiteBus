@@ -6,8 +6,9 @@ namespace LiteBus.Messaging.Idempotency;
 ///     One message's idempotency key and the declaration it came from.
 /// </summary>
 /// <param name="Key">
-///     The scoped key: the mediation tenant when it carries one, then the declaration's scope or the message full type
-///     name, then the projected key, escaped and joined.
+///     The scoped key: the execution identity tenant and a slash when the mediation carries one, then the
+///     declaration's scope or the message full type name, then the projected key, with each segment escaped and the
+///     scope and key joined by a colon.
 /// </param>
 /// <param name="Declaration">The declaration that produced the key, carrying the replay decision.</param>
 /// <param name="Fingerprint">

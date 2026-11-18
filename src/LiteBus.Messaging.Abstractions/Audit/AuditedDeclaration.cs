@@ -7,8 +7,8 @@ namespace LiteBus.Messaging.Abstractions.Auditing;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Create it through <see cref="AuditDeclaration.Audited" /> and refine it with <c>with</c>, so the required
-///         action is always supplied and the optional facts read as what they are.
+///         Create it through <see cref="AuditDeclaration.Audited" />, passing the optional category, target kind and
+///         reason requirement as named arguments, so the required action is always supplied and the selectors chain on.
 ///     </para>
 ///     <para>
 ///         When the target or the reason can be read off the message itself, declare that with
@@ -19,12 +19,8 @@ namespace LiteBus.Messaging.Abstractions.Auditing;
 /// </remarks>
 /// <example>
 ///     <code><![CDATA[
-/// AuditDeclaration.Audited("orders.place-order") with
-/// {
-///     Category = "money",
-///     TargetKind = "order",
-///     ReasonRequired = false
-/// }
+/// AuditDeclaration.Audited("orders.place-order", category: "money", targetKind: "order")
+///     .WithTargetFrom<PlaceOrderCommand>(command => command.OrderId.ToString())
 /// ]]></code>
 /// </example>
 public sealed record AuditedDeclaration : AuditDeclaration
