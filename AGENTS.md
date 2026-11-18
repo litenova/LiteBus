@@ -400,7 +400,7 @@ When you next touch an area whose surface does not match this taxonomy, align it
 
 Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs during `Register()` before any `Build()`. The builder action runs inside `DeclareChildren`. `Build()` registers core services only.
 
-Express required ordering through `IRequires<TModule>` and composite ownership. Modules do not use registration markers or scan the registry during `Build()`. The registry inserts children depth-first, validates the complete dependency graph, then topologically sorts it before building any module. Registering the same module type twice throws `LiteBusConfigurationException` at compose time.
+Express required ordering through `IRequires<TModule>` and composite ownership. Modules do not use registration markers or scan the registry during `Build()`. The registry inserts children depth-first, validates the complete dependency graph, then topologically sorts it before building any module. Registering the same module type twice through `IModuleRegistry.Register` throws `LiteBusConfigurationException` at compose time. The `Add*` registration extensions check `IModuleRegistry.Find<TModule>()` first and configure the registered module again instead, so several `IApplicationModule` implementations can add to one composition.
 
 Compose through parent module builders. Register storage, dispatch, and ingress inside the parent module builder with `Use*` extensions. Do not add new top-level `IModuleRegistry` shortcuts that bypass the parent builder. Mark obsolete patterns instead of extending them.
 
@@ -500,7 +500,7 @@ Answer these questions before adding a project:
 ## Analyzers
 
 - Ship compile-time rules in `LiteBus.Analyzers` only. Take no runtime dependency on mediator or durable packages.
-- Keep the rule inventory in `site/content/docs/reference/analyzers.md` aligned with `DiagnosticIds` (LB1001-LB1024). LB1002 and LB1006 are reserved and never shipped.
+- Keep the rule inventory in `site/content/docs/reference/analyzers.md` aligned with `DiagnosticIds` (LB1001-LB1028). LB1002 and LB1006 are reserved and never shipped.
 - LB1007 covers handled durable types that miss contract registration. Honor `RegisterFromAssembly` the same as explicit `Contracts.Register`.
 - LB1017 covers attributed durable types. Match only `IContractWriter` or `IMessageContractRegistry` `Register` invocations, not unrelated `Register<T>()` methods.
 - LB1004 must cover `AcceptAsync`, `AcceptBatchAsync`, and the `ITransactionalInbox` acceptance APIs.

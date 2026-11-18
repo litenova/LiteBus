@@ -101,12 +101,25 @@ Validate the tenant at the API edge and audit the `tenant_id` column. Isolation 
 
 Tenant lease isolation is separate from publish routing. `ITenantRoutingStrategy.ResolveRoute(tenantId, contractName, topic)` computes the transport route for one envelope at dispatch time. When tenants publish to different destinations, configure it through `TransportOutboxDispatcherOptions.TenantRoutingStrategy`.
 
+## Outbox Per-Tenant Lease Fairness
+
+One processor that leases for all tenants can be filled by one busy tenant. `OutboxProcessorOptions.MaxLeasedPerTenant` caps how many envelopes of one tenant a single lease call returns, so every batch leaves room for the tenants behind the busy one:
+
+```csharp
+outbox.UseProcessorOptions(new OutboxProcessorOptions { MaxLeasedPerTenant = 25 });
+```
+
+The default is `null`, which leases without a cap. Unscoped envelopes count as one tenant. The processor carries the value to the store as `OutboxLeaseRequest.MaxPerTenant`, and every outbox store honors it. Envelopes past the cap stay pending and are leased by a later call, in the store's usual order, so a cap delays a busy tenant rather than dropping its work.
+
+Use the cap together with per-tenant processors or instead of them. One processor per tenant isolates pace completely but multiplies connections and pollers. One processor with a cap keeps a single poller while no tenant starves. Either way, the tenant on the envelope decides whose budget the envelope spends, so the same edge validation and `tenant_id` auditing apply.
+
 ## Guarantees and Non-Guarantees
 
 | Guaranteed | Not guaranteed |
 | --- | --- |
 | Encrypted payloads stored as opaque bytes at rest | Key rotation or recovery without application key management |
 | Tenant filter applied in lease SQL when `TenantId` is set on processor options | Cross-tenant isolation when an envelope or a lease request carries the wrong tenant |
+| At most `MaxLeasedPerTenant` envelopes of one tenant per outbox lease when set | Per-tenant pace when the cap is unset and one tenant fills every batch |
 | Contract names stay plaintext for routing and diagnostics | Payload confidentiality before `UsePayloadEncryption` is registered |
 
 ## Operations
@@ -127,5 +140,6 @@ Tenant lease isolation is separate from publish routing. `ITenantRoutingStrategy
 ## Related Pages
 
 * [Inbox](../reliable-messaging/inbox.md), [Outbox](../reliable-messaging/outbox.md)
+* [Tenancy](../concepts/tenancy.md), [Execution Context](../concepts/execution-context.md)
 * [Production Runbook](runbook.md)
 * [Management Endpoints](management-endpoints.md)

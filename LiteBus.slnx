@@ -132,6 +132,7 @@
         <File Path="samples/.editorconfig"/>
         <File Path="samples/Directory.Build.props"/>
         <Project Path="samples/LiteBus.Sample/LiteBus.Sample.csproj"/>
+        <Project Path="samples/LiteBus.Samples.Documentation/LiteBus.Samples.Documentation.csproj"/>
     </Folder>
     <Folder Name="/tests/">
         <File Path="tests/Directory.Build.props"/>

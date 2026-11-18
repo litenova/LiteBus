@@ -6,7 +6,7 @@ Read [The Handler Pipeline](handler-pipeline.md) first. The context is what the 
 
 ## Execution Context Contents and Lifetime
 
-The context holds metadata about the current mediation. It carries a cancellation token, a string-keyed `Items` bag, a type-keyed `Data` store, the mediation tags, the handled instant, and the result slot. It is created when a message enters a mediator and lives until that mediation completes.
+The context holds metadata about the current mediation. It carries a cancellation token, a string-keyed `Items` bag, a type-keyed `Data` store, the mediation tags, the handled instant, who the mediation runs for, and the result slot. It is created when a message enters a mediator and lives until that mediation completes.
 
 LiteBus stores it in an `AsyncLocal<IExecutionContext>`, so it stays ambient and flows across `async`/`await` boundaries within one logical call.
 
@@ -207,6 +207,33 @@ registry.AddMessaging(messaging =>
 });
 ```
 
+### Execution Identity
+
+`Identity` is who the mediation runs for: the calling principal and the tenant the work belongs to. Guards, handlers, audit actor resolution, and reactions read the caller from the pipeline instead of from a property every message carries. The mediator resolves one `ExecutionIdentity` per mediation and exposes it as `IExecutionContext.Identity`, which defaults to `ExecutionIdentity.Anonymous` on contexts that predate it.
+
+An identity carries a `ClaimsPrincipal? Principal`, a `string? TenantId`, and `HasTenant`, which reports whether a tenant is known. `ExecutionIdentity.Anonymous` has neither. `ExecutionIdentity.For(principal, tenantId)` builds one for a caller, and `ExecutionIdentity.ForTenant(tenantId)` builds one that carries only a tenant, as a durable dispatcher restores it from an envelope. A blank tenant builds `Anonymous`, so a missing tenant never arrives as an empty string a check would treat as a value.
+
+Resolution order, first match wins:
+
+1. The identity passed on the mediation request. The semantic mediators copy it from `CommandMediationSettings.Identity`, `QueryMediationSettings.Identity`, and `EventMediationSettings.Identity`, so set it when the caller is known only at the call site, such as a job that runs on behalf of one tenant:
+
+```csharp
+var settings = new CommandMediationSettings
+{
+    Identity = ExecutionIdentity.ForTenant(tenantId)
+};
+
+await commandMediator.SendAsync(command, settings, cancellationToken);
+```
+
+2. The identity of the enclosing mediation, read as `AmbientExecutionContext.GetCurrentOrDefault()?.Identity`, when it is not `Anonymous`. A nested mediation inherits the identity of its parent.
+3. The `IExecutionIdentityProvider` resolved from the dispatch scope, when the host registered one. The host supplies the ambient caller: ASP.NET Core reads `HttpContext.User` and a tenant claim, and a worker reads its own job context. See [ASP.NET Core Execution Identity](../integrations/aspnetcore-execution-identity.md).
+4. `ExecutionIdentity.Anonymous`.
+
+Durable dispatchers restore the tenant only. They set `Identity = ExecutionIdentity.ForTenant(envelope.TenantId)` on the settings they build, so a reaction runs in the tenant of the fact that caused it. A principal is never persisted on an envelope. See [Tenancy](tenancy.md).
+
+Guards read the resolved identity without taking a dependency for it. `AuthorizationGuard<TMessage>` exposes `CurrentIdentity`, which returns the ambient identity or `Anonymous` outside a mediation. A guard that checks a permission or a tenant reads the caller there instead of from a property every message carries.
+
 ### Suppressing Post-Handlers
 
 `SuppressPostHandlers()` stops the post-handlers that have not run yet. Use it when the work turned out to be a no-op and the reactions to it should not fire.
@@ -268,4 +295,4 @@ For a complete worked example, see [Overriding the Result from a Post-Handler](.
 
 ## Next
 
-Read [Handler Priority](handler-priority.md) to order handlers within a stage, then [Handler Filtering](handler-filtering.md) to select handlers per call using the tags you read from the context.
+Read [Tenancy](tenancy.md) for the declarations the identity is checked against. Read [Handler Priority](handler-priority.md) to order handlers within a stage, then [Handler Filtering](handler-filtering.md) to select handlers per call using the tags you read from the context.

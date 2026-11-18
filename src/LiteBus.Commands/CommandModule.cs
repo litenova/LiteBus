@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Commands.Batching;
@@ -31,6 +32,11 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
     private CommandModuleBuilder? _moduleBuilder;
 
     /// <summary>
+    ///     The child modules already declared through the module registry, compared by reference.
+    /// </summary>
+    private readonly List<IModule> _declaredChildren = [];
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="CommandModule" /> class.
     /// </summary>
     /// <param name="builder">The configuration action for the command module.</param>
@@ -39,6 +45,33 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
     {
         ArgumentNullException.ThrowIfNull(builder);
         _builder = builder;
+    }
+
+    /// <summary>
+    ///     Runs an additional configuration callback on the existing command builder and declares new child modules.
+    /// </summary>
+    /// <param name="builderAction">The additional command configuration callback.</param>
+    /// <param name="registerChild">Registers each newly declared child module with the module registry.</param>
+    internal void Configure(Action<CommandModuleBuilder> builderAction, Action<IModule> registerChild)
+    {
+        ArgumentNullException.ThrowIfNull(builderAction);
+        ArgumentNullException.ThrowIfNull(registerChild);
+
+        var moduleBuilder = _moduleBuilder ?? throw new InvalidOperationException(
+            "CommandModule.Configure ran before DeclareChildren. The module registry declares children during Register.");
+
+        builderAction(moduleBuilder);
+
+        foreach (var childModule in moduleBuilder.CollectSubModules())
+        {
+            if (IsAlreadyDeclared(childModule))
+            {
+                continue;
+            }
+
+            registerChild(childModule);
+            _declaredChildren.Add(childModule);
+        }
     }
 
     /// <inheritdoc />
@@ -52,6 +85,7 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
         foreach (var childModule in _moduleBuilder.CollectSubModules())
         {
             registerChild(childModule);
+            _declaredChildren.Add(childModule);
         }
     }
 
@@ -108,6 +142,24 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
         }
 
         ModuleRegistration.RegisterNewHandlers(configuration, messageRegistry, startIndex);
+    }
+
+    /// <summary>
+    ///     Determines whether a child module was already declared through the module registry.
+    /// </summary>
+    /// <param name="childModule">The child module collected from the builder.</param>
+    /// <returns><see langword="true" /> when the same instance was already declared; otherwise, <see langword="false" />.</returns>
+    private bool IsAlreadyDeclared(IModule childModule)
+    {
+        foreach (var declared in _declaredChildren)
+        {
+            if (ReferenceEquals(declared, childModule))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

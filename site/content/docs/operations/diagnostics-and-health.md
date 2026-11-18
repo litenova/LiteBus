@@ -70,9 +70,11 @@ SQS and Azure Service Bus require an explicit entity target so the probe can use
 
 ## Set Probe Limits
 
+<!-- snippet-source: samples/LiteBus.Samples.Documentation/HealthCheckRegistrationSnippet.cs#health-check-registration -->
 ```csharp
-builder.Services.AddHealthChecks().AddLiteBus(options =>
+services.AddHealthChecks().AddLiteBus(options =>
 {
+    options.FailHealthWhenNoProbes = true;
     options.DiagnosticChecks = new DiagnosticCheckRunOptions
     {
         Timeout = TimeSpan.FromSeconds(3),

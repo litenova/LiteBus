@@ -20,9 +20,9 @@ namespace LiteBus.Messaging;
 public sealed class MessageModule : IModule
 {
     /// <summary>
-    ///     The configuration callback invoked while the messaging module is built.
+    ///     The configuration callbacks invoked while the messaging module is built, in registration order.
     /// </summary>
-    private readonly Action<MessageModuleBuilder> _builder;
+    private readonly List<Action<MessageModuleBuilder>> _builders = [];
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="MessageModule" /> class.
@@ -32,7 +32,19 @@ public sealed class MessageModule : IModule
     public MessageModule(Action<MessageModuleBuilder> builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        _builder = builder;
+        _builders.Add(builder);
+    }
+
+    /// <summary>
+    ///     Runs an additional configuration callback on this module's builder when the module builds.
+    /// </summary>
+    /// <param name="builderAction">The additional messaging configuration callback.</param>
+    /// <param name="registerChild">Registers child modules with the module registry; the messaging module declares none.</param>
+    internal void Configure(Action<MessageModuleBuilder> builderAction, Action<IModule> registerChild)
+    {
+        ArgumentNullException.ThrowIfNull(builderAction);
+        ArgumentNullException.ThrowIfNull(registerChild);
+        _builders.Add(builderAction);
     }
 
     /// <inheritdoc />
@@ -53,7 +65,11 @@ public sealed class MessageModule : IModule
 
         // Configure the message module using the builder.
         var moduleBuilder = new MessageModuleBuilder(messageRegistry, messageContractRegistry);
-        _builder(moduleBuilder);
+
+        foreach (var configure in _builders)
+        {
+            configure(moduleBuilder);
+        }
 
         // Applied before anything mediates, and process-wide, because an ActivitySource and a Meter are.
         // Always assigned, so a composition that configures no telemetry resets the process-wide options to the

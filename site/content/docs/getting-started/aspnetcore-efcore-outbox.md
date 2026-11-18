@@ -28,23 +28,24 @@ The semantic `*.Extensions.Microsoft.DependencyInjection` packages pull in the m
 
 ## The Complete Registration
 
+<!-- snippet-source: samples/LiteBus.Samples.Documentation/Program.cs#efcore-outbox-program -->
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
-var connectionString = builder.Configuration.GetConnectionString("Orders")!;
 
 // Required: scoped context for the transactional path. ITransactionalOutbox<OrdersDbContext>
 // resolves this context from the current scope. Factory-only registration cannot satisfy it.
+// Configure the database provider (such as options.UseNpgsql(connectionString)) in this
+// lambda alongside the interceptor.
 builder.Services.AddDbContext<OrdersDbContext>((serviceProvider, options) =>
-    options.UseNpgsql(connectionString)
-        .AddLiteBusOutboxInterceptor(
-            serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
+    options.AddLiteBusOutboxInterceptor(
+        serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
 
 // Required: factory for the singleton store. EfCoreOutboxStore creates and disposes one
-// context per operation through IDbContextFactory<OrdersDbContext>.
+// context per operation through IDbContextFactory<OrdersDbContext>. Configure the same
+// provider and interceptor here as on the scoped registration above.
 builder.Services.AddDbContextFactory<OrdersDbContext>((serviceProvider, options) =>
-    options.UseNpgsql(connectionString)
-        .AddLiteBusOutboxInterceptor(
-            serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
+    options.AddLiteBusOutboxInterceptor(
+        serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
 
 // Required: messaging, commands with a unit of work, events, and the outbox.
 builder.Services.AddLiteBus(liteBus =>
@@ -68,7 +69,7 @@ builder.Services.AddLiteBus(liteBus =>
     liteBus.AddEvents(events =>
     {
         // Required: discovers the event handlers in-process dispatch publishes to.
-        events.RegisterFromAssembly(typeof(OrderSubmittedHandler).Assembly);
+        events.RegisterFromAssembly(typeof(OrderSubmitted).Assembly);
     });
 
     liteBus.AddOutbox(outbox =>
@@ -154,6 +155,8 @@ app.AddLiteBusManagementEndpoints();
 app.Run();
 ```
 
+The two context lambdas show the interceptor call only; the compiled snippet behind this block configures no database provider. Add the provider call for the database in use (such as `options.UseNpgsql(connectionString)`) in the same lambdas, on both the scoped context and the factory.
+
 ## Registration Line Reference
 
 | Statement | Required or optional | Failure mode of omitting it |
@@ -161,6 +164,7 @@ app.Run();
 | `AddDbContext<OrdersDbContext>` with the interceptor | Required | Factory-only registration cannot satisfy the transactional path: resolving `ITransactionalOutbox<OrdersDbContext>` fails because no scoped `OrdersDbContext` is registered. See [Transactional Messaging Writes](../reliable-messaging/transactional-writes.md). |
 | `AddDbContextFactory<OrdersDbContext>` with the interceptor | Required | The singleton store has no `IDbContextFactory<OrdersDbContext>` to create operation contexts, so background reads, leases, and processor writes fail. |
 | Interceptor on both registrations | Required | Envelopes queued on a context whose options lack the interceptor are never flushed into `OutboxMessages` during `SavingChanges`: the domain change commits and the event is silently lost. |
+| Provider call (such as `UseNpgsql`) inside both lambdas | Required | Without a provider the context has no database to connect to, so every read and write fails when the context is first used. |
 | `AddMessaging` | Required | Composition fails: the outbox module requires the messaging module and no semantic module registers it. See [Getting Started](README.md). |
 | `RegisterFromAssembly` on commands and events | Required | Handlers are unknown: commands have no handler at mediation time, and in-process dispatch finds no subscriber for stored events. |
 | `UseUnitOfWork<OrderUnitOfWork>` | Required | Nothing commits the staged work after a successful mediation, and `EnableImmediateDispatch` fails composition without a registered `IUnitOfWork`. See [Domain Events and Unit of Work](../reliable-messaging/domain-events-and-unit-of-work.md). |
@@ -180,16 +184,28 @@ app.Run();
 
 The registration above references two application types. The context implements `IOutboxDbContext` and maps the outbox table in `OnModelCreating`:
 
+<!-- snippet-source: samples/LiteBus.Samples.Documentation/Orders/OrdersDbContext.cs#efcore-outbox-db-context -->
 ```csharp
+namespace LiteBus.Samples.Documentation.Orders;
+
+/// <summary>
+///     Stores order state with the outbox rows committed in the same transaction.
+/// </summary>
 public sealed class OrdersDbContext : DbContext, IOutboxDbContext
 {
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="OrdersDbContext" /> class.
+    /// </summary>
+    /// <param name="options">The configured context options.</param>
     public OrdersDbContext(DbContextOptions<OrdersDbContext> options)
         : base(options)
     {
     }
 
+    /// <inheritdoc />
     public DbSet<OutboxMessageEntity> OutboxMessages => Set<OutboxMessageEntity>();
 
+    /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.GetModelBuilderConfiguration(
@@ -201,16 +217,30 @@ public sealed class OrdersDbContext : DbContext, IOutboxDbContext
 
 The unit of work commits the scoped context. EF Core needs no explicit begin, because `SaveChangesAsync` is the commit:
 
+<!-- snippet-source: samples/LiteBus.Samples.Documentation/Orders/OrderUnitOfWork.cs#efcore-outbox-unit-of-work -->
 ```csharp
+namespace LiteBus.Samples.Documentation.Orders;
+
+/// <summary>
+///     Commits the scoped order context after a successful mediation.
+/// </summary>
 public sealed class OrderUnitOfWork : IUnitOfWork
 {
+    /// <summary>
+    ///     The scoped context that stages order changes.
+    /// </summary>
     private readonly OrdersDbContext _dbContext;
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="OrderUnitOfWork" /> class.
+    /// </summary>
+    /// <param name="dbContext">The scoped context that stages order changes.</param>
     public OrderUnitOfWork(OrdersDbContext dbContext)
     {
         _dbContext = dbContext;
     }
 
+    /// <inheritdoc />
     public Task CommitAsync(CancellationToken cancellationToken)
     {
         return _dbContext.SaveChangesAsync(cancellationToken);
@@ -220,6 +250,7 @@ public sealed class OrderUnitOfWork : IUnitOfWork
 
 The command handler stages the event through `ITransactionalOutbox<OrdersDbContext>` before the commit, so the outbox row joins the domain transaction:
 
+<!-- snippet-source: samples/LiteBus.Samples.Documentation/OutboxEnqueueSnippet.cs#efcore-outbox-enqueue -->
 ```csharp
 await transactionalOutbox.EnqueueAsync(
     new OrderSubmitted { OrderId = order.Id },
@@ -228,13 +259,34 @@ await transactionalOutbox.EnqueueAsync(
 
 A handler whose effect must be visible before the caller continues carries `[DispatchImmediately]` and needs per-handler delivery plus `EnableImmediateDispatch` from the registration above:
 
+<!-- snippet-source: samples/LiteBus.Samples.Documentation/Orders/OrderProjectionHandler.cs#efcore-outbox-immediate-handler -->
 ```csharp
+namespace LiteBus.Samples.Documentation.Orders;
+
+/// <summary>
+///     Updates the order projection as soon as the order event is published.
+/// </summary>
 [DispatchImmediately]
 public sealed class OrderProjectionHandler : IEventHandler<OrderSubmitted>
 {
+    /// <summary>
+    ///     The projection store updated by the handler.
+    /// </summary>
+    private readonly IOrderProjectionStore _projectionStore;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="OrderProjectionHandler" /> class.
+    /// </summary>
+    /// <param name="projectionStore">The projection store updated by the handler.</param>
+    public OrderProjectionHandler(IOrderProjectionStore projectionStore)
+    {
+        _projectionStore = projectionStore;
+    }
+
+    /// <inheritdoc />
     public Task HandleAsync(OrderSubmitted message, CancellationToken cancellationToken = default)
     {
-        return projectionStore.UpsertAsync(message.OrderId, cancellationToken);
+        return _projectionStore.UpsertAsync(message.OrderId, cancellationToken);
     }
 }
 ```

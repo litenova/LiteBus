@@ -15,6 +15,7 @@
     "recurring-commands",
     "commands-postgresql-idempotency-store",
     "commands-marten",
-    "aspnetcore-idempotency-key"
+    "aspnetcore-idempotency-key",
+    "aspnetcore-execution-identity"
   ]
 }

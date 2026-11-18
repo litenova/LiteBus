@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
@@ -15,9 +16,9 @@ namespace LiteBus.Events;
 public sealed class EventModule : IModule, IRequires<MessageModule>
 {
     /// <summary>
-    ///     Gets the configuration action invoked when the module is built.
+    ///     The configuration callbacks invoked when the module is built, in registration order.
     /// </summary>
-    private readonly Action<EventModuleBuilder> _builder;
+    private readonly List<Action<EventModuleBuilder>> _builders = [];
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="EventModule" /> class.
@@ -27,7 +28,19 @@ public sealed class EventModule : IModule, IRequires<MessageModule>
     public EventModule(Action<EventModuleBuilder> builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        _builder = builder;
+        _builders.Add(builder);
+    }
+
+    /// <summary>
+    ///     Runs an additional configuration callback on this module's builder when the module builds.
+    /// </summary>
+    /// <param name="builderAction">The additional event configuration callback.</param>
+    /// <param name="registerChild">Registers child modules with the module registry; the event module declares none.</param>
+    internal void Configure(Action<EventModuleBuilder> builderAction, Action<IModule> registerChild)
+    {
+        ArgumentNullException.ThrowIfNull(builderAction);
+        ArgumentNullException.ThrowIfNull(registerChild);
+        _builders.Add(builderAction);
     }
 
     /// <summary>
@@ -45,7 +58,11 @@ public sealed class EventModule : IModule, IRequires<MessageModule>
         var startIndex = messageRegistry.Handlers.Count;
 
         var moduleBuilder = new EventModuleBuilder(messageRegistry, contractRegistry);
-        _builder(moduleBuilder);
+
+        foreach (var configure in _builders)
+        {
+            configure(moduleBuilder);
+        }
 
         // AddAuditing on the messaging module selects the axes, so a consumer configures the feature once instead of
         // repeating the decision here. EnableAuditing stays the primitive, and registering the same handler twice is a

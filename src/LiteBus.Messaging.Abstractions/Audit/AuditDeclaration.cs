@@ -44,7 +44,7 @@ public abstract record AuditDeclaration
     ///     Creates a declaration for a message that produces an audit record.
     /// </summary>
     /// <param name="action">The use-case identity written to the record, such as <c>orders.place-order</c>.</param>
-    /// <param name="category">The optional category written to the record, such as <c>grant-change</c>.</param>
+    /// <param name="category">The optional category written to the record, such as <c>money</c>.</param>
     /// <param name="targetKind">The optional kind of entity the message acts on, such as <c>order</c>.</param>
     /// <param name="reasonRequired">
     ///     <see langword="true" /> when mediation must carry a reason, which the audit step enforces.
@@ -57,8 +57,8 @@ public abstract record AuditDeclaration
     /// <example>
     ///     <code>
     ///     public AuditDeclaration Audit =&gt;
-    ///         AuditDeclaration.Audited("agents.revoke-chat-agent", category: "grant-change", targetKind: "agent-connection")
-    ///             .WithTargetFrom&lt;RevokeChatAgentCommand&gt;(command =&gt; command.ConnectionId.ToString());
+    ///         AuditDeclaration.Audited("orders.cancel-order", category: "money", targetKind: "order")
+    ///             .WithTargetFrom&lt;CancelOrderCommand&gt;(command =&gt; command.OrderId.ToString());
     ///     </code>
     /// </example>
     public static AuditedDeclaration Audited(

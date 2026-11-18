@@ -128,12 +128,22 @@ The commit itself does not belong there. A post-handler never runs when the main
 
 A post-handler can replace the value the caller receives by setting `MessageResult` on the execution context. When a post-handler writes a non-null `MessageResult`, the caller receives that value instead of the handler's own result:
 
+<!-- snippet-source: samples/LiteBus.Samples.Documentation/Pipeline/WrapInEnvelope.cs#pipeline-query-post-handler -->
 ```csharp
+using LiteBus.Messaging.Abstractions;
+using LiteBus.Queries.Abstractions;
+
+namespace LiteBus.Samples.Documentation.Pipeline;
+
+/// <summary>
+///     Wraps a product query result in an envelope after the handler returns.
+/// </summary>
 public sealed class WrapInEnvelope : IQueryPostHandler<GetProductByIdQuery, ProductDto>
 {
-    public Task PostHandleAsync(GetProductByIdQuery query, ProductDto? result, CancellationToken ct = default)
+    /// <inheritdoc />
+    public Task PostHandleAsync(GetProductByIdQuery message, ProductDto? messageResult, CancellationToken cancellationToken = default)
     {
-        AmbientExecutionContext.Current.MessageResult = new Envelope<ProductDto>(result);
+        AmbientExecutionContext.Current.MessageResult = new Envelope<ProductDto>(messageResult);
         return Task.CompletedTask;
     }
 }
@@ -275,13 +285,23 @@ Shortcuts run before pre-handlers for a different reason. A message that is abou
 
 One contract covers every message, because a refusal never returns the value the handler would have produced. When you hand back a failed result object instead of raising, that mapping lives in a [refusal mapper](#refusal-mappers) rather than in each guard.
 
+<!-- snippet-source: samples/LiteBus.Samples.Documentation/Pipeline/RejectSelfApproval.cs#pipeline-command-guard -->
 ```csharp
+using LiteBus.Commands.Abstractions;
+using LiteBus.Messaging.Abstractions;
+
+namespace LiteBus.Samples.Documentation.Pipeline;
+
+/// <summary>
+///     Refuses a refund that the requester approved themselves.
+/// </summary>
 public sealed class RejectSelfApproval : ICommandGuard<ApproveRefundCommand>
 {
-    public Task<Verdict> DecideAsync(
-        ApproveRefundCommand command,
-        CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public Task<Verdict> DecideAsync(ApproveRefundCommand command, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(command);
+
         return Task.FromResult(command.ApproverId == command.RequesterId
             ? Verdict.Deny("the approver is the requester", code: "SELF_APPROVAL")
             : Verdict.Allow);
@@ -643,6 +663,28 @@ Three rules matter when you write one:
 Register a handler for one message type with `ICommandCompletionHandler<TCommand>`, `IQueryCompletionHandler<TQuery>`, or `IEventCompletionHandler<TEvent>`. For a message that produces a result, the two-parameter form such as `ICommandCompletionHandler<TCommand, TCommandResult>` passes the result with its declared type. Register for every message on an axis with the non-generic `ICommandCompletionHandler`, `IQueryCompletionHandler`, or `IEventCompletionHandler`.
 
 For streams, completion runs when the enumerator is disposed. A consumer who calls a stream query and never enumerates the result produces no completion record. That is inherent to iterators, and worth knowing if you audit reads. A stream supplied by a refusal mapper is enumerated through the same runner as the handler's stream, so a fault in it is offered to the error stage like any other stream fault. The ambient scope wraps every advance.
+
+### Declaring Audit Metadata
+
+A completion handler observes how the mediation ended, and the audit record writer turns that ending into a stored record. The message states what the record carries through an audit definition: the action identity with its category and target kind, plus a selector that reads the target identifier off the message. Passing the category and target kind as arguments keeps the target selector chainable without a `with` expression:
+
+<!-- snippet-source: samples/LiteBus.Samples.Documentation/Auditing/CancelOrderCommandAuditDefinition.cs#audit-definition-with-target -->
+```csharp
+using LiteBus.Messaging.Abstractions.Auditing;
+
+namespace LiteBus.Samples.Documentation.Auditing;
+
+/// <summary>
+///     Declares the audit record written when an order is cancelled.
+/// </summary>
+public sealed class CancelOrderCommandAuditDefinition : IAuditDefinition<CancelOrderCommand>
+{
+    /// <inheritdoc />
+    public AuditDeclaration Audit =>
+        AuditDeclaration.Audited("orders.cancel-order", category: "money", targetKind: "order")
+            .WithTargetFrom<CancelOrderCommand>(command => command.OrderId.ToString());
+}
+```
 
 ## Next
 

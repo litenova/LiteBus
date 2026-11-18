@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
@@ -17,9 +18,9 @@ namespace LiteBus.Queries;
 public sealed class QueryModule : IModule, IRequires<MessageModule>
 {
     /// <summary>
-    ///     Gets the configuration action invoked when the module is built.
+    ///     The configuration callbacks invoked when the module is built, in registration order.
     /// </summary>
-    private readonly Action<QueryModuleBuilder> _builder;
+    private readonly List<Action<QueryModuleBuilder>> _builders = [];
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="QueryModule" /> class.
@@ -29,7 +30,19 @@ public sealed class QueryModule : IModule, IRequires<MessageModule>
     public QueryModule(Action<QueryModuleBuilder> builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        _builder = builder;
+        _builders.Add(builder);
+    }
+
+    /// <summary>
+    ///     Runs an additional configuration callback on this module's builder when the module builds.
+    /// </summary>
+    /// <param name="builderAction">The additional query configuration callback.</param>
+    /// <param name="registerChild">Registers child modules with the module registry; the query module declares none.</param>
+    internal void Configure(Action<QueryModuleBuilder> builderAction, Action<IModule> registerChild)
+    {
+        ArgumentNullException.ThrowIfNull(builderAction);
+        ArgumentNullException.ThrowIfNull(registerChild);
+        _builders.Add(builderAction);
     }
 
     /// <summary>
@@ -46,7 +59,11 @@ public sealed class QueryModule : IModule, IRequires<MessageModule>
 
         var startIndex = messageRegistry.Handlers.Count;
         var moduleBuilder = new QueryModuleBuilder(messageRegistry, contractRegistry);
-        _builder(moduleBuilder);
+
+        foreach (var configure in _builders)
+        {
+            configure(moduleBuilder);
+        }
 
         // AddAuditing on the messaging module selects the axes, so a consumer configures the feature once instead of
         // repeating the decision here. EnableAuditing stays the primitive, and registering the same handler twice is a

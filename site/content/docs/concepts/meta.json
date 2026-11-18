@@ -12,6 +12,8 @@
                   "message-definitions",
                   "auditing",
                   "authorization-declarations",
+                  "authorization-policies",
+                  "tenancy",
                   "idempotency",
                   "polymorphic-dispatch",
                   "open-generic-handlers",

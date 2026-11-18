@@ -167,6 +167,7 @@ Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, 
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_failed` | `LiteBusOutboxTelemetry.ProcessorPersistFailedInstrumentName` | Terminal persist threw after successful broker publish |
 | `LiteBus.Outbox` | `litebus.outbox.immediate_dispatch.count` | `LiteBusOutboxTelemetry.ImmediateDispatchCountInstrumentName` | One per envelope handled by immediate dispatch after a commit, tagged with `litebus.outbox.immediate_dispatch.outcome` (`published`, `failed`, `skipped`, `timed_out`) |
 | `LiteBus.Outbox` | `litebus.outbox.immediate_dispatch.duration` | `LiteBusOutboxTelemetry.ImmediateDispatchDurationInstrumentName` | Histogram in seconds of immediate dispatch after one commit |
+| `LiteBus.Outbox` | `litebus.outbox.immediate_dispatch.skipped_scheduled` | `LiteBusOutboxTelemetry.ImmediateDispatchSkippedScheduledInstrumentName` | One per immediate-addressed envelope staged with scheduled visibility, tagged with `litebus.contract.name` |
 | `LiteBus.Outbox` | `litebus.outbox.diagnostics.unavailable` | `LiteBusOutboxTelemetry.DiagnosticsUnavailableInstrumentName` | Queue depth probe failed against the backing store |
 | `LiteBus.Outbox` | `litebus.outbox.queue.depth` | `LiteBusOutboxTelemetry.QueueDepthInstrumentName` | Observable gauge with tag `litebus.outbox.status` |
 | `LiteBus.Outbox` | `litebus.outbox.processor.state` | `LiteBusOutboxTelemetry.ProcessorStateInstrumentName` | Same encoding as inbox processor state |
@@ -465,7 +466,7 @@ inbox.UseAmqpDispatch(options =>
 
 ## Module Composition
 
-Parent modules use `ICompositeModule` to declare storage, dispatch, ingress, and saga children. Child membership is collected before build. `BuildOrder()` validates every `IRequires<TModule>` edge, inserts composite children, and topologically sorts the complete graph before any `Build()` call. Configuration context stores shared configuration objects only. Duplicate registration of the same module type throws `LiteBusConfigurationException` at compose time.
+Parent modules use `ICompositeModule` to declare storage, dispatch, ingress, and saga children. Child membership is collected before build. `BuildOrder()` validates every `IRequires<TModule>` edge, inserts composite children, and topologically sorts the complete graph before any `Build()` call. Configuration context stores shared configuration objects only. Calling an `Add*` registration extension twice configures the same module again instead of registering a second one, so each application module adds to one composition; registering the same module type twice through `Modules.Register` directly still throws `LiteBusConfigurationException` at compose time. See [Application Modules](application-modules.md).
 
 Register adapters inside the parent builder:
 
@@ -490,6 +491,14 @@ builder.Services.AddLiteBus(builder =>
 ```
 
 Do not add top-level `IModuleRegistry` shortcuts that bypass the parent builder. Storage and dispatcher registration belongs on nested `Use*` extensions.
+
+### Composition Checks
+
+Composition rejects configurations that would silently do the wrong thing at runtime. Immediate dispatch without per-handler delivery rejects handler-level attributes: when `EnableImmediateDispatch` is set without per-handler delivery and any registered main handler class carries `[DispatchImmediately]`, composition throws `LiteBusConfigurationException` naming the handler types, because the attribute is ignored without per-handler envelopes. Call `EnablePerHandlerDelivery()` so each handler gets its own envelope, or move `[DispatchImmediately]` to the event type for event-level immediacy. An envelope addressed to an attributed event or handler that is staged with scheduled visibility is never dispatched immediately; the envelope factory writes a Debug log and adds 1 to the `litebus.outbox.immediate_dispatch.skipped_scheduled` counter tagged with `litebus.contract.name`, and the processor delivers the envelope on its normal pass.
+
+In-process outbox dispatch treats an envelope with no handler as a failure unless the application acknowledges it. `AllowEnvelopesWithoutHandler(string reason)` on `InProcessOutboxDispatchOptionsBuilder` records the acknowledgement; the options keep a get-only `RequireHandler` and carry the reason as `MissingHandlerReason`. A startup task logs the reason at Warning level, and `LiteBusCompositionSummary` lists the relaxed safeguard, so the choice stays visible in production logs and in the startup summary.
+
+Entity Framework Core storage modules verify their database context before serving traffic. The outbox and inbox EF Core storage modules register a startup task that resolves the configured `TContext` from a new scope and fails startup with a message naming the missing `AddDbContext<TContext>` call when it cannot be resolved. Resolving `ITransactionalOutbox<X>` for a context with no `UseDbContext<X>()` call throws `LiteBusConfigurationException` naming that call instead of failing on the first enqueue.
 
 ### Planned Capabilities
 

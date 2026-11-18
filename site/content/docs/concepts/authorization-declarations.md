@@ -20,7 +20,7 @@ public sealed record BrowseVaultCatalogueCommand : ICommand;
 
 An exemption is a decision, not an omission. Because the rationale sits beside the message, a reviewer can see which messages were deliberately exempted. It also lets the declaration requirement distinguish a considered exemption from a message nobody looked at.
 
-LiteBus never evaluates the policy. Declaring `vaults.open` authorizes nothing by itself. The declaration states what the message requires, and your application decides whether the current actor holds it. Policy evaluation stays in your application because no messaging library can model your tenancy and role structure.
+Declaring `vaults.open` authorizes nothing by itself. The declaration states what the message requires, and a guard evaluates it: either the composable policy model in [Authorization Policies](authorization-policies.md), or your own guard when the rule needs application state no shared check can express. Either way the policy string stays your vocabulary, which LiteBus carries from the declaration to the check without interpreting it.
 
 ## The Four Shapes
 
@@ -82,7 +82,7 @@ Use both. The analyzer reports the omission on the message itself while you are 
 
 ## Enforcing It in a Guard
 
-One guard covers every message that declares a policy. Derive it from `AuthorizationGuard<TMessage>` and implement only the check itself:
+One guard covers every message that declares a policy. When the rule is one of the shared checks, register the policy model instead of writing a guard: `AddAuthorizationPolicies` registers a `PolicyAuthorizationGuard<TMessage>` that evaluates the named policy for every message. See [Authorization Policies](authorization-policies.md). When the rule needs application state no shared check can express, derive a guard from `AuthorizationGuard<TMessage>` and implement only the check itself:
 
 ```csharp
 public sealed class VaultAuthorizationGuard<TCommand> : AuthorizationGuard<TCommand>
@@ -117,10 +117,10 @@ Override `DecideUndeclaredAsync` to allow undeclared messages while the declarat
 
 ## Application Responsibilities
 
-- Whether the actor satisfies the policy is your guard's decision. LiteBus does not model identity, roles, or tenancy. Your guard reads the declared policy and answers from whatever principal your host provides.
+- Whether the actor satisfies the policy is a check's decision. LiteBus evaluates the shared checks in [Authorization Policies](authorization-policies.md) from the mediation identity. What a permission name means, and any rule the shared checks cannot express, is your guard's decision, answered from whatever principal your host provides.
 - What a policy means is your decision. The policy string is your vocabulary and LiteBus never interprets it. Keep the set closed where you construct the declaration, with shared constants a rename can find.
 - Where the check runs is your choice. A guard denies before the handler. An application that refuses by throwing its own exception owns that type and its classification. Either way, enforcement is application code.
 
 ## Next
 
-Read [Message Definitions](message-definitions.md) for the declaration mechanism, and [Auditing](auditing.md) for the declaration this one mirrors and the trail it feeds.
+Read [Authorization Policies](authorization-policies.md) for the checks that evaluate these declarations, [Message Definitions](message-definitions.md) for the declaration mechanism, and [Auditing](auditing.md) for the declaration this one mirrors and the trail it feeds.

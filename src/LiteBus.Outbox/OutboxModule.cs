@@ -27,6 +27,11 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
     private OutboxModuleBuilder? _builder;
 
     /// <summary>
+    ///     The child modules already declared through the module registry, compared by reference.
+    /// </summary>
+    private readonly List<IModule> _declaredChildren = [];
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="OutboxModule" /> class.
     /// </summary>
     /// <param name="configure">The module configuration action.</param>
@@ -37,15 +42,46 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
         _configure = configure;
     }
 
+    /// <summary>
+    ///     Runs an additional configuration callback on the existing outbox builder and declares new child modules.
+    /// </summary>
+    /// <param name="builderAction">The additional outbox configuration callback.</param>
+    /// <param name="registerChild">Registers each newly declared child module with the module registry.</param>
+    internal void Configure(Action<OutboxModuleBuilder> builderAction, Action<IModule> registerChild)
+    {
+        ArgumentNullException.ThrowIfNull(builderAction);
+        ArgumentNullException.ThrowIfNull(registerChild);
+
+        var moduleBuilder = _builder ?? throw new DurableStorageConfigurationException(
+            "OutboxModule.Configure was called without a prior DeclareChildren call. " +
+            "Register the module through IModuleRegistry.");
+
+        builderAction(moduleBuilder);
+
+        foreach (var subModule in moduleBuilder.CollectSubModules())
+        {
+            if (IsAlreadyDeclared(subModule))
+            {
+                continue;
+            }
+
+            registerChild(subModule);
+            _declaredChildren.Add(subModule);
+        }
+    }
+
     /// <inheritdoc />
     public void DeclareChildren(Action<IModule> registerChild)
     {
+        ArgumentNullException.ThrowIfNull(registerChild);
+
         _builder = new OutboxModuleBuilder();
         _configure(_builder);
 
         foreach (var subModule in _builder.CollectSubModules())
         {
             registerChild(subModule);
+            _declaredChildren.Add(subModule);
         }
     }
 
@@ -215,6 +251,24 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
 
         RegisterObservableMetrics(configuration);
         RegisterDiagnosticChecks(configuration);
+    }
+
+    /// <summary>
+    ///     Determines whether a child module was already declared through the module registry.
+    /// </summary>
+    /// <param name="subModule">The child module collected from the builder.</param>
+    /// <returns><see langword="true" /> when the same instance was already declared; otherwise, <see langword="false" />.</returns>
+    private bool IsAlreadyDeclared(IModule subModule)
+    {
+        foreach (var declared in _declaredChildren)
+        {
+            if (ReferenceEquals(declared, subModule))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
