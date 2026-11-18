@@ -78,6 +78,11 @@ public sealed class MessageModule : IModule
             moduleBuilder.FaultRefusalClassifiers);
         ModuleRegistration.RegisterNewHandlers(configuration, messageRegistry, startIndex);
 
+        foreach (var step in moduleBuilder.BuildSteps)
+        {
+            step(configuration);
+        }
+
         // Published for the axis modules, which build after this one because they declare IRequires<MessageModule>.
         // AddAuditing decides the axes here so the consumer does not repeat the decision on each axis builder.
         if (moduleBuilder.Auditing is not null)

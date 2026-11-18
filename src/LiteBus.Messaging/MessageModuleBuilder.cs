@@ -47,6 +47,11 @@ public sealed class MessageModuleBuilder
     private readonly List<object> _faultRefusalClassifiers = [];
 
     /// <summary>
+    ///     The registration steps that features in this assembly add to the module build, in the order they were added.
+    /// </summary>
+    private readonly List<Action<IModuleConfiguration>> _buildSteps = [];
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="MessageModuleBuilder" /> class.
     /// </summary>
     /// <param name="messageRegistry">The message registry shared across LiteBus modules.</param>
@@ -76,6 +81,28 @@ public sealed class MessageModuleBuilder
     ///     Gets the application composition checks to run once every module has been built.
     /// </summary>
     internal IReadOnlyList<Action<IMessageCatalog>> CompositionChecks => _compositionChecks;
+
+    /// <summary>
+    ///     Gets the registration steps that features in this assembly add to the module build.
+    /// </summary>
+    internal IReadOnlyList<Action<IModuleConfiguration>> BuildSteps => _buildSteps;
+
+    /// <summary>
+    ///     Adds a registration step that runs when the message module builds, after the core messaging services and the
+    ///     scanned handlers are registered.
+    /// </summary>
+    /// <param name="step">The step, which registers services, handlers or composition validations.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     Feature extensions in this assembly, such as tenancy and authorization policies, use it so they do not edit
+    ///     this builder for every feature.
+    /// </remarks>
+    internal MessageModuleBuilder AddBuildStep(Action<IModuleConfiguration> step)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        _buildSteps.Add(step);
+        return this;
+    }
 
     /// <summary>
     ///     Gets a value indicating whether an open generic pipeline handler must be named rather than scanned.
