@@ -268,16 +268,6 @@ The build emits `dist/_redirects` from `public/_redirects` (sending the agent in
 
 DNS lives on the `litebus.io` zone in Cloudflare. Add `litebus.io` as a custom domain on the `litebus-site` Worker and `www.litebus.io` as a custom domain on the `litebus-www` Worker; the dashboard shows the records to create, with the apex flattened to the Worker and `www` proxied to the redirect Worker.
 
-#### Moving Off Vercel
-
-The site previously deployed to Vercel from `site/` with `vercel.json`. That file is gone; the steps below retire the Vercel side once the Workers deployment above serves the domain. Do them in order, and confirm each one before the next.
-
-1. Deploy `litebus-site` to Cloudflare and open the Preview URL it reports. Walk the home page, a docs page, a `.md` URL, `/llms.txt`, and one legacy `/v7/` URL, and confirm each answers.
-2. Add `litebus.io` as the Worker custom domain and confirm the dashboard reports it active with a valid certificate.
-3. Move the DNS records for the apex and `www` to the Cloudflare records from the previous section. Confirm `https://litebus.io` and `https://www.litebus.io` answer from Cloudflare (the latter with a 301 to the apex) from outside your network.
-4. Leave the Vercel deployment untouched for one week so cached DNS keeps answering, then remove the `litebus.io` and `www.litebus.io` domains from the Vercel project.
-5. Delete the Vercel project once no traffic reaches it.
-
 ### Search Engines
 
 Metadata comes from `src/lib/seo.ts`. The `pageTitle` helper joins page title, section, and `LiteBus`, shedding the section past 60 characters so the page title itself is never cut. `absoluteUrl` forms a canonical link on `https://litebus.io` from the page path, `metaDescription` trims a description to 160 characters at a sentence or word boundary, and `techArticle`, `breadcrumbList`, `website`, `organization`, and `softwareSourceCode` assemble the schema.org objects.
