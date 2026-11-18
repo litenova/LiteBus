@@ -72,7 +72,7 @@ public sealed class TenantScopedIdempotencyKeyTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task A_trace_tenant_without_an_execution_identity_does_not_scope_the_key()
+    public async Task A_trace_tenant_without_an_execution_identity_scopes_the_key()
     {
         var applications = new ApplicationCounter();
         var store = new InMemoryIdempotencyStore();
@@ -89,10 +89,11 @@ public sealed class TenantScopedIdempotencyKeyTests : LiteBusTestBase
         var repeat = await mediator
             .TrySendAsync(new ApplyPaymentCommand { PaymentId = "order-1" }, tenantB).ConfigureAwait(false);
 
-        repeat.Outcome.Should().Be(MediationOutcome.Answered);
-        applications.Count.Should().Be(1);
-        store.AppliedKeys.Count.Should().Be(1);
-        store.AppliedKeys.Should().Contain($"{typeof(ApplyPaymentCommand).FullName}:order-1");
+        repeat.Outcome.Should().Be(MediationOutcome.Succeeded);
+        applications.Count.Should().Be(2);
+        store.AppliedKeys.Count.Should().Be(2);
+        store.AppliedKeys.Should().Contain($"tenant-a/{typeof(ApplyPaymentCommand).FullName}:order-1");
+        store.AppliedKeys.Should().Contain($"tenant-b/{typeof(ApplyPaymentCommand).FullName}:order-1");
     }
 
     /// <summary>

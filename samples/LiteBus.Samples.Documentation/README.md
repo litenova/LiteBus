@@ -12,12 +12,12 @@ dotnet build samples/LiteBus.Samples.Documentation
 
 Regions:
 
-- `Program.cs#efcore-outbox-program` — the complete registration in the ASP.NET Core with EF Core outbox guide.
-- `Orders/OrdersDbContext.cs#efcore-outbox-db-context` — the documented context.
-- `Orders/OrderUnitOfWork.cs#efcore-outbox-unit-of-work` — the documented unit of work.
-- `OutboxEnqueueSnippet.cs#efcore-outbox-enqueue` — the transactional enqueue call.
-- `Orders/OrderProjectionHandler.cs#efcore-outbox-immediate-handler` — the documented immediate handler.
-- `HealthCheckRegistrationSnippet.cs#health-check-registration` — the health-check registration in the diagnostics guide.
-- `Pipeline/RejectSelfApproval.cs#pipeline-command-guard` — the guard in the handler pipeline guide.
-- `Pipeline/WrapInEnvelope.cs#pipeline-query-post-handler` — the post-handler in the handler pipeline guide.
-- `Auditing/CancelOrderCommandAuditDefinition.cs#audit-definition-with-target` — the audit definition with a target selector in the handler pipeline guide.
+- `Program.cs#efcore-outbox-program` - the complete registration in the ASP.NET Core with EF Core outbox guide.
+- `Orders/OrdersDbContext.cs#efcore-outbox-db-context` - the documented context.
+- `Orders/OrderUnitOfWork.cs#efcore-outbox-unit-of-work` - the documented unit of work.
+- `OutboxEnqueueSnippet.cs#efcore-outbox-enqueue` - the transactional enqueue call.
+- `Orders/OrderProjectionHandler.cs#efcore-outbox-immediate-handler` - the documented immediate handler.
+- `HealthCheckRegistrationSnippet.cs#health-check-registration` - the health-check registration in the diagnostics guide.
+- `Pipeline/RejectSelfApproval.cs#pipeline-command-guard` - the guard in the handler pipeline guide.
+- `Pipeline/WrapInEnvelope.cs#pipeline-query-post-handler` - the post-handler in the handler pipeline guide.
+- `Auditing/CancelOrderCommandAuditDefinition.cs#audit-definition-with-target` - the audit definition with a target selector in the handler pipeline guide.

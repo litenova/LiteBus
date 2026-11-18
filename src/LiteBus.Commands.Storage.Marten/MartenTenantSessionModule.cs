@@ -25,7 +25,7 @@ public sealed class MartenTenantSessionModule : IModule, IRequires<CommandModule
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(MartenTenantSessionFactory),
             serviceProvider => new MartenTenantSessionFactory(
-                (IDocumentStore)(serviceProvider.GetService(typeof(IDocumentStore)) ?? throw new LiteBusDependencyResolutionException(typeof(IDocumentStore)))),
+                (IDocumentStore) (serviceProvider.GetService(typeof(IDocumentStore)) ?? throw new LiteBusDependencyResolutionException(typeof(IDocumentStore)))),
             InstanceLifetime.Singleton));
     }
 }

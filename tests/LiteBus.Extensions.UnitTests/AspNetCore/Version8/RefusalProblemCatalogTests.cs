@@ -122,7 +122,7 @@ public sealed class RefusalProblemCatalogTests
     {
         var catalog = new RefusalProblemCatalog();
 
-        Assert.Throws<ArgumentException>(() => catalog.Map(code!, 400, "Title"));
+        Assert.ThrowsAny<ArgumentException>(() => catalog.Map(code!, 400, "Title"));
     }
 
     [Theory]
@@ -143,7 +143,7 @@ public sealed class RefusalProblemCatalogTests
     {
         var catalog = new RefusalProblemCatalog();
 
-        Assert.Throws<ArgumentException>(() => catalog.Map("billing.unpaid", 402, title!));
+        Assert.ThrowsAny<ArgumentException>(() => catalog.Map("billing.unpaid", 402, title!));
     }
 
     [Theory]

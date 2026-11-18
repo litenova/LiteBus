@@ -24,6 +24,28 @@ internal sealed class ExecutionContext : IExecutionContext
         TimeProvider timeProvider,
         ExecutionIdentity identity,
         CancellationToken cancellationToken)
+        : this(tags, items, timeProvider, new Lazy<ExecutionIdentity>(ValidIdentity(identity)), cancellationToken)
+    {
+    }
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="ExecutionContext" /> class with an identity resolved on first
+    ///     read.
+    /// </summary>
+    /// <param name="tags">The tags associated with the execution context.</param>
+    /// <param name="items">The key/value collection for sharing data within the execution context.</param>
+    /// <param name="timeProvider">The time provider the handled instant is read from, once.</param>
+    /// <param name="identity">
+    ///     The identity the mediation runs for, resolved the first time a stage reads it, so a mediation that never
+    ///     reads it never resolves the identity provider and never opens a dispatch scope for it.
+    /// </param>
+    /// <param name="cancellationToken">The cancellation token associated with the execution context.</param>
+    public ExecutionContext(
+        IEnumerable<string> tags,
+        IDictionary<string, object> items,
+        TimeProvider timeProvider,
+        Lazy<ExecutionIdentity> identity,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(identity);
@@ -33,8 +55,13 @@ internal sealed class ExecutionContext : IExecutionContext
         Items = new ConcurrentDictionary<string, object>(items);
         Data = new HandleContextData();
         HandledAt = timeProvider.GetUtcNow();
-        Identity = identity;
+        _identity = identity;
     }
+
+    /// <summary>
+    ///     The identity the mediation runs for, resolved once on first read and shared by every stage after that.
+    /// </summary>
+    private readonly Lazy<ExecutionIdentity> _identity;
 
     /// <inheritdoc />
     public CancellationToken CancellationToken { get; }
@@ -43,7 +70,7 @@ internal sealed class ExecutionContext : IExecutionContext
     public DateTimeOffset HandledAt { get; }
 
     /// <inheritdoc />
-    public ExecutionIdentity Identity { get; }
+    public ExecutionIdentity Identity => _identity.Value;
 
     /// <inheritdoc />
     public IDictionary<string, object> Items { get; }
@@ -64,5 +91,16 @@ internal sealed class ExecutionContext : IExecutionContext
     public void SuppressPostHandlers()
     {
         PostHandlersSuppressed = true;
+    }
+
+    /// <summary>
+    ///     Returns the identity after checking it is present, so the eager constructor fails at the call site.
+    /// </summary>
+    /// <param name="identity">The identity to check.</param>
+    /// <returns>The same identity.</returns>
+    private static ExecutionIdentity ValidIdentity(ExecutionIdentity identity)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        return identity;
     }
 }

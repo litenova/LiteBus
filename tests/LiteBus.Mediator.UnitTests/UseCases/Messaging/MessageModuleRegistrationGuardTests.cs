@@ -1,36 +1,35 @@
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
-using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Mediator.UnitTests.UseCases.Messaging;
 
 /// <summary>
-///     Verifies configure-time guards for <see cref="MessageModule" /> registration.
+///     Verifies how repeated <see cref="MessageModule" /> registration composes.
 /// </summary>
 public sealed class MessageModuleRegistrationGuardTests
 {
     /// <summary>
-    ///     Verifies that registering <see cref="MessageModule" /> twice fails at compose time.
+    ///     Verifies that a second <c>AddMessaging</c> call configures the module the first call registered instead of
+    ///     failing, so several application modules can add to one composition.
     /// </summary>
     [Fact]
-    public void AddMessageModule_WhenCalledTwice_ShouldThrowLiteBusConfigurationException()
+    public void AddMessageModule_WhenCalledTwice_RunsBothConfigurationsOnOneModule()
     {
+        var firstRan = 0;
+        var secondRan = 0;
+
         var act = () =>
         {
             _ = new ServiceCollection().AddLiteBus(registry =>
             {
-                registry.AddMessaging(_ =>
-                {
-                });
-                registry.AddMessaging(_ =>
-                {
-                });
+                registry.AddMessaging(_ => firstRan++);
+                registry.AddMessaging(_ => secondRan++);
             });
         };
 
-        act.Should()
-            .Throw<LiteBusConfigurationException>()
-            .WithMessage("*MessageModule*already registered*");
+        act.Should().NotThrow();
+        firstRan.Should().Be(1);
+        secondRan.Should().Be(1);
     }
 }

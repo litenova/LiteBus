@@ -127,9 +127,6 @@ public sealed class MartenTenantSessionFactoryTests : IClassFixture<PostgreSqlFi
             options.Connection(_fixture.ConnectionString);
             options.DatabaseSchemaName = schemaName;
             options.Policies.AllDocumentsAreMultiTenanted();
-            options.MultiTenantedWithSingleServer(
-                _fixture.ConnectionString,
-                tenants => tenants.WithTenants(["tenant-a", "tenant-b"]));
         });
     }
 
@@ -142,9 +139,6 @@ public sealed class MartenTenantSessionFactoryTests : IClassFixture<PostgreSqlFi
             options.Connection(_fixture.ConnectionString);
             options.DatabaseSchemaName = "marten_commands_tenant_module_tests";
             options.Policies.AllDocumentsAreMultiTenanted();
-            options.MultiTenantedWithSingleServer(
-                _fixture.ConnectionString,
-                tenants => tenants.WithTenants(["tenant-a", "tenant-b"]));
         });
 
         services.AddLiteBus(registry =>

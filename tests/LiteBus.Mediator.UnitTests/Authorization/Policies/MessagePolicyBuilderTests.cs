@@ -61,7 +61,7 @@ public sealed class MessagePolicyBuilderTests : LiteBusTestBase
     [Fact]
     public void A_null_builder_is_rejected()
     {
-        var act = () => ((MessageModuleBuilder)null!).AddAuthorizationPolicies(_ => { });
+        var act = () => ((MessageModuleBuilder) null!).AddAuthorizationPolicies(_ => { });
 
         act.Should().Throw<ArgumentNullException>();
     }
