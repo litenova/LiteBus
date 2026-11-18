@@ -5,6 +5,12 @@
 # branch's push run on the same commit, so the plan job skips it; pull requests from forks and from other branches
 # run in full. The release workflow publishes only a commit whose push or dispatch run of this workflow succeeded.
 #
+# Scope: the plan job compares the change with its base and runs only the gates that cover it (see "Decide which
+# gates the change needs"). A site-only change runs the documentation job alone; a change to site/content/docs also
+# runs build and package for the documentation semantics check; a .NET change runs everything. A change under
+# .github/, a manual dispatch, or a push with no usable base runs every gate. The CI result job accepts a skipped gate
+# only when the plan did not need it.
+#
 # Layout: documentation, build and package, and every test shard run as parallel jobs. Each test shard builds the
 # solution itself and uploads its coverage; the coverage job merges the shards' reports and enforces the gate. The
 # shards together run exactly the solution's tests: the integration filter is split by project and by the storage
@@ -81,6 +87,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.decide.outputs.run }}
+      site: ${{ steps.scope.outputs.site }}
+      build: ${{ steps.scope.outputs.build }}
+      dotnet: ${{ steps.scope.outputs.dotnet }}
     steps:
       - name: Decide whether this run is needed
         id: decide
@@ -97,10 +106,78 @@ jobs:
           fi
           echo "run=${run}" >> "${GITHUB_OUTPUT}"
 
+      - name: Checkout Repository
+        if: steps.decide.outputs.run == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # Each gate runs only when the change touches what it proves:
+      #   site    - the documentation job: Markdown checks, package inventory, and the docs site build. The inventory
+      #             is generated from src/, so every .NET change runs it too.
+      #   build   - build and package: restore, format, build, documentation semantics (which resolves test and source
+      #             references in site/content/docs against the built solution), pack, and package validation.
+      #   dotnet  - the test shards, coverage, and the consumer smoke test.
+      # A change to .github/, a manual dispatch, or a push without a usable base runs every gate.
+      - name: Decide which gates the change needs
+        id: scope
+        if: steps.decide.outputs.run == 'true'
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          everything() {
+            echo "Every gate runs: $1" >> "${GITHUB_STEP_SUMMARY}"
+            { echo "site=true"; echo "build=true"; echo "dotnet=true"; } >> "${GITHUB_OUTPUT}"
+            exit 0
+          }
+
+          case "${EVENT}" in
+            pull_request) base="${PR_BASE}"; head="${PR_HEAD}"; range="${base}...${head}" ;;
+            push) base="${PUSH_BEFORE}"; head="${PUSH_AFTER}"; range="${base}..${head}" ;;
+            *) everything "a ${EVENT} run checks the whole commit." ;;
+          esac
+
+          if [ -z "${base}" ] || [[ "${base}" =~ ^0+$ ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            everything "the change has no base commit to compare with."
+          fi
+
+          files="$(git diff --name-only "${range}")"
+          if [ -z "${files}" ]; then
+            everything "the change lists no files."
+          fi
+
+          site=false; build=false; dotnet=false
+          while IFS= read -r file; do
+            case "${file}" in
+              .github/*)
+                everything "${file} changes the pipeline itself." ;;
+              site/content/docs/*)
+                site=true; build=true ;;
+              site/*|Changelog.md|Changelog.Archive.md)
+                site=true ;;
+              README.md)
+                site=true; build=true ;;
+              src/*|tests/*|samples/*|smoke/*|benchmarks/*|scripts/*|assets/*|LiteBus.slnx|LiteBus.snk|global.json|dotnet-tools.json|coverlet*.runsettings|stylecop.json|.editorconfig|Directory.*)
+                site=true; build=true; dotnet=true ;;
+            esac
+          done <<< "${files}"
+
+          {
+            echo "### Gates for this change"
+            echo "- Documentation and site: ${site}"
+            echo "- Build and package: ${build}"
+            echo "- Tests, coverage, and consumer smoke: ${dotnet}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+          { echo "site=${site}"; echo "build=${build}"; echo "dotnet=${dotnet}"; } >> "${GITHUB_OUTPUT}"
+
   docs:
     name: Documentation
     needs: plan
-    if: needs.plan.outputs.run == 'true'
+    if: needs.plan.outputs.run == 'true' && needs.plan.outputs.site == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -143,7 +220,7 @@ jobs:
   build:
     name: Build and Package
     needs: plan
-    if: needs.plan.outputs.run == 'true'
+    if: needs.plan.outputs.run == 'true' && needs.plan.outputs.build == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -210,7 +287,7 @@ jobs:
     # the versions LiteBus pins, so a dependency release that removes an API the shipped assemblies call (issue #167)
     # shows up only here.
     needs: [ plan, build ]
-    if: needs.plan.outputs.run == 'true'
+    if: needs.plan.outputs.run == 'true' && needs.plan.outputs.dotnet == 'true'
     runs-on: ubuntu-latest
 
     services:
@@ -249,7 +326,7 @@ jobs:
   test:
     name: Test (${{ matrix.name }})
     needs: plan
-    if: needs.plan.outputs.run == 'true'
+    if: needs.plan.outputs.run == 'true' && needs.plan.outputs.dotnet == 'true'
     runs-on: ubuntu-latest
 
     strategy:
@@ -379,7 +456,7 @@ jobs:
   coverage:
     name: Coverage
     needs: [ plan, test ]
-    if: ${{ !cancelled() && needs.plan.outputs.run == 'true' }}
+    if: ${{ !cancelled() && needs.plan.outputs.run == 'true' && needs.plan.outputs.dotnet == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -448,16 +525,33 @@ jobs:
       - name: Check every gate
         env:
           RUN: ${{ needs.plan.outputs.run }}
-          RESULTS: ${{ needs.docs.result }} ${{ needs.build.result }} ${{ needs.consumer-smoke.result }} ${{ needs.test.result }} ${{ needs.coverage.result }}
+          # One "gate:needed:result" entry per gate; a gate the plan did not need may be skipped, a needed one must pass.
+          GATES: >-
+            docs:${{ needs.plan.outputs.site }}:${{ needs.docs.result }}
+            build:${{ needs.plan.outputs.build }}:${{ needs.build.result }}
+            consumer-smoke:${{ needs.plan.outputs.dotnet }}:${{ needs.consumer-smoke.result }}
+            test:${{ needs.plan.outputs.dotnet }}:${{ needs.test.result }}
+            coverage:${{ needs.plan.outputs.dotnet }}:${{ needs.coverage.result }}
         run: |
           if [ "${RUN}" != "true" ]; then
             echo "Skipped: the push run of this commit is the check of record."
             exit 0
           fi
-          for result in ${RESULTS}; do
-            if [ "${result}" != "success" ]; then
-              echo "::error::A CI gate did not succeed (docs, build, consumer smoke, test, coverage: ${RESULTS})."
-              exit 1
+          failed=0
+          for gate in ${GATES}; do
+            IFS=: read -r name needed result <<< "${gate}"
+            if [ "${needed}" = "true" ]; then
+              if [ "${result}" != "success" ]; then
+                echo "::error::The ${name} gate was needed by this change and ended ${result}."
+                failed=1
+              else
+                echo "${name}: passed"
+              fi
+            elif [ "${result}" = "skipped" ] || [ "${result}" = "success" ]; then
+              echo "${name}: not needed by this change (${result})"
+            else
+              echo "::error::The ${name} gate was not needed but ended ${result}."
+              failed=1
             fi
           done
-          echo "Every gate passed."
+          exit "${failed}"
