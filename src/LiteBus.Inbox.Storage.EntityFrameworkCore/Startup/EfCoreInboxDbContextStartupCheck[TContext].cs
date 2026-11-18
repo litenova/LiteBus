@@ -74,8 +74,9 @@ public sealed class EfCoreInboxDbContextStartupCheck<TContext> : IStartupTask
 
             throw new DurableStorageConfigurationException(
                 $"The Entity Framework Core inbox store is configured with database context '{contextName}', " +
-                "but resolving it from a new scope failed. Register the scoped context with the application " +
-                $"container, for example services.AddDbContext<{contextName}>(options => ...), so the inbox " +
+                "but resolving it from a new scope failed. Register it with the application container, for example " +
+                $"services.AddDbContextFactory<{contextName}>(options => ...), which registers the factory and the scoped " +
+                "context, so the inbox " +
                 "store and transactional writers can resolve it.");
         }
     }

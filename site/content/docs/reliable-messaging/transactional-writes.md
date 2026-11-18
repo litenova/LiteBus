@@ -100,9 +100,9 @@ Install `LiteBus.Outbox.Storage.EntityFrameworkCore` and/or `LiteBus.Inbox.Stora
 
 `OrdersDbContext` must implement `IOutboxDbContext` and expose `DbSet<OutboxMessageEntity>`. For full schema steps, see [Outbox Entity Framework Core Storage](../integrations/outbox-ef-core-storage.md).
 
-Register both the factory and the scoped context.
+Register the context with `AddDbContextFactory<OrdersDbContext>`, with the provider and the interceptor in its options.
 
-The factory (`IDbContextFactory<OrdersDbContext>`) supplies operation contexts to the singleton LiteBus store. `ITransactionalOutbox<OrdersDbContext>` resolves the scoped `OrdersDbContext` from the current scope. Factory-only registration cannot satisfy the transactional path. LiteBus does not create an `IServiceScope` inside the EF Core store.
+The factory (`IDbContextFactory<OrdersDbContext>`) supplies operation contexts to the singleton LiteBus store, and the same call registers `OrdersDbContext` as a scoped service, which `ITransactionalOutbox<OrdersDbContext>` resolves from the current scope. When the application also calls `AddDbContext<OrdersDbContext>`, pass `optionsLifetime: ServiceLifetime.Singleton`, because the singleton factory must not read scoped option configuration; scope validation, on by default in Development, rejects that combination. LiteBus does not create an `IServiceScope` inside the EF Core store.
 
 `EnforceTransactionalSetup()` is a fail-fast guard. When `EnableSaveChangesInterceptor()` was not called, module build throws. A missing interceptor registration therefore fails at startup instead of at the first save.
 

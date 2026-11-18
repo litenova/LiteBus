@@ -14,17 +14,11 @@ using Microsoft.EntityFrameworkCore;
 // <docs-snippet efcore-outbox-program>
 var builder = WebApplication.CreateBuilder(args);
 
-// Required: scoped context for the transactional path. ITransactionalOutbox<OrdersDbContext>
-// resolves this context from the current scope. Factory-only registration cannot satisfy it.
+// Required: one factory registration. EfCoreOutboxStore creates and disposes one context per
+// operation through IDbContextFactory<OrdersDbContext>, and the same call registers
+// OrdersDbContext as a scoped service, which ITransactionalOutbox<OrdersDbContext> resolves.
 // Configure the database provider (such as options.UseNpgsql(connectionString)) in this
 // lambda alongside the interceptor.
-builder.Services.AddDbContext<OrdersDbContext>((serviceProvider, options) =>
-    options.AddLiteBusOutboxInterceptor(
-        serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
-
-// Required: factory for the singleton store. EfCoreOutboxStore creates and disposes one
-// context per operation through IDbContextFactory<OrdersDbContext>. Configure the same
-// provider and interceptor here as on the scoped registration above.
 builder.Services.AddDbContextFactory<OrdersDbContext>((serviceProvider, options) =>
     options.AddLiteBusOutboxInterceptor(
         serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
@@ -65,7 +59,7 @@ builder.Services.AddLiteBus(liteBus =>
             ef.UseDbContext<OrdersDbContext>();
 
             // Required: registers LiteBusOutboxSaveChangesInterceptor in DI so the
-            // AddDbContext and AddDbContextFactory calls above can attach it.
+            // AddDbContextFactory call above can attach it.
             ef.EnableSaveChangesInterceptor();
 
             // Optional but recommended: fails module build when EnableSaveChangesInterceptor

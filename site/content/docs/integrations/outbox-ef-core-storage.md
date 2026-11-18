@@ -12,7 +12,7 @@ For Npgsql outbox storage and shared PostgreSQL schema helpers, see [PostgreSQL 
 
 ## Registration
 
-Register with the complete file on [ASP.NET Core with EF Core Outbox Registration](../getting-started/aspnetcore-efcore-outbox.md), which marks every statement required or optional with the failure mode of omitting it. The complete file registers both the scoped context (`AddDbContext`) and the factory (`AddDbContextFactory`), each with the outbox interceptor attached. Factory-only registration cannot satisfy `ITransactionalOutbox<TContext>`, which resolves the scoped context from the current scope.
+Register with the complete file on [ASP.NET Core with EF Core Outbox Registration](../getting-started/aspnetcore-efcore-outbox.md), which marks every statement required or optional with the failure mode of omitting it. The complete file registers the context once with `AddDbContextFactory`, with the outbox interceptor attached. That call also registers the scoped context `ITransactionalOutbox<TContext>` resolves from the current scope. An application that also calls `AddDbContext` passes `optionsLifetime: ServiceLifetime.Singleton`.
 
 `AppDbContext` must implement `IOutboxDbContext` and expose `DbSet<OutboxMessageEntity> OutboxMessages`. The adapter requires `IDbContextFactory<AppDbContext>` and owns one context per store operation.
 

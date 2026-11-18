@@ -32,17 +32,11 @@ The semantic `*.Extensions.Microsoft.DependencyInjection` packages pull in the m
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-// Required: scoped context for the transactional path. ITransactionalOutbox<OrdersDbContext>
-// resolves this context from the current scope. Factory-only registration cannot satisfy it.
+// Required: one factory registration. EfCoreOutboxStore creates and disposes one context per
+// operation through IDbContextFactory<OrdersDbContext>, and the same call registers
+// OrdersDbContext as a scoped service, which ITransactionalOutbox<OrdersDbContext> resolves.
 // Configure the database provider (such as options.UseNpgsql(connectionString)) in this
 // lambda alongside the interceptor.
-builder.Services.AddDbContext<OrdersDbContext>((serviceProvider, options) =>
-    options.AddLiteBusOutboxInterceptor(
-        serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
-
-// Required: factory for the singleton store. EfCoreOutboxStore creates and disposes one
-// context per operation through IDbContextFactory<OrdersDbContext>. Configure the same
-// provider and interceptor here as on the scoped registration above.
 builder.Services.AddDbContextFactory<OrdersDbContext>((serviceProvider, options) =>
     options.AddLiteBusOutboxInterceptor(
         serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
@@ -83,7 +77,7 @@ builder.Services.AddLiteBus(liteBus =>
             ef.UseDbContext<OrdersDbContext>();
 
             // Required: registers LiteBusOutboxSaveChangesInterceptor in DI so the
-            // AddDbContext and AddDbContextFactory calls above can attach it.
+            // AddDbContextFactory call above can attach it.
             ef.EnableSaveChangesInterceptor();
 
             // Optional but recommended: fails module build when EnableSaveChangesInterceptor
@@ -161,10 +155,9 @@ The two context lambdas show the interceptor call only; the compiled snippet beh
 
 | Statement | Required or optional | Failure mode of omitting it |
 | --- | --- | --- |
-| `AddDbContext<OrdersDbContext>` with the interceptor | Required | Factory-only registration cannot satisfy the transactional path: resolving `ITransactionalOutbox<OrdersDbContext>` fails because no scoped `OrdersDbContext` is registered. See [Transactional Messaging Writes](../reliable-messaging/transactional-writes.md). |
-| `AddDbContextFactory<OrdersDbContext>` with the interceptor | Required | The singleton store has no `IDbContextFactory<OrdersDbContext>` to create operation contexts, so background reads, leases, and processor writes fail. |
-| Interceptor on both registrations | Required | Envelopes queued on a context whose options lack the interceptor are never flushed into `OutboxMessages` during `SavingChanges`: the domain change commits and the event is silently lost. |
-| Provider call (such as `UseNpgsql`) inside both lambdas | Required | Without a provider the context has no database to connect to, so every read and write fails when the context is first used. |
+| `AddDbContextFactory<OrdersDbContext>` with the interceptor | Required | The singleton store has no `IDbContextFactory<OrdersDbContext>` to create operation contexts, and no scoped `OrdersDbContext` is registered, so background reads, leases and processor writes fail and the startup check stops the host naming the missing registration. The same call registers the scoped context that `ITransactionalOutbox<OrdersDbContext>` resolves. If the application also calls `AddDbContext<OrdersDbContext>`, pass `optionsLifetime: ServiceLifetime.Singleton`; otherwise the singleton factory reads scoped option configuration and scope validation fails in Development. |
+| Interceptor on the factory registration | Required | Envelopes queued on a context whose options lack the interceptor are never flushed into `OutboxMessages` during `SavingChanges`: the domain change commits and the event is silently lost. |
+| Provider call (such as `UseNpgsql`) inside the factory lambda | Required | Without a provider the context has no database to connect to, so every read and write fails when the context is first used. |
 | `AddMessaging` | Required | Composition fails: the outbox module requires the messaging module and no semantic module registers it. See [Getting Started](README.md). |
 | `RegisterFromAssembly` on commands and events | Required | Handlers are unknown: commands have no handler at mediation time, and in-process dispatch finds no subscriber for stored events. |
 | `UseUnitOfWork<OrderUnitOfWork>` | Required | Nothing commits the staged work after a successful mediation, and `EnableImmediateDispatch` fails composition without a registered `IUnitOfWork`. See [Domain Events and Unit of Work](../reliable-messaging/domain-events-and-unit-of-work.md). |

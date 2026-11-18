@@ -498,7 +498,7 @@ Composition rejects configurations that would silently do the wrong thing at run
 
 In-process outbox dispatch treats an envelope with no handler as a failure unless the application acknowledges it. `AllowEnvelopesWithoutHandler(string reason)` on `InProcessOutboxDispatchOptionsBuilder` records the acknowledgement; the options keep a get-only `RequireHandler` and carry the reason as `MissingHandlerReason`. A startup task logs the reason at Warning level, and `LiteBusCompositionSummary` lists the relaxed safeguard, so the choice stays visible in production logs and in the startup summary.
 
-Entity Framework Core storage modules verify their database context before serving traffic. The outbox and inbox EF Core storage modules register a startup task that resolves the configured `TContext` from a new scope and fails startup with a message naming the missing `AddDbContext<TContext>` call when it cannot be resolved. Resolving `ITransactionalOutbox<X>` for a context with no `UseDbContext<X>()` call throws `LiteBusConfigurationException` naming that call instead of failing on the first enqueue.
+Entity Framework Core storage modules verify their database context before serving traffic. The outbox and inbox EF Core storage modules register a startup task that resolves the configured `TContext` from a new scope and fails startup with a message naming the missing `AddDbContextFactory<TContext>` registration when it cannot be resolved. Resolving `ITransactionalOutbox<X>` for a context with no `UseDbContext<X>()` call throws `LiteBusConfigurationException` naming that call instead of failing on the first enqueue.
 
 ### Planned Capabilities
 

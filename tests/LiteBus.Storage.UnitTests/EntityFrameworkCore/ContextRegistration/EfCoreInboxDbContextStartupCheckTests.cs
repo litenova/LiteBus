@@ -58,14 +58,14 @@ public sealed class EfCoreInboxDbContextStartupCheckTests
         var act = async () => await check.RunAsync(CancellationToken.None).ConfigureAwait(false);
 
         var thrown = await act.Should().ThrowAsync<LiteBusConfigurationException>().ConfigureAwait(false);
-        thrown.WithMessage("*AddDbContext<OrdersDbContext>*");
+        thrown.WithMessage("*AddDbContextFactory<OrdersDbContext>*");
     }
 
     /// <summary>
-    ///     Confirms the check completes when the scoped context is registered.
+    ///     Confirms the check completes with only a factory registration, which also registers the scoped context.
     /// </summary>
     [Fact]
-    public async Task RunAsync_WithScopedContextRegistration_ShouldComplete()
+    public async Task RunAsync_WithFactoryRegistration_ShouldComplete()
     {
         var databaseName = Guid.NewGuid().ToString("N");
 
@@ -80,7 +80,6 @@ public sealed class EfCoreInboxDbContextStartupCheckTests
                 registry.AddInbox(inbox => inbox.UseEntityFrameworkCoreStorage(builder =>
                     builder.UseDbContext<OrdersDbContext>()));
             })
-            .AddDbContext<OrdersDbContext>(options => options.UseInMemoryDatabase(databaseName))
             .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
 
         var check = new EfCoreInboxDbContextStartupCheck<OrdersDbContext>(provider);
