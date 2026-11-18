@@ -55,13 +55,8 @@ build2.txt
 BenchmarkDotNet.Artifacts/
 release-notes.md
 
-# Fumadocs site dependencies and build output
+# Site dependencies (site/.gitignore covers the build output)
 site/node_modules/
-site/.next/
-site/*.tsbuildinfo
-
-# Vercel local project metadata
-.vercel/
 
 # Local tooling caches
 .fuse/

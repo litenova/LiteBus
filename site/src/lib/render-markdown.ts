@@ -177,12 +177,12 @@ export async function renderPage(page: DocPage): Promise<RenderedPage> {
 }
 
 /**
- * Highlights one snippet to HTML, with the same classes as page code blocks.
+ * Highlights one snippet to a bare Shiki listing, with the same token classes as page code blocks.
  *
- * The home page shows registration snippets outside any documentation page; they run through the same processor and
- * the same figure wrapper so they read as one with the pages.
+ * The home page shows registration snippets inside its own editor window, which already carries a title bar, so the
+ * snippet gets no code-block figure, language strip or copy button of its own.
  */
 export async function highlight(code: string, lang: string): Promise<string> {
   const { code: html } = await (await renderer()).render(`\`\`\`${lang}\n${code}\n\`\`\``);
-  return decorateCodeBlocks(html);
+  return html;
 }

@@ -525,6 +525,9 @@
   display: block;
   min-width: max-content;
   counter-reset: ln;
+  /* Shiki separates the line spans with newlines; each .line is already a block, so those newlines collapse here
+     and every line keeps its own white-space: pre. */
+  white-space: normal;
 }
 .stepper .file .line {
   display: block;

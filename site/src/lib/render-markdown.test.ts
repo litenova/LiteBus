@@ -89,11 +89,10 @@ describe("diagrams", () => {
 });
 
 describe("highlight", () => {
-  it("highlights a snippet with the page code-block classes", async () => {
+  it("highlights a snippet as a bare listing without the code-block figure", async () => {
     const html = await highlight("var x = 1;", "csharp");
-    assert.ok(html.includes('<figure class="code-block"'), html);
-    assert.ok(html.includes('<span class="code-lang">C#</span>'), html);
-    assert.ok(html.includes('<button type="button" class="btn btn-ghost btn-sm code-copy"'), html);
-    assert.ok(html.includes('data-copy="var x = 1;"'), html);
+    assert.ok(/<pre[^>]*class="[^"]*astro-code/.test(html), html);
+    assert.ok(!html.includes("code-block"), html);
+    assert.ok(!html.includes("code-copy"), html);
   });
 });
