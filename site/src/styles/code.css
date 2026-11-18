@@ -7,7 +7,7 @@
    active scheme. Every color is a token from site.css. */
 
 .prose .code-block {
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--code-bg);
   margin: var(--space-block) 0;
@@ -27,7 +27,8 @@
   gap: var(--gap-inline);
   height: 36px;
   padding: 0 var(--space-1) 0 var(--pad-box-x);
-  background: var(--muted-strong);
+  /* Dark keeps the deeper --muted-strong strip one step below the listing body. */
+  background: light-dark(var(--ink-100), var(--muted-strong));
   border-bottom: 1px solid var(--border);
 }
 

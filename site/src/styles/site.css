@@ -42,9 +42,11 @@
   --slate-50: #eff3f7; --slate-200: #cad6e4; --slate-700: #435a78;
   --clay-50: #fbf0eb; --clay-200: #efcdbf; --clay-700: #97492e;
 
-  --bg: var(--ink-0); --outside: var(--ink-100); --rail: var(--ink-300); --border: var(--ink-200); --input: var(--ink-300);
-  /* --muted-fg on --bg 6.75:1, on --muted 6.20:1; --fg 18.02:1 and --fg-2 11.58:1 on --bg. */
-  --muted: var(--ink-50); --muted-strong: var(--ink-25); --muted-fg: var(--ink-550); --faint: var(--ink-500); --fg: var(--ink-900); --fg-2: var(--ink-700);
+  /* Structural line #cfc7bd on #ffffff 1.67:1, on #f7f5f2 1.54:1, on #fff9e8 1.59:1. */
+  --bg: var(--ink-0); --outside: var(--ink-100); --rail: var(--ink-300); --border: var(--ink-200); --line: var(--ink-300); --input: var(--ink-300);
+  /* --muted-fg on --bg 7.79:1, on --muted 7.16:1, on --hover 6.56:1; --fg 18.02:1 and --fg-2 11.58:1 on --bg. */
+  /* Sidebar hover fill #efebe6; --fg on it 15.18:1. */
+  --muted: var(--ink-50); --muted-strong: var(--ink-25); --muted-fg: var(--ink-600); --hover: var(--ink-100); --faint: var(--ink-500); --fg: var(--ink-900); --fg-2: var(--ink-700);
   /* White on --primary 15.07:1. */
   --primary: var(--ink-800); --primary-hover: var(--ink-700); --primary-fg: var(--ink-0);
   /* --accent is decoration only (1.66:1 on --bg); --accent-text on --bg 5.93:1, on --muted 5.45:1. */
@@ -54,7 +56,8 @@
   --conv-bg: var(--sage-50); --conv-bd: var(--sage-200); --conv-fg: var(--sage-700);
   --pat-bg: var(--slate-50); --pat-bd: var(--slate-200); --pat-fg: var(--slate-700);
   --warn-bg: var(--clay-50); --warn-bd: var(--clay-200); --warn-fg: var(--clay-700);
-  --code-bg: var(--ink-0);
+  /* Listing body #f7f5f2 on page #ffffff 1.09:1: a faint tint, the frame carries it. */
+  --code-bg: var(--ink-50);
   --mark-ink: var(--ink-700); --mark-symbol: var(--brand-300);
 
   /* Spacing: one 4px scale, and the roles every component uses. A padding,
@@ -82,34 +85,40 @@
   color-scheme: light;
 }
 
-/* Dark scheme. --muted-fg on --bg 7.74:1, on --muted 7.14:1; --fg 16.36:1 and
-   --fg-2 11.21:1 on --bg; --accent-text 11.17:1 on --bg, 10.31:1 on --muted;
+/* Dark scheme. --muted-fg on --bg 9.05:1, on --muted 8.35:1, on --muted-strong 8.70:1;
+   --fg 16.36:1 and --fg-2 11.21:1 on --bg; --accent-text 11.17:1 on --bg, 10.31:1 on --muted;
    --rule-fg 13.07:1, --conv-fg 10.31:1, --pat-fg 10.02:1, --warn-fg 8.85:1 on --bg. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #151217; --outside: #0b090c; --rail: #4a424f; --border: #2c2630; --input: #3a333f;
-    --muted: #1e1a21; --muted-strong: #1a161c; --muted-fg: #aea69e; --faint: #7d756f; --fg: #f4f0ea; --fg-2: #cfc8c0;
+    /* Structural line #3a333f (matches --input) on #151217 1.53:1, on #1e1a21 1.41:1. */
+    --bg: #151217; --outside: #0b090c; --rail: #4a424f; --border: #2c2630; --line: #3a333f; --input: #3a333f;
+    /* Sidebar hover fill #2c2630 (the inner-divider step) on #151217 1.26:1; --fg on it 12.96:1. */
+    --muted: #1e1a21; --muted-strong: #1a161c; --muted-fg: #bcb4a8; --hover: #2c2630; --faint: #7d756f; --fg: #f4f0ea; --fg-2: #cfc8c0;
     --primary: #f4f0ea; --primary-hover: var(--ink-200); --primary-fg: #19151c;
     --accent-text: var(--brand-300); --accent-soft: #fdbf0029; --accent-subtle: #fdbf0014;
     --rule-bg: #fdbf0014; --rule-bd: #fdbf0040; --rule-fg: #f5d67a;
     --conv-bg: #8fb08414; --conv-bd: #8fb08440; --conv-fg: #adc9a3;
     --pat-bg: #8aa3c414; --pat-bd: #8aa3c440; --pat-fg: #adc0da;
     --warn-bg: #d0866814; --warn-bd: #d0866840; --warn-fg: #e2a58f;
-    --code-bg: #1a161c;
+    /* Listing body #1e1a21 on page #151217 1.08:1: a faint tint, the frame carries it. */
+    --code-bg: var(--muted);
     --mark-ink: #e6e3ea;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #151217; --outside: #0b090c; --rail: #4a424f; --border: #2c2630; --input: #3a333f;
-  --muted: #1e1a21; --muted-strong: #1a161c; --muted-fg: #aea69e; --faint: #7d756f; --fg: #f4f0ea; --fg-2: #cfc8c0;
+  /* Structural line #3a333f (matches --input) on #151217 1.53:1, on #1e1a21 1.41:1. */
+  --bg: #151217; --outside: #0b090c; --rail: #4a424f; --border: #2c2630; --line: #3a333f; --input: #3a333f;
+  /* Sidebar hover fill #2c2630 (the inner-divider step) on #151217 1.26:1; --fg on it 12.96:1. */
+  --muted: #1e1a21; --muted-strong: #1a161c; --muted-fg: #bcb4a8; --hover: #2c2630; --faint: #7d756f; --fg: #f4f0ea; --fg-2: #cfc8c0;
   --primary: #f4f0ea; --primary-hover: var(--ink-200); --primary-fg: #19151c;
   --accent-text: var(--brand-300); --accent-soft: #fdbf0029; --accent-subtle: #fdbf0014;
   --rule-bg: #fdbf0014; --rule-bd: #fdbf0040; --rule-fg: #f5d67a;
   --conv-bg: #8fb08414; --conv-bd: #8fb08440; --conv-fg: #adc9a3;
   --pat-bg: #8aa3c414; --pat-bd: #8aa3c440; --pat-fg: #adc0da;
   --warn-bg: #d0866814; --warn-bd: #d0866840; --warn-fg: #e2a58f;
-  --code-bg: #1a161c;
+  /* Listing body #1e1a21 on page #151217 1.08:1: a faint tint, the frame carries it. */
+  --code-bg: var(--muted);
   --mark-ink: #e6e3ea;
   color-scheme: dark;
 }
@@ -156,14 +165,14 @@ a, button, summary, .btn { transition: color .12s, background-color .12s, border
 /* Header */
 .site-top { position: sticky; top: 0; z-index: 20; height: var(--top); background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 .site-top::after, .site-foot::before { content: ""; position: absolute; inset-inline-start: 50%; width: 100vw; height: 1px; translate: -50% 0; background: var(--border); pointer-events: none; }
-.site-top::after { bottom: -1px; }
+.site-top::after { bottom: -1px; background: var(--line); }
 .site-foot { position: relative; }
 .site-foot::before { top: -1px; }
 .site-top .wrap { height: 100%; display: flex; align-items: center; gap: var(--space-8); }
 .logo { display: flex; align-items: center; gap: var(--gap-inline); min-height: 32px; }
 .logo-name { font-size: 0.9375rem; font-weight: 600; letter-spacing: -0.01em; }
 .mark { flex: none; }
-.site-nav { display: flex; gap: var(--space-6); font-size: 0.875rem; color: var(--muted-fg); }
+.site-nav { display: flex; gap: var(--space-6); font-size: 0.875rem; color: var(--fg-2); }
 .site-nav a { position: relative; height: var(--top); display: flex; align-items: center; }
 .site-nav a:hover { color: var(--fg); }
 .site-nav a[aria-current="page"] { color: var(--fg); font-weight: 500; }
