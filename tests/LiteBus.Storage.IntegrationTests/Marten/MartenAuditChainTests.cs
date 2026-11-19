@@ -2,9 +2,17 @@ using System.Data;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using LiteBus.Commands.Storage.Marten;
+using LiteBus.Auditing;
+using LiteBus.Auditing.Abstractions;
+using LiteBus.Auditing.Checkpoints;
+using LiteBus.Auditing.Engine;
+using LiteBus.Auditing.Hashing;
+using LiteBus.Auditing.Linking;
+using LiteBus.Auditing.Segments;
+using LiteBus.Auditing.Storage.Marten;
+using LiteBus.Auditing.Verification;
 using LiteBus.Messaging.Abstractions.Auditing;
-using LiteBus.Messaging.Audit;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Storage.IntegrationTests.PostgreSql;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,24 +44,26 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         var category = $"cut-{Guid.NewGuid():N}";
         var segment = $"{category}/2026";
         var publisher = new RecordingCheckpointPublisher();
-        var options = new MartenAuditTrailOptions();
-        options.UseHashChain(chain => chain
-            .SignCheckpointsWith(new HashEchoCheckpointSigner())
-            .PublishCheckpointsTo(publisher));
+        var signer = new HashEchoCheckpointSigner();
+        var harness = MartenChainHarness.Create(
+            documentStore,
+            chain => chain
+                .UseScheme(MartenAuditHashSchemes.Sha256V1.Name)
+                .SignCheckpointsWith<HashEchoCheckpointSigner>()
+                .PublishCheckpointsTo<RecordingCheckpointPublisher>(),
+            services =>
+            {
+                services.AddSingleton(signer);
+                services.AddSingleton(publisher);
+            });
+        await using var configuredHarness = harness.ConfigureAwait(false);
 
-        var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-        await using (session.ConfigureAwait(false))
-        {
-            var trail = new MartenAuditTrail(session, documentStore, options);
-
-            await trail.WriteAsync(FailedRecord("orders.place-order", category)).ConfigureAwait(false);
-            await trail.WriteAsync(FailedRecord("orders.reserve-stock", category)).ConfigureAwait(false);
-            await trail.WriteAsync(FailedRecord("orders.charge-card", category)).ConfigureAwait(false);
-        }
+        await harness.WriteAsync(FailedRecord("orders.place-order", category), segment).ConfigureAwait(false);
+        await harness.WriteAsync(FailedRecord("orders.reserve-stock", category), segment).ConfigureAwait(false);
+        await harness.WriteAsync(FailedRecord("orders.charge-card", category), segment).ConfigureAwait(false);
 
         var records = await FindAuditsAsync(documentStore, segment).ConfigureAwait(false);
-        var checkpoints = new MartenAuditChain(documentStore, options);
-        var checkpoint = await checkpoints.CutCheckpointAsync(segment).ConfigureAwait(false);
+        var checkpoint = await harness.CutAndPublishAsync(segment).ConfigureAwait(false);
 
         checkpoint.Segment.Should().Be(segment);
         checkpoint.Sequence.Should().Be(3);
@@ -66,8 +76,17 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         checkpoint.Signature!.Scheme.Should().Be("test-echo");
         checkpoint.CreatedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(1));
 
-        publisher.Published.Should().ContainSingle();
-        publisher.Published[0].Should().Be(checkpoint);
+        // The publisher receives the checkpoint read back from the store, whose timestamp loses
+        // sub-microsecond precision, so the published checkpoint is compared field by field.
+        var published = publisher.Published.Should().ContainSingle().Subject;
+        published.Id.Should().Be(checkpoint.Id);
+        published.Sequence.Should().Be(checkpoint.Sequence);
+        published.Count.Should().Be(checkpoint.Count);
+        published.Hash.Should().Be(checkpoint.Hash);
+        published.HashScheme.Should().Be(checkpoint.HashScheme);
+        published.Kind.Should().Be(checkpoint.Kind);
+        published.Signature.Should().Be(checkpoint.Signature);
+        published.CreatedAt.Should().BeCloseTo(checkpoint.CreatedAt, TimeSpan.FromMilliseconds(1));
 
         var stored = await FindCheckpointsAsync(documentStore, segment).ConfigureAwait(false);
         stored.Should().ContainSingle();
@@ -85,7 +104,7 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         head.LastCheckpointAt.Should().NotBeNull();
         head.LastCheckpointAt!.Value.Should().BeCloseTo(checkpoint.CreatedAt, TimeSpan.FromMilliseconds(1));
 
-        var verification = await checkpoints.VerifyAsync(segment).ConfigureAwait(false);
+        var verification = await harness.Chain.VerifyAsync(segment).ConfigureAwait(false);
         verification.IsIntact.Should().BeTrue();
         verification.LatestCheckpoint.Should().NotBeNull();
         verification.LatestCheckpoint!.Id.Should().Be(checkpoint.Id);
@@ -100,10 +119,12 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         var documentStore = CreateDocumentStore();
         await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
         var segment = $"missing-{Guid.NewGuid():N}/2026";
-        var options = new MartenAuditTrailOptions().UseHashChain();
-        var checkpoints = new MartenAuditChain(documentStore, options);
+        var harness = MartenChainHarness.Create(
+            documentStore,
+            chain => chain.UseScheme(MartenAuditHashSchemes.Sha256V1.Name));
+        await using var configuredHarness = harness.ConfigureAwait(false);
 
-        var cut = () => checkpoints.CutCheckpointAsync(segment);
+        var cut = () => harness.Chain.CutCheckpointAsync(segment);
         var thrown = await cut.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
         thrown.WithMessage("*holds no records*");
     }
@@ -118,28 +139,29 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         var remainingCategory = $"remaining-{Guid.NewGuid():N}";
         var remainingSegment = $"{remainingCategory}/2026";
         var publisher = new RecordingCheckpointPublisher();
-        var options = new MartenAuditTrailOptions();
-        options.UseHashChain(chain => chain.PublishCheckpointsTo(publisher));
+        var harness = MartenChainHarness.Create(
+            documentStore,
+            chain => chain
+                .UseScheme(MartenAuditHashSchemes.Sha256V1.Name)
+                .PublishCheckpointsTo<RecordingCheckpointPublisher>(),
+            services => services.AddSingleton(publisher));
+        await using var configuredHarness = harness.ConfigureAwait(false);
 
-        var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-        await using (session.ConfigureAwait(false))
-        {
-            var trail = new MartenAuditTrail(session, documentStore, options);
+        await harness.WriteAsync(FailedRecord("orders.place-order", expiringCategory), expiringSegment).ConfigureAwait(false);
+        await harness.WriteAsync(FailedRecord("orders.reserve-stock", expiringCategory), expiringSegment).ConfigureAwait(false);
+        await harness.WriteAsync(FailedRecord("ledger.post-entry", remainingCategory), remainingSegment).ConfigureAwait(false);
 
-            await trail.WriteAsync(FailedRecord("orders.place-order", expiringCategory)).ConfigureAwait(false);
-            await trail.WriteAsync(FailedRecord("orders.reserve-stock", expiringCategory)).ConfigureAwait(false);
-            await trail.WriteAsync(FailedRecord("ledger.post-entry", remainingCategory)).ConfigureAwait(false);
-        }
-
-        var checkpoints = new MartenAuditChain(documentStore, options);
-        var final = await checkpoints.ExpireSegmentAsync(expiringSegment).ConfigureAwait(false);
+        var final = await harness.Chain.ExpireSegmentAsync(expiringSegment).ConfigureAwait(false);
 
         final.Segment.Should().Be(expiringSegment);
         final.Sequence.Should().Be(2);
         final.Count.Should().Be(2);
         final.Kind.Should().Be(AuditCheckpointKind.Final);
-        publisher.Published.Should().ContainSingle();
-        publisher.Published[0].Should().Be(final);
+
+        var published = publisher.Published.Should().ContainSingle().Subject;
+        published.Id.Should().Be(final.Id);
+        published.Kind.Should().Be(AuditCheckpointKind.Final);
+        published.Sequence.Should().Be(final.Sequence);
 
         var expiredRecords = await FindAuditsAsync(documentStore, expiringSegment).ConfigureAwait(false);
         expiredRecords.Should().BeEmpty();
@@ -154,82 +176,67 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         var remainingRecords = await FindAuditsAsync(documentStore, remainingSegment).ConfigureAwait(false);
         remainingRecords.Should().ContainSingle();
 
-        var remaining = await checkpoints.VerifyAsync(remainingSegment).ConfigureAwait(false);
+        await harness.CutAndPublishAsync(remainingSegment).ConfigureAwait(false);
+        var remaining = await harness.Chain.VerifyAsync(remainingSegment).ConfigureAwait(false);
         remaining.IsIntact.Should().BeTrue();
     }
 
     [SkippableFact]
-    public async Task ExpireSegmentAsync_is_idempotent()
+    public async Task ExpireSegmentAsync_twice_throws_and_publishes_once()
     {
         var documentStore = CreateDocumentStore();
         await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
         var category = $"expire-twice-{Guid.NewGuid():N}";
         var segment = $"{category}/2026";
         var publisher = new RecordingCheckpointPublisher();
-        var options = new MartenAuditTrailOptions();
-        options.UseHashChain(chain => chain.PublishCheckpointsTo(publisher));
+        var harness = MartenChainHarness.Create(
+            documentStore,
+            chain => chain
+                .UseScheme(MartenAuditHashSchemes.Sha256V1.Name)
+                .PublishCheckpointsTo<RecordingCheckpointPublisher>(),
+            services => services.AddSingleton(publisher));
+        await using var configuredHarness = harness.ConfigureAwait(false);
 
-        var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-        await using (session.ConfigureAwait(false))
-        {
-            var trail = new MartenAuditTrail(session, documentStore, options);
-            await trail.WriteAsync(FailedRecord("orders.place-order", category)).ConfigureAwait(false);
-        }
+        await harness.WriteAsync(FailedRecord("orders.place-order", category), segment).ConfigureAwait(false);
 
-        var checkpoints = new MartenAuditChain(documentStore, options);
-        var first = await checkpoints.ExpireSegmentAsync(segment).ConfigureAwait(false);
-        var second = await checkpoints.ExpireSegmentAsync(segment).ConfigureAwait(false);
+        var first = await harness.Chain.ExpireSegmentAsync(segment).ConfigureAwait(false);
+        first.Kind.Should().Be(AuditCheckpointKind.Final);
 
-        second.Id.Should().Be(first.Id);
-        second.Kind.Should().Be(AuditCheckpointKind.Final);
-        second.Sequence.Should().Be(first.Sequence);
+        var again = () => harness.Chain.ExpireSegmentAsync(segment);
+        var thrown = await again.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
+        thrown.WithMessage("*expired already*");
+
         publisher.Published.Should().ContainSingle();
     }
 
     [SkippableFact]
-    public async Task ExpireSegmentAsync_after_a_publish_failure_republishes_the_same_checkpoint_and_deletes()
+    public async Task ExpireSegmentAsync_with_a_publish_failure_records_the_error_and_republishes_on_retry()
     {
         var documentStore = CreateDocumentStore();
         await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
         var category = $"expire-retry-{Guid.NewGuid():N}";
         var segment = $"{category}/2026";
         var publisher = new FailOnceCheckpointPublisher();
-        var options = new MartenAuditTrailOptions();
-        options.UseHashChain(chain => chain.PublishCheckpointsTo(publisher));
+        var harness = MartenChainHarness.Create(
+            documentStore,
+            chain => chain
+                .UseScheme(MartenAuditHashSchemes.Sha256V1.Name)
+                .PublishCheckpointsTo<FailOnceCheckpointPublisher>(),
+            services => services.AddSingleton(publisher));
+        await using var configuredHarness = harness.ConfigureAwait(false);
 
-        var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-        await using (session.ConfigureAwait(false))
-        {
-            var trail = new MartenAuditTrail(session, documentStore, options);
+        await harness.WriteAsync(FailedRecord("orders.place-order", category), segment).ConfigureAwait(false);
+        await harness.WriteAsync(FailedRecord("orders.reserve-stock", category), segment).ConfigureAwait(false);
 
-            await trail.WriteAsync(FailedRecord("orders.place-order", category)).ConfigureAwait(false);
-            await trail.WriteAsync(FailedRecord("orders.reserve-stock", category)).ConfigureAwait(false);
-        }
+        // A publisher failure no longer fails the expiry: the error is recorded on the checkpoint
+        // and the expiry completes, so the retry publishes the same checkpoint afterwards.
+        var final = await harness.Chain.ExpireSegmentAsync(segment).ConfigureAwait(false);
 
-        var checkpoints = new MartenAuditChain(documentStore, options);
-        var expire = () => checkpoints.ExpireSegmentAsync(segment);
-        var thrown = await expire.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
-        thrown.WithMessage("*publisher*");
-
-        publisher.Published.Should().BeEmpty();
-
-        var retained = await FindAuditsAsync(documentStore, segment).ConfigureAwait(false);
-        retained.Select(record => record.Sequence).Should().Equal(1L, 2L);
-
-        var openHead = await LoadHeadAsync(documentStore, segment).ConfigureAwait(false);
-        openHead!.Expired.Should().BeFalse();
-
-        var stored = await FindCheckpointsAsync(documentStore, segment).ConfigureAwait(false);
-        var final = stored.Should().ContainSingle().Subject;
-        final.Kind.Should().Be(AuditCheckpointKind.Final);
+        final.Segment.Should().Be(segment);
         final.Sequence.Should().Be(2);
-
-        var retried = await checkpoints.ExpireSegmentAsync(segment).ConfigureAwait(false);
-
-        retried.Id.Should().Be(final.Id);
-        retried.Kind.Should().Be(AuditCheckpointKind.Final);
-        publisher.Published.Should().ContainSingle();
-        publisher.Published[0].Id.Should().Be(final.Id);
+        final.Count.Should().Be(2);
+        final.Kind.Should().Be(AuditCheckpointKind.Final);
+        publisher.Published.Should().BeEmpty();
 
         var expiredRecords = await FindAuditsAsync(documentStore, segment).ConfigureAwait(false);
         expiredRecords.Should().BeEmpty();
@@ -237,9 +244,26 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         var expiredHead = await LoadHeadAsync(documentStore, segment).ConfigureAwait(false);
         expiredHead!.Expired.Should().BeTrue();
 
-        var again = await checkpoints.ExpireSegmentAsync(segment).ConfigureAwait(false);
-        again.Id.Should().Be(final.Id);
-        publisher.Published.Should().ContainSingle();
+        var stored = await FindCheckpointsAsync(documentStore, segment).ConfigureAwait(false);
+        var failed = stored.Should().ContainSingle().Subject;
+        failed.Kind.Should().Be(AuditCheckpointKind.Final);
+        failed.Sequence.Should().Be(2);
+        failed.PublishState.Should().Be(CheckpointPublishState.Pending);
+        failed.PublishAttempts.Should().Be(1);
+        failed.LastPublishError.Should().Be("The checkpoint publisher failed.");
+
+        var republished = await harness.Lifecycle.PublishPendingAsync(CancellationToken.None).ConfigureAwait(false);
+        republished.Should().Be(1);
+
+        var published = publisher.Published.Should().ContainSingle().Subject;
+        published.Id.Should().Be(final.Id);
+        published.Kind.Should().Be(AuditCheckpointKind.Final);
+
+        var afterRetry = await FindCheckpointsAsync(documentStore, segment).ConfigureAwait(false);
+        var anchored = afterRetry.Should().ContainSingle().Subject;
+        anchored.PublishState.Should().Be(CheckpointPublishState.Published);
+        anchored.PublishAttempts.Should().Be(2);
+        anchored.LastPublishError.Should().BeNull();
     }
 
     [SkippableFact]
@@ -248,25 +272,41 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         var documentStore = CreateDocumentStore();
         await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
         var workspace = $"workspace-{Guid.NewGuid():N}";
-        var scheme = new AuditHashScheme<WorkspaceAuditDocument>(
-            "custom-v1",
-            new WorkspaceAuditCanonicalizer(),
-            new PreviousHashLinkRule(),
-            new Sha256AuditHasher());
-        var options = new MartenAuditTrailOptions();
-        options.UseHashChain(chain => chain
-            .StoreAs<WorkspaceAuditDocument>(new WorkspaceAuditMapper())
-            .SegmentBy<WorkspaceAuditDocument>(document => document.Workspace)
-            .UseScheme(scheme));
+        var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
+        await using var configuredBusiness = business.ConfigureAwait(false);
+        var store = new MartenAuditChainStore<WorkspaceAuditDocument>(documentStore, business);
+        var moduleBuilder = new AuditingModuleBuilder();
+        moduleBuilder.UseHashChain(chain => chain
+            .UseScheme("custom-v1")
+            .VerifyAgainst<MartenAuditChainStore<WorkspaceAuditDocument>>());
+        var chainOptions = moduleBuilder.Options.Chain!;
+        var services = new ServiceCollection();
+        services.AddSingleton(store);
+        var provider = services.BuildServiceProvider();
+        await using var configuredProvider = provider.ConfigureAwait(false);
+        var schemes = new AuditHashSchemeRegistry(provider);
+        schemes.Register(
+            new AuditHashScheme<WorkspaceAuditDocument>(
+                "custom-v1",
+                new WorkspaceAuditCanonicalizer(),
+                new PreviousHashLinkRule(),
+                new Sha256AuditHasher()),
+            "test");
+        var segmenter = new MartenAuditFuncSegmenter<WorkspaceAuditDocument>(document => document.Workspace);
+        var trail = new MartenAuditTrail<WorkspaceAuditDocument>(store, new WorkspaceAuditMapper(), segmenter);
+        var linker = new AuditLinker<WorkspaceAuditDocument>(store, segmenter, schemes, chainOptions);
+        var lifecycle = new CheckpointLifecycle<WorkspaceAuditDocument>(store, chainOptions, provider);
+        var verifier = new AuditVerifier<WorkspaceAuditDocument>(store, schemes, chainOptions, provider);
+        var segments = new AuditSegmentManager<WorkspaceAuditDocument>(store, lifecycle, chainOptions, TimeProvider.System);
+        IAuditChain chain = new AuditChain(
+            verifier,
+            lifecycle,
+            segments,
+            new AuditCheckpointStore<WorkspaceAuditDocument>(store));
 
-        var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-        await using (session.ConfigureAwait(false))
-        {
-            var trail = new MartenAuditTrail(session, documentStore, options);
-
-            await trail.WriteAsync(WorkspaceRecord("orders.place-order", workspace)).ConfigureAwait(false);
-            await trail.WriteAsync(WorkspaceRecord("orders.reserve-stock", workspace)).ConfigureAwait(false);
-        }
+        await trail.WriteAsync(WorkspaceRecord("orders.place-order", workspace)).ConfigureAwait(false);
+        await trail.WriteAsync(WorkspaceRecord("orders.reserve-stock", workspace)).ConfigureAwait(false);
+        await linker.LinkPendingAsync(workspace, CancellationToken.None).ConfigureAwait(false);
 
         var documents = await FindCustomAuditsAsync(documentStore, workspace).ConfigureAwait(false);
         documents.Select(document => document.Sequence).Should().Equal(1L, 2L);
@@ -278,9 +318,12 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
 
         var head = await LoadHeadAsync(documentStore, workspace).ConfigureAwait(false);
         head!.LastSequence.Should().Be(2);
-        head.HashScheme.Should().Be("custom-v1");
+        head.HashScheme.Should().BeNull();
 
-        var verification = await new MartenAuditChain(documentStore, options).VerifyAsync(workspace).ConfigureAwait(false);
+        await lifecycle.CutAsync(workspace, null, AuditCheckpointKind.Regular, CancellationToken.None).ConfigureAwait(false);
+        await lifecycle.PublishPendingAsync(CancellationToken.None).ConfigureAwait(false);
+
+        var verification = await chain.VerifyAsync(workspace).ConfigureAwait(false);
         verification.IsIntact.Should().BeTrue();
         verification.RecordCount.Should().Be(2);
         verification.HeadSequence.Should().Be(2);
@@ -293,15 +336,13 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
         var category = $"genesis-{Guid.NewGuid():N}";
         var segment = $"{category}/2026";
-        var options = new MartenAuditTrailOptions();
-        options.UseHashChain(chain => chain.SegmentBy(new GenesisAuditSegmenter()));
+        var harness = MartenChainHarness.Create(
+            documentStore,
+            chain => chain.UseScheme(MartenAuditHashSchemes.Sha256V1.Name),
+            segmenter: new GenesisAuditSegmenter());
+        await using var configuredHarness = harness.ConfigureAwait(false);
 
-        var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-        await using (session.ConfigureAwait(false))
-        {
-            var trail = new MartenAuditTrail(session, documentStore, options);
-            await trail.WriteAsync(FailedRecord("orders.place-order", category)).ConfigureAwait(false);
-        }
+        await harness.WriteAsync(FailedRecord("orders.place-order", category), segment).ConfigureAwait(false);
 
         var records = await FindAuditsAsync(documentStore, segment).ConfigureAwait(false);
         records.Select(record => record.Sequence).Should().Equal(1L, 2L);
@@ -314,7 +355,9 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         head!.LastSequence.Should().Be(2);
         head.Count.Should().Be(2);
 
-        var verification = await new MartenAuditChain(documentStore, options).VerifyAsync(segment).ConfigureAwait(false);
+        await harness.CutAndPublishAsync(segment).ConfigureAwait(false);
+
+        var verification = await harness.Chain.VerifyAsync(segment).ConfigureAwait(false);
         verification.IsIntact.Should().BeTrue();
         verification.RecordCount.Should().Be(2);
     }
@@ -326,111 +369,95 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
         var category = $"rotation-{Guid.NewGuid():N}";
         var segment = $"{category}/2026";
-        var rotated = new AuditHashScheme<MartenAuditRecord>(
-            "sha256-v2",
-            new MartenAuditRecordCanonicalizer(),
-            new PreviousHashLinkRule(),
-            new Sha256AuditHasher());
-        var before = new MartenAuditTrailOptions().UseHashChain();
-        var after = new MartenAuditTrailOptions();
-        after.UseHashChain(chain => chain
-            .UseScheme(rotated)
-            .AcceptScheme(MartenAuditHashSchemes.Sha256V1));
+        var before = MartenChainHarness.Create(
+            documentStore,
+            chain => chain.UseScheme(MartenAuditHashSchemes.Sha256V1.Name));
+        await using var configuredBefore = before.ConfigureAwait(false);
+        var after = MartenChainHarness.Create(
+            documentStore,
+            chain => chain.UseScheme("rotated-v1"));
+        await using var configuredAfter = after.ConfigureAwait(false);
+        after.Schemes.Register(
+            new AuditHashScheme<MartenAuditRecord>(
+                "rotated-v1",
+                new MartenAuditRecordCanonicalizer(),
+                new PreviousHashLinkRule(),
+                new Sha256AuditHasher()),
+            "test");
 
-        var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-        await using (session.ConfigureAwait(false))
-        {
-            var oldTrail = new MartenAuditTrail(session, documentStore, before);
-
-            await oldTrail.WriteAsync(FailedRecord("orders.place-order", category)).ConfigureAwait(false);
-            await oldTrail.WriteAsync(FailedRecord("orders.reserve-stock", category)).ConfigureAwait(false);
-
-            var newTrail = new MartenAuditTrail(session, documentStore, after);
-            await newTrail.WriteAsync(FailedRecord("orders.charge-card", category)).ConfigureAwait(false);
-        }
+        await before.WriteAsync(FailedRecord("orders.place-order", category), segment).ConfigureAwait(false);
+        await before.WriteAsync(FailedRecord("orders.reserve-stock", category), segment).ConfigureAwait(false);
+        await after.WriteAsync(FailedRecord("orders.charge-card", category), segment).ConfigureAwait(false);
 
         var records = await FindAuditsAsync(documentStore, segment).ConfigureAwait(false);
         records.Select(record => record.Sequence).Should().Equal(1L, 2L, 3L);
         records[0].HashScheme.Should().Be(MartenAuditHashSchemes.Sha256V1.Name);
-        records[2].HashScheme.Should().Be("sha256-v2");
+        records[2].HashScheme.Should().Be("rotated-v1");
 
-        var rotatedVerification = await new MartenAuditChain(documentStore, after).VerifyAsync(segment).ConfigureAwait(false);
+        await after.CutAndPublishAsync(segment).ConfigureAwait(false);
+
+        var rotatedVerification = await after.Chain.VerifyAsync(segment).ConfigureAwait(false);
         rotatedVerification.IsIntact.Should().BeTrue();
         rotatedVerification.RecordCount.Should().Be(3);
 
-        var legacyVerification = await new MartenAuditChain(documentStore, before).VerifyAsync(segment).ConfigureAwait(false);
-        legacyVerification.IsIntact.Should().BeFalse();
-        legacyVerification.Breaks.Should().Contain(breakdown =>
-            breakdown.Kind == AuditChainBreakKind.UnknownHashScheme && breakdown.Sequence == 3);
+        // The legacy registry never registered the rotated scheme, which the shipped registry
+        // reports as a configuration fault rather than a break.
+        var legacy = () => before.Chain.VerifyAsync(segment);
+        var thrown = await legacy.Should().ThrowAsync<LiteBusConfigurationException>().ConfigureAwait(false);
+        thrown.WithMessage("*rotated-v1*");
     }
 
     [SkippableFact]
-    public async Task Accepted_scheme_factory_resolves_from_the_chain_service_provider()
+    public async Task Accepted_legacy_scheme_with_a_rotated_write_scheme_verifies()
     {
         var documentStore = CreateDocumentStore();
         await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
-        var category = $"accepted-factory-{Guid.NewGuid():N}";
+        var category = $"accepted-schemes-{Guid.NewGuid():N}";
         var segment = $"{category}/2026";
         var legacy = NamedScheme("legacy-v1");
         var rotated = NamedScheme("rotated-v1");
-        var before = new MartenAuditTrailOptions();
-        before.UseHashChain(chain => chain.UseScheme(legacy));
+        var legacyHarness = MartenChainHarness.Create(
+            documentStore,
+            chain => chain.UseScheme("legacy-v1"));
+        await using var configuredLegacy = legacyHarness.ConfigureAwait(false);
+        legacyHarness.Schemes.Register(legacy, "test");
+        var rotatedHarness = MartenChainHarness.Create(
+            documentStore,
+            chain => chain.UseScheme("rotated-v1"));
+        await using var configuredRotated = rotatedHarness.ConfigureAwait(false);
+        rotatedHarness.Schemes.Register(rotated, "test");
+        rotatedHarness.Schemes.Register(legacy, "test");
 
-        var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-        await using (session.ConfigureAwait(false))
-        {
-            var trail = new MartenAuditTrail(session, documentStore, before);
-
-            await trail.WriteAsync(FailedRecord("orders.place-order", category)).ConfigureAwait(false);
-            await trail.WriteAsync(FailedRecord("orders.reserve-stock", category)).ConfigureAwait(false);
-        }
-
-        var services = new ServiceCollection();
-        services.AddSingleton(legacy);
-        var serviceProvider = services.BuildServiceProvider();
-        await using var configuredServiceProvider = serviceProvider.ConfigureAwait(false);
-        var after = new MartenAuditTrailOptions();
-        after.UseHashChain(chain => chain
-            .UseScheme(rotated)
-            .AcceptScheme<MartenAuditRecord>(provider => provider.GetService<AuditHashScheme<MartenAuditRecord>>()!));
-
-        var write = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-        await using (write.ConfigureAwait(false))
-        {
-            var trail = new MartenAuditTrail(write, documentStore, after, serviceProvider: serviceProvider);
-
-            await trail.WriteAsync(FailedRecord("orders.charge-card", category)).ConfigureAwait(false);
-        }
+        await legacyHarness.WriteAsync(FailedRecord("orders.place-order", category), segment).ConfigureAwait(false);
+        await legacyHarness.WriteAsync(FailedRecord("orders.reserve-stock", category), segment).ConfigureAwait(false);
+        await rotatedHarness.WriteAsync(FailedRecord("orders.charge-card", category), segment).ConfigureAwait(false);
 
         var records = await FindAuditsAsync(documentStore, segment).ConfigureAwait(false);
         records.Select(record => record.Sequence).Should().Equal(1L, 2L, 3L);
         records[2].HashScheme.Should().Be("rotated-v1");
 
-        var verification = await new MartenAuditChain(documentStore, after, serviceProvider: serviceProvider)
-            .VerifyAsync(segment)
-            .ConfigureAwait(false);
+        await rotatedHarness.CutAndPublishAsync(segment).ConfigureAwait(false);
+
+        var verification = await rotatedHarness.Chain.VerifyAsync(segment).ConfigureAwait(false);
         verification.IsIntact.Should().BeTrue();
         verification.RecordCount.Should().Be(3);
     }
 
     [SkippableFact]
-    public async Task VerifyAsync_with_two_factory_schemes_sharing_a_name_throws()
+    public void Registering_two_schemes_sharing_a_name_throws()
     {
-        var documentStore = CreateDocumentStore();
-        await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
-        var segment = $"duplicate-schemes-{Guid.NewGuid():N}/2026";
         var services = new ServiceCollection();
-        services.AddSingleton(new SchemeName("test-duplicate-v1"));
-        var serviceProvider = services.BuildServiceProvider();
-        await using var configuredServiceProvider = serviceProvider.ConfigureAwait(false);
-        var options = new MartenAuditTrailOptions();
-        options.UseHashChain(chain => chain
-            .UseScheme<MartenAuditRecord>(provider => NamedScheme(provider.GetService<SchemeName>()!.Value))
-            .AcceptScheme<MartenAuditRecord>(provider => NamedScheme(provider.GetService<SchemeName>()!.Value)));
+        services.AddSingleton<IAuditCanonicalizer<MartenAuditRecord>, MartenAuditRecordCanonicalizer>();
+        using var provider = services.BuildServiceProvider();
+        var schemes = new AuditHashSchemeRegistry(provider);
+        var scheme = NamedScheme("test-duplicate-v1");
 
-        var verify = () => new MartenAuditChain(documentStore, options, serviceProvider: serviceProvider).VerifyAsync(segment);
-        var thrown = await verify.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
-        thrown.WithMessage("*unique*");
+        schemes.Register(scheme, "first-source");
+        schemes.Register(scheme, "first-source");
+
+        var conflicting = () => schemes.Register(NamedScheme("test-duplicate-v1"), "second-source");
+
+        conflicting.Should().Throw<LiteBusConfigurationException>().WithMessage("*first-source*second-source*");
     }
 
     [SkippableFact]
@@ -440,22 +467,20 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
         var category = $"signed-{Guid.NewGuid():N}";
         var segment = $"{category}/2026";
-        var options = new MartenAuditTrailOptions();
-        options.UseHashChain(chain => chain
-            .CheckpointWhen(CheckpointPolicies.EveryRecords(2))
-            .SignCheckpointsWith(new HashEchoCheckpointSigner()));
+        var signer = new HashEchoCheckpointSigner();
+        var harness = MartenChainHarness.Create(
+            documentStore,
+            chain => chain
+                .UseScheme(MartenAuditHashSchemes.Sha256V1.Name)
+                .SignCheckpointsWith<HashEchoCheckpointSigner>(),
+            services => services.AddSingleton(signer));
+        await using var configuredHarness = harness.ConfigureAwait(false);
 
-        var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-        await using (session.ConfigureAwait(false))
-        {
-            var trail = new MartenAuditTrail(session, documentStore, options);
+        await harness.WriteAsync(FailedRecord("orders.place-order", category), segment).ConfigureAwait(false);
+        await harness.WriteAsync(FailedRecord("orders.reserve-stock", category), segment).ConfigureAwait(false);
+        await harness.CutAndPublishAsync(segment).ConfigureAwait(false);
 
-            await trail.WriteAsync(FailedRecord("orders.place-order", category)).ConfigureAwait(false);
-            await trail.WriteAsync(FailedRecord("orders.reserve-stock", category)).ConfigureAwait(false);
-        }
-
-        var checkpoints = new MartenAuditChain(documentStore, options);
-        var intact = await checkpoints.VerifyAsync(segment).ConfigureAwait(false);
+        var intact = await harness.Chain.VerifyAsync(segment).ConfigureAwait(false);
         intact.IsIntact.Should().BeTrue();
         intact.MatchesLatestCheckpoint.Should().BeTrue();
         intact.CheckpointSignatureValid.Should().BeTrue();
@@ -470,7 +495,7 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
             await forge.SaveChangesAsync().ConfigureAwait(false);
         }
 
-        var forged = await checkpoints.VerifyAsync(segment).ConfigureAwait(false);
+        var forged = await harness.Chain.VerifyAsync(segment).ConfigureAwait(false);
         forged.IsIntact.Should().BeFalse();
         forged.CheckpointSignatureValid.Should().BeFalse();
         forged.Breaks.Should().Contain(breakdown => breakdown.Kind == AuditChainBreakKind.CheckpointSignatureInvalid);
@@ -483,18 +508,15 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
         var category = $"coverage-{Guid.NewGuid():N}";
         var segment = $"{category}/2026";
-        var options = new MartenAuditTrailOptions();
-        options.UseHashChain(chain => chain.CheckpointWhen(CheckpointPolicies.EveryRecords(2)));
+        var harness = MartenChainHarness.Create(
+            documentStore,
+            chain => chain.UseScheme(MartenAuditHashSchemes.Sha256V1.Name));
+        await using var configuredHarness = harness.ConfigureAwait(false);
 
-        var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-        await using (session.ConfigureAwait(false))
-        {
-            var trail = new MartenAuditTrail(session, documentStore, options);
-
-            await trail.WriteAsync(FailedRecord("orders.place-order", category)).ConfigureAwait(false);
-            await trail.WriteAsync(FailedRecord("orders.reserve-stock", category)).ConfigureAwait(false);
-            await trail.WriteAsync(FailedRecord("orders.charge-card", category)).ConfigureAwait(false);
-        }
+        await harness.WriteAsync(FailedRecord("orders.place-order", category), segment).ConfigureAwait(false);
+        await harness.WriteAsync(FailedRecord("orders.reserve-stock", category), segment).ConfigureAwait(false);
+        await harness.WriteAsync(FailedRecord("orders.charge-card", category), segment).ConfigureAwait(false);
+        await harness.CutAndPublishAsync(segment).ConfigureAwait(false);
 
         var remove = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (remove.ConfigureAwait(false))
@@ -504,7 +526,7 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
             await remove.SaveChangesAsync().ConfigureAwait(false);
         }
 
-        var verification = await new MartenAuditChain(documentStore, options).VerifyAsync(segment).ConfigureAwait(false);
+        var verification = await harness.Chain.VerifyAsync(segment).ConfigureAwait(false);
         verification.IsIntact.Should().BeFalse();
         verification.RecordCount.Should().Be(2);
         verification.Breaks.Should().Contain(breakdown =>
@@ -526,6 +548,7 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
     {
         return new AuditRecord
         {
+            Id = Guid.NewGuid(),
             Action = action,
             Outcome = AuditOutcome.Failed,
             OccurredAt = new DateTimeOffset(2026, 5, 4, 12, 0, 0, TimeSpan.Zero),
@@ -538,6 +561,7 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
     {
         return new AuditRecord
         {
+            Id = Guid.NewGuid(),
             Action = action,
             Outcome = AuditOutcome.Failed,
             OccurredAt = new DateTimeOffset(2026, 5, 4, 12, 0, 0, TimeSpan.Zero),
@@ -616,6 +640,95 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
             new Sha256AuditHasher());
     }
 
+    private sealed class MartenChainHarness : IAsyncDisposable
+    {
+        private readonly IDocumentSession _business;
+        private readonly ServiceProvider _provider;
+        private readonly IAuditLinker _linker;
+
+        private MartenChainHarness(
+            IDocumentSession business,
+            ServiceProvider provider,
+            IAuditLinker linker,
+            MartenAuditTrail<MartenAuditRecord> trail,
+            CheckpointLifecycle<MartenAuditRecord> lifecycle,
+            IAuditChain chain,
+            AuditHashSchemeRegistry schemes)
+        {
+            _business = business;
+            _provider = provider;
+            _linker = linker;
+            Trail = trail;
+            Lifecycle = lifecycle;
+            Chain = chain;
+            Schemes = schemes;
+        }
+
+        public MartenAuditTrail<MartenAuditRecord> Trail { get; }
+
+        public CheckpointLifecycle<MartenAuditRecord> Lifecycle { get; }
+
+        public IAuditChain Chain { get; }
+
+        public AuditHashSchemeRegistry Schemes { get; }
+
+        public static MartenChainHarness Create(
+            DocumentStore documentStore,
+            Action<AuditHashChainBuilder> configure,
+            Action<ServiceCollection>? configureServices = null,
+            IAuditSegmenter<MartenAuditRecord>? segmenter = null)
+        {
+            var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, business);
+            segmenter ??= new MartenAuditRecordSegmenter();
+            var moduleBuilder = new AuditingModuleBuilder();
+            moduleBuilder.UseHashChain(configure);
+            moduleBuilder.UseHashChain(chain => chain.VerifyAgainst<MartenAuditChainStore<MartenAuditRecord>>());
+            var chainOptions = moduleBuilder.Options.Chain!;
+            var services = new ServiceCollection();
+            services.AddSingleton(store);
+            services.AddSingleton<IAuditCanonicalizer<MartenAuditRecord>, MartenAuditRecordCanonicalizer>();
+            configureServices?.Invoke(services);
+            var provider = services.BuildServiceProvider();
+            var schemes = new AuditHashSchemeRegistry(provider);
+            var linker = new AuditLinker<MartenAuditRecord>(store, segmenter, schemes, chainOptions);
+            var lifecycle = new CheckpointLifecycle<MartenAuditRecord>(store, chainOptions, provider);
+            var verifier = new AuditVerifier<MartenAuditRecord>(store, schemes, chainOptions, provider);
+            var segments = new AuditSegmentManager<MartenAuditRecord>(store, lifecycle, chainOptions, TimeProvider.System);
+            IAuditChain chain = new AuditChain(
+                verifier,
+                lifecycle,
+                segments,
+                new AuditCheckpointStore<MartenAuditRecord>(store));
+            var trail = new MartenAuditTrail<MartenAuditRecord>(store, new MartenAuditRecordMapper(), segmenter);
+
+            return new MartenChainHarness(business, provider, linker, trail, lifecycle, chain, schemes);
+        }
+
+        public async Task WriteAsync(AuditRecord record, string segment)
+        {
+            await Trail.WriteAsync(record).ConfigureAwait(false);
+            await _business.SaveChangesAsync().ConfigureAwait(false);
+            await _linker.LinkPendingAsync(segment, CancellationToken.None).ConfigureAwait(false);
+        }
+
+        public async Task<AuditCheckpoint> CutAndPublishAsync(string segment)
+        {
+            var checkpoint = await Lifecycle
+                .CutAsync(segment, null, AuditCheckpointKind.Regular, CancellationToken.None)
+                .ConfigureAwait(false);
+            await Lifecycle.PublishPendingAsync(CancellationToken.None).ConfigureAwait(false);
+
+            return checkpoint;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await _business.DisposeAsync().ConfigureAwait(false);
+            await _provider.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
     private sealed class RecordingCheckpointPublisher : ICheckpointPublisher
     {
         public List<AuditCheckpoint> Published { get; } = [];
@@ -645,8 +758,6 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
             return ValueTask.CompletedTask;
         }
     }
-
-    private sealed record SchemeName(string Value);
 
     private sealed class HashEchoCheckpointSigner : ICheckpointSigner
     {

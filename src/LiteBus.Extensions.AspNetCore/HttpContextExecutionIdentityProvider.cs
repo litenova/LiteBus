@@ -9,9 +9,9 @@ namespace LiteBus.Extensions.AspNetCore;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Reads <c>HttpContext.User</c> as the calling principal and the tenant from the claim named by
-///         <see cref="ExecutionIdentityOptions.TenantClaimType" />. When no HTTP context is available, the identity is
-///         <see cref="ExecutionIdentity.Anonymous" />.
+///         Reads <c>HttpContext.User</c> as the calling principal and the tenant from the first claim type named by
+///         <see cref="ExecutionIdentityOptions.TenantClaimTypes" /> that carries a non-blank value. When no HTTP
+///         context is available, the identity is <see cref="ExecutionIdentity.Anonymous" />.
 ///     </para>
 ///     <para>
 ///         The principal is passed through as the request carries it, including an unauthenticated principal, so
@@ -38,7 +38,7 @@ public sealed class HttpContextExecutionIdentityProvider : IExecutionIdentityPro
     private readonly IHttpContextAccessor _httpContextAccessor;
 
     /// <summary>
-    ///     Names the claim that carries the tenant identifier.
+    ///     Names the claims that carry the tenant identifier, in the order they are tried.
     /// </summary>
     private readonly ExecutionIdentityOptions _options;
 
@@ -46,14 +46,14 @@ public sealed class HttpContextExecutionIdentityProvider : IExecutionIdentityPro
     ///     Initializes a new instance of the <see cref="HttpContextExecutionIdentityProvider" /> class.
     /// </summary>
     /// <param name="httpContextAccessor">Provides the current HTTP context.</param>
-    /// <param name="options">Names the claim that carries the tenant identifier.</param>
+    /// <param name="options">Names the claims that carry the tenant identifier, in the order they are tried.</param>
     public HttpContextExecutionIdentityProvider(
         IHttpContextAccessor httpContextAccessor,
         ExecutionIdentityOptions options)
     {
         ArgumentNullException.ThrowIfNull(httpContextAccessor);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.TenantClaimType);
+        options.Validate();
 
         _httpContextAccessor = httpContextAccessor;
         _options = options;
@@ -69,7 +69,18 @@ public sealed class HttpContextExecutionIdentityProvider : IExecutionIdentityPro
             return ExecutionIdentity.Anonymous;
         }
 
-        var tenantId = user.FindFirst(_options.TenantClaimType)?.Value;
+        string? tenantId = null;
+
+        foreach (var claimType in _options.TenantClaimTypes)
+        {
+            var value = user.FindFirst(claimType)?.Value;
+
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                tenantId = value;
+                break;
+            }
+        }
 
         return ExecutionIdentity.For(user, tenantId);
     }

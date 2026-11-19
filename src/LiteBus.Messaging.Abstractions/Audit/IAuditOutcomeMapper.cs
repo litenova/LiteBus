@@ -54,6 +54,11 @@ public interface IAuditOutcomeMapper
     ///         review reads as the reason something did not work.
     ///     </para>
     ///     <para>
+    ///         A <see cref="MessageFaultException" /> contributes its <see cref="MessageFaultException.Code" /> instead
+    ///         of the exception type name, because the fault code is the stable identifier operators switch on while
+    ///         the type name only restates that the mediation faulted.
+    ///     </para>
+    ///     <para>
     ///         Otherwise it defaults to the exception type name, which is useful before an application defines its own
     ///         failure taxonomy. A refusal that supplied no code stays uncoded rather than reporting
     ///         <see cref="LiteBusMessageDeniedException" /> or <see cref="LiteBusMessageInvalidException" />: naming
@@ -66,6 +71,11 @@ public interface IAuditOutcomeMapper
         if (context.Outcome is MediationOutcome.Denied or MediationOutcome.Invalid && context.Code is not null)
         {
             return context.Code;
+        }
+
+        if (context.Exception is MessageFaultException fault && fault.Code is not null)
+        {
+            return fault.Code;
         }
 
         return context.Exception is null or LiteBusMessageDeniedException or LiteBusMessageInvalidException

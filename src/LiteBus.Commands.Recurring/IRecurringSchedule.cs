@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Runtime.Abstractions.Scheduling;
 
 namespace LiteBus.Commands.Recurring;
 
@@ -14,6 +15,10 @@ namespace LiteBus.Commands.Recurring;
 ///     </para>
 ///     <para>
 ///         Implementations must be thread-safe and free of side effects, because the loop calls them on every wait.
+///     </para>
+///     <para>
+///         The shared schedule contract is <see cref="ISchedule" />. The built-in schedules on
+///         <see cref="RecurringSchedules" /> forward to it.
 ///     </para>
 /// </remarks>
 public interface IRecurringSchedule

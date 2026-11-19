@@ -513,7 +513,7 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
     }
 
     /// <summary>
-    ///     Registers the default scoped domain event collector and the open generic staging completion handler.
+    ///     Registers the default scoped domain event collector, the per-type domain event decisions, the in-process publication buffer and listener, and the open generic staging completion handler.
     /// </summary>
     /// <param name="configuration">The module configuration receiving the staging registrations.</param>
     /// <remarks>
@@ -522,12 +522,36 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
     ///     registered in the container for the same reason: closed handler types are resolved through it regardless of
     ///     module build order.
     /// </remarks>
-    private static void RegisterCollectedEventStaging(IModuleConfiguration configuration)
+    private void RegisterCollectedEventStaging(IModuleConfiguration configuration)
     {
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IDomainEventCollector),
             typeof(DomainEventCollector),
             InstanceLifetime.Scoped));
+
+        var decisions = _builder!.CollectDomainEventDecisions();
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(DomainEventDecisions),
+            decisions));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(StagedInProcessDomainEvents),
+            typeof(StagedInProcessDomainEvents),
+            InstanceLifetime.Scoped));
+
+        configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+            typeof(IUnitOfWorkCommitListener),
+            typeof(DomainEventInProcessPublishListener),
+            InstanceLifetime.Scoped));
+
+        foreach (var translatorType in _builder.CollectDomainEventTranslatorTypes().Distinct())
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                translatorType,
+                translatorType,
+                InstanceLifetime.Scoped));
+        }
 
         var messageRegistry = configuration.GetContext<IMessageRegistry>();
         messageRegistry.Register(typeof(StageCollectedDomainEventsCompletionHandler<>));

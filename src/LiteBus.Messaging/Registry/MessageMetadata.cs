@@ -10,8 +10,9 @@ namespace LiteBus.Messaging.Registry;
 ///     Type-keyed metadata collected for one message type during registration.
 /// </summary>
 /// <remarks>
-///     Two sources declare metadata, and both may cover the same message: an attribute on the message type, and a
-///     definition declared for the message type or for something it derives from. Provenance is tracked alongside each
+///     Four sources declare metadata, and several may cover the same message: an attribute on the message type, a
+///     definition declared for the message type or for something it derives from, a family default stated in
+///     composition code, and a convention derived from the message type. Provenance is tracked alongside each
 ///     value so that precedence is a stated rule rather than an accident of registration order.
 /// </remarks>
 internal sealed class MessageMetadata : IMessageMetadata
@@ -22,9 +23,10 @@ internal sealed class MessageMetadata : IMessageMetadata
     private readonly Type _messageType;
 
     /// <summary>
-    ///     The message type and source kind that supplied each stored value, keyed by metadata key type.
+    ///     The declaring message type, source kind, and definition or attribute type that supplied each stored value,
+    ///     keyed by metadata key type.
     /// </summary>
-    private readonly Dictionary<Type, (Type DeclaringMessageType, MetadataSourceKind Kind)> _sources = new();
+    private readonly Dictionary<Type, (Type DeclaringMessageType, MetadataSourceKind Kind, Type? SourceType)> _sources = new();
 
     /// <summary>
     ///     Metadata values keyed by the CLR type they were stored under.
@@ -43,6 +45,32 @@ internal sealed class MessageMetadata : IMessageMetadata
 
     /// <inheritdoc />
     public IReadOnlyCollection<object> Values => _values.Values;
+
+    /// <summary>
+    ///     Gets one provenance entry per effective value, as the composition model reports it.
+    /// </summary>
+    /// <value>The effective values with the source that supplied each.</value>
+    internal IReadOnlyList<MessageDeclarationProvenance> Provenance
+    {
+        get
+        {
+            List<MessageDeclarationProvenance> provenance = [];
+
+            foreach (var pair in _values)
+            {
+                var source = _sources[pair.Key];
+
+                provenance.Add(new MessageDeclarationProvenance(
+                    pair.Key,
+                    pair.Value,
+                    MapSourceKind(source.Kind),
+                    source.DeclaringMessageType,
+                    source.SourceType));
+            }
+
+            return provenance;
+        }
+    }
 
     /// <inheritdoc />
     public bool TryGet<TValue>([MaybeNullWhen(false)] out TValue value)
@@ -72,6 +100,10 @@ internal sealed class MessageMetadata : IMessageMetadata
     /// <param name="value">The value to store.</param>
     /// <param name="declaringMessageType">The message type the declaration was written for.</param>
     /// <param name="kind">Where the declaration came from.</param>
+    /// <param name="sourceType">
+    ///     The definition class or attribute type that declared the value, or <see langword="null" /> when the source
+    ///     is a composition default, a convention, or an aggregated exemption set rather than one type.
+    /// </param>
     /// <exception cref="MessageDeclarationException">
     ///     Thrown when the value does not match its key type, or when two declarations cover this message and neither is
     ///     more derived than the other.
@@ -81,7 +113,7 @@ internal sealed class MessageMetadata : IMessageMetadata
     ///     beats an attribute on the same message type. Anything else is ambiguous and is reported rather than resolved
     ///     by registration order.
     /// </remarks>
-    public void Set(Type keyType, object value, Type declaringMessageType, MetadataSourceKind kind)
+    public void Set(Type keyType, object value, Type declaringMessageType, MetadataSourceKind kind, Type? sourceType = null)
     {
         ArgumentNullException.ThrowIfNull(keyType);
         ArgumentNullException.ThrowIfNull(value);
@@ -101,7 +133,7 @@ internal sealed class MessageMetadata : IMessageMetadata
         }
 
         _values[keyType] = value;
-        _sources[keyType] = (declaringMessageType, kind);
+        _sources[keyType] = (declaringMessageType, kind, sourceType);
     }
 
     /// <summary>
@@ -140,8 +172,30 @@ internal sealed class MessageMetadata : IMessageMetadata
         }
 
         _values[keyType] = value;
-        _sources[keyType] = (messageType, MetadataSourceKind.Attribute);
+        _sources[keyType] = (messageType, MetadataSourceKind.Convention, null);
         return true;
+    }
+
+    /// <summary>
+    ///     Maps a registration source kind to the composition source kind the model reports.
+    /// </summary>
+    /// <param name="kind">The registration source kind stored with the value.</param>
+    /// <returns>The composition source kind naming the same source.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind" /> names no known source.</exception>
+    /// <remarks>
+    ///     The two enums order their members differently, because the registration order encodes precedence while the
+    ///     composition order is a reporting contract, so the mapping names each member rather than casting the ordinal.
+    /// </remarks>
+    private static DeclarationSourceKind MapSourceKind(MetadataSourceKind kind)
+    {
+        return kind switch
+        {
+            MetadataSourceKind.Convention => DeclarationSourceKind.Convention,
+            MetadataSourceKind.Default => DeclarationSourceKind.Default,
+            MetadataSourceKind.Attribute => DeclarationSourceKind.Attribute,
+            MetadataSourceKind.Definition => DeclarationSourceKind.Definition,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown metadata source kind."),
+        };
     }
 
     /// <summary>

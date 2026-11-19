@@ -3,6 +3,12 @@ namespace LiteBus.Extensions.AspNetCore;
 /// <summary>
 ///     Options for mapping LiteBus mediation exceptions to problem responses.
 /// </summary>
+/// <remarks>
+///     <para>
+///         When request services hold a <see cref="RefusalProblemOptions" /> instance, its unmapped-code policy governs
+///         the exception path. This policy applies only when none is registered.
+///     </para>
+/// </remarks>
 public sealed class LiteBusExceptionHandlerOptions
 {
     /// <summary>

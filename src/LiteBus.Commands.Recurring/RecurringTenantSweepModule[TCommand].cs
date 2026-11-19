@@ -56,6 +56,11 @@ public sealed class RecurringTenantSweepModule<TCommand> : IModule, IRequires<Co
             configuration.RegisterCompositionValidation(() => ThrowIfTenantSourceMissing(configuration));
         }
 
+        configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
+            typeof(IRecurringOccurrenceStore),
+            typeof(InMemoryRecurringOccurrenceStore),
+            InstanceLifetime.Singleton));
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(RecurringTenantSweepDeclaration<TCommand>),
             _declaration));

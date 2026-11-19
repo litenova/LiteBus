@@ -79,6 +79,26 @@
     <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Commands'">
         <Description>Command mediator, command module builder, and handler pipeline for LiteBus command mediation.</Description>
     </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Auditing'">
+        <Description>Store-neutral tamper-evident audit trail: capture and link modes, hash chain, checkpoints with publication retries, streaming verification, segment expiry and erasure.</Description>
+        <PackageTags>$(PackageTags);auditing;audit-trail;hash-chain</PackageTags>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Auditing.Anchors.S3'">
+        <Description>Publishes and reads LiteBus audit checkpoints in S3-compatible object storage with Object Lock retention.</Description>
+        <PackageTags>$(PackageTags);auditing;s3;object-lock</PackageTags>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Auditing.Anchors.AzureBlob'">
+        <Description>Publishes and reads LiteBus audit checkpoints in Azure Blob Storage with immutability policies.</Description>
+        <PackageTags>$(PackageTags);auditing;azure-blob;immutable-storage</PackageTags>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Auditing.Anchors.Timestamping'">
+        <Description>Signs LiteBus audit checkpoints with RFC 3161 time-stamp tokens from a time-stamping authority and verifies them.</Description>
+        <PackageTags>$(PackageTags);auditing;rfc3161;timestamping</PackageTags>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Commands.Recurring.Schedules.Cron'">
+        <Description>Cron expression schedules, with time zones and per-tenant zones, for LiteBus recurring commands and audit checkpoints.</Description>
+        <PackageTags>$(PackageTags);cron;scheduling</PackageTags>
+    </PropertyGroup>
     <PropertyGroup Condition="'$(MSBuildProjectName)' == 'LiteBus.Commands.Recurring'">
         <Description>Recurring commands: a hosted loop that sends a configured command through the command mediator on a fixed interval.</Description>
     </PropertyGroup>

@@ -34,7 +34,7 @@ public sealed class MessageModuleBuilder
     /// <summary>
     ///     The application composition checks to run once every module has been built.
     /// </summary>
-    private readonly List<Action<IMessageCatalog>> _compositionChecks = [];
+    private readonly List<Action<ICompositionModel>> _compositionChecks = [];
 
     /// <summary>
     ///     The declaration requirements collected from this builder, in the order they were added.
@@ -62,6 +62,17 @@ public sealed class MessageModuleBuilder
     ///     The fault refusal classifier implementation types and pre-created instances, in registration order.
     /// </summary>
     private readonly List<object> _faultRefusalClassifiers = [];
+
+    /// <summary>
+    ///     The refusal exception translator implementation types and pre-created instances, in registration order.
+    /// </summary>
+    private readonly List<object> _refusalExceptionTranslators = [];
+
+    /// <summary>
+    ///     Whether the translator build step was registered; the first translator registration registers it once
+    ///     for every translator.
+    /// </summary>
+    private bool _refusalExceptionTranslatorsRegistered;
 
     /// <summary>
     ///     The registration steps that features in this assembly add to the module build, in the order they were added.
@@ -97,7 +108,7 @@ public sealed class MessageModuleBuilder
     /// <summary>
     ///     Gets the application composition checks to run once every module has been built.
     /// </summary>
-    internal IReadOnlyList<Action<IMessageCatalog>> CompositionChecks => _compositionChecks;
+    internal IReadOnlyList<Action<ICompositionModel>> CompositionChecks => _compositionChecks;
 
     /// <summary>
     ///     Gets the registration steps that features in this assembly add to the module build.
@@ -313,10 +324,12 @@ public sealed class MessageModuleBuilder
     }
 
     /// <summary>
-    ///     Runs an application composition check over every registered message, after every module has been built.
+    ///     Runs an application composition check over everything the host composed, after every module has been built.
     /// </summary>
     /// <param name="validate">
-    ///     The check. It receives the catalog of registered messages and their declarations, and throws to fail
+    ///     The check. It receives the composition model: the catalog of registered messages and their declarations,
+    ///     the declaration provenance per message, the declared and registered policy names, the contract
+    ///     registrations, the resolved port implementations, and the contributed feature sections. It throws to fail
     ///     composition.
     /// </param>
     /// <returns>The current builder.</returns>
@@ -324,12 +337,15 @@ public sealed class MessageModuleBuilder
     /// <remarks>
     ///     <para>
     ///         This is where an application's own conventions become startup failures. Unique audit action codes, a
-    ///         house naming rule for them, a family of commands that all have to declare the same value: each is a
-    ///         pure function of the declarations, and each is otherwise enforced by code review.
+    ///         house naming rule for them, a family of commands that all have to declare the same value, a message
+    ///         declaring a policy name nothing registered: each is a pure function of the composition, and each is
+    ///         otherwise enforced by code review.
     ///     </para>
     ///     <para>
-    ///         It runs at the same point <c>RequireDeclaration</c> does, after every module has built, so the catalog
-    ///         holds every message the host composed rather than only the ones registered before this call.
+    ///         It runs at the same point <c>RequireDeclaration</c> does, after every module has built, so the model
+    ///         holds everything the host composed rather than only what was registered before this call. Ports are
+    ///         reported as LiteBus composed them; a replacement the application registers directly with its own
+    ///         container afterwards is visible on the model resolved from the container instead.
     ///     </para>
     ///     <para>
     ///         Throw from the callback to fail composition. Prefer naming every offender in one message: a check that
@@ -338,9 +354,9 @@ public sealed class MessageModuleBuilder
     /// </remarks>
     /// <example>
     ///     <code><![CDATA[
-    /// messaging.ValidateComposition(catalog =>
+    /// messaging.ValidateComposition(model =>
     /// {
-    ///     var wrong = catalog.Audited()
+    ///     var wrong = model.Messages.Audited()
     ///         .Where(entry => !ActionCodePattern.IsMatch(entry.Audit!.Action))
     ///         .Select(entry => entry.MessageType.Name)
     ///         .ToList();
@@ -349,10 +365,12 @@ public sealed class MessageModuleBuilder
     ///     {
     ///         throw new InvalidOperationException($"Audit actions must be category.kebab-action: {string.Join(", ", wrong)}");
     ///     }
+    ///
+    ///     UnknownPolicyCheck.ThrowIfUnknown(model.Messages, model.RegisteredPolicyNames);
     /// });
     /// ]]></code>
     /// </example>
-    public MessageModuleBuilder ValidateComposition(Action<IMessageCatalog> validate)
+    public MessageModuleBuilder ValidateComposition(Action<ICompositionModel> validate)
     {
         ArgumentNullException.ThrowIfNull(validate);
         _compositionChecks.Add(validate);
@@ -371,11 +389,11 @@ public sealed class MessageModuleBuilder
     /// </remarks>
     public MessageModuleBuilder RequireUniqueAuditActions()
     {
-        return ValidateComposition(static catalog =>
+        return ValidateComposition(static model =>
         {
             var byAction = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
-            foreach (var entry in catalog.Audited())
+            foreach (var entry in model.Messages.Audited())
             {
                 if (!byAction.TryGetValue(entry.Audit!.Action, out var messages))
                 {
@@ -421,9 +439,9 @@ public sealed class MessageModuleBuilder
 
         var expression = new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
-        return ValidateComposition(catalog =>
+        return ValidateComposition(model =>
         {
-            var wrong = catalog.Audited()
+            var wrong = model.Messages.Audited()
                 .Where(entry => !expression.IsMatch(entry.Audit!.Action))
                 .Select(static entry => $"  {entry.MessageType.Name} declares '{entry.Audit!.Action}'")
                 .OrderBy(static line => line, StringComparer.Ordinal)
@@ -1175,6 +1193,102 @@ public sealed class MessageModuleBuilder
         ArgumentNullException.ThrowIfNull(classifier);
         _faultRefusalClassifiers.Add(classifier);
         return this;
+    }
+
+    /// <summary>
+    ///     Registers a translator that turns a recognized domain exception into the refusal the mediation ends as.
+    /// </summary>
+    /// <typeparam name="TTranslator">The translator implementation, constructed from the dispatch scope.</typeparam>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Call this once per translator. The strategies consult them in registration order and the first match
+    ///         wins, so register the most specific translator first. A fault is offered here only when the fault
+    ///         refusal classifiers left it unrecognized, and a translated fault skips the error handlers: it is a
+    ///         refusal, not a fault.
+    ///     </para>
+    ///     <para>
+    ///         Translators are scoped, so an implementation may read scoped services such as localization or
+    ///         tenant-aware detail while translating. Cancellation, an exception that already carries a refusal, and a
+    ///         <see cref="MessageFaultException" /> are never offered.
+    ///     </para>
+    /// </remarks>
+    public MessageModuleBuilder UseRefusalExceptionTranslator<TTranslator>()
+        where TTranslator : class, IRefusalExceptionTranslator
+    {
+        _refusalExceptionTranslators.Add(typeof(TTranslator));
+        EnsureRefusalExceptionTranslatorRegistration();
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers a pre-created translator that turns a recognized domain exception into the refusal the mediation
+    ///     ends as.
+    /// </summary>
+    /// <param name="translator">The translator instance, shared by every mediation for the life of the process.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="translator" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     The name says the lifetime, because a pre-created instance can only be a singleton. This is the overload
+    ///     for a translator that is configured rather than injected. Use
+    ///     <see cref="UseRefusalExceptionTranslator{TTranslator}" /> whenever the translator has dependencies.
+    /// </remarks>
+    public MessageModuleBuilder UseRefusalExceptionTranslatorInstance(IRefusalExceptionTranslator translator)
+    {
+        ArgumentNullException.ThrowIfNull(translator);
+        _refusalExceptionTranslators.Add(translator);
+        EnsureRefusalExceptionTranslatorRegistration();
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers the build step that publishes the collected translators, once for every translator.
+    /// </summary>
+    /// <remarks>
+    ///     Registered as a build step rather than applied here because translators collected after this call must be
+    ///     published too: the step reads the collected entries when the message module builds, so registration order
+    ///     is preserved whatever the call order was.
+    /// </remarks>
+    private void EnsureRefusalExceptionTranslatorRegistration()
+    {
+        if (_refusalExceptionTranslatorsRegistered)
+        {
+            return;
+        }
+
+        _refusalExceptionTranslatorsRegistered = true;
+        AddBuildStep(RegisterRefusalExceptionTranslators);
+    }
+
+    /// <summary>
+    ///     Registers the collected refusal exception translators as a multi-registration collection resolved in
+    ///     registration order.
+    /// </summary>
+    /// <param name="configuration">The module configuration receiving the registrations.</param>
+    /// <remarks>
+    ///     Each entry is registered as one collection item rather than as the service itself, so several translators
+    ///     coexist and the strategies resolve them as an ordered enumerable. Implementation types resolve scoped,
+    ///     because a translator may read scoped services while translating. With no entry nothing is registered, and
+    ///     every fault keeps the behavior it had before translators existed.
+    /// </remarks>
+    private void RegisterRefusalExceptionTranslators(IModuleConfiguration configuration)
+    {
+        foreach (var entry in _refusalExceptionTranslators)
+        {
+            if (entry is Type translatorType)
+            {
+                configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+                    typeof(IRefusalExceptionTranslator),
+                    translatorType,
+                    InstanceLifetime.Scoped));
+            }
+            else
+            {
+                configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+                    typeof(IRefusalExceptionTranslator),
+                    entry));
+            }
+        }
     }
 
     /// <summary>

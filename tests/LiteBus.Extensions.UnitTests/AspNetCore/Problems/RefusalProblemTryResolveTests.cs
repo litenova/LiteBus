@@ -99,13 +99,101 @@ public sealed class RefusalProblemTryResolveTests
     }
 
     [Fact]
-    public void TryResolve_DefaultInterfaceMember_NonNullCodeReturnsTrueEvenForFallback()
+    public void TryResolve_WithOutcome_ExactHit_ReturnsTrueWithMapping()
+    {
+        var catalog = RefusalProblemCatalog.CreateDefault();
+
+        var found = catalog.TryResolve("authorization.forbidden", MediationOutcome.Denied, out var map);
+
+        Assert.True(found);
+        Assert.Equal(403, map.StatusCode);
+        Assert.Equal("Request denied", map.Title);
+    }
+
+    [Fact]
+    public void TryResolve_WithOutcome_PrefixHit_ReturnsTrueWithMapping()
+    {
+        var catalog = RefusalProblemCatalog.CreateDefault();
+
+        var found = catalog.TryResolve("validation.amount.negative", MediationOutcome.Invalid, out var map);
+
+        Assert.True(found);
+        Assert.Equal(422, map.StatusCode);
+        Assert.Equal("Request validation failed", map.Title);
+    }
+
+    [Fact]
+    public void TryResolve_WithOutcome_UncodedInvalid_ReturnsFalseWithInvalidDefault()
+    {
+        var catalog = RefusalProblemCatalog.CreateDefault();
+
+        var found = catalog.TryResolve(null, MediationOutcome.Invalid, out var map);
+
+        Assert.False(found);
+        Assert.Equal(400, map.StatusCode);
+        Assert.Equal("Invalid request", map.Title);
+    }
+
+    [Fact]
+    public void TryResolve_WithOutcome_UnmappedDenied_ReturnsFalseWithDeniedDefault()
+    {
+        var catalog = RefusalProblemCatalog.CreateDefault();
+        catalog.MapDenied(403, "Request denied");
+
+        var found = catalog.TryResolve("billing.unpaid", MediationOutcome.Denied, out var map);
+
+        Assert.False(found);
+        Assert.Equal(403, map.StatusCode);
+        Assert.Equal("Request denied", map.Title);
+    }
+
+    [Fact]
+    public void TryResolve_WithOutcome_UnmappedInvalid_ReturnsFalseWithInvalidDefault()
+    {
+        var catalog = RefusalProblemCatalog.CreateDefault();
+        catalog.MapInvalid(422, "Semantic errors");
+
+        var found = catalog.TryResolve("billing.unpaid", MediationOutcome.Invalid, out var map);
+
+        Assert.False(found);
+        Assert.Equal(422, map.StatusCode);
+        Assert.Equal("Semantic errors", map.Title);
+    }
+
+    [Fact]
+    public void TryResolve_WithOutcome_ExactMapping_OutranksOutcomeDefault()
+    {
+        var catalog = RefusalProblemCatalog.CreateDefault();
+        catalog.Map("billing.unpaid", 402, "Billing required");
+        catalog.MapDenied(403, "Request denied");
+
+        var found = catalog.TryResolve("billing.unpaid", MediationOutcome.Denied, out var map);
+
+        Assert.True(found);
+        Assert.Equal(402, map.StatusCode);
+        Assert.Equal("Billing required", map.Title);
+    }
+
+    [Fact]
+    public void Resolve_WithOutcome_AppliesOutcomeDefault()
+    {
+        var catalog = RefusalProblemCatalog.CreateDefault();
+        catalog.MapInvalid(422, "Semantic errors");
+
+        var mapping = catalog.Resolve("billing.unpaid", MediationOutcome.Invalid);
+
+        Assert.Equal(422, mapping.StatusCode);
+        Assert.Equal("Semantic errors", mapping.Title);
+    }
+
+    [Fact]
+    public void TryResolve_DefaultInterfaceMember_NonNullCodeReturnsFalse()
     {
         IRefusalProblemCatalog catalog = new ResolveOnlyCatalog();
 
         var found = catalog.TryResolve("billing.unpaid", out var map);
 
-        Assert.True(found);
+        Assert.False(found);
         Assert.Equal(400, map.StatusCode);
         Assert.Equal("Invalid request", map.Title);
     }
@@ -121,9 +209,47 @@ public sealed class RefusalProblemTryResolveTests
         Assert.Equal(400, map.StatusCode);
     }
 
+    [Fact]
+    public void TryResolve_WithOutcome_DefaultInterfaceMember_ReturnsFalse()
+    {
+        IRefusalProblemCatalog catalog = new ResolveOnlyCatalog();
+
+        var found = catalog.TryResolve("billing.unpaid", MediationOutcome.Denied, out var map);
+
+        Assert.False(found);
+        Assert.Equal(400, map.StatusCode);
+        Assert.Equal("Invalid request", map.Title);
+    }
+
+    [Fact]
+    public void Resolve_WithOutcome_DefaultInterfaceMember_DelegatesToResolve()
+    {
+        IRefusalProblemCatalog catalog = new ResolveOnlyCatalog();
+
+        var mapping = catalog.Resolve("billing.unpaid", MediationOutcome.Denied);
+
+        Assert.Equal(400, mapping.StatusCode);
+        Assert.Equal("Invalid request", mapping.Title);
+    }
+
     private sealed class ResolveOnlyCatalog : IRefusalProblemCatalog
     {
-        public IRefusalProblemCatalog Map(string code, int statusCode, string title)
+        public IRefusalProblemCatalog Map(string code, int statusCode, string title, string? contributor = null)
+        {
+            return this;
+        }
+
+        public IRefusalProblemCatalog Replace(string code, int statusCode, string title, string? contributor = null)
+        {
+            return this;
+        }
+
+        public IRefusalProblemCatalog MapInvalid(int statusCode, string title)
+        {
+            return this;
+        }
+
+        public IRefusalProblemCatalog MapDenied(int statusCode, string title)
         {
             return this;
         }

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Authorization;
+using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Authorization;
@@ -83,21 +85,56 @@ public sealed class MessagePolicyBuilder
     /// <returns>The current builder.</returns>
     /// <exception cref="ArgumentException"><paramref name="name" /> is null, empty, or whitespace.</exception>
     /// <exception cref="ArgumentNullException"><paramref name="policy" /> is <see langword="null" />.</exception>
-    /// <exception cref="LiteBusConfigurationException">A policy is already registered under <paramref name="name" />.</exception>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     A different policy is already registered under <paramref name="name" />. The message names both
+    ///     policies and points at <see cref="Replace" /> for a deliberate override.
+    /// </exception>
     /// <remarks>
-    ///     Each name is registered once: two policies under one name would leave the guard guessing which one the
-    ///     message meant, so the second registration fails composition naming the duplicate.
+    ///     Each name carries one policy: two policies under one name would leave the guard guessing which one the
+    ///     message meant. An identical repeat returns without effect, because policies are records that compare by
+    ///     value. A conflicting repeat fails composition naming both policies.
     /// </remarks>
     public MessagePolicyBuilder Add(string name, MessagePolicy policy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(policy);
 
-        if (!_policies.TryAdd(name, policy))
+        if (_policies.TryGetValue(name, out var existing))
         {
-            throw new LiteBusConfigurationException(
-                $"An authorization policy named '{name}' is already registered. Register each policy name once.");
+            RegistrationConflict.ThrowIfConflicting(
+                existing,
+                policy,
+                $"Authorization policy '{name}'",
+                $"'{existing}'",
+                $"'{policy}'");
+
+            return this;
         }
+
+        _policies[name] = policy;
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers a policy under the name messages declare, overwriting any policy already registered under that name.
+    /// </summary>
+    /// <param name="name">The name a message declares to select this policy, such as <c>vaults.open</c>.</param>
+    /// <param name="policy">The policy evaluated for messages declaring <paramref name="name" />.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentException"><paramref name="name" /> is null, empty, or whitespace.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="policy" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     This is the deliberate override for the registration conflict rule. A conflicting repeat through
+    ///     <see cref="Add" /> fails composition, while this method overwrites it, which is how a composition
+    ///     replaces a policy with an explicit choice.
+    /// </remarks>
+    public MessagePolicyBuilder Replace(string name, MessagePolicy policy)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(policy);
+
+        _policies[name] = policy;
 
         return this;
     }
@@ -158,8 +195,10 @@ public sealed class MessagePolicyBuilder
     /// <remarks>
     ///     Only one lookup serves a composition, so a second call naming another type fails composition; repeating
     ///     the same type is harmless, which is what repeated <c>AddAuthorizationPolicies</c> calls from several
-    ///     assemblies produce. Without a lookup, a permission policy denies with
-    ///     <see cref="AuthorizationPolicyRefusalCodes.PermissionLookupMissing" />.
+    ///     assemblies produce. Without a lookup, a permission policy reports a fault carrying
+    ///     <see cref="AuthorizationPolicyRefusalCodes.PermissionLookupMissing" />: the guard raises
+    ///     <see cref="MessageFaultException" />, the mediation ends as <see cref="MediationOutcome.Failed" />, and
+    ///     transports answer it as a server error.
     /// </remarks>
     public MessagePolicyBuilder UsePermissionLookup<TLookup>()
         where TLookup : class, IPermissionLookup

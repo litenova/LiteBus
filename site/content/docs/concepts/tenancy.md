@@ -74,9 +74,9 @@ Scope the requirement on a type rather than a namespace. A namespace is a string
 `RequireDeclaration` asserts that every message states a position. `ValidateComposition` asserts anything else your conventions require over the same catalog, and runs at the same point, after every module has built, so the catalog holds every message the host composed:
 
 ```csharp
-messaging.ValidateComposition(catalog =>
+messaging.ValidateComposition(model =>
 {
-    var tenantless = catalog
+    var tenantless = model.Messages
         .Where(entry => typeof(IBillingCommand).IsAssignableFrom(entry.MessageType)
             && (!entry.Metadata.TryGet<TenancyDeclaration>(out var declaration)
                 || declaration is not TenantRequiredDeclaration))
@@ -95,7 +95,7 @@ Throw from the callback to fail composition, and name every offender in one mess
 
 ## Enforcing It in the Guard
 
-The guard reads the declaration for the runtime message type and checks it against the tenant of the mediation in flight. A message declaring a required tenant is denied with the `tenancy.required` code (`TenancyRefusalCodes.TenantRequired`) when the execution identity has no tenant. A message declaring a cross-tenant or tenantless position is allowed, because it already stated it runs outside one tenant.
+The guard reads the declaration for the runtime message type and checks it against the tenant of the mediation in flight. A message declaring a required tenant is denied with the `tenancy.required` code (`TenancyRefusalCodes.TenantRequired`) when the execution identity has no tenant, and with the `tenancy.invalid` code (`TenancyRefusalCodes.Invalid`) when the tenant is malformed under the registered `ITenantIdentifierValidator`. A message declaring a cross-tenant or tenantless position is allowed, because it already stated it runs outside one tenant; the guard does not validate an ambient tenant for those positions, since a malformed value there is outside their declared scope.
 
 A message that declares nothing is allowed, so an application adopts tenancy declaration by declaration. Pair the guard with the requirement above so composition fails for a message that states no position, rather than the omission passing the guard as an allowed message nobody considered. A denied message is refused before the handler runs, and the denial is recorded like any other mediation outcome. An HTTP boundary answers it with `403 Forbidden`. See [ASP.NET Core Execution Identity](../integrations/aspnetcore-execution-identity.md).
 
@@ -110,6 +110,48 @@ The authorization guard runs before the tenancy guard. `PolicyAuthorizationGuard
 `TenancyGuard` denies with the single code `tenancy.required` whether the caller is anonymous or signed in without a tenant. The guard cannot tell the two apart from the identity alone, and neither can a refusal mapper without re-reading the principal. Keep the single code and split the cases with a sign-in check first: the authorization guard or the endpoint answers a principal-less caller with its own sign-in code and status (401), and only a signed-in caller without a tenant reaches the tenancy denial (403).
 
 Composition requires the declaration, but nothing checks that every dispatch path can supply a tenant. A tenant-required message dispatched from a path with no ambient identity, such as a worker without an explicit identity or a recurring factory that builds a bare command, fails only at runtime with a denial when that path runs. Pass an explicit identity on those paths with `CommandMediationSettings.ForTenant(tenantId)` so the tenant is present before the guard runs.
+
+## Validating Tenant Identifiers
+
+`Tenant()` accepts any non-blank tenant by default. When tenant identifiers follow a stricter shape, such as workspace GUIDs, a malformed claim would otherwise pass the guard and fail later in a handler. Register the shape once with `ValidateTenant` on the tenancy options, and the guard, the `Tenant()` policy, and tenant sources all consult it:
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .UseTenancy(tenancy => tenancy
+        .ValidateTenant(tenantId => Guid.TryParse(tenantId, out _)))
+    .RequireDeclaration<TenancyDeclaration>());
+```
+
+Three overloads cover the three lifetimes. `ValidateTenant(Func<string, bool>)` takes a predicate, which runs for every mediation carrying a tenant, so it must be thread-safe and free of side effects. `ValidateTenant<TValidator>()` takes a validator type constructed from the dispatch scope, which is the overload to reach for when validation needs services, such as a tenant record lookup. `ValidateTenantInstance(ITenantIdentifierValidator)` takes a pre-created validator shared for the life of the process. A validator that reads scoped dependencies cannot be built there; use the type overload for that.
+
+```csharp
+public sealed class WorkspaceTenantValidator : ITenantIdentifierValidator
+{
+    public ValueTask<bool> IsValidAsync(
+        string tenantId,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        return new ValueTask<bool>(Guid.TryParse(tenantId, out _));
+    }
+}
+```
+
+One validator serves a composition. Repeating the same registration is a no-op, which is what repeated `UseTenancy` calls from several composition helpers produce; configuring a different one fails composition naming both. With no validator configured, a tenant is accepted when it is not blank. A mediation running in a malformed tenant is denied with `tenancy.invalid`, distinct from `tenancy.required`: the caller reached a tenant-scoped use case with a tenant value that cannot be used, so an HTTP boundary answers it as an invalid request rather than a refusal.
+
+## Reading Tenant Metadata
+
+Schedules, checkpoint calendars, and policies read per-tenant attributes through `ITenantMetadataProvider`, so none of them takes a tenant store dependency:
+
+```csharp
+ValueTask<IReadOnlyDictionary<string, TenantMetadata>> GetManyAsync(
+    IReadOnlyList<string> tenantIds,
+    CancellationToken cancellationToken);
+```
+
+Tenants with no record are absent from the result rather than mapping to `null`. Callers that need one tenant pass a single-element list. Each value is a `TenantMetadata` record carrying the tenant identifier, the IANA time zone name or `null` when unknown, the culture name or `null` when unknown, and additional attributes by name. The time zone is stored as an IANA name rather than a resolved zone, so stored values survive machine differences and resolve the same on every host. Schedules resolve per-tenant zones from the time zone entry and read an unknown zone as UTC.
+
+LiteBus ships no tenant store. `UseTenancy` registers a default provider that answers every tenant with unknown metadata: no time zone, no culture, and no attributes. That keeps schedules and policies running, with occurrences read in UTC, but it is a placeholder rather than tenant data. An application with tenant records replaces it by registering its own `ITenantMetadataProvider` with the container, and the composition model records the replacement. The `litebus.tenancy.metadata` diagnostic probe reports which provider answers: unhealthy when none is registered, degraded while the default answers, and healthy for an application provider. Dated per-tenant settings stay in the application, which reaches them through its own services with the tenant from the mediation context.
 
 ## Ambient Tenant on Durable Envelopes
 
@@ -150,6 +192,8 @@ Document stores filter by the ambient tenant without application code at the cal
 ## Application Responsibilities
 
 - Whether a message runs inside a tenant is your declaration. LiteBus enforces the position and propagates the tenant, but only your team knows which use cases are tenant-scoped.
+- What a well-formed tenant looks like is your validator's decision. LiteBus accepts any non-blank tenant until you register the shape with `ValidateTenant`.
+- What a tenant carries beyond its identifier is your metadata provider's decision. LiteBus answers unknown metadata until you register a provider over your tenant records.
 - Where the ambient tenant comes from is your host's decision. Register an `IExecutionIdentityProvider`, or use the ASP.NET Core provider that reads the principal and a tenant claim from the current request.
 - Which tenant an explicit item names is your call site's decision. `UseAmbientTenant` fills an absent tenant; it never overrides one you set.
 - What a tenant means to your stores is your schema's decision. Marten conjoined tenancy, per-tenant processors, and tenant-filtered queries each assume the envelope carries the right tenant.

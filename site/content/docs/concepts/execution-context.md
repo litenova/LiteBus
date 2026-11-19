@@ -213,6 +213,8 @@ registry.AddMessaging(messaging =>
 
 An identity carries a `ClaimsPrincipal? Principal`, a `string? TenantId`, and `HasTenant`, which reports whether a tenant is known. `ExecutionIdentity.Anonymous` has neither. `ExecutionIdentity.For(principal, tenantId)` builds one for a caller, and `ExecutionIdentity.ForTenant(tenantId)` builds one that carries only a tenant, as a durable dispatcher restores it from an envelope. A blank tenant builds `Anonymous`, so a missing tenant never arrives as an empty string a check would treat as a value.
 
+`ExecutionIdentity.System` declares work the library starts itself, such as an outbox processor delivery or a recurring schedule firing. Like `Anonymous` it carries no principal and no tenant. `IsSystem` distinguishes the two: `Anonymous` means no caller is known, while `System` means the mediation runs as the system.
+
 Resolution order, first match wins:
 
 1. The identity passed on the mediation request. The semantic mediators copy it from `CommandMediationSettings.Identity`, `QueryMediationSettings.Identity`, and `EventMediationSettings.Identity`, so set it when the caller is known only at the call site, such as a job that runs on behalf of one tenant:
@@ -228,7 +230,7 @@ await commandMediator.SendAsync(command, settings, cancellationToken);
 
 Each settings type also offers a `ForTenant` factory for the tenant-only case: `CommandMediationSettings.ForTenant(tenantId)`, `QueryMediationSettings.ForTenant(tenantId)`, and `EventMediationSettings.ForTenant(tenantId)` return settings with `Identity` set from `ExecutionIdentity.ForTenant(tenantId)`. A blank tenant builds `Anonymous`, so a missing tenant never arrives as an empty string.
 
-2. The identity of the enclosing mediation, read as `AmbientExecutionContext.GetCurrentOrDefault()?.Identity`, when it is not `Anonymous`. A nested mediation inherits the identity of its parent.
+2. The identity of the enclosing mediation, read as `AmbientExecutionContext.GetCurrentOrDefault()?.Identity`, when it is not `Anonymous`. A nested mediation inherits the identity of its parent. A root mediation started by a boundary carries a cause instead of a parent, so it never inherits and uses the identity its entry point declares.
 3. The `IExecutionIdentityProvider` resolved from the dispatch scope, when the host registered one. The host supplies the ambient caller: ASP.NET Core reads `HttpContext.User` and a tenant claim, and a worker reads its own job context. See [ASP.NET Core Execution Identity](../integrations/aspnetcore-execution-identity.md).
 4. `ExecutionIdentity.Anonymous`.
 
@@ -236,18 +238,39 @@ The provider resolves from the dispatch scope, which is a sibling of the request
 
 Durable dispatchers restore the tenant only. They set `Identity = ExecutionIdentity.ForTenant(envelope.TenantId)` on the settings they build, so a reaction runs in the tenant of the fact that caused it. A principal is never persisted on an envelope. See [Tenancy](tenancy.md).
 
+Each boundary that starts a root mediation declares the identity its work runs under. A recurring pass sends with the identity its registration computes through the `identity` factory on `AddRecurring`, or without an identity when none is given, in which case the provider or `Anonymous` applies. Tenant and batch source reads run under `RecurringCommandHostOptions.SourceIdentity`, which defaults to `ExecutionIdentity.System`.
+
 Guards read the resolved identity without taking a dependency for it. `AuthorizationGuard<TMessage>` exposes `CurrentIdentity`, which returns the ambient identity or `Anonymous` outside a mediation. A guard that checks a permission or a tenant reads the caller there instead of from a property every message carries. Completion handlers read the resolved identity from `MessageCompletionContext.Identity` rather than ambient state.
 
-### Message Type and Enclosing Mediation
+### Message Type, Enclosing Mediation, and Cause
 
-`MessageType` is the runtime type of the message the mediation handles. `Parent` is the execution context of the enclosing mediation, or `null` for a root mediation. A root mediation is one with no ambient context when it starts: a durable dispatcher, a recurring loop, an inbox processor, or an HTTP request. A handler that sends or publishes another message starts a nested mediation whose parent is the handler's own context.
+`MessageType` is the runtime type of the message the mediation handles. `Parent` is the execution context of the enclosing mediation, or `null` for a root mediation. A root mediation is one that starts with no ambient context: an application call, an outbox processor delivery, immediate dispatch, an inbox delivery, a recurring pass, or a domain event published in process. A handler that sends or publishes another message starts a nested mediation whose parent is the handler's own context.
 
 ```csharp
 IExecutionContext? parent = AmbientExecutionContext.Current.Parent;
 Type? outerMessageType = parent?.MessageType;
 ```
 
-Walking `Parent` gives the chain of messages that led to the current one. Nesting rules read that chain before a nested mediation starts, and authorization policies read it to admit a call from a named enclosing message. Both are default interface members that return `null`, so a custom context that does not track them keeps compiling.
+Walking `Parent` gives the chain of synchronous calls that led to the current one. Nesting rules read that chain before a nested mediation starts, and authorization policies read it to admit a call from a named enclosing message. Both are default interface members that return `null`, so a custom context that does not track them keeps compiling.
+
+`Cause` is the committed fact that caused a root mediation, carried as data in a `MediationCause` with a correlation id, a causation id, and a `MediationCauseSource`. It is `null` for a nested mediation and for an application-started root. A boundary that starts a root mediation sets the cause on the mediation settings (`CommandMediationSettings.Cause`, `QueryMediationSettings.Cause`, `EventMediationSettings.Cause`). The mediator copies it into the created execution context and leaves `Parent` as `null`, even when an ambient scope exists. The mediation therefore never inherits ambient identity and never evaluates nesting rules: a root has no enclosing mediation to check against. `RootMediationScope` clears the ambient context around the boundary call and restores it afterwards, so processor delivery and immediate delivery observe identical lineage.
+
+```csharp
+MediationCause? cause = AmbientExecutionContext.Current.Cause;
+string? correlation = cause?.CorrelationId;
+string? causation = cause?.CausationId;
+MediationCauseSource? source = cause?.Source;
+```
+
+The entry points that set a cause today are:
+
+| Source | Reported by |
+| --- | --- |
+| `MediationCauseSource.Outbox` | The in-process outbox dispatcher, on both the processor path and the immediate path, because both deliver the same leased envelope through the same dispatcher. |
+| `MediationCauseSource.Inbox` | The in-process inbox dispatcher. |
+| `MediationCauseSource.DomainEvent` | A domain event published in process after the commit. |
+
+`MediationCauseSource` also declares `ImmediateDispatch`, `RecurringSchedule`, and `Saga` for those boundaries. When the envelope carries no correlation or causation id, the dispatcher falls back to the envelope id, so a dispatched reaction always carries a cause: the envelope itself is the committed fact, and an unstamped envelope starts its own workflow.
 
 ### Nesting Rules
 
@@ -275,6 +298,8 @@ public sealed class NoExportInsideImportRule : IMediationNestingRule
 ```
 
 `NestedMediationException` carries `OuterMessageType`, `InnerMessageType`, a human-readable `Reason`, and an optional machine-readable `Code` a boundary can switch on. The message names both message types. `OuterMessageType` is the message type of the nearest enclosing mediation that carries one, normally the direct parent; when an intermediate mediation stands between the inner message and the ancestor the rule objected to, `Reason` names that ancestor.
+
+A boundary-started mediation carries a cause and no parent, so it skips rule evaluation even when an ambient mediation staged the envelope that caused it. A command sent from an outbox or inbox reaction is therefore not nested and stays allowed.
 
 An application adds its own rules, such as an exemption that allows a named inner message under a named outer one, by registering them for collection resolution. The built-in command rule is registered through `CommandModuleBuilder.ForbidNestedCommands()`, which denies a command nested anywhere under another command with the code `commands.nested-command`. See [Command Module](commands.md).
 

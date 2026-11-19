@@ -37,5 +37,14 @@ public enum AuditOutcome
     ///     Pairs with <see cref="MediationOutcome.Invalid" />. It is kept apart from <see cref="Denied" /> so that
     ///     malformed input does not appear in the list a security review reads.
     /// </remarks>
-    Invalid = 4
+    Invalid = 4,
+
+    /// <summary>
+    ///     The command was attempted by the caller; the outcome record states the result.
+    /// </summary>
+    /// <remarks>
+    ///     Written before the handler runs under the <c>BeforeAndOutcome</c> capture. A record written before commit
+    ///     never claims success.
+    /// </remarks>
+    Intent = 5
 }

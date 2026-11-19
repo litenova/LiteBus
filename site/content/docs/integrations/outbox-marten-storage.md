@@ -69,7 +69,7 @@ builder.AddOutbox(outbox =>
 });
 ```
 
-The harvester reads the pending inserts and updates of the scoped `IDocumentSession` and ignores pending deletions. Documents implementing `IHasDomainEvents` harvest by default; documents with their own event storage configure accessor pairs with `OutboxModuleBuilder.HarvestDomainEvents<TAggregate>`. The harvester clears the events it moved from each document, so each event stages once. Harvesters run only when the mediation completed with `MediationOutcome.Succeeded`. See [Domain Events and Unit of Work](../reliable-messaging/domain-events-and-unit-of-work.md) for the harvesting contract.
+The harvester reads the pending inserts, updates, and deletions of the scoped `IDocumentSession`. A deletion harvests only when it carries a document, as with `session.Delete(entity)`; `DeleteWhere` carries no document, so flows that delete by predicate collect their events on `IDomainEventCollector` by hand. Documents implementing `IHasDomainEvents` harvest by default; documents with their own event storage configure accessor pairs with `OutboxModuleBuilder.HarvestDomainEvents<TAggregate>`. The harvester clears the events it moved from each document, so each event stages once. Harvesters run only when the mediation completed with `MediationOutcome.Succeeded`. See [Domain Events and Unit of Work](../reliable-messaging/domain-events-and-unit-of-work.md) for the harvesting contract.
 
 ## Choosing Between the Queued Writer and the Ambient Transaction
 

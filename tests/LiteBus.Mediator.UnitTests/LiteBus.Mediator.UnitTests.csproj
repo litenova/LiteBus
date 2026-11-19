@@ -14,9 +14,11 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\src\LiteBus.Auditing.Abstractions\LiteBus.Auditing.Abstractions.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands.Extensions.Microsoft.DependencyInjection\LiteBus.Commands.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands.Recurring\LiteBus.Commands.Recurring.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Commands.Recurring.Schedules.Cron\LiteBus.Commands.Recurring.Schedules.Cron.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Events.Extensions.Microsoft.DependencyInjection\LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus\LiteBus.csproj"/>

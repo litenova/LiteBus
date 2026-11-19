@@ -41,8 +41,13 @@
         <PackageVersion Include="Testcontainers.Redpanda" Version="4.16.0"/>
         <PackageVersion Include="Testcontainers.LocalStack" Version="4.16.0"/>
         <PackageVersion Include="Testcontainers.ServiceBus" Version="4.16.0"/>
+        <PackageVersion Include="Testcontainers.Minio" Version="4.15.0"/>
+        <PackageVersion Include="Testcontainers.Azurite" Version="4.16.0"/>
         <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.21.0"/>
         <PackageVersion Include="AWSSDK.SQS" Version="4.0.100.23"/>
+        <PackageVersion Include="AWSSDK.S3" Version="4.0.104.12"/>
+        <PackageVersion Include="Azure.Storage.Blobs" Version="12.30.1"/>
+        <PackageVersion Include="Cronos" Version="0.13.0"/>
         <PackageVersion Include="Confluent.Kafka" Version="2.16.0"/>
         <PackageVersion Include="RabbitMQ.Client" Version="7.2.2"/>
         <PackageVersion Include="xunit" Version="2.9.3"/>

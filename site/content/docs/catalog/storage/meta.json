@@ -2,6 +2,9 @@
     "title":  "Storage",
     "pages":  [
                   "README",
+                  "storage.auditing.adapter.marten",
+                  "storage.auditing.adapter.postgresql",
+                  "storage.auditing.adapter.efcore",
                   "storage.commands.adapter.marten",
                   "storage.commands.adapter.postgresql",
                   "storage.commands.recurring.postgresql",

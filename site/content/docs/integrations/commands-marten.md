@@ -1,8 +1,8 @@
-# Marten Unit of Work, Idempotency, and Audit
+# Marten Unit of Work and Idempotency
 
-`LiteBus.Commands.Storage.Marten` binds command mediation to the Marten session the handler already writes through. `MartenUnitOfWork` commits the scoped `IDocumentSession` when the mediation succeeds, `MartenIdempotencyStore` remembers idempotency keys as Marten documents, `MartenAuditTrail` writes audit records as Marten documents, and `MartenTenantSessionFactory` opens sessions for the tenant the current mediation runs in. Use it when command handlers stage Marten documents and the commit boundary should be the session save.
+`LiteBus.Commands.Storage.Marten` binds command mediation to the Marten session the handler already writes through. `MartenUnitOfWork` commits the scoped `IDocumentSession` when the mediation succeeds, `MartenIdempotencyStore` remembers idempotency keys as Marten documents, and `MartenTenantSessionFactory` opens sessions for the tenant the current mediation runs in. Use it when command handlers stage Marten documents and the commit boundary should be the session save.
 
-For declaring idempotency keys and how the shortcut and completion handler settle them, see [In-Process Idempotency](../concepts/idempotency.md). For what an audit record contains, see [Auditing](../concepts/auditing.md).
+For declaring idempotency keys and how the shortcut and completion handler settle them, see [In-Process Idempotency](../concepts/idempotency.md). For audit records stored as Marten documents, see [Marten Audit Storage](auditing-marten.md).
 
 ## Install
 
@@ -20,7 +20,6 @@ services.AddLiteBus(builder =>
 {
     builder.AddMessaging(messaging =>
     {
-        messaging.UseAuditTrail<MartenAuditTrail>();
         messaging.UseFaultRefusalClassifier<MartenConcurrencyRefusalClassifier>();
     });
     builder.AddCommands(commands =>
@@ -35,6 +34,7 @@ services.AddLiteBus(builder =>
         });
         commands.UseMartenTenantSessions();
     });
+    builder.AddAuditing(auditing => auditing.UseMartenStore());
 });
 ```
 
@@ -54,79 +54,29 @@ An unsettled claim whose age is within `ClaimTimeout` reports `InFlight`. An uns
 
 Two concurrent claims never both grant. A new-key race fails the loser with a unique violation, and a takeover race fails the loser with a serialization failure. Each is retried against the committed winner inside the store. The document identity is the key, so the race is always over one row.
 
-## Audit Trail
+## Audit Records
+
+Audit records leave this package for `LiteBus.Auditing.Storage.Marten`, because queries and events are audited as well as commands. `commands.EnableAuditing()` stays the per-axis switch that produces records; `AddAuditing` with `UseMartenStore` stores them:
+
+```csharp
+services.AddLiteBus(builder =>
+{
+    builder.AddCommands(commands =>
+    {
+        commands.RegisterFromAssembly(typeof(PlaceOrderCommand).Assembly);
+        commands.EnableAuditing();
+        commands.UseMartenUnitOfWork();
+    });
+    builder.AddAuditing(auditing => auditing
+        .UseMartenStore()
+        .UseHashChain(chain => chain
+            .CheckpointWhen(CheckpointPolicies.EveryRecords(100))));
+});
+```
 
 A record for a successful mediation is staged on the scoped session and committed by the same `SaveChangesAsync` that commits the handler change, so the record and the change are atomic. The ordering is fixed by priority. The audit completion handler runs at `Observability` and the unit-of-work commit runs at `UnitOfWork`, and handlers run in ascending priority order, so the writer always stages before the commit.
 
-A record for a denial, failure, cancellation, or invalid message cannot join that transaction, because the unit of work rolls the session back on exactly those paths. Those records are written on a separate short session that saves immediately, so a refusal or a fault is still recorded when the change it describes never commits.
-
-## Hash-Chained Audit Trail
-
-`UseMartenAuditChain` turns the trail tamper-evident. Each record in a segment gets a sequence number and a hash over its canonical form linked to the hash of its predecessor, so a review can prove that no record was removed, reordered, or altered. Register it on the command module:
-
-```csharp
-services.AddLiteBus(liteBus => liteBus.AddCommands(commands => commands
-    .UseMartenUnitOfWork()
-    .UseMartenAuditChain()));
-```
-
-Without the call the trail writes plain records, with no sequence numbers and no hash chain.
-
-With no configuration the chain stores `MartenAuditRecord` documents, segments them by `{category}/{year}` (with `uncategorized` for a record that carries no category), hashes them with the `sha256-v1` scheme, and cuts a checkpoint every 100 records. Every piece is replaceable through `UseHashChain`:
-
-```csharp
-commands.UseMartenAuditChain(options => options.UseHashChain(chain => chain
-    .SegmentBy<MartenAuditRecord>(record => record.TenantId ?? "unscoped")
-    .CheckpointWhen(CheckpointPolicies.Any(
-        CheckpointPolicies.EveryRecords(500),
-        CheckpointPolicies.Every(TimeSpan.FromDays(1))))
-    .SignCheckpointsWith<LedgerCheckpointSigner>()
-    .PublishCheckpointsTo<LedgerCheckpointPublisher>()));
-```
-
-| Builder method | Decides | Default |
-| --- | --- | --- |
-| `StoreAs<TDocument>(mapper)` | The stored document type and how an `AuditRecord` maps to it | `MartenAuditRecord` |
-| `SegmentBy<TDocument>(segmenter)` or `SegmentBy<TDocument>(segmentOf)` | The segment of each document, and an optional genesis document per segment | Category and year |
-| `UseScheme(scheme)` or `UseScheme(serviceProvider => scheme)` | The canonical form, link rule and hasher new documents are written with | `MartenAuditHashSchemes.Sha256V1` |
-| `AcceptScheme(scheme)` | An older scheme that verification still accepts | None |
-| `CheckpointWhen(policy)` | When a checkpoint is cut | Every 100 records |
-| `SignCheckpointsWith(signer)` | How a checkpoint is signed | Unsigned |
-| `PublishCheckpointsTo(publisher)` | Where checkpoints are published | Not published |
-
-The mapper, segmenter, signer and publisher can be given as an instance or as a type resolved from the container, and a scheme can be built from the container with the factory overload, so a hasher can read its key from a secret store. Checkpoint policies are plain values. [Auditing](../concepts/auditing.md#hash-chained-audit-storage) shows a custom document type with its own mapper, segmenter, canonicalizer and keyed hasher.
-
-Each document stores the name of the scheme it was written with. To change the algorithm, the key or the canonical form, write new documents with a new scheme and keep accepting the old one; verification picks the scheme per document:
-
-```csharp
-options.UseHashChain(chain => chain
-    .UseScheme(serviceProvider => new AuditHashScheme<MartenAuditRecord>(
-        "hmac-sha256-v2",
-        new MartenAuditRecordCanonicalizer(),
-        new PreviousHashLinkRule(),
-        new HmacSha256AuditHasher(cancellationToken => serviceProvider.GetRequiredService<IAuditKeyStore>().GetKeyAsync(cancellationToken))))
-    .AcceptScheme(MartenAuditHashSchemes.Sha256V1));
-```
-
-A `MartenAuditSegmentHead` document per segment serializes appends. Its identity is the segment name, and it carries the last sequence number and hash, the document count, and the last checkpoint. Every chained append loads the head, assigns the next sequence number, and stores the head back in the same session as the record, under Marten optimistic concurrency. A concurrent append fails its commit and retries against the winner, so two records never share a sequence number.
-
-A chained record is written on its own serialized session even for a successful mediation, because the sequence number is assigned under the segment head at commit time, which a staged session cannot hold. A chained success record is therefore durable on its own rather than atomic with the handler change, and a rolled-back handler still leaves its audit record behind. Enable the chain where tamper evidence matters more than record-change atomicity.
-
-### Checkpoints
-
-A hash chain proves internal consistency, but a tamperer who rewrites a whole suffix and recomputes every hash still passes verification. Published checkpoints close that gap. An `AuditCheckpoint` carries an identifier, the segment, the sequence, the number of documents it covers, the hash and scheme at that sequence, its kind, and an optional signature. Every checkpoint is stored as a `MartenAuditCheckpoint` document, which the registered `ICheckpointSource` reads back, and is then passed to the publisher. Publish synchronously, because a checkpoint the application never stored anchors nothing; a publisher that throws fails the operation it was called from.
-
-The checkpoint policy is asked after every append. A policy that can become due by time alone, such as `CheckpointPolicies.Every(TimeSpan)`, is also asked by a background service every `MartenAuditTrailOptions.CheckpointScanInterval` (five minutes by default), so a quiet segment still gets its daily or weekly checkpoint.
-
-### Verifying, Cutting and Expiring Segments
-
-Resolve `IAuditChain` to operate on segments:
-
-- `VerifyAsync(segment)` reads the segment from its first document to its head and returns `AuditChainVerification`: every break with its sequence and kind (gap, duplicate, previous-hash mismatch, hash mismatch, unknown scheme), the head, the document count, and the comparison with the latest checkpoint's hash, count and signature. `IsIntact` is `true` when nothing is wrong. `MartenAuditTrail.VerifyChainAsync(segment)` returns the same result.
-- `CutCheckpointAsync(segment)` cuts, stores, signs and publishes a checkpoint now.
-- `ExpireSegmentAsync(segment)` ends a segment for retention. It stores a `Final` checkpoint, publishes it, then deletes every document of the segment and marks the head expired, so the remaining segments still verify and the final checkpoint proves what the deleted segment held. A retry after a failed publish republishes the same checkpoint identifier and finishes the deletion. Appending to an expired segment throws.
-
-Existing chains written before the scheme name was stored verify unchanged as `sha256-v1`.
+A record for a denial, failure, cancellation, or invalid message cannot join that transaction, because the unit of work rolls the session back on exactly those paths. Those records are written on a separate short session that saves immediately, so a refusal or a fault is still recorded when the change it describes never commits. See [Marten Audit Storage](auditing-marten.md) for the trail, the chain defaults, and the `IAuditChain` operations.
 
 ## Tenant Sessions
 
@@ -180,14 +130,13 @@ Keep `ClaimTimeout` longer than the longest mediation that claims through the st
 
 Success audit records share the handler transaction and roll back with it. Stage them only through the completion-stage writer, which runs before the commit. Marten must target the database the documents live in. Marten assemblies are not strong-named.
 
-Hash-chained success records give up that atomicity. Each chained record commits on its own serialized session, so a rolled-back handler still leaves its audit record behind, and chained appends serialize per segment through the segment head. The chain suits a compliance trail written at command volume, not a hot path that needs record-change atomicity.
-
 Tenant sessions filter only when Marten is configured for conjoined tenancy. Without it, opening a tenant session fails in Marten rather than filtering silently, so a host missing the tenancy policy fails its first tenant-scoped mediation instead of reading across tenants.
 
 ## Related Docs
 
 - [In-Process Idempotency](../concepts/idempotency.md)
 - [Auditing](../concepts/auditing.md)
+- [Marten Audit Storage](auditing-marten.md)
 - [Tenancy](../concepts/tenancy.md)
 - [PostgreSQL Idempotency Store](commands-postgresql-idempotency-store.md)
 - [Outbox Marten Storage](outbox-marten-storage.md)

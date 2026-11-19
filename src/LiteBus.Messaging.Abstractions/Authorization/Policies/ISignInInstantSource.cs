@@ -15,7 +15,7 @@ namespace LiteBus.Messaging.Abstractions.Authorization;
 ///     </para>
 ///     <para>
 ///         A source that treats an unknown instant as allowed returns
-///         <see cref="AuthorizationContext.HandledAt" />, which makes the sign-in age zero.
+///         <see cref="MessageEvaluationContext.HandledAt" />, which makes the sign-in age zero.
 ///     </para>
 /// </remarks>
 /// <example>

@@ -92,6 +92,9 @@ internal sealed class MessageMediator : IMessageMediator
     ///     scoped services resolve from that scope and the mediator never disposes it, including when the result is
     ///     asynchronous; the owner disposes it. When it is <see langword="null" />, the mediator creates one
     ///     <see cref="LazyMessageDispatchScope" /> for the call and disposes it when the pipeline completes.
+    ///     When the request carries a <see cref="MediationCause" />, the mediation starts as a root with that cause
+    ///     and no parent, even inside an ambient scope, so boundary delivery never nests and never inherits the
+    ///     enclosing identity.
     /// </remarks>
     /// <exception cref="NoHandlerFoundException">
     ///     Thrown when no handler is found for the message type and registration on spot
@@ -133,9 +136,11 @@ internal sealed class MessageMediator : IMessageMediator
             dispatchScope = ownedScope;
         }
 
-        // Read before the new ambient scope replaces it, so a nested mediation inherits its parent's identity
-        // and records its lineage.
-        var parentContext = AmbientExecutionContext.GetCurrentOrDefault();
+        // A cause marks a root mediation started by a boundary, so it never inherits the ambient scope even
+        // when one exists. Otherwise the mediation nests inside the ambient scope when there is one.
+        var cause = request.Cause;
+        var ambientContext = AmbientExecutionContext.GetCurrentOrDefault();
+        var parentContext = cause is null ? ambientContext : null;
         var identity = ResolveIdentity(
             request.Identity,
             parentContext,
@@ -160,7 +165,8 @@ internal sealed class MessageMediator : IMessageMediator
                 identity,
                 cancellationToken,
                 messageType,
-                parentContext);
+                parentContext,
+                cause);
 
             executionScope = AmbientExecutionContext.CreateScope(executionContext);
 

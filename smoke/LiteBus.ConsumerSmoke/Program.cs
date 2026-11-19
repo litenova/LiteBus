@@ -13,9 +13,9 @@ using Microsoft.EntityFrameworkCore;
 // Exercises the LiteBus packages as an application does: from the packed packages, against the latest stable releases
 // of their third-party dependencies. The mediator scenario sends generic messages to handlers registered by their open
 // definitions and needs no database. Every storage call after it runs a code path that binds to a dependency API at
-// runtime (ExecuteUpdate, ExecuteDelete, raw lease SQL, provider error codes, Marten sessions) on a real PostgreSQL
-// server, so a dependency release that removes or changes one of those APIs fails here with the exception an
-// application would see.
+// runtime (ExecuteUpdate, ExecuteDelete, raw lease SQL, provider error codes, Marten sessions, and the Marten,
+// PostgreSQL, and Entity Framework Core audit stores with their hash chains) on a real PostgreSQL server, so a
+// dependency release that removes or changes one of those APIs fails here with the exception an application would see.
 await Smoke.RunAsync("Generic message dispatch", GenericDispatchSmoke.RunAsync).ConfigureAwait(false);
 
 var connectionString = Environment.GetEnvironmentVariable("LITEBUS_SMOKE_POSTGRES")
@@ -37,5 +37,8 @@ await Smoke.RunAsync("Marten idempotency store", () => MartenSmoke.RunAsync(conn
 await Smoke.RunAsync("EF Core command batches", () => CommandBatchSmoke.RunAsync(connectionString)).ConfigureAwait(false);
 await Smoke.RunAsync("EF Core immediate dispatch", () => ImmediateDispatchSmoke.RunAsync(connectionString)).ConfigureAwait(false);
 await Smoke.RunAsync("Marten idempotency settlement", () => IdempotencySettlementSmoke.RunAsync(connectionString)).ConfigureAwait(false);
+await Smoke.RunAsync("Marten audit store", () => AuditMartenSmoke.RunAsync(connectionString)).ConfigureAwait(false);
+await Smoke.RunAsync("PostgreSQL audit store", () => AuditPostgreSqlSmoke.RunAsync(connectionString)).ConfigureAwait(false);
+await Smoke.RunAsync("Entity Framework Core audit store", () => AuditEntityFrameworkCoreSmoke.RunAsync(connectionString)).ConfigureAwait(false);
 
 Console.WriteLine("Consumer smoke test passed.");

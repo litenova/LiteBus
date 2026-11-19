@@ -31,6 +31,15 @@ namespace LiteBus.Messaging.Abstractions.Auditing;
 public sealed record AuditRecord
 {
     /// <summary>
+    ///     Gets the stable identifier of the record, assigned when the record is produced.
+    /// </summary>
+    /// <remarks>
+    ///     Delivery through the transactional outbox is at least once. The audit store holds one document per id, so
+    ///     a redelivered record overwrites rather than duplicates.
+    /// </remarks>
+    public Guid Id { get; init; }
+
+    /// <summary>
     ///     Gets the use-case identity of the action, such as <c>orders.place-order</c>.
     /// </summary>
     public required string Action { get; init; }

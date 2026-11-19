@@ -333,11 +333,50 @@ builder.AddOutbox(outbox =>
 collector.Collect(new OrderPlacedIntegrationEvent { OrderId = order.Id });
 ```
 
-Staging runs only on `MediationOutcome.Succeeded`. A failed mediation stages nothing. The staging handler resolves `ITransactionalOutbox` lazily, only when the drain is non-empty. Mediations that collect nothing therefore never touch it.
+Staging runs only on `MediationOutcome.Succeeded`. A failed mediation stages nothing. The staging handler resolves `ITransactionalOutbox` lazily, only when the drain stages at least one message. Mediations that collect nothing therefore never touch it.
 
 The application must register a scoped non-generic `ITransactionalOutbox` (the ambient PostgreSQL provider, the Entity Framework Core interceptor adapter, or the Marten writer). Collecting events without one fails staging with a descriptive error. Entity Framework Core registers the non-generic adapter over `ITransactionalOutbox<TContext>` only when `EnableSaveChangesInterceptor()` is set.
 
-When `UseAmbientTrace` is also enabled, staged envelopes stamp ambient trace. See [Domain Events and Unit of Work](domain-events-and-unit-of-work.md) for the aggregate and transaction-boundary pattern.
+When `UseAmbientTrace` is also enabled, staged envelopes stamp ambient trace. When `UseAmbientTenant` is also enabled, staged envelopes stamp the ambient execution identity tenant. See [Domain Events and Unit of Work](domain-events-and-unit-of-work.md) for the aggregate and transaction-boundary pattern.
+
+### Decide and Translate Before Staging
+
+Between harvest and stage, the staging handler decides what each drained event does and translates it. Each event matches its exact runtime type against the registered per-type decisions. Translated messages are published messages and stage directly without a further decision, so translation cannot loop.
+
+| Decision | Registration | Behavior |
+| --- | --- | --- |
+| Translate with a function | `TranslateDomainEvent<TEvent>(e => [...])` | Maps one domain event to zero or more messages to stage. An empty list stages nothing. |
+| Translate with a translator | `TranslateDomainEvent<TEvent, TTranslator>()` | Resolves `IDomainEventTranslator<TEvent>` from the dispatch scope, so the translator reads scoped services. |
+| Ignore | `IgnoreDomainEvent<TEvent>()` | Drops the event without staging it. Ignored events need no contract registration. |
+| Publish in process | `PublishDomainEventInProcess<TEvent>()` | Publishes the event through `IEventMediator` after the commit, as a root mediation with a cause. |
+| Undecided policy | `RequireDomainEventDecision()` | Fails staging before the commit when a drained event has no registered decision. |
+
+```csharp
+builder.AddOutbox(outbox => outbox
+    .StageCollectedEvents()
+    .TranslateDomainEvent<WorkspaceErasureRequestedDomainEvent>(
+        static e => [WorkspaceErasureRequestedModuleEvent.From(e)])
+    .TranslateDomainEvent<DiagnosisRecordedDomainEvent, DiagnosisRecordedTranslator>()
+    .IgnoreDomainEvent<ChartOfAccountsChangedDomainEvent>()
+    .PublishDomainEventInProcess<OrderShippedDomainEvent>()
+    .RequireDomainEventDecision());
+```
+
+Translation runs inside the staging completion handler, before the unit of work commits and inside the transaction scope. A translator receives a `DomainEventTranslationContext` with the mediated message type, the dispatch-scope provider, and the ambient correlation, causation, and tenant values, so a translator that loads data observes the same uncommitted writes the handlers produced.
+
+A domain event type declares one decision. An identical repeat is a no-op. A different decision for the same event type fails composition with `LiteBusConfigurationException` naming both. Two translation functions are identical only when they are the same delegate instance. A type with no decision follows `UndecidedDomainEventPolicy`: `StageAsIs` stages the event unchanged (the default), `Ignore` drops it, and `Throw` (set by `RequireDomainEventDecision()`) fails staging before the commit. The staging handler throws because harvested types are known only at run time, so a composition check cannot enumerate them.
+
+A decision fault is a configuration fault, never a user refusal. It raises `MessageFaultException` before the commit with a stable code from `DomainEventFaultCodes`, the mediation reports `MediationOutcome.Failed`, and the business write never commits without its declared consequences:
+
+| Code | Meaning |
+| --- | --- |
+| `domain-events.undecided-event` | A drained event has no registered decision and the undecided policy is `Throw`. |
+| `domain-events.translator-missing` | The translator type registered for an event is not registered in dependency injection. |
+| `domain-events.invalid-translation` | A translator returned a null list or a list containing a null message. |
+| `domain-events.event-mediator-missing` | An event must publish in process but no `IEventMediator` is registered. |
+| `domain-events.in-process-publish-unavailable` | An event must publish after the commit but the scoped buffer or the commit listener is not registered. |
+
+An event that publishes in process is recorded during staging and published after the unit of work commits. Each publication runs as a root mediation whose cause has source `MediationCauseSource.DomainEvent`: the cause continues the ambient correlation (starting a new workflow id otherwise) and mints one causation id per recorded event. The mediation runs in the recorded tenant without the causing principal, and the recorded trace metadata is copied into the reaction mediation items. A mediation with no unit of work has no commit to wait for, so its events publish when staging completes instead. There is no pre-commit in-process dispatch: reactions that must join the transaction already exist as post-handlers.
 
 For EF registration, interceptor setup, and duplicate-idempotency behavior on the transactional path, see [Outbox Entity Framework Core Storage](../integrations/outbox-ef-core-storage.md).
 
@@ -380,6 +419,8 @@ After a crash between broker publish and terminal persist, the processor re-publ
 ```csharp
 outbox.UseInProcessDispatch();
 ```
+
+Each dispatch runs as a root mediation inside `RootMediationScope`, with `EventMediationSettings.Cause` set from the envelope correlation and causation ids (`MediationCauseSource.Outbox`). An id the envelope does not carry falls back to the envelope id, so a dispatched reaction always carries a cause. The reaction runs in the envelope tenant restored without the calling principal, its `Parent` is `null`, and nesting rules never evaluate. The immediate path delivers through this same dispatcher, so it observes the same lineage as the processor path. See [Execution Context](../concepts/execution-context.md).
 
 A dispatched message with no registered handler fails the attempt by default. The attempt then retries and eventually dead-letters, rather than being marked `Published`. An immediate `PublishAsync` treats 0 subscribers as a silent no-op, which is defensible when the caller can see there are none. A durable dispatch has no such caller, so the two axes deliberately disagree.
 

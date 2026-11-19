@@ -150,9 +150,9 @@ public sealed class DescribeDefinitionTests : LiteBusTestBase
     {
         var seen = new List<string>();
 
-        Build(messaging => messaging.ValidateComposition(catalog =>
+        Build(messaging => messaging.ValidateComposition(model =>
         {
-            foreach (var entry in catalog.Audited())
+            foreach (var entry in model.Messages.Audited())
             {
                 seen.Add(entry.Audit!.Action);
             }
@@ -165,17 +165,17 @@ public sealed class DescribeDefinitionTests : LiteBusTestBase
     [Fact]
     public void The_catalog_holds_every_registered_message_and_filters_the_audited_ones()
     {
-        IMessageCatalog? captured = null;
-        Build(messaging => messaging.ValidateComposition(catalog => captured = catalog));
+        ICompositionModel? captured = null;
+        Build(messaging => messaging.ValidateComposition(model => captured = model));
 
         captured.Should().NotBeNull();
-        captured!.Count.Should().BeGreaterThan(0);
+        captured!.Messages.Count.Should().BeGreaterThan(0);
 
         // Enumerating gives every message; Audited() gives the ones a catalogue is built from.
-        captured.Select(entry => entry.MessageType).Should().Contain(typeof(TransferFundsCommand));
-        captured.Select(entry => entry.MessageType).Should().Contain(typeof(ListAccountsQuery));
+        captured.Messages.Select(entry => entry.MessageType).Should().Contain(typeof(TransferFundsCommand));
+        captured.Messages.Select(entry => entry.MessageType).Should().Contain(typeof(ListAccountsQuery));
 
-        var audited = captured.Audited().ToList();
+        var audited = captured.Messages.Audited().ToList();
         audited.Select(entry => entry.MessageType).Should().Contain(typeof(TransferFundsCommand));
 
         // An exempt message takes a position and is still absent, because a catalogue of audited actions is what

@@ -140,7 +140,55 @@ registry.AddOutbox(outbox => outbox
 
 A configured accessor wins over the `IHasDomainEvents` default for its aggregate type, and applies to derived types and proxies through the configured base type. Registering the same aggregate type twice replaces the previous pair. A harvester clears the events it moved from each entity, so harvesting twice in one unit of work stages each event once, and a child mediation that harvests first leaves nothing for its parent to harvest again.
 
-Each storage adapter ships its harvester behind a `HarvestDomainEvents()` builder method. The Marten harvester reads the pending inserts and updates of the scoped `IDocumentSession` and ignores pending deletions. The Entity Framework Core harvester reads the `ChangeTracker` entries of the configured `DbContext` in every state, so a loaded aggregate that raises an event without touching a mapped property still harvests. See [Outbox Marten Storage](../integrations/outbox-marten-storage.md) and [Outbox Entity Framework Core Storage](../integrations/outbox-ef-core-storage.md) for registration.
+Aggregates built on one open generic base register once through the `Type` overload:
+
+```csharp
+registry.AddOutbox(outbox => outbox
+    .HarvestDomainEvents(
+        typeof(AggregateRoot<>),
+        static a => ((AggregateRoot)a).DomainEvents,
+        static a => ((AggregateRoot)a).ClearDomainEvents()));
+```
+
+An open generic definition matches every closed entity built on it, found up the base-type chain and among the implemented interfaces, so one registration covers every aggregate built on the same base without a marker interface. A closed type behaves like the generic overload. Aggregates with no common base register through a predicate:
+
+```csharp
+registry.AddOutbox(outbox => outbox
+    .HarvestDomainEventsWhere(
+        static t => typeof(IOrderEvents).IsAssignableFrom(t),
+        static a => ((IOrderEvents)a).PendingEvents,
+        static a => ((IOrderEvents)a).ClearPendingEvents()));
+```
+
+Type registrations and predicates share one ordered list. An exact type match wins first; otherwise the first registration in order whose test matches is used. Register broad conventions after the specific types they must not shadow. Registering the same predicate instance twice replaces the previous pair; different predicates accumulate.
+
+Each storage adapter ships its harvester behind a `HarvestDomainEvents()` builder method. The Marten harvester reads the pending inserts, updates, and deletions of the scoped `IDocumentSession`. A deletion harvests only when it carries a document, as with `session.Delete(entity)`; `DeleteWhere` carries no document, so flows that delete by predicate collect their events on `IDomainEventCollector` by hand. The Entity Framework Core harvester reads the `ChangeTracker` entries of the configured `DbContext` in every state, so a loaded aggregate that raises an event without touching a mapped property still harvests. See [Outbox Marten Storage](../integrations/outbox-marten-storage.md) and [Outbox Entity Framework Core Storage](../integrations/outbox-ef-core-storage.md) for registration.
+
+## Decide and Translate Before Staging
+
+An aggregate records domain events in its own shape. The outbox publishes integration events in the contract other services read. Between harvest and stage, the staging handler decides what each drained event does and translates domain shape into published shape. Each module declares its own decisions on the outbox builder:
+
+```csharp
+registry.AddOutbox(outbox => outbox
+    .StageCollectedEvents()
+    .TranslateDomainEvent<OrderPlacedDomainEvent>(
+        static e => [new OrderSubmittedIntegrationEvent(e.OrderId)])
+    .IgnoreDomainEvent<LineTotalRecalculatedDomainEvent>()
+    .RequireDomainEventDecision());
+```
+
+`TranslateDomainEvent` maps one domain event to zero or more messages to stage. `IgnoreDomainEvent` drops an event consumed inside the mediation, such as by a post-handler, that must never be published. `RequireDomainEventDecision` fails staging before the commit when a drained event has no registered decision, so an unregistered event type throws instead of publishing an internal event. A translation that needs scoped services uses the translator overload with an `IDomainEventTranslator<TEvent>` implementation:
+
+```csharp
+registry.AddOutbox(outbox => outbox
+    .StageCollectedEvents()
+    .UseAmbientTrace()
+    .UseAmbientTenant()
+    .RequireDomainEventDecision()
+    .TranslateDomainEvent<DiagnosisRecordedDomainEvent, DiagnosisRecordedTranslator>());
+```
+
+`PublishDomainEventInProcess` publishes an event through `IEventMediator` after the commit instead of staging it, as a root mediation with a cause. See [Decide and Translate Before Staging](outbox.md#decide-and-translate-before-staging) for every decision, the one-decision-per-type conflict rule, the undecided policies, and the fault codes.
 
 ## Command Pipeline Boundary
 

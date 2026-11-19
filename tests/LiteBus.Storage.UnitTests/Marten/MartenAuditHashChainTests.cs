@@ -1,4 +1,4 @@
-using LiteBus.Commands.Storage.Marten;
+using LiteBus.Auditing.Storage.Marten;
 using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Storage.UnitTests.Marten;

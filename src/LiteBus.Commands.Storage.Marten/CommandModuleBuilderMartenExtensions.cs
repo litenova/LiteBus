@@ -59,44 +59,6 @@ public static class CommandModuleBuilderMartenExtensions
     }
 
     /// <summary>
-    ///     Registers the Marten audit hash chain as a command child module.
-    /// </summary>
-    /// <param name="builder">The command module builder.</param>
-    /// <param name="configure">The optional audit hash chain configuration action.</param>
-    /// <returns>The command module builder for chaining.</returns>
-    /// <remarks>
-    ///     <para>
-    ///         The module registers the hash chain options instance, the <c>IAuditChain</c> that verifies,
-    ///         checkpoints, and expires segments, and the <c>ICheckpointSource</c> that reads stored checkpoints.
-    ///         When the checkpoint policy can become due by time, it also registers the checkpoint background loop.
-    ///         The audit trail itself is still registered through the messaging <c>UseTrail</c> API and shares the
-    ///         options instance registered here.
-    ///     </para>
-    ///     <para>
-    ///         Without a configuration action the chain runs with its defaults: records stored as
-    ///         <see cref="MartenAuditRecord" />, segmented by category and year, hashed with the default scheme,
-    ///         and checkpointed every one hundred records. The application registers Marten itself with
-    ///         <c>AddMarten</c>, which supplies the document store; LiteBus does not register Marten.
-    ///     </para>
-    /// </remarks>
-    public static CommandModuleBuilder UseMartenAuditChain(
-        this CommandModuleBuilder builder,
-        Action<MartenAuditTrailOptions>? configure = null)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        var options = new MartenAuditTrailOptions();
-        configure?.Invoke(options);
-
-        if (!options.HashChainEnabled)
-        {
-            options.UseHashChain();
-        }
-
-        return builder.RegisterChildModule(new MartenAuditModule(options));
-    }
-
-    /// <summary>
     ///     Registers the Marten tenant session factory as a command child module.
     /// </summary>
     /// <param name="builder">The command module builder.</param>

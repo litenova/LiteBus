@@ -138,10 +138,10 @@ public sealed class MartenDomainEventHarvestTests : IClassFixture<PostgreSqlFixt
     }
 
     /// <summary>
-    ///     Verifies a deleted document stages nothing, because the harvester reads pending inserts and updates only.
+    ///     Verifies a deleted document stages its final events before its row is removed.
     /// </summary>
     [SkippableFact]
-    public async Task Deleted_document_does_not_stage()
+    public async Task Deleted_document_stages_its_final_events()
     {
         var outboxOptions = await CreateOutboxSchemaAsync().ConfigureAwait(false);
         var probe = new HarvestProbe();
@@ -165,7 +165,52 @@ public sealed class MartenDomainEventHarvestTests : IClassFixture<PostgreSqlFixt
             new OutboxMessageFilter { ContractName = ContractName },
             new OutboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
 
+        page.Items.Should().HaveCount(1);
+        page.Items.Should().OnlyContain(envelope => envelope.Status == OutboxStatus.Pending);
+        probe.HarvestedAggregates.Should().HaveCount(1);
+        probe.HarvestedAggregates[0].Should().BeOfType<OrderDocument>();
+        ((OrderDocument) probe.HarvestedAggregates[0]).DomainEvents.Should().BeEmpty();
+
+        var documentStore = provider.GetRequiredService<IDocumentStore>();
+        var querySession = documentStore.QuerySession();
+        await using var configuredQuerySession = querySession.ConfigureAwait(false);
+        var stored = await querySession.LoadAsync<OrderDocument>(orderId).ConfigureAwait(false);
+
+        stored.Should().BeNull();
+    }
+
+    /// <summary>
+    ///     Verifies a predicate deletion stages nothing, because it carries no document.
+    /// </summary>
+    [SkippableFact]
+    public async Task DeleteWhere_deletion_carries_no_document_and_stages_nothing()
+    {
+        var outboxOptions = await CreateOutboxSchemaAsync().ConfigureAwait(false);
+        var probe = new HarvestProbe();
+        var provider = BuildProvider(outboxOptions, probe);
+        await using var configuredProvider = provider.ConfigureAwait(false);
+        var orderId = Guid.NewGuid();
+
+        var seedScope = provider.CreateAsyncScope();
+        await using (seedScope.ConfigureAwait(false))
+        {
+            var session = seedScope.ServiceProvider.GetRequiredService<IDocumentSession>();
+            session.Store(new OrderDocument { Id = orderId, Total = 10m });
+            await session.SaveChangesAsync().ConfigureAwait(false);
+        }
+
+        await provider.GetRequiredService<ICommandMediator>()
+            .SendAsync(new SubmitOrderCommand(orderId, HarvestScenario.DeleteWhere)).ConfigureAwait(false);
+
+        var manager = provider.GetRequiredService<IOutboxManager>();
+        var page = await manager.QueryAsync(
+            new OutboxMessageFilter { ContractName = ContractName },
+            new OutboxMessagePageRequest { PageSize = 10 }).ConfigureAwait(false);
+
         page.Items.Should().BeEmpty();
+        probe.HarvestedAggregates.Should().HaveCount(1);
+        probe.HarvestedAggregates[0].Should().BeOfType<OrderDocument>();
+        ((OrderDocument) probe.HarvestedAggregates[0]).DomainEvents.Should().HaveCount(1);
 
         var documentStore = provider.GetRequiredService<IDocumentStore>();
         var querySession = documentStore.QuerySession();
@@ -269,7 +314,12 @@ public sealed class MartenDomainEventHarvestTests : IClassFixture<PostgreSqlFixt
         /// <summary>
         ///     Loads a stored document, raises an event, and deletes it.
         /// </summary>
-        Delete
+        Delete,
+
+        /// <summary>
+        ///     Raises an event on an untracked document and deletes the stored row by predicate.
+        /// </summary>
+        DeleteWhere
     }
 
     /// <summary>
@@ -350,6 +400,15 @@ public sealed class MartenDomainEventHarvestTests : IClassFixture<PostgreSqlFixt
                         stored!.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
                         _session.Delete(stored);
                         _probe.HarvestedAggregates.Add(stored);
+                        break;
+                    }
+
+                case HarvestScenario.DeleteWhere:
+                    {
+                        var aggregate = new OrderDocument { Id = message.OrderId, Total = 10m };
+                        aggregate.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
+                        _session.DeleteWhere<OrderDocument>(document => document.Id == message.OrderId);
+                        _probe.HarvestedAggregates.Add(aggregate);
                         break;
                     }
 

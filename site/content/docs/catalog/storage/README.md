@@ -1,13 +1,13 @@
 # Storage
 
-This section is a contributor reference for the storage packages that give inbox and outbox flows durable persistence. If you build applications on LiteBus, start with [the documentation overview](../../index.md).
+This section is a contributor reference for the storage packages that give inbox, outbox, and auditing flows durable persistence. If you build applications on LiteBus, start with [the documentation overview](../../index.md).
 
 Technology-adapter packages hold the shared PostgreSQL and EF Core primitives, and feature bridges implement the storage roles for each durable axis.
 
 ## Axis Role
 
 - **Technology adapters**: shared storage infrastructure (`LiteBus.Storage.PostgreSql`, plus EF Core shared utilities in `storage.efcore.shared-infra`).
-- **Feature bridges**: axis adapters (`LiteBus.Inbox.Storage.*`, `LiteBus.Outbox.Storage.*`).
+- **Feature bridges**: axis adapters (`LiteBus.Inbox.Storage.*`, `LiteBus.Outbox.Storage.*`, `LiteBus.Auditing.Storage.*`).
 - **Primary responsibility**: accept and enqueue writes, processor leasing, state transitions, dead-letter replay, retention cleanup, diagnostics counts, and schema lifecycle for PostgreSQL adapters.
 
 ## Store Role Taxonomy
@@ -33,6 +33,9 @@ Technology-adapter packages hold the shared PostgreSQL and EF Core primitives, a
 | `LiteBus.Outbox.Storage.PostgreSql` | Feature bridge | PostgreSQL outbox adapter, schema scripts, transactional outbox participant |
 | `LiteBus.Outbox.Storage.Marten` | Feature bridge | Marten queued transactional outbox writer on the PostgreSQL outbox table |
 | `LiteBus.Commands.Recurring.Storage.PostgreSql` | Feature bridge | Renewable PostgreSQL single-flight lease rows for recurring commands |
+| `LiteBus.Auditing.Storage.Marten` | Feature bridge | Marten audit trail, documents, chain store adapter |
+| `LiteBus.Auditing.Storage.PostgreSql` | Feature bridge | Npgsql audit tables, chain store adapter, schema |
+| `LiteBus.Auditing.Storage.EntityFrameworkCore` | Feature bridge | EF Core entities, model configuration, chain store adapter |
 
 ## Capability Index
 
@@ -49,6 +52,9 @@ Technology-adapter packages hold the shared PostgreSQL and EF Core primitives, a
 | [storage.postgresql.work-signal](storage.postgresql.work-signal.md) | LISTEN/NOTIFY wake-up path |
 | [storage.inbox.adapter.efcore](storage.inbox.adapter.efcore.md) | EF Core inbox adapter surface |
 | [storage.outbox.adapter.efcore](storage.outbox.adapter.efcore.md) | EF Core outbox adapter surface |
+| [storage.auditing.adapter.marten](storage.auditing.adapter.marten.md) | Marten audit trail and chain store surface |
+| [storage.auditing.adapter.postgresql](storage.auditing.adapter.postgresql.md) | PostgreSQL audit trail and chain store surface |
+| [storage.auditing.adapter.efcore](storage.auditing.adapter.efcore.md) | EF Core audit trail and chain store surface |
 | [storage.inbox.adapter.inmemory](storage.inbox.adapter.inmemory.md) | InMemory inbox adapter surface |
 | [storage.outbox.adapter.inmemory](storage.outbox.adapter.inmemory.md) | InMemory outbox adapter surface |
 | [storage.efcore.shared-infra](storage.efcore.shared-infra.md) | Shared EF Core lease, model, and operation helpers |

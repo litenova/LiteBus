@@ -187,6 +187,12 @@ public sealed class ModuleConfigurationTests
         public int Count => 0;
 
         /// <inheritdoc />
+        public bool TryAddDeclaration(MessageDeclarationItem declaration)
+        {
+            return false;
+        }
+
+        /// <inheritdoc />
         public IReadOnlyList<IHandlerDescriptor> Handlers => [];
 
         /// <inheritdoc />

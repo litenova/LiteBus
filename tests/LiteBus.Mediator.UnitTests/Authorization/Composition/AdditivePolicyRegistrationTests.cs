@@ -30,7 +30,7 @@ public sealed class AdditivePolicyRegistrationTests : LiteBusTestBase
             new CompositionPermissionOptions(),
             policies => policies.Add(
                 "vaults.open",
-                new RecordingCompositionPolicy(recorder, "policy:vaults.open", Verdict.Allow)),
+                new RecordingCompositionPolicy(recorder, "policy:vaults.open", PolicyResult.Allow)),
             policies => policies.Add("vaults.seal", MessagePolicy.Deny("sealing needs a second approver")),
             typeof(OpenCompositionVaultCommand),
             typeof(OpenCompositionVaultCommandHandler),
@@ -94,7 +94,7 @@ public sealed class AdditivePolicyRegistrationTests : LiteBusTestBase
             recorder,
             new CompositionPermissionOptions(),
             policies => policies
-                .Add("vaults.open", new RecordingCompositionPolicy(recorder, "policy:vaults.open", Verdict.Allow))
+                .Add("vaults.open", new RecordingCompositionPolicy(recorder, "policy:vaults.open", PolicyResult.Allow))
                 .AddCondition<FirstCompositionCondition>(),
             policies => policies.AddCondition<SecondCompositionCondition>(),
             typeof(OpenCompositionVaultCommand),

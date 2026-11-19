@@ -38,7 +38,7 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | LB1020 | Warning (disabled by default) | Declarations | Command or query type states no position on a metadata value type named in `litebus_required_declarations` |
 | LB1021 | Warning | Declarations | `litebus_required_declarations` names a type that does not resolve in the compilation |
 | LB1022 | Warning | Handlers | `[HandlerPriority]` value falls inside the range LiteBus reserves for its own handlers |
-| LB1023 | Warning (disabled by default) | Handlers | Command handler, pre-handler, or post-handler sends or publishes another message through a mediator inside its handle method |
+| LB1023 | Warning | Handlers | Command handler, pre-handler, or post-handler sends or publishes another message through a mediator inside its handle method; reports only when `litebus_forbid_nested_commands` is `true` |
 | LB1024 | Warning (disabled by default) | Handlers | Command handler injects an external side-effect type through its constructor |
 | LB1025 | Warning | Outbox | Command handler injects `IOutbox` while a transactional outbox storage package resolves, so the enqueue commits apart from the domain write |
 | LB1026 | Warning | Outbox | Type injects `ITransactionalOutbox<TContext>` for a context no `UseDbContext<TContext>()` call in the compilation configures |
@@ -115,17 +115,19 @@ A message satisfies the rule with a definition class, with an attribute annotate
 
 LB1021 reports a configured name that does not resolve, because a name that silently did nothing would disable the requirement it configures. A typo in `.editorconfig` is the usual cause.
 
-`RequireDeclaration<TValue>()` on the messaging module enforces the same rule at composition time, which also covers a message registered from an assembly outside this compilation. See [Required Declarations](../catalog/analyzers/required-declarations.md).
+`RequireDeclaration<TValue>()` on the messaging module enforces the same rule at composition time, which also covers a message registered from an assembly outside this compilation. LB1020 checks what the message states itself: a definition, a declaring attribute, or an exemption. Defaults, conventions, and Report or Fail enforcement are composition checks. Event requirements are composition-only; LB1020 does not check events. See [Required Declarations](../catalog/analyzers/required-declarations.md).
 
 ## Nested Mediation in Command Handlers (LB1023)
 
-LB1023 reports a command handler, pre-handler, or post-handler that sends a command, sends a batch of commands, publishes an event, or mediates another message through `ICommandMediator`, `ICommandBatchMediator`, `IEventMediator`, or `IMessageMediator` inside `HandleAsync`, `Handle`, `PreHandleAsync`, or `PostHandleAsync`. The batch methods are `ICommandBatchMediator.SendManyAsync` and `ICommandBatchMediator.TrySendManyAsync`, and the diagnostic names the called method the same way it does for `SendAsync`. The nested mediation runs a second unit of work inside the first, so the outer commit cannot roll the inner work back. A retry of the outer handler runs the inner work twice. The rule is disabled by default. Enable it once command handlers no longer nest units of work. The runtime counterpart is `CommandModuleBuilder.ForbidNestedCommands()`, which throws `NestedMediationException` before the inner pipeline starts.
+LB1023 reports a command handler, pre-handler, or post-handler that sends a command, sends a batch of commands, publishes an event, or mediates another message through `ICommandMediator`, `ICommandBatchMediator`, `IEventMediator`, or `IMessageMediator` inside `HandleAsync`, `Handle`, `PreHandleAsync`, or `PostHandleAsync`. The batch methods are `ICommandBatchMediator.SendManyAsync` and `ICommandBatchMediator.TrySendManyAsync`, and the diagnostic names the called method the same way it does for `SendAsync`. The nested mediation runs a second unit of work inside the first, so the outer commit cannot roll the inner work back. A retry of the outer handler runs the inner work twice. The rule reports only when `litebus_forbid_nested_commands` is `true`. Without the option it reports nothing.
 
 ```ini
 # .editorconfig
 [*.cs]
-dotnet_diagnostic.LB1023.severity = warning
+litebus_forbid_nested_commands = true
 ```
+
+An analyzer cannot see a `ForbidNestedCommands()` call made in another compilation, so the option pairs the build check with the runtime guarantee instead of detecting the call. The runtime counterpart is `CommandModuleBuilder.ForbidNestedCommands()`, which throws `NestedMediationException` before the inner pipeline starts. The runtime stays the guarantee.
 
 Reads through `IQueryMediator` are not reported. Queries are side-effect free by contract (see LB1003), so a nested read creates no nested unit of work. `EvaluateAsync` guard checks are not reported either, because they decide without acting. A `Mediate` call whose message is a query is treated as a read for the same reason.
 

@@ -111,6 +111,69 @@ public sealed class MediationResultValidationErrorsTests
         Assert.Equal("Amount must be positive", errors.GetProperty("Amount")[0].GetString());
     }
 
+    [Fact]
+    public async Task ToHttpResult_InvalidWithCodedFailures_WritesErrorCodesAlignedWithErrors()
+    {
+        var httpContext = CreateHttpContext();
+        var result = MediationResult.Invalid(
+            "Amount: Amount must be positive",
+            "validation.amount.negative",
+            [
+                new ValidationFailure("Amount must be positive", "Amount", "validation.amount.negative"),
+                new ValidationFailure("Amount must be below the limit", "Amount"),
+                new ValidationFailure("The request is malformed", code: "validation.malformed")
+            ]);
+
+        var response = result.ToHttpResult(httpContext, () => Results.Ok());
+        using var problem = await ExecuteToProblemAsync(response, httpContext).ConfigureAwait(false);
+
+        var errors = problem.RootElement.GetProperty("errors");
+        var codes = problem.RootElement.GetProperty("errorCodes");
+
+        var amountErrors = errors.GetProperty("Amount");
+        var amountCodes = codes.GetProperty("Amount");
+        Assert.Equal(2, amountErrors.GetArrayLength());
+        Assert.Equal(amountErrors.GetArrayLength(), amountCodes.GetArrayLength());
+        Assert.Equal("validation.amount.negative", amountCodes[0].GetString());
+        Assert.Equal(JsonValueKind.Null, amountCodes[1].ValueKind);
+
+        var messageCodes = codes.GetProperty(string.Empty);
+        Assert.Equal("validation.malformed", messageCodes[0].GetString());
+    }
+
+    [Fact]
+    public async Task ToHttpResult_ArrayValidationWriter_WritesErrorsArrayWithDetailPointerAndCode()
+    {
+        var httpContext = CreateHttpContext();
+        var options = new RefusalProblemOptions { ValidationErrors = ArrayValidationErrorsWriter.Default };
+        var result = MediationResult.Invalid(
+            "Amount: Amount must be positive",
+            "validation.amount.negative",
+            [
+                new ValidationFailure("Amount must be positive", "Amount", "validation.amount.negative"),
+                new ValidationFailure("The request is malformed")
+            ]);
+
+        var response = result.ToHttpResult(httpContext, () => Results.Ok(), options: options);
+        using var problem = await ExecuteToProblemAsync(response, httpContext).ConfigureAwait(false);
+
+        Assert.Equal(422, httpContext.Response.StatusCode);
+
+        var errors = problem.RootElement.GetProperty("errors");
+        Assert.Equal(JsonValueKind.Array, errors.ValueKind);
+        Assert.Equal(2, errors.GetArrayLength());
+
+        Assert.Equal("Amount must be positive", errors[0].GetProperty("detail").GetString());
+        Assert.Equal("/Amount", errors[0].GetProperty("pointer").GetString());
+        Assert.Equal("validation.amount.negative", errors[0].GetProperty("code").GetString());
+
+        Assert.Equal("The request is malformed", errors[1].GetProperty("detail").GetString());
+        Assert.Equal(JsonValueKind.Null, errors[1].GetProperty("pointer").ValueKind);
+        Assert.Equal(JsonValueKind.Null, errors[1].GetProperty("code").ValueKind);
+
+        Assert.False(problem.RootElement.TryGetProperty("errorCodes", out _));
+    }
+
     private static DefaultHttpContext CreateHttpContext()
     {
         var services = new ServiceCollection();

@@ -20,6 +20,7 @@ internal sealed class ExecutionContext : IExecutionContext
     /// <param name="cancellationToken">The cancellation token associated with the execution context.</param>
     /// <param name="messageType">The runtime type of the message this mediation handles.</param>
     /// <param name="parent">The execution context of the enclosing mediation, or <see langword="null" /> for a root mediation.</param>
+    /// <param name="cause">The committed fact that caused this root mediation, or <see langword="null" /> for a nested mediation or an application-started root.</param>
     public ExecutionContext(
         IEnumerable<string> tags,
         IDictionary<string, object> items,
@@ -27,8 +28,9 @@ internal sealed class ExecutionContext : IExecutionContext
         ExecutionIdentity identity,
         CancellationToken cancellationToken,
         Type? messageType = null,
-        IExecutionContext? parent = null)
-        : this(tags, items, timeProvider, new Lazy<ExecutionIdentity>(ValidIdentity(identity)), cancellationToken, messageType, parent)
+        IExecutionContext? parent = null,
+        MediationCause? cause = null)
+        : this(tags, items, timeProvider, new Lazy<ExecutionIdentity>(ValidIdentity(identity)), cancellationToken, messageType, parent, cause)
     {
     }
 
@@ -46,6 +48,7 @@ internal sealed class ExecutionContext : IExecutionContext
     /// <param name="cancellationToken">The cancellation token associated with the execution context.</param>
     /// <param name="messageType">The runtime type of the message this mediation handles.</param>
     /// <param name="parent">The execution context of the enclosing mediation, or <see langword="null" /> for a root mediation.</param>
+    /// <param name="cause">The committed fact that caused this root mediation, or <see langword="null" /> for a nested mediation or an application-started root.</param>
     public ExecutionContext(
         IEnumerable<string> tags,
         IDictionary<string, object> items,
@@ -53,7 +56,8 @@ internal sealed class ExecutionContext : IExecutionContext
         Lazy<ExecutionIdentity> identity,
         CancellationToken cancellationToken,
         Type? messageType = null,
-        IExecutionContext? parent = null)
+        IExecutionContext? parent = null,
+        MediationCause? cause = null)
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(identity);
@@ -66,6 +70,7 @@ internal sealed class ExecutionContext : IExecutionContext
         _identity = identity;
         MessageType = messageType;
         Parent = parent;
+        Cause = cause;
     }
 
     /// <summary>
@@ -87,6 +92,9 @@ internal sealed class ExecutionContext : IExecutionContext
 
     /// <inheritdoc />
     public IExecutionContext? Parent { get; }
+
+    /// <inheritdoc />
+    public MediationCause? Cause { get; }
 
     /// <inheritdoc />
     public IDictionary<string, object> Items { get; }

@@ -470,19 +470,83 @@ A trail that writes into the rolled-back transaction loses these rollback record
 
 ## Hash-Chained Audit Storage
 
-A record that can be edited after the fact proves nothing. The Marten audit trail can chain its records so a review can prove that no record was removed, reordered, or altered: each record in a segment carries a sequence number and a hash over its own content plus the hash of its predecessor. Altering a record breaks its hash, and recomputing that hash breaks the link the next record carries, so any alteration surfaces at verification no later than the altered record.
+A record that can be edited after the fact proves nothing. The auditing module can chain its records so a review can prove that no record was removed, reordered, or altered: each record in a segment carries a sequence number and a hash over its own content plus the hash of its predecessor. Altering a record breaks its hash, and recomputing that hash breaks the link the next record carries, so any alteration surfaces at verification no later than the altered record.
 
-Each segment is an independent chain. The default segment is `{category}/{year}`, with `uncategorized` for a record that carries no category, so retention can expire whole segments while the rest still verify. A chained `MartenAuditRecord` carries `Segment`, `Sequence` starting at one, `PreviousHash`, `Hash`, and `HashScheme`. Records written without the chain leave the segment and the hashes empty and the sequence at zero.
+Each segment holds one linear chain. LiteBus chains whole segments instead of building a Merkle tree: inclusion proofs serve public logs with untrusted readers, while an in-database trail verifies whole segments and anchors them with checkpoints. Each segment is independent, so retention can expire whole segments while the rest still verify. A chained document carries `Segment`, `Sequence` starting at one, `PreviousHash`, `Hash`, and `HashScheme`. `IAuditChain` operates on the trail the same way on every store: `VerifyAsync`, `VerifyFromAsync`, `CutCheckpointAsync`, `ListSegmentsAsync`, `ListUnpublishedCheckpointsAsync`, `ExpireSegmentAsync`, and `EraseAsync`.
 
-A chained record is written out of band on its own serialized session even for a successful mediation, because the sequence number is assigned under the segment lock at commit time, which a staged session cannot hold. A chained success record is therefore durable on its own rather than atomic with the handler change, and a rolled-back handler still leaves its audit record behind. That is the cost of the chain: enable it where evidence that survives tampering matters more than record-change atomicity.
+### Audit Package Family
 
-Enable the chain with defaults:
+Audit storage and the chain engine live in their own packages, because queries and events are audited as well as commands:
+
+| Package | Role | Holds |
+| --- | --- | --- |
+| `LiteBus.Messaging.Abstractions` (`Auditing` namespace) | Mediation contracts | Declarations, `IAuditTrail`, `AuditRecord`, `AuditCapture`, `AuditLink`, chain and checkpoint contracts, `IAuditChainStore<TDocument>` |
+| `LiteBus.Auditing` | Core implementation | Capture orchestration, linker and sweep, chain engine, streaming verifier, checkpoint lifecycle and publish retrier, framing link rule, hashers, C2SP checkpoint codec, checkpoint policies |
+| `LiteBus.Auditing.Storage.Marten` | Feature bridge | Marten audit trail, documents, chain store adapter |
+| `LiteBus.Auditing.Storage.PostgreSql` | Feature bridge | Npgsql audit tables, chain store adapter, schema |
+| `LiteBus.Auditing.Storage.EntityFrameworkCore` | Feature bridge | EF Core entities, model configuration, chain store adapter |
+| `LiteBus.Auditing.Extensions.Microsoft.DependencyInjection`, `LiteBus.Auditing.Extensions.Autofac` | Host adapter | Empty install shells, matching every other module |
+
+### Capture: When a Record Is Written
+
+Capture is when and where the record is written, relative to the business commit. It is a variant record, `AuditCapture`, set on the auditing builder with `Capture` and overridable per message by declaration. The timing decides what a record may truthfully claim:
+
+| Variant | Behavior | What the record claims |
+| --- | --- | --- |
+| `AuditCapture.WithChange(link)` | Written in the business transaction or session; commits or rolls back with the change | The change happened, atomically true. Default when the audit store can join the business transaction |
+| `AuditCapture.AfterCommitThroughOutbox()` | Enqueued through the transactional outbox in the business transaction, delivered to the audit store after commit, at least once, idempotent by record id | The change happened, eventually and reliably. Chosen automatically when the store cannot join the transaction, and listed in the composition model |
+| `AuditCapture.BeforeAndOutcome()` | An intent record is written in its own transaction before the handler runs; an outcome record follows when the mediation ends | The command was attempted by the caller; the outcome record states the result. A record written before commit never claims success |
 
 ```csharp
-services.AddSingleton(new MartenAuditTrailOptions().UseHashChain());
+auditing.Capture(AuditCapture.WithChange());
+auditing.Capture(AuditCapture.WithChange(AuditLink.InTransaction));
+auditing.Capture(AuditCapture.AfterCommitThroughOutbox());
+auditing.Capture(AuditCapture.BeforeAndOutcome());
 ```
 
-Without a registered instance the trail writes plain records exactly as before, with no sequence numbers and no hash chain. For the registration, storage, and verification operations on the Marten side, see [Marten Unit of Work, Idempotency, and Audit](../integrations/commands-marten.md) and the [Commands Marten Adapter](../catalog/storage/storage.commands.adapter.marten.md) entry.
+Denial, invalid, and failure records always take the out-of-band path, in every mode, because there is no business change to commit with and they must survive the rollback. The `BeforeAndOutcome` intent record carries `AuditOutcome.Intent` with zero duration and no failure code.
+
+A message that needs a different timing than the builder default declares one through `IAuditCaptureDefinition<TMessage>` in a definition class beside the message:
+
+```csharp
+public sealed class PlaceOrderCommandCaptureDefinition : IAuditCaptureDefinition<PlaceOrderCommand>
+{
+    public AuditCaptureDeclaration Capture => new(AuditCapture.BeforeAndOutcome());
+}
+```
+
+There is no attribute form, because an `AuditCapture` is not an attribute-compatible constant. A message with no override is captured with the builder capture, and a message that is not audited ignores the declaration.
+
+### Linking: When a Record Joins the Chain
+
+Linking is when the chain position (sequence, previous hash, hash) is assigned. It applies only with the chain on:
+
+| Linking | Behavior | Cost |
+| --- | --- | --- |
+| `AuditLink.AfterCommit` | Records commit unlinked; a linker assigns positions in commit order right after commit, with a background sweep for crash leftovers; verification reports an `Unlinked` break past a configured age | No contention on the business path |
+| `AuditLink.InTransaction` | The segment head is updated inside the business transaction | Every audited command in a segment contends on one row |
+| `AuditLink.AtWrite` | Whoever writes the record links it in its own transaction | Natural when the audit store is a separate system |
+
+Valid combinations: `WithChange` defaults to `AfterCommit` linking and allows `InTransaction`. `AfterCommitThroughOutbox` and `BeforeAndOutcome` link `AtWrite`. Composition rejects any other pair with a `LiteBusConfigurationException`.
+
+The default is `WithChange` with `AfterCommit` linking. Composition picks `AfterCommitThroughOutbox` when the store cannot join the business transaction, and it does so visibly in the composition model, never as a silent downgrade. The `AfterCommit` sweep runs on `AuditLinkSweepHostOptions`: enabled by default, one pass per minute, linking records staged over a minute ago, well before verification reports a record left unlinked past `AuditHashChainOptions.DefaultUnlinkedAfter` (five minutes).
+
+### Enabling Auditing and the Chain
+
+```csharp
+services.AddLiteBus(registry =>
+{
+    registry.AddAuditing(auditing => auditing
+        .Capture(AuditCapture.WithChange())
+        .UseMartenStore()
+        .UseHashChain(chain => chain
+            .CheckpointStaleAfter(TimeSpan.FromDays(1))));
+});
+```
+
+`AddAuditing` registers the auditing module; calling it twice configures one module instead of registering a second one. The store choice (`UseMartenStore`, `UsePostgreSqlStore`, `UseEntityFrameworkCoreStore<TContext>`) records the open-generic trail and chain store the module closes over the configured document type. Register one audit store per composition: registering a second store throws `LiteBusConfigurationException`.
+
+Without `UseHashChain`, auditing writes plain records with no sequence numbers and no hash chain. With it, every piece below has a default, so a chain that needs nothing special writes no further code: `sha256-v2` framing, a checkpoint every 100 records, and an `Unlinked` report past five minutes. The composition model reports the requested and effective capture, the selection reason, the linking mode, and every chain piece under the `auditing` section, so a build can show which capture the store forced and which ports were replaced.
 
 ### Chain Pieces and Defaults
 
@@ -490,16 +554,18 @@ Every part of how the chain is formed, hashed, segmented, checkpointed, and veri
 
 | Piece | What the application decides | Default |
 | --- | --- | --- |
-| `IAuditRecordMapper<TDocument>` | The stored document: map LiteBus's `AuditRecord` to the application's own type | `MartenAuditRecord` through `MartenAuditRecordMapper` |
-| `IAuditSegmenter<TDocument>` | The segment key per record, and whether a segment opens with a genesis record | Category and year through `MartenAuditRecordSegmenter`, with no genesis record |
-| `IAuditCanonicalizer<TDocument>` | The exact bytes hashed: which fields, their order, the encoding, how nulls and times are written | Canonical JSON of every field through `MartenAuditRecordCanonicalizer` |
-| `IAuditHasher` | The algorithm and key | SHA-256 through `Sha256AuditHasher` |
-| `IAuditLinkRule` | How a record's hash includes its predecessor | `PreviousHashLinkRule`, which passes the canonical bytes through unchanged because the default canonical form already includes segment, sequence, and previous hash |
+| Piece | What the application decides | Default |
+| --- | --- | --- |
+| `IAuditRecordMapper<TDocument>` | The stored document: map LiteBus's `AuditRecord` to the application's own type, with `MapAsync` running in the mediation scope before commit | The store default document and mapper (`MartenAuditRecord`, `PostgreSqlAuditRecord`, `EfCoreAuditRecord`) |
+| `IAuditSegmenter<TDocument>` | The segment key per record, whether a segment opens with a genesis record, and the head metadata through `DescribeSegment` | Category and year with no genesis record, carrying the tenant and the `category` and `year` attributes |
+| `IAuditCanonicalizer<TDocument>` | The exact business bytes hashed: which fields, their order, the encoding, how nulls and times are written | Canonical JSON of every field through the store default canonicalizer |
+| `AuditHashScheme<TDocument>` | The named combination of canonicalizer, link rule, and hasher, selected with `UseScheme` | `sha256-v2`: `FramedLinkRule` binding scheme, segment, sequence, and previous hash around the canonical bytes, hashed with `Sha256AuditHasher` |
 | `ICheckpointPolicy` | When a checkpoint is cut | Every 100 records through `CheckpointPolicies.EveryRecords(100)` |
-| `ICheckpointSigner` | How a checkpoint is signed | None |
-| `ICheckpointPublisher` | Where checkpoints go | None beyond the stored checkpoint document, which verification reads through `ICheckpointSource` |
+| `ICheckpointSigner` | How a checkpoint is signed; every signer signs every checkpoint, so signatures coexist | None |
+| `ICheckpointPublisher` | Where checkpoints go; every publisher receives every checkpoint | None beyond the stored checkpoint, which verification reads through the store source |
+| `ICheckpointSource` | Which extra checkpoints verification compares against; the store source is always first | The store source only |
 
-LiteBus owns the rest once: appending under the segment head with optimistic concurrency, and the verify, checkpoint, and expire operations every application needs. A piece that may need services can be given either as an instance or as a type resolved from the dependency registry when the chain runs. Schemes and the checkpoint policy are values rather than services, so they are given as instances only.
+LiteBus owns the rest once: conditional appends under the versioned segment head, and the verify, checkpoint, segment, and erasure operations every application needs. Pieces are given as types resolved from the container when the chain runs: `StoreAs<TDocument, TMapper>()`, `SegmentBy<TSegmenter>()`, `SignCheckpointsWith<TSigner>()`, `PublishCheckpointsTo<TPublisher>()`, and `VerifyAgainst<TSource>()`. The write scheme is named with `UseScheme(name)`, the policy is given as an instance or a type with `CheckpointWhen`, and the verification thresholds are values: `UnlinkedAfter(age)`, `CheckpointStaleAfter(age)`, and `PublishErasureNotices()`. Registering the same signer, publisher, or source twice is a no-op. An explicit `StoreAs` or `SegmentBy` call always wins over the store defaults, regardless of call order.
 
 ### Storing a Custom Document
 
@@ -540,7 +606,9 @@ public sealed class WorkspaceAuditMapper : IAuditRecordMapper<WorkspaceAuditDocu
 }
 ```
 
-The segmenter names the segment per record. Returning a document from `CreateGenesis` opens each new segment with a genesis record at sequence one; returning `null` opens segments without one:
+`Map` above is enough when mapping needs no services. When it does, such as resolving a pseudonym store, override `MapAsync(record, AuditMappingContext, cancellationToken)` instead: it runs in the mediation scope before commit, with the scope on `AuditMappingContext.Services` and the caller on `AuditMappingContext.Identity`. The default implementation calls `Map`, so a mapper that needs no services keeps working unchanged. The chain writer fills the chain fields afterwards either way.
+
+The segmenter names the segment per record. Returning a document from `CreateGenesis` opens each new segment with a genesis record at sequence one; returning `null` opens segments without one. `DescribeSegment` records the `AuditSegmentInfo` stored on the head: the key, the tenant, the attributes, and when the segment opened. The default implementation records the key with no tenant and no attributes; override it when listing, expiry, or erasure must select segments without parsing keys:
 
 ```csharp
 public sealed class WorkspaceAuditSegmenter : IAuditSegmenter<WorkspaceAuditDocument>
@@ -599,14 +667,12 @@ public sealed class WorkspaceAuditCanonicalizer : IAuditCanonicalizer<WorkspaceA
 }
 ```
 
-The scheme names the combination of canonical form, link rule, and hasher. An application that must bind its hashes to a secret uses `HmacSha256AuditHasher`, with a fixed key or with a provider that returns the current key per operation so a rotation takes effect without a restart:
+The scheme names the combination of canonical form, link rule, and hasher. The chain ships two schemes for every document type: `sha256-v1` keeps the pass-through `PreviousHashLinkRule`, so records written before framing verify unchanged, and `sha256-v2` binds the chain position in a `FramedLinkRule`, so the canonicalizer only ever describes the record. Both hash with `Sha256AuditHasher`, and the chain selects the write scheme by name with `UseScheme`. The canonicalizer is resolved per document type from the container: a storage package registers the default for its document, and an application with its own document registers its own. Naming a scheme the registry does not know fails composition.
+
+An application that must bind its hashes to a secret uses `HmacSha256AuditHasher`, with a fixed key or with a provider that returns the current key per operation so a rotation takes effect without a restart:
 
 ```csharp
-var scheme = new AuditHashScheme<WorkspaceAuditDocument>(
-    "hmac-sha256-v1",
-    new WorkspaceAuditCanonicalizer(),
-    new PreviousHashLinkRule(),
-    new HmacSha256AuditHasher(GetAuditKeyAsync));
+IAuditHasher hasher = new HmacSha256AuditHasher(GetAuditKeyAsync);
 
 async ValueTask<byte[]> GetAuditKeyAsync(CancellationToken cancellationToken) =>
     await secretStore.GetAuditKeyAsync(cancellationToken).ConfigureAwait(false);
@@ -632,11 +698,18 @@ public sealed class HmacCheckpointSigner : ICheckpointSigner
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
 
-        return ValueTask.FromResult(
-            checkpoint.Signature is { Scheme: "hmac-sha256" } signature
-            && CryptographicOperations.FixedTimeEquals(
-                Encoding.UTF8.GetBytes(signature.Value),
-                Encoding.UTF8.GetBytes(Compute(checkpoint))));
+        foreach (var signature in checkpoint.Signatures)
+        {
+            if (signature.Scheme == "hmac-sha256"
+                && CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(signature.Value),
+                    Encoding.UTF8.GetBytes(Compute(checkpoint))))
+            {
+                return ValueTask.FromResult(true);
+            }
+        }
+
+        return ValueTask.FromResult(false);
     }
 
     private string Compute(AuditCheckpoint checkpoint)
@@ -674,29 +747,32 @@ public sealed class FileCheckpointPublisher : ICheckpointPublisher
 }
 ```
 
-The builder assembles the pieces. Customizing the stored document starts with `StoreAs`: every other typed call must name the same document type:
+The builder assembles the pieces. Customizing the stored document starts with `StoreAs`, and the segmenter must handle the configured document type:
 
 ```csharp
-services.AddSingleton(new MartenAuditTrailOptions().UseHashChain(chain => chain
-    .StoreAs<WorkspaceAuditDocument>(new WorkspaceAuditMapper())
-    .SegmentBy<WorkspaceAuditDocument>(new WorkspaceAuditSegmenter())
-    .UseScheme(scheme)
-    .CheckpointWhen(CheckpointPolicies.Any(
-        CheckpointPolicies.EveryRecords(100),
-        CheckpointPolicies.Every(TimeSpan.FromDays(1))))
-    .SignCheckpointsWith(new HmacCheckpointSigner(signingKey))
-    .PublishCheckpointsTo(new FileCheckpointPublisher(checkpointDirectory))));
+services.AddLiteBus(registry => registry.AddAuditing(auditing => auditing
+    .UseMartenStore()
+    .UseHashChain(chain => chain
+        .StoreAs<WorkspaceAuditDocument, WorkspaceAuditMapper>()
+        .SegmentBy<WorkspaceAuditSegmenter>()
+        .UseScheme("sha256-v2")
+        .CheckpointWhen(CheckpointPolicies.Any(
+            CheckpointPolicies.EveryRecords(100),
+            CheckpointPolicies.Every(TimeSpan.FromDays(1))))
+        .SignCheckpointsWith<HmacCheckpointSigner>()
+        .PublishCheckpointsTo<FileCheckpointPublisher>()
+        .VerifyAgainst<FileCheckpointSource>())));
 ```
 
-A piece that needs services is given as a type instead: `StoreAs<WorkspaceAuditDocument, WorkspaceAuditMapper>()`, `SegmentBy<WorkspaceAuditDocument, WorkspaceAuditSegmenter>()`, `SignCheckpointsWith<HmacCheckpointSigner>()`, and `PublishCheckpointsTo<FileCheckpointPublisher>()` each resolve from the dependency registry when the chain runs.
+Every piece is given as a type resolved from the container when the chain runs. The canonicalizer for the custom document is registered separately in the application container, because the scheme registry resolves it per document type. An application that checkpoints on its own rhythm passes `CheckpointPolicies.Never()` and cuts explicitly with `CutCheckpointAsync` instead, so the chain stays silent between explicit cuts.
 
-### Checkpoints and Coverage
+### Checkpoints and Publication
 
 A hash chain proves internal consistency, but an attacker who rewrites a whole suffix and recomputes every hash still passes verification. Published checkpoints close that gap. A checkpoint anchors the position and hash a segment reached:
 
 | Field | Holds |
 | --- | --- |
-| `Id` | The checkpoint identifier, which anchors the checkpoint in an external ledger |
+| `Id` | The checkpoint identifier, stable across publish retries so anchors never diverge |
 | `Segment` | The segment the checkpoint covers |
 | `Sequence` | The sequence of the last document the checkpoint covers |
 | `Count` | The number of documents in the segment at the checkpoint, which proves coverage |
@@ -704,18 +780,54 @@ A hash chain proves internal consistency, but an attacker who rewrites a whole s
 | `HashScheme` | The scheme that document was written with |
 | `Kind` | `Regular` for a checkpoint cut while the segment stays open, `Final` for the last checkpoint of an expired segment |
 | `CreatedAt` | When the checkpoint was cut |
-| `Signature` | The signature over the checkpoint, or `null` when no signer is configured |
+| `Label` | The free-form label distinguishing checkpoints cut on different rhythms, or `null` |
+| `Signatures` | Every signature over the checkpoint, so a log signature, a timestamp, and witness cosignatures coexist |
+| `PublishState` | `Pending` while the checkpoint waits for publication, `Published` once it reached every publisher |
+| `PublishAttempts`, `LastPublishError` | How many publish attempts were made, and the last error |
 
 The count is what proves coverage: records 1 through N are all present, not just linked. Verification compares the segment against the latest checkpoint it finds, so a missing record before the head fails the count comparison even when the remaining links are consistent.
 
-Every cut checkpoint is stored as a `MartenAuditCheckpoint` document and then published, so verification reads the latest checkpoint through the default `ICheckpointSource` without an external store. Publish synchronously, because a checkpoint the application never stored anchors nothing. A publisher that throws fails the operation it was called from, so a lost checkpoint surfaces instead of passing silently.
+A checkpoint is cut, stored as `Pending`, signed, and then published from a background retrier. Publication never runs inside an append. A failed attempt stays pending with the attempt count increased and the error recorded, and `ListUnpublishedCheckpointsAsync` lists what still waits. The retrier runs on `CheckpointPublishHostOptions`: one pass per minute, waiting with backoff after a failed pass instead of spinning. The checkpoint identity stays stable across retries, so anchors never diverge.
 
-The chain asks the checkpoint policy after every append. A time-based policy can also become due without a new write, so it reports `IsTimeBased` as `true` and the chain asks it on a schedule too: `MartenAuditCheckpointBackgroundService` asks the policy for each open segment on `MartenAuditTrailOptions.CheckpointScanInterval` (five minutes by default) and cuts where it says due. The module registers that loop only when the policy reports time-based checkpoints. `CheckpointPolicies.EveryRecords`, `CheckpointPolicies.Every`, and `CheckpointPolicies.Any` cover a count, an interval, and a combination; an application with its own rhythm implements `ICheckpointPolicy` over `AuditCheckpointCandidate`. `CutCheckpointAsync` cuts a checkpoint of a segment now, outside the policy.
+Checkpoints render in the C2SP `tlog-checkpoint` signed-note shape, so witnesses, timestamping authorities, and generic verifiers consume them without LiteBus code. The origin line carries the segment, the tree size carries the covered count, the root hash carries the checkpoint hash, and LiteBus fields the shape has no room for travel as extension lines a generic verifier ignores. Each signature renders as one signed-note line.
 
-Verify a segment, then read the comparison against its latest checkpoint:
+The chain asks the checkpoint policy after every append. A time-based policy can also become due without a new write, so it reports `IsTimeBased` as `true` and the background service cuts for segments whose policy reports due on its pass too. `CutCheckpointAsync` cuts a checkpoint of a segment now, outside the policy.
+
+### Checkpoint Policies
+
+`CheckpointPolicies` builds the policies a chain cuts with:
+
+| Policy | Due when |
+| --- | --- |
+| `Never()` | Never; only explicit cuts produce checkpoints |
+| `EveryRecords(count, label)` | The segment advanced `count` sequences past its last checkpoint |
+| `Every(interval, label)` | The segment holds records and `interval` passed since the last checkpoint |
+| `Any(policies)` | Any of the given policies is due |
+| `OnSchedule(schedule, label)` | The shared schedule reached its next occurrence |
+| `DailyAt(time, zone, label)` / `WeeklyOn(day, time, zone, label)` | Once a day or once a week at a fixed local time, defaulting to UTC |
+| `DailyAt(time, zoneOf, label)` / `WeeklyOn(day, time, zoneOf, label)` | Once a day or once a week at a fixed local time read in each tenant zone |
+
+Every factory takes an optional label, stored on the checkpoint a due cut produces, so each signer and publisher can switch on it. The calendar factories default the label to their rhythm (`daily`, `weekly`). The schedule contract (`ISchedule`, `Schedules.Every`/`DailyAt`/`WeeklyOn`, and the per-tenant zone form) lives in a contract package shared with recurring commands, so neither feature depends on the other. A policy that reads services overrides the async `IsDueAsync`; the synchronous `IsDue` stays for callers that evaluate without input and output. An application with its own rhythm implements `ICheckpointPolicy` over `AuditCheckpointCandidate`.
+
+### Anchoring Checkpoints
+
+Where a checkpoint goes is the application decision. LiteBus ships three anchors, each publishing every cut checkpoint and reading it back as a verification source:
+
+| Anchor | Package | Holds |
+| --- | --- | --- |
+| S3-compatible object storage with Object Lock retention | `LiteBus.Auditing.Anchors.S3` | `S3CheckpointPublisher`, `S3CheckpointSource`, registered with `PublishCheckpointsToS3` |
+| Azure Blob Storage with immutability policies and legal hold | `LiteBus.Auditing.Anchors.AzureBlob` | `AzureBlobCheckpointPublisher`, `AzureBlobCheckpointSource`, registered with `PublishCheckpointsToAzureBlob` |
+| RFC 3161 timestamping authority | `LiteBus.Auditing.Anchors.Timestamping` | `Rfc3161CheckpointSigner`, registered with `TimestampCheckpoints(authority)`, returning the token as one more signature |
+
+The S3 anchor stores C2SP checkpoint text, so generic verifiers read anchors without LiteBus code. The timestamp signer posts the checkpoint hash to the authority and stores the issued token under the `rfc3161` scheme beside the log signature. See [S3 Checkpoint Anchor](../integrations/auditing-s3-anchor.md), [Azure Blob Checkpoint Anchor](../integrations/auditing-azure-blob-anchor.md), and [RFC 3161 Timestamps](../integrations/auditing-rfc3161-timestamp.md).
+
+### Verifying a Segment
+
+Resolve `IAuditChain` and verify a segment, then read the comparison against its checkpoints:
 
 ```csharp
-var verification = await trail.VerifyChainAsync("workspace-a/2026", cancellationToken).ConfigureAwait(false);
+var chain = provider.GetRequiredService<IAuditChain>();
+var verification = await chain.VerifyAsync("workspace-a/2026", cancellationToken).ConfigureAwait(false);
 
 if (!verification.IsIntact)
 {
@@ -727,15 +839,17 @@ if (!verification.IsIntact)
     return;
 }
 
-if (verification.LatestCheckpoint is { } checkpoint)
+foreach (var comparison in verification.Comparisons)
 {
-    Console.WriteLine($"Head {verification.HeadSequence} matches checkpoint {checkpoint.Id} covering {checkpoint.Count} records.");
+    Console.WriteLine($"{comparison.SourceName}: hash {comparison.HashMatches}, count {comparison.CountMatches}.");
 }
 ```
 
+Verification streams records by pages, so a large segment verifies without loading it whole. `VerifyFromAsync(segment, checkpointId)` trusts an anchored checkpoint and checks only the records after it, which is how a nightly job verifies from the last anchored checkpoint instead of re-reading the segment from its first record. Every configured source adds one comparison: the store source first, then each registered anchor. A source that cannot be reached is reported with `SourceUnreachable` as a warning, separate from a source that disagrees. The verification stays intact but the gap is visible.
+
 ### Verification Results
 
-`VerifyChainAsync` returns an `AuditChainVerification` that reports every break with its sequence and reason, not only the first:
+`VerifyAsync` returns an `AuditChainVerification` that reports every break with its sequence and reason, not only the first:
 
 | Field | Holds |
 | --- | --- |
@@ -747,6 +861,7 @@ if (verification.LatestCheckpoint is { } checkpoint)
 | `LatestCheckpoint` | The checkpoint the segment was compared against, or `null` when none exists |
 | `MatchesLatestCheckpoint` | Whether the chain matches the latest checkpoint's hash and count, or `null` when there is no checkpoint |
 | `CheckpointSignatureValid` | Whether the latest checkpoint's signature is valid, or `null` when no signer is configured or there is no checkpoint |
+| `Comparisons` | One comparison per checkpoint source the segment was checked against |
 
 Each break names its sequence, its kind, and a sentence describing the problem for an operator:
 
@@ -760,44 +875,52 @@ Each break names its sequence, its kind, and a sentence describing the problem f
 | `CheckpointHashMismatch` | The hash at the latest checkpoint's sequence differs from the checkpoint's hash |
 | `CheckpointCountMismatch` | The segment holds fewer documents up to the checkpoint than the checkpoint counted |
 | `CheckpointSignatureInvalid` | The latest checkpoint's signature is missing or invalid |
+| `CheckpointMissing` | No checkpoint exists where one is required, or the checkpoint `VerifyFromAsync` was asked to trust does not exist |
+| `CheckpointStale` | The last checkpoint is older than the configured age while records exist after it |
+| `CheckpointUnpublished` | A stored checkpoint still waits for publication |
+| `Unlinked` | A record was staged but remains unlinked past the configured age |
 
-`AuditChainVerifier<TDocument>` runs this pass without any storage: the caller reads the ordered documents of one segment and its latest checkpoint, and the verifier recomputes every hash with the same canonical form, link rule, and hasher the writer used. Storage adapters for other databases reuse it. The documents must be the whole segment in ascending sequence order: a partial page reports its missing head as gaps, and an unordered list reports the misplaced documents as duplicates.
+`AuditChainVerifier<TDocument>` runs the hash pass without any storage: the caller reads the ordered documents of one segment and its latest checkpoint, and the verifier recomputes every hash with the same canonical form, link rule, and hasher the writer used. Storage adapters for other databases reuse it. The documents must be the whole segment in ascending sequence order: a partial page reports its missing head as gaps, and an unordered list reports the misplaced documents as duplicates.
 
-### Changing the Hash Scheme From a Date
+### Hash Framing and Scheme Changes
 
-Each record stores the name of the scheme it was written with, and verification picks the scheme per record. An application changes its algorithm, key, or canonical form from a date onward without rewriting history: new records carry the new name, old records keep theirs, and both verify:
+Under `sha256-v2`, the link rule hashes a length-prefixed frame (scheme, segment, sequence, previous hash) plus the canonical business bytes. The frame is the scheme name as a four-byte big-endian byte count followed by its UTF-8 bytes, the segment the same way, the sequence as eight bytes big-endian, and the previous hash length-prefixed or the four bytes `FF FF FF FF` with nothing after them when there is no previous hash. The null marker keeps a first record distinct from a record carrying an empty previous hash, and the length prefixes keep every field boundary unambiguous. A consumer that writes its own canonical form over business fields only still gets a linked chain: records cannot be reordered, moved between segments, or replaced without a break.
 
-```csharp
-var rotated = new AuditHashScheme<MartenAuditRecord>(
-    "hmac-sha256-v2",
-    new MartenAuditRecordCanonicalizer(),
-    new PreviousHashLinkRule(),
-    new HmacSha256AuditHasher(rotatedKey)));
+Each record stores the name of the scheme it was written with, and verification picks the scheme per record, so a chain moves to a new scheme without rewriting history: new records carry the new name, old records keep theirs, and both verify. `sha256-v1` keeps verifying. Records written before schemes existed carry no name and verify unchanged under `sha256-v1`, which carries the same field set the chain always hashed. Two different schemes sharing one name fail composition, because verification could not tell them apart; a deliberate override calls `Replace`.
 
-options.UseHashChain(chain => chain
-    .UseScheme(rotated)
-    .AcceptScheme(MartenAuditHashSchemes.Sha256V1));
-```
+A composition self-test proves that the write scheme binds the chain position into every hash: it changes the segment, the sequence, and the previous hash of a fixed sample and fails composition when any of them leaves the output unchanged, so a misbound scheme never reaches runtime.
 
-The write scheme is always accepted for verification. `AcceptScheme` keeps accepting each older scheme the history was written with, and a checkpoint cut at the rotation marks the switch. Records written before schemes existed carry no name and verify unchanged under the default `sha256-v1` scheme, which carries the same field set the chain always hashed. Two different schemes sharing one name fail the builder with `InvalidOperationException`, because verification could not tell them apart.
+### Segments, Expiry, and Erasure
 
-### Expiring a Segment
+`AuditSegmentInfo` holds the key, the tenant, the attributes, and when the segment opened, and it is stored on the head, so listing, expiry, and erasure select segments without parsing keys. `ListSegmentsAsync(filter)` lists the segments matching an `AuditSegmentFilter`: one tenant, required attribute values, segments opened before an instant, and whether expired segments are included. The segment head carries the stored identity with the position it reached: the last sequence and hash, the document count, the last checkpoint sequence and time, whether the segment expired, and the version the store checks on a conditional write.
 
-Retention deletes whole expired segments, and verification must survive that. `ExpireSegmentAsync` publishes a `Final` checkpoint, then deletes every document of the segment and marks the head expired, so the remaining segments still verify and the final checkpoint proves what the deleted segment held:
+Retention deletes whole expired segments, and verification must survive that. `ExpireSegmentAsync(segment)` cuts a `Final` checkpoint, then deletes every document of the segment and marks the head expired, so the remaining segments still verify and the final checkpoint proves what the deleted segment held:
 
 ```csharp
 var chain = provider.GetRequiredService<IAuditChain>();
 var final = await chain.ExpireSegmentAsync("workspace-a/2024", cancellationToken).ConfigureAwait(false);
 ```
 
-Expiring an empty segment throws `InvalidOperationException`, because there is nothing to anchor. A second call returns the stored final checkpoint instead of cutting another one, so a retention job stays safe to retry. Appending to an expired segment throws `InvalidOperationException`. The segment head carries what checkpointing and expiry need: the document count, the last checkpoint sequence and time, the scheme the last record used, and whether the segment has expired.
+Expiring an empty segment throws `InvalidOperationException`, because there is nothing to anchor. A second call returns the stored final checkpoint instead of cutting another one, so a retention job stays safe to retry. Appending to an expired segment throws `InvalidOperationException`.
+
+Erasure is a different legal act from expiry: expiry keeps a final checkpoint proving what was removed, while erasure leaves nothing identifying, including anchors that describe the data. `EraseAsync(filter, reason, cancellationToken)` deletes the records, heads, and stored checkpoints matching a filter, and publishes nothing by default:
+
+```csharp
+var erased = await chain.EraseAsync(
+    new AuditSegmentFilter(TenantId: "workspace-a"),
+    "workspace closed",
+    cancellationToken).ConfigureAwait(false);
+```
+
+An optional erasure notice carries no hash: turn on `PublishErasureNotices` and every registered `IErasureNoticePublisher` receives one `AuditErasureNotice` per erased segment, naming the segment, the document count it held, the reason, and when it was erased. A notice that carried a hash would anchor exactly what must go. A publisher that throws fails the erasure it was called from, so a lost notice surfaces instead of passing silently.
 
 ## Application Responsibilities
 
 - Your `IAuditTrail` implementation owns record storage and integrity. A hash chain, an append-only database role, and a retention job are all worth having there rather than in a messaging library.
 - Your application owns the transaction boundary. LiteBus never opens or owns the transaction itself: it calls the application's `BeginAsync`, `CommitAsync`, and `RollbackAsync` at defined pipeline points, and the application opens, commits, and rolls back the transaction inside those methods. It does guarantee a position you can commit from, described under [Making a Record Atomic With Its Change](#making-a-record-atomic-with-its-change) above.
 - Your trail implementation owns actor capture. LiteBus does not model identity. Capture the acting account through `IAuditActorResolver`, reading the caller from `MessageCompletionContext.Identity`.
+- LiteBus does not own checkpoint backends, timestamping authorities, key management for crypto-shredding, retention law, or erasure across the rest of an application data set. It anchors checkpoints where you point it and deletes what its own store holds; the authority, the keys, and the law stay yours.
 
 ## Next
 
-Read [Message Definitions](message-definitions.md) for the declaration mechanism, and [The Handler Pipeline](handler-pipeline.md) for the completion stage this is built on. [In-Process Idempotency](idempotency.md) uses the same declaration model and the same commit position, so the two configure together.
+Read [Message Definitions](message-definitions.md) for the declaration mechanism, and [The Handler Pipeline](handler-pipeline.md) for the completion stage this is built on. [In-Process Idempotency](idempotency.md) uses the same declaration model and the same commit position, so the two configure together. For the stores, read [Marten Audit Storage](../integrations/auditing-marten.md), [PostgreSQL Audit Storage](../integrations/auditing-postgresql.md), and [Entity Framework Core Audit Storage](../integrations/auditing-entity-framework-core.md). For the anchors, read [S3 Checkpoint Anchor](../integrations/auditing-s3-anchor.md), [Azure Blob Checkpoint Anchor](../integrations/auditing-azure-blob-anchor.md), and [RFC 3161 Timestamps](../integrations/auditing-rfc3161-timestamp.md).

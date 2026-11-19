@@ -53,6 +53,20 @@ The [API Design Reference](api-design.md) defines the suffix taxonomy, CLR shape
 
 The [Mediation Layer Design Rules](mediation-design.md) define the stage model, contract shapes, vocabulary, and the point at which each class of configuration error is rejected. Read that page before you add a pipeline stage, a role, or an axis.
 
+## Feature Design Rules
+
+Every feature follows the same rules, so a new product's needs fit through extension rather than a change to the core:
+
+- **Each value is decided at the latest stage that can know it.** The deployment shape is set at composition, a message type's intent in its declaration, and the caller, tenant, clock and data at evaluation.
+- **Each built-in behavior is a port with a registered default.** It is resolved from the mediation scope per evaluation, is asynchronous, and receives the evaluation context.
+- **One conflict rule covers every registry.** An identical repeat is a no-op, a conflicting repeat fails composition naming both sources, and `Replace` overrides deliberately.
+- **A configuration fault is never a refusal.** It ends the mediation as `Failed` through `MessageFaultException` and maps to HTTP 500.
+- **Work LiteBus starts is a root mediation.** It has a declared identity and a `Cause` (correlation and causation), and never inherits the ambient context of whatever triggered it. `Parent` means synchronous nesting only.
+- **A feature that persists state is store-neutral.** It defines a storage port, proven by shared contract tests and implemented by one thin adapter per store.
+- **Nothing fails silently, and composition explains itself.** The composition model lists where each declaration came from and which implementation each port uses.
+
+`AGENTS.md` holds the full rule list that contributors and agents apply.
+
 ## Storage Axis
 
 A storage adapter implements a set of small store interfaces against one logical table or DbSet. PostgreSQL, EF Core, and InMemory implementations register one singleton instance for all roles on that store.

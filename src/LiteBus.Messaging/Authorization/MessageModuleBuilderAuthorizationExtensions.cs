@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Authorization;
@@ -46,7 +47,7 @@ public static class MessageModuleBuilderAuthorizationExtensions
     ///     </para>
     ///     <para>
     ///         Composition fails for a policy name a message declares that no call registered, naming every unknown
-    ///         name and the messages that use it, so a typo fails once at startup instead of denying every request.
+    ///         name and the messages that use it, so a typo fails once at startup instead of faulting every mediation.
     ///     </para>
     /// </remarks>
     /// <example>
@@ -80,7 +81,7 @@ public static class MessageModuleBuilderAuthorizationExtensions
 
         builder.Register(typeof(PolicyAuthorizationGuard<>));
 
-        builder.ValidateComposition(catalog => ThrowOnUnknownPolicyNames(catalog, policies));
+        builder.ValidateComposition(ThrowOnUnknownPolicyNames);
 
         builder.AddBuildStep(configuration =>
         {
@@ -128,24 +129,23 @@ public static class MessageModuleBuilderAuthorizationExtensions
     /// <summary>
     ///     Fails composition when a message declares a policy name no <c>AddAuthorizationPolicies</c> call registered.
     /// </summary>
-    /// <param name="catalog">Every registered message and what it declares.</param>
-    /// <param name="policies">The policies the composition collected.</param>
+    /// <param name="model">Everything the host composed.</param>
     /// <exception cref="LiteBusConfigurationException">
     ///     One or more messages declare a policy name the composition never registered.
     /// </exception>
     /// <remarks>
-    ///     A name checked here is a typo caught at startup. Left to mediation, the same typo denies every request
-    ///     with <see cref="AuthorizationPolicyRefusalCodes.UnknownPolicy" /> instead of failing once where it was
-    ///     written.
+    ///     A name checked here is a typo caught at startup. Left to mediation, the same typo raises
+    ///     <see cref="MessageFaultException" /> carrying <see cref="AuthorizationPolicyRefusalCodes.UnknownPolicy" />
+    ///     on every request instead of failing once where it was written. The registered names come from the model
+    ///     rather than from the builder that collected them, so the check reads what the guard will read at mediation.
     /// </remarks>
-    private static void ThrowOnUnknownPolicyNames(IMessageCatalog catalog, MessagePolicyBuilder policies)
+    private static void ThrowOnUnknownPolicyNames(ICompositionModel model)
     {
-        ArgumentNullException.ThrowIfNull(catalog);
-        ArgumentNullException.ThrowIfNull(policies);
+        ArgumentNullException.ThrowIfNull(model);
 
         Dictionary<string, List<string>>? unknown = null;
 
-        foreach (var entry in catalog)
+        foreach (var entry in model.Messages)
         {
             if (!entry.Metadata.TryGet<AuthorizationDeclaration>(out var declaration)
                 || declaration is not AuthorizedDeclaration authorized)
@@ -153,7 +153,7 @@ public static class MessageModuleBuilderAuthorizationExtensions
                 continue;
             }
 
-            if (policies.Policies.ContainsKey(authorized.Policy))
+            if (model.RegisteredPolicyNames.Contains(authorized.Policy))
             {
                 continue;
             }

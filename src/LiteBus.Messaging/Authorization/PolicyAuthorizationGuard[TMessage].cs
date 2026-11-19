@@ -17,9 +17,16 @@ namespace LiteBus.Messaging.Authorization;
 ///         Registered once as an open generic by <c>AddAuthorizationPolicies</c>, so it covers every message. A
 ///         message declaring <see cref="AuthorizedDeclaration" /> reaches one fixed evaluation order: every registered
 ///         <see cref="IAuthorizationCondition" /> in registration order, then the policy registered under
-///         <see cref="AuthorizedDeclaration.Policy" />. The first deny wins. A name no composition registered denies
-///         with <see cref="AuthorizationPolicyRefusalCodes.UnknownPolicy" /> rather than passing a message whose rule
-///         is missing.
+///         <see cref="AuthorizedDeclaration.Policy" />. The first deny wins. A name no composition registered is a
+///         configuration fault, so the guard raises <see cref="MessageFaultException" /> carrying
+///         <see cref="AuthorizationPolicyRefusalCodes.UnknownPolicy" /> rather than passing a message whose rule is
+///         missing; composition normally fails on the name before any mediation runs.
+///     </para>
+///     <para>
+///         The guard keeps the two-state <see cref="Verdict" /> at the pipeline boundary: an allow becomes
+///         <see cref="Verdict.Allow" />, and a denial becomes a denial verdict carrying the same code and reason. A
+///         fault is never a refusal, so it raises <see cref="MessageFaultException" /> carrying the fault code,
+///         reason, and cause instead of returning a verdict.
 ///     </para>
 ///     <para>
 ///         Exempt and undeclared messages never reach the policies: an
@@ -81,12 +88,18 @@ public sealed class PolicyAuthorizationGuard<TMessage> : AuthorizationGuard<TMes
 
         var execution = AmbientExecutionContext.GetCurrentOrDefault();
 
+        // The messaging module registers the mediation clock in the dispatch scope, so the guard reads it from
+        // there rather than defaulting to the system clock: a policy measuring a window must read the same clock
+        // the mediation ran on. A scope built by hand without one keeps the system clock.
+        var clock = _services.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System;
+
         var context = new AuthorizationContext(
             message,
             message.GetType(),
             CurrentIdentity,
             _services,
-            execution?.HandledAt ?? DateTimeOffset.UtcNow)
+            clock,
+            execution?.HandledAt ?? clock.GetUtcNow())
         {
             ExecutionContext = execution
         };
@@ -103,12 +116,29 @@ public sealed class PolicyAuthorizationGuard<TMessage> : AuthorizationGuard<TMes
 
         if (!_registry.TryGetPolicy(policy, out var named))
         {
-            return Verdict.Deny(
-                $"No authorization policy is registered under '{policy}'.",
-                AuthorizationPolicyRefusalCodes.UnknownPolicy);
+            throw new MessageFaultException(
+                context.MessageType,
+                AuthorizationPolicyRefusalCodes.UnknownPolicy,
+                $"No authorization policy is registered under '{policy}'.");
         }
 
-        return await named.EvaluateAsync(context, cancellationToken).ConfigureAwait(false);
+        var result = await named.EvaluateAsync(context, cancellationToken).ConfigureAwait(false);
+
+        if (result is PolicyAllow)
+        {
+            return Verdict.Allow;
+        }
+
+        if (result is PolicyDeny deny)
+        {
+            return Verdict.Deny(deny.Reason, deny.Code);
+        }
+
+        var fault = (PolicyFault) result;
+
+        throw fault.Cause is null
+            ? new MessageFaultException(context.MessageType, fault.Code, fault.Reason)
+            : new MessageFaultException(context.MessageType, fault.Code, fault.Reason, fault.Cause);
     }
 
     /// <summary>

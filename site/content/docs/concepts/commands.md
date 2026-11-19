@@ -158,9 +158,19 @@ builder.AddCommands(commands => commands
     .ForbidNestedCommands());
 ```
 
-Each command commits in its own pipeline, so a nested send commits before the outer command finishes: when the outer command then fails, the inner change is already stored with nothing to undo it. With `ForbidNestedCommands()`, sending a command while the enclosing mediation already handles a command throws `NestedMediationException` naming both message types, before the inner pipeline starts. A query nested in a command stays allowed. An event published in process from a command is allowed, but a command sent from that event's handler is denied, because the command ancestor is found through the chain. Durable dispatch has no enclosing mediation, so outbox and inbox delivery are never nesting.
+Each command commits in its own pipeline, so a nested send commits before the outer command finishes: when the outer command then fails, the inner change is already stored with nothing to undo it. With `ForbidNestedCommands()`, sending a command while the enclosing mediation already handles a command throws `NestedMediationException` naming both message types, before the inner pipeline starts. Only a command under a command is denied. A query nested in a command stays allowed, an event published through the outbox is not nesting, and an event published in process from a command is allowed; a command sent from that event's handler is denied, because the command ancestor is found through the chain. A reaction to a stored envelope runs as a root mediation with a cause and no parent, so a command sent from an outbox or inbox reaction is not nested and stays allowed. Calling this twice on one composition fails with the registry's duplicate-module error.
 
-The exception carries `OuterMessageType`, `InnerMessageType`, a human-readable `Reason`, and the code `commands.nested-command` a boundary can switch on. The check runs as an `IMediationNestingRule` evaluated before the inner pipeline starts, so an application adds its own rules, such as an exemption that allows a named inner command under a named outer one, by registering them for collection resolution. Analyzer LB1023 reports a command handler that takes `ICommandMediator` at build time; this setting is its runtime counterpart. See [Execution Context](execution-context.md) for the `Parent` chain the rule reads.
+The exception carries `OuterMessageType`, `InnerMessageType`, a human-readable `Reason`, and the code `commands.nested-command` a boundary can switch on. The check runs as an `IMediationNestingRule` evaluated before the inner pipeline starts, so an application adds its own rules, such as an exemption that allows a named inner command under a named outer one, by registering them for collection resolution. See [Execution Context](execution-context.md) for the `Parent` chain the rule reads.
+
+Analyzer LB1023 is the build-time counterpart. It reports a command handler, pre-handler, or post-handler that sends a command, sends a batch of commands, publishes an event, or mediates another message through `ICommandMediator`, `ICommandBatchMediator`, `IEventMediator`, or `IMessageMediator` inside its handle method. Reads through `IQueryMediator` and `EvaluateAsync` guard checks are not reported, because they nest no unit of work. The rule reports only when `litebus_forbid_nested_commands` is `true`, because the analyzer cannot see a `ForbidNestedCommands()` call made in another compilation:
+
+```ini
+# .editorconfig
+[*.cs]
+litebus_forbid_nested_commands = true
+```
+
+Without the option the rule reports nothing. The analyzer reads both `.editorconfig` and `.globalconfig` entries, and a per-file section overrides the project-wide value. The runtime setting stays the guarantee.
 
 ## Defer a Command to the Inbox
 

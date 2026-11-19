@@ -37,6 +37,10 @@ internal static class DeclarationAnalysis
     /// <summary>
     ///     The message kinds a declaration requirement applies to.
     /// </summary>
+    /// <remarks>
+    ///     Events are excluded: event declaration requirements are composition-only, enforced by
+    ///     <c>RequireDeclaration</c> at composition time rather than by <c>LB1020</c>.
+    /// </remarks>
     private static readonly MessageKind[] DeclarableKinds =
         [MessageKind.Command, MessageKind.Query, MessageKind.StreamQuery];
 

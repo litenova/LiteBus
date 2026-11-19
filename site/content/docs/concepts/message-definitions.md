@@ -239,6 +239,19 @@ Open generic message shapes are matched exactly, because assignability between g
 
 One more constraint is worth knowing. A definition must expose a **parameterless constructor**, public or not. Definitions are declarative and are instantiated once during registration, so they cannot take dependencies.
 
+## Repeated Registrations
+
+Every registration API in LiteBus follows one conflict rule: an identical repeat is a no-op, a conflicting repeat fails composition naming both sources, and a deliberate override calls `Replace`. Identical means value equality (`EqualityComparer<T>.Default`, falling back to reference equality for values without it).
+
+Applied to declarations:
+
+- `DeclareDefault` and `AddDeclaration` compare values. Repeating a default with an identical value returns without effect, so a repeated registration is harmless regardless of order. A different value for the same scope and value type throws `PipelineContractException` naming both sources.
+- The event module declares its `IEvent` authorization exemption through `TryAddDeclaration`, which returns `false` when a declaration is already recorded instead of throwing, so the framework default visibly yields to an explicit one.
+- A second convention for one value type keeps throwing `PipelineContractException`, because delegates have no meaningful equality. The error names the single-function rule; combine the two derivations into one function that returns the value or null.
+- A repeated requirement is already a no-op. Only an identical repeat is dropped, while two requirements over the same value type with different scopes both stand.
+
+The same rule holds outside declarations. Message contracts treat an identical repeat as a no-op and throw `MessageContractAlreadyRegisteredException` on a conflict. `MessagePolicyBuilder.Add` treats an identical policy as a no-op, because policies are records that compare by value, and throws `LiteBusConfigurationException` naming the policy name and both policies on a conflict; `Replace` overwrites the policy recorded under a name. See [Authorization Policies](authorization-policies.md). `RefusalProblemCatalog.Map` treats an identical mapping as a no-op and throws on a conflicting one; `Replace` overrides it. See [ASP.NET Core Problem Details](../integrations/aspnetcore-problem-details.md).
+
 ## Requiring a Declaration
 
 A declaration only protects the messages that state it. One command that forgets to declare the permission it requires is an unguarded use case, and it looks exactly like a command that needs no permission. Two mechanisms close that gap, and they cover different cases.
@@ -309,7 +322,9 @@ Defaults and a scoped requirement work together. The requirement forces every me
 
 The scope is a type rather than a namespace for the same reason a scoped requirement's is. A namespace is a string that a refactoring tool can move without updating the default, so a default keyed on one silently stops applying when a folder is renamed. For an authorization default that failure leaves a command unguarded.
 
-Two defaults for one scope and value type are a configuration error, as are a default and a definition both declared against the same message. One of them would have to be discarded, and nothing says which.
+Declaring the same default twice is safe when the values are identical: the repeat returns without effect. Declaring a different value for the same scope and value type fails composition with a `PipelineContractException` naming both sources, as does a default and a definition both declared against the same message. One of them would have to be discarded, and nothing says which. See [Repeated Registrations](#repeated-registrations).
+
+The event module declares its `IEvent` authorization exemption through `TryAddDeclaration`, which returns `false` when a declaration for the same message and value type is already recorded instead of throwing. A composition that states its own `IEvent` authorization default keeps it: the framework default yields to the explicit one even when the two values differ.
 
 ### Deriving a Value From the Message Type
 
@@ -333,6 +348,12 @@ One value type has one convention. Declaring a second convention for the same va
 
 The function observes the message type only. It runs once per registered concrete message at composition, after every module has registered its messages and before the declaration requirements are checked, so a convention value satisfies a requirement. Keep it a pure function of the type: it cannot resolve services, and a function that throws fails composition.
 
+### Choosing Between a Family Default and a Convention
+
+A default and a convention are not the same mechanism. A default is data: a constant value attached to a scope that participates in specificity precedence and conflict detection. A convention is derivation: a function of the message type that runs last and never conflicts. A default is formally a convention with a constant function, but merging them would lose conflict detection: two defaults for one scope must throw, while two conventions cannot even be compared, because delegates have no meaningful equality.
+
+Use a default when every message of a scope shares one value. The `KeyedBy<IHasIdempotencyKey>` default in the previous section applies to every implementing message, and the permission default applies to every command under `IOrganizationCommand`. Use a convention when the value varies by type. The audit convention above derives a different action code per type name, and the idempotency convention keys only the commands carrying a key while leaving the rest undeclared. Per-message facts stay in definitions or attributes: a default or a convention states what a family shares, never what one message alone means.
+
 ### Listing Undeclared Messages Without Failing Composition
 
 A failing requirement can only land atomically with the last declaration, because the first missing position fails the whole composition. For a family gaining positions message by message, report the gap instead of failing it:
@@ -352,14 +373,14 @@ Declare the value with an attribute or a definition class, or record why the mes
 
 The probe reports `Healthy` once every message in scope states a position. Its result data carries `undeclaredCount` and the `undeclared` message names, so a dashboard reads the count without parsing the description. One probe lists every report-mode requirement's offenders. A fail-mode requirement in the same composition still fails composition when its own scope is unmet.
 
-The same list is available to composition code through `IMessageCatalog`:
+The same list is available to composition code through the composition model:
 
 ```csharp
 registry.AddMessaging(messaging => messaging
     .RequireDeclaration<RequiredPermission, ICommand>(DeclarationEnforcement.Report)
-    .ValidateComposition(catalog =>
+    .ValidateComposition(model =>
     {
-        var missing = catalog.MissingDeclaration(typeof(RequiredPermission), messageType => typeof(ICommand).IsAssignableFrom(messageType));
+        var missing = model.Messages.MissingDeclaration(typeof(RequiredPermission), messageType => typeof(ICommand).IsAssignableFrom(messageType));
 
         foreach (var entry in missing)
         {
@@ -380,9 +401,9 @@ A requirement covers "did this message state a position". `ValidateComposition` 
 registry.AddMessaging(messaging => messaging
     .RequireUniqueAuditActions()
     .RequireAuditActionFormat()
-    .ValidateComposition(catalog =>
+    .ValidateComposition(model =>
     {
-        var wrong = catalog.Audited()
+        var wrong = model.Messages.Audited()
             .Where(entry => entry.Audit!.Category is null)
             .Select(entry => entry.MessageType.Name)
             .ToList();
@@ -394,7 +415,27 @@ registry.AddMessaging(messaging => messaging
     }));
 ```
 
-The callback receives an `IMessageCatalog` over every registered message and its resolved declarations, at the same point a requirement runs. Throw from the callback to fail composition, and name every offender in one message rather than the first, so a convention turned on for an existing codebase is fixed in one pass rather than one restart at a time.
+The callback receives an `ICompositionModel` over everything the host composed, at the same point a requirement runs: the message catalog (`Messages`), the declaration source of every value, the declared and registered policy names, the contract registrations, the resolved port implementations, and the sections features contributed. Checks run in registration order, and the first to throw ends composition. Throw from the callback to fail composition, and name every offender in one message rather than the first, so a convention turned on for an existing codebase is fixed in one pass rather than one restart at a time.
+
+Policy names are one check the model makes possible. A message declaring a policy name nothing registered is a typo that mediation would otherwise report on every request:
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .ValidateComposition(model =>
+    {
+        var unknown = model.DeclaredPolicyNames
+            .Where(name => !model.RegisteredPolicyNames.Contains(name))
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToList();
+
+        if (unknown.Count > 0)
+        {
+            throw new InvalidOperationException($"Messages declare policies nothing registered: {string.Join(", ", unknown)}");
+        }
+    }));
+```
+
+`AddAuthorizationPolicies` already registers that check: composition fails naming each unknown name and the messages declaring it, so a typo fails once at startup instead of faulting every mediation. See [Authorization Policies](authorization-policies.md).
 
 `RequireUniqueAuditActions()` and `RequireAuditActionFormat(pattern)` ship because every audited application needs both and getting either wrong corrupts the trail rather than breaking the build. Two messages under one action code make the trail unqueryable by use case, and an inconsistent code is written and stored exactly like a consistent one.
 
@@ -407,7 +448,90 @@ litebus_required_declarations = App.Security.RequiredPermission
 dotnet_diagnostic.LB1020.severity = warning
 ```
 
-Use both. The analyzer reports the omission on the message itself while you are writing it. The composition check covers a message registered from an assembly the analyzer never saw. See [Required Declarations](../catalog/analyzers/required-declarations.md) for the full rule, including how to make your own attribute analyzable with `[MessageDeclaration]`.
+Use both. The analyzer reports the omission on the message itself while you are writing it. The composition check covers a message registered from an assembly the analyzer never saw. The two divide the work: `LB1020` checks what the message states itself, a definition, a declaring attribute, or an exemption, while composition checks cover the family mechanisms, defaults, conventions, and Report or Fail enforcement, because composition calls are invisible to the compilations the analyzer sees. Event requirements are composition-only: `LB1020` does not check events. See [Required Declarations](../catalog/analyzers/required-declarations.md) for the full rule, including how to make your own attribute analyzable with `[MessageDeclaration]`.
+
+### Reading Which Source Supplied Each Value
+
+Definitions, attributes, defaults, and conventions can all satisfy one requirement, and nothing in the resolved value says which one won. `ICompositionModel.DeclarationsFor` answers that: one `MessageDeclarationRecord` per effective value for a message, in ordinal declaration type name order, or an empty list when the message is unknown or declares nothing:
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .ValidateComposition(model =>
+    {
+        foreach (var record in model.DeclarationsFor(typeof(PlaceOrderCommand)))
+        {
+            Console.WriteLine($"{record.DeclarationType.Name} from {record.Source}");
+        }
+    }));
+```
+
+Each record carries the resolved value the pipeline reads together with its source:
+
+| Field | Meaning |
+| --- | --- |
+| `DeclarationType` | The metadata value type. |
+| `Value` | The effective value. |
+| `Source` | Which source supplied it: `Attribute`, `Definition`, `Default`, `Convention`, or `Exemption`. |
+| `DeclaredFor` | The type the source named, which may be a base type or a marker interface covering the message rather than the message itself. |
+| `SourceType` | The definition class or attribute type, when the source is one; `null` for defaults and conventions, which are composition data and functions rather than types. |
+| `Rationale` | The exemption reason, when the source is an exemption; `null` otherwise. |
+
+An exemption set expands into one record per exemption it holds rather than reporting the set itself, because the set is the envelope and the exemptions are what a check asserts over. For an attribute-recorded exemption, `SourceType` names the attribute type that recorded it.
+
+The same table is available at runtime without a composition check. `ICompositionModel` is registered as a singleton, snapshotted on first resolve after every module has registered what it owns, so a host logs the snapshot and tests assert over it. The `litebus.declarations` diagnostic probe carries the per-message source table in its result data on healthy and degraded results; see [Diagnostics and Health](../operations/diagnostics-and-health.md).
+
+### Exporting the Composition as JSON
+
+One line in a test, or one log call, exports everything the host composed. Nothing in composition code changes:
+
+```csharp
+var json = compositionModel.ToJson();
+```
+
+The document carries a `schemaVersion` field, the messages with their per-message declaration source tables, the declared and registered policy names, the contracts, the resolved ports, and every contributed section:
+
+```json
+{
+  "contracts": [
+    {
+      "assembly": "App.Ledger",
+      "messageType": "App.Ledger.EntryPosted",
+      "name": "ledger.entry-posted",
+      "version": 1
+    }
+  ],
+  "declaredPolicies": ["vaults.open"],
+  "messages": [
+    {
+      "declarations": [
+        {
+          "declarationType": "App.Security.RequiredPermission",
+          "declaredFor": "App.Orders.PlaceOrderCommand",
+          "rationale": null,
+          "source": "Definition",
+          "sourceType": "App.Orders.PlaceOrderCommandPermissionDefinition",
+          "value": "orders.place"
+        }
+      ],
+      "message": "App.Orders.PlaceOrderCommand"
+    }
+  ],
+  "ports": [
+    {
+      "implementation": "LiteBus.Messaging.Tenancy.DefaultTenantMetadataProvider",
+      "isDefault": true,
+      "port": "LiteBus.Messaging.Abstractions.Tenancy.ITenantMetadataProvider"
+    }
+  ],
+  "registeredPolicies": ["vaults.open"],
+  "schemaVersion": 1,
+  "sections": {}
+}
+```
+
+Keys sort ordinally at every level, so the output is byte-identical across runs and process restarts for the same composition. Types are full names, which stay stable across assembly versions and precise across namespaces. Values render as invariant strings rather than structure, because a value is an application object of arbitrary shape, sometimes holding a function no serializer accepts. Retain the export per release as the compliance artifact built from source records, and diff it between builds in CI: exemptions carry the rationales auditors read, deliberate overrides are searchable `Replace` call sites rather than silent overwrites, and `LiteBusCompositionSummary.ToString()` keeps logging the same startup line it always has.
+
+Ports name the resolved implementation of every port and whether it is still the framework default. The model resolved from the container reports the effective implementations, including replacements the application registered directly with its own container after LiteBus composed; the model handed to `ValidateComposition` checks reports ports as LiteBus composed them. Features outside messaging join the export without a table change: each contributes one named section through an `ICompositionSectionContributor` instance, so refusal mappings, recurring registrations, and other feature-owned composition arrive under their own section names.
 
 ### Recording an Exemption
 
@@ -530,11 +654,11 @@ Presence is enforced the same way as any other declaration, at composition and a
 ```csharp
 registry.AddMessaging(messaging => messaging
     .RequireDeclaration<DeclaredEffects, ICommand>()
-    .ValidateComposition(catalog =>
+    .ValidateComposition(model =>
     {
         var offenders = new List<string>();
 
-        foreach (var entry in catalog.Where(entry => typeof(ICommand).IsAssignableFrom(entry.MessageType)))
+        foreach (var entry in model.Messages.Where(entry => typeof(ICommand).IsAssignableFrom(entry.MessageType)))
         {
             if (!entry.Metadata.TryGet<DeclaredEffects>(out var effects))
             {

@@ -68,6 +68,27 @@ Root transport modules register these broker probes automatically:
 
 SQS and Azure Service Bus require an explicit entity target so the probe can use narrow data-plane permissions. When no target is configured, the registered probe reports degraded instead of treating an unopened client as healthy. In-memory transport has no external dependency. It does not register a connectivity probe.
 
+## Read Declaration Sources
+
+A report-mode `RequireDeclaration` registers the `litebus.declarations` probe. One probe lists every report-mode requirement's offenders, so positions are adopted message by message until the probe reports healthy and the requirement changes to fail enforcement.
+
+| Status | Meaning |
+| :--- | :--- |
+| `Healthy` | Every registered message states a position on every reported declaration. |
+| `Degraded` | One or more messages state no position. The description lists them grouped by the omitted declaration and the scope of the requirement it violated. |
+| `Unhealthy` | The message catalog, the declaration report, or the composition model is not registered. Register the probe through a report-mode `RequireDeclaration` rather than by hand. |
+
+The result data carries the per-message declaration source table under `sources` on healthy and degraded results:
+
+| Key | Contents |
+| :--- | :--- |
+| `component` | `declarations` |
+| `undeclaredCount` | The number of messages stating no position. A dashboard reads the count without parsing the description. |
+| `undeclared` | The undeclared message names, on degraded results only. |
+| `sources` | Each registered message with each effective declaration value type it holds and the source that supplied it: `Attribute`, `Definition`, `Default`, `Convention`, or `Exemption`. |
+
+Keys are full type names, because two modules may register messages or declare values under one simple name. Every catalog message appears, including one that declares nothing, so a bare message reads as an empty table rather than as a message the probe never saw. The unhealthy branch carries no source table; it reports which registration is missing instead. [Message Definitions](../concepts/message-definitions.md) explains the four sources and their precedence, and how `ICompositionModel.ToJson()` exports the same table with values, scopes, and rationales for CI diffs and compliance records.
+
 ## Set Probe Limits
 
 <!-- snippet-source: samples/LiteBus.Samples.Documentation/HealthCheckRegistrationSnippet.cs#health-check-registration -->

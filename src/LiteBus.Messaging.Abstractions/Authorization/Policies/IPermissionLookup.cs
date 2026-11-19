@@ -11,8 +11,10 @@ namespace LiteBus.Messaging.Abstractions.Authorization;
 ///         This is the port a permission policy reads through. LiteBus carries the permission name from the policy to
 ///         this lookup and never interprets it: whether <c>vaults.open</c> is a role, a scope, or a row in a permissions
 ///         table stays in the application. Register one implementation when a composition uses
-///         <see cref="MessagePolicy.Permission" />; a permission policy evaluated with none registered denies with
-///         <see cref="AuthorizationPolicyRefusalCodes.PermissionLookupMissing" /> rather than guessing.
+///         <see cref="MessagePolicy.Permission" />. A permission policy evaluated with none registered reports a fault
+///         carrying <see cref="AuthorizationPolicyRefusalCodes.PermissionLookupMissing" />: the guard raises
+///         <see cref="MessageFaultException" />, the mediation ends as <see cref="MediationOutcome.Failed" />, and
+///         transports answer it as a server error. It is never a denial.
 ///     </para>
 /// </remarks>
 /// <example>

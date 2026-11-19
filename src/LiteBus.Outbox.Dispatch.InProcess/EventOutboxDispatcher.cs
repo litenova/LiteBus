@@ -28,6 +28,12 @@ namespace LiteBus.Outbox.Dispatch.InProcess;
 ///         An envelope that records one handler publishes to that handler alone; an envelope without a recorded
 ///         handler publishes to every subscribed handler.
 ///     </para>
+///     <para>
+///         Each dispatch runs as a root mediation: the event is published inside <see cref="RootMediationScope" /> with
+///         <see cref="EventMediationSettings.Cause" /> set from the envelope correlation and causation identifiers, so
+///         processor delivery and immediate delivery observe the same lineage and the reaction never nests inside the
+///         mediation that staged the envelope.
+///     </para>
 /// </remarks>
 public sealed class EventOutboxDispatcher : IOutboxDispatcher
 {
@@ -127,14 +133,17 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
             var messageInstance = await _messageSerializer.DeserializeAsync(messageType, payload, cancellationToken).ConfigureAwait(false);
             var mediationSettings = CreateMediationSettings(message, _options);
 
-            if (messageInstance is IEvent liteBusEvent)
+            using (RootMediationScope.Begin())
             {
-                await _eventPublisher.PublishAsync(liteBusEvent, mediationSettings, cancellationToken).ConfigureAwait(false);
-                return;
-            }
+                if (messageInstance is IEvent liteBusEvent)
+                {
+                    await _eventPublisher.PublishAsync(liteBusEvent, mediationSettings, cancellationToken).ConfigureAwait(false);
+                    return;
+                }
 
-            var publish = PublishDelegateCache.GetOrAdd(messageType, CreatePublishDelegate);
-            await publish(_eventPublisher, messageInstance, mediationSettings, cancellationToken).ConfigureAwait(false);
+                var publish = PublishDelegateCache.GetOrAdd(messageType, CreatePublishDelegate);
+                await publish(_eventPublisher, messageInstance, mediationSettings, cancellationToken).ConfigureAwait(false);
+            }
         }
         catch (LiteBusDispatchException)
         {
@@ -234,7 +243,8 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     }
 
     /// <summary>
-    ///     Creates event mediation settings with trace metadata and tenant identity copied from the outbox envelope.
+    ///     Creates event mediation settings with trace metadata, tenant identity, and mediation cause copied from the
+    ///     outbox envelope.
     /// </summary>
     /// <param name="message">The outbox message whose correlation, causation, and tenant values should be applied.</param>
     /// <param name="options">The dispatch options that decide how a message with no handler is treated.</param>
@@ -245,7 +255,9 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     ///     handler no longer subscribes, the predicate matches no main handler and
     ///     <see cref="InProcessOutboxDispatchOptions.RequireHandler" /> decides whether the attempt fails or completes
     ///     as published. The mediation runs in the tenant recorded on the envelope, restored through
-    ///     <see cref="ExecutionIdentity.ForTenant" /> without the calling principal, which is never persisted.
+    ///     <see cref="ExecutionIdentity.ForTenant" /> without the calling principal, which is never persisted. The
+    ///     mediation cause carries the envelope correlation and causation identifiers with an outbox source, so the
+    ///     reaction runs as a root mediation with typed lineage.
     /// </remarks>
     private static EventMediationSettings CreateMediationSettings(
         OutboxEnvelope message,
@@ -255,7 +267,8 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         {
             ThrowIfNoHandlerFound = options.RequireHandler,
             Routing = CreateRoutingSettings(message),
-            Identity = ExecutionIdentity.ForTenant(message.TenantId)
+            Identity = ExecutionIdentity.ForTenant(message.TenantId),
+            Cause = CreateMediationCause(message)
         };
 
         MessageProcessorDiagnostics.ApplyTraceMetadata(
@@ -266,6 +279,27 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
             message.TraceContext);
 
         return settings;
+    }
+
+    /// <summary>
+    ///     Creates the mediation cause identifying the committed outbox envelope that caused the reaction.
+    /// </summary>
+    /// <param name="message">The outbox message being dispatched.</param>
+    /// <returns>The cause with the envelope correlation and causation identifiers and an outbox source.</returns>
+    /// <remarks>
+    ///     An identifier the envelope does not carry falls back to the envelope identifier, so a dispatched reaction
+    ///     always carries a cause: the envelope itself is the committed fact, and an unstamped envelope starts its own
+    ///     workflow. Processor delivery and immediate delivery dispatch the same envelope through this dispatcher, so
+    ///     both observe the same cause.
+    /// </remarks>
+    private static MediationCause CreateMediationCause(OutboxEnvelope message)
+    {
+        var fallback = message.Id.ToString("D");
+
+        return new MediationCause(
+            string.IsNullOrWhiteSpace(message.CorrelationId) ? fallback : message.CorrelationId,
+            string.IsNullOrWhiteSpace(message.CausationId) ? fallback : message.CausationId,
+            MediationCauseSource.Outbox);
     }
 
     /// <summary>

@@ -42,7 +42,43 @@ public sealed class HttpContextExecutionIdentityProviderTests
     }
 
     [Fact]
-    public void GetCurrentIdentity_WithCustomTenantClaimType_ReadsNamedClaim()
+    public void GetCurrentIdentity_WithOrderedClaimTypes_ReturnsFirstNonBlankValue()
+    {
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity(
+                [
+                    new Claim(ClaimTypes.NameIdentifier, "user-1"),
+                    new Claim("session_tenant", "   "),
+                    new Claim("token_tenant", "tenant-b")
+                ],
+                "Test"));
+        var provider = CreateProvider(principal, ["session_tenant", "token_tenant"]);
+
+        var identity = provider.GetCurrentIdentity();
+
+        Assert.Equal("tenant-b", identity.TenantId);
+    }
+
+    [Fact]
+    public void GetCurrentIdentity_WithOrderedClaimTypes_PrefersFirstPresentClaim()
+    {
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity(
+                [
+                    new Claim(ClaimTypes.NameIdentifier, "user-1"),
+                    new Claim("session_tenant", "tenant-a"),
+                    new Claim("token_tenant", "tenant-b")
+                ],
+                "Test"));
+        var provider = CreateProvider(principal, ["session_tenant", "token_tenant"]);
+
+        var identity = provider.GetCurrentIdentity();
+
+        Assert.Equal("tenant-a", identity.TenantId);
+    }
+
+    [Fact]
+    public void GetCurrentIdentity_WithCustomTenantClaimTypes_ReadsNamedClaims()
     {
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity(
@@ -52,7 +88,7 @@ public sealed class HttpContextExecutionIdentityProviderTests
                     new Claim("custom_tenant", "tenant-b")
                 ],
                 "Test"));
-        var provider = CreateProvider(principal, "custom_tenant");
+        var provider = CreateProvider(principal, ["custom_tenant"]);
 
         var identity = provider.GetCurrentIdentity();
 
@@ -79,14 +115,15 @@ public sealed class HttpContextExecutionIdentityProviderTests
 
         var options = provider.GetRequiredService<ExecutionIdentityOptions>();
 
-        Assert.Equal("tenant_id", options.TenantClaimType);
+        Assert.Single(options.TenantClaimTypes);
+        Assert.Equal("tenant_id", options.TenantClaimTypes[0]);
     }
 
     [Fact]
-    public void AddLiteBusExecutionIdentity_HonoursConfiguredTenantClaimType()
+    public void AddLiteBusExecutionIdentity_HonoursConfiguredTenantClaimTypes()
     {
         var services = new ServiceCollection();
-        services.AddLiteBusExecutionIdentity(options => options.TenantClaimType = "tid");
+        services.AddLiteBusExecutionIdentity(options => options.TenantClaimTypes = ["tid", "tenant_id"]);
         using var provider = services.BuildServiceProvider();
 
         var accessor = provider.GetRequiredService<IHttpContextAccessor>();
@@ -103,9 +140,27 @@ public sealed class HttpContextExecutionIdentityProviderTests
         Assert.NotNull(identity.Principal);
     }
 
+    [Fact]
+    public void AddLiteBusExecutionIdentity_RejectsEmptyTenantClaimTypes()
+    {
+        var services = new ServiceCollection();
+
+        Assert.Throws<ArgumentException>(() =>
+            services.AddLiteBusExecutionIdentity(options => options.TenantClaimTypes = []));
+    }
+
+    [Fact]
+    public void AddLiteBusExecutionIdentity_RejectsBlankTenantClaimType()
+    {
+        var services = new ServiceCollection();
+
+        Assert.Throws<ArgumentException>(() =>
+            services.AddLiteBusExecutionIdentity(options => options.TenantClaimTypes = ["tenant_id", "  "]));
+    }
+
     private static HttpContextExecutionIdentityProvider CreateProvider(
         ClaimsPrincipal principal,
-        string tenantClaimType = "tenant_id")
+        IReadOnlyList<string>? tenantClaimTypes = null)
     {
         var accessor = new HttpContextAccessor
         {
@@ -114,6 +169,6 @@ public sealed class HttpContextExecutionIdentityProviderTests
 
         return new HttpContextExecutionIdentityProvider(
             accessor,
-            new ExecutionIdentityOptions { TenantClaimType = tenantClaimType });
+            new ExecutionIdentityOptions { TenantClaimTypes = tenantClaimTypes ?? ["tenant_id"] });
     }
 }

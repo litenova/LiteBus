@@ -75,6 +75,20 @@ public interface IExecutionContext
     IExecutionContext? Parent => null;
 
     /// <summary>
+    ///     Gets the committed fact that caused this root mediation.
+    /// </summary>
+    /// <value>
+    ///     The cause carried as data, or <see langword="null" /> for a nested mediation or an application-started root.
+    /// </value>
+    /// <remarks>
+    ///     A root started by a boundary carries its cause as data rather than inheriting ambient context. Entry points
+    ///     that set <see cref="Cause" /> leave <see cref="Parent" /> as <see langword="null" />, so processor delivery
+    ///     and immediate delivery observe identical lineage. The default implementation returns
+    ///     <see langword="null" /> so custom contexts keep compiling.
+    /// </remarks>
+    MediationCause? Cause => null;
+
+    /// <summary>
     ///     Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.
     /// </summary>
     /// <remarks>

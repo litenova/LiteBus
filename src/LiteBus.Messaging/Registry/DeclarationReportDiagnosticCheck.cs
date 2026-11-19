@@ -52,23 +52,31 @@ public sealed class DeclarationReportDiagnosticCheck : IDiagnosticCheck
     public string Name => CheckName;
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     The result data carries the per-message declaration source table under <c>sources</c>: each registered
+    ///     message, each effective declaration value type it holds, and the source that supplied it. The table is
+    ///     present on healthy and degraded results; the unhealthy branch reports which registration is missing
+    ///     instead.
+    /// </remarks>
     public Task<DiagnosticResult> CheckAsync(CancellationToken cancellationToken = default)
     {
         var catalog = Resolve<IMessageCatalog>();
         var report = Resolve<DeclarationReport>();
+        var model = Resolve<ICompositionModel>();
 
-        if (catalog is null || report is null)
+        if (catalog is null || report is null || model is null)
         {
             return Task.FromResult(new DiagnosticResult(
                 DiagnosticStatus.Unhealthy,
                 "The declaration report cannot be evaluated because "
-                + (catalog is null ? "no IMessageCatalog is registered." : "no declaration report is registered.")
+                + MissingRegistration(catalog, report, model)
                 + " Register the probe through a report-mode RequireDeclaration rather than by hand.",
                 new Dictionary<string, object>
                 {
                     ["component"] = "declarations",
                     ["catalogRegistered"] = catalog is not null,
-                    ["reportRegistered"] = report is not null
+                    ["reportRegistered"] = report is not null,
+                    ["modelRegistered"] = model is not null
                 }));
         }
 
@@ -88,6 +96,8 @@ public sealed class DeclarationReportDiagnosticCheck : IDiagnosticCheck
             }
         }
 
+        var sources = SourceTable(model);
+
         if (undeclared.Count == 0)
         {
             return Task.FromResult(new DiagnosticResult(
@@ -96,7 +106,8 @@ public sealed class DeclarationReportDiagnosticCheck : IDiagnosticCheck
                 new Dictionary<string, object>
                 {
                     ["component"] = "declarations",
-                    ["undeclaredCount"] = 0
+                    ["undeclaredCount"] = 0,
+                    ["sources"] = sources
                 }));
         }
 
@@ -129,8 +140,69 @@ public sealed class DeclarationReportDiagnosticCheck : IDiagnosticCheck
             {
                 ["component"] = "declarations",
                 ["undeclaredCount"] = count,
-                ["undeclared"] = names.ToArray()
+                ["undeclared"] = names.ToArray(),
+                ["sources"] = sources
             }));
+    }
+
+    /// <summary>
+    ///     Names the first dependency the probe could not resolve.
+    /// </summary>
+    /// <param name="catalog">The resolved message catalog, or <see langword="null" />.</param>
+    /// <param name="report">The resolved declaration report, or <see langword="null" />.</param>
+    /// <param name="model">The resolved composition model, or <see langword="null" />.</param>
+    /// <returns>Which registration is missing.</returns>
+    private static string MissingRegistration(
+        IMessageCatalog? catalog,
+        DeclarationReport? report,
+        ICompositionModel? model)
+    {
+        if (catalog is null)
+        {
+            return "no IMessageCatalog is registered.";
+        }
+
+        if (report is null)
+        {
+            return "no declaration report is registered.";
+        }
+
+        return "no composition model is registered.";
+    }
+
+    /// <summary>
+    ///     Builds the per-message declaration source table from the composition model.
+    /// </summary>
+    /// <param name="model">Everything the host composed.</param>
+    /// <returns>Each registered message, each declaration value type it holds, and its source.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Every catalog message appears, including one that declares nothing, so a bare message reads as an
+    ///         empty table rather than as a message the probe never saw.
+    ///     </para>
+    ///     <para>
+    ///         Keys are full type names: two modules may register messages or declare values under one simple
+    ///         name, and collapsing them under it would hide a declaration.
+    ///     </para>
+    /// </remarks>
+    private static SortedDictionary<string, SortedDictionary<string, string>> SourceTable(ICompositionModel model)
+    {
+        SortedDictionary<string, SortedDictionary<string, string>> table = new(StringComparer.Ordinal);
+
+        foreach (var entry in model.Messages)
+        {
+            SortedDictionary<string, string> sources = new(StringComparer.Ordinal);
+
+            foreach (var record in model.DeclarationsFor(entry.MessageType))
+            {
+                var valueType = record.DeclarationType.FullName ?? record.DeclarationType.Name;
+                sources[valueType] = record.Source.ToString();
+            }
+
+            table[entry.MessageType.FullName ?? entry.MessageType.Name] = sources;
+        }
+
+        return table;
     }
 
     /// <summary>

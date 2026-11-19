@@ -175,6 +175,22 @@ internal sealed class MessageContractRegistry : IMessageContractRegistry
     }
 
     /// <summary>
+    ///     Copies every registered contract for composition reporting.
+    /// </summary>
+    /// <returns>A copy of every registered contract.</returns>
+    /// <remarks>
+    ///     The copy is taken under the registry lock, so the composition model reads a stable set even when contracts
+    ///     are still being registered.
+    /// </remarks>
+    internal IReadOnlyList<MessageContract> Snapshot()
+    {
+        lock (_syncRoot)
+        {
+            return [.. _contractsByType.Values];
+        }
+    }
+
+    /// <summary>
     ///     Registers a contract while <see cref="_syncRoot" /> is held.
     /// </summary>
     /// <param name="messageType">The CLR message type being registered.</param>

@@ -83,6 +83,10 @@ With the default `Timeout` of 10 seconds and `FallbackDelay` of 30 seconds, one 
 7. When `Timeout` expires, dispatch stops and every leased envelope not yet dispatched is released as pending with `VisibleAfter` set to now, so the processor takes it at once instead of waiting out the delay.
 8. When the process stops before dispatching, the staged envelopes become visible after `FallbackDelay` and the processor delivers them. Recovery takes at most the delay, with no operator action.
 
+## Lineage of an Immediate Reaction
+
+Each immediate delivery runs as a root mediation inside `RootMediationScope`, so the reaction carries the envelope cause as data and never inherits the ambient scope of the mediation that staged it. Both paths deliver the same leased envelope through the same in-process outbox dispatcher, so processor delivery and immediate delivery observe the same cause (`MediationCauseSource.Outbox`) and the same identity, and the reaction `Parent` is `null` on both. A command sent from an immediate reaction therefore sees no staging ancestor and stays allowed under `ForbidNestedCommands()`. See [Execution Context](../concepts/execution-context.md).
+
 ## Idempotency
 
 Immediate dispatch is at-least-once, like the processor. In the worst case, a crash after a handler succeeded and before its envelope was marked published delivers the envelope again from the outbox, so the handler runs twice. Keep immediate handlers idempotent: key the projection write on the message id or a domain idempotency key, and make repeated runs converge to the same state. See [Reliable Messaging Semantics](semantics.md) for the guarantees each path provides.

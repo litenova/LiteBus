@@ -1,11 +1,12 @@
 using System.Collections;
-using LiteBus.Commands;
-using LiteBus.Commands.Storage.Marten;
+using LiteBus.Auditing;
+using LiteBus.Auditing.Abstractions;
+using LiteBus.Auditing.Checkpoints;
+using LiteBus.Auditing.Linking;
+using LiteBus.Auditing.Storage.Marten;
 using LiteBus.Messaging.Abstractions.Auditing;
-using LiteBus.Messaging.Audit;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
-using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Storage.IntegrationTests.Marten;
 
@@ -17,48 +18,78 @@ public sealed class MartenAuditChainModuleTests
     [Fact]
     public void Build_with_a_time_based_policy_registers_the_checkpoint_loop()
     {
-        var options = new MartenAuditTrailOptions();
-        options.UseHashChain(chain => chain.CheckpointWhen(CheckpointPolicies.Every(TimeSpan.FromMinutes(1))));
         var configuration = new TestModuleConfiguration();
 
-        new MartenAuditModule(options).Build(configuration);
+        new AuditingModule(auditing => auditing
+            .UseMartenStore()
+            .UseHashChain(chain => chain.CheckpointWhen(CheckpointPolicies.Every(TimeSpan.FromMinutes(1)))))
+            .Build(configuration);
 
-        configuration.BackgroundServices.Should().Contain(typeof(MartenAuditCheckpointBackgroundService));
+        configuration.BackgroundServices.Should()
+            .BeEquivalentTo<Type>([typeof(AuditLinkSweepBackgroundService), typeof(CheckpointPublishBackgroundService)]);
         configuration.DependencyRegistry.Should().Contain(descriptor => descriptor.DependencyType == typeof(IAuditChain));
-        configuration.DependencyRegistry.Should().Contain(descriptor => descriptor.DependencyType == typeof(ICheckpointSource));
-        configuration.DependencyRegistry.Should().Contain(descriptor => descriptor.DependencyType == typeof(MartenAuditTrailOptions));
+        configuration.DependencyRegistry.Should().Contain(descriptor => descriptor.DependencyType == typeof(IAuditTrail));
+        configuration.DependencyRegistry.Should().Contain(descriptor => descriptor.DependencyType == typeof(IAuditChainStore<MartenAuditRecord>));
+        configuration.DependencyRegistry.Should().Contain(descriptor => descriptor.DependencyType == typeof(IAuditRecordMapper<MartenAuditRecord>));
+        configuration.DependencyRegistry.Should().Contain(descriptor => descriptor.DependencyType == typeof(IAuditSegmenter<MartenAuditRecord>));
+        configuration.DependencyRegistry.Should().Contain(descriptor => descriptor.DependencyType == typeof(AuditingOptions));
+        configuration.DependencyRegistry.Should().Contain(descriptor => descriptor.DependencyType == typeof(AuditHashChainOptions));
     }
 
     [Fact]
-    public void Build_with_a_record_policy_skips_the_checkpoint_loop()
+    public void Build_with_a_store_and_no_chain_registers_the_trail_only()
     {
-        var options = new MartenAuditTrailOptions().UseHashChain();
         var configuration = new TestModuleConfiguration();
 
-        new MartenAuditModule(options).Build(configuration);
+        new AuditingModule(auditing => auditing.UseMartenStore()).Build(configuration);
 
         configuration.BackgroundServices.Should().BeEmpty();
-        configuration.DependencyRegistry.Should().Contain(descriptor => descriptor.DependencyType == typeof(IAuditChain));
+        configuration.DependencyRegistry.Should().NotContain(descriptor => descriptor.DependencyType == typeof(IAuditChain));
+        configuration.DependencyRegistry.Should().Contain(descriptor => descriptor.DependencyType == typeof(MartenAuditTrail<MartenAuditRecord>));
+        configuration.DependencyRegistry.Should().Contain(descriptor => descriptor.DependencyType == typeof(IAuditTrail));
     }
 
     [Fact]
-    public void Build_without_the_hash_chain_throws()
+    public void AddAuditing_with_the_marten_store_registers_the_module()
     {
-        var configuration = new TestModuleConfiguration();
+        var registry = new FakeModuleRegistry();
 
-        var build = () => new MartenAuditModule(new MartenAuditTrailOptions()).Build(configuration);
+        registry.AddAuditing(auditing => auditing.UseMartenStore().UseHashChain(_ => { }));
 
-        build.Should().Throw<LiteBusConfigurationException>().WithMessage("*UseHashChain*");
+        registry.Modules.Should().ContainSingle().Subject.Should().BeOfType<AuditingModule>();
+
+        registry.AddAuditing(auditing => auditing.UseMartenStore());
+
+        registry.Modules.Should().ContainSingle();
     }
 
-    [Fact]
-    public void UseMartenAuditChain_registers_the_module_with_defaults()
+    private sealed class FakeModuleRegistry : IModuleRegistry
     {
-        var builder = new CommandModuleBuilder();
+        public List<IModule> Modules { get; } = [];
 
-        builder.UseMartenAuditChain();
+        public IModuleRegistry Register(IModule module)
+        {
+            Modules.Add(module);
 
-        builder.CollectSubModules().Should().ContainSingle().Subject.Should().BeOfType<MartenAuditModule>();
+            return this;
+        }
+
+        public bool IsModuleRegistered<T>()
+            where T : IModule
+        {
+            return Modules.OfType<T>().Any();
+        }
+
+        public T? Find<T>()
+            where T : class, IModule
+        {
+            return Modules.OfType<T>().FirstOrDefault();
+        }
+
+        public IReadOnlyList<ModuleDescriptor> BuildOrder()
+        {
+            return [];
+        }
     }
 
     private sealed class TestModuleConfiguration : IModuleConfiguration

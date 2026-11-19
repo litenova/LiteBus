@@ -201,8 +201,9 @@ public sealed class LiteBusExceptionHandlerTests
 
         Assert.Equal(500, httpContext.Response.StatusCode);
         Assert.Equal("Internal server error", problem.RootElement.GetProperty("title").GetString());
-        Assert.Equal("urn:litebus:billing:unpaid", problem.RootElement.GetProperty("type").GetString());
+        Assert.Equal("about:blank", problem.RootElement.GetProperty("type").GetString());
         Assert.Equal("the account is unpaid", problem.RootElement.GetProperty("detail").GetString());
+        Assert.Equal("billing.unpaid", problem.RootElement.GetProperty("code").GetString());
 
         var entry = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Error, entry.Level);
@@ -224,6 +225,7 @@ public sealed class LiteBusExceptionHandlerTests
 
         Assert.Equal(500, httpContext.Response.StatusCode);
         Assert.Equal("Internal server error", problem.RootElement.GetProperty("title").GetString());
+        Assert.Equal("about:blank", problem.RootElement.GetProperty("type").GetString());
 
         var errors = problem.RootElement.GetProperty("errors");
         Assert.Equal("Amount must be positive", errors.GetProperty("Amount")[0].GetString());
@@ -264,6 +266,77 @@ public sealed class LiteBusExceptionHandlerTests
     }
 
     [Fact]
+    public async Task TryHandleAsync_MessageFaultException_WritesInternalServerErrorAndLogs()
+    {
+        var logger = new CapturingLogger();
+        var handler = new LiteBusExceptionHandler(
+            new LiteBusExceptionHandlerOptions(), logger);
+        var httpContext = CreateHttpContext();
+        var exception = new MessageFaultException(typeof(object), "tenancy.lookup-failed", "The tenant lookup failed.");
+
+        using var problem = await HandleToProblemAsync(handler, httpContext, exception).ConfigureAwait(false);
+
+        Assert.Equal(500, httpContext.Response.StatusCode);
+        Assert.Equal("Internal server error", problem.RootElement.GetProperty("title").GetString());
+        Assert.Equal("urn:litebus:tenancy:lookup-failed", problem.RootElement.GetProperty("type").GetString());
+        Assert.Equal("The tenant lookup failed.", problem.RootElement.GetProperty("detail").GetString());
+        Assert.Equal("tenancy.lookup-failed", problem.RootElement.GetProperty("code").GetString());
+        Assert.False(problem.RootElement.TryGetProperty("errors", out _));
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Error, entry.Level);
+        Assert.Contains("tenancy.lookup-failed", entry.Message);
+        Assert.Same(exception, entry.Exception);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_MessageFaultExceptionWithoutReason_WritesGenericDetail()
+    {
+        var handler = new LiteBusExceptionHandler(
+            new LiteBusExceptionHandlerOptions(), NullLogger<LiteBusExceptionHandler>.Instance);
+        var httpContext = CreateHttpContext();
+        var exception = new MessageFaultException("A fault no caller should read.");
+
+        using var problem = await HandleToProblemAsync(handler, httpContext, exception).ConfigureAwait(false);
+
+        Assert.Equal(500, httpContext.Response.StatusCode);
+        Assert.Equal("Internal server error", problem.RootElement.GetProperty("title").GetString());
+        Assert.Equal("urn:litebus:mediation:failed", problem.RootElement.GetProperty("type").GetString());
+        Assert.Equal("The mediation failed with a fault.", problem.RootElement.GetProperty("detail").GetString());
+        Assert.False(problem.RootElement.TryGetProperty("code", out _));
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_RegisteredProblemOptions_OverrideHandlerOptions()
+    {
+        var handler = new LiteBusExceptionHandler(
+            new LiteBusExceptionHandlerOptions(), NullLogger<LiteBusExceptionHandler>.Instance);
+        var httpContext = CreateHttpContext(
+            options: new RefusalProblemOptions { UnmappedRefusalCode = UnmappedRefusalCode.TreatAsServerError });
+        var exception = new LiteBusMessageDeniedException(typeof(object), "the account is unpaid", "billing.unpaid");
+
+        using var problem = await HandleToProblemAsync(handler, httpContext, exception).ConfigureAwait(false);
+
+        Assert.Equal(500, httpContext.Response.StatusCode);
+        Assert.Equal("about:blank", problem.RootElement.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_RegisteredProblemOptionsUseFallback_OverridesHandlerTreatAsServerError()
+    {
+        var handler = new LiteBusExceptionHandler(
+            new LiteBusExceptionHandlerOptions { UnmappedRefusalCode = UnmappedRefusalCode.TreatAsServerError },
+            NullLogger<LiteBusExceptionHandler>.Instance);
+        var httpContext = CreateHttpContext(options: new RefusalProblemOptions());
+        var exception = new LiteBusMessageDeniedException(typeof(object), "the account is unpaid", "billing.unpaid");
+
+        using var problem = await HandleToProblemAsync(handler, httpContext, exception).ConfigureAwait(false);
+
+        Assert.Equal(400, httpContext.Response.StatusCode);
+        Assert.Equal("urn:litebus:billing:unpaid", problem.RootElement.GetProperty("type").GetString());
+    }
+
+    [Fact]
     public void AddLiteBusExceptionHandler_RegistersDefaultOptionsAndHandler()
     {
         var services = new ServiceCollection();
@@ -291,10 +364,43 @@ public sealed class LiteBusExceptionHandlerTests
         Assert.Equal(UnmappedRefusalCode.TreatAsServerError, options.UnmappedRefusalCode);
     }
 
+    [Fact]
+    public void AddLiteBusExceptionHandler_SeedsProblemOptionsWithUnmappedPolicy()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLiteBusExceptionHandler(options => options.UnmappedRefusalCode = UnmappedRefusalCode.TreatAsServerError);
+        using var provider = services.BuildServiceProvider();
+
+        var options = provider.GetRequiredService<RefusalProblemOptions>();
+
+        Assert.Equal(UnmappedRefusalCode.TreatAsServerError, options.UnmappedRefusalCode);
+    }
+
+    [Fact]
+    public void AddLiteBusExceptionHandler_KeepsExplicitProblemOptions()
+    {
+        var explicitOptions = new RefusalProblemOptions
+        {
+            TypeFormatter = new DocumentationUrlProblemTypeFormatter("https://errors.example.com/{code}"),
+        };
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(explicitOptions);
+        services.AddLiteBusExceptionHandler(options => options.UnmappedRefusalCode = UnmappedRefusalCode.TreatAsServerError);
+        using var provider = services.BuildServiceProvider();
+
+        var options = provider.GetRequiredService<RefusalProblemOptions>();
+
+        Assert.Same(explicitOptions, options);
+        Assert.Equal(UnmappedRefusalCode.UseFallback, options.UnmappedRefusalCode);
+    }
+
     private static DefaultHttpContext CreateHttpContext(
         IRefusalProblemCatalog? catalog = null,
         IProblemDetailsService? problemDetailsService = null,
-        bool addProblemDetails = false)
+        bool addProblemDetails = false,
+        RefusalProblemOptions? options = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -307,6 +413,11 @@ public sealed class LiteBusExceptionHandlerTests
         if (problemDetailsService is not null)
         {
             services.AddSingleton(problemDetailsService);
+        }
+
+        if (options is not null)
+        {
+            services.AddSingleton(options);
         }
 
         if (addProblemDetails)

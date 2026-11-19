@@ -83,6 +83,7 @@
           "LiteBus.Commands": "[8.0.0, )",
           "LiteBus.Commands.Abstractions": "[8.0.0, )",
           "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime": "[8.0.0, )",
           "LiteBus.Runtime.Abstractions": "[8.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
@@ -104,6 +105,12 @@
         }
       },
       "litebus.messaging.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.runtime": {
         "type": "Project",
         "dependencies": {
           "LiteBus.Runtime.Abstractions": "[8.0.0, )"

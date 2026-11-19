@@ -137,12 +137,41 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
             failure = canceledException;
             throw;
         }
+        catch (MessageFaultException fault)
+        {
+            // A configuration or dependency failure is recorded with its fault code and propagates. It is never a
+            // refusal, so it is offered to neither the classifiers nor the translators, and the error handlers do
+            // not see a fault no message recovery can fix.
+            outcome = MediationOutcome.Failed;
+            reason = fault.Reason ?? fault.Message;
+            code = fault.Code;
+            failure = fault;
+            throw;
+        }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            if (MediationExceptionFilters.TryClassifyRefusal(
-                    messageDependencies.FaultRefusalClassifiers,
+            var refusalMatched = MediationExceptionFilters.TryClassifyRefusal(
+                messageDependencies.FaultRefusalClassifiers,
+                e,
+                out var refusal);
+
+            if (!refusalMatched)
+            {
+                // Translators run after the classifiers, so a fault the synchronous seam already recognizes keeps
+                // the refusal it always had. With no translator registered this is a pass over an empty list.
+                var translated = await RefusalExceptionTranslation.TryTranslateAsync(
+                    messageDependencies.RefusalExceptionTranslators,
                     e,
-                    out var refusal))
+                    executionContext.CancellationToken).ConfigureAwait(false);
+
+                if (translated.HasValue)
+                {
+                    refusal = translated.Value;
+                    refusalMatched = true;
+                }
+            }
+
+            if (refusalMatched)
             {
                 outcome = refusal.Outcome;
                 reason = refusal.Reason;
@@ -151,7 +180,7 @@ public sealed class AsyncBroadcastMediationStrategy<TMessage> : IMessageMediatio
                 // Only a Try call installs a capture, so this is a dictionary miss on every ordinary publish.
                 MediationEndingCapture.Record(executionContext, refusal);
 
-                // An event produces no result, so a classified fault has nothing a mapper could return and always
+                // An event produces no result, so a recognized fault has nothing a mapper could return and always
                 // reaches the publisher as the refusal exception. It is excluded from the recoverable filter, so
                 // error handlers do not see a refusal as a fault.
                 var refusalException = refusal.CreateException(message.GetType(), e);

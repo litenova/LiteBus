@@ -419,3 +419,73 @@ internal sealed class StubExecutionContext : IExecutionContext
         PostHandlersSuppressed = true;
     }
 }
+
+/// <summary>
+///     A command whose handler records the cause, parent, identity, and message type it observed.
+/// </summary>
+internal sealed class CauseProbeCommand : ICommand
+{
+}
+
+/// <summary>
+///     The lineage one handler observed, including the cause when the mediation carried one.
+/// </summary>
+/// <param name="MessageType">The runtime type of the message the observed mediation handles.</param>
+/// <param name="Parent">The execution context of the enclosing mediation, or <see langword="null" /> for a root mediation.</param>
+/// <param name="Cause">The committed fact that caused the mediation, or <see langword="null" /> when none was set.</param>
+/// <param name="Identity">The identity the observed mediation ran for.</param>
+public sealed record CauseObservation(
+    Type? MessageType,
+    IExecutionContext? Parent,
+    MediationCause? Cause,
+    ExecutionIdentity Identity);
+
+/// <summary>
+///     Records the cause observations the probe handlers report.
+/// </summary>
+public sealed class CauseRecorder
+{
+    /// <summary>
+    ///     Gets the observations the handlers recorded, in the order they ran.
+    /// </summary>
+    public List<CauseObservation> Observed { get; } = [];
+
+    /// <summary>
+    ///     Records the lineage the given execution context carries.
+    /// </summary>
+    /// <param name="context">The execution context to observe.</param>
+    public void Observe(IExecutionContext context)
+    {
+        Observed.Add(new CauseObservation(context.MessageType, context.Parent, context.Cause, context.Identity));
+    }
+}
+
+/// <summary>
+///     Records the cause, parent, identity, and message type of its mediation.
+/// </summary>
+internal sealed class CauseProbeCommandHandler : ICommandHandler<CauseProbeCommand>
+{
+    /// <summary>
+    ///     The recorder shared with the test.
+    /// </summary>
+    private readonly CauseRecorder _recorder;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="CauseProbeCommandHandler" /> class.
+    /// </summary>
+    /// <param name="recorder">The recorder shared with the test.</param>
+    public CauseProbeCommandHandler(CauseRecorder recorder)
+    {
+        _recorder = recorder;
+    }
+
+    /// <inheritdoc />
+    public Task HandleAsync(CauseProbeCommand message, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        _recorder.Observe(AmbientExecutionContext.Current);
+
+        return Task.CompletedTask;
+    }
+}

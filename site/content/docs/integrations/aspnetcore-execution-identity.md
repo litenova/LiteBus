@@ -15,7 +15,7 @@ To resolve the identity from the current request:
 ```csharp
 services.AddLiteBusExecutionIdentity(options =>
 {
-    options.TenantClaimType = "tenant_id";
+    options.TenantClaimTypes = ["tenant_id"];
 });
 
 services.AddLiteBus(builder =>
@@ -38,28 +38,28 @@ endpoints.MapPost("/orders", async (HttpContext context, ICommandMediator mediat
 
 ## How the Identity Is Read
 
-The provider reads `HttpContext.User` as the calling principal and the tenant from the claim named by `ExecutionIdentityOptions.TenantClaimType`, which defaults to `tenant_id`. When no HTTP context is available, the identity is `ExecutionIdentity.Anonymous`.
+The provider reads `HttpContext.User` as the calling principal and the tenant from the first claim type named by `ExecutionIdentityOptions.TenantClaimTypes` that carries a non-blank value, which defaults to a single `tenant_id` entry. When no HTTP context is available, the identity is `ExecutionIdentity.Anonymous`.
 
 The principal is passed through as the request carries it, including an unauthenticated principal, so authorization policies observe the caller rather than a filtered copy. A missing tenant claim means no tenant: the identity reports `HasTenant` as false, and a message declaring a required tenant is denied with `tenancy.required`. Only the tenant travels onto durable envelopes. A principal is never persisted, so a reaction restored from an envelope runs in the tenant of the fact with no caller.
 
 ## Options
 
-`AddLiteBusExecutionIdentity` accepts an optional configuration action over `ExecutionIdentityOptions`. `TenantClaimType` names the claim that carries the tenant identifier and defaults to `tenant_id`.
+`AddLiteBusExecutionIdentity` accepts an optional configuration action over `ExecutionIdentityOptions`. `TenantClaimTypes` names the claim types that carry the tenant identifier, in the order they are tried, and defaults to a single `tenant_id` entry. The provider reads the first entry carrying a non-blank value.
 
 ```csharp
 services.AddLiteBusExecutionIdentity(options =>
 {
-    options.TenantClaimType = "workspace_id";
+    options.TenantClaimTypes = ["workspace_id"];
 });
 ```
 
-A blank claim type throws `ArgumentException` from `AddLiteBusExecutionIdentity` rather than on the first request.
+The list is validated at registration: a null list, an empty list, or a blank entry throws from `AddLiteBusExecutionIdentity` rather than on the first request. An empty list would silently drop tenants present in claims, so it is a configuration fault, not an empty result.
 
 ## Dispatch Scope and Request-Scoped Services
 
 The mediator resolves the provider from the dispatch scope, which is a sibling of the request scope rather than a child of it. A service the request scope holds, such as a principal holder the application fills during authentication, resolves as a fresh instance with no state inside the provider. An implementation that reads such a holder compiles and always observes the default, so every request silently resolves as `Anonymous`.
 
-This registration bridges through `IHttpContextAccessor` instead: the provider reads the principal from `HttpContext.User` and the tenant from the claim named by `TenantClaimType`, both of which stay available outside the request scope. An application that keeps the caller in its own request-scoped holder stamps the same values onto claims or the HTTP context so the provider reads them there, rather than reading the holder from the provider.
+This registration bridges through `IHttpContextAccessor` instead: the provider reads the principal from `HttpContext.User` and the tenant from the first claim type named by `TenantClaimTypes` that carries a non-blank value, both of which stay available outside the request scope. An application that keeps the caller in its own request-scoped holder stamps the same values onto claims or the HTTP context so the provider reads them there, rather than reading the holder from the provider.
 
 ## Transient Principals on Sign-In Paths
 
@@ -78,34 +78,16 @@ Forgetting the explicit identity is silent: the mediation runs as the transient 
 
 ## Tenants From More Than One Claim
 
-`TenantClaimType` names one claim and the shipped provider reads exactly it. A host that accepts a tenant from either of two claims, such as a session claim for cookie requests and a token claim for bearer requests, either stamps one normalized claim first so the provider keeps reading one name, or registers a custom provider that tries the claim types in order:
+A host that accepts a tenant from either of two claims, such as a session claim for cookie requests and a token claim for bearer requests, lists both claim types in the order they are tried. The provider reads the first entry carrying a non-blank value, so a blank first claim falls through to the next:
 
 ```csharp
-public sealed class FallbackTenantIdentityProvider : IExecutionIdentityProvider
+services.AddLiteBusExecutionIdentity(options =>
 {
-    private readonly IHttpContextAccessor _httpContextAccessor;
-
-    public FallbackTenantIdentityProvider(IHttpContextAccessor httpContextAccessor) =>
-        _httpContextAccessor = httpContextAccessor;
-
-    public ExecutionIdentity GetCurrentIdentity()
-    {
-        var user = _httpContextAccessor.HttpContext?.User;
-
-        if (user is null)
-        {
-            return ExecutionIdentity.Anonymous;
-        }
-
-        var tenantId = user.FindFirst("tenant_id")?.Value
-            ?? user.FindFirst("workspace_id")?.Value;
-
-        return ExecutionIdentity.For(user, tenantId);
-    }
-}
+    options.TenantClaimTypes = ["session_tenant", "tenant_id"];
+});
 ```
 
-A custom provider still bridges through `IHttpContextAccessor` and claims, for the reason above.
+A custom provider is needed only when the choice of tenant follows logic an ordered list cannot express. It still bridges through `IHttpContextAccessor` and claims, for the reason above.
 
 ## Refusal Mapping
 
@@ -125,7 +107,7 @@ The default catalog carries the refusal codes LiteBus reports:
 | `idempotency.fingerprint-mismatch` | 422 | Idempotency key already used |
 | anything else | 400 | Invalid request |
 
-A code ending in `.*` is a prefix pattern covering every code under that prefix, so `authorization.*` covers `authorization.forbidden`. An exact mapping wins over a prefix pattern, and the longest prefix wins when several patterns cover one code. Codes without a mapping answer `400 Bad Request`.
+A code ending in `.*` is a prefix pattern covering every code under that prefix, so `authorization.*` covers `authorization.forbidden`. An exact mapping wins over a prefix pattern, and the longest prefix wins when several patterns cover one code. Codes without a mapping answer `400 Bad Request`. `tenancy.invalid`, reported when the mediation tenant is malformed under the registered validator, answers through that fallback as an invalid request, because the tenant value itself cannot be used.
 
 An application contributes its own codes with `Map` and registers the catalog in request services, so `ToHttpResult` answers product-specific refusals with the status the product chooses:
 

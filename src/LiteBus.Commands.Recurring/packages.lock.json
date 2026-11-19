@@ -90,6 +90,12 @@
           "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
+      "litebus.runtime": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
       "litebus.runtime.abstractions": {
         "type": "Project"
       },

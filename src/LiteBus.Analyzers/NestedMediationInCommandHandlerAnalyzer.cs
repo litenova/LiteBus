@@ -28,13 +28,22 @@ namespace LiteBus.Analyzers;
 ///         query is treated as a read for the same reason.
 ///     </para>
 ///     <para>
-///         Disabled by default. Enable with <c>dotnet_diagnostic.LB1023.severity = warning</c> once the codebase is
-///         ready to keep nested units of work out of command handlers.
+///         Set <c>litebus_forbid_nested_commands = true</c> in <c>.editorconfig</c> to report this rule at
+///         warning. Without the option the rule reports nothing. The runtime counterpart is
+///         <c>CommandModuleBuilder.ForbidNestedCommands()</c>, which throws <c>NestedMediationException</c>
+///         before the inner pipeline starts. An analyzer cannot see a composition call made in another
+///         compilation, so the option pairs the build check with the runtime guarantee; the runtime stays the
+///         guarantee.
 ///     </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class NestedMediationInCommandHandlerAnalyzer : DiagnosticAnalyzer
 {
+    /// <summary>
+    ///     The <c>.editorconfig</c> key that reports nested mediation at warning.
+    /// </summary>
+    internal const string ForbidNestedCommandsOption = "litebus_forbid_nested_commands";
+
     /// <summary>
     ///     Handle method names inspected for nested mediation.
     /// </summary>
@@ -83,15 +92,21 @@ public sealed class NestedMediationInCommandHandlerAnalyzer : DiagnosticAnalyzer
     /// </summary>
     /// <param name="context">The operation analysis context.</param>
     /// <remarks>
-    ///     The invoked name is checked first, so invocations that cannot match cost one string comparison. The enclosing
-    ///     handle method is found by walking out of lambdas and local functions, so a send inside a lambda in the handle
-    ///     method is reported as well.
+    ///     The invoked name is checked first, so invocations that cannot match cost one string comparison. Reporting
+    ///     is gated on <c>litebus_forbid_nested_commands</c>, so a compilation without the option pays only the name
+    ///     check. The enclosing handle method is found by walking out of lambdas and local functions, so a send inside
+    ///     a lambda in the handle method is reported as well.
     /// </remarks>
     private static void AnalyzeInvocation(OperationAnalysisContext context)
     {
         if (context.Operation is not IInvocationOperation invocation ||
             invocation.Syntax is not InvocationExpressionSyntax syntax ||
             !IsNestedMediationName(syntax))
+        {
+            return;
+        }
+
+        if (!IsForbidNestedCommandsEnabled(context, syntax.SyntaxTree))
         {
             return;
         }
@@ -121,6 +136,44 @@ public sealed class NestedMediationInCommandHandlerAnalyzer : DiagnosticAnalyzer
             syntax.GetLocation(),
             handlerType.Name,
             target));
+    }
+
+    /// <summary>
+    ///     Determines whether nested mediation reporting is enabled for the invocation's syntax tree.
+    /// </summary>
+    /// <param name="context">The operation analysis context.</param>
+    /// <param name="tree">The syntax tree holding the invocation.</param>
+    /// <returns><see langword="true" /> when <c>litebus_forbid_nested_commands</c> is <c>true</c> for the tree; otherwise, <see langword="false" />.</returns>
+    /// <remarks>
+    ///     Both the per-tree <c>.editorconfig</c> entry and the global options are read, the same two sources
+    ///     <c>MissingDeclarationAnalyzer</c> reads for <c>litebus_required_declarations</c>. The per-tree value wins
+    ///     when present, so one file can opt out of a project-wide setting.
+    /// </remarks>
+    private static bool IsForbidNestedCommandsEnabled(OperationAnalysisContext context, SyntaxTree tree)
+    {
+        if (context.Options.AnalyzerConfigOptionsProvider.GetOptions(tree).TryGetValue(ForbidNestedCommandsOption, out var treeValue) &&
+            treeValue is not null)
+        {
+            return IsEnabledOptionValue(treeValue);
+        }
+
+        if (context.Options.AnalyzerConfigOptionsProvider.GlobalOptions.TryGetValue(ForbidNestedCommandsOption, out var globalValue) &&
+            globalValue is not null)
+        {
+            return IsEnabledOptionValue(globalValue);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Determines whether a configured option value enables reporting.
+    /// </summary>
+    /// <param name="value">The raw configuration value.</param>
+    /// <returns><see langword="true" /> when the value is <c>true</c>, ignoring case and surrounding whitespace; otherwise, <see langword="false" />.</returns>
+    private static bool IsEnabledOptionValue(string value)
+    {
+        return string.Equals(value.Trim(), "true", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

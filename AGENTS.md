@@ -198,6 +198,22 @@ After editing a batch of files, call `ReadLints` on the paths you touched and fi
 
 ## Architecture principles
 
+### Feature design rules
+
+These rules come from three rounds of consumer feedback on v8. Most of the items in those rounds were a missing port, a value fixed too early, a silent fallback, or ambient context leaking into work the library started. Design every new feature to these rules, and align an existing feature with them when you next touch it.
+
+1. **Decide each value at the latest stage that can know it.** The deployment shape belongs at composition: the store, the broker, the enabled features. A message type's static intent belongs in a declaration. The caller, the tenant, the clock and the data belong at evaluation. A per-tenant window or time zone fixed at composition is a design error.
+2. **A built-in behavior is a port with a registered default.** The port is an interface that the application replaces through the owning builder or the container. LiteBus resolves it from the mediation scope at evaluation time, never captures it at composition, and marks the default registration so the composition model shows which ports were replaced.
+3. **A port is asynchronous and takes the evaluation context.** It returns `ValueTask`, receives `MessageEvaluationContext` or a feature context that carries it, and ends with `CancellationToken`. A factory that takes a fixed value, such as `RecentSignIn(TimeSpan)`, stays as the simple overload over a constant port, and is never the only overload.
+4. **Registrations follow one conflict rule.** An identical repeat is a no-op. A conflicting repeat fails composition and names both sources. A deliberate override calls `Replace`. This applies to every registry: contracts, declarations, defaults, policies, refusal mappings, ports and harvester decisions.
+5. **A configuration fault is never a user refusal.** A missing port, an unknown setting or an unreachable dependency ends the mediation as `MediationOutcome.Failed` through `MessageFaultException`, is logged, and maps to HTTP 500. `WithRefusal` and other combinators rewrite refusals only.
+6. **Work the library starts is a root mediation.** The outbox processor, immediate dispatch, inbox delivery, recurring passes, tenant sources and saga timeouts run inside `RootMediationScope`. Each has a declared identity and a `Cause`, and none inherits the ambient context of the work that triggered it. `Parent` is reserved for synchronous nesting inside a handler.
+7. **A feature that persists state ships a storage port and shared contract tests first.** The algorithm stays store-neutral in a core package. Each store is a thin adapter proven by the contract tests in `tests/LiteBus.Storage.Testing`. A feature never lives inside one store's package.
+8. **Nothing fails silently.** A caught exception is logged with its context. A fallback is visible in the composition model or a diagnostic check. A background loop never swallows a failure.
+9. **Composition explains itself.** The composition model names the source of every effective declaration (definition, attribute, default, convention or exemption) and the implementation of every port. A new registry contributes its own section.
+10. **A runtime rule and its analyzer are switched on together.** When an analyzer cannot see a composition call across compilations, one documented `.editorconfig` option turns it on, such as `litebus_forbid_nested_commands`.
+11. **A consumer's proposal is evidence of a need, not a specification.** A feature design states the need, names at least two other consumers with different needs, and shows that they fit without a change to the core.
+
 ### Dependency role rules
 
 Every package belongs to exactly one dependency role. A package may reference only the project and package roles allowed by the matrix below.

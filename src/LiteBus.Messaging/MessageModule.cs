@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Audit;
+using LiteBus.Messaging.Composition;
 using LiteBus.Messaging.Idempotency;
 using LiteBus.Messaging.Mediator;
 using LiteBus.Messaging.Pipeline;
@@ -144,13 +145,15 @@ public sealed class MessageModule : IModule
                 () => RequiredDeclarationValidator.Validate(messageRegistry, required));
         }
 
-        // Deferred for the same reason. The catalog is built once here and shared by every check, so ten conventions
-        // cost one traversal of the registry.
-        if (moduleBuilder.CompositionChecks.Count > 0)
-        {
-            var checks = moduleBuilder.CompositionChecks;
-            configuration.RegisterCompositionValidation(() => RunCompositionChecks(messageRegistry, checks));
-        }
+        // Deferred for the same reason. The model is built once here and shared by every check, so ten checks
+        // cost one traversal of the registry. It is built even when no check was registered, so a misregistered
+        // section contributor still fails composition instead of surfacing on first resolve.
+        var compositionChecks = moduleBuilder.CompositionChecks;
+        configuration.RegisterCompositionValidation(() => RunCompositionChecks(
+            messageRegistry,
+            messageContractRegistry,
+            configuration.DependencyRegistry,
+            compositionChecks));
     }
 
     /// <summary>
@@ -320,22 +323,28 @@ public sealed class MessageModule : IModule
     }
 
     /// <summary>
-    ///     Runs every application composition check over one catalog of registered messages.
+    ///     Runs every application composition check over one model of everything the host composed.
     /// </summary>
     /// <param name="reader">The registry holding every registered message descriptor.</param>
+    /// <param name="contracts">The contract registry holding every registered message contract.</param>
+    /// <param name="dependencyRegistry">The dependency registry holding every composed descriptor.</param>
     /// <param name="checks">The checks the application registered through <c>ValidateComposition</c>.</param>
     /// <remarks>
     ///     Checks run in registration order and the first to throw ends composition. Aggregating them would report
     ///     more at once, but a check is free to name every offender itself, and a convention violation is usually one
     ///     fix rather than a list of independent ones.
     /// </remarks>
-    private static void RunCompositionChecks(IMessageReader reader, IReadOnlyList<Action<IMessageCatalog>> checks)
+    private static void RunCompositionChecks(
+        IMessageReader reader,
+        MessageContractRegistry contracts,
+        IDependencyRegistry dependencyRegistry,
+        IReadOnlyList<Action<ICompositionModel>> checks)
     {
-        var catalog = new MessageCatalog(reader);
+        var model = CompositionModel.CreateForValidation(reader, contracts, [.. dependencyRegistry]);
 
         foreach (var check in checks)
         {
-            check(catalog);
+            check(model);
         }
     }
 
@@ -390,6 +399,19 @@ public sealed class MessageModule : IModule
             _ => new MessageCatalog(messageRegistry),
             InstanceLifetime.Singleton));
 
+        // Resolvable at runtime as well as inside a composition check, so a host logs the exported snapshot and
+        // tests assert over it. Built by a singleton factory, so the snapshot is taken on first resolve, after
+        // every module has registered what it owns, and the effective port implementations resolve from the
+        // container that answers them at mediation.
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(ICompositionModel),
+            provider => CompositionModel.CreateResolved(
+                messageRegistry,
+                messageContractRegistry,
+                [.. configuration.DependencyRegistry],
+                provider),
+            InstanceLifetime.Singleton));
+
         // The read-only view applications use to read their own declarations, so a generic guard does not have to
         // navigate descriptors to find the metadata bag.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -435,9 +457,11 @@ public sealed class MessageModule : IModule
             new AmbientAuditScope()));
 
         // Applications supply their own mapper to record a refusal exception as a denial rather than a failure.
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IAuditOutcomeMapper),
-            auditOutcomeMapper ?? new DefaultAuditOutcomeMapper()));
+        // The built-in mapper registers as the port default, so the composition model reports whether the
+        // application replaced it.
+        configuration.DependencyRegistry.Register(auditOutcomeMapper is null
+            ? DependencyDescriptor.ForDefaultPort(typeof(IAuditOutcomeMapper), new DefaultAuditOutcomeMapper())
+            : new DependencyDescriptor(typeof(IAuditOutcomeMapper), auditOutcomeMapper));
 
         RegisterAuditTrail(configuration, auditTrail, auditTrailLifetime);
         RegisterAuditActorResolver(configuration, auditActorResolver, auditActorResolverLifetime);
@@ -560,7 +584,7 @@ public sealed class MessageModule : IModule
                 return;
 
             default:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
                     typeof(IAuditRecordWriter),
                     CreateAuditRecordWriter,
                     InstanceLifetime.Scoped));
@@ -651,7 +675,7 @@ public sealed class MessageModule : IModule
         switch (messageSerializer)
         {
             case null:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
                     typeof(IMessageSerializer),
                     typeof(SystemTextJsonMessageSerializer)));
                 break;

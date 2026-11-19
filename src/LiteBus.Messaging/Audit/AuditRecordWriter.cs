@@ -110,6 +110,7 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
 
         var record = new AuditRecord
         {
+            Id = Guid.NewGuid(),
             Action = declaration.Action,
             Actor = ResolveActor(context, scope),
             Outcome = outcome,

@@ -1,6 +1,7 @@
 using System;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LiteBus.Extensions.AspNetCore;
 
@@ -23,6 +24,12 @@ public static class LiteBusExceptionHandlerServiceCollectionExtensions
     ///         refusal catalog. The host may also call <c>AddProblemDetails</c> to customize the problem writer; when
     ///         absent, the handler writes the same shape directly.
     ///     </para>
+    ///     <para>
+    ///         Seeds <see cref="RefusalProblemOptions" /> with the configured unmapped-code policy when the application
+    ///         has not registered its own, so the result path in
+    ///         <see cref="MediationResultHttpExtensions" /> answers unmapped codes with the same policy as the
+    ///         exception path.
+    ///     </para>
     ///     <code><![CDATA[
     /// services.AddLiteBusExceptionHandler();
     /// app.UseExceptionHandler();
@@ -37,6 +44,7 @@ public static class LiteBusExceptionHandlerServiceCollectionExtensions
         var options = new LiteBusExceptionHandlerOptions();
         configure?.Invoke(options);
         services.AddSingleton(options);
+        services.TryAddSingleton(new RefusalProblemOptions { UnmappedRefusalCode = options.UnmappedRefusalCode });
         services.AddExceptionHandler<LiteBusExceptionHandler>();
 
         return services;

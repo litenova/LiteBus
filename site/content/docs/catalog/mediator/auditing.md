@@ -20,7 +20,7 @@ The variable half, such as an identifier the handler generated, is pushed at run
 
 The completion context carries the identity the mediation ran for as `MessageCompletionContext.Identity`, copied from `IExecutionContext.Identity` when the context is built. The writer and the documented `IAuditActorResolver` read the caller from there rather than from ambient state. When no resolver is registered, the writer falls back to the principal on the completion identity, reading the identifier from the `NameIdentifier` claim and then the `sub` claim; when the principal carries no usable claim, the record keeps no actor.
 
-Tamper evidence below the record is a set of replaceable chain pieces with LiteBus defaults: the stored document (`IAuditRecordMapper<TDocument>`), the segmenting (`IAuditSegmenter<TDocument>`), the canonical bytes (`IAuditCanonicalizer<TDocument>`), the link rule (`IAuditLinkRule`), the hasher (`IAuditHasher`), the checkpoint policy (`ICheckpointPolicy`), the signer (`ICheckpointSigner`), and the publisher (`ICheckpointPublisher`). Each record stores the name of the `AuditHashScheme<TDocument>` it was written with, and `IAuditChain` verifies, checkpoints, and expires segments. See [Auditing](../../concepts/auditing.md#hash-chained-audit-storage).
+Tamper evidence below the record is the auditing module (`AddAuditing`) with one registered store and an optional hash chain. Two independent settings decide when a record is written (`AuditCapture`: `WithChange`, `AfterCommitThroughOutbox`, `BeforeAndOutcome`) and when it joins the chain (`AuditLink`: `AfterCommit`, `InTransaction`, `AtWrite`). The chain pieces carry LiteBus defaults: the stored document (`IAuditRecordMapper<TDocument>` with `MapAsync` in the mediation scope), the segmenting (`IAuditSegmenter<TDocument>` with `DescribeSegment` head metadata), the canonical bytes (`IAuditCanonicalizer<TDocument>`), the named scheme (`AuditHashScheme<TDocument>`, `sha256-v2` framing by default), the checkpoint policy (`ICheckpointPolicy`), the signers (`ICheckpointSigner`), the publishers (`ICheckpointPublisher`), and the verification sources (`ICheckpointSource`). Each record stores the name of the scheme it was written with, and `IAuditChain` verifies, checkpoints, lists, expires, and erases segments on every store through the `IAuditChainStore<TDocument>` port. See [Auditing](../../concepts/auditing.md#hash-chained-audit-storage).
 
 ## Public Surface
 
@@ -67,21 +67,35 @@ services.AddLiteBus(registry =>
 | `IMessageCatalog` | Registered as a Singleton, so the declarations are readable at runtime as well as at composition |
 | `AuditCatalogueRow` / `AuditCatalogue.ToRows` / `AuditCatalogue.ToMarkdown` | The audit catalogue, derived from the declarations |
 | `CommandModuleBuilder` / `QueryModuleBuilder` / `EventModuleBuilder` `.EnableAuditing` | Registers the writer and the probe on one axis |
+| `AuditCapture` | When and where a record is written: `WithChange(link)`, `AfterCommitThroughOutbox()`, `BeforeAndOutcome()`. Set with `AuditingModuleBuilder.Capture` |
+| `AuditLink` | When the chain position is assigned: `AfterCommit`, `InTransaction`, `AtWrite`. Applies only with the chain on |
+| `AuditCaptureDeclaration` / `IAuditCaptureDefinition<TMessage>` | Per-message capture override from a definition class; no attribute form |
+| `AuditingModuleBuilder` | `Capture`, `UseHashChain`; the store choice (`UseMartenStore`, `UsePostgreSqlStore`, `UseEntityFrameworkCoreStore<TContext>`) comes from the storage package |
+| `AuditHashChainBuilder` | `StoreAs`, `SegmentBy`, `UseScheme`, `CheckpointWhen`, `SignCheckpointsWith`, `PublishCheckpointsTo`, `VerifyAgainst`, `UnlinkedAfter`, `CheckpointStaleAfter`, `PublishErasureNotices` |
+| `IAuditChainStore<TDocument>` | The durable port the chain engine runs on: heads, conditional appends, staging, reads, checkpoints with publish state, erasure |
 | `IAuditChainDocument` | The chain fields every stored audit document carries: `Segment`, `Sequence`, `PreviousHash`, `Hash`, `HashScheme` |
-| `IAuditRecordMapper<TDocument>` | Maps an `AuditRecord` to the stored document type |
-| `IAuditSegmenter<TDocument>` | Names the segment per document; `CreateGenesis` opens a segment with a genesis record, or `null` for none |
-| `IAuditCanonicalizer<TDocument>` | Produces the exact bytes hashed; excludes `Hash` |
-| `IAuditLinkRule` / `AuditLinkInput` | Combines canonical bytes with segment, sequence, and previous hash into the bytes hashed |
+| `IAuditRecordMapper<TDocument>` | Maps an `AuditRecord` to the stored document type; `MapAsync(record, AuditMappingContext, ct)` runs in the mediation scope before commit |
+| `AuditMappingContext` | The evaluation the mapping runs in: the mediation scope on `Services`, the caller on `Identity` |
+| `IAuditSegmenter<TDocument>` | Names the segment per document; `CreateGenesis` opens a segment with a genesis record, or `null` for none; `DescribeSegment` records the head metadata |
+| `AuditSegmentInfo` / `AuditSegmentHead` / `AuditSegmentSummary` | The stored segment identity (key, tenant, attributes, opened-at), the head with its position and version, and the listed state |
+| `AuditSegmentFilter` | Selects segments by tenant, attributes, age, and whether expired segments are included |
+| `IAuditCanonicalizer<TDocument>` | Produces the exact business bytes hashed; excludes `Hash` |
+| `IAuditLinkRule` / `AuditLinkInput` | Combines canonical bytes with segment, sequence, and previous hash into the bytes hashed; `FramedLinkRule` under `sha256-v2` |
 | `IAuditHasher` | Computes the hash: `Sha256AuditHasher`, or `HmacSha256AuditHasher` with a fixed key or a per-operation key provider |
 | `AuditHashScheme<TDocument>` | A named combination of canonicalizer, link rule, and hasher; each record stores the name it was written with |
-| `ICheckpointPolicy` / `AuditCheckpointCandidate` | Decides when a checkpoint is due; `IsTimeBased` marks a policy the chain also asks on a schedule. `CheckpointPolicies.EveryRecords`, `Every`, `Any` |
-| `AuditCheckpoint` / `AuditCheckpointKind` / `AuditCheckpointSignature` | The anchored position, hash, count, and signature; `Regular` or `Final` |
-| `ICheckpointSigner` | Signs checkpoints and verifies their signatures |
-| `ICheckpointPublisher` | Publishes checkpoints to an independent store |
-| `ICheckpointSource` | Reads the latest checkpoint of a segment for verification |
-| `AuditChainVerification` / `AuditChainBreak` / `AuditChainBreakKind` | The verify result: every break in sequence order, the head, and the checkpoint comparison |
-| `IAuditChain` | `VerifyAsync`, `CutCheckpointAsync`, `ExpireSegmentAsync` |
+| `ICheckpointPolicy` / `AuditCheckpointCandidate` | Decides when a checkpoint is due; `IsTimeBased` marks a policy the chain also asks on a schedule; `IsDueAsync` reads services. `CheckpointPolicies.Never`, `EveryRecords`, `Every`, `Any`, `OnSchedule`, `DailyAt`, `WeeklyOn` |
+| `AuditCheckpoint` / `AuditCheckpointKind` / `AuditCheckpointSignature` | The anchored position, hash, count, label, and signatures; `Regular` or `Final`; `Pending` or `Published` with attempts and last error |
+| `CheckpointPublishState` | Whether a stored checkpoint reached its publishers |
+| `ICheckpointSigner` | Signs checkpoints and verifies their signatures; every signer signs every checkpoint |
+| `ICheckpointPublisher` | Publishes checkpoints to an independent store; every publisher receives every checkpoint |
+| `ICheckpointSource` | Reads the latest checkpoint of a segment for verification; the store source is always first |
+| `AuditChainVerification` / `AuditChainBreak` / `AuditChainBreakKind` | The verify result: every break in sequence order, the head, the checkpoint comparison, and one comparison per source |
+| `AuditCheckpointComparison` | The comparison against one source; `SourceUnreachable` is a warning, not a break |
+| `AuditChainVerificationRequest` | The segment and thresholds one verification runs with |
+| `IAuditChain` | `VerifyAsync`, `VerifyFromAsync`, `CutCheckpointAsync`, `ListSegmentsAsync`, `ListUnpublishedCheckpointsAsync`, `ExpireSegmentAsync`, `EraseAsync` |
 | `AuditChainVerifier<TDocument>` | The storage-free verifier every store reuses |
+| `AuditErasureNotice` / `IErasureNoticePublisher` | The report published per erased segment when notices are on; it carries no hash |
+| `AuditLinkSweepHostOptions` / `CheckpointPublishHostOptions` | The linker sweep timing and the checkpoint publish retrier timing |
 
 ## Packages
 
@@ -90,6 +104,13 @@ services.AddLiteBus(registry =>
 - `LiteBus.Commands`
 - `LiteBus.Queries`
 - `LiteBus.Events`
+- `LiteBus.Auditing`
+- `LiteBus.Auditing.Storage.Marten`
+- `LiteBus.Auditing.Storage.PostgreSql`
+- `LiteBus.Auditing.Storage.EntityFrameworkCore`
+- `LiteBus.Auditing.Anchors.S3`
+- `LiteBus.Auditing.Anchors.AzureBlob`
+- `LiteBus.Auditing.Anchors.Timestamping`
 
 ## Requires
 
@@ -116,7 +137,16 @@ services.AddLiteBus(registry =>
 - The completion identity is copied from the mediation execution context, defaults to `ExecutionIdentity.Anonymous`, and reads the same on both generic views. With no resolver registered, the writer attributes from the principal on that identity (`NameIdentifier`, then `sub`); an explicit resolver result is never replaced by the fallback.
 - Each chained record stores the name of the scheme it was written with, and verification picks the scheme per record, so a scheme change from a date onward verifies without rewriting history.
 - Verification collects every break, in sequence order, and compares the segment against its latest checkpoint, so a rewritten suffix fails the checkpoint hash and count comparison even when its links are consistent.
-- A chain that shares one scheme name between two different schemes fails at build time.
+- A chain that shares one scheme name between two different schemes fails composition; a deliberate override calls `Replace`.
+- The default capture is `WithChange` with `AfterCommit` linking. Composition picks `AfterCommitThroughOutbox` when the store cannot join the business transaction and reports the selection in the composition model, never silently.
+- A capture and link pair outside the valid combinations fails composition with a `LiteBusConfigurationException`.
+- Denial, invalid, and failure records always take the out-of-band path, in every capture mode.
+- A record written before commit never claims success: the `BeforeAndOutcome` intent record carries `AuditOutcome.Intent`.
+- One audit store per composition: registering a second store throws `LiteBusConfigurationException`.
+- Publication never runs inside an append. A checkpoint is cut, stored as `Pending`, signed, and published from the background retrier, with attempts and the last error recorded.
+- Every signer signs every checkpoint and every publisher receives every checkpoint; verification compares against every configured source with one comparison per source.
+- An unreachable source is a warning, not a break: the verification stays intact but the comparison records the gap.
+- Erasure deletes records, heads, and stored checkpoints and publishes nothing by default; an optional erasure notice carries no hash.
 
 ## Non-Goals
 
@@ -230,4 +260,12 @@ No audit-specific meter or activity source. The record itself carries `Duration`
 - [Auditing](../../concepts/auditing.md)
 - [Message definitions](../../concepts/message-definitions.md)
 - [The handler pipeline](../../concepts/handler-pipeline.md)
-- [Commands Marten Adapter](../storage/storage.commands.adapter.marten.md)
+- [Marten Audit Storage](../../integrations/auditing-marten.md)
+- [PostgreSQL Audit Storage](../../integrations/auditing-postgresql.md)
+- [Entity Framework Core Audit Storage](../../integrations/auditing-entity-framework-core.md)
+- [S3 Checkpoint Anchor](../../integrations/auditing-s3-anchor.md)
+- [Azure Blob Checkpoint Anchor](../../integrations/auditing-azure-blob-anchor.md)
+- [RFC 3161 Timestamps](../../integrations/auditing-rfc3161-timestamp.md)
+- [storage.auditing.adapter.marten](../storage/storage.auditing.adapter.marten.md)
+- [storage.auditing.adapter.postgresql](../storage/storage.auditing.adapter.postgresql.md)
+- [storage.auditing.adapter.efcore](../storage/storage.auditing.adapter.efcore.md)

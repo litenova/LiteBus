@@ -69,6 +69,15 @@ public sealed class EventMediationSettings
     public ExecutionIdentity? Identity { get; init; }
 
     /// <summary>
+    ///     Gets the committed fact that caused this mediation, or <see langword="null" /> for an application-started or nested mediation.
+    /// </summary>
+    /// <remarks>
+    ///     Leave it <see langword="null" /> when the application starts the mediation. Dispatchers set it from envelope
+    ///     fields when a boundary starts a root mediation, and the mediator copies it into the created execution context.
+    /// </remarks>
+    public MediationCause? Cause { get; init; }
+
+    /// <summary>
     ///     Creates event mediation settings that run in one tenant.
     /// </summary>
     /// <param name="tenantId">The tenant the mediation runs in, or <see langword="null" /> when the work belongs to no tenant.</param>

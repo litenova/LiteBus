@@ -27,6 +27,10 @@
         <PackageReference Include="LiteBus.Outbox.Storage.EntityFrameworkCore" Version="[$(LiteBusVersion)]"/>
         <PackageReference Include="LiteBus.Commands.Storage.Marten" Version="[$(LiteBusVersion)]"/>
         <PackageReference Include="LiteBus.Outbox.Dispatch.InProcess" Version="[$(LiteBusVersion)]"/>
+        <PackageReference Include="LiteBus.Auditing" Version="[$(LiteBusVersion)]"/>
+        <PackageReference Include="LiteBus.Auditing.Storage.Marten" Version="[$(LiteBusVersion)]"/>
+        <PackageReference Include="LiteBus.Auditing.Storage.PostgreSql" Version="[$(LiteBusVersion)]"/>
+        <PackageReference Include="LiteBus.Auditing.Storage.EntityFrameworkCore" Version="[$(LiteBusVersion)]"/>
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="*"/>
         <PackageReference Include="Npgsql" Version="*"/>
         <PackageReference Include="Marten" Version="*"/>

@@ -1,9 +1,15 @@
 using System.Data;
-using LiteBus.Commands.Storage.Marten;
+using LiteBus.Auditing;
+using LiteBus.Auditing.Abstractions;
+using LiteBus.Auditing.Checkpoints;
+using LiteBus.Auditing.Engine;
+using LiteBus.Auditing.Hashing;
+using LiteBus.Auditing.Linking;
+using LiteBus.Auditing.Storage.Marten;
 using LiteBus.Messaging.Abstractions.Auditing;
-using LiteBus.Messaging.Audit;
 using LiteBus.Storage.IntegrationTests.PostgreSql;
 using Marten;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Storage.IntegrationTests.Marten;
 
@@ -31,38 +37,45 @@ public sealed class MartenAuditChainBackgroundServiceTests : IClassFixture<Postg
         await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
         var category = $"quiet-{Guid.NewGuid():N}";
         var segment = $"{category}/2026";
-        var publishedAfterWrites = 0;
         var checkpointed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        SignallingCheckpointPublisher? publisher = null;
-        publisher = new SignallingCheckpointPublisher(() =>
-        {
-            if (publisher!.Published.Count > publishedAfterWrites)
-            {
-                checkpointed.TrySetResult();
-            }
-        });
-        var options = new MartenAuditTrailOptions
-        {
-            CheckpointScanInterval = TimeSpan.FromMilliseconds(50)
-        };
-        options.UseHashChain(chain => chain
+        var publisher = new SignallingCheckpointPublisher(() => checkpointed.TrySetResult());
+
+        var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
+        await using var configuredBusiness = business.ConfigureAwait(false);
+        var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, business);
+        var segmenter = new MartenAuditRecordSegmenter();
+        var moduleBuilder = new AuditingModuleBuilder();
+        moduleBuilder.UseHashChain(chain => chain
+            .UseScheme(MartenAuditHashSchemes.Sha256V1.Name)
             .CheckpointWhen(CheckpointPolicies.Every(TimeSpan.FromMilliseconds(50)))
-            .PublishCheckpointsTo(publisher));
+            .PublishCheckpointsTo<SignallingCheckpointPublisher>());
+        var chainOptions = moduleBuilder.Options.Chain!;
+        var services = new ServiceCollection();
+        services.AddSingleton(store);
+        services.AddSingleton<IAuditCanonicalizer<MartenAuditRecord>, MartenAuditRecordCanonicalizer>();
+        services.AddSingleton(publisher);
+        var provider = services.BuildServiceProvider();
+        await using var configuredProvider = provider.ConfigureAwait(false);
 
-        var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-        await using (session.ConfigureAwait(false))
-        {
-            var trail = new MartenAuditTrail(session, documentStore, options);
-            await trail.WriteAsync(FailedRecord("orders.place-order", category)).ConfigureAwait(false);
-        }
+        var trail = new MartenAuditTrail<MartenAuditRecord>(store, new MartenAuditRecordMapper(), segmenter);
+        await trail.WriteAsync(FailedRecord("orders.place-order", category)).ConfigureAwait(false);
+        var linker = new AuditLinker<MartenAuditRecord>(
+            store,
+            segmenter,
+            new AuditHashSchemeRegistry(provider),
+            chainOptions);
+        await linker.LinkPendingAsync(segment, CancellationToken.None).ConfigureAwait(false);
 
-        publishedAfterWrites = publisher.Published.Count;
-
-        // The setup write may publish its own checkpoint, which must not satisfy the wait for the background service.
-        checkpointed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lifecycle = new CheckpointLifecycle<MartenAuditRecord>(store, chainOptions, provider);
+        var hostServices = new ServiceCollection();
+        hostServices.AddSingleton<ICheckpointLifecycle>(lifecycle);
+        var hostProvider = hostServices.BuildServiceProvider();
+        await using var configuredHostProvider = hostProvider.ConfigureAwait(false);
+        var service = new CheckpointPublishBackgroundService(
+            hostProvider,
+            options: new CheckpointPublishHostOptions { PollInterval = TimeSpan.FromMilliseconds(50) });
 
         using var stopping = new CancellationTokenSource();
-        var service = new MartenAuditCheckpointBackgroundService(documentStore, options);
         var run = service.ExecuteAsync(stopping.Token);
 
         await Task.WhenAny(checkpointed.Task, Task.Delay(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
@@ -71,7 +84,11 @@ public sealed class MartenAuditChainBackgroundServiceTests : IClassFixture<Postg
         stopping.Cancel();
         await run.ConfigureAwait(false);
 
-        publisher.Published.Count.Should().BeGreaterThan(publishedAfterWrites);
+        // The loop cuts on one pass and publishes on the next, so anything cut after the wait
+        // is published here before the counts are compared.
+        await lifecycle.PublishPendingAsync(CancellationToken.None).ConfigureAwait(false);
+
+        publisher.Published.Should().NotBeEmpty();
         publisher.Published.Should().OnlyContain(checkpoint => checkpoint.Segment == segment);
 
         var stored = await FindCheckpointsAsync(documentStore, segment).ConfigureAwait(false);
@@ -79,12 +96,11 @@ public sealed class MartenAuditChainBackgroundServiceTests : IClassFixture<Postg
     }
 
     [SkippableFact]
-    public async Task Service_without_a_time_based_policy_returns_immediately()
+    public async Task Service_without_a_registered_lifecycle_returns_immediately()
     {
-        var documentStore = CreateDocumentStore();
-        await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
-        var options = new MartenAuditTrailOptions().UseHashChain();
-        var service = new MartenAuditCheckpointBackgroundService(documentStore, options);
+        var provider = new ServiceCollection().BuildServiceProvider();
+        await using var configuredProvider = provider.ConfigureAwait(false);
+        var service = new CheckpointPublishBackgroundService(provider);
         var run = service.ExecuteAsync(CancellationToken.None);
 
         await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
@@ -98,7 +114,7 @@ public sealed class MartenAuditChainBackgroundServiceTests : IClassFixture<Postg
         return DocumentStore.For(options =>
         {
             options.Connection(_fixture.ConnectionString);
-            options.DatabaseSchemaName = "marten_commands_audit_chain_tests";
+            options.DatabaseSchemaName = "marten_auditing_checkpoint_loop_tests";
         });
     }
 
@@ -106,6 +122,7 @@ public sealed class MartenAuditChainBackgroundServiceTests : IClassFixture<Postg
     {
         return new AuditRecord
         {
+            Id = Guid.NewGuid(),
             Action = action,
             Outcome = AuditOutcome.Failed,
             OccurredAt = new DateTimeOffset(2026, 5, 4, 12, 0, 0, TimeSpan.Zero),

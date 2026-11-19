@@ -26,6 +26,8 @@
         <PackageReference Include="Testcontainers"/>
         <PackageReference Include="Testcontainers.MsSql"/>
         <PackageReference Include="Testcontainers.MySql"/>
+        <PackageReference Include="Testcontainers.Minio"/>
+        <PackageReference Include="Testcontainers.Azurite"/>
         <PackageReference Include="Testcontainers.PostgreSql"/>
         <PackageReference Include="Testcontainers.RabbitMq"/>
         <PackageReference Include="Xunit.SkippableFact"/>
@@ -37,10 +39,17 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\src\LiteBus.Auditing.Abstractions\LiteBus.Auditing.Abstractions.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands\LiteBus.Commands.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands.Recurring.Storage.PostgreSql\LiteBus.Commands.Recurring.Storage.PostgreSql.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands.Storage.Marten\LiteBus.Commands.Storage.Marten.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands.Storage.PostgreSql\LiteBus.Commands.Storage.PostgreSql.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Auditing.Storage.Marten\LiteBus.Auditing.Storage.Marten.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Auditing.Storage.PostgreSql\LiteBus.Auditing.Storage.PostgreSql.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Auditing.Storage.EntityFrameworkCore\LiteBus.Auditing.Storage.EntityFrameworkCore.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Auditing.Anchors.S3\LiteBus.Auditing.Anchors.S3.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Auditing.Anchors.AzureBlob\LiteBus.Auditing.Anchors.AzureBlob.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Auditing.Anchors.Timestamping\LiteBus.Auditing.Anchors.Timestamping.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Events\LiteBus.Events.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.Amqp\LiteBus.Inbox.Dispatch.Amqp.csproj"/>

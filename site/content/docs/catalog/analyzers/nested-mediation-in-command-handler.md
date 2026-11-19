@@ -5,7 +5,7 @@ A command handler runs inside a unit of work that ends at the commit. LB1023 rep
 ## Header
 
 - **ID**: `analyzers.nested-mediation-in-command-handler`
-- **Diagnostic**: `LB1023` (Warning, off by default)
+- **Diagnostic**: `LB1023` (Warning, reports only when `litebus_forbid_nested_commands` is `true`)
 - **Maturity**: GA
 - **Summary**: Reports command handlers, pre-handlers, and post-handlers that send, publish, or mediate another message inside `HandleAsync`, `Handle`, `PreHandleAsync`, or `PostHandleAsync`.
 
@@ -33,11 +33,20 @@ Reads through `IQueryMediator` are not reported. Queries are side-effect free by
 
 The runtime counterpart is `CommandModuleBuilder.ForbidNestedCommands()`, which throws `NestedMediationException` naming both message types before the inner pipeline starts. The analyzer reports the same nesting at build time.
 
-Enable the rule with `dotnet_diagnostic.LB1023.severity = warning` in `.editorconfig`.
+Set `litebus_forbid_nested_commands` to `true` in `.editorconfig` to report this rule at warning. Without the option the rule reports nothing. The analyzer reads both `.editorconfig` and `.globalconfig` entries, and a per-file section overrides the project-wide value.
+
+```ini
+# .editorconfig
+[*.cs]
+litebus_forbid_nested_commands = true
+```
+
+An analyzer cannot see a `ForbidNestedCommands()` call made in another compilation, so the option pairs the build check with the runtime guarantee instead of detecting the call. The runtime stays the guarantee.
 
 ## Bad Example
 
 ```csharp
+// The compilation sets litebus_forbid_nested_commands = true.
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
@@ -116,5 +125,9 @@ Source: `tests/LiteBus.Analyzers.UnitTests/NestedMediationInCommandHandlerAnalyz
 | `MessagingPreHandlerForCommand_ProducesDiagnostic` | Messaging-level pre-handler for a command is covered |
 | `MessagingPreHandlerForQuery_ProducesNoDiagnostic` | Messaging-level pre-handler for a query is out of scope |
 | `CommandPreHandlerQuerying_ProducesNoDiagnostic` | `IQueryMediator` reads in a pre-handler are accepted |
-| `Descriptor_IsWarningInHandlersCategoryAndDisabledByDefault` | Rule is a warning in `LiteBus.Handlers`, off by default |
+| `NestingWithoutOption_ProducesNoDiagnostic` | Nesting without the option is accepted |
+| `NestingWithOptionFalse_ProducesNoDiagnostic` | Nesting with the option set to `false` is accepted |
+| `PerTreeConfiguration_Applies` | A per-file `.editorconfig` section reports `LB1023` |
+| `Descriptor_IsWarningInHandlersCategoryAndEnabledByDefault` | Rule is a warning in `LiteBus.Handlers`, enabled by default |
 | `Descriptor_DescriptionNamesForbidNestedCommands` | The description names `ForbidNestedCommands()` as the runtime counterpart |
+| `Descriptor_DescriptionNamesForbidNestedCommandsOption` | The description names `litebus_forbid_nested_commands` as the reporting option |

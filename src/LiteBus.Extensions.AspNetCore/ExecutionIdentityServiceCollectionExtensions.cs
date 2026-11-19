@@ -25,15 +25,16 @@ public static class ExecutionIdentityServiceCollectionExtensions
     ///         The mediator resolves the provider from the dispatch scope, which is a sibling of the request scope, so a
     ///         service the request scope holds reads as a fresh instance with no state inside the provider. This
     ///         registration bridges through <c>IHttpContextAccessor</c> instead: the provider reads the principal from
-    ///         <c>HttpContext.User</c> and the tenant from the claim named by
-    ///         <see cref="ExecutionIdentityOptions.TenantClaimType" />, both of which stay available outside the request
-    ///         scope. An application that keeps the caller in its own request-scoped holder stamps the same values onto
-    ///         claims or the HTTP context rather than reading the holder from the provider.
+    ///         <c>HttpContext.User</c> and the tenant from the first claim type named by
+    ///         <see cref="ExecutionIdentityOptions.TenantClaimTypes" /> that carries a non-blank value, both of which
+    ///         stay available outside the request scope. An application that keeps the caller in its own request-scoped
+    ///         holder stamps the same values onto claims or the HTTP context rather than reading the holder from the
+    ///         provider.
     ///     </para>
     ///     <code><![CDATA[
     /// services.AddLiteBusExecutionIdentity(options =>
     /// {
-    ///     options.TenantClaimType = "tenant_id";
+    ///     options.TenantClaimTypes = ["session_tenant", "tenant_id"];
     /// });
     /// ]]></code>
     /// </remarks>
@@ -45,7 +46,7 @@ public static class ExecutionIdentityServiceCollectionExtensions
 
         var options = new ExecutionIdentityOptions();
         configure?.Invoke(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.TenantClaimType);
+        options.Validate();
 
         services.AddHttpContextAccessor();
         services.AddSingleton(options);

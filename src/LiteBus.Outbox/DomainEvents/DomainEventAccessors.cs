@@ -93,26 +93,27 @@ public sealed class DomainEventAccessors
     /// <param name="entityType">The runtime type of the tracked entity.</param>
     /// <returns>The matching accessor, or <see langword="null" /> when none matches.</returns>
     /// <remarks>
-    ///     An exact type match wins first; otherwise the first accessor whose aggregate type the entity type derives
-    ///     from or implements is used, so proxies and subclasses harvest through the configured aggregate.
+    ///     An exact type match wins first; otherwise the first registration in order whose test matches is used, so a
+    ///     broad predicate registered before a specific type wins for the entities they both match. Register broad
+    ///     conventions after the specific types they must not shadow.
     /// </remarks>
     private DomainEventAccessor? FindAccessor(Type entityType)
     {
-        DomainEventAccessor? assignable = null;
+        DomainEventAccessor? match = null;
 
         foreach (var candidate in _accessors)
         {
-            if (candidate.AggregateType == entityType)
+            if (candidate.AggregateType is not null && candidate.AggregateType == entityType)
             {
                 return candidate;
             }
 
-            if (assignable is null && candidate.AggregateType.IsAssignableFrom(entityType))
+            if (match is null && candidate.IsMatch(entityType))
             {
-                assignable = candidate;
+                match = candidate;
             }
         }
 
-        return assignable;
+        return match;
     }
 }

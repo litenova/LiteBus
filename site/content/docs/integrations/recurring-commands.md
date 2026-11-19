@@ -1,12 +1,14 @@
 # Recurring Commands
 
-A recurring command sends one command on a fixed interval for the life of the host, without a hand-written hosted service. When each pass produces several commands, a recurring batch sends them as one atomic batch by default, or one at a time with `RecurringBatchIsolation.PerItem`. A per-tenant sweep always sends one command per tenant with that tenant's identity, like a per-item batch, and a schedule aligns passes to wall-clock occurrences instead of a fixed interval. This page covers registration, identity, tenant sweeps, schedules, options, backlog draining, failure behavior, and limitations.
+A recurring command sends one command on a fixed interval for the life of the host, without a hand-written hosted service. When each pass produces several commands, a recurring batch sends them as one atomic batch by default, or one at a time with `RecurringBatchIsolation.PerItem`. A per-tenant sweep always sends one command per tenant with that tenant's identity, like a per-item batch, and a schedule aligns passes to wall-clock occurrences instead of a fixed interval. A sweep can run each tenant on its own occurrences in its own time zone, and a scheduled loop can fire one catch-up pass for a recent missed occurrence. This page covers registration, identity, tenant sweeps, schedules, per-tenant schedules, missed occurrences, options, backlog draining, failure behavior, single-flight leases, and limitations.
 
-The registration contract and failure modes are documented on `CommandModuleBuilderRecurringExtensions.AddRecurring`, `AddRecurringBatch`, `AddRecurringForEachTenant`, `IRecurringTenantSource`, `IRecurringSchedule`, `RecurringSchedules`, and `RecurringCommandHostOptions`. This page covers tuning and operations: option sizing, backlog draining, failure signals, lease operations, and SQL examples.
+The registration contract and failure modes are documented on `CommandModuleBuilderRecurringExtensions.AddRecurring`, `AddRecurringBatch`, `AddRecurringForEachTenant`, `IRecurringTenantSource`, `IRecurringSchedule`, `ITenantRecurringSchedule`, `RecurringSchedules`, `TenantZones`, `RecurringMissedOccurrencePolicy`, `IRecurringOccurrenceStore`, `IRecurringOccurrenceKey`, `RecurringLeaseScope`, and `RecurringCommandHostOptions`. This page covers tuning and operations: option sizing, backlog draining, failure signals, lease operations, occurrence storage, and SQL examples.
 
 **Package:** `LiteBus.Commands.Recurring`
 
-**Lease package:** `LiteBus.Commands.Recurring.Storage.PostgreSql` (opt-in single-flight)
+**Schedule package:** `LiteBus.Commands.Recurring.Schedules.Cron` (opt-in cron schedules)
+
+**Lease package:** `LiteBus.Commands.Recurring.Storage.PostgreSql` (opt-in single-flight and durable occurrence storage)
 
 ## Poll Loop for Batch-Draining Commands
 
@@ -36,7 +38,7 @@ Each registration stores a `RecurringCommandDeclaration<TCommand>`. It holds the
 
 ## Sending with an Identity
 
-The loop runs outside any mediation, so without an identity the pass mediation resolves the identity from the registered `IExecutionIdentityProvider` or falls back to `ExecutionIdentity.Anonymous`. A tenant-required recurring command would always be denied that way. Pass an identity factory when the command needs an identity the loop cannot inherit:
+The loop runs outside any mediation, so without an identity the pass mediation resolves the identity from the registered `IExecutionIdentityProvider` or falls back to `ExecutionIdentity.Anonymous`. A registration for a command that declares `TenantRequiredDeclaration` and supplies no identity factory fails composition with `LiteBusConfigurationException`, naming the command type and the recurring registration, instead of being denied on every pass. Pass an identity factory when the command needs an identity the loop cannot inherit:
 
 ```csharp
 registry.AddCommands(commands => commands
@@ -47,7 +49,7 @@ registry.AddCommands(commands => commands
         identity: command => ExecutionIdentity.ForTenant(command.TenantCode)));
 ```
 
-The factory receives the command the pass built, so the identity can derive from per-pass values such as a tenant code carried on the command. The loop sends with `CommandMediationSettings { Identity = ... }`. Both `AddRecurring` overloads accept the optional `identity` parameter, and `RecurringCommandDeclaration<TCommand>.IdentityOf` carries it to the loop. Atomic batch items share one identity (or carry none), per-item batch items each carry their own identity, and tenant sweeps send with the tenant identity; see [Sending a Batch Each Pass](#sending-a-batch-each-pass) and [Sending One Command per Tenant](#sending-one-command-per-tenant).
+The factory receives the command the pass built, so the identity can derive from per-pass values such as a tenant code carried on the command. The loop sends with `CommandMediationSettings { Identity = ... }`. Both `AddRecurring` overloads accept the optional `identity` parameter, and `RecurringCommandDeclaration<TCommand>.IdentityOf` carries it to the loop. Atomic batch items share one identity (or carry none), per-item batch items each carry their own identity, and tenant sweeps send with the tenant identity; see [Sending a Batch Each Pass](#sending-a-batch-each-pass) and [Sending One Command per Tenant](#sending-one-command-per-tenant). A sweep always sends with `ExecutionIdentity.ForTenant`, so it composes for a tenant-required command without an identity factory. A batch carries the identity on each `RecurringCommandItem`, because the batch commands are known only at runtime and composition cannot check them.
 
 A command declaring more than one `ICommand<T>` contract fails composition; see `AddRecurring` for the single-contract requirement.
 
@@ -62,13 +64,18 @@ Each registration runs as its own `IBackgroundService` through the host manifest
 | `Enabled` | `true` | When false the loop logs once and never sends |
 | `Interval` | 1 minute | Delay between sends when the previous send reported no more work |
 | `Schedule` | `null` | When set, the loop waits for the next occurrence from the schedule before the first pass and between passes, instead of `Interval`. `null` keeps the fixed-interval wait |
+| `TenantSchedule` | `null` | When set on a sweep, each tenant runs on its own occurrences instead of `Schedule`. Single-command and batch loops ignore it |
+| `MissedOccurrencePolicy` | `Skip` | What a scheduled loop does about occurrences missed while down or busy: `Skip` waits for the next one, `FireOnce` fires one catch-up pass inside its window |
 | `StartupDelay` | `TimeSpan.Zero` | Delay after host start before the first send |
 | `ErrorBackoff` | 5 minutes | Delay after a send throws, instead of `Interval` |
 | `IsConcurrencyConflict` | `IsConcurrencyOrDatabaseConflict` | Predicate recognizing a lost race: an optimistic-concurrency conflict, a deadlock, or a serialization failure. A conflict waits `Interval` instead of `ErrorBackoff`, and `null` treats every exception as a failure. |
 | `RequireLease` | `false` | When true, each pass first acquires the named lease. A pass that cannot acquire it is skipped at Debug (EventId 2105) and the loop waits `Interval`. |
 | `LeaseName` | Command type full name | The lease name acquired when `RequireLease` is true. Loops sharing a name single-flight against each other. |
+| `LeaseScope` | `Loop` | What one acquired lease covers on a sweep: the whole pass, one tenant, or one scheduled occurrence of one tenant |
+| `SourceIdentity` | `ExecutionIdentity.System` | The identity tenant and batch source reads run under, inside a root mediation scope |
+| `OccurrenceKey` | `null` | The port building stable occurrence keys. `null` uses `DefaultRecurringOccurrenceKey` |
 
-Timing values are validated when the module builds, so a zero or negative interval or error backoff fails at boot rather than at the first pass. Zero would remove pacing between passes. The failure case would log EventId 2103 in a tight loop while a dependency is down, and the success case would send at an unbounded rate. The loop snapshots the validated timing values when it starts, so changing the options afterwards does not change the pacing of a running loop.
+Timing values are validated when the module builds, so a zero or negative interval or error backoff fails at boot rather than at the first pass. Zero would remove pacing between passes. The failure case would log EventId 2103 in a tight loop while a dependency is down, and the success case would send at an unbounded rate. The loop snapshots the validated timing values when it starts, so changing the options afterwards does not change the pacing of a running loop. The scheduling policies are validated the same way: a `FireOnce` window that is zero or negative, a `null` missed-occurrence policy or source identity, and an undefined lease scope fail at boot.
 
 Stagger `StartupDelay` across loops that share a database, so a host start does not send every recurring command at once.
 
@@ -92,7 +99,7 @@ Reporting is optional. A command with no result, or one whose result does not im
 
 ## Sending a Batch Each Pass
 
-When each pass produces several commands, implement `IRecurringCommandBatchSource` and register it with `AddRecurringBatch`. Each pass resolves the source from a fresh dispatch scope, calls `CreateBatchAsync`, disposes the scope, and then sends the returned batch according to `RecurringCommandBatch.Isolation`. `RecurringBatchIsolation.Atomic`, the default, sends the items as one all-or-nothing batch through `ICommandBatchMediator.TrySendManyAsync`. `RecurringBatchIsolation.PerItem` sends the items one at a time, in list order, each with its own identity through `ICommandMediator.SendAsync`. The source can take scoped dependencies such as a database context. See `AddRecurringBatch` for the batch loop contract.
+When each pass produces several commands, implement `IRecurringCommandBatchSource` and register it with `AddRecurringBatch`. Each pass resolves the source from a fresh dispatch scope, calls `CreateBatchAsync` under `RecurringCommandHostOptions.SourceIdentity` (which defaults to `ExecutionIdentity.System`) inside a root mediation scope, disposes the scope, and then sends the returned batch according to `RecurringCommandBatch.Isolation`. A query the source sends inherits that identity through the enclosing-mediation rule instead of running anonymously. `RecurringBatchIsolation.Atomic`, the default, sends the items as one all-or-nothing batch through `ICommandBatchMediator.TrySendManyAsync`. `RecurringBatchIsolation.PerItem` sends the items one at a time, in list order, each with its own identity through `ICommandMediator.SendAsync`. The source can take scoped dependencies such as a database context. See `AddRecurringBatch` for the batch loop contract.
 
 The batch holds `IReadOnlyList<RecurringCommandItem> Items`, where `RecurringCommandItem(ICommand Command, ExecutionIdentity? Identity = null)` pairs one command with the identity its pass sends it for, and `RecurringBatchIsolation Isolation`, which defaults to `RecurringBatchIsolation.Atomic`. `RecurringCommandBatch.From(IReadOnlyList<ICommand>)` stays as the plain-command helper that assigns no identity, and `RecurringCommandBatch.From(IReadOnlyList<RecurringCommandItem>)` takes an optional `isolation` parameter that defaults to `RecurringBatchIsolation.Atomic`. Pass `RecurringBatchIsolation.PerItem` when the items carry different identities:
 
@@ -187,7 +194,9 @@ registry.AddCommands(commands => commands
 
 The sweep accepts its source three ways, following the replaceable-port rule: no source, in which case each pass resolves `IRecurringTenantSource` from a fresh dispatch scope; a source instance; or a source type, registered as scoped and resolved from a fresh dispatch scope on every pass. A source resolved from a scope can take scoped dependencies such as a database context. The tenant identifiers are read before any command is sent. A sweep with no source instance, no source type, and no `IRecurringTenantSource` registration fails composition with `LiteBusConfigurationException`.
 
-The sweep always sends one mediation per tenant, like a batch with `RecurringBatchIsolation.PerItem`. Failures stay isolated per tenant. One tenant's command failing or refused is logged and counted and never stops the rest of the sweep: a refused command is logged at Warning (EventId 2111) with the command type, the tenant, and the refusal code, a failure `IsConcurrencyConflict` classifies as a lost race is logged at Information (EventId 2104), and any other failure is logged at Error (EventId 2110) with the tenant. When any tenant failed or was refused, the sweep summary is logged at Warning (EventId 2112) and the pass waits `ErrorBackoff` instead of the interval. A blank tenant identifier is counted as failed and skipped. When no tenant failed, a command reporting more work through `IRecurringWorkReport` starts the next pass without waiting, as in the single-command loop.
+Each source read runs under `RecurringCommandHostOptions.SourceIdentity`, which defaults to `ExecutionIdentity.System` (no principal, no tenant), inside a root mediation scope, so a query the source sends inherits that identity through the enclosing-mediation rule instead of running anonymously. A source that lists tenants through an authorized query therefore runs as the system unless the registration sets `SourceIdentity` to something else; the value must not be `null`.
+
+The sweep always sends one mediation per tenant, like a batch with `RecurringBatchIsolation.PerItem`. Failures stay isolated per tenant. One tenant's command failing or refused is logged and counted and never stops the rest of the sweep: a refused command is logged at Warning (EventId 2111) with the command type, the tenant, and the refusal code, a failure `IsConcurrencyConflict` classifies as a lost race is logged at Information (EventId 2104), and any other failure is logged at Error (EventId 2110) with the tenant. When any tenant failed or was refused, the sweep summary is logged at Warning (EventId 2112) and the pass waits `ErrorBackoff` instead of the interval. A blank tenant identifier is counted as failed and skipped. When no tenant failed, a command reporting more work through `IRecurringWorkReport` starts the next pass without waiting, as in the single-command loop. A sweep that runs each tenant on its own occurrences sets `TenantSchedule`, as described in [Running Each Tenant on Its Own Schedule](#running-each-tenant-on-its-own-schedule), and one that single-flights per tenant sets `LeaseScope`, as described in [Running on Several Replicas](#running-on-several-replicas).
 
 ## Aligning Passes to Wall-Clock Occurrences
 
@@ -209,15 +218,89 @@ registry.AddCommands(commands => commands
 | `RecurringSchedules.DailyAt(time, zone)` | Fires once a day at a fixed local time. `zone` is `null` for UTC. |
 | `RecurringSchedules.WeeklyOn(day, time, zone)` | Fires once a week on a fixed weekday at a fixed local time. `zone` is `null` for UTC. `day` must be a defined weekday. |
 
-A local time inside a daylight-saving gap resolves forward to the next valid instant, and a local time inside a fall-back overlap resolves to the earlier occurrence. A scheduled loop still catches up nothing it missed while down: it waits for the next occurrence after the current time.
+A local time inside a daylight-saving gap resolves forward to the next valid instant, and a local time inside a fall-back overlap resolves to the earlier occurrence. A scheduled loop records each occurrence it runs and, by default, waits for the next occurrence after the current time; set `MissedOccurrencePolicy` to fire one catch-up pass for a recent miss, as described in [Catching Up Missed Occurrences](#catching-up-missed-occurrences).
 
-`IRecurringSchedule` is the replaceable port behind `Schedule`, with the single method `DateTimeOffset? GetNextOccurrence(DateTimeOffset after)`. An application with cron expressions implements it over its cron library and sets the implementation on `Schedule`. Implementations must be thread-safe and free of side effects, because the loop calls them on every wait.
+`IRecurringSchedule` is the replaceable port behind `Schedule`, with the single method `DateTimeOffset? GetNextOccurrence(DateTimeOffset after)`. An application with cron expressions references `LiteBus.Commands.Recurring.Schedules.Cron` and adapts its shared schedule, as described in [Scheduling with Cron Expressions](#scheduling-with-cron-expressions). Implementations must be thread-safe and free of side effects, because the loop calls them on every wait.
+
+## Scheduling with Cron Expressions
+
+`LiteBus.Commands.Recurring.Schedules.Cron` builds schedules from cron expressions, parsed by the Cronos library when the schedule is created. The shared form returns `ISchedule` for one zone, and a shared loop adapts it to `IRecurringSchedule` with a one-method wrapper:
+
+```csharp
+public sealed class CronRecurringSchedule : IRecurringSchedule
+{
+    private readonly ISchedule _schedule;
+
+    public CronRecurringSchedule(ISchedule schedule)
+    {
+        _schedule = schedule;
+    }
+
+    public DateTimeOffset? GetNextOccurrence(DateTimeOffset after) => _schedule.GetNextOccurrence(after);
+}
+
+registry.AddCommands(commands => commands
+    .RegisterFromAssembly(typeof(SendDueRemindersCommand).Assembly)
+    .AddRecurring(
+        () => new SendDueRemindersCommand { BatchSize = 50 },
+        host => host.Schedule = new CronRecurringSchedule(CronSchedules.FromExpression(
+            "0 9 * * *",
+            TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin")))));
+```
+
+The tenant form returns `ITenantSchedule` and adapts directly to a sweep through `AsRecurringSchedule`, as described in [Running Each Tenant on Its Own Schedule](#running-each-tenant-on-its-own-schedule):
+
+```csharp
+host.TenantSchedule = CronSchedules
+    .FromExpression("0 0 * * *", TenantZones.FromMetadata(provider))
+    .AsRecurringSchedule();
+```
+
+`CronExpressionFormat.Standard`, the default, reads five fields (minute, hour, day of month, month, day of week); `CronExpressionFormat.IncludeSeconds` reads six, with a leading second field. A blank expression fails with `ArgumentException`, one that is not valid fails with `FormatException`, and an undefined format fails with `ArgumentOutOfRangeException`, all when the schedule is created. The zone is `null` for UTC. A cron occurrence inside a daylight-saving gap resolves forward to the next valid instant, and one inside a fall-back overlap resolves to the earlier occurrence, except that an expression whose second, minute, or hour field repeats on an interval fires on both sides of the repeated hour. An expression with no occurrence, such as February 30, returns `null`, which ends the loop.
+
+## Running Each Tenant on Its Own Schedule
+
+A sweep whose tenants live in different time zones sets `TenantSchedule` instead of sharing one zone. The tenant `DailyAt` and `WeeklyOn` built-ins take a `zoneOf` function that resolves one tenant's zone per wait, and `AsRecurringSchedule` adapts the result to the sweep:
+
+```csharp
+registry.AddCommands(commands => commands
+    .RegisterFromAssembly(typeof(CloseDayCommand).Assembly)
+    .AddRecurringForEachTenant<CloseDayCommand, StoreTenantSource>(
+        tenant => new CloseDayCommand { TenantId = tenant },
+        host => host.TenantSchedule = RecurringSchedules
+            .DailyAt(new TimeOnly(0, 0), TenantZones.FromMetadata(provider))
+            .AsRecurringSchedule()));
+```
+
+`TenantZones.FromMetadata` builds the `zoneOf` function from an `ITenantMetadataProvider`: it reads one tenant's record per wait and resolves its `TimeZoneId` through `ITimeZoneResolver`, which defaults to `SystemTimeZoneResolver` over `TimeZoneInfo.FindSystemTimeZoneById`. A tenant with no record, no zone, or an unknown zone resolves to `null` and reads local times as UTC. The unknown zone is reported once per tenant at Warning (EventId 2121) through the logger passed to `FromMetadata`, and stays silent when no logger is passed. The provider is captured when the function is built and called on every wait, so a provider that reads over the network should cache. A second overload resolves the provider, and an optional resolver, from a service provider, and throws `LiteBusDependencyResolutionException` when no provider is registered.
+
+A sweep with `TenantSchedule` set waits for the earliest occurrence across its tenants before the first pass and between passes, and each pass sends only for the tenants whose occurrence is due. Tenants with no due occurrence are skipped and counted at Debug (EventId 2120). A tenant that appears between the wait and the pass sits out one cycle. When every tenant schedule reports no further occurrence, the sweep ends; when the sweep enumerates no tenants at all, it retries after `Interval`. A schedule lookup that fails for one tenant is logged and that tenant sits out the cycle, while a failure for every tenant retries after `ErrorBackoff`. A sweep with both schedules set reads `TenantSchedule` and ignores `Schedule`. Single-command and batch loops ignore `TenantSchedule`.
+
+## Catching Up Missed Occurrences
+
+A scheduled loop records each occurrence it runs through `IRecurringOccurrenceStore`, keyed by a stable occurrence key, and reads the last record to find occurrences that passed without running. `RecurringMissedOccurrencePolicy` decides what runs next: `Skip`, the default, waits for the next occurrence, while `FireOnce` fires one catch-up pass when the most recent missed occurrence is inside its window:
+
+```csharp
+host.MissedOccurrencePolicy = new RecurringMissedOccurrencePolicy.FireOnce(TimeSpan.FromMinutes(30));
+```
+
+At most one catch-up pass runs per gap, for the most recent missed occurrence; earlier misses stay skipped. Missed occurrences are logged with their count whichever policy applies: a loop logs at Warning (EventId 2114), a sweep logs its per-tenant total at Warning (EventId 2117), and each catch-up pass is logged at Information (EventId 2116 for a loop, 2118 for a sweep). A loop with no recorded history, such as a first start, waits for the next occurrence after the current time and logs no miss. A backlog of more than 1000 counted occurrences skips to the next occurrence after the current time without a catch-up pass and logs at Warning (EventId 2115). Poll loops have no occurrences to miss and never read the policy. The window must be positive; a zero or negative window fails composition.
+
+The default key builder, `DefaultRecurringOccurrenceKey`, keys a loop occurrence as `loop/20260105T090000Z` and a tenant occurrence as `loop/tenant/20260105T090000Z`, with the loop name set to the command type full name and the instant rendered in UTC so replicas agree. Set `OccurrenceKey` to replace it; the replacement must return the same key on every replica for the same inputs, because replicas record and lease independently. The key identifies stored occurrences and scopes per-occurrence leases; only scheduled loops read it.
+
+The default store, `InMemoryRecurringOccurrenceStore`, keeps occurrences in process memory, so a miss across a restart is best-effort until a durable store is registered. `UsePostgreSqlRecurringLease` registers `PostgreSqlRecurringOccurrenceStore` behind `IRecurringOccurrenceStore`, backed by the `litebus_recurring_occurrences` table (renamed through `OccurrenceTableName`), created at host startup by default with its schema validated by the `recurring.postgresql.occurrences` diagnostic probe:
+
+```sql
+SELECT occurrence_key, loop_name, tenant_id, scheduled_at, recorded_at FROM litebus_recurring_occurrences ORDER BY scheduled_at DESC LIMIT 20;
+```
+
+Each recording is one insert that does nothing when the key already exists, so two replicas racing to record the same occurrence agree on the first writer. Every statement opens its own pooled connection, so the store works behind PgBouncer in transaction mode.
 
 ## Failure Behavior
 
 A pass that throws is logged, and the loop continues after `ErrorBackoff`, unless the `IsConcurrencyConflict` predicate classifies the exception as a lost race. A conflict is logged at Information (EventId 2104) and the loop waits `Interval`; see `RecurringCommandHostOptions.IsConcurrencyConflict` for the classification contract. The default predicate, `IsConcurrencyOrDatabaseConflict`, matches an optimistic-concurrency conflict type name or a database deadlock or serialization error anywhere in the inner or aggregate chain; see `RecurringCommandHostOptions.IsConcurrencyOrDatabaseConflict` for the exact SQLSTATE codes, error numbers, and SQLite result codes. `IsConcurrencyConflictByTypeName` keeps the type-name match alone. Set the predicate to `null` to treat conflicts as failures.
 
-An exception never escapes the loop. A failing dependency is usually still failing one interval later, which is why the error delay is longer than the poll interval by default. A longer delay keeps a broken loop from filling the log at the polling rate.
+An exception never escapes the loop. A failing dependency is usually still failing one interval later, which is why the error delay is longer than the poll interval by default. A longer delay keeps a broken loop from filling the log at the polling rate. Recording a scheduled occurrence is part of the pass: a store failure is logged and the loop backs off like any other pass failure.
 
 Cancellation ends the loop immediately. The host's shutdown token is passed to the send, so an in-flight command observes it.
 
@@ -238,6 +321,8 @@ registry.AddCommands(commands => commands
 When `RequireLease` is true, each pass first tries the named lease; see `RecurringCommandHostOptions.RequireLease` for the acquisition and busy-period contract. A skipped pass is logged at Debug (EventId 2105) and the loop waits `Interval`.
 
 The lease composition requirement and name default are documented on `RecurringCommandHostOptions.RequireLease` and `LeaseName`. There is no standing leader: every pass races for the lease, so the instance that runs varies from pass to pass. Loops sharing one explicit name single-flight against each other, which serializes two loops that must never overlap.
+
+A sweep divides single-flight per tenant with `RecurringLeaseScope`. `Loop`, the default, leases the whole pass as described above. `Tenant` acquires one lease per tenant around that tenant's send, named `{lease}/{tenant}`, so two replicas divide tenants instead of contending for the whole sweep; a tenant whose lease another instance holds is skipped at Debug (EventId 2119) and the sweep continues with the next tenant. `TenantOccurrence` scopes the lease to one scheduled occurrence of one tenant, named `{lease}/{occurrence-key}`, so each tenant-day runs once across replicas while different tenants never contend. A sweep without `TenantSchedule` has no occurrence to key by and treats `TenantOccurrence` as `Tenant`. Single-command and batch loops have no tenant per send and treat every scope as `Loop`.
 
 The lease can be lost mid-pass when another holder takes the row or renewals fail. The handle cancels its `LeaseLost` token, the loop ends the busy period, releases the handle, and waits `ErrorBackoff` instead of sending further passes. The in-flight send runs under a token linked to the loss signal, so a handler that observes cancellation stops with the pass. The loss is logged at Warning (EventId 2106).
 
@@ -263,13 +348,13 @@ Operators inspect current holders with a plain query:
 SELECT lease_name, holder, acquired_at, expires_at, renewed_at FROM litebus_recurring_leases ORDER BY lease_name;
 ```
 
-The module creates the table at host startup by default and reports its shape through the `recurring.postgresql.schema` diagnostic probe. Disable startup creation with `DisableSchemaInitialization` when a migration pipeline owns the table.
+The module creates the table at host startup by default and reports its shape through the `recurring.postgresql.schema` diagnostic probe. Disable startup creation with `DisableSchemaInitialization` when a migration pipeline owns the table. The same module creates the `litebus_recurring_occurrences` table beside the leases table and validates it through the `recurring.postgresql.occurrences` probe; both tables share the schema options, and the occurrences table is renamed through `OccurrenceTableName`.
 
 There is a second pattern that needs no lease package and works with any store. Keep the recurring loop as a trigger that only writes a durable message, and put the exactly-once guarantee on the message the pass writes. A pass that enqueues one outbox event, or accepts one idempotent inbox command, can run on every replica. The outbox and inbox processors already lease and fence per message, so the work happens once however many loops wrote it. Prefer this shape when the work already flows through the inbox or the outbox, and reserve `RequireLease` for loops whose pass does its work inline.
 
 ## Limitations
 
-By default a recurring command is a poll loop, not a scheduler; see `RecurringCommandHostOptions` for the scheduling boundary. Set `Schedule` when passes must align to wall-clock occurrences, as described in [Aligning Passes to Wall-Clock Occurrences](#aligning-passes-to-wall-clock-occurrences). There is still no missed-run catch-up for time the host was down, and no cron expression parser; an application with cron expressions implements `IRecurringSchedule` over its cron library.
+By default a recurring command is a poll loop, not a scheduler; see `RecurringCommandHostOptions` for the scheduling boundary. Set `Schedule` when passes must align to wall-clock occurrences, as described in [Aligning Passes to Wall-Clock Occurrences](#aligning-passes-to-wall-clock-occurrences), `TenantSchedule` when each tenant runs on its own occurrences, and `MissedOccurrencePolicy` when a recent miss should fire one catch-up pass. Cron expressions ship in `LiteBus.Commands.Recurring.Schedules.Cron`, as described in [Scheduling with Cron Expressions](#scheduling-with-cron-expressions). A miss across a restart is best-effort with the in-memory occurrence store; register the PostgreSQL store when catch-up must survive crashes.
 
 The loop runs on every host instance by default; see `RecurringCommandHostOptions` for the concurrency boundary and [Running on Several Replicas](#running-on-several-replicas) for single-flight operations.
 

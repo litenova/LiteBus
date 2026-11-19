@@ -49,10 +49,10 @@ public sealed class PolicyPortRegistrationTests : LiteBusTestBase
     }
 
     /// <summary>
-    ///     Verifies that a policy-scoped condition missing from the scope denies with the stable code.
+    ///     Verifies that a policy-scoped condition missing from the scope fails as a fault with the stable code.
     /// </summary>
     [Fact]
-    public async Task A_policy_scoped_condition_missing_from_the_scope_denies_with_the_stable_code()
+    public async Task A_policy_scoped_condition_missing_from_the_scope_fails_as_a_fault_with_the_stable_code()
     {
         var provider = BuildProvider(
             new CompositionEvaluationRecorder(),
@@ -61,11 +61,11 @@ public sealed class PolicyPortRegistrationTests : LiteBusTestBase
             typeof(OpenCompositionVaultCommandHandler));
         var command = new OpenCompositionVaultCommand();
 
-        var result = await provider.GetRequiredService<ICommandMediator>()
-            .TrySendAsync(command).ConfigureAwait(false);
+        var act = async () => await provider.GetRequiredService<ICommandMediator>()
+            .SendAsync(command).ConfigureAwait(false);
 
-        result.Outcome.Should().Be(MediationOutcome.Denied);
-        result.Code.Should().Be(AuthorizationPolicyRefusalCodes.ConditionMissing);
+        var thrown = await act.Should().ThrowAsync<MessageFaultException>().ConfigureAwait(false);
+        thrown.Which.Code.Should().Be(AuthorizationPolicyRefusalCodes.ConditionMissing);
         AuthorizationPolicyRefusalCodes.ConditionMissing.Should().Be("authorization.condition-missing");
         command.HandlerRan.Should().BeFalse();
     }

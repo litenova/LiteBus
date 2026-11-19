@@ -2,6 +2,55 @@
 
 This file records the notable changes in each LiteBus release.
 
+## v8.0.0-preview.3
+
+Changes since [v8.0.0-preview.2](https://github.com/litenova/LiteBus/releases/tag/v8.0.0-preview.2). The [v8.0.0](#v800) section describes the whole 8.0.0 line.
+
+### Added
+
+- `MessageEvaluationContext` is the context every evaluation-time port receives; `AuthorizationContext` derives from it.
+- Lineage: `MediationCause` on `IExecutionContext.Cause` and on the three mediation settings, `ExecutionIdentity.System`, and `RootMediationScope` for work the library starts.
+- Faults: `MessageFaultException` ends a mediation as `Failed`, and `PolicyResult` (`Allow`, `Deny`, `Fault`) is what a `MessagePolicy` returns. `RefusalKind` classifies refusal codes for every transport.
+- `IRefusalExceptionTranslator`, registered with `MessageModuleBuilder.UseRefusalExceptionTranslator<T>()`, turns handler exceptions into refusals inside the pipeline.
+- Authorization: `RecentSignIn<TWindow>()` with an `IRecentSignInWindow` port, `Decide<TDecisionPoint>(action)` over `IAuthorizationDecisionPoint`, and `WithRefusal(code, reason, whenInnerCode)`.
+- Tenancy: `UseTenancy(tenancy => tenancy.ValidateTenant(...))` with the `tenancy.invalid` code, ordered `ExecutionIdentityOptions.TenantClaimTypes`, and the `ITenantMetadataProvider` port.
+- `ICompositionModel`, passed to `ValidateComposition` checks: declaration provenance per message, declared and registered policy names, contracts, ports and feature sections, with `ToJson()`.
+- `RegistrationConflict` and `Replace` on the dependency registry and `MessagePolicyBuilder`.
+- Domain events: `TranslateDomainEvent`, `IgnoreDomainEvent`, `PublishDomainEventInProcess`, `RequireDomainEventDecision`, and open-generic and predicate `HarvestDomainEvents` overloads. The Marten harvester reads deleted documents.
+- HTTP problem details: a `code` extension, `IProblemTypeFormatter`, `IValidationErrorsWriter` with the RFC 9457 array shape, `IProblemDetailsEnricher`, `MapInvalid` and `MapDenied`, `Replace`, and a catalog export.
+- Recurring commands: `RecurringCommandHostOptions.SourceIdentity`, per-tenant schedules (`ITenantSchedule` with a zone per tenant), occurrence keys, `LeaseScope`, `MissedOccurrencePolicy`, the `IRecurringOccurrenceStore` port with a PostgreSQL store, and the `LiteBus.Commands.Recurring.Schedules.Cron` package.
+- `ISchedule` and the built-in schedules in `LiteBus.Runtime.Abstractions.Scheduling` and `LiteBus.Runtime.Scheduling`.
+- The auditing package family: `LiteBus.Auditing.Abstractions`, `LiteBus.Auditing`, `LiteBus.Auditing.Storage.Marten`, `.PostgreSql` and `.EntityFrameworkCore`, and the checkpoint anchors `LiteBus.Auditing.Anchors.S3`, `.AzureBlob` and `.Timestamping` (RFC 3161).
+- Audit capture modes (`AuditCapture.WithChange`, `AfterCommitThroughOutbox`, `BeforeAndOutcome`) and link modes (`AuditLink.AfterCommit`, `InTransaction`, `AtWrite`), with a per-message capture declaration.
+- Audit checkpoints with a label, publish state, retries and several signatures; streaming and multi-source verification; segment listing, expiry and erasure; the `sha256-v2` framed scheme.
+- The `litebus_forbid_nested_commands` `.editorconfig` option enables LB1023.
+- `AGENTS.md` and the architecture overview state the feature design rules.
+
+### Changed
+
+- `WithRefusal` rewrites denials only; a policy fault passes through.
+- Immediate dispatch, outbox and inbox delivery, recurring passes and tenant sources run as root mediations with a `Cause`, so `ForbidNestedCommands` and `SentBy` no longer see the triggering command as a parent.
+- An identical repeated `DeclareDefault`, policy or refusal mapping is a no-op; a conflicting one fails.
+- Audit success records commit with the business change by default and are linked to the chain after commit.
+- Checkpoints are published by a background retrier, never inside an append, and verification compares against every registered checkpoint source.
+
+### Fixed
+
+- A publisher that threw a concurrency exception made the checkpoint retry loop spin forever.
+- The checkpoint scan swallowed failures without logging them.
+- A segment that never checkpointed verified clean.
+- `IRefusalProblemCatalog.TryResolve` reported every code as mapped by default.
+- An invalid result's status depended on its number of failures.
+
+### Breaking
+
+- Policies return `PolicyResult` instead of `Verdict`. A missing permission lookup, condition or sign-in instant is a fault (HTTP 500), not a denial.
+- The audit chain, checkpoint, segment, store and capture contracts move to `LiteBus.Auditing.Abstractions`. The Marten audit types move from `LiteBus.Commands.Storage.Marten` to `LiteBus.Auditing.Storage.Marten`, and `UseMartenAuditChain` is replaced by `AddAuditing(auditing => auditing.UseMartenStore())`.
+- `ICheckpointPolicy`, `IAuditRecordMapper` and `IAuditChain` are asynchronous and gained members.
+- `IRecurringSchedule` and `RecurringSchedules` forward to the shared `ISchedule` contract.
+- `RefusalProblemCatalog.Map` throws on a conflicting mapping; use `Replace`. `ValidationErrorEntry.Pointer` is `JsonPointer` and still serializes as `pointer`.
+- `ValidateComposition` checks receive `ICompositionModel` instead of `IMessageCatalog`; read the catalog from `Messages`.
+
 ## v8.0.0-preview.2
 
 Changes since [v8.0.0-preview.1](https://github.com/litenova/LiteBus/releases/tag/v8.0.0-preview.1). The [v8.0.0](#v800) section describes the whole 8.0.0 line.
@@ -18,7 +67,7 @@ Changes since [v8.0.0-preview.1](https://github.com/litenova/LiteBus/releases/ta
 - `CommandMediationSettings.ForTenant`, `QueryMediationSettings.ForTenant` and `EventMediationSettings.ForTenant`.
 - Recurring commands: identities, per-item batches, `AddRecurringForEachTenant` with `IRecurringTenantSource`, and `IRecurringSchedule` with `RecurringSchedules.Every`, `DailyAt` and `WeeklyOn`.
 - The `LiteBus.Saga.Storage.Marten` package.
-- Domain event harvesting: `IDomainEventHarvester`, `IHasDomainEvents`, `OutboxModuleBuilder.HarvestDomainEvents<TAggregate>()`, and `HarvestDomainEvents()` on the Marten and EF Core outbox storage builders.
+- Domain event harvesting: `IDomainEventHarvester`, `IHasDomainEvents`, `OutboxModuleBuilder.HarvestDomainEvents<TAggregate>(events, clear)`, and `HarvestDomainEvents()` on the Marten and EF Core outbox storage builders.
 - Analyzer LB1029.
 
 ### Changed
@@ -72,6 +121,44 @@ This release makes identity and tenancy part of the pipeline, adds composable au
 - `LiteBus.Saga.Storage.Marten`: a Marten saga store registered with `UseMarten()`, with optimistic concurrency and tenant scoping matching the PostgreSQL store.
 - Domain event harvesting: `IDomainEventHarvester` moves events from tracked entities into `IDomainEventCollector` before the outbox stages them. `HarvestDomainEvents()` on the Marten and EF Core outbox storage builders registers the harvester for the document session or `DbContext`; entities implementing `IHasDomainEvents` are read by default, and `OutboxModuleBuilder.HarvestDomainEvents<TAggregate>(events, clear)` reads an aggregate base type of the application's own shape.
 - Analyzer LB1029 reports a durable message type without `[MessageContract]` in an assembly that declares `MessageContractsRegisteredIn`, which would otherwise never be checked anywhere.
+- Library-wide design rules, applied to every v8 feature and written into `AGENTS.md`:
+  - Each built-in behavior is a port with a registered default, resolved per evaluation with `MessageEvaluationContext`.
+  - One registration-conflict rule applies everywhere: an identical repeat is a no-op, a conflicting one fails naming both sources, and `Replace` overrides.
+  - A configuration fault (`MessageFaultException`) is never a user refusal.
+  - Work the library starts is a root mediation with a declared identity and a `MediationCause`.
+  - Features that persist state are store-neutral.
+  - `ICompositionModel` explains the composition, and `ToJson()` exports it.
+- Authorization: `PolicyResult` with `Allow`, `Deny` and `Fault`; `RecentSignIn<TWindow>()` reads the window per evaluation; `Decide<TDecisionPoint>(action)` plugs an external decision point such as a relationship-based engine; `WithRefusal` gains an inner-code overload. Tenancy gains `ValidateTenant` with the `tenancy.invalid` code, ordered tenant claim types and the `ITenantMetadataProvider` port.
+- `IRefusalExceptionTranslator` turns handler exceptions into refusals inside the pipeline, so every transport sees one refusal. The ASP.NET Core adapter adds:
+  - a `code` extension;
+  - a problem type formatter (URN, documentation URL or `about:blank`);
+  - the RFC 9457 errors array as an option;
+  - outcome-kind defaults (`MapInvalid`, `MapDenied`);
+  - `Replace`;
+  - a catalog export.
+- Domain events gain a decide-and-translate step between harvest and stage:
+  - `TranslateDomainEvent`;
+  - `IgnoreDomainEvent`;
+  - `PublishDomainEventInProcess`, which publishes after commit as a root mediation;
+  - `RequireDomainEventDecision`.
+
+  Harvesting accepts open generic aggregate bases and a predicate, and the Marten harvester reads deleted documents.
+- Recurring commands:
+  - `SourceIdentity`, which defaults to `ExecutionIdentity.System`;
+  - a composition check for tenant-required commands without an identity;
+  - per-tenant schedules with a zone per tenant;
+  - occurrence keys, lease scopes and a missed-occurrence policy;
+  - a PostgreSQL occurrence store and a Cronos-based cron package.
+
+  The schedule contract is `ISchedule` in `LiteBus.Runtime.Abstractions`.
+- The auditing package family. `LiteBus.Auditing.Abstractions` and `LiteBus.Auditing` hold a store-neutral engine:
+  - capture modes `WithChange`, `AfterCommitThroughOutbox` and `BeforeAndOutcome`, and link modes `AfterCommit`, `InTransaction` and `AtWrite`;
+  - checkpoints with a label, publish state and several signatures, published by a retrier;
+  - streaming verification from a checkpoint and against several sources;
+  - segment listing, expiry and erasure;
+  - the `sha256-v2` framed scheme with a composition self-test.
+
+  Stores ship for Marten, PostgreSQL and EF Core, proven by shared contract tests. Checkpoint anchors ship for S3 Object Lock, Azure immutable blobs and RFC 3161 time-stamps.
 
 ### Changed
 
@@ -99,6 +186,11 @@ This release makes identity and tenancy part of the pipeline, adds composable au
 - `AuditCheckpoint` and `ICheckpointPublisher` move from `LiteBus.Commands.Storage.Marten` to `LiteBus.Messaging.Abstractions.Auditing`, and `AuditCheckpoint` gains `Id`, `Count`, `HashScheme`, `Kind` and `Signature`. `MartenAuditTrailOptions.UseHashChain` takes an `Action<MartenAuditHashChainBuilder>`; `SegmentOf`, `CheckpointPublisher`, `CheckpointInterval` and `DefaultSegment` are removed in favour of `SegmentBy`, `PublishCheckpointsTo` and `CheckpointWhen`. `MartenAuditTrail.VerifyChainAsync` returns `AuditChainVerification` instead of the first broken sequence. These replace the 8.0.0-preview.1 API.
 - `RecurringCommandBatch` holds `Items` (`RecurringCommandItem`) instead of `Commands`. `RecurringCommandBatch.From(IReadOnlyList<ICommand>)` still builds a batch from plain commands.
 - Application module discovery skips private nested module types, as documented. A private nested `IApplicationModule` that was picked up by accident is no longer registered.
+- `MessagePolicy.EvaluateAsync` returns `PolicyResult` instead of `Verdict`, and `WithRefusal` rewrites denials only. A missing permission lookup, condition or sign-in instant, or an unknown policy name, now raises `MessageFaultException` (HTTP 500) instead of a denial.
+- The audit chain, checkpoint, segment, store and capture contracts move to `LiteBus.Auditing.Abstractions`; the declarations, records and trail stay in `LiteBus.Messaging.Abstractions.Auditing`. The Marten audit trail and chain move to `LiteBus.Auditing.Storage.Marten`, and `UseMartenAuditChain` with `MartenAuditTrailOptions` is replaced by `AddAuditing(auditing => auditing.UseMartenStore().UseHashChain(...))`. Success records commit with the business change by default.
+- `ICheckpointPolicy.IsDueAsync`, `IAuditRecordMapper.MapAsync` and the new `IAuditChain` members replace their synchronous or narrower predecessors.
+- `RefusalProblemCatalog.Map` throws on a conflicting mapping (`Replace` overrides), `IRefusalProblemCatalog.TryResolve` returns `false` by default, and invalid results map by outcome, defaulting to 400.
+- `ValidateComposition` checks receive `ICompositionModel`; the message catalog is its `Messages` property.
 
 ## Earlier Releases
 

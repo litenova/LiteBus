@@ -45,11 +45,23 @@
         "resolved": "10.0.14",
         "contentHash": "lVqovhCt3HlZe7ONG5ydaj6BYwYI004gldVfMMkJl/lR5ueeCtWNpW4nejOX75sPmzm8vXCxB69GqwHaYCnyUQ=="
       },
+      "litebus.commands.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )"
+        }
+      },
       "litebus.durablemessaging.abstractions": {
         "type": "Project",
         "dependencies": {
           "LiteBus.Messaging.Abstractions": "[8.0.0, )",
           "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.events.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.messaging": {
@@ -70,9 +82,12 @@
       "litebus.outbox": {
         "type": "Project",
         "dependencies": {
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
           "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Events.Abstractions": "[8.0.0, )",
           "LiteBus.Messaging": "[8.0.0, )",
           "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Queries.Abstractions": "[8.0.0, )",
           "LiteBus.Runtime.Abstractions": "[8.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
@@ -93,6 +108,12 @@
           "LiteBus.Runtime.Abstractions": "[8.0.0, )",
           "LiteBus.Transport": "[8.0.0, )",
           "LiteBus.Transport.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.queries.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.runtime.abstractions": {

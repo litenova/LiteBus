@@ -198,9 +198,12 @@
       "litebus.outbox": {
         "type": "Project",
         "dependencies": {
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
           "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Events.Abstractions": "[8.0.0, )",
           "LiteBus.Messaging": "[8.0.0, )",
           "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Queries.Abstractions": "[8.0.0, )",
           "LiteBus.Runtime.Abstractions": "[8.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
@@ -230,6 +233,12 @@
           "LiteBus.Outbox": "[8.0.0, )",
           "LiteBus.Outbox.Abstractions": "[8.0.0, )",
           "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.queries.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.runtime.abstractions": {

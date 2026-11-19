@@ -3,6 +3,7 @@ using LiteBus.Extensions.AspNetCore;
 using LiteBus.Messaging.Abstractions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace LiteBus.Extensions.UnitTests.AspNetCore.Version8;
 
@@ -192,7 +193,229 @@ public sealed class RefusalProblemHttpTests
         Assert.Equal("receipt-1", payload.RootElement.GetProperty("receipt").GetString());
     }
 
-    private static DefaultHttpContext CreateHttpContext(IRefusalProblemCatalog? catalog = null)
+    [Fact]
+    public async Task ToHttpResult_Precedence_ExactBeatsPrefixBeatsOutcomeDefault()
+    {
+        var catalog = RefusalProblemCatalog.CreateDefault();
+        catalog.Map("billing.unpaid", 402, "Billing required");
+        catalog.Map("billing.tax.*", 422, "Tax validation failed");
+        catalog.Map("billing.*", 409, "Billing conflict");
+        catalog.MapDenied(403, "Request denied");
+
+        var exactContext = CreateHttpContext(catalog);
+        var exactResponse = MediationResult.Denied("the account is unpaid", "billing.unpaid")
+            .ToHttpResult(exactContext, () => Results.Ok());
+        using var exact = await ExecuteToProblemAsync(exactResponse, exactContext).ConfigureAwait(false);
+        Assert.Equal(402, exactContext.Response.StatusCode);
+        Assert.Equal("Billing required", exact.RootElement.GetProperty("title").GetString());
+
+        var prefixContext = CreateHttpContext(catalog);
+        var prefixResponse = MediationResult.Denied("the tax form is missing", "billing.tax.missing")
+            .ToHttpResult(prefixContext, () => Results.Ok());
+        using var prefix = await ExecuteToProblemAsync(prefixResponse, prefixContext).ConfigureAwait(false);
+        Assert.Equal(422, prefixContext.Response.StatusCode);
+        Assert.Equal("Tax validation failed", prefix.RootElement.GetProperty("title").GetString());
+
+        var shortPrefixContext = CreateHttpContext(catalog);
+        var shortPrefixResponse = MediationResult.Denied("the account is disputed", "billing.disputed")
+            .ToHttpResult(shortPrefixContext, () => Results.Ok());
+        using var shortPrefix = await ExecuteToProblemAsync(shortPrefixResponse, shortPrefixContext).ConfigureAwait(false);
+        Assert.Equal(409, shortPrefixContext.Response.StatusCode);
+        Assert.Equal("Billing conflict", shortPrefix.RootElement.GetProperty("title").GetString());
+
+        var outcomeContext = CreateHttpContext(catalog);
+        var outcomeResponse = MediationResult.Denied("the request is refused", "shipping.blocked")
+            .ToHttpResult(outcomeContext, () => Results.Ok());
+        using var outcome = await ExecuteToProblemAsync(outcomeResponse, outcomeContext).ConfigureAwait(false);
+        Assert.Equal(403, outcomeContext.Response.StatusCode);
+        Assert.Equal("Request denied", outcome.RootElement.GetProperty("title").GetString());
+        Assert.Equal("urn:litebus:shipping:blocked", outcome.RootElement.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task ToHttpResult_InvalidWithZeroOneAndTwoFailures_AnswersIdenticalInvalidDefault()
+    {
+        var catalog = RefusalProblemCatalog.CreateDefault();
+        catalog.MapInvalid(400, "Invalid request");
+
+        var emptyContext = CreateHttpContext(catalog);
+        var emptyResponse = MediationResult.Invalid("the request failed", code: null, failures: [])
+            .ToHttpResult(emptyContext, () => Results.Ok());
+        using var empty = await ExecuteToProblemAsync(emptyResponse, emptyContext).ConfigureAwait(false);
+
+        var singleUncodedContext = CreateHttpContext(catalog);
+        var singleUncodedResponse = MediationResult.Invalid(
+                "Amount: Amount must be positive",
+                code: null,
+                [new ValidationFailure("Amount must be positive", "Amount")])
+            .ToHttpResult(singleUncodedContext, () => Results.Ok());
+        using var singleUncoded = await ExecuteToProblemAsync(singleUncodedResponse, singleUncodedContext).ConfigureAwait(false);
+
+        var singleCodedContext = CreateHttpContext(catalog);
+        var singleCodedResponse = MediationResult.Invalid(
+                "Amount: Amount must be positive",
+                "billing.unpaid",
+                [new ValidationFailure("Amount must be positive", "Amount", "billing.unpaid")])
+            .ToHttpResult(singleCodedContext, () => Results.Ok());
+        using var singleCoded = await ExecuteToProblemAsync(singleCodedResponse, singleCodedContext).ConfigureAwait(false);
+
+        var severalContext = CreateHttpContext(catalog);
+        var severalResponse = MediationResult.Invalid(
+                "Amount: Amount must be positive; Currency: Currency is required",
+                code: null,
+                [
+                    new ValidationFailure("Amount must be positive", "Amount"),
+                    new ValidationFailure("Currency is required", "Currency")
+                ])
+            .ToHttpResult(severalContext, () => Results.Ok());
+        using var several = await ExecuteToProblemAsync(severalResponse, severalContext).ConfigureAwait(false);
+
+        (DefaultHttpContext Context, JsonDocument Problem)[] cases =
+        [
+            (emptyContext, empty), (singleUncodedContext, singleUncoded),
+            (singleCodedContext, singleCoded), (severalContext, several)
+        ];
+
+        foreach (var (context, problem) in cases)
+        {
+            Assert.Equal(400, context.Response.StatusCode);
+            Assert.Equal(400, problem.RootElement.GetProperty("status").GetInt32());
+            Assert.Equal("Invalid request", problem.RootElement.GetProperty("title").GetString());
+        }
+    }
+
+    [Fact]
+    public async Task ToHttpResult_UnmappedCodeWithUseFallback_WritesOutcomeDefault()
+    {
+        var httpContext = CreateHttpContext();
+        var result = MediationResult.Denied("the account is unpaid", "billing.unpaid");
+
+        var response = result.ToHttpResult(httpContext, () => Results.Ok());
+        using var problem = await ExecuteToProblemAsync(response, httpContext).ConfigureAwait(false);
+
+        Assert.Equal(400, httpContext.Response.StatusCode);
+        Assert.Equal("Invalid request", problem.RootElement.GetProperty("title").GetString());
+        Assert.Equal("urn:litebus:billing:unpaid", problem.RootElement.GetProperty("type").GetString());
+        Assert.Equal("the account is unpaid", problem.RootElement.GetProperty(DetailProperty).GetString());
+    }
+
+    [Fact]
+    public async Task ToHttpResult_UnmappedCodeWithTreatAsServerError_WritesGenericTypeAndLogs()
+    {
+        var logger = new CapturingCatalogLogger();
+        var httpContext = CreateHttpContext(
+            options: new RefusalProblemOptions { UnmappedRefusalCode = UnmappedRefusalCode.TreatAsServerError },
+            catalogLogger: logger);
+        var result = MediationResult.Denied("the account is unpaid", "billing.unpaid");
+
+        var response = result.ToHttpResult(httpContext, () => Results.Ok());
+        using var problem = await ExecuteToProblemAsync(response, httpContext).ConfigureAwait(false);
+
+        Assert.Equal(500, httpContext.Response.StatusCode);
+        Assert.Equal("Internal server error", problem.RootElement.GetProperty("title").GetString());
+        Assert.Equal("about:blank", problem.RootElement.GetProperty("type").GetString());
+        Assert.Equal("billing.unpaid", problem.RootElement.GetProperty("code").GetString());
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Error, entry.Level);
+        Assert.Contains("billing.unpaid", entry.Message);
+        Assert.Null(entry.Exception);
+    }
+
+    [Fact]
+    public async Task ToHttpResult_CallerOptions_OverrideServicesOptions()
+    {
+        var httpContext = CreateHttpContext(options: new RefusalProblemOptions());
+        var result = MediationResult.Denied("the account is unpaid", "billing.unpaid");
+
+        var response = result.ToHttpResult(
+            httpContext,
+            () => Results.Ok(),
+            options: new RefusalProblemOptions { UnmappedRefusalCode = UnmappedRefusalCode.TreatAsServerError });
+        using var problem = await ExecuteToProblemAsync(response, httpContext).ConfigureAwait(false);
+
+        Assert.Equal(500, httpContext.Response.StatusCode);
+        Assert.Equal("about:blank", problem.RootElement.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task ToHttpResult_GenericUnmappedCodeWithTreatAsServerError_WritesInternalServerError()
+    {
+        var httpContext = CreateHttpContext(
+            options: new RefusalProblemOptions { UnmappedRefusalCode = UnmappedRefusalCode.TreatAsServerError });
+        var result = MediationResult<string>.Denied("the account is unpaid", "billing.unpaid");
+
+        var response = result.ToHttpResult(httpContext, value => Results.Ok(value));
+        using var problem = await ExecuteToProblemAsync(response, httpContext).ConfigureAwait(false);
+
+        Assert.Equal(500, httpContext.Response.StatusCode);
+        Assert.Equal("Internal server error", problem.RootElement.GetProperty("title").GetString());
+        Assert.Equal("about:blank", problem.RootElement.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task ToHttpResult_WritesCodeExtensionByDefault()
+    {
+        var httpContext = CreateHttpContext();
+        var result = MediationResult.Denied("the message was refused", "authorization.forbidden");
+
+        var response = result.ToHttpResult(httpContext, () => Results.Ok());
+        using var problem = await ExecuteToProblemAsync(response, httpContext).ConfigureAwait(false);
+
+        Assert.Equal("authorization.forbidden", problem.RootElement.GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task ToHttpResult_IncludeRefusalCodeFalse_OmitsCodeExtension()
+    {
+        var httpContext = CreateHttpContext();
+        var result = MediationResult.Denied("the message was refused", "authorization.forbidden");
+
+        var response = result.ToHttpResult(
+            httpContext, () => Results.Ok(), options: new RefusalProblemOptions { IncludeRefusalCode = false });
+        using var problem = await ExecuteToProblemAsync(response, httpContext).ConfigureAwait(false);
+
+        Assert.False(problem.RootElement.TryGetProperty("code", out _));
+        Assert.Equal("urn:litebus:authorization:forbidden", problem.RootElement.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task ToHttpResult_DocumentationUrlFormatter_WritesTemplateType()
+    {
+        var httpContext = CreateHttpContext();
+        var options = new RefusalProblemOptions
+        {
+            TypeFormatter = new DocumentationUrlProblemTypeFormatter("https://errors.example.com/{code}"),
+        };
+        var result = MediationResult.Denied("the message was refused", "authorization.forbidden");
+
+        var response = result.ToHttpResult(httpContext, () => Results.Ok(), options: options);
+        using var problem = await ExecuteToProblemAsync(response, httpContext).ConfigureAwait(false);
+
+        Assert.Equal(403, httpContext.Response.StatusCode);
+        Assert.Equal("https://errors.example.com/authorization.forbidden", problem.RootElement.GetProperty("type").GetString());
+        Assert.Equal("Request denied", problem.RootElement.GetProperty("title").GetString());
+    }
+
+    [Fact]
+    public async Task ToHttpResult_AboutBlankFormatter_WritesAboutBlankKeepingMappedTitle()
+    {
+        var httpContext = CreateHttpContext();
+        var options = new RefusalProblemOptions { TypeFormatter = AboutBlankProblemTypeFormatter.Default };
+        var result = MediationResult.Denied("the message was refused", "authorization.forbidden");
+
+        var response = result.ToHttpResult(httpContext, () => Results.Ok(), options: options);
+        using var problem = await ExecuteToProblemAsync(response, httpContext).ConfigureAwait(false);
+
+        Assert.Equal(403, httpContext.Response.StatusCode);
+        Assert.Equal("about:blank", problem.RootElement.GetProperty("type").GetString());
+        Assert.Equal("Request denied", problem.RootElement.GetProperty("title").GetString());
+    }
+
+    private static DefaultHttpContext CreateHttpContext(
+        IRefusalProblemCatalog? catalog = null,
+        RefusalProblemOptions? options = null,
+        ILogger<RefusalProblemCatalog>? catalogLogger = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -200,6 +423,16 @@ public sealed class RefusalProblemHttpTests
         if (catalog is not null)
         {
             services.AddSingleton(catalog);
+        }
+
+        if (options is not null)
+        {
+            services.AddSingleton(options);
+        }
+
+        if (catalogLogger is not null)
+        {
+            services.AddSingleton(catalogLogger);
         }
 
         var httpContext = new DefaultHttpContext
@@ -229,5 +462,42 @@ public sealed class RefusalProblemHttpTests
         body.Seek(0, SeekOrigin.Begin);
 
         return await JsonDocument.ParseAsync(body).ConfigureAwait(false);
+    }
+
+    private sealed class CapturingCatalogLogger : ILogger<RefusalProblemCatalog>
+    {
+        public List<LogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull
+        {
+            return NullScope.Shared;
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return true;
+        }
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add(new LogEntry(logLevel, formatter(state, exception), exception));
+        }
+
+        public sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);
+
+        private sealed class NullScope : IDisposable
+        {
+            public static NullScope Shared { get; } = new();
+
+            public void Dispose()
+            {
+            }
+        }
     }
 }

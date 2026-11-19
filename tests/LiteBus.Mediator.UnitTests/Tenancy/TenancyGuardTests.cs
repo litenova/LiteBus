@@ -68,7 +68,7 @@ public sealed class TenancyGuardTests : LiteBusTestBase
     {
         var provider = BuildProvider(typeof(PostWorkspaceEntryCommand), typeof(PostWorkspaceEntryCommandHandler));
         var accessor = provider.GetRequiredService<IMessageMetadataAccessor>();
-        var guard = new TenancyGuard<PostWorkspaceEntryCommand>(accessor);
+        var guard = new TenancyGuard<PostWorkspaceEntryCommand>(accessor, provider);
         var command = new PostWorkspaceEntryCommand();
 
         using (AmbientExecutionContext.CreateScope(new TestExecutionContext(ExecutionIdentity.ForTenant("workspace-1"))))

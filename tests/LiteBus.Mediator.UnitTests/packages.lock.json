@@ -190,6 +190,13 @@
           "LiteBus.Queries.Abstractions": "[8.0.0, )"
         }
       },
+      "litebus.auditing.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
       "litebus.commands": {
         "type": "Project",
         "dependencies": {
@@ -217,8 +224,17 @@
           "LiteBus.Commands": "[8.0.0, )",
           "LiteBus.Commands.Abstractions": "[8.0.0, )",
           "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime": "[8.0.0, )",
           "LiteBus.Runtime.Abstractions": "[8.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
+        }
+      },
+      "litebus.commands.recurring.schedules.cron": {
+        "type": "Project",
+        "dependencies": {
+          "Cronos": "[0.13.0, )",
+          "LiteBus.Runtime": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.durablemessaging.abstractions": {
@@ -302,9 +318,12 @@
       "litebus.outbox": {
         "type": "Project",
         "dependencies": {
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
           "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Events.Abstractions": "[8.0.0, )",
           "LiteBus.Messaging": "[8.0.0, )",
           "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Queries.Abstractions": "[8.0.0, )",
           "LiteBus.Runtime.Abstractions": "[8.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
@@ -383,6 +402,12 @@
           "LiteBus.Queries.Abstractions": "[8.0.0, )",
           "LiteBus.Runtime": "[8.0.0, )"
         }
+      },
+      "Cronos": {
+        "type": "CentralTransitive",
+        "requested": "[0.13.0, )",
+        "resolved": "0.13.0",
+        "contentHash": "Nkve+Yi0+ol3ntSBRHeW0ka9cJQ8vndSUvvkXqF9LVqwpoqWueyxu/HS275r98RDOmF7/mzRnZW5XXUBXob+TA=="
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {
         "type": "CentralTransitive",

@@ -370,6 +370,23 @@ public sealed class ArchitectureDependencyPolicyTests
                    referencedProject == "LiteBus.Storage.PostgreSql";
         }
 
+        // The cron schedule package bridges the platform schedule contract to the Cronos expression parser. It knows
+        // nothing about commands, durable axes or storage: a schedule only answers when the next occurrence is.
+        if (projectName == "LiteBus.Commands.Recurring.Schedules.Cron")
+        {
+            return referencedProject.StartsWith("LiteBus.Runtime", StringComparison.Ordinal);
+        }
+
+        // An audit store bridges the store-neutral audit engine to one persistence technology through the shared
+        // storage helpers. It must not reach a durable axis or another feature: audit records are evidence, not messages.
+        if (projectName.StartsWith("LiteBus.Auditing.Storage.", StringComparison.Ordinal))
+        {
+            return referencedProject.StartsWith("LiteBus.Auditing", StringComparison.Ordinal) ||
+                   referencedProject.StartsWith("LiteBus.Messaging", StringComparison.Ordinal) ||
+                   referencedProject.StartsWith("LiteBus.Runtime", StringComparison.Ordinal) ||
+                   referencedProject is "LiteBus.Storage.PostgreSql" or "LiteBus.Storage.EntityFrameworkCore";
+        }
+
         // The PostgreSQL idempotency store bridges the command axis to the shared PostgreSQL storage helpers. It stores
         // applied command keys, so it has no business with the durable axes or the recurring loop.
         if (projectName == "LiteBus.Commands.Storage.PostgreSql")
@@ -472,6 +489,10 @@ public sealed class ArchitectureDependencyPolicyTests
         return package switch
         {
             "AWSSDK.SQS" => "AwsSqs",
+            "AWSSDK.S3" => "AwsS3",
+            "Azure.Storage.Blobs" => "AzureBlob",
+            "Cronos" => "Cron",
+            "System.Security.Cryptography.Pkcs" => "Pkcs",
             "Azure.Messaging.ServiceBus" => "AzureServiceBus",
             "Confluent.Kafka" => "Kafka",
             "Marten" => "PostgreSql",
@@ -498,7 +519,8 @@ public sealed class ArchitectureDependencyPolicyTests
         if (projectName is "LiteBus.Messaging.Abstractions" or
             "LiteBus.Commands.Abstractions" or
             "LiteBus.Queries.Abstractions" or
-            "LiteBus.Events.Abstractions")
+            "LiteBus.Events.Abstractions" or
+            "LiteBus.Auditing.Abstractions")
         {
             role = ProjectRole.MediationContracts;
             return true;
@@ -521,13 +543,15 @@ public sealed class ArchitectureDependencyPolicyTests
             "LiteBus.Inbox" or
             "LiteBus.Outbox" or
             "LiteBus.Saga" or
-            "LiteBus.Transport")
+            "LiteBus.Transport" or
+            "LiteBus.Auditing")
         {
             role = ProjectRole.CoreImplementation;
             return true;
         }
 
         if (projectName is "LiteBus.Storage.EntityFrameworkCore" or "LiteBus.Storage.PostgreSql" ||
+            projectName.StartsWith("LiteBus.Auditing.Anchors.", StringComparison.Ordinal) ||
             projectName.StartsWith("LiteBus.Transport.", StringComparison.Ordinal) &&
             !projectName.Contains(".Extensions.", StringComparison.Ordinal))
         {
@@ -544,6 +568,8 @@ public sealed class ArchitectureDependencyPolicyTests
             projectName == "LiteBus.Saga.InboxIntegration" ||
             projectName == "LiteBus.Commands.Recurring" ||
             projectName == "LiteBus.Commands.Recurring.Storage.PostgreSql" ||
+            projectName == "LiteBus.Commands.Recurring.Schedules.Cron" ||
+            projectName.StartsWith("LiteBus.Auditing.Storage.", StringComparison.Ordinal) ||
             projectName == "LiteBus.Commands.Storage.PostgreSql" ||
             projectName == "LiteBus.Commands.Storage.Marten")
         {

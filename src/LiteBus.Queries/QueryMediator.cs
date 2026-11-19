@@ -50,6 +50,7 @@ public sealed class QueryMediator : IQueryMediator
                 Tags = queryMediationSettings.Routing.Tags,
                 Items = queryMediationSettings.Items,
                 Identity = queryMediationSettings.Identity,
+                Cause = queryMediationSettings.Cause,
                 HandlerPredicate = queryMediationSettings.Routing.HandlerPredicate
             },
             cancellationToken);
@@ -74,6 +75,7 @@ public sealed class QueryMediator : IQueryMediator
                 Tags = queryMediationSettings.Routing.Tags,
                 Items = queryMediationSettings.Items,
                 Identity = queryMediationSettings.Identity,
+                Cause = queryMediationSettings.Cause,
                 HandlerPredicate = queryMediationSettings.Routing.HandlerPredicate
             },
             cancellationToken);
@@ -96,6 +98,7 @@ public sealed class QueryMediator : IQueryMediator
             Tags = queryMediationSettings.Routing.Tags,
             Items = WithEndingCapture(queryMediationSettings.Items, capture),
             Identity = queryMediationSettings.Identity,
+            Cause = queryMediationSettings.Cause,
             HandlerPredicate = queryMediationSettings.Routing.HandlerPredicate
         };
 
@@ -131,6 +134,7 @@ public sealed class QueryMediator : IQueryMediator
                 Tags = queryMediationSettings.Routing.Tags,
                 Items = queryMediationSettings.Items,
                 Identity = queryMediationSettings.Identity,
+                Cause = queryMediationSettings.Cause,
                 HandlerPredicate = queryMediationSettings.Routing.HandlerPredicate
             },
             cancellationToken);

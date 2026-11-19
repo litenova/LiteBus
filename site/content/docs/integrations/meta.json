@@ -15,6 +15,12 @@
     "recurring-commands",
     "commands-postgresql-idempotency-store",
     "commands-marten",
+    "auditing-marten",
+    "auditing-postgresql",
+    "auditing-entity-framework-core",
+    "auditing-s3-anchor",
+    "auditing-azure-blob-anchor",
+    "auditing-rfc3161-timestamp",
     "aspnetcore-idempotency-key",
     "aspnetcore-execution-identity",
     "aspnetcore-problem-details"

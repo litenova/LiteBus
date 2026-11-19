@@ -87,6 +87,7 @@ public sealed class CommandMediator : ICommandMediator
             Tags = commandMediationSettings.Routing.Tags,
             Items = commandMediationSettings.Items,
             Identity = commandMediationSettings.Identity,
+            Cause = commandMediationSettings.Cause,
             HandlerPredicate = commandMediationSettings.Routing.HandlerPredicate
         };
 
@@ -126,6 +127,7 @@ public sealed class CommandMediator : ICommandMediator
             Tags = commandMediationSettings.Routing.Tags,
             Items = WithEndingCapture(commandMediationSettings.Items, capture),
             Identity = commandMediationSettings.Identity,
+            Cause = commandMediationSettings.Cause,
             HandlerPredicate = commandMediationSettings.Routing.HandlerPredicate
         };
 
@@ -161,6 +163,7 @@ public sealed class CommandMediator : ICommandMediator
             Tags = commandMediationSettings.Routing.Tags,
             Items = commandMediationSettings.Items,
             Identity = commandMediationSettings.Identity,
+            Cause = commandMediationSettings.Cause,
             HandlerPredicate = commandMediationSettings.Routing.HandlerPredicate
         };
 
@@ -189,6 +192,7 @@ public sealed class CommandMediator : ICommandMediator
             Tags = commandMediationSettings.Routing.Tags,
             Items = commandMediationSettings.Items,
             Identity = commandMediationSettings.Identity,
+            Cause = commandMediationSettings.Cause,
             HandlerPredicate = commandMediationSettings.Routing.HandlerPredicate
         };
 
@@ -234,6 +238,7 @@ public sealed class CommandMediator : ICommandMediator
             Tags = commandMediationSettings.Routing.Tags,
             Items = WithEndingCapture(commandMediationSettings.Items, capture),
             Identity = commandMediationSettings.Identity,
+            Cause = commandMediationSettings.Cause,
             HandlerPredicate = commandMediationSettings.Routing.HandlerPredicate
         };
 

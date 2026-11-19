@@ -17,14 +17,26 @@ namespace LiteBus.Messaging.Abstractions.Authorization;
 ///         as static combinators over one evaluation shape. A composition registers named policies, a message declares
 ///         one name, and the guard evaluates it with one fixed order: every registered
 ///         <see cref="IAuthorizationCondition" /> in registration order, then the named policy, with the first deny
-///         winning.
+///         winning and a fault ending the evaluation as a fault.
 ///     </para>
 ///     <para>
-///         A check the combinators cannot express is a subclass: derive from this record and override
-///         <see cref="EvaluateAsync(AuthorizationContext, CancellationToken)" />. The subclass must itself be a
-///         record, because only records may inherit from a record. The guard treats a custom policy exactly like a
-///         built one, so the composition vocabulary and the evaluation order stay in one place whatever the checks
-///         are.
+///         An evaluation ends as <see cref="PolicyAllow" />, <see cref="PolicyDeny" />, or <see cref="PolicyFault" />.
+///         A denial is a caller-facing refusal with a stable code and a human reason. A fault is a configuration or
+///         dependency failure an operator must fix, such as a missing permission lookup or an unknown sign-in
+///         instant. Combinators and refusal rewriting pass a fault through unchanged, and the policy guard maps it to
+///         a pipeline fault rather than a denial, so a fault is never reported as a user refusal.
+///     </para>
+///     <para>
+///         A check the combinators cannot express is a subclass: derive a record from this record and override
+///         <see cref="EvaluateAsync(AuthorizationContext, CancellationToken)" /> with an explicit constructor. The
+///         subclass must itself be a record, because only records may inherit from a record. The guard treats a
+///         custom policy exactly like a built one, so the composition vocabulary and the evaluation order stay in one
+///         place whatever the checks are.
+///     </para>
+///     <para>
+///         Policies are records, so two policies built the same way are equal. That equality is what lets the
+///         composition conflict rule treat an identical repeated registration as a no-op. No combinator copies a
+///         policy with <c>with</c>: each combinator wraps the policy it is given.
 ///     </para>
 /// </remarks>
 /// <example>
@@ -32,6 +44,30 @@ namespace LiteBus.Messaging.Abstractions.Authorization;
 /// policies.Add("vaults.open", MessagePolicy.All(
 ///     MessagePolicy.SignedIn(),
 ///     MessagePolicy.Permission("vaults.open")));
+/// ]]></code>
+/// </example>
+/// <example>
+///     A check the combinators cannot express is a record subclass with an explicit constructor:
+///     <code><![CDATA[
+/// public sealed record BusinessHoursPolicy : MessagePolicy
+/// {
+///     public BusinessHoursPolicy()
+///     {
+///     }
+///
+///     public override ValueTask<PolicyResult> EvaluateAsync(
+///         AuthorizationContext context,
+///         CancellationToken cancellationToken)
+///     {
+///         var hour = context.HandledAt.Hour;
+///
+///         return new ValueTask<PolicyResult>(hour is >= 9 and < 17
+///             ? PolicyResult.Allow
+///             : PolicyResult.Deny(
+///                 AuthorizationPolicyRefusalCodes.Forbidden,
+///                 "Writes outside business hours need an on-call approval."));
+///     }
+/// }
 /// ]]></code>
 /// </example>
 public abstract record MessagePolicy
@@ -59,8 +95,8 @@ public abstract record MessagePolicy
     /// </summary>
     /// <param name="context">The message, identity, services, and handled instant the evaluation reads.</param>
     /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
-    /// <returns>The verdict that allows or denies the message.</returns>
-    public abstract ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken);
+    /// <returns>The result that allows, denies, or faults the message.</returns>
+    public abstract ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken);
 
     /// <summary>
     ///     Creates a policy that allows a signed-in caller and denies anyone else.
@@ -77,13 +113,15 @@ public abstract record MessagePolicy
     }
 
     /// <summary>
-    ///     Creates a policy that allows when the mediation runs in a tenant.
+    ///     Creates a policy that allows when the mediation runs in a well-formed tenant.
     /// </summary>
     /// <returns>The tenant policy.</returns>
     /// <remarks>
     ///     Allows when the mediation identity carries a tenant; otherwise denies with
-    ///     <see cref="TenancyRefusalCodes.TenantRequired" />. It lets an application order sign-in, tenant, and
-    ///     permission checks inside one policy, as in
+    ///     <see cref="TenancyRefusalCodes.TenantRequired" />. When an <see cref="ITenantIdentifierValidator" /> is
+    ///     registered, the tenant is checked through it and a malformed tenant denies with
+    ///     <see cref="TenancyRefusalCodes.Invalid" />; with none registered, a tenant is accepted when it is not
+    ///     blank. It lets an application order sign-in, tenant, and permission checks inside one policy, as in
     ///     <c>All(SignedIn(), Tenant(), Permission("vaults.open"))</c>.
     /// </remarks>
     public static MessagePolicy Tenant()
@@ -99,7 +137,7 @@ public abstract record MessagePolicy
     /// <exception cref="ArgumentException"><paramref name="permission" /> is null, empty, or whitespace.</exception>
     /// <remarks>
     ///     The check runs through the registered <see cref="IPermissionLookup" />. With none registered, the policy
-    ///     denies with <see cref="AuthorizationPolicyRefusalCodes.PermissionLookupMissing" /> rather than guessing; a
+    ///     faults with <see cref="AuthorizationPolicyRefusalCodes.PermissionLookupMissing" /> rather than guessing; a
     ///     lookup that answers <see langword="false" /> denies with
     ///     <see cref="AuthorizationPolicyRefusalCodes.MissingPermission" />.
     /// </remarks>
@@ -118,7 +156,8 @@ public abstract record MessagePolicy
     /// <returns>The claim policy.</returns>
     /// <exception cref="ArgumentException"><paramref name="type" /> is null, empty, or whitespace.</exception>
     /// <remarks>
-    ///     A caller that is not signed in denies with
+    ///     A call with no value is the presence check: it allows when the principal carries the type under any
+    ///     value. A caller that is not signed in denies with
     ///     <see cref="AuthorizationPolicyRefusalCodes.NotSignedIn" />; a signed-in caller without the claim denies
     ///     with <see cref="AuthorizationPolicyRefusalCodes.Forbidden" />. Type and value compare ordinally.
     /// </remarks>
@@ -143,15 +182,19 @@ public abstract record MessagePolicy
     ///         <see cref="AuthorizationPolicyRefusalCodes.NotSignedIn" />; a signed-in caller whose sign-in is older
     ///         than <paramref name="maxAge" /> denies with
     ///         <see cref="AuthorizationPolicyRefusalCodes.Forbidden" />; a signed-in caller with a missing or
-    ///         unparsable sign-in instant denies with
+    ///         unparsable sign-in instant faults with
     ///         <see cref="AuthorizationPolicyRefusalCodes.SignInInstantUnknown" />.
+    ///     </para>
+    ///     <para>
+    ///         The window is constant. When it varies by tenant, time, or configuration, resolve it per evaluation
+    ///         with <see cref="RecentSignIn(IRecentSignInWindow)" /> instead.
     ///     </para>
     /// </remarks>
     public static MessagePolicy RecentSignIn(TimeSpan maxAge)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxAge, TimeSpan.Zero);
 
-        return new RecentSignInPolicy(maxAge, AuthTimeClaimType);
+        return new RecentSignInPolicy(new FixedSignInWindow(maxAge), AuthTimeClaimType);
     }
 
     /// <summary>
@@ -171,8 +214,12 @@ public abstract record MessagePolicy
     ///         with <see cref="AuthorizationPolicyRefusalCodes.NotSignedIn" />; a signed-in caller whose sign-in is
     ///         older than <paramref name="maxAge" /> denies with
     ///         <see cref="AuthorizationPolicyRefusalCodes.Forbidden" />; a signed-in caller with a missing or
-    ///         unparsable sign-in instant denies with
+    ///         unparsable sign-in instant faults with
     ///         <see cref="AuthorizationPolicyRefusalCodes.SignInInstantUnknown" />.
+    ///     </para>
+    ///     <para>
+    ///         The window is constant. When it varies by tenant, time, or configuration, resolve it per evaluation
+    ///         with <see cref="RecentSignIn(IRecentSignInWindow)" /> instead.
     ///     </para>
     /// </remarks>
     public static MessagePolicy RecentSignIn(TimeSpan maxAge, string claimType)
@@ -180,7 +227,64 @@ public abstract record MessagePolicy
         ArgumentOutOfRangeException.ThrowIfLessThan(maxAge, TimeSpan.Zero);
         ArgumentException.ThrowIfNullOrWhiteSpace(claimType);
 
-        return new RecentSignInPolicy(maxAge, claimType);
+        return new RecentSignInPolicy(new FixedSignInWindow(maxAge), claimType);
+    }
+
+    /// <summary>
+    ///     Creates a policy that allows when the last sign-in falls inside a window resolved per evaluation.
+    /// </summary>
+    /// <param name="window">Resolves the oldest sign-in the current evaluation accepts.</param>
+    /// <returns>The recent sign-in policy.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="window" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     <para>
+    ///         The window is resolved on every evaluation from the evaluation context, so a per-tenant setting and a
+    ///         changed configuration apply without rebuilding the composition. The sign-in instant is read as the
+    ///         constant overloads read it: from the registered <see cref="ISignInInstantSource" /> when one is
+    ///         present, else from the <c>auth_time</c> claim, in Unix seconds.
+    ///     </para>
+    ///     <para>
+    ///         A caller that is not signed in denies with
+    ///         <see cref="AuthorizationPolicyRefusalCodes.NotSignedIn" /> without resolving the window; a signed-in
+    ///         caller whose sign-in is older than the resolved window denies with
+    ///         <see cref="AuthorizationPolicyRefusalCodes.Forbidden" />; a signed-in caller with a missing or
+    ///         unparsable sign-in instant faults with
+    ///         <see cref="AuthorizationPolicyRefusalCodes.SignInInstantUnknown" />.
+    ///     </para>
+    /// </remarks>
+    public static MessagePolicy RecentSignIn(IRecentSignInWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+
+        return new RecentSignInPolicy(window, AuthTimeClaimType);
+    }
+
+    /// <summary>
+    ///     Creates a policy that allows when the last sign-in falls inside a window the dispatch scope resolves per
+    ///     evaluation.
+    /// </summary>
+    /// <typeparam name="TWindow">The window implementation, resolved from the dispatch scope on every evaluation.</typeparam>
+    /// <returns>The recent sign-in policy.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         The window implementation is resolved from the dispatch scope on every evaluation and its window read
+    ///         from the evaluation context, so a per-tenant setting and a changed configuration apply without
+    ///         rebuilding the composition. When the type is not registered, the policy faults with
+    ///         <see cref="AuthorizationPolicyRefusalCodes.RecentSignInWindowMissing" /> rather than guessing.
+    ///     </para>
+    ///     <para>
+    ///         A caller that is not signed in denies with
+    ///         <see cref="AuthorizationPolicyRefusalCodes.NotSignedIn" /> without resolving the window; a signed-in
+    ///         caller whose sign-in is older than the resolved window denies with
+    ///         <see cref="AuthorizationPolicyRefusalCodes.Forbidden" />; a signed-in caller with a missing or
+    ///         unparsable sign-in instant faults with
+    ///         <see cref="AuthorizationPolicyRefusalCodes.SignInInstantUnknown" />.
+    ///     </para>
+    /// </remarks>
+    public static MessagePolicy RecentSignIn<TWindow>()
+        where TWindow : class, IRecentSignInWindow
+    {
+        return new RecentSignInResolvedPolicy<TWindow>(AuthTimeClaimType);
     }
 
     /// <summary>
@@ -234,8 +338,9 @@ public abstract record MessagePolicy
     ///     Resolves <typeparamref name="TCondition" /> from the dispatch scope and answers its verdict, so the check
     ///     runs only where a policy names it. A condition registered with the composition runs for every authorized
     ///     message; this combinator names one condition for one policy. When the condition type is not registered,
-    ///     the policy denies with <see cref="AuthorizationPolicyRefusalCodes.ConditionMissing" /> rather than
-    ///     guessing.
+    ///     the policy faults with <see cref="AuthorizationPolicyRefusalCodes.ConditionMissing" /> rather than
+    ///     guessing. A condition denial without a code is reported with
+    ///     <see cref="AuthorizationPolicyRefusalCodes.Forbidden" />.
     /// </remarks>
     public static MessagePolicy Condition<TCondition>()
         where TCondition : class, IAuthorizationCondition
@@ -261,6 +366,46 @@ public abstract record MessagePolicy
     }
 
     /// <summary>
+    ///     Creates a policy that answers the decision an authorization decision point makes for an action.
+    /// </summary>
+    /// <typeparam name="TDecisionPoint">The decision point type resolved from the dispatch scope.</typeparam>
+    /// <param name="action">The action being decided, in the application's own vocabulary.</param>
+    /// <param name="resourceKind">The kind of resource the action targets, or <see langword="null" /> when the action targets no named resource.</param>
+    /// <param name="resourceId">The identifier of the targeted resource, or <see langword="null" /> when the action targets no named resource.</param>
+    /// <returns>The decision policy.</returns>
+    /// <exception cref="ArgumentException">
+    ///     <paramref name="action" /> is null, empty, or whitespace, or <paramref name="resourceKind" /> or
+    ///     <paramref name="resourceId" /> is empty or whitespace.
+    /// </exception>
+    /// <remarks>
+    ///     Resolves <typeparamref name="TDecisionPoint" /> from the dispatch scope on every evaluation and answers
+    ///     whatever it decides: allow, deny, or fault when the decision cannot be made. The request carries the
+    ///     mediation identity, the action, the message, the resource description, and the handled instant. When the
+    ///     decision point type is not registered, the policy faults with
+    ///     <see cref="AuthorizationPolicyRefusalCodes.DecisionPointMissing" /> rather than guessing.
+    /// </remarks>
+    public static MessagePolicy Decide<TDecisionPoint>(
+        string action,
+        string? resourceKind = null,
+        string? resourceId = null)
+        where TDecisionPoint : class, IAuthorizationDecisionPoint
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(action);
+
+        if (resourceKind is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(resourceKind);
+        }
+
+        if (resourceId is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(resourceId);
+        }
+
+        return new DecisionPolicy<TDecisionPoint>(action, resourceKind, resourceId);
+    }
+
+    /// <summary>
     ///     Creates a policy that allows when every inner policy allows.
     /// </summary>
     /// <param name="policies">The inner policies, evaluated in order.</param>
@@ -268,8 +413,8 @@ public abstract record MessagePolicy
     /// <exception cref="ArgumentNullException"><paramref name="policies" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">One of <paramref name="policies" /> is <see langword="null" />.</exception>
     /// <remarks>
-    ///     The first deny wins and evaluation stops there, so a later policy never overrides an earlier refusal. An
-    ///     empty conjunction allows.
+    ///     The first result that is not an allow wins and evaluation stops there, so a later policy never overrides
+    ///     an earlier refusal, and a fault propagates without a later allow erasing it. An empty conjunction allows.
     /// </remarks>
     public static MessagePolicy All(params MessagePolicy[] policies)
     {
@@ -286,8 +431,9 @@ public abstract record MessagePolicy
     /// <exception cref="ArgumentNullException"><paramref name="policies" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">One of <paramref name="policies" /> is <see langword="null" />.</exception>
     /// <remarks>
-    ///     The first allow wins and evaluation stops there. When nothing allows, the first deny is returned, so the
-    ///     refusal names the earliest requirement the caller missed. An empty disjunction denies with
+    ///     The first allow wins and evaluation stops there. When nothing allows, the first denial is returned, so the
+    ///     refusal names the earliest requirement the caller missed; when no branch was decidable, the first fault is
+    ///     returned instead. An empty disjunction denies with
     ///     <see cref="AuthorizationPolicyRefusalCodes.Forbidden" />.
     /// </remarks>
     public static MessagePolicy Any(params MessagePolicy[] policies)
@@ -371,9 +517,10 @@ public abstract record MessagePolicy
     /// <exception cref="ArgumentException"><paramref name="code" /> is null, empty, or whitespace.</exception>
     /// <exception cref="ArgumentException"><paramref name="reason" /> is empty or whitespace.</exception>
     /// <remarks>
-    ///     An allow passes through unchanged; a denial keeps its decision and carries <paramref name="code" /> with
-    ///     <paramref name="reason" /> when one is given, else the inner reason. It lets an application keep its own
-    ///     refusal codes on built-in combinators.
+    ///     An allow passes through unchanged, and a fault passes through unchanged, because a configuration or
+    ///     dependency failure is never a user refusal. A denial keeps its decision and carries
+    ///     <paramref name="code" /> with <paramref name="reason" /> when one is given, else the inner reason. It lets
+    ///     an application keep its own refusal codes on built-in combinators.
     /// </remarks>
     public MessagePolicy WithRefusal(string code, string? reason = null)
     {
@@ -384,7 +531,36 @@ public abstract record MessagePolicy
             ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         }
 
-        return new WithRefusalPolicy(this, code, reason);
+        return new WithRefusalPolicy(this, code, reason, null);
+    }
+
+    /// <summary>
+    ///     Wraps this policy so a denial carrying one inner code carries the given code and reason instead.
+    /// </summary>
+    /// <param name="code">The refusal code the rewritten denial carries.</param>
+    /// <param name="reason">The denial reason, or <see langword="null" /> to keep the inner reason.</param>
+    /// <param name="whenInnerCode">The inner denial code this wrapper rewrites.</param>
+    /// <returns>The wrapping policy.</returns>
+    /// <exception cref="ArgumentException">
+    ///     <paramref name="code" /> or <paramref name="whenInnerCode" /> is null, empty, or whitespace.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="reason" /> is empty or whitespace.</exception>
+    /// <remarks>
+    ///     Only a denial carrying <paramref name="whenInnerCode" /> is rewritten; any other denial, any allow, and
+    ///     any fault pass through unchanged. It lets an application rename one expected denial of a combinator, such
+    ///     as a missing permission, while leaving the combinator's other answers alone.
+    /// </remarks>
+    public MessagePolicy WithRefusal(string code, string? reason, string whenInnerCode)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(code);
+        ArgumentException.ThrowIfNullOrWhiteSpace(whenInnerCode);
+
+        if (reason is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        }
+
+        return new WithRefusalPolicy(this, code, reason, whenInnerCode);
     }
 
     /// <summary>
@@ -469,22 +645,70 @@ public abstract record MessagePolicy
     }
 
     /// <summary>
+    ///     Decides a recent sign-in evaluation for a signed-in caller against a resolved window.
+    /// </summary>
+    /// <param name="context">The message, identity, services, and handled instant the evaluation reads.</param>
+    /// <param name="claimType">The claim type that carries the sign-in instant when no source is registered.</param>
+    /// <param name="window">The oldest sign-in the current evaluation accepts.</param>
+    /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
+    /// <returns>The result that allows, denies, or faults the message.</returns>
+    /// <remarks>
+    ///     The caller is signed in when this runs: each recent sign-in policy denies an unsigned caller before
+    ///     resolving its window, so no port is read for a caller already refused.
+    /// </remarks>
+    private static async ValueTask<PolicyResult> EvaluateWindowAsync(
+        AuthorizationContext context,
+        string claimType,
+        TimeSpan window,
+        CancellationToken cancellationToken)
+    {
+        DateTimeOffset? signedInAt;
+
+        if (context.Services.GetService(typeof(ISignInInstantSource)) is ISignInInstantSource source)
+        {
+            signedInAt = await source
+                .GetSignInInstantAsync(context, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            signedInAt = ClaimInstant(context.Identity.Principal!, claimType);
+        }
+
+        if (signedInAt is null)
+        {
+            return PolicyResult.Fault(
+                AuthorizationPolicyRefusalCodes.SignInInstantUnknown,
+                "No usable sign-in instant is available, so a recent sign-in cannot be confirmed.");
+        }
+
+        if (context.HandledAt - signedInAt.Value > window)
+        {
+            return PolicyResult.Deny(
+                AuthorizationPolicyRefusalCodes.Forbidden,
+                $"The sign-in is older than the allowed age of {window}.");
+        }
+
+        return PolicyResult.Allow;
+    }
+
+    /// <summary>
     ///     The policy <see cref="SignedIn" /> creates.
     /// </summary>
     private sealed record SignedInPolicy : MessagePolicy
     {
         /// <inheritdoc />
-        public override ValueTask<Verdict> EvaluateAsync(
+        public override ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
 
-            return new ValueTask<Verdict>(IsSignedIn(context.Identity)
-                ? Verdict.Allow
-                : Verdict.Deny(
-                    "The message requires a signed-in caller.",
-                    AuthorizationPolicyRefusalCodes.NotSignedIn));
+            return new ValueTask<PolicyResult>(IsSignedIn(context.Identity)
+                ? PolicyResult.Allow
+                : PolicyResult.Deny(
+                    AuthorizationPolicyRefusalCodes.NotSignedIn,
+                    "The message requires a signed-in caller."));
         }
     }
 
@@ -494,17 +718,34 @@ public abstract record MessagePolicy
     private sealed record TenantPolicy : MessagePolicy
     {
         /// <inheritdoc />
-        public override ValueTask<Verdict> EvaluateAsync(
+        public override async ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
 
-            return new ValueTask<Verdict>(context.Identity.HasTenant
-                ? Verdict.Allow
-                : Verdict.Deny(
-                    $"The message '{context.MessageType.Name}' requires a tenant, but the mediation runs in none.",
-                    TenancyRefusalCodes.TenantRequired));
+            if (!context.Identity.HasTenant)
+            {
+                return PolicyResult.Deny(
+                    TenancyRefusalCodes.TenantRequired,
+                    $"The message '{context.MessageType.Name}' requires a tenant, but the mediation runs in none.");
+            }
+
+            if (context.Services.GetService(typeof(ITenantIdentifierValidator)) is not ITenantIdentifierValidator validator)
+            {
+                return PolicyResult.Allow;
+            }
+
+            var tenantId = context.Identity.TenantId!;
+            var valid = await validator
+                .IsValidAsync(tenantId, context.Services, cancellationToken)
+                .ConfigureAwait(false);
+
+            return valid
+                ? PolicyResult.Allow
+                : PolicyResult.Deny(
+                    TenancyRefusalCodes.Invalid,
+                    $"The tenant '{tenantId}' is malformed under the registered tenant validator.");
         }
     }
 
@@ -515,7 +756,7 @@ public abstract record MessagePolicy
     private sealed record PermissionPolicy(string RequiredPermission) : MessagePolicy
     {
         /// <inheritdoc />
-        public override async ValueTask<Verdict> EvaluateAsync(
+        public override async ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
@@ -523,9 +764,9 @@ public abstract record MessagePolicy
 
             if (context.Services.GetService(typeof(IPermissionLookup)) is not IPermissionLookup lookup)
             {
-                return Verdict.Deny(
-                    $"No permission lookup is registered, so the '{RequiredPermission}' permission cannot be granted.",
-                    AuthorizationPolicyRefusalCodes.PermissionLookupMissing);
+                return PolicyResult.Fault(
+                    AuthorizationPolicyRefusalCodes.PermissionLookupMissing,
+                    $"No permission lookup is registered, so the '{RequiredPermission}' permission cannot be granted.");
             }
 
             var holds = await lookup
@@ -533,10 +774,10 @@ public abstract record MessagePolicy
                 .ConfigureAwait(false);
 
             return holds
-                ? Verdict.Allow
-                : Verdict.Deny(
-                    $"The caller does not hold the '{RequiredPermission}' permission.",
-                    AuthorizationPolicyRefusalCodes.MissingPermission);
+                ? PolicyResult.Allow
+                : PolicyResult.Deny(
+                    AuthorizationPolicyRefusalCodes.MissingPermission,
+                    $"The caller does not hold the '{RequiredPermission}' permission.");
         }
     }
 
@@ -548,7 +789,7 @@ public abstract record MessagePolicy
     private sealed record ClaimPolicy(string Type, string? Value) : MessagePolicy
     {
         /// <inheritdoc />
-        public override ValueTask<Verdict> EvaluateAsync(
+        public override ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
@@ -556,9 +797,9 @@ public abstract record MessagePolicy
 
             if (context.Identity.Principal is not { } principal || !IsSignedIn(context.Identity))
             {
-                return new ValueTask<Verdict>(Verdict.Deny(
-                    "The message requires a signed-in caller.",
-                    AuthorizationPolicyRefusalCodes.NotSignedIn));
+                return new ValueTask<PolicyResult>(PolicyResult.Deny(
+                    AuthorizationPolicyRefusalCodes.NotSignedIn,
+                    "The message requires a signed-in caller."));
             }
 
             var carries = Value is null
@@ -569,66 +810,94 @@ public abstract record MessagePolicy
 
             if (carries)
             {
-                return new ValueTask<Verdict>(Verdict.Allow);
+                return new ValueTask<PolicyResult>(PolicyResult.Allow);
             }
 
             var reason = Value is null
                 ? $"The caller does not carry a '{Type}' claim."
                 : $"The caller does not carry a '{Type}' claim with the required value.";
 
-            return new ValueTask<Verdict>(Verdict.Deny(reason, AuthorizationPolicyRefusalCodes.Forbidden));
+            return new ValueTask<PolicyResult>(PolicyResult.Deny(AuthorizationPolicyRefusalCodes.Forbidden, reason));
         }
     }
 
     /// <summary>
-    ///     The policy that <see cref="RecentSignIn(TimeSpan)" /> and <see cref="RecentSignIn(TimeSpan, string)" /> create.
+    ///     The window the constant <see cref="RecentSignIn(TimeSpan)" /> overloads resolve through.
     /// </summary>
-    /// <param name="MaxAge">The oldest sign-in the policy accepts.</param>
-    /// <param name="ClaimType">The claim type that carries the sign-in instant when no source is registered.</param>
-    private sealed record RecentSignInPolicy(TimeSpan MaxAge, string ClaimType) : MessagePolicy
+    /// <param name="Window">The oldest sign-in the policy accepts.</param>
+    private sealed record FixedSignInWindow(TimeSpan Window) : IRecentSignInWindow
     {
         /// <inheritdoc />
-        public override async ValueTask<Verdict> EvaluateAsync(
+        public ValueTask<TimeSpan> GetWindowAsync(AuthorizationContext context, CancellationToken cancellationToken)
+        {
+            return new ValueTask<TimeSpan>(Window);
+        }
+    }
+
+    /// <summary>
+    ///     The policy that <see cref="RecentSignIn(TimeSpan)" />, <see cref="RecentSignIn(TimeSpan, string)" />, and
+    ///     <see cref="RecentSignIn(IRecentSignInWindow)" /> create.
+    /// </summary>
+    /// <param name="Window">Resolves the oldest sign-in the current evaluation accepts.</param>
+    /// <param name="ClaimType">The claim type that carries the sign-in instant when no source is registered.</param>
+    private sealed record RecentSignInPolicy(IRecentSignInWindow Window, string ClaimType) : MessagePolicy
+    {
+        /// <inheritdoc />
+        public override async ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
 
-            if (context.Identity.Principal is not { } principal || !IsSignedIn(context.Identity))
+            if (context.Identity.Principal is not { } || !IsSignedIn(context.Identity))
             {
-                return Verdict.Deny(
-                    "The message requires a signed-in caller.",
-                    AuthorizationPolicyRefusalCodes.NotSignedIn);
+                return PolicyResult.Deny(
+                    AuthorizationPolicyRefusalCodes.NotSignedIn,
+                    "The message requires a signed-in caller.");
             }
 
-            DateTimeOffset? signedInAt;
+            var window = await Window
+                .GetWindowAsync(context, cancellationToken)
+                .ConfigureAwait(false);
 
-            if (context.Services.GetService(typeof(ISignInInstantSource)) is ISignInInstantSource source)
+            return await EvaluateWindowAsync(context, ClaimType, window, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     The policy <see cref="RecentSignIn{TWindow}" /> creates.
+    /// </summary>
+    /// <typeparam name="TWindow">The window implementation, resolved from the dispatch scope on every evaluation.</typeparam>
+    /// <param name="ClaimType">The claim type that carries the sign-in instant when no source is registered.</param>
+    private sealed record RecentSignInResolvedPolicy<TWindow>(string ClaimType) : MessagePolicy
+        where TWindow : class, IRecentSignInWindow
+    {
+        /// <inheritdoc />
+        public override async ValueTask<PolicyResult> EvaluateAsync(
+            AuthorizationContext context,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+
+            if (context.Identity.Principal is not { } || !IsSignedIn(context.Identity))
             {
-                signedInAt = await source
-                    .GetSignInInstantAsync(context, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            else
-            {
-                signedInAt = ClaimInstant(principal, ClaimType);
+                return PolicyResult.Deny(
+                    AuthorizationPolicyRefusalCodes.NotSignedIn,
+                    "The message requires a signed-in caller.");
             }
 
-            if (signedInAt is null)
+            if (context.Services.GetService(typeof(TWindow)) is not TWindow window)
             {
-                return Verdict.Deny(
-                    "No usable sign-in instant is available, so a recent sign-in cannot be confirmed.",
-                    AuthorizationPolicyRefusalCodes.SignInInstantUnknown);
+                return PolicyResult.Fault(
+                    AuthorizationPolicyRefusalCodes.RecentSignInWindowMissing,
+                    $"No '{typeof(TWindow).Name}' sign-in window is registered, so the allowed sign-in age cannot be resolved.");
             }
 
-            if (context.HandledAt - signedInAt.Value > MaxAge)
-            {
-                return Verdict.Deny(
-                    $"The sign-in is older than the allowed age of {MaxAge}.",
-                    AuthorizationPolicyRefusalCodes.Forbidden);
-            }
+            var maxAge = await window
+                .GetWindowAsync(context, cancellationToken)
+                .ConfigureAwait(false);
 
-            return Verdict.Allow;
+            return await EvaluateWindowAsync(context, ClaimType, maxAge, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -638,17 +907,17 @@ public abstract record MessagePolicy
     private sealed record SystemPolicy : MessagePolicy
     {
         /// <inheritdoc />
-        public override ValueTask<Verdict> EvaluateAsync(
+        public override ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
 
-            return new ValueTask<Verdict>(context.Identity.Principal is null
-                ? Verdict.Allow
-                : Verdict.Deny(
-                    "The policy allows only a system run with no calling principal.",
-                    AuthorizationPolicyRefusalCodes.Forbidden));
+            return new ValueTask<PolicyResult>(context.Identity.Principal is null
+                ? PolicyResult.Allow
+                : PolicyResult.Deny(
+                    AuthorizationPolicyRefusalCodes.Forbidden,
+                    "The policy allows only a system run with no calling principal."));
         }
     }
 
@@ -661,7 +930,7 @@ public abstract record MessagePolicy
         where TMessage : notnull
     {
         /// <inheritdoc />
-        public override ValueTask<Verdict> EvaluateAsync(
+        public override ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
@@ -669,37 +938,37 @@ public abstract record MessagePolicy
 
             if (context.Identity.Principal is not { } principal || !IsSignedIn(context.Identity))
             {
-                return new ValueTask<Verdict>(Verdict.Deny(
-                    "The message requires a signed-in caller.",
-                    AuthorizationPolicyRefusalCodes.NotSignedIn));
+                return new ValueTask<PolicyResult>(PolicyResult.Deny(
+                    AuthorizationPolicyRefusalCodes.NotSignedIn,
+                    "The message requires a signed-in caller."));
             }
 
             if (context.Message is not TMessage message)
             {
-                return new ValueTask<Verdict>(Verdict.Deny(
-                    $"The policy applies to '{typeof(TMessage).Name}', but the message is '{context.MessageType.Name}'.",
-                    AuthorizationPolicyRefusalCodes.Forbidden));
+                return new ValueTask<PolicyResult>(PolicyResult.Deny(
+                    AuthorizationPolicyRefusalCodes.Forbidden,
+                    $"The policy applies to '{typeof(TMessage).Name}', but the message is '{context.MessageType.Name}'."));
             }
 
             if (SubjectId(message) is not { } subject)
             {
-                return new ValueTask<Verdict>(Verdict.Deny(
-                    "The message names no subject, so ownership cannot be confirmed.",
-                    AuthorizationPolicyRefusalCodes.Forbidden));
+                return new ValueTask<PolicyResult>(PolicyResult.Deny(
+                    AuthorizationPolicyRefusalCodes.Forbidden,
+                    "The message names no subject, so ownership cannot be confirmed."));
             }
 
             if (PrincipalId(principal) is not { } caller)
             {
-                return new ValueTask<Verdict>(Verdict.Deny(
-                    "The principal carries no identifier claim, so ownership cannot be confirmed.",
-                    AuthorizationPolicyRefusalCodes.Forbidden));
+                return new ValueTask<PolicyResult>(PolicyResult.Deny(
+                    AuthorizationPolicyRefusalCodes.Forbidden,
+                    "The principal carries no identifier claim, so ownership cannot be confirmed."));
             }
 
-            return new ValueTask<Verdict>(string.Equals(caller, subject, StringComparison.Ordinal)
-                ? Verdict.Allow
-                : Verdict.Deny(
-                    "The caller is not the subject the message names.",
-                    AuthorizationPolicyRefusalCodes.Forbidden));
+            return new ValueTask<PolicyResult>(string.Equals(caller, subject, StringComparison.Ordinal)
+                ? PolicyResult.Allow
+                : PolicyResult.Deny(
+                    AuthorizationPolicyRefusalCodes.Forbidden,
+                    "The caller is not the subject the message names."));
         }
     }
 
@@ -711,7 +980,7 @@ public abstract record MessagePolicy
         where TCondition : class, IAuthorizationCondition
     {
         /// <inheritdoc />
-        public override async ValueTask<Verdict> EvaluateAsync(
+        public override async ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
@@ -719,12 +988,56 @@ public abstract record MessagePolicy
 
             if (context.Services.GetService(typeof(TCondition)) is not TCondition condition)
             {
-                return Verdict.Deny(
-                    $"No '{typeof(TCondition).Name}' condition is registered, so the policy cannot be evaluated.",
-                    AuthorizationPolicyRefusalCodes.ConditionMissing);
+                return PolicyResult.Fault(
+                    AuthorizationPolicyRefusalCodes.ConditionMissing,
+                    $"No '{typeof(TCondition).Name}' condition is registered, so the policy cannot be evaluated.");
             }
 
-            return await condition.EvaluateAsync(context, cancellationToken).ConfigureAwait(false);
+            var verdict = await condition.EvaluateAsync(context, cancellationToken).ConfigureAwait(false);
+
+            return verdict.IsDenied
+                ? PolicyResult.Deny(
+                    verdict.Code ?? AuthorizationPolicyRefusalCodes.Forbidden,
+                    verdict.Reason!)
+                : PolicyResult.Allow;
+        }
+    }
+
+    /// <summary>
+    ///     The policy <see cref="Decide{TDecisionPoint}" /> creates.
+    /// </summary>
+    /// <typeparam name="TDecisionPoint">The decision point type resolved from the dispatch scope.</typeparam>
+    /// <param name="Action">The action being decided, in the application's own vocabulary.</param>
+    /// <param name="ResourceKind">The kind of resource the action targets, or <see langword="null" /> when the action targets no named resource.</param>
+    /// <param name="ResourceId">The identifier of the targeted resource, or <see langword="null" /> when the action targets no named resource.</param>
+    private sealed record DecisionPolicy<TDecisionPoint>(string Action, string? ResourceKind, string? ResourceId)
+        : MessagePolicy
+        where TDecisionPoint : class, IAuthorizationDecisionPoint
+    {
+        /// <inheritdoc />
+        public override async ValueTask<PolicyResult> EvaluateAsync(
+            AuthorizationContext context,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+
+            if (context.Services.GetService(typeof(TDecisionPoint)) is not TDecisionPoint decisionPoint)
+            {
+                return PolicyResult.Fault(
+                    AuthorizationPolicyRefusalCodes.DecisionPointMissing,
+                    $"No '{typeof(TDecisionPoint).Name}' decision point is registered, so the '{Action}' action cannot be decided.");
+            }
+
+            var request = new AuthorizationDecisionRequest(
+                context.Identity,
+                Action,
+                context.Message,
+                context.MessageType,
+                ResourceKind,
+                ResourceId,
+                context.HandledAt);
+
+            return await decisionPoint.DecideAsync(request, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -735,7 +1048,7 @@ public abstract record MessagePolicy
     private sealed record SentByPolicy<TParent> : MessagePolicy
     {
         /// <inheritdoc />
-        public override ValueTask<Verdict> EvaluateAsync(
+        public override ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
@@ -744,12 +1057,12 @@ public abstract record MessagePolicy
             if (context.ExecutionContext?.Parent?.MessageType is { } parentMessageType
                 && typeof(TParent).IsAssignableFrom(parentMessageType))
             {
-                return new ValueTask<Verdict>(Verdict.Allow);
+                return new ValueTask<PolicyResult>(PolicyResult.Allow);
             }
 
-            return new ValueTask<Verdict>(Verdict.Deny(
-                $"The message was not sent by '{typeof(TParent).Name}'.",
-                AuthorizationPolicyRefusalCodes.NotSentBy));
+            return new ValueTask<PolicyResult>(PolicyResult.Deny(
+                AuthorizationPolicyRefusalCodes.NotSentBy,
+                $"The message was not sent by '{typeof(TParent).Name}'."));
         }
     }
 
@@ -760,7 +1073,7 @@ public abstract record MessagePolicy
     private sealed record AllPolicy(MessagePolicy[] Policies) : MessagePolicy
     {
         /// <inheritdoc />
-        public override async ValueTask<Verdict> EvaluateAsync(
+        public override async ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
@@ -768,15 +1081,15 @@ public abstract record MessagePolicy
 
             foreach (var policy in Policies)
             {
-                var verdict = await policy.EvaluateAsync(context, cancellationToken).ConfigureAwait(false);
+                var result = await policy.EvaluateAsync(context, cancellationToken).ConfigureAwait(false);
 
-                if (verdict.IsDenied)
+                if (result is not PolicyAllow)
                 {
-                    return verdict;
+                    return result;
                 }
             }
 
-            return Verdict.Allow;
+            return PolicyResult.Allow;
         }
     }
 
@@ -787,28 +1100,47 @@ public abstract record MessagePolicy
     private sealed record AnyPolicy(MessagePolicy[] Policies) : MessagePolicy
     {
         /// <inheritdoc />
-        public override async ValueTask<Verdict> EvaluateAsync(
+        public override async ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
 
-            Verdict? firstDenial = null;
+            PolicyDeny? firstDenial = null;
+            PolicyFault? firstFault = null;
 
             foreach (var policy in Policies)
             {
-                var verdict = await policy.EvaluateAsync(context, cancellationToken).ConfigureAwait(false);
+                var result = await policy.EvaluateAsync(context, cancellationToken).ConfigureAwait(false);
 
-                if (!verdict.IsDenied)
+                if (result is PolicyAllow)
                 {
-                    return Verdict.Allow;
+                    return PolicyResult.Allow;
                 }
 
-                firstDenial ??= verdict;
+                if (result is PolicyDeny deny)
+                {
+                    firstDenial ??= deny;
+                }
+                else if (result is PolicyFault fault)
+                {
+                    firstFault ??= fault;
+                }
             }
 
-            return firstDenial
-                ?? Verdict.Deny("No policy allowed the message.", AuthorizationPolicyRefusalCodes.Forbidden);
+            if (firstDenial is not null)
+            {
+                return firstDenial;
+            }
+
+            if (firstFault is not null)
+            {
+                return firstFault;
+            }
+
+            return PolicyResult.Deny(
+                AuthorizationPolicyRefusalCodes.Forbidden,
+                "No policy allowed the message.");
         }
     }
 
@@ -820,7 +1152,7 @@ public abstract record MessagePolicy
     private sealed record WhenPolicy(Func<AuthorizationContext, bool> Condition, MessagePolicy Inner) : MessagePolicy
     {
         /// <inheritdoc />
-        public override ValueTask<Verdict> EvaluateAsync(
+        public override ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
@@ -828,7 +1160,7 @@ public abstract record MessagePolicy
 
             return Condition(context)
                 ? Inner.EvaluateAsync(context, cancellationToken)
-                : new ValueTask<Verdict>(Verdict.Allow);
+                : new ValueTask<PolicyResult>(PolicyResult.Allow);
         }
     }
 
@@ -838,13 +1170,13 @@ public abstract record MessagePolicy
     private sealed record AllowPolicy : MessagePolicy
     {
         /// <inheritdoc />
-        public override ValueTask<Verdict> EvaluateAsync(
+        public override ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
 
-            return new ValueTask<Verdict>(Verdict.Allow);
+            return new ValueTask<PolicyResult>(PolicyResult.Allow);
         }
     }
 
@@ -854,13 +1186,13 @@ public abstract record MessagePolicy
     private sealed record PublicPolicy : MessagePolicy
     {
         /// <inheritdoc />
-        public override ValueTask<Verdict> EvaluateAsync(
+        public override ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
 
-            return new ValueTask<Verdict>(Verdict.Allow);
+            return new ValueTask<PolicyResult>(PolicyResult.Allow);
         }
     }
 
@@ -871,39 +1203,42 @@ public abstract record MessagePolicy
     private sealed record DenyPolicy(string Reason) : MessagePolicy
     {
         /// <inheritdoc />
-        public override ValueTask<Verdict> EvaluateAsync(
+        public override ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
 
-            return new ValueTask<Verdict>(Verdict.Deny(Reason, AuthorizationPolicyRefusalCodes.Forbidden));
+            return new ValueTask<PolicyResult>(PolicyResult.Deny(AuthorizationPolicyRefusalCodes.Forbidden, Reason));
         }
     }
 
     /// <summary>
-    ///     The policy <see cref="WithRefusal" /> creates.
+    ///     The policy <see cref="WithRefusal(string, string?)" /> creates.
     /// </summary>
     /// <param name="Inner">The wrapped policy.</param>
-    /// <param name="Code">The refusal code a denial carries.</param>
+    /// <param name="Code">The refusal code a rewritten denial carries.</param>
     /// <param name="Reason">The denial reason, or <see langword="null" /> to keep the inner reason.</param>
-    private sealed record WithRefusalPolicy(MessagePolicy Inner, string Code, string? Reason) : MessagePolicy
+    /// <param name="WhenInnerCode">The inner denial code this wrapper rewrites, or <see langword="null" /> to rewrite every denial.</param>
+    private sealed record WithRefusalPolicy(MessagePolicy Inner, string Code, string? Reason, string? WhenInnerCode)
+        : MessagePolicy
     {
         /// <inheritdoc />
-        public override async ValueTask<Verdict> EvaluateAsync(
+        public override async ValueTask<PolicyResult> EvaluateAsync(
             AuthorizationContext context,
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
 
-            var verdict = await Inner.EvaluateAsync(context, cancellationToken).ConfigureAwait(false);
+            var result = await Inner.EvaluateAsync(context, cancellationToken).ConfigureAwait(false);
 
-            if (!verdict.IsDenied)
+            if (result is PolicyDeny deny
+                && (WhenInnerCode is null || string.Equals(deny.Code, WhenInnerCode, StringComparison.Ordinal)))
             {
-                return verdict;
+                return PolicyResult.Deny(Code, Reason ?? deny.Reason);
             }
 
-            return Verdict.Deny(Reason ?? verdict.Reason ?? Code, Code);
+            return result;
         }
     }
 }

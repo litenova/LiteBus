@@ -20,8 +20,9 @@ namespace LiteBus.Messaging.Tenancy;
 ///     <para>
 ///         A <see cref="TenantRequiredDeclaration" /> is denied with
 ///         <see cref="TenancyRefusalCodes.TenantRequired" /> when the execution identity of the mediation in flight has
-///         no tenant. A <see cref="CrossTenantDeclaration" /> and a <see cref="NoTenantDeclaration" /> allow, because
-///         the message already stated it runs outside one tenant.
+///         no tenant, and with <see cref="TenancyRefusalCodes.Invalid" /> when the tenant is malformed under the
+///         registered <see cref="ITenantIdentifierValidator" />. A <see cref="CrossTenantDeclaration" /> and a
+///         <see cref="NoTenantDeclaration" /> allow, because the message already stated it runs outside one tenant.
 ///     </para>
 ///     <para>
 ///         Register it once as an open generic through <c>UseTenancy</c> and it covers every message. A message declaring
@@ -48,12 +49,21 @@ public sealed class TenancyGuard<TMessage> : DeclarationGuard<TMessage, TenancyD
     where TMessage : notnull
 {
     /// <summary>
+    ///     The dispatch scope the decision resolves the tenant validator from.
+    /// </summary>
+    private readonly IServiceProvider _services;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="TenancyGuard{TMessage}" /> class.
     /// </summary>
     /// <param name="metadataAccessor">Reads the tenancy declaration for the message being mediated.</param>
-    public TenancyGuard(IMessageMetadataAccessor metadataAccessor)
+    /// <param name="services">The dispatch scope the decision resolves the tenant validator from.</param>
+    public TenancyGuard(IMessageMetadataAccessor metadataAccessor, IServiceProvider services)
         : base(metadataAccessor)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
+        _services = services;
     }
 
     /// <summary>
@@ -66,7 +76,9 @@ public sealed class TenancyGuard<TMessage> : DeclarationGuard<TMessage, TenancyD
     /// <remarks>
     ///     A <see cref="TenantRequiredDeclaration" /> is denied with
     ///     <see cref="TenancyRefusalCodes.TenantRequired" /> when the execution identity of the mediation in flight
-    ///     has no tenant. A <see cref="CrossTenantDeclaration" /> and a <see cref="NoTenantDeclaration" /> allow.
+    ///     has no tenant, and with <see cref="TenancyRefusalCodes.Invalid" /> when the tenant is malformed under the
+    ///     registered <see cref="ITenantIdentifierValidator" />. A <see cref="CrossTenantDeclaration" /> and a
+    ///     <see cref="NoTenantDeclaration" /> allow.
     /// </remarks>
     protected override Task<Verdict> DecideAsync(
         TenancyDeclaration declaration,
@@ -76,15 +88,21 @@ public sealed class TenancyGuard<TMessage> : DeclarationGuard<TMessage, TenancyD
         ArgumentNullException.ThrowIfNull(declaration);
         ArgumentNullException.ThrowIfNull(message);
 
-        if (declaration is TenantRequiredDeclaration
-            && !AmbientExecutionContext.Current.Identity.HasTenant)
+        if (declaration is not TenantRequiredDeclaration)
+        {
+            return Task.FromResult(Verdict.Allow);
+        }
+
+        var identity = AmbientExecutionContext.Current.Identity;
+
+        if (identity.TenantId is not string tenantId || string.IsNullOrWhiteSpace(tenantId))
         {
             var reason = $"The message '{message.GetType().Name}' requires a tenant, but the current execution has none.";
 
             return Task.FromResult(Verdict.Deny(reason, TenancyRefusalCodes.TenantRequired));
         }
 
-        return Task.FromResult(Verdict.Allow);
+        return DecideTenantAsync(message, tenantId, cancellationToken);
     }
 
     /// <summary>
@@ -103,5 +121,30 @@ public sealed class TenancyGuard<TMessage> : DeclarationGuard<TMessage, TenancyD
         ArgumentNullException.ThrowIfNull(message);
 
         return Task.FromResult(Verdict.Allow);
+    }
+
+    /// <summary>
+    ///     Decides whether a tenant-required message running in a tenant is permitted to proceed.
+    /// </summary>
+    /// <param name="message">The message being mediated.</param>
+    /// <param name="tenantId">The non-blank tenant the mediation runs in.</param>
+    /// <param name="cancellationToken">The cancellation token supplied to the mediation operation.</param>
+    /// <returns>The verdict that allows the message, or denies it when the tenant is malformed.</returns>
+    /// <remarks>
+    ///     The validator resolves from the dispatch scope at evaluation time, so the decision observes the same
+    ///     validator the tenant policies and tenant sources read. With no validator registered, a present tenant is
+    ///     accepted.
+    /// </remarks>
+    private async Task<Verdict> DecideTenantAsync(TMessage message, string tenantId, CancellationToken cancellationToken)
+    {
+        if (_services.GetService(typeof(ITenantIdentifierValidator)) is ITenantIdentifierValidator validator
+            && !await validator.IsValidAsync(tenantId, _services, cancellationToken).ConfigureAwait(false))
+        {
+            var reason = $"The message '{message.GetType().Name}' runs in tenant '{tenantId}', which is malformed.";
+
+            return Verdict.Deny(reason, TenancyRefusalCodes.Invalid);
+        }
+
+        return Verdict.Allow;
     }
 }

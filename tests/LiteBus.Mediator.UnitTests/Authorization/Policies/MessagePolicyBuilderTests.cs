@@ -42,17 +42,31 @@ public sealed class MessagePolicyBuilderTests : LiteBusTestBase
     }
 
     /// <summary>
-    ///     Verifies that a duplicate policy name fails naming the duplicate.
+    ///     Verifies that a conflicting policy name fails naming the duplicate.
     /// </summary>
     [Fact]
     public void A_duplicate_policy_name_fails_naming_the_duplicate()
     {
         var act = () => new MessagePolicyBuilder()
             .Add("vaults.open", MessagePolicy.Allow())
-            .Add("vaults.open", MessagePolicy.Allow());
+            .Add("vaults.open", MessagePolicy.Deny("closed for stocktake"));
 
         act.Should().Throw<LiteBusConfigurationException>()
             .WithMessage("*vaults.open*");
+    }
+
+    /// <summary>
+    ///     Verifies that an identical policy repeat is a no-op.
+    /// </summary>
+    [Fact]
+    public void An_identical_policy_repeat_is_a_noop()
+    {
+        var builder = new MessagePolicyBuilder()
+            .Add("vaults.open", MessagePolicy.Allow())
+            .Add("vaults.open", MessagePolicy.Allow());
+
+        builder.Policies.Should().ContainSingle()
+            .Which.Value.Should().Be(MessagePolicy.Allow());
     }
 
     /// <summary>

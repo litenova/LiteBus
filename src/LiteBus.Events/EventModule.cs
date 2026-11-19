@@ -6,7 +6,6 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Audit;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
-using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Events;
 
@@ -105,23 +104,17 @@ public sealed class EventModule : IModule, IRequires<MessageModule>
     ///     <para>
     ///         An explicit per-event declaration still applies, because a declaration written closer to the message
     ///         overrides this family default. A composition that already states its own <c>IEvent</c>
-    ///         authorization default keeps it: the duplicate is the application's explicit choice, not a conflict.
+    ///         authorization default keeps it: the framework default yields through <c>TryAddDeclaration</c>,
+    ///         which returns <see langword="false" /> when a declaration is already present instead of throwing.
     ///     </para>
     /// </remarks>
     private static void DeclareEventAuthorizationDefault(IMessageRegistry messageRegistry)
     {
         ArgumentNullException.ThrowIfNull(messageRegistry);
 
-        try
-        {
-            messageRegistry.AddDeclaration(MessageDeclarationItem.For<IEvent, AuthorizationDeclaration>(
-                AuthorizationDeclaration.Exempt(
-                    "events record facts that already happened, so there is no request to authorize")));
-        }
-        catch (PipelineContractException)
-        {
-            // The composition already states its own IEvent authorization default, and the explicit one stands.
-        }
+        messageRegistry.TryAddDeclaration(MessageDeclarationItem.For<IEvent, AuthorizationDeclaration>(
+            AuthorizationDeclaration.Exempt(
+                "events record facts that already happened, so there is no request to authorize")));
     }
 
     /// <summary>

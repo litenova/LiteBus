@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -20,6 +21,11 @@ namespace LiteBus.Commands.Recurring;
 ///         takes scoped dependencies exactly as a handler would, and the scope is disposed before the batch is sent. The
 ///         source reads outside the sends that follow, so commands must still check the state they change; the lease,
 ///         not a transaction, keeps two replicas from producing the same batch.
+///     </para>
+///     <para>
+///         Each source read runs under <see cref="RecurringCommandHostOptions.SourceIdentity" /> inside a root
+///         mediation scope, so a query the source sends inherits that identity through the existing
+///         enclosing-mediation rule instead of running anonymously.
 ///     </para>
 ///     <para>
 ///         An empty batch sends nothing and the loop waits
@@ -73,6 +79,11 @@ public sealed class RecurringCommandBatchBackgroundService<TSource> : IBackgroun
     private readonly Func<Exception, bool>? _isConcurrencyConflict;
 
     /// <summary>
+    ///     The identity batch source reads run under.
+    /// </summary>
+    private readonly ExecutionIdentity _sourceIdentity;
+
+    /// <summary>
     ///     Opens the loop scope once when the loop starts, and a fresh scope for the source on each pass.
     /// </summary>
     private readonly IMessageDispatchScopeFactory _scopeFactory;
@@ -106,6 +117,7 @@ public sealed class RecurringCommandBatchBackgroundService<TSource> : IBackgroun
 
         _options = declaration.HostOptions;
         _isConcurrencyConflict = declaration.HostOptions.IsConcurrencyConflict;
+        _sourceIdentity = declaration.HostOptions.SourceIdentity;
         _scopeFactory = scopeFactory;
         _timeProvider = timeProvider;
         _logger = logger ?? NullLogger<RecurringCommandBatchBackgroundService<TSource>>.Instance;
@@ -185,7 +197,12 @@ public sealed class RecurringCommandBatchBackgroundService<TSource> : IBackgroun
                 throw new LiteBusDependencyResolutionException(typeof(TSource));
             }
 
-            batch = await source.CreateBatchAsync(cancellationToken).ConfigureAwait(false);
+            using (RootMediationScope.Begin())
+            using (AmbientExecutionContext.CreateScope(
+                       new RecurringSourceExecutionContext(_sourceIdentity, _timeProvider, cancellationToken)))
+            {
+                batch = await source.CreateBatchAsync(cancellationToken).ConfigureAwait(false);
+            }
         }
 
         if (batch is null)

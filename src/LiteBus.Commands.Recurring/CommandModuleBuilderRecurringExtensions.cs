@@ -55,7 +55,8 @@ public static class CommandModuleBuilderRecurringExtensions
     ///         Pass <paramref name="identity" /> when the command needs an identity the loop cannot inherit: the loop
     ///         runs outside any mediation, so without it the mediation resolves the identity from the registered
     ///         <see cref="IExecutionIdentityProvider" /> or falls back to <see cref="ExecutionIdentity.Anonymous" />.
-    ///         A tenant-required recurring command always passes one.
+    ///         A command that requires a tenant and is registered without one fails composition naming the command
+    ///         and the registration, instead of being denied on every pass.
     ///     </para>
     ///     <para>
     ///         A command whose result implements <see cref="IRecurringWorkReport" /> can tell the loop to send again
@@ -189,6 +190,12 @@ public static class CommandModuleBuilderRecurringExtensions
     ///         <see cref="RecurringBatchIsolation.PerItem" />: one tenant's command failing or refused is logged and
     ///         counted and never stops the rest of the sweep. When any tenant failed, the pass waits
     ///         <see cref="RecurringCommandHostOptions.ErrorBackoff" /> instead of the interval.
+    ///     </para>
+    ///     <para>
+    ///         Set <see cref="RecurringCommandHostOptions.TenantSchedule" /> to run each tenant on its own
+    ///         occurrences, <see cref="RecurringCommandHostOptions.LeaseScope" /> to single-flight per tenant
+    ///         instead of per sweep, and <see cref="RecurringCommandHostOptions.SourceIdentity" /> for the
+    ///         identity tenant source reads run under.
     ///     </para>
     ///     <para>
     ///         Tuning, operations, SQL examples, and event ids are documented at
@@ -343,6 +350,11 @@ public static class CommandModuleBuilderRecurringExtensions
     ///         <see cref="RecurringCommandHostOptions.ErrorBackoff" />, so a command refused on every pass does not
     ///         spin the loop. A per-item batch instead logs and counts one failing item without stopping the rest,
     ///         and waits the error backoff when any item failed.
+    ///     </para>
+    ///     <para>
+    ///         A command that requires a tenant carries its identity on each item: the source sets
+    ///         <see cref="RecurringCommandItem.Identity" />, because the batch's commands are known only at runtime
+    ///         and composition cannot check them.
     ///     </para>
     ///     <para>
     ///         Tuning, operations, SQL examples, and event ids are documented at

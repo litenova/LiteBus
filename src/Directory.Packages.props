@@ -16,7 +16,11 @@
         <PackageVersion Include="Npgsql" Version="9.0.5"/>
         <PackageVersion Include="Marten" Version="9.57.0"/>
         <PackageVersion Include="AWSSDK.SQS" Version="4.0.100.23"/>
+        <PackageVersion Include="AWSSDK.S3" Version="4.0.104.12"/>
         <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.21.0"/>
+        <PackageVersion Include="Azure.Storage.Blobs" Version="12.30.1"/>
+        <PackageVersion Include="Cronos" Version="0.13.0"/>
+        <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.14"/>
         <PackageVersion Include="Confluent.Kafka" Version="2.16.0"/>
         <PackageVersion Include="RabbitMQ.Client" Version="7.2.2"/>
         <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556"/>

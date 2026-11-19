@@ -17,19 +17,19 @@ internal sealed class CompositionEvaluationRecorder
 }
 
 /// <summary>
-///     A policy that records its evaluation and answers a fixed verdict.
+///     A policy that records its evaluation and answers a fixed result.
 /// </summary>
 /// <param name="Recorder">Records the evaluations the guard performs.</param>
 /// <param name="Name">The step recorded when this policy evaluates.</param>
-/// <param name="Result">The verdict this policy answers.</param>
-internal sealed record RecordingCompositionPolicy(CompositionEvaluationRecorder Recorder, string Name, Verdict Result) : MessagePolicy
+/// <param name="Result">The result this policy answers.</param>
+internal sealed record RecordingCompositionPolicy(CompositionEvaluationRecorder Recorder, string Name, PolicyResult Result) : MessagePolicy
 {
     /// <inheritdoc />
-    public override ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
+    public override ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
     {
         Recorder.Steps.Add(Name);
 
-        return new ValueTask<Verdict>(Result);
+        return new ValueTask<PolicyResult>(Result);
     }
 }
 

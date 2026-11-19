@@ -1,6 +1,7 @@
 using System;
 using System.Data.Common;
 using System.Reflection;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Commands.Recurring;
 
@@ -12,8 +13,9 @@ namespace LiteBus.Commands.Recurring;
 ///         By default this is a poll loop, not a scheduler: it waits <see cref="Interval" /> between passes, with no
 ///         missed-run catch-up and no notion of a run that was due while the host was down. Set
 ///         <see cref="Schedule" /> to align passes to wall-clock occurrences, such as every day at nine o'clock,
-///         instead. A scheduled loop still catches up nothing it missed while down: it waits for the next occurrence
-///         after the current time, including before the first pass.
+///         instead. A scheduled loop waits for the next occurrence after the current time, including before the
+///         first pass, and by default catches up nothing it missed while down; set
+///         <see cref="MissedOccurrencePolicy" /> to run one catch-up pass for a recent miss.
 ///     </para>
 ///     <para>
 ///         <strong>By default the loop runs on every host instance.</strong> A deployment of three replicas sends the
@@ -54,14 +56,63 @@ public sealed class RecurringCommandHostOptions
     ///         <see cref="IRecurringSchedule.GetNextOccurrence" /> before the first pass and between passes, instead of
     ///         waiting <see cref="Interval" />. A pass that reports more work through
     ///         <see cref="IRecurringWorkReport" /> still starts the next pass at once, and a pass that fails still waits
-    ///         <see cref="ErrorBackoff" />. When the schedule reports no further occurrence, the loop ends.
+    ///         <see cref="ErrorBackoff" />. When the schedule reports no further occurrence, the loop ends. Each
+    ///         occurrence the loop runs is recorded through <see cref="IRecurringOccurrenceStore" />, which is what
+    ///         <see cref="MissedOccurrencePolicy" /> reads to find a miss.
     ///     </para>
     ///     <para>
     ///         The built-in schedules live on <see cref="RecurringSchedules" />. An application with cron expressions
-    ///         implements <see cref="IRecurringSchedule" /> over its cron library and sets it here.
+    ///         implements <see cref="IRecurringSchedule" /> over its cron library and sets it here. A tenant sweep
+    ///         with <see cref="TenantSchedule" /> set reads that schedule instead of this one.
     ///     </para>
     /// </remarks>
     public IRecurringSchedule? Schedule { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the per-tenant schedule that decides when a sweep's passes run.
+    /// </summary>
+    /// <value>
+    ///     The schedule, or <see langword="null" /> to use <see cref="Schedule" />. The default is
+    ///     <see langword="null" />.
+    /// </value>
+    /// <remarks>
+    ///     <para>
+    ///         Only tenant sweeps read this schedule; single-command and batch loops ignore it. A sweep with a
+    ///         tenant schedule waits for the earliest occurrence across its tenants instead of waiting
+    ///         <see cref="Interval" /> or <see cref="Schedule" />, and each pass sends only for the tenants
+    ///         whose occurrence is due. Tenants with no record, no zone, or an unresolvable zone read their
+    ///         local times as UTC, as <see cref="TenantZones" /> describes.
+    ///     </para>
+    ///     <para>
+    ///         Build it from the tenant <c>DailyAt</c> and <c>WeeklyOn</c> built-ins on
+    ///         <see cref="RecurringSchedules" /> through
+    ///         <see cref="TenantScheduleExtensions.AsRecurringSchedule" />. Daylight-saving gaps resolve
+    ///         forward to the next valid instant, and fall-back overlaps resolve to the earlier occurrence.
+    ///     </para>
+    /// </remarks>
+    public ITenantRecurringSchedule? TenantSchedule { get; set; }
+
+    /// <summary>
+    ///     Gets or sets what a scheduled loop does about occurrences it missed while down or busy.
+    /// </summary>
+    /// <value>
+    ///     The default skips missed occurrences and waits for the next one.
+    /// </value>
+    /// <remarks>
+    ///     <para>
+    ///         Only scheduled loops read this policy; poll loops have no occurrences to miss. Missed
+    ///         occurrences are logged with their count whichever policy applies. A catch-up pass runs the
+    ///         same pass the schedule would have run, and at most one runs per gap, for the most recent
+    ///         missed occurrence.
+    ///     </para>
+    ///     <para>
+    ///         Catch-up decisions read the last recorded occurrence from <see cref="IRecurringOccurrenceStore" />.
+    ///         The default store keeps occurrences in process memory, so a miss across a restart is best-effort
+    ///         until a durable store is registered.
+    ///     </para>
+    /// </remarks>
+    public RecurringMissedOccurrencePolicy MissedOccurrencePolicy { get; set; } =
+        new RecurringMissedOccurrencePolicy.Skip();
 
     /// <summary>
     ///     Gets or sets the delay after host start before the first send.
@@ -123,6 +174,44 @@ public sealed class RecurringCommandHostOptions
     ///     against each other.
     /// </value>
     public string? LeaseName { get; set; }
+
+    /// <summary>
+    ///     Gets or sets what one acquired lease single-flights: the whole loop, one tenant, or one scheduled
+    ///     occurrence of one tenant.
+    /// </summary>
+    /// <value>
+    ///     The default is <see cref="RecurringLeaseScope.Loop" />. The tenant scopes apply to tenant sweeps while
+    ///     <see cref="RequireLease" /> is <see langword="true" />; other loops treat them as
+    ///     <see cref="RecurringLeaseScope.Loop" />.
+    /// </value>
+    public RecurringLeaseScope LeaseScope { get; set; } = RecurringLeaseScope.Loop;
+
+    /// <summary>
+    ///     Gets or sets the identity tenant and batch source reads run under.
+    /// </summary>
+    /// <value>
+    ///     The default is <see cref="ExecutionIdentity.System" />: work the library starts itself, with no principal
+    ///     and no tenant.
+    /// </value>
+    /// <remarks>
+    ///     The loop establishes this identity around each source read, inside a root mediation scope, so a query
+    ///     the source sends inherits it through the existing enclosing-mediation rule instead of running
+    ///     anonymously.
+    /// </remarks>
+    public ExecutionIdentity SourceIdentity { get; set; } = ExecutionIdentity.System;
+
+    /// <summary>
+    ///     Gets or sets the port that builds the stable key identifying one scheduled occurrence.
+    /// </summary>
+    /// <value>
+    ///     The port, or <see langword="null" /> for <see cref="DefaultRecurringOccurrenceKey" />. The default is
+    ///     <see langword="null" />.
+    /// </value>
+    /// <remarks>
+    ///     The key identifies recorded occurrences in <see cref="IRecurringOccurrenceStore" /> and scopes
+    ///     <see cref="RecurringLeaseScope.TenantOccurrence" /> leases. Only scheduled loops read it.
+    /// </remarks>
+    public IRecurringOccurrenceKey? OccurrenceKey { get; set; }
 
     /// <summary>
     ///     Recognizes an optimistic-concurrency conflict, or a database deadlock or serialization failure, thrown by a
@@ -265,18 +354,34 @@ public sealed class RecurringCommandHostOptions
     }
 
     /// <summary>
-    ///     Validates the timing values and the lease name before the loop starts.
+    ///     Validates the timing values, the lease name, and the scheduling policies before the loop starts.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
-    ///     <see cref="Interval" /> or <see cref="ErrorBackoff" /> is zero or negative, or
-    ///     <see cref="StartupDelay" /> is negative.
+    ///     <see cref="Interval" /> or <see cref="ErrorBackoff" /> is zero or negative,
+    ///     <see cref="StartupDelay" /> is negative, <see cref="LeaseScope" /> is not defined, or the
+    ///     <see cref="RecurringMissedOccurrencePolicy.FireOnce" /> catch-up window is zero or negative.
     /// </exception>
     /// <exception cref="ArgumentException"><see cref="LeaseName" /> is set to an empty or whitespace value.</exception>
+    /// <exception cref="ArgumentNullException">
+    ///     <see cref="MissedOccurrencePolicy" /> or <see cref="SourceIdentity" /> is <see langword="null" />.
+    /// </exception>
     public void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(Interval.Ticks);
         ArgumentOutOfRangeException.ThrowIfLessThan(StartupDelay, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ErrorBackoff.Ticks);
+        ArgumentNullException.ThrowIfNull(MissedOccurrencePolicy);
+        ArgumentNullException.ThrowIfNull(SourceIdentity);
+
+        if (!Enum.IsDefined(LeaseScope))
+        {
+            throw new ArgumentOutOfRangeException(nameof(LeaseScope), LeaseScope, "The lease scope is not defined.");
+        }
+
+        if (MissedOccurrencePolicy is RecurringMissedOccurrencePolicy.FireOnce fire)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fire.CatchupWindow.Ticks);
+        }
 
         if (LeaseName is not null)
         {

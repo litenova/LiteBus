@@ -18,8 +18,9 @@ namespace LiteBus.Messaging.MediationStrategies;
 ///     or a shortcut answers or denies.
 ///     2. Delegates the message processing to the registered handler.
 ///     3. Executes post-handlers, unless the pipeline suppressed them.
-///     4. Offers a fault to the registered refusal classifiers before the error handlers; a recognized fault ends the
-///     mediation as that refusal instead.
+///     4. Offers a fault to the registered refusal classifiers and then to the registered exception translators
+///     before the error handlers; a recognized fault ends the mediation as that refusal instead. A message fault is
+///     recorded as a failure with its fault code and never becomes a refusal.
 ///     5. Routes unclassified exceptions to registered error handlers.
 ///     6. Reports the outcome to completion handlers, on every path.
 ///     A fault the recoverable filter excludes, such as a resolution failure or an idempotency misconfiguration,
@@ -116,12 +117,41 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
             failure = canceledException;
             throw;
         }
+        catch (MessageFaultException fault)
+        {
+            // A configuration or dependency failure is recorded with its fault code and propagates. It is never a
+            // refusal, so it is offered to neither the classifiers nor the translators, and the error handlers do
+            // not see a fault no message recovery can fix.
+            outcome = MediationOutcome.Failed;
+            reason = fault.Reason ?? fault.Message;
+            code = fault.Code;
+            failure = fault;
+            throw;
+        }
         catch (Exception e) when (MediationExceptionFilters.IsRecoverableMediationException(e))
         {
-            if (MediationExceptionFilters.TryClassifyRefusal(
-                    messageDependencies.FaultRefusalClassifiers,
+            var refusalMatched = MediationExceptionFilters.TryClassifyRefusal(
+                messageDependencies.FaultRefusalClassifiers,
+                e,
+                out var refusal);
+
+            if (!refusalMatched)
+            {
+                // Translators run after the classifiers, so a fault the synchronous seam already recognizes keeps
+                // the refusal it always had. With no translator registered this is a pass over an empty list.
+                var translated = await RefusalExceptionTranslation.TryTranslateAsync(
+                    messageDependencies.RefusalExceptionTranslators,
                     e,
-                    out var refusal))
+                    executionContext.CancellationToken).ConfigureAwait(false);
+
+                if (translated.HasValue)
+                {
+                    refusal = translated.Value;
+                    refusalMatched = true;
+                }
+            }
+
+            if (refusalMatched)
             {
                 outcome = refusal.Outcome;
                 reason = refusal.Reason;
@@ -130,7 +160,7 @@ public sealed class SingleAsyncHandlerMediationStrategy<TMessage, TMessageResult
                 // Only a Try call installs a capture, so this is a dictionary miss on every ordinary mediation.
                 MediationEndingCapture.Record(executionContext, refusal);
 
-                // A classified fault is a refusal rather than a fault, so the error handlers never see it and the
+                // A recognized fault is a refusal rather than a fault, so the error handlers never see it and the
                 // completion stage observes the refusal outcome. Without a mapper it reaches the caller as the
                 // refusal exception, which is excluded from the recoverable filter so it is not offered again.
                 try

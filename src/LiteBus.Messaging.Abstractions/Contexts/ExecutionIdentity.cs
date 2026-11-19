@@ -26,6 +26,15 @@ public sealed record ExecutionIdentity
     public static ExecutionIdentity Anonymous { get; } = new();
 
     /// <summary>
+    ///     Gets the identity for work the library starts itself, with no principal and no tenant.
+    /// </summary>
+    /// <remarks>
+    ///     Unlike <see cref="Anonymous" />, which means no caller is known, <see cref="System" /> declares that the
+    ///     mediation runs as the system, such as an outbox processor delivery or a recurring schedule firing.
+    /// </remarks>
+    public static ExecutionIdentity System { get; } = new() { IsSystem = true };
+
+    /// <summary>
     ///     Gets the principal the mediation runs for, or <see langword="null" /> when no caller is known, such as in a
     ///     background reaction or a recurring job.
     /// </summary>
@@ -40,6 +49,11 @@ public sealed record ExecutionIdentity
     ///     Gets a value indicating whether a tenant is known for the mediation.
     /// </summary>
     public bool HasTenant => !string.IsNullOrWhiteSpace(TenantId);
+
+    /// <summary>
+    ///     Gets a value indicating whether this identity declares system-started work.
+    /// </summary>
+    public bool IsSystem { get; init; }
 
     /// <summary>
     ///     Creates an identity for a principal and an optional tenant.

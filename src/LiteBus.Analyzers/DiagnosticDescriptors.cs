@@ -252,8 +252,8 @@ public static class DiagnosticDescriptors
     ///     A command handler sends or publishes another message through a mediator inside its handle method.
     /// </summary>
     /// <remarks>
-    ///     Disabled by default. Enable with <c>dotnet_diagnostic.LB1023.severity = warning</c> once the codebase is
-    ///     ready to keep nested units of work out of command handlers.
+    ///     Set <c>litebus_forbid_nested_commands = true</c> in <c>.editorconfig</c> to report this rule at warning.
+    ///     Without the option the rule reports nothing.
     /// </remarks>
     internal static readonly DiagnosticDescriptor NestedMediationInCommandHandler = new(
         DiagnosticIds.NestedMediationInCommandHandler,
@@ -261,8 +261,8 @@ public static class DiagnosticDescriptors
         "Command handler '{0}' calls '{1}' inside its handle method. Mediating another message nests a second unit of work inside the first; stage follow-up work through the domain event collector or the transactional outbox instead.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Warning,
-        false,
-        description: "Reads through IQueryMediator are not reported: queries are side-effect free by contract, so nesting a read nests no unit of work. EvaluateAsync guard checks are not reported either, because they decide without acting. The runtime counterpart is CommandModuleBuilder.ForbidNestedCommands(), which throws NestedMediationException before the inner pipeline starts.");
+        true,
+        description: "Reads through IQueryMediator are not reported: queries are side-effect free by contract, so nesting a read nests no unit of work. EvaluateAsync guard checks are not reported either, because they decide without acting. The runtime counterpart is CommandModuleBuilder.ForbidNestedCommands(), which throws NestedMediationException before the inner pipeline starts. Set litebus_forbid_nested_commands = true in .editorconfig to report this rule at warning; without the option it reports nothing. An analyzer cannot see a ForbidNestedCommands() call made in another compilation, so the option pairs the build check with the runtime guarantee.");
 
     /// <summary>
     ///     A command handler injects an external side-effect type through its constructor.
