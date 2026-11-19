@@ -134,4 +134,10 @@ internal static class DiagnosticIds
     ///     One definition class declares more than one metadata concern.
     /// </summary>
     internal const string DefinitionMixesConcerns = "LB1028";
+
+    /// <summary>
+    ///     A durable message type in an assembly that declares where its contracts are registered carries no
+    ///     <c>[MessageContract]</c> attribute.
+    /// </summary>
+    internal const string UnattributedContractInRegisteredAssembly = "LB1029";
 }

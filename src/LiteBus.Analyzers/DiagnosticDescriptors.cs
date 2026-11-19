@@ -330,4 +330,17 @@ public static class DiagnosticDescriptors
         DiagnosticSeverity.Info,
         true,
         description: "Authorization, audit, tenancy and idempotency are unrelated concerns. The registry accepts one class implementing several definitions, but one class per concern keeps each decision readable and reviewable on its own.");
+
+    /// <summary>
+    ///     Reports a durable message type without <c>[MessageContract]</c> in an assembly that carries
+    ///     <c>[assembly: MessageContractsRegisteredIn]</c>.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor UnattributedContractInRegisteredAssembly = new(
+        DiagnosticIds.UnattributedContractInRegisteredAssembly,
+        "Durable message type has no contract attribute",
+        "Durable message type '{0}' carries no [MessageContract], but this assembly declares that its contracts are registered in '{1}'; add [MessageContract(\"name\", version)] so the registering assembly is checked against it",
+        "LiteBus.Contracts",
+        DiagnosticSeverity.Warning,
+        true,
+        description: "MessageContractsRegisteredIn makes consuming compilations trust the named assembly for every type here, and LB1017 checks only attributed types. An unattributed durable message type would therefore never be checked anywhere. Attributing every durable type keeps the registration verifiable.");
 }

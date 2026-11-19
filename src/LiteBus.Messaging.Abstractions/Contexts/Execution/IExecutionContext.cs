@@ -49,6 +49,32 @@ public interface IExecutionContext
     ExecutionIdentity Identity => ExecutionIdentity.Anonymous;
 
     /// <summary>
+    ///     Gets the runtime type of the message this mediation handles.
+    /// </summary>
+    /// <value>
+    ///     The message type, or <see langword="null" /> for a custom context that does not track it.
+    /// </value>
+    /// <remarks>
+    ///     The default implementation returns <see langword="null" /> so custom contexts keep compiling.
+    /// </remarks>
+    Type? MessageType => null;
+
+    /// <summary>
+    ///     Gets the execution context of the mediation that started this one.
+    /// </summary>
+    /// <value>
+    ///     The enclosing mediation's context, or <see langword="null" /> for a root mediation such as an HTTP request,
+    ///     a durable dispatcher, an inbox processor or a recurring command loop.
+    /// </value>
+    /// <remarks>
+    ///     A handler that sends or publishes another message starts a nested mediation whose parent is the handler's
+    ///     own context. Walking <see cref="Parent" /> gives the chain of messages that led to the current one, which
+    ///     nesting rules and authorization policies read. The default implementation returns
+    ///     <see langword="null" /> so custom contexts keep compiling.
+    /// </remarks>
+    IExecutionContext? Parent => null;
+
+    /// <summary>
     ///     Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.
     /// </summary>
     /// <remarks>

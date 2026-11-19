@@ -42,6 +42,25 @@ public static class HandlerPriorities
     public const int ReservedFloor = 1_000_000;
 
     /// <summary>
+    ///     The priority of the authorization guard that LiteBus ships.
+    /// </summary>
+    /// <remarks>
+    ///     Guards are a role of their own, so this value orders the authorization guard only against other guards. It
+    ///     runs before <see cref="Tenancy" />. The value is stable across releases.
+    /// </remarks>
+    public const int Authorization = ReservedFloor + 10;
+
+    /// <summary>
+    ///     The priority of the tenancy guard that LiteBus ships.
+    /// </summary>
+    /// <remarks>
+    ///     It runs after <see cref="Authorization" />, so a signed-out caller receives the authorization refusal before
+    ///     the tenancy one. An application that wants the tenant checked before a permission puts a tenant check inside
+    ///     its authorization policy. The value is stable across releases.
+    /// </remarks>
+    public const int Tenancy = ReservedFloor + 20;
+
+    /// <summary>
     ///     The priority used by LiteBus handlers that persist state, such as durable storage writes.
     /// </summary>
     public const int Persistence = ReservedFloor + 100;

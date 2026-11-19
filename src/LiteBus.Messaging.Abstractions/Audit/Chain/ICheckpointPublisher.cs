@@ -1,21 +1,19 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace LiteBus.Commands.Storage.Marten;
+namespace LiteBus.Messaging.Abstractions.Auditing;
 
 /// <summary>
 ///     Publishes audit chain checkpoints to an independent store.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The port half of the checkpointed audit trail: the trail calls it every
-///         <see cref="MartenAuditTrailOptions.CheckpointInterval" /> records of a segment with the sequence number and
-///         hash the chain has reached. Where the checkpoint goes is the application's decision, a separate table, a
-///         ledger, or a compliance store, so this contract is deliberately small. Publish synchronously: a checkpoint
-///         the application never stored anchors nothing.
+///         Where the checkpoint goes is the application's decision: an append-only file store, object storage with a
+///         retention lock, or a transparency log. Publish synchronously: a checkpoint the application never stored
+///         anchors nothing.
 ///     </para>
 ///     <para>
-///         A publisher that throws fails the audit write it was called from, so a lost checkpoint surfaces instead of
+///         A publisher that throws fails the operation it was called from, so a lost checkpoint surfaces instead of
 ///         passing silently.
 ///     </para>
 /// </remarks>

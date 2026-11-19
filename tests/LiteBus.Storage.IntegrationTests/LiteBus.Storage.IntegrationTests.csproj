@@ -58,6 +58,7 @@
         <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.PostgreSql\LiteBus.Outbox.Storage.PostgreSql.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Saga.InboxIntegration\LiteBus.Saga.InboxIntegration.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Saga.Storage.Marten\LiteBus.Saga.Storage.Marten.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Saga.Storage.PostgreSql\LiteBus.Saga.Storage.PostgreSql.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Saga\LiteBus.Saga.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Storage.PostgreSql\LiteBus.Storage.PostgreSql.csproj"/>
