@@ -181,6 +181,19 @@ internal static class ContractRegistrationAnalysis
     }
 
     /// <summary>
+    ///     Determines whether the assembly carries <c>MessageContractsRegisteredIn</c> naming a registering assembly.
+    /// </summary>
+    /// <param name="assembly">The assembly symbol.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the assembly declares at least one registering assembly name; otherwise,
+    ///     <see langword="false" />.
+    /// </returns>
+    internal static bool CarriesRegisteredInAttribute(IAssemblySymbol assembly)
+    {
+        return GetRegisteredInAssemblyNames(assembly).Count > 0;
+    }
+
+    /// <summary>
     ///     Gets the attributed durable message types of referenced assemblies that name the analyzed compilation
     ///     and lack explicit contract registration.
     /// </summary>

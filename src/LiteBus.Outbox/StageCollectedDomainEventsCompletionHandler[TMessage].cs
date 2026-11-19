@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
@@ -23,6 +24,12 @@ namespace LiteBus.Outbox;
 ///         Only a <see cref="MediationOutcome.Succeeded" /> mediation stages anything. A failed mediation stages nothing
 ///         because the staged rows would describe work that never happened, and the collector is scoped to the mediation
 ///         so its contents are discarded with the scope.
+///     </para>
+///     <para>
+///         Before draining, the handler runs every registered <see cref="IDomainEventHarvester" /> against the
+///         collector, so domain events buffered on tracked aggregates move into the collector and stage with the same
+///         unit of work. Storage adapters register their harvester through their own builder; without one, the
+///         collector drains as before.
 ///     </para>
 ///     <para>
 ///         The transactional outbox is resolved lazily and only when the drain is non-empty, so mediations that collect
@@ -79,6 +86,14 @@ internal sealed class StageCollectedDomainEventsCompletionHandler<TMessage> : IM
         if (context.Outcome != MediationOutcome.Succeeded)
         {
             return;
+        }
+
+        if (_serviceProvider.GetService(typeof(IEnumerable<IDomainEventHarvester>)) is IEnumerable<IDomainEventHarvester> harvesters)
+        {
+            foreach (var harvester in harvesters)
+            {
+                harvester.HarvestInto(_collector);
+            }
         }
 
         var collected = _collector.Drain();

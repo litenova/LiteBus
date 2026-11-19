@@ -26,7 +26,18 @@ namespace LiteBus.Messaging.Authorization;
 ///         <see cref="AuthorizationExemptDeclaration" /> allows in the base guard, and a message declaring nothing
 ///         denies with <see cref="DeclarationGuard{TMessage, AuthorizationDeclaration}.UndeclaredCode" />.
 ///     </para>
+///     <para>
+///         The evaluation context carries the ambient execution context, so a policy can read the enclosing
+///         mediation the message arrived through.
+///     </para>
+///     <para>
+///         The guard runs at <see cref="HandlerPriorities.Authorization" />, before the tenancy guard at
+///         <see cref="HandlerPriorities.Tenancy" />, so a signed-out caller receives the authorization refusal
+///         before the tenancy one. An application that wants the tenant checked before a permission puts a
+///         tenant check inside its policy instead of reordering the guards.
+///     </para>
 /// </remarks>
+[HandlerPriority(HandlerPriorities.Authorization)]
 public sealed class PolicyAuthorizationGuard<TMessage> : AuthorizationGuard<TMessage>
     where TMessage : notnull
 {
@@ -68,12 +79,17 @@ public sealed class PolicyAuthorizationGuard<TMessage> : AuthorizationGuard<TMes
         ArgumentNullException.ThrowIfNull(policy);
         ArgumentNullException.ThrowIfNull(message);
 
+        var execution = AmbientExecutionContext.GetCurrentOrDefault();
+
         var context = new AuthorizationContext(
             message,
             message.GetType(),
             CurrentIdentity,
             _services,
-            AmbientExecutionContext.GetCurrentOrDefault()?.HandledAt ?? DateTimeOffset.UtcNow);
+            execution?.HandledAt ?? DateTimeOffset.UtcNow)
+        {
+            ExecutionContext = execution
+        };
 
         foreach (var condition in ResolveConditions())
         {

@@ -24,6 +24,13 @@ namespace LiteBus.Commands.Recurring;
 ///         <see cref="RecurringCommandHostOptions.IsConcurrencyConflict" /> classifies as a lost race waits
 ///         <see cref="RecurringCommandHostOptions.Interval" /> instead. An exception never escapes the loop.
 ///     </para>
+///     <para>
+///         When <see cref="RecurringCommandHostOptions.Schedule" /> is set, the loop waits for the next occurrence
+///         from the schedule before the first pass and between passes instead of waiting
+///         <see cref="RecurringCommandHostOptions.Interval" />. A pass that fails still waits
+///         <see cref="RecurringCommandHostOptions.ErrorBackoff" />, and a schedule with no further occurrence ends the
+///         loop.
+///     </para>
 /// </remarks>
 internal sealed class RecurringCommandLoop
 {
@@ -112,6 +119,7 @@ internal sealed class RecurringCommandLoop
         var interval = _options.Interval;
         var errorBackoff = _options.ErrorBackoff;
         var isConcurrencyConflict = _options.IsConcurrencyConflict;
+        var schedule = _options.Schedule;
 
         if (!_options.Enabled)
         {
@@ -149,13 +157,40 @@ internal sealed class RecurringCommandLoop
 
         RecurringCommandLogMessages.LoopStarted(_logger, _displayName, interval);
 
+        if (schedule is not null)
+        {
+            // A scheduled loop aligns to wall-clock occurrences from the start: the first pass waits for the first
+            // occurrence instead of running right after the startup delay.
+            var now = _timeProvider.GetUtcNow();
+            var first = schedule.GetNextOccurrence(now);
+
+            if (first is null)
+            {
+                return;
+            }
+
+            var firstWait = first.Value - now;
+
+            if (firstWait > TimeSpan.Zero)
+            {
+                try
+                {
+                    await Task.Delay(firstWait, _timeProvider, stoppingToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+            }
+        }
+
         IRecurringCommandLeaseHandle? lease = null;
 
         try
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                var delay = interval;
+                var useBackoff = false;
 
                 try
                 {
@@ -175,7 +210,7 @@ internal sealed class RecurringCommandLoop
                         // pass. The busy period ends here: the handle is released below and the loop backs off instead
                         // of sending undefended.
                         RecurringCommandLogMessages.LeaseLost(_logger, _displayName, leaseName);
-                        delay = errorBackoff;
+                        useBackoff = true;
                     }
                     else if (leaseService is null || lease is not null)
                     {
@@ -197,7 +232,7 @@ internal sealed class RecurringCommandLoop
                         {
                             // Lost mid-pass: the busy period ends even when the result reports more work.
                             RecurringCommandLogMessages.LeaseLost(_logger, _displayName, leaseName);
-                            delay = errorBackoff;
+                            useBackoff = true;
                         }
                         else if (hasMoreWork)
                         {
@@ -220,12 +255,12 @@ internal sealed class RecurringCommandLoop
                     // The in-flight send observed lease loss through the linked token. The busy period ends: the
                     // handle is released below and the loop backs off.
                     RecurringCommandLogMessages.LeaseLost(_logger, _displayName, leaseName);
-                    delay = errorBackoff;
+                    useBackoff = true;
                 }
                 catch (RecurringPassBackoffException)
                 {
                     // The pass already logged why it ended; it asks for the error backoff without being a fault.
-                    delay = errorBackoff;
+                    useBackoff = true;
                 }
                 catch (Exception exception) when (isConcurrencyConflict?.Invoke(exception) == true)
                 {
@@ -239,7 +274,7 @@ internal sealed class RecurringCommandLoop
                     // A recurring loop must outlive the failures of what it calls; ending here would silently stop the
                     // work for the life of the process, which is the failure this catch exists to prevent.
                     RecurringCommandLogMessages.PassFailed(_logger, _displayName, exception);
-                    delay = errorBackoff;
+                    useBackoff = true;
                 }
 #pragma warning restore CA1031
 
@@ -258,18 +293,41 @@ internal sealed class RecurringCommandLoop
                     // failure here and backs off, rather than ending the loop.
                     lease = null;
                     RecurringCommandLogMessages.PassFailed(_logger, _displayName, exception);
-                    delay = errorBackoff;
+                    useBackoff = true;
                 }
 #pragma warning restore CA1031
 
-                if (delay <= TimeSpan.Zero)
+                TimeSpan wait;
+
+                if (useBackoff)
+                {
+                    wait = errorBackoff;
+                }
+                else if (schedule is null)
+                {
+                    wait = interval;
+                }
+                else
+                {
+                    var now = _timeProvider.GetUtcNow();
+                    var next = schedule.GetNextOccurrence(now);
+
+                    if (next is null)
+                    {
+                        return;
+                    }
+
+                    wait = next.Value - now;
+                }
+
+                if (wait <= TimeSpan.Zero)
                 {
                     continue;
                 }
 
                 try
                 {
-                    await Task.Delay(delay, _timeProvider, stoppingToken).ConfigureAwait(false);
+                    await Task.Delay(wait, _timeProvider, stoppingToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {

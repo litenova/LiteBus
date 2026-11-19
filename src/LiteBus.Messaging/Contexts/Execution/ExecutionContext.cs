@@ -18,13 +18,17 @@ internal sealed class ExecutionContext : IExecutionContext
     /// <param name="timeProvider">The time provider the handled instant is read from, once.</param>
     /// <param name="identity">The identity the mediation runs for.</param>
     /// <param name="cancellationToken">The cancellation token associated with the execution context.</param>
+    /// <param name="messageType">The runtime type of the message this mediation handles.</param>
+    /// <param name="parent">The execution context of the enclosing mediation, or <see langword="null" /> for a root mediation.</param>
     public ExecutionContext(
         IEnumerable<string> tags,
         IDictionary<string, object> items,
         TimeProvider timeProvider,
         ExecutionIdentity identity,
-        CancellationToken cancellationToken)
-        : this(tags, items, timeProvider, new Lazy<ExecutionIdentity>(ValidIdentity(identity)), cancellationToken)
+        CancellationToken cancellationToken,
+        Type? messageType = null,
+        IExecutionContext? parent = null)
+        : this(tags, items, timeProvider, new Lazy<ExecutionIdentity>(ValidIdentity(identity)), cancellationToken, messageType, parent)
     {
     }
 
@@ -40,12 +44,16 @@ internal sealed class ExecutionContext : IExecutionContext
     ///     reads it never resolves the identity provider and never opens a dispatch scope for it.
     /// </param>
     /// <param name="cancellationToken">The cancellation token associated with the execution context.</param>
+    /// <param name="messageType">The runtime type of the message this mediation handles.</param>
+    /// <param name="parent">The execution context of the enclosing mediation, or <see langword="null" /> for a root mediation.</param>
     public ExecutionContext(
         IEnumerable<string> tags,
         IDictionary<string, object> items,
         TimeProvider timeProvider,
         Lazy<ExecutionIdentity> identity,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Type? messageType = null,
+        IExecutionContext? parent = null)
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(identity);
@@ -56,6 +64,8 @@ internal sealed class ExecutionContext : IExecutionContext
         Data = new HandleContextData();
         HandledAt = timeProvider.GetUtcNow();
         _identity = identity;
+        MessageType = messageType;
+        Parent = parent;
     }
 
     /// <summary>
@@ -71,6 +81,12 @@ internal sealed class ExecutionContext : IExecutionContext
 
     /// <inheritdoc />
     public ExecutionIdentity Identity => _identity.Value;
+
+    /// <inheritdoc />
+    public Type? MessageType { get; }
+
+    /// <inheritdoc />
+    public IExecutionContext? Parent { get; }
 
     /// <inheritdoc />
     public IDictionary<string, object> Items { get; }

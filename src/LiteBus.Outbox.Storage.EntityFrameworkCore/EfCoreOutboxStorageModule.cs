@@ -1,6 +1,9 @@
 using System;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox;
+using LiteBus.Outbox.DomainEvents;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.Storage.EntityFrameworkCore.DomainEvents;
 using LiteBus.Outbox.Storage.EntityFrameworkCore.Startup;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -162,6 +165,33 @@ public sealed class EfCoreOutboxStorageModule : IOutboxStorageModule, IRequires<
                 serviceProvider => CreateTransactionalOutboxAdapter(serviceProvider, moduleBuilder),
                 InstanceLifetime.Scoped));
         }
+
+        if (moduleBuilder.RegisterDomainEventHarvester)
+        {
+            configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+                typeof(IDomainEventHarvester),
+                serviceProvider => CreateDomainEventHarvester(serviceProvider, moduleBuilder),
+                InstanceLifetime.Scoped));
+        }
+    }
+
+    /// <summary>
+    ///     Creates the domain event harvester that reads the change tracker of the configured database context.
+    /// </summary>
+    /// <param name="serviceProvider">The scoped service provider.</param>
+    /// <param name="moduleBuilder">The configured module builder.</param>
+    /// <returns>The harvester instance.</returns>
+    private static object CreateDomainEventHarvester(
+        IServiceProvider serviceProvider,
+        EfCoreOutboxStorageModuleBuilder moduleBuilder)
+    {
+        var dbContext = serviceProvider.GetRequiredService(moduleBuilder.DbContextType!);
+        var harvesterType = typeof(EfCoreDomainEventHarvester<>).MakeGenericType(moduleBuilder.DbContextType!);
+
+        return Activator.CreateInstance(
+            harvesterType,
+            dbContext,
+            serviceProvider.GetRequiredService<DomainEventAccessors>())!;
     }
 
     /// <summary>

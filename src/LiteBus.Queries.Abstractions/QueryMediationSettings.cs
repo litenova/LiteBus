@@ -41,4 +41,14 @@ public sealed class QueryMediationSettings
     ///     job that runs on behalf of one tenant.
     /// </remarks>
     public ExecutionIdentity? Identity { get; init; }
+
+    /// <summary>
+    ///     Creates query mediation settings that run in one tenant.
+    /// </summary>
+    /// <param name="tenantId">The tenant the mediation runs in, or <see langword="null" /> when the work belongs to no tenant.</param>
+    /// <returns>The settings with <see cref="Identity" /> set from <paramref name="tenantId" />; a blank value yields <see cref="ExecutionIdentity.Anonymous" />.</returns>
+    public static QueryMediationSettings ForTenant(string? tenantId)
+    {
+        return new QueryMediationSettings { Identity = ExecutionIdentity.ForTenant(tenantId) };
+    }
 }

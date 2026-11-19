@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +33,11 @@ public static class MediationResultHttpExtensions
     ///         <c>409 Conflict</c> so the client retries, and a key already used for a different request answers
     ///         <c>422 Unprocessable Content</c> because retrying the same request cannot help.
     ///     </para>
+    ///     <para>
+    ///         An invalid result carries an <c>errors</c> extension keyed by member, with message-level failures under
+    ///         an empty key, in the same shape as <c>ValidationProblemDetails.Errors</c>. The catalog status, title,
+    ///         and type stay as mapped.
+    ///     </para>
     ///     <code><![CDATA[
     /// var result = await mediator.TrySendAsync(command, settings, cancellationToken).ConfigureAwait(false);
     /// return result.ToHttpResult(context, () => Results.Ok());
@@ -51,7 +57,8 @@ public static class MediationResultHttpExtensions
             return onSuccess();
         }
 
-        return ToRefusalProblem(result.Outcome, result.Reason, result.Code, httpContext, ResolveCatalog(httpContext, catalog));
+        return ToRefusalProblem(
+            result.Outcome, result.Reason, result.Code, result.Failures, httpContext, ResolveCatalog(httpContext, catalog));
     }
 
     /// <summary>
@@ -65,7 +72,8 @@ public static class MediationResultHttpExtensions
     /// <returns>The success response, or the problem response the refusal maps to.</returns>
     /// <remarks>
     ///     The value is the recorded result when the idempotency shortcut answered a repeat, so a retried request
-    ///     receives the same answer as the first one. Refusals map exactly as the untyped overload maps them.
+    ///     receives the same answer as the first one. Refusals map exactly as the untyped overload maps them, including
+    ///     the <c>errors</c> extension on an invalid result.
     /// </remarks>
     public static IResult ToHttpResult<TMessageResult>(
         this MediationResult<TMessageResult> result,
@@ -81,7 +89,8 @@ public static class MediationResultHttpExtensions
             return onSuccess(result.Value);
         }
 
-        return ToRefusalProblem(result.Outcome, result.Reason, result.Code, httpContext, ResolveCatalog(httpContext, catalog));
+        return ToRefusalProblem(
+            result.Outcome, result.Reason, result.Code, result.Failures, httpContext, ResolveCatalog(httpContext, catalog));
     }
 
     /// <summary>
@@ -112,6 +121,7 @@ public static class MediationResultHttpExtensions
     /// <param name="outcome">How the mediation ended.</param>
     /// <param name="reason">Why the pipeline stopped, when it reported one.</param>
     /// <param name="code">The machine-readable code the decision supplied.</param>
+    /// <param name="failures">The validation failures the validator stage collected.</param>
     /// <param name="httpContext">The current HTTP request context.</param>
     /// <param name="catalog">The catalog the code is resolved through.</param>
     /// <returns>The problem response.</returns>
@@ -119,55 +129,12 @@ public static class MediationResultHttpExtensions
         MediationOutcome outcome,
         string? reason,
         string? code,
+        IReadOnlyList<ValidationFailure> failures,
         HttpContext httpContext,
         IRefusalProblemCatalog catalog)
     {
         var mapping = catalog.Resolve(code);
 
-        return IdempotencyProblemResponses.Problem(
-            httpContext,
-            mapping.StatusCode,
-            mapping.Title,
-            BuildDetail(outcome, reason, code),
-            BuildProblemType(outcome, code));
-    }
-
-    /// <summary>
-    ///     Builds the problem detail for a refusal.
-    /// </summary>
-    /// <param name="outcome">How the mediation ended.</param>
-    /// <param name="reason">Why the pipeline stopped, when it reported one.</param>
-    /// <param name="code">The machine-readable code the decision supplied.</param>
-    /// <returns>The safe problem detail.</returns>
-    private static string BuildDetail(MediationOutcome outcome, string? reason, string? code)
-    {
-        return code switch
-        {
-            IdempotencyRefusalCodes.InFlight =>
-                "A request with the same idempotency key is still being processed. Retry the request.",
-            IdempotencyRefusalCodes.FingerprintMismatch =>
-                "The idempotency key was already used for a different request.",
-            _ => reason ?? (outcome == MediationOutcome.Invalid
-                ? "The request failed validation."
-                : "The request was denied."),
-        };
-    }
-
-    /// <summary>
-    ///     Builds the stable problem type for a refusal.
-    /// </summary>
-    /// <param name="outcome">How the mediation ended.</param>
-    /// <param name="code">The machine-readable code the decision supplied.</param>
-    /// <returns>The stable problem type.</returns>
-    private static string BuildProblemType(MediationOutcome outcome, string? code)
-    {
-        if (!string.IsNullOrWhiteSpace(code))
-        {
-            return "urn:litebus:" + code.Replace(".", ":", StringComparison.Ordinal);
-        }
-
-        return outcome == MediationOutcome.Invalid
-            ? "urn:litebus:mediation:invalid"
-            : "urn:litebus:mediation:denied";
+        return RefusalProblemDetailsFactory.CreateResult(httpContext, outcome, reason, code, failures, mapping);
     }
 }

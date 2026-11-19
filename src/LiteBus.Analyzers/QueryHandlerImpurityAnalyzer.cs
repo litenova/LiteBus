@@ -14,7 +14,8 @@ namespace LiteBus.Analyzers;
 /// <remarks>
 ///     Constructor parameters, fields, and properties are inspected, including members inherited from base handler
 ///     classes. Ordinary method parameters are not dependencies: a helper that takes a mediator receives it from its
-///     caller rather than from injection, so such parameters stay silent.
+///     caller rather than from injection, so such parameters stay silent. Depending on <c>IQueryMediator</c> is
+///     allowed: a nested query reads through the provider's own pipeline without a side effect.
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
@@ -173,7 +174,7 @@ public sealed class QueryHandlerImpurityAnalyzer : DiagnosticAnalyzer
     /// <returns>The impure dependency metadata name, if matched.</returns>
     private static string? GetImpureDependencyMetadataName(ITypeSymbol dependencyType, Compilation compilation)
     {
-        foreach (var metadataName in LiteBusSymbols.ImpureDependencyMetadataNames)
+        foreach (var metadataName in LiteBusSymbols.QueryHandlerImpureDependencyMetadataNames)
         {
             var expectedType = compilation.GetTypeByMetadataName(metadataName);
 

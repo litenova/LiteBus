@@ -12,7 +12,7 @@ namespace LiteBus.Messaging.Abstractions.Authorization;
 ///         this lookup and never interprets it: whether <c>vaults.open</c> is a role, a scope, or a row in a permissions
 ///         table stays in the application. Register one implementation when a composition uses
 ///         <see cref="MessagePolicy.Permission" />; a permission policy evaluated with none registered denies with
-///         <c>authorization.permission-lookup-missing</c> rather than guessing.
+///         <see cref="AuthorizationPolicyRefusalCodes.PermissionLookupMissing" /> rather than guessing.
 ///     </para>
 /// </remarks>
 /// <example>

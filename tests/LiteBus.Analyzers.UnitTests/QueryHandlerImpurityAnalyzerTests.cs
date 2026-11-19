@@ -30,6 +30,37 @@ public sealed class QueryHandlerImpurityAnalyzerTests
     }
 
     /// <summary>
+    ///     Verifies that a query handler holding <c>IQueryMediator</c> in a field produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task QueryHandlerWithQueryMediatorField_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+
+                              public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
+                              {
+                                  private readonly IQueryMediator _queryMediator;
+
+                                  public GetUserQueryHandler(IQueryMediator queryMediator)
+                                  {
+                                      _queryMediator = queryMediator;
+                                  }
+
+                                  public Task<string> HandleAsync(GetUserQuery query, CancellationToken cancellationToken = default)
+                                      => Task.FromResult("user");
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<QueryHandlerImpurityAnalyzer>(source);
+    }
+
+    /// <summary>
     ///     Verifies that a query handler depending on a command mediator produces LB1003.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>

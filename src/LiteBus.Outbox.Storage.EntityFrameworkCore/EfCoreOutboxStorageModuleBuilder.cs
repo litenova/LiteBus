@@ -25,6 +25,12 @@ public sealed class EfCoreOutboxStorageModuleBuilder
     public bool RegisterSaveChangesInterceptor { get; private set; }
 
     /// <summary>
+    ///     Gets a value indicating whether <see cref="DomainEvents.EfCoreDomainEventHarvester{TContext}" /> is registered
+    ///     in dependency injection.
+    /// </summary>
+    public bool RegisterDomainEventHarvester { get; private set; }
+
+    /// <summary>
     ///     Gets a value indicating whether <see cref="EnforceTransactionalSetup" /> was called and Build() must fail when the
     ///     save-changes interceptor is not enabled.
     /// </summary>
@@ -56,6 +62,22 @@ public sealed class EfCoreOutboxStorageModuleBuilder
     public EfCoreOutboxStorageModuleBuilder EnableSaveChangesInterceptor()
     {
         RegisterSaveChangesInterceptor = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers the harvester that reads the change tracker of the configured database context before collected events stage.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     The staging completion handler runs the harvester before it drains the collector, so domain events buffered
+    ///     on tracked entities stage with the same <c>SaveChanges</c> call. Aggregates configured through
+    ///     <see cref="LiteBus.Outbox.Abstractions.OutboxModuleBuilder" /> harvest through their accessors, and entities
+    ///     implementing <see cref="LiteBus.Messaging.Abstractions.IHasDomainEvents" /> harvest by default.
+    /// </remarks>
+    public EfCoreOutboxStorageModuleBuilder HarvestDomainEvents()
+    {
+        RegisterDomainEventHarvester = true;
         return this;
     }
 

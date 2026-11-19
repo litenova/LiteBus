@@ -25,9 +25,16 @@ A command handler runs inside a unit of work that ends at the commit. Three rule
 
 - A class implements `ICommandHandler<TCommand>` or `ICommandHandler<TCommand, TCommandResult>`.
 - A public constructor declares a parameter typed as `IOutbox` or as a type implementing it.
-- The compilation references `ITransactionalOutbox<TContext>`.
+- The compilation resolves a transactional outbox storage package, detected through one of these probe types:
+  - `LiteBus.Outbox.Storage.EntityFrameworkCore.OutboxModuleBuilderEfCoreExtensions`
+  - `LiteBus.Outbox.Storage.PostgreSql.OutboxModuleBuilderPostgreSqlExtensions`
+  - `LiteBus.Outbox.Storage.Marten.PostgreSqlOutboxModuleBuilderMartenExtensions`
+
+`ITransactionalOutbox<TContext>` itself lives in the outbox abstractions package, which every outbox application references, so its presence says nothing. Only a transactional storage package makes the non-transactional outbox the wrong choice inside a command handler. A compilation on in-memory outbox storage reports nothing, because it has no transactional injection to switch to.
 
 Query handlers, event handlers, messaging-level handlers whose message type is a command, and classes outside command handling are out of scope. Private constructors are skipped, as in the other transactional-constructor rules.
+
+The diagnostic names the transactional outbox type the handler should inject instead. When the Entity Framework Core storage resolves, it names `ITransactionalOutbox<TContext>`, which stages the envelope in the same `DbContext` transaction as the domain write. When the Marten or PostgreSQL storage resolves, it names the non-generic `ITransactionalOutbox`, which stages the envelope in the ambient session. When several storages resolve, the Entity Framework Core suggestion wins.
 
 ### LB1026: transactional outbox context not configured
 
@@ -55,6 +62,7 @@ Expected diagnostic:
 ### LB1025
 
 ```csharp
+// The compilation references LiteBus.Outbox.Storage.EntityFrameworkCore.
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
@@ -75,7 +83,7 @@ public sealed class PlaceOrderCommandHandler : ICommandHandler<PlaceOrderCommand
 
 Expected diagnostic:
 
-- `LB1025` on the `outbox` parameter, naming the handler.
+- `LB1025` on the `outbox` parameter, naming the handler and suggesting `ITransactionalOutbox<TContext>`.
 
 ### LB1026
 
@@ -125,6 +133,8 @@ public sealed class OrderService
 
 ### LB1025
 
+With Entity Framework Core storage, the handler injects the generic transactional outbox:
+
 ```csharp
 using System.Threading;
 using System.Threading.Tasks;
@@ -149,6 +159,29 @@ public sealed class PlaceOrderCommandHandler : ICommandHandler<PlaceOrderCommand
 ```
 
 The handler stages the envelope in the same `DbContext` transaction as the domain write.
+
+With Marten or PostgreSQL storage, the handler injects the non-generic transactional outbox instead:
+
+```csharp
+using System.Threading;
+using System.Threading.Tasks;
+using LiteBus.Commands.Abstractions;
+using LiteBus.Outbox.Abstractions;
+
+public sealed record PlaceOrderCommand(int OrderId) : ICommand;
+
+public sealed class PlaceOrderCommandHandler : ICommandHandler<PlaceOrderCommand>
+{
+    public PlaceOrderCommandHandler(ITransactionalOutbox outbox)
+    {
+    }
+
+    public Task HandleAsync(PlaceOrderCommand command, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+}
+```
+
+The handler stages the envelope in the ambient session, so the outbox row commits with the domain write.
 
 ### LB1026
 
@@ -184,7 +217,7 @@ The injected context matches the context the storage builder configures.
 
 ### LB1025
 
-- Prefer injecting `ITransactionalOutbox<TContext>` so the outbox row commits with the domain write.
+- Prefer injecting the transactional outbox the diagnostic names: `ITransactionalOutbox<TContext>` with Entity Framework Core storage, `ITransactionalOutbox` with Marten or PostgreSQL storage.
 - Suppress only when the handler intentionally enqueues outside the unit of work, and document why the separate commit is safe.
 - Keep suppression at handler scope, not project scope.
 
@@ -202,7 +235,7 @@ Sources: `tests/LiteBus.Analyzers.UnitTests/TransactionalOutboxWithoutDbContextA
 | --- | --- | --- |
 | `TransactionalOutboxWithoutDbContext_ShouldReportMissingDbContext` | `TransactionalOutboxWithoutDbContextAnalyzerTests` | Missing `DbContext` alongside transactional outbox store reports `LB1013` |
 | `CommandHandlerWithoutOutbox_ProducesNoDiagnostic` | `NonTransactionalOutboxInCommandHandlerAnalyzerTests` | Handler without an outbox is accepted |
-| `CommandHandlerInjectingOutbox_ProducesDiagnostic` | `NonTransactionalOutboxInCommandHandlerAnalyzerTests` | `IOutbox` dependency reports `LB1025` |
+| `CommandHandlerInjectingOutbox_ProducesDiagnostic` | `NonTransactionalOutboxInCommandHandlerAnalyzerTests` | `IOutbox` dependency with Entity Framework Core storage reports `LB1025` suggesting `ITransactionalOutbox<TContext>` |
 | `CommandHandlerWithResultInjectingOutbox_ProducesDiagnostic` | `NonTransactionalOutboxInCommandHandlerAnalyzerTests` | `IOutbox` dependency on a result handler reports `LB1025` |
 | `CommandHandlerInjectingTransactionalOutbox_ProducesNoDiagnostic` | `NonTransactionalOutboxInCommandHandlerAnalyzerTests` | Transactional outbox dependency is accepted |
 | `QueryHandlerInjectingOutbox_ProducesNoDiagnostic` | `NonTransactionalOutboxInCommandHandlerAnalyzerTests` | Query handlers are out of scope |
@@ -211,6 +244,11 @@ Sources: `tests/LiteBus.Analyzers.UnitTests/TransactionalOutboxWithoutDbContextA
 | `NonHandlerClassInjectingOutbox_ProducesNoDiagnostic` | `NonTransactionalOutboxInCommandHandlerAnalyzerTests` | Classes outside command handling are out of scope |
 | `CommandHandlerWithPrivateOutboxConstructor_ProducesNoDiagnostic` | `NonTransactionalOutboxInCommandHandlerAnalyzerTests` | Private constructors are out of scope |
 | `Descriptor_IsWarningInOutboxCategoryAndEnabledByDefault` | `NonTransactionalOutboxInCommandHandlerAnalyzerTests` | `LB1025` is a warning in `LiteBus.Outbox`, on by default |
+| `CommandHandlerInjectingOutboxWithoutTransactionalStorage_ProducesNoDiagnostic` | `NonTransactionalOutboxInCommandHandlerAnalyzerTests` | `IOutbox` dependency without a transactional storage package is accepted |
+| `CommandHandlerInjectingOutboxWithMartenStorage_SuggestsNonGenericOutbox` | `NonTransactionalOutboxInCommandHandlerAnalyzerTests` | Marten storage suggests `ITransactionalOutbox` |
+| `CommandHandlerInjectingOutboxWithPostgreSqlStorage_SuggestsNonGenericOutbox` | `NonTransactionalOutboxInCommandHandlerAnalyzerTests` | PostgreSQL storage suggests `ITransactionalOutbox` |
+| `CommandHandlerInjectingOutboxWithSeveralStorages_SuggestsGenericOutbox` | `NonTransactionalOutboxInCommandHandlerAnalyzerTests` | Entity Framework Core wins when several storages resolve |
+| `Descriptor_MessageFormatTakesSuggestedOutboxType` | `NonTransactionalOutboxInCommandHandlerAnalyzerTests` | The message carries the suggested type as its second argument |
 | `OutboxConfiguredForInjectedContext_ProducesNoDiagnostic` | `TransactionalOutboxContextNotConfiguredAnalyzerTests` | Configured context is accepted |
 | `OutboxConfiguredForDifferentContext_ProducesDiagnostic` | `TransactionalOutboxContextNotConfiguredAnalyzerTests` | Unconfigured context reports `LB1026` |
 | `NoUseDbContextCall_ProducesNoDiagnostic` | `TransactionalOutboxContextNotConfiguredAnalyzerTests` | No storage call in the compilation reports nothing |

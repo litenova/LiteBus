@@ -104,6 +104,44 @@ await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false); // EF
 
 Do not use `IOutbox` inside a handler that already holds an open domain transaction. It commits separately. For in-process reactions only, publish through `IEventMediator` after `SaveChangesAsync` instead of the outbox.
 
+## Harvesting Events from Tracked Aggregates
+
+Copying events from aggregates to the collector by hand in every handler is repetitive and easy to forget. Storage harvesters do it automatically. `IDomainEventHarvester` is the replaceable port: its single method `HarvestInto(IDomainEventCollector collector)` moves the domain events of the entities a unit of work tracks into the collector. The staging completion handler registered by `OutboxModuleBuilder.StageCollectedEvents()` runs every registered harvester before it drains the collector, so harvested events stage with the same unit of work. Harvesters run only when the mediation completed with `MediationOutcome.Succeeded`; a failed mediation stages nothing.
+
+Aggregates that implement `IHasDomainEvents` are harvested by default once a storage harvester is registered, without further configuration:
+
+```csharp
+public sealed class Order : IHasDomainEvents
+{
+    private readonly List<object> _domainEvents = [];
+
+    public IReadOnlyCollection<object> DomainEvents => _domainEvents;
+
+    public void Place()
+    {
+        _domainEvents.Add(new OrderPlaced(Id, DateTimeOffset.UtcNow));
+    }
+
+    public void ClearDomainEvents()
+    {
+        _domainEvents.Clear();
+    }
+}
+```
+
+An aggregate base type with its own event storage configures accessors on the outbox builder instead of implementing the contract:
+
+```csharp
+registry.AddOutbox(outbox => outbox
+    .HarvestDomainEvents<Order>(
+        order => order.PendingEvents,
+        order => order.ClearPendingEvents()));
+```
+
+A configured accessor wins over the `IHasDomainEvents` default for its aggregate type, and applies to derived types and proxies through the configured base type. Registering the same aggregate type twice replaces the previous pair. A harvester clears the events it moved from each entity, so harvesting twice in one unit of work stages each event once, and a child mediation that harvests first leaves nothing for its parent to harvest again.
+
+Each storage adapter ships its harvester behind a `HarvestDomainEvents()` builder method. The Marten harvester reads the pending inserts and updates of the scoped `IDocumentSession` and ignores pending deletions. The Entity Framework Core harvester reads the `ChangeTracker` entries of the configured `DbContext` in every state, so a loaded aggregate that raises an event without touching a mapped property still harvests. See [Outbox Marten Storage](../integrations/outbox-marten-storage.md) and [Outbox Entity Framework Core Storage](../integrations/outbox-ef-core-storage.md) for registration.
+
 ## Command Pipeline Boundary
 
 Register the application's unit of work with `UseUnitOfWork<TUnitOfWork>` on the command module builder. LiteBus then commits it from a completion handler at `HandlerPriorities.UnitOfWork` after every successful mediation. The application implements `IUnitOfWork`, whose single `CommitAsync` method commits the work the handler staged. LiteBus resolves the unit of work from the mediation scope and calls it once per mediation that ended with `MediationOutcome.Succeeded`. LiteBus never opens or owns the transaction itself.

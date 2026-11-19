@@ -72,6 +72,60 @@ internal static class RecurringCommandLogMessages
             "Recurring batch source {SourceType} rolled back: the command at index {FailedIndex} ({CommandType}) was refused ({RefusalCode}). The loop continues after the configured error backoff.");
 
     /// <summary>
+    ///     The delegate that writes a batch-item-refused event.
+    /// </summary>
+    private static readonly Action<ILogger, string, int, string, string, Exception?> BatchItemRefusedMessage =
+        LoggerMessage.Define<string, int, string, string>(
+            LogLevel.Warning,
+            new EventId(2113, nameof(BatchItemRefused)),
+            "Recurring batch source {SourceType}: the command at index {FailedIndex} ({CommandType}) was refused ({RefusalCode}). The batch continues with the next item.");
+
+    /// <summary>
+    ///     The delegate that writes a batch-item-failed event.
+    /// </summary>
+    private static readonly Action<ILogger, string, int, string, Exception> BatchItemFailedMessage =
+        LoggerMessage.Define<string, int, string>(
+            LogLevel.Error,
+            new EventId(2108, nameof(BatchItemFailed)),
+            "Recurring batch source {SourceType}: the command at index {FailedIndex} ({CommandType}) failed. The batch continues with the next item.");
+
+    /// <summary>
+    ///     The delegate that writes a batch-finished-with-failures event.
+    /// </summary>
+    private static readonly Action<ILogger, string, int, int, Exception?> BatchCompletedWithFailuresMessage =
+        LoggerMessage.Define<string, int, int>(
+            LogLevel.Warning,
+            new EventId(2109, nameof(BatchCompletedWithFailures)),
+            "Recurring batch source {SourceType} finished with {FailedCount} of {TotalCount} items failed. The loop continues after the configured error backoff.");
+
+    /// <summary>
+    ///     The delegate that writes a tenant-command-failed event.
+    /// </summary>
+    private static readonly Action<ILogger, string, string, Exception> TenantCommandFailedMessage =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Error,
+            new EventId(2110, nameof(TenantCommandFailed)),
+            "Recurring tenant sweep {CommandType} failed for tenant {TenantId}. The sweep continues with the next tenant.");
+
+    /// <summary>
+    ///     The delegate that writes a tenant-command-refused event.
+    /// </summary>
+    private static readonly Action<ILogger, string, string, string, Exception?> TenantCommandRefusedMessage =
+        LoggerMessage.Define<string, string, string>(
+            LogLevel.Warning,
+            new EventId(2111, nameof(TenantCommandRefused)),
+            "Recurring tenant sweep {CommandType} command for tenant {TenantId} was refused ({RefusalCode}). The sweep continues with the next tenant.");
+
+    /// <summary>
+    ///     The delegate that writes a sweep-finished-with-failures event.
+    /// </summary>
+    private static readonly Action<ILogger, string, int, int, Exception?> SweepCompletedWithFailuresMessage =
+        LoggerMessage.Define<string, int, int>(
+            LogLevel.Warning,
+            new EventId(2112, nameof(SweepCompletedWithFailures)),
+            "Recurring tenant sweep {CommandType} finished with {FailedCount} of {TotalCount} tenants failed. The loop continues after the configured error backoff.");
+
+    /// <summary>
     ///     Writes the loop start event.
     /// </summary>
     /// <param name="logger">The logger receiving the event.</param>
@@ -137,7 +191,7 @@ internal static class RecurringCommandLogMessages
     }
 
     /// <summary>
-    ///     Writes a batch-refused event.
+    ///     Writes a batch-refused event for an atomic batch a refusal rolled back.
     /// </summary>
     /// <param name="logger">The logger receiving the event.</param>
     /// <param name="sourceType">The batch source type whose batch was refused.</param>
@@ -147,5 +201,79 @@ internal static class RecurringCommandLogMessages
     internal static void BatchRefused(ILogger logger, string sourceType, int failedIndex, string commandType, string refusalCode)
     {
         BatchRefusedMessage(logger, sourceType, failedIndex, commandType, refusalCode, null);
+    }
+
+    /// <summary>
+    ///     Writes a batch-item-refused event for one refused item of a per-item batch.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="sourceType">The batch source type whose item was refused.</param>
+    /// <param name="failedIndex">The index of the command that was refused.</param>
+    /// <param name="commandType">The command type that was refused.</param>
+    /// <param name="refusalCode">The machine-readable code the refusal supplied.</param>
+    internal static void BatchItemRefused(ILogger logger, string sourceType, int failedIndex, string commandType, string refusalCode)
+    {
+        BatchItemRefusedMessage(logger, sourceType, failedIndex, commandType, refusalCode, null);
+    }
+
+    /// <summary>
+    ///     Writes a batch-item-failed event for one failed item of a per-item batch.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="sourceType">The batch source type whose item failed.</param>
+    /// <param name="failedIndex">The index of the command that failed.</param>
+    /// <param name="commandType">The command type that failed.</param>
+    /// <param name="exception">The exception the item threw.</param>
+    internal static void BatchItemFailed(ILogger logger, string sourceType, int failedIndex, string commandType, Exception exception)
+    {
+        BatchItemFailedMessage(logger, sourceType, failedIndex, commandType, exception);
+    }
+
+    /// <summary>
+    ///     Writes a batch-finished-with-failures event for a per-item batch that finished with failures.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="sourceType">The batch source type whose batch finished with failures.</param>
+    /// <param name="failedCount">The number of items that failed or were refused.</param>
+    /// <param name="totalCount">The number of items the batch held.</param>
+    internal static void BatchCompletedWithFailures(ILogger logger, string sourceType, int failedCount, int totalCount)
+    {
+        BatchCompletedWithFailuresMessage(logger, sourceType, failedCount, totalCount, null);
+    }
+
+    /// <summary>
+    ///     Writes a tenant-command-failed event.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="commandType">The command type the sweep sends.</param>
+    /// <param name="tenantId">The tenant whose command failed.</param>
+    /// <param name="exception">The exception the tenant's send threw.</param>
+    internal static void TenantCommandFailed(ILogger logger, string commandType, string tenantId, Exception exception)
+    {
+        TenantCommandFailedMessage(logger, commandType, tenantId, exception);
+    }
+
+    /// <summary>
+    ///     Writes a tenant-command-refused event.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="commandType">The command type the sweep sends.</param>
+    /// <param name="tenantId">The tenant whose command was refused.</param>
+    /// <param name="refusalCode">The machine-readable code the refusal supplied.</param>
+    internal static void TenantCommandRefused(ILogger logger, string commandType, string tenantId, string refusalCode)
+    {
+        TenantCommandRefusedMessage(logger, commandType, tenantId, refusalCode, null);
+    }
+
+    /// <summary>
+    ///     Writes a sweep-finished-with-failures event.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="commandType">The command type the sweep sends.</param>
+    /// <param name="failedCount">The number of tenants whose command failed or was refused.</param>
+    /// <param name="totalCount">The number of tenants the sweep sent for.</param>
+    internal static void SweepCompletedWithFailures(ILogger logger, string commandType, int failedCount, int totalCount)
+    {
+        SweepCompletedWithFailuresMessage(logger, commandType, failedCount, totalCount, null);
     }
 }

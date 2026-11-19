@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Authorization;
 
 namespace LiteBus.Messaging.Authorization;
@@ -37,6 +38,16 @@ public sealed class MessagePolicyRegistry
     ///     Gets the registered policies by name.
     /// </summary>
     public IReadOnlyDictionary<string, MessagePolicy> Policies => _policies;
+
+    /// <summary>
+    ///     Gets the registered policy names.
+    /// </summary>
+    /// <remarks>
+    ///     The names a composition check reads to assert over declared policies without restating them, such as
+    ///     proving every name an <see cref="AuthorizedDeclaration" /> carries is registered. Names compare
+    ///     ordinally.
+    /// </remarks>
+    public IReadOnlyCollection<string> PolicyNames => _policies.Keys;
 
     /// <summary>
     ///     Reads the policy registered under a name.

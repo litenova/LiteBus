@@ -1,15 +1,10 @@
 using System;
-using System.Collections.Generic;
 using System.Data;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using JasperFx;
 using LiteBus.Messaging.Abstractions;
-using Marten;
-using Marten.Exceptions;
-using Npgsql;
 using LiteBus.Messaging.Abstractions.Auditing;
+using Marten;
 
 namespace LiteBus.Commands.Storage.Marten;
 
@@ -62,9 +57,14 @@ public sealed class MartenAuditTrail : IAuditTrail
     private readonly MartenAuditTrailOptions _options;
 
     /// <summary>
-    ///     Gets the clock that stamps published checkpoints.
+    ///     Gets the clock that stamps checkpoint candidates.
     /// </summary>
     private readonly TimeProvider _timeProvider;
+
+    /// <summary>
+    ///     Gets the provider that resolves pieces the builder named as types, or <see langword="null" />.
+    /// </summary>
+    private readonly IServiceProvider? _serviceProvider;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="MartenAuditTrail" /> class.
@@ -75,17 +75,22 @@ public sealed class MartenAuditTrail : IAuditTrail
     ///     The hash chain configuration, or <see langword="null" /> to write plain records with no chain.
     /// </param>
     /// <param name="timeProvider">
-    ///     The clock that stamps published checkpoints, or <see langword="null" /> for
+    ///     The clock that stamps checkpoint candidates, or <see langword="null" /> for
     ///     <see cref="TimeProvider.System" />.
     /// </param>
+    /// <param name="serviceProvider">
+    ///     Resolves pieces the builder named as types, or <see langword="null" /> when every piece was given as an
+    ///     instance.
+    /// </param>
     /// <exception cref="ArgumentOutOfRangeException">
-    ///     <paramref name="options" /> carries a checkpoint interval that is zero or negative.
+    ///     <paramref name="options" /> carries a checkpoint scan interval that is zero or negative.
     /// </exception>
     public MartenAuditTrail(
         IDocumentSession session,
         IDocumentStore documentStore,
         MartenAuditTrailOptions? options = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IServiceProvider? serviceProvider = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(documentStore);
@@ -97,6 +102,7 @@ public sealed class MartenAuditTrail : IAuditTrail
         _documentStore = documentStore;
         _options = options;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _serviceProvider = serviceProvider;
     }
 
     /// <inheritdoc />
@@ -134,36 +140,21 @@ public sealed class MartenAuditTrail : IAuditTrail
     /// <summary>
     ///     Verifies the hash chain of one segment from its first record to its head.
     /// </summary>
-    /// <param name="segment">The segment to verify, as the configured segment selector named it.</param>
+    /// <param name="segment">The segment to verify, as the configured segmenter named it.</param>
     /// <param name="cancellationToken">The token used to cancel the verification read.</param>
-    /// <returns>
-    ///     The first broken sequence number: a missing sequence, a record whose predecessor link does not match the
-    ///     hash of the record before it, or a record whose stored hash does not match its recomputed hash. Returns
-    ///     <see langword="null" /> when the chain is intact, including when the segment holds no records.
-    /// </returns>
+    /// <returns>Every break found, the head, and the comparison against the latest checkpoint.</returns>
     /// <remarks>
-    ///     Verification proves internal consistency only: that nothing was removed, reordered, or altered since the
-    ///     records were written. It cannot prove that a whole suffix was not rewritten with recomputed hashes; that
-    ///     is what published checkpoints anchor. Compare the head hash against the latest checkpoint the
-    ///     <see cref="ICheckpointPublisher" /> stored for the segment to close that gap.
+    ///     Verification recomputes every hash with the scheme each record names and compares the head against the
+    ///     latest stored checkpoint, so it proves both internal consistency and coverage: a rewritten suffix fails
+    ///     the checkpoint comparison even when its links are consistent.
     /// </remarks>
-    public async Task<long?> VerifyChainAsync(string segment, CancellationToken cancellationToken = default)
+    public Task<AuditChainVerification> VerifyChainAsync(string segment, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
 
-        var session = _documentStore.QuerySession();
+        var chain = new MartenAuditChain(_documentStore, _options, _timeProvider, _serviceProvider);
 
-        await using (session.ConfigureAwait(false))
-        {
-            var records = await session
-                .Query<MartenAuditRecord>()
-                .Where(record => record.Segment == segment)
-                .OrderBy(record => record.Sequence)
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            return FindFirstBrokenSequence(records);
-        }
+        return chain.VerifyAsync(segment, cancellationToken);
     }
 
     /// <summary>
@@ -172,200 +163,14 @@ public sealed class MartenAuditTrail : IAuditTrail
     /// <param name="record">The record produced at the mediation boundary.</param>
     /// <param name="cancellationToken">The token used to cancel the append.</param>
     /// <returns>A task representing the asynchronous append.</returns>
-    /// <remarks>
-    ///     A lost append race retries against the winner: a concurrent append fails with an optimistic concurrency
-    ///     conflict on the segment head, and a head creation race fails with a unique violation on the head identity.
-    ///     The loop ends when a session commits, and the cancellation check keeps a cancelled mediation from
-    ///     appending forever under contention.
-    /// </remarks>
-    private async Task WriteChainedAsync(AuditRecord record, CancellationToken cancellationToken)
+    private Task WriteChainedAsync(AuditRecord record, CancellationToken cancellationToken)
     {
-        var segment = _options.SegmentOf(record);
-
-        if (string.IsNullOrWhiteSpace(segment))
-        {
-            throw new InvalidOperationException(
-                $"The audit segment selector returned no segment for action '{record.Action}'. " +
-                "Return a stable segment name from the selector passed to UseHashChain.");
-        }
-
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            try
-            {
-                var session = _documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-
-                await using (session.ConfigureAwait(false))
-                {
-                    var head = await session
-                        .LoadAsync<MartenAuditSegmentHead>(segment, cancellationToken)
-                        .ConfigureAwait(false);
-
-                    var sequence = (head?.LastSequence ?? 0) + 1;
-                    var document = Map(record);
-                    document.Segment = segment;
-                    document.Sequence = sequence;
-                    document.PreviousHash = head?.LastHash;
-                    document.Hash = MartenAuditHashChain.ComputeHash(document);
-
-                    // The loaded head is updated in place, never replaced: the update asserts the version captured
-                    // at load, which is the check that serializes concurrent appends.
-                    head ??= new MartenAuditSegmentHead { Id = segment };
-                    head.LastSequence = sequence;
-                    head.LastHash = document.Hash;
-
-                    session.Store(document);
-                    session.Store(head);
-
-                    await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                    await PublishCheckpointWhenDueAsync(segment, sequence, document.Hash, cancellationToken)
-                        .ConfigureAwait(false);
-                    return;
-                }
-            }
-            catch (Exception exception) when (IsAppendConflict(exception))
-            {
-                // Another writer committed first; the next pass reads the winner.
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Publishes a checkpoint when an appended record closes a checkpoint interval.
-    /// </summary>
-    /// <param name="segment">The segment the record was appended to.</param>
-    /// <param name="sequence">The sequence number assigned to the record.</param>
-    /// <param name="hash">The chain hash of the record.</param>
-    /// <param name="cancellationToken">The token used to cancel the publish.</param>
-    /// <returns>A task representing the asynchronous publish.</returns>
-    private async Task PublishCheckpointWhenDueAsync(
-        string segment,
-        long sequence,
-        string hash,
-        CancellationToken cancellationToken)
-    {
-        var publisher = _options.CheckpointPublisher;
-
-        if (publisher is null || sequence % _options.CheckpointInterval != 0)
-        {
-            return;
-        }
-
-        await publisher
-            .PublishAsync(new AuditCheckpoint(segment, sequence, hash, _timeProvider.GetUtcNow()), cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    /// <summary>
-    ///     Finds the first broken sequence number in segment order.
-    /// </summary>
-    /// <param name="records">The segment records in ascending sequence order.</param>
-    /// <returns>
-    ///     The first missing sequence, the sequence of the first record with a broken predecessor link or hash, or
-    ///     <see langword="null" /> when every record links and hashes correctly.
-    /// </returns>
-    private static long? FindFirstBrokenSequence(IReadOnlyList<MartenAuditRecord> records)
-    {
-        var expected = 1L;
-        string? previousHash = null;
-
-        foreach (var record in records)
-        {
-            // A record past the expected sequence leaves a gap: the missing sequence is the broken one. A record at
-            // or below it is a duplicate or a replay: the record itself is the broken one.
-            if (record.Sequence != expected)
-            {
-                return record.Sequence < expected ? record.Sequence : expected;
-            }
-
-            if (!string.Equals(record.PreviousHash, previousHash, StringComparison.Ordinal))
-            {
-                return record.Sequence;
-            }
-
-            if (!string.Equals(MartenAuditHashChain.ComputeHash(record), record.Hash, StringComparison.Ordinal))
-            {
-                return record.Sequence;
-            }
-
-            previousHash = record.Hash;
-            expected++;
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    ///     Decides whether a failure an append session raised is a lost append race worth retrying.
-    /// </summary>
-    /// <param name="exception">The failure an append session raised, whatever wrapper Marten put around it.</param>
-    /// <returns><see langword="true" /> when the chain reports a concurrency or head creation conflict.</returns>
-    private static bool IsAppendConflict(Exception exception)
-    {
-        foreach (var current in EnumerateExceptions(exception))
-        {
-            if (current is ConcurrencyException or ConcurrentUpdateException)
-            {
-                return true;
-            }
-
-            if (current is PostgresException postgres && IsHeadWriteState(postgres.SqlState))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    ///     Enumerates an exception, its inner exceptions, and every exception an <see cref="AggregateException" />
-    ///     carries, depth first.
-    /// </summary>
-    /// <param name="exception">The exception to start from.</param>
-    /// <returns>Every exception reachable from <paramref name="exception" />.</returns>
-    /// <remarks>
-    ///     A batched commit can report several failures in one <see cref="AggregateException" />, and its
-    ///     <see cref="Exception.InnerException" /> is only the first of them, so walking that chain alone can miss
-    ///     the storage error that matters.
-    /// </remarks>
-    private static IEnumerable<Exception> EnumerateExceptions(Exception exception)
-    {
-        var pending = new Stack<Exception>();
-        pending.Push(exception);
-
-        while (pending.Count > 0)
-        {
-            var current = pending.Pop();
-            yield return current;
-
-            if (current is AggregateException aggregate)
-            {
-                for (var index = aggregate.InnerExceptions.Count - 1; index >= 0; index--)
-                {
-                    pending.Push(aggregate.InnerExceptions[index]);
-                }
-            }
-            else if (current.InnerException is { } inner)
-            {
-                pending.Push(inner);
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Decides whether a PostgreSQL state reports a lost head write race.
-    /// </summary>
-    /// <param name="sqlState">The five-character state the storage error reported.</param>
-    /// <returns>
-    ///     <see langword="true" /> for a unique violation (<c>23505</c>), a serialization failure (<c>40001</c>), or a
-    ///     deadlock (<c>40P01</c>); otherwise, <see langword="false" />.
-    /// </returns>
-    private static bool IsHeadWriteState(string sqlState)
-    {
-        return sqlState is "23505" or "40001" or "40P01";
+        return _options.RequireChain().AppendAsync(
+            _documentStore,
+            record,
+            _timeProvider,
+            _serviceProvider,
+            cancellationToken);
     }
 
     /// <summary>
@@ -375,29 +180,6 @@ public sealed class MartenAuditTrail : IAuditTrail
     /// <returns>The document staged or written for the record.</returns>
     private static MartenAuditRecord Map(AuditRecord record)
     {
-        return new MartenAuditRecord
-        {
-            Id = Guid.NewGuid(),
-            Action = record.Action,
-            ActorId = record.Actor?.Id,
-            ActorKind = record.Actor?.Kind,
-            ActorDisplayName = record.Actor?.DisplayName,
-            ActorOnBehalfOf = record.Actor?.OnBehalfOf,
-            Outcome = record.Outcome,
-            OccurredAt = record.OccurredAt,
-            Duration = record.Duration,
-            Category = record.Category,
-            TargetKind = record.TargetKind,
-            TargetId = record.TargetId,
-            Reason = record.Reason,
-            FailureCode = record.FailureCode,
-            MessageType = record.MessageType,
-            CorrelationId = record.CorrelationId,
-            TenantId = record.TenantId,
-            Properties = record.Properties.ToDictionary(
-                static pair => pair.Key,
-                static pair => pair.Value,
-                StringComparer.Ordinal)
-        };
+        return new MartenAuditRecordMapper().Map(record);
     }
 }

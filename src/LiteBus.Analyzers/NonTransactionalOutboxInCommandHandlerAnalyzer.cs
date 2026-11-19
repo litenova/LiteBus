@@ -13,8 +13,8 @@ namespace LiteBus.Analyzers;
 ///     <para>
 ///         Inside a unit of work, <c>IOutbox.EnqueueAsync</c> writes and commits the envelope at once, so a later
 ///         rollback of the domain write still leaves a published event. <c>ITransactionalOutbox&lt;TContext&gt;</c>
-///         stages the envelope in the same <c>DbContext</c> transaction instead, so the outbox row commits with the
-///         domain write.
+///         (Entity Framework Core storage) or <c>ITransactionalOutbox</c> (Marten or PostgreSQL storage) stages the
+///         envelope in the ambient transaction instead, so the outbox row commits with the domain write.
 ///     </para>
 ///     <para>
 ///         The rule reports only when the compilation can resolve the transactional outbox, because a compilation
@@ -74,7 +74,9 @@ public sealed class NonTransactionalOutboxInCommandHandlerAnalyzer : DiagnosticA
             return;
         }
 
-        if (!TransactionalOutboxResolves(context.Compilation))
+        var suggestedOutboxName = GetSuggestedTransactionalOutboxName(context.Compilation);
+
+        if (suggestedOutboxName is null)
         {
             return;
         }
@@ -83,7 +85,7 @@ public sealed class NonTransactionalOutboxInCommandHandlerAnalyzer : DiagnosticA
         {
             foreach (var parameter in constructor.Parameters)
             {
-                ReportIfNonTransactionalOutbox(context, handlerType, parameter, outbox);
+                ReportIfNonTransactionalOutbox(context, handlerType, parameter, outbox, suggestedOutboxName);
             }
         }
     }
@@ -112,23 +114,36 @@ public sealed class NonTransactionalOutboxInCommandHandlerAnalyzer : DiagnosticA
     }
 
     /// <summary>
-    ///     Determines whether the compilation can see an outbox storage package that offers a transactional outbox.
+    ///     Gets the transactional outbox type the diagnostic suggests, based on the storage the compilation resolves.
     /// </summary>
     /// <param name="compilation">The compilation being analyzed.</param>
     /// <returns>
-    ///     <see langword="true" /> when the EF Core, PostgreSQL or Marten outbox storage registration type resolves;
-    ///     otherwise, <see langword="false" />.
+    ///     <c>ITransactionalOutbox&lt;TContext&gt;</c> when the Entity Framework Core outbox storage resolves,
+    ///     <c>ITransactionalOutbox</c> when the Marten or PostgreSQL outbox storage resolves, otherwise
+    ///     <see langword="null" />.
     /// </returns>
     /// <remarks>
     ///     <c>ITransactionalOutbox&lt;TContext&gt;</c> itself lives in the outbox abstractions, which every outbox
     ///     application references, so its presence says nothing. Only a transactional storage package makes the
-    ///     non-transactional outbox the wrong choice inside a command handler.
+    ///     non-transactional outbox the wrong choice inside a command handler. The Entity Framework Core storage
+    ///     binds the outbox row to a <c>DbContext</c>, hence the generic suggestion; Marten and PostgreSQL storage
+    ///     bind it to the ambient session, hence the non-generic one. When several storages resolve, the Entity
+    ///     Framework Core suggestion wins.
     /// </remarks>
-    private static bool TransactionalOutboxResolves(Compilation compilation)
+    private static string? GetSuggestedTransactionalOutboxName(Compilation compilation)
     {
-        return compilation.GetTypeByMetadataName("LiteBus.Outbox.Storage.EntityFrameworkCore.OutboxModuleBuilderEfCoreExtensions") is not null
-            || compilation.GetTypeByMetadataName("LiteBus.Outbox.Storage.PostgreSql.OutboxModuleBuilderPostgreSqlExtensions") is not null
-            || compilation.GetTypeByMetadataName("LiteBus.Outbox.Storage.Marten.PostgreSqlOutboxModuleBuilderMartenExtensions") is not null;
+        if (compilation.GetTypeByMetadataName("LiteBus.Outbox.Storage.EntityFrameworkCore.OutboxModuleBuilderEfCoreExtensions") is not null)
+        {
+            return "ITransactionalOutbox<TContext>";
+        }
+
+        if (compilation.GetTypeByMetadataName("LiteBus.Outbox.Storage.PostgreSql.OutboxModuleBuilderPostgreSqlExtensions") is not null
+            || compilation.GetTypeByMetadataName("LiteBus.Outbox.Storage.Marten.PostgreSqlOutboxModuleBuilderMartenExtensions") is not null)
+        {
+            return "ITransactionalOutbox";
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -138,11 +153,13 @@ public sealed class NonTransactionalOutboxInCommandHandlerAnalyzer : DiagnosticA
     /// <param name="handlerType">The command handler type symbol.</param>
     /// <param name="parameter">The constructor parameter symbol.</param>
     /// <param name="outbox">The non-transactional outbox interface symbol.</param>
+    /// <param name="suggestedOutboxName">The transactional outbox type name the message suggests.</param>
     private static void ReportIfNonTransactionalOutbox(
         SymbolAnalysisContext context,
         INamedTypeSymbol handlerType,
         IParameterSymbol parameter,
-        INamedTypeSymbol outbox)
+        INamedTypeSymbol outbox,
+        string suggestedOutboxName)
     {
         if (!IsOutboxType(parameter.Type, outbox))
         {
@@ -154,7 +171,8 @@ public sealed class NonTransactionalOutboxInCommandHandlerAnalyzer : DiagnosticA
             LiteBusSymbols.GetDiagnosticLocation(
                 context.Compilation,
                 parameter.Locations.FirstOrDefault() ?? Location.None),
-            handlerType.Name));
+            handlerType.Name,
+            suggestedOutboxName));
     }
 
     /// <summary>

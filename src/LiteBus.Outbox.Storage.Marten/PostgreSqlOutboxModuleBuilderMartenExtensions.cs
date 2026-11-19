@@ -1,5 +1,7 @@
 using System;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.DomainEvents;
+using LiteBus.Outbox.Storage.Marten.DomainEvents;
 using LiteBus.Outbox.Storage.PostgreSql;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Marten;
@@ -35,6 +37,36 @@ public static class PostgreSqlOutboxModuleBuilderMartenExtensions
             (IDocumentSession) (serviceProvider.GetService(typeof(IDocumentSession)) ?? throw new LiteBusDependencyResolutionException(typeof(IDocumentSession))),
             (IOutboxEnvelopeFactory) (serviceProvider.GetService(typeof(IOutboxEnvelopeFactory)) ?? throw new LiteBusDependencyResolutionException(typeof(IOutboxEnvelopeFactory))),
             (PostgreSqlOutboxStoreRegistration) (serviceProvider.GetService(typeof(PostgreSqlOutboxStoreRegistration)) ?? throw new LiteBusDependencyResolutionException(typeof(PostgreSqlOutboxStoreRegistration))));
+
+        return builder;
+    }
+
+    /// <summary>
+    ///     Harvests domain events from the pending inserts and updates of the scoped Marten document session before collected events stage.
+    /// </summary>
+    /// <param name="builder">The PostgreSQL outbox module builder.</param>
+    /// <returns>The PostgreSQL outbox module builder for chaining.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Registers <see cref="MartenDomainEventHarvester" /> as a scoped
+    ///         <see cref="LiteBus.Messaging.Abstractions.IDomainEventHarvester" />. The staging completion handler runs
+    ///         the harvester before it drains the collector, so domain events buffered on tracked documents stage with
+    ///         the same session save. Aggregates configured through
+    ///         <see cref="OutboxModuleBuilder.HarvestDomainEvents{TAggregate}" /> harvest through their accessors, and
+    ///         documents implementing <see cref="LiteBus.Messaging.Abstractions.IHasDomainEvents" /> harvest by default.
+    ///     </para>
+    ///     <para>
+    ///         The application registers Marten itself with <c>AddMarten</c> against the same database as the outbox;
+    ///         LiteBus does not register Marten.
+    ///     </para>
+    /// </remarks>
+    public static PostgreSqlOutboxModuleBuilder HarvestDomainEvents(this PostgreSqlOutboxModuleBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.DomainEventHarvesterFactory = serviceProvider => new MartenDomainEventHarvester(
+            (IDocumentSession) (serviceProvider.GetService(typeof(IDocumentSession)) ?? throw new LiteBusDependencyResolutionException(typeof(IDocumentSession))),
+            (DomainEventAccessors) (serviceProvider.GetService(typeof(DomainEventAccessors)) ?? throw new LiteBusDependencyResolutionException(typeof(DomainEventAccessors))));
 
         return builder;
     }

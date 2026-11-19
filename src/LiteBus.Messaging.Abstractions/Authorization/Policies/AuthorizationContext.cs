@@ -26,4 +26,18 @@ public sealed record AuthorizationContext(
     Type MessageType,
     ExecutionIdentity Identity,
     IServiceProvider Services,
-    DateTimeOffset HandledAt);
+    DateTimeOffset HandledAt)
+{
+    /// <summary>
+    ///     Gets the execution context of the mediation being authorized.
+    /// </summary>
+    /// <value>
+    ///     The mediation's execution context, or <see langword="null" /> when the guard did not supply one.
+    /// </value>
+    /// <remarks>
+    ///     The policy guard sets this from the ambient execution context before evaluation. Policies that read the
+    ///     enclosing mediation, such as <see cref="MessagePolicy.SentBy{TParent}" />, use it; a
+    ///     <see langword="null" /> value means the mediation lineage is unavailable, so such a policy denies.
+    /// </remarks>
+    public IExecutionContext? ExecutionContext { get; init; }
+}

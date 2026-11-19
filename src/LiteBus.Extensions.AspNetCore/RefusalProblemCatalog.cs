@@ -100,22 +100,36 @@ public sealed class RefusalProblemCatalog : IRefusalProblemCatalog
     /// <inheritdoc />
     public RefusalProblemMap Resolve(string? code)
     {
+        TryResolve(code, out var map);
+
+        return map;
+    }
+
+    /// <inheritdoc />
+    public bool TryResolve(string? code, out RefusalProblemMap map)
+    {
         if (!string.IsNullOrWhiteSpace(code))
         {
             if (_mappings.TryGetValue(code, out var exact))
             {
-                return exact;
+                map = exact;
+
+                return true;
             }
 
             var match = FindLongestPrefixMatch(code);
 
             if (match is not null)
             {
-                return match;
+                map = match;
+
+                return true;
             }
         }
 
-        return new RefusalProblemMap(FallbackStatusCode, FallbackTitle);
+        map = new RefusalProblemMap(FallbackStatusCode, FallbackTitle);
+
+        return false;
     }
 
     /// <summary>

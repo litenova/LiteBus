@@ -16,6 +16,7 @@
     "commands-postgresql-idempotency-store",
     "commands-marten",
     "aspnetcore-idempotency-key",
-    "aspnetcore-execution-identity"
+    "aspnetcore-execution-identity",
+    "aspnetcore-problem-details"
   ]
 }

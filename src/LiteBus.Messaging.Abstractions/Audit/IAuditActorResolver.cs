@@ -22,6 +22,12 @@ namespace LiteBus.Messaging.Abstractions.Auditing;
 ///         process name.
 ///     </para>
 ///     <para>
+///         The context also carries the resolved <see cref="ExecutionIdentity" /> as
+///         <see cref="MessageCompletionContext.Identity" />, copied from the mediation execution context when the
+///         completion context was built. A resolver that attributes from the caller reads the principal or the tenant
+///         from there rather than from ambient state, which keeps the attribution rule visible in this signature.
+///     </para>
+///     <para>
 ///         Returning <see langword="null" /> is legitimate and means nothing established an actor. Do not invent one:
 ///         a fabricated identifier in evidence is worse than a gap that a review can see. Where the application knows
 ///         the action came from a process, say so with <see cref="AuditActor.System" /> instead.
@@ -50,7 +56,8 @@ public interface IAuditActorResolver
     ///     Resolves the actor an audited action is attributed to.
     /// </summary>
     /// <param name="context">
-    ///     How the mediation ended, carrying the message itself so the actor can be read from it.
+    ///     How the mediation ended, carrying the message itself and the resolved
+    ///     <see cref="ExecutionIdentity" /> so the actor can be read from either.
     /// </param>
     /// <returns>
     ///     The actor, or <see langword="null" /> when nothing established one. An actor supplied by the handler through

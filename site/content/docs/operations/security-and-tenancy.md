@@ -113,6 +113,33 @@ The default is `null`, which leases without a cap. Unscoped envelopes count as o
 
 Use the cap together with per-tenant processors or instead of them. One processor per tenant isolates pace completely but multiplies connections and pollers. One processor with a cap keeps a single poller while no tenant starves. Either way, the tenant on the envelope decides whose budget the envelope spends, so the same edge validation and `tenant_id` auditing apply.
 
+## Mediation Guard Order
+
+The authorization guard runs before the tenancy guard. `PolicyAuthorizationGuard<TMessage>` carries the `HandlerPriorities.Authorization` priority (`ReservedFloor + 10`) and `TenancyGuard<TMessage>` carries `HandlerPriorities.Tenancy` (`ReservedFloor + 20`), both stable across releases, so the order does not depend on which call was registered first. A signed-out caller on a tenant route sees the authorization refusal before the tenancy one.
+
+That order is what lets a boundary answer the two denials differently. A signed-out caller is asked to authenticate (401); a signed-in caller without a tenant is refused (403):
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .UseTenancy()
+    .AddAuthorizationPolicies(policies => policies
+        .Add("vaults.post", MessagePolicy.All(
+            MessagePolicy.SignedIn(),
+            MessagePolicy.Tenant(),
+            MessagePolicy.Permission("vaults.post")))));
+```
+
+`MessagePolicy.Tenant()` denies with the `tenancy.required` code when the mediation identity carries no tenant. Putting it inside the policy keeps the full check order in one place: sign-in first, then tenant, then permission. The sign-in check decides 401 versus 403, so it always comes first; the tenant check inside the policy decides before the permission check, so a tenant-less caller sees the tenant refusal rather than a permission one.
+
+System work inside a tenant passes both guards together. `ExecutionIdentity.For(null, tenantId)` carries no principal and one tenant: it passes `MessagePolicy.System()` and the tenancy position at once. Pair it with `TenancyDeclaration.Required()` on the message and a `System()` policy, and the mediation runs scoped to that tenant with no caller to authorize. A blank tenant maps to the anonymous identity, so only a real tenant scopes the run.
+
+```csharp
+var settings = new CommandMediationSettings
+{
+    Identity = ExecutionIdentity.For(principal: null, tenantId: "tenant-a")
+};
+```
+
 ## Guarantees and Non-Guarantees
 
 | Guaranteed | Not guaranteed |
@@ -121,6 +148,7 @@ Use the cap together with per-tenant processors or instead of them. One processo
 | Tenant filter applied in lease SQL when `TenantId` is set on processor options | Cross-tenant isolation when an envelope or a lease request carries the wrong tenant |
 | At most `MaxLeasedPerTenant` envelopes of one tenant per outbox lease when set | Per-tenant pace when the cap is unset and one tenant fills every batch |
 | Contract names stay plaintext for routing and diagnostics | Payload confidentiality before `UsePayloadEncryption` is registered |
+| Authorization refusal reported before the tenancy refusal for a signed-out caller | Tenant-before-permission order without `Tenant()` inside the policy |
 
 ## Operations
 
@@ -141,5 +169,6 @@ Use the cap together with per-tenant processors or instead of them. One processo
 
 * [Inbox](../reliable-messaging/inbox.md), [Outbox](../reliable-messaging/outbox.md)
 * [Tenancy](../concepts/tenancy.md), [Execution Context](../concepts/execution-context.md)
+* [Authorization Policies](../concepts/authorization-policies.md), [Authorization Declarations](../concepts/authorization-declarations.md)
 * [Production Runbook](runbook.md)
 * [Management Endpoints](management-endpoints.md)

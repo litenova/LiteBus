@@ -1,8 +1,8 @@
 # Recurring Commands
 
-A recurring command sends one command on a fixed interval for the life of the host, without a hand-written hosted service. When each pass produces several commands that must commit together, a recurring batch sends them as one batch instead. This page covers registration, options, backlog draining, failure behavior, and limitations.
+A recurring command sends one command on a fixed interval for the life of the host, without a hand-written hosted service. When each pass produces several commands, a recurring batch sends them as one atomic batch by default, or one at a time with `RecurringBatchIsolation.PerItem`. A per-tenant sweep always sends one command per tenant with that tenant's identity, like a per-item batch, and a schedule aligns passes to wall-clock occurrences instead of a fixed interval. This page covers registration, identity, tenant sweeps, schedules, options, backlog draining, failure behavior, and limitations.
 
-The registration contract and failure modes are documented on `CommandModuleBuilderRecurringExtensions.AddRecurring`, `AddRecurringBatch`, and `RecurringCommandHostOptions`. This page covers tuning and operations: option sizing, backlog draining, failure signals, lease operations, and SQL examples.
+The registration contract and failure modes are documented on `CommandModuleBuilderRecurringExtensions.AddRecurring`, `AddRecurringBatch`, `AddRecurringForEachTenant`, `IRecurringTenantSource`, `IRecurringSchedule`, `RecurringSchedules`, and `RecurringCommandHostOptions`. This page covers tuning and operations: option sizing, backlog draining, failure signals, lease operations, and SQL examples.
 
 **Package:** `LiteBus.Commands.Recurring`
 
@@ -32,7 +32,22 @@ The factory timing contract is documented on `AddRecurring`. A command with a pu
 commands.AddRecurring<ExpireStaleHoldsCommand>(host => host.Interval = TimeSpan.FromMinutes(1));
 ```
 
-Each registration stores a `RecurringCommandDeclaration<TCommand>`. It holds the per-pass command factory plus the loop options, resolved as a singleton, so the background loop for one command type finds its own factory and options without positional matching. See `AddRecurring` for the command registration contract.
+Each registration stores a `RecurringCommandDeclaration<TCommand>`. It holds the per-pass command factory, the loop options, and the optional identity factory, resolved as a singleton, so the background loop for one command type finds its own factory and options without positional matching. See `AddRecurring` for the command registration contract.
+
+## Sending with an Identity
+
+The loop runs outside any mediation, so without an identity the pass mediation resolves the identity from the registered `IExecutionIdentityProvider` or falls back to `ExecutionIdentity.Anonymous`. A tenant-required recurring command would always be denied that way. Pass an identity factory when the command needs an identity the loop cannot inherit:
+
+```csharp
+registry.AddCommands(commands => commands
+    .RegisterFromAssembly(typeof(CloseStaleCartsCommand).Assembly)
+    .AddRecurring(
+        () => new CloseStaleCartsCommand { TenantCode = "acme" },
+        host => host.Interval = TimeSpan.FromMinutes(5),
+        identity: command => ExecutionIdentity.ForTenant(command.TenantCode)));
+```
+
+The factory receives the command the pass built, so the identity can derive from per-pass values such as a tenant code carried on the command. The loop sends with `CommandMediationSettings { Identity = ... }`. Both `AddRecurring` overloads accept the optional `identity` parameter, and `RecurringCommandDeclaration<TCommand>.IdentityOf` carries it to the loop. Atomic batch items share one identity (or carry none), per-item batch items each carry their own identity, and tenant sweeps send with the tenant identity; see [Sending a Batch Each Pass](#sending-a-batch-each-pass) and [Sending One Command per Tenant](#sending-one-command-per-tenant).
 
 A command declaring more than one `ICommand<T>` contract fails composition; see `AddRecurring` for the single-contract requirement.
 
@@ -46,6 +61,7 @@ Each registration runs as its own `IBackgroundService` through the host manifest
 | --- | --- | --- |
 | `Enabled` | `true` | When false the loop logs once and never sends |
 | `Interval` | 1 minute | Delay between sends when the previous send reported no more work |
+| `Schedule` | `null` | When set, the loop waits for the next occurrence from the schedule before the first pass and between passes, instead of `Interval`. `null` keeps the fixed-interval wait |
 | `StartupDelay` | `TimeSpan.Zero` | Delay after host start before the first send |
 | `ErrorBackoff` | 5 minutes | Delay after a send throws, instead of `Interval` |
 | `IsConcurrencyConflict` | `IsConcurrencyOrDatabaseConflict` | Predicate recognizing a lost race: an optimistic-concurrency conflict, a deadlock, or a serialization failure. A conflict waits `Interval` instead of `ErrorBackoff`, and `null` treats every exception as a failure. |
@@ -74,9 +90,31 @@ public sealed class SendDueRemindersCommand : ICommand<SendDueRemindersResult>
 
 Reporting is optional. A command with no result, or one whose result does not implement the report, waits the full interval between sends.
 
-## Sending a Batch on a Schedule
+## Sending a Batch Each Pass
 
-When each pass produces several commands that must commit together, implement `IRecurringCommandBatchSource` and register it with `AddRecurringBatch`. Each pass resolves the source from a fresh dispatch scope, calls `CreateBatchAsync`, disposes the scope, and sends the returned commands as one batch through `ICommandBatchMediator.TrySendManyAsync`. The source can take scoped dependencies such as a database context. See `AddRecurringBatch` for the batch loop contract.
+When each pass produces several commands, implement `IRecurringCommandBatchSource` and register it with `AddRecurringBatch`. Each pass resolves the source from a fresh dispatch scope, calls `CreateBatchAsync`, disposes the scope, and then sends the returned batch according to `RecurringCommandBatch.Isolation`. `RecurringBatchIsolation.Atomic`, the default, sends the items as one all-or-nothing batch through `ICommandBatchMediator.TrySendManyAsync`. `RecurringBatchIsolation.PerItem` sends the items one at a time, in list order, each with its own identity through `ICommandMediator.SendAsync`. The source can take scoped dependencies such as a database context. See `AddRecurringBatch` for the batch loop contract.
+
+The batch holds `IReadOnlyList<RecurringCommandItem> Items`, where `RecurringCommandItem(ICommand Command, ExecutionIdentity? Identity = null)` pairs one command with the identity its pass sends it for, and `RecurringBatchIsolation Isolation`, which defaults to `RecurringBatchIsolation.Atomic`. `RecurringCommandBatch.From(IReadOnlyList<ICommand>)` stays as the plain-command helper that assigns no identity, and `RecurringCommandBatch.From(IReadOnlyList<RecurringCommandItem>)` takes an optional `isolation` parameter that defaults to `RecurringBatchIsolation.Atomic`. Pass `RecurringBatchIsolation.PerItem` when the items carry different identities:
+
+```csharp
+public async Task<RecurringCommandBatch> CreateBatchAsync(CancellationToken cancellationToken)
+{
+    var due = await _context.Invoices
+        .Where(invoice => invoice.DueDate <= DateTimeOffset.UtcNow)
+        .Take(50)
+        .ToListAsync(cancellationToken)
+        .ConfigureAwait(false);
+
+    return RecurringCommandBatch.From(
+        due.Select(static invoice => new RecurringCommandItem(
+            new SendInvoiceReminderCommand(invoice.Id),
+            ExecutionIdentity.ForTenant(invoice.TenantCode))).ToList(),
+        due.Count >= 50,
+        RecurringBatchIsolation.PerItem);
+}
+```
+
+An atomic batch runs its commands one at a time, in list order, inside one dispatch scope with one unit-of-work commit, and the first denied, invalid, faulted, or cancelled command rolls the whole batch back. Every item of an atomic batch must carry the same identity, or none; a batch that mixes identities fails the pass with `InvalidOperationException`, which names `RecurringBatchIsolation.PerItem` as the way to send each item with its own identity. A refusal that rolls the batch back is logged once at Warning (EventId 2107) and the pass waits `ErrorBackoff` instead of the interval, so a command refused on every pass does not spin the loop. A per-item batch instead sends each item as its own mediation, so one failing item is logged and counted and never stops the rest of the batch: a refused item is logged at Warning (EventId 2113), an item whose exception `IsConcurrencyConflict` classifies as a lost race is logged at Information (EventId 2104), and any other failure is logged at Error (EventId 2108). When any item failed or was refused, the batch summary is logged at Warning (EventId 2109) and the pass waits `ErrorBackoff` instead of the interval. A command that needs the value another command produces does not belong in a batch, because items cannot see each other's results and a result-bearing command is sent without reading its result.
 
 ```csharp
 public sealed class DueInvoiceBatchSource : IRecurringCommandBatchSource
@@ -113,11 +151,67 @@ registry.AddCommands(commands => commands
     }));
 ```
 
-Return `RecurringCommandBatch.Empty` when there is nothing to send; an empty `Commands` list sends nothing and the loop waits `Interval`. The commands run one at a time, in list order, inside one dispatch scope with one unit-of-work commit, and cannot see each other's results. A batch whose `HasMoreWork` is true starts the next pass without waiting and reuses the held lease; see `AddRecurringBatch` for the busy-period contract.
+Return `RecurringCommandBatch.Empty` when there is nothing to send; an empty `Items` list sends nothing and the loop waits `Interval`. Returning `null` instead fails the pass, so prefer `Empty`. A batch whose `HasMoreWork` is true starts the next pass without waiting and reuses the held lease, unless the batch failed; see `AddRecurringBatch` for the busy-period contract.
 
-The source scope, transaction boundary, lease arbitration, and command registration requirements are documented on `AddRecurringBatch`. `LeaseName` defaults to the source type full name. See `RecurringCommandHostOptions.RequireLease` for the lease composition requirement and the duplicate-module rule.
+The source scope, lease arbitration, and command registration requirements are documented on `AddRecurringBatch`. `LeaseName` defaults to the source type full name. See `RecurringCommandHostOptions.RequireLease` for the lease composition requirement and the duplicate-module rule.
 
-A batch that a refusal rolls back is logged at Warning (EventId 2107) with the source type, the failing index, the failing command type, and the refusal code; see `AddRecurringBatch` for the backoff contract. A fault or a failed commit goes through the same paths as the single-command loop: a conflict classified by `IsConcurrencyConflict` waits `Interval`, and anything else waits `ErrorBackoff`. See [Failure Behavior](#failure-behavior) and [Running on Several Replicas](#running-on-several-replicas).
+## Sending One Command per Tenant
+
+When each tenant needs its own pass of the same command, register a sweep with `AddRecurringForEachTenant`. Each pass enumerates `IRecurringTenantSource`, builds one command per tenant, and sends it with `ExecutionIdentity.ForTenant(tenant)`:
+
+```csharp
+public sealed class StoreTenantSource : IRecurringTenantSource
+{
+    private readonly TenantStore _store;
+
+    public StoreTenantSource(TenantStore store)
+    {
+        _store = store;
+    }
+
+    public async IAsyncEnumerable<string> GetTenantsAsync(CancellationToken cancellationToken)
+    {
+        await foreach (var tenant in _store.ListIdsAsync(cancellationToken).ConfigureAwait(false))
+        {
+            yield return tenant;
+        }
+    }
+}
+
+registry.AddCommands(commands => commands
+    .RegisterFromAssembly(typeof(CloseStaleCartsCommand).Assembly)
+    .AddRecurringForEachTenant<CloseStaleCartsCommand, StoreTenantSource>(
+        tenant => new CloseStaleCartsCommand { TenantCode = tenant },
+        host => host.Interval = TimeSpan.FromMinutes(5)));
+```
+
+The sweep accepts its source three ways, following the replaceable-port rule: no source, in which case each pass resolves `IRecurringTenantSource` from a fresh dispatch scope; a source instance; or a source type, registered as scoped and resolved from a fresh dispatch scope on every pass. A source resolved from a scope can take scoped dependencies such as a database context. The tenant identifiers are read before any command is sent. A sweep with no source instance, no source type, and no `IRecurringTenantSource` registration fails composition with `LiteBusConfigurationException`.
+
+The sweep always sends one mediation per tenant, like a batch with `RecurringBatchIsolation.PerItem`. Failures stay isolated per tenant. One tenant's command failing or refused is logged and counted and never stops the rest of the sweep: a refused command is logged at Warning (EventId 2111) with the command type, the tenant, and the refusal code, a failure `IsConcurrencyConflict` classifies as a lost race is logged at Information (EventId 2104), and any other failure is logged at Error (EventId 2110) with the tenant. When any tenant failed or was refused, the sweep summary is logged at Warning (EventId 2112) and the pass waits `ErrorBackoff` instead of the interval. A blank tenant identifier is counted as failed and skipped. When no tenant failed, a command reporting more work through `IRecurringWorkReport` starts the next pass without waiting, as in the single-command loop.
+
+## Aligning Passes to Wall-Clock Occurrences
+
+By default the loop waits `Interval` between passes. Set `RecurringCommandHostOptions.Schedule` to align passes to wall-clock occurrences instead. The loop waits for the next occurrence before the first pass and between passes. A pass that reports more work still starts the next pass at once, a pass that fails still waits `ErrorBackoff`, and a schedule that reports no further occurrence ends the loop. `StartupDelay` still applies after host start, before the loop aligns to its first occurrence.
+
+The built-in schedules live on the static `RecurringSchedules` type:
+
+```csharp
+registry.AddCommands(commands => commands
+    .RegisterFromAssembly(typeof(SendDueRemindersCommand).Assembly)
+    .AddRecurring(
+        () => new SendDueRemindersCommand { BatchSize = 50 },
+        host => host.Schedule = RecurringSchedules.DailyAt(new TimeOnly(9, 0), TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin"))));
+```
+
+| Schedule | Behavior |
+| --- | --- |
+| `RecurringSchedules.Every(interval)` | Fires once per interval after the current time. The interval must be positive. |
+| `RecurringSchedules.DailyAt(time, zone)` | Fires once a day at a fixed local time. `zone` is `null` for UTC. |
+| `RecurringSchedules.WeeklyOn(day, time, zone)` | Fires once a week on a fixed weekday at a fixed local time. `zone` is `null` for UTC. `day` must be a defined weekday. |
+
+A local time inside a daylight-saving gap resolves forward to the next valid instant, and a local time inside a fall-back overlap resolves to the earlier occurrence. A scheduled loop still catches up nothing it missed while down: it waits for the next occurrence after the current time.
+
+`IRecurringSchedule` is the replaceable port behind `Schedule`, with the single method `DateTimeOffset? GetNextOccurrence(DateTimeOffset after)`. An application with cron expressions implements it over its cron library and sets the implementation on `Schedule`. Implementations must be thread-safe and free of side effects, because the loop calls them on every wait.
 
 ## Failure Behavior
 
@@ -175,7 +269,7 @@ There is a second pattern that needs no lease package and works with any store. 
 
 ## Limitations
 
-A recurring command is a poll loop, not a scheduler; see `RecurringCommandHostOptions` for the scheduling boundary. When work must happen at a particular time rather than regularly, use a scheduler.
+By default a recurring command is a poll loop, not a scheduler; see `RecurringCommandHostOptions` for the scheduling boundary. Set `Schedule` when passes must align to wall-clock occurrences, as described in [Aligning Passes to Wall-Clock Occurrences](#aligning-passes-to-wall-clock-occurrences). There is still no missed-run catch-up for time the host was down, and no cron expression parser; an application with cron expressions implements `IRecurringSchedule` over its cron library.
 
 The loop runs on every host instance by default; see `RecurringCommandHostOptions` for the concurrency boundary and [Running on Several Replicas](#running-on-several-replicas) for single-flight operations.
 

@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Storage.PostgreSql;
 using Npgsql;
@@ -73,6 +74,17 @@ public sealed class PostgreSqlOutboxModuleBuilder
     ///     <see cref="EnableAmbientTransactionProvider(TransactionalWriteMode)" />.
     /// </remarks>
     internal Func<IServiceProvider, ITransactionalOutbox>? TransactionalOutboxFactory { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the factory used to register a scoped domain event harvester for the session a companion
+    ///     package reads.
+    /// </summary>
+    /// <remarks>
+    ///     Companion packages, such as the Marten outbox storage, set this through their own builder extension. When
+    ///     set, <see cref="PostgreSqlOutboxModule" /> adds the factory result to the scoped
+    ///     <see cref="IDomainEventHarvester" /> collection.
+    /// </remarks>
+    internal Func<IServiceProvider, IDomainEventHarvester>? DomainEventHarvesterFactory { get; set; }
 
     /// <summary>
     ///     Disables registration of outbox schema initialization background service work.

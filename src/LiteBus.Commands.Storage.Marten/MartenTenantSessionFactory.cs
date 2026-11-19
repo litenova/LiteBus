@@ -26,6 +26,13 @@ namespace LiteBus.Commands.Storage.Marten;
 ///         every mediation. The caller owns the returned session and disposes it when done. Registered through
 ///         <see cref="CommandModuleBuilderMartenExtensions.UseMartenTenantSessions(CommandModuleBuilder)" />.
 ///     </para>
+///     <para>
+///         The returned sessions sit outside the mediation unit of work: each call opens a new lightweight session the
+///         caller owns and disposes, while command handlers commit through the scoped session the unit of work saves.
+///         A handler that writes through a tenant session would commit outside the mediation transaction and split the
+///         unit of work. Handlers keep writing through the scoped session and use the factory only for
+///         tenant-filtered reads.
+///     </para>
 /// </remarks>
 public sealed class MartenTenantSessionFactory
 {

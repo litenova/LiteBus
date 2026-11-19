@@ -26,49 +26,38 @@ internal static class RequiredDeclarationValidator
     ///     One or more registered messages state no position on a required value type. The message names every
     ///     offender and the scope of the requirement it violated.
     /// </exception>
+    /// <remarks>
+    ///     Only fail-mode requirements are checked here. Report-mode requirements are skipped: they list their
+    ///     offenders through the <c>litebus.declarations</c> probe instead of failing. Each requirement reads through
+    ///     the same catalog query the probe uses, so the two enforcements can never disagree about what is missing.
+    /// </remarks>
     public static void Validate(IMessageReader reader, IReadOnlyList<DeclarationRequirement> requirements)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(requirements);
 
-        if (requirements.Count == 0)
+        var failing = requirements
+            .Where(requirement => requirement.Enforcement == DeclarationEnforcement.Fail)
+            .ToList();
+
+        if (failing.Count == 0)
         {
             return;
         }
 
+        var catalog = new MessageCatalog(reader);
         var undeclared = new Dictionary<DeclarationRequirement, List<Type>>();
 
-        foreach (var descriptor in reader)
+        foreach (var requirement in failing)
         {
-            // Abstract types and interfaces are shapes rather than messages, and a declaration written for one covers
-            // every message beneath it, so requiring them to declare anything themselves would be noise.
-            if (descriptor.MessageType.IsAbstract || descriptor.MessageType.IsInterface)
+            var missing = ((IMessageCatalog)catalog)
+                .MissingDeclaration(requirement.ValueType, requirement.Scope)
+                .Select(entry => entry.MessageType)
+                .ToList();
+
+            if (missing.Count > 0)
             {
-                continue;
-            }
-
-            descriptor.Metadata.TryGet<DeclarationExemptions>(out var exemptions);
-
-            foreach (var requirement in requirements)
-            {
-                if (!requirement.Covers(descriptor.MessageType))
-                {
-                    continue;
-                }
-
-                if (Declares(descriptor.Metadata, requirement.ValueType) ||
-                    exemptions?.Covers(requirement.ValueType) == true)
-                {
-                    continue;
-                }
-
-                if (!undeclared.TryGetValue(requirement, out var offenders))
-                {
-                    offenders = [];
-                    undeclared[requirement] = offenders;
-                }
-
-                offenders.Add(descriptor.MessageType);
+                undeclared[requirement] = missing;
             }
         }
 
@@ -76,22 +65,6 @@ internal static class RequiredDeclarationValidator
         {
             throw new MessageDeclarationException(BuildMessage(undeclared));
         }
-    }
-
-    /// <summary>
-    ///     Determines whether the metadata holds a value of the required type.
-    /// </summary>
-    /// <param name="metadata">The metadata resolved for one message type.</param>
-    /// <param name="required">The required metadata value type.</param>
-    /// <returns><see langword="true" /> when a value of that type is present.</returns>
-    /// <remarks>
-    ///     <see cref="IMessageMetadata.Contains{TValue}" /> is generic and the required type is only known at runtime,
-    ///     so presence is decided by scanning the resolved values. There are a handful per message and this runs once
-    ///     at composition, so the cost is irrelevant next to reflecting the generic call into place.
-    /// </remarks>
-    private static bool Declares(IMessageMetadata metadata, Type required)
-    {
-        return metadata.Values.Any(required.IsInstanceOfType);
     }
 
     /// <summary>

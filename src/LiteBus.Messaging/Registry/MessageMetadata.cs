@@ -105,6 +105,46 @@ internal sealed class MessageMetadata : IMessageMetadata
     }
 
     /// <summary>
+    ///     Stores a convention value when no other source declared the key.
+    /// </summary>
+    /// <param name="keyType">The CLR type used as the metadata key.</param>
+    /// <param name="value">The convention value to store.</param>
+    /// <param name="messageType">The concrete message type the convention was evaluated for.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the value was stored; <see langword="false" /> when a value was already
+    ///     present and the convention yielded to it.
+    /// </returns>
+    /// <exception cref="MessageDeclarationException">The value does not match its key type.</exception>
+    /// <remarks>
+    ///     Conventions apply after every other source, so presence alone decides: anything already stored, whether
+    ///     from a definition, an attribute, or a default, wins without comparing specificity. The source is recorded
+    ///     at the lowest rank, so a definition arriving later would still win; none does, because conventions apply in
+    ///     a composition validation, after every module has registered.
+    /// </remarks>
+    public bool TryApplyConvention(Type keyType, object value, Type messageType)
+    {
+        ArgumentNullException.ThrowIfNull(keyType);
+        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(messageType);
+
+        if (!keyType.IsInstanceOfType(value))
+        {
+            throw new MessageDeclarationException(
+                $"A convention for '{messageType.Name}' produced a value of type '{value.GetType().Name}', "
+                + $"but declared its metadata key as '{keyType.Name}'.");
+        }
+
+        if (_values.ContainsKey(keyType))
+        {
+            return false;
+        }
+
+        _values[keyType] = value;
+        _sources[keyType] = (messageType, MetadataSourceKind.Attribute);
+        return true;
+    }
+
+    /// <summary>
     ///     Determines whether an incoming declaration replaces the one already stored.
     /// </summary>
     /// <param name="incomingMessageType">The message type the incoming declaration was written for.</param>

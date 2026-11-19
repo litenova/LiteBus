@@ -62,40 +62,71 @@ A record for a denial, failure, cancellation, or invalid message cannot join tha
 
 ## Hash-Chained Audit Trail
 
-`MartenAuditTrailOptions` turns the trail tamper-evident. Each record in a segment gets a sequence number and a SHA-256 hash over the canonical JSON of the record plus the hash of its predecessor, so a review can prove that no record was removed, reordered, or altered. Register a configured instance with the application container:
+`UseMartenAuditChain` turns the trail tamper-evident. Each record in a segment gets a sequence number and a hash over its canonical form linked to the hash of its predecessor, so a review can prove that no record was removed, reordered, or altered. Register it on the command module:
 
 ```csharp
-services.AddSingleton(new MartenAuditTrailOptions().UseHashChain());
+services.AddLiteBus(liteBus => liteBus.AddCommands(commands => commands
+    .UseMartenUnitOfWork()
+    .UseMartenAuditChain()));
 ```
 
-Without a registered instance the trail writes plain records exactly as before, with no sequence numbers and no hash chain.
+Without the call the trail writes plain records, with no sequence numbers and no hash chain.
 
-Records are chained per segment. The default segment is `{category}/{year}`, with `uncategorized` for a record that carries no category. Pass a selector to `UseHashChain` to segment differently:
+With no configuration the chain stores `MartenAuditRecord` documents, segments them by `{category}/{year}` (with `uncategorized` for a record that carries no category), hashes them with the `sha256-v1` scheme, and cuts a checkpoint every 100 records. Every piece is replaceable through `UseHashChain`:
 
 ```csharp
-services.AddSingleton(new MartenAuditTrailOptions().UseHashChain(record => record.TenantId ?? "unscoped"));
+commands.UseMartenAuditChain(options => options.UseHashChain(chain => chain
+    .SegmentBy<MartenAuditRecord>(record => record.TenantId ?? "unscoped")
+    .CheckpointWhen(CheckpointPolicies.Any(
+        CheckpointPolicies.EveryRecords(500),
+        CheckpointPolicies.Every(TimeSpan.FromDays(1))))
+    .SignCheckpointsWith<LedgerCheckpointSigner>()
+    .PublishCheckpointsTo<LedgerCheckpointPublisher>()));
 ```
 
-A chained `MartenAuditRecord` carries `Segment`, `Sequence` starting at one, `PreviousHash`, and `Hash`. The canonical form hashed is a JSON object of string fields in key order: every scalar the document carries, including the segment, the sequence, and the predecessor hash, plus each entry of `Properties` under a `property:` prefix. Dates use the round-trip format, durations use ticks, and numbers use the invariant culture, so the same document hashes the same on every machine. Only `Hash` itself is excluded: it is what is being computed.
+| Builder method | Decides | Default |
+| --- | --- | --- |
+| `StoreAs<TDocument>(mapper)` | The stored document type and how an `AuditRecord` maps to it | `MartenAuditRecord` |
+| `SegmentBy<TDocument>(segmenter)` or `SegmentBy<TDocument>(segmentOf)` | The segment of each document, and an optional genesis document per segment | Category and year |
+| `UseScheme(scheme)` or `UseScheme(serviceProvider => scheme)` | The canonical form, link rule and hasher new documents are written with | `MartenAuditHashSchemes.Sha256V1` |
+| `AcceptScheme(scheme)` | An older scheme that verification still accepts | None |
+| `CheckpointWhen(policy)` | When a checkpoint is cut | Every 100 records |
+| `SignCheckpointsWith(signer)` | How a checkpoint is signed | Unsigned |
+| `PublishCheckpointsTo(publisher)` | Where checkpoints are published | Not published |
 
-A `MartenAuditSegmentHead` document per segment serializes appends. The document identity is the segment name, and the head carries the sequence number and hash of the last record appended. Every chained append loads the head, assigns the next sequence number, and stores the head back in the same session as the record, under Marten optimistic concurrency. A concurrent append fails its commit and retries against the winner, so two records never share a sequence number.
+The mapper, segmenter, signer and publisher can be given as an instance or as a type resolved from the container, and a scheme can be built from the container with the factory overload, so a hasher can read its key from a secret store. Checkpoint policies are plain values. [Auditing](../concepts/auditing.md#hash-chained-audit-storage) shows a custom document type with its own mapper, segmenter, canonicalizer and keyed hasher.
 
-A chained record is written out of band on its own serialized session even for a successful mediation, because the sequence number is assigned under the segment lock at commit time, which a staged session cannot hold. A chained success record is therefore durable on its own rather than atomic with the handler change, and a rolled-back handler still leaves its audit record behind. That is the cost of the chain: enable it where tamper evidence matters more than record-change atomicity.
+Each document stores the name of the scheme it was written with. To change the algorithm, the key or the canonical form, write new documents with a new scheme and keep accepting the old one; verification picks the scheme per document:
+
+```csharp
+options.UseHashChain(chain => chain
+    .UseScheme(serviceProvider => new AuditHashScheme<MartenAuditRecord>(
+        "hmac-sha256-v2",
+        new MartenAuditRecordCanonicalizer(),
+        new PreviousHashLinkRule(),
+        new HmacSha256AuditHasher(cancellationToken => serviceProvider.GetRequiredService<IAuditKeyStore>().GetKeyAsync(cancellationToken))))
+    .AcceptScheme(MartenAuditHashSchemes.Sha256V1));
+```
+
+A `MartenAuditSegmentHead` document per segment serializes appends. Its identity is the segment name, and it carries the last sequence number and hash, the document count, and the last checkpoint. Every chained append loads the head, assigns the next sequence number, and stores the head back in the same session as the record, under Marten optimistic concurrency. A concurrent append fails its commit and retries against the winner, so two records never share a sequence number.
+
+A chained record is written on its own serialized session even for a successful mediation, because the sequence number is assigned under the segment head at commit time, which a staged session cannot hold. A chained success record is therefore durable on its own rather than atomic with the handler change, and a rolled-back handler still leaves its audit record behind. Enable the chain where tamper evidence matters more than record-change atomicity.
 
 ### Checkpoints
 
-A hash chain proves internal consistency, but a tamperer who rewrites a whole suffix and recomputes every hash still passes verification. Published checkpoints close that gap. Set `CheckpointPublisher` to an `ICheckpointPublisher`, and the trail publishes an `AuditCheckpoint` carrying the segment, the sequence number, and the hash every `CheckpointInterval` records:
+A hash chain proves internal consistency, but a tamperer who rewrites a whole suffix and recomputes every hash still passes verification. Published checkpoints close that gap. An `AuditCheckpoint` carries an identifier, the segment, the sequence, the number of documents it covers, the hash and scheme at that sequence, its kind, and an optional signature. Every checkpoint is stored as a `MartenAuditCheckpoint` document, which the registered `ICheckpointSource` reads back, and is then passed to the publisher. Publish synchronously, because a checkpoint the application never stored anchors nothing; a publisher that throws fails the operation it was called from.
 
-```csharp
-var options = new MartenAuditTrailOptions().UseHashChain();
-options.CheckpointPublisher = new LedgerCheckpointPublisher();
-options.CheckpointInterval = 50;
-services.AddSingleton(options);
-```
+The checkpoint policy is asked after every append. A policy that can become due by time alone, such as `CheckpointPolicies.Every(TimeSpan)`, is also asked by a background service every `MartenAuditTrailOptions.CheckpointScanInterval` (five minutes by default), so a quiet segment still gets its daily or weekly checkpoint.
 
-`CheckpointInterval` defaults to 100 and must be positive. A checkpoint is published when a record whose sequence number is an exact multiple of the interval commits. Where the checkpoint goes is the application's decision: a separate table, a ledger, or a compliance store. Publish synchronously, because a checkpoint the application never stored anchors nothing. A publisher that throws fails the audit write it was called from, so a lost checkpoint surfaces instead of passing silently.
+### Verifying, Cutting and Expiring Segments
 
-`VerifyChainAsync(segment)` verifies one segment from its first record to its head and returns the first broken sequence number: a missing sequence, a record whose predecessor link does not match the hash of the record before it, or a record whose stored hash does not match its recomputed hash. It returns `null` when the chain is intact, including when the segment holds no records. Verification proves that nothing was removed, reordered, or altered since the records were written. Compare the head hash against the latest checkpoint the publisher stored for the segment to prove that no suffix was rewritten.
+Resolve `IAuditChain` to operate on segments:
+
+- `VerifyAsync(segment)` reads the segment from its first document to its head and returns `AuditChainVerification`: every break with its sequence and kind (gap, duplicate, previous-hash mismatch, hash mismatch, unknown scheme), the head, the document count, and the comparison with the latest checkpoint's hash, count and signature. `IsIntact` is `true` when nothing is wrong. `MartenAuditTrail.VerifyChainAsync(segment)` returns the same result.
+- `CutCheckpointAsync(segment)` cuts, stores, signs and publishes a checkpoint now.
+- `ExpireSegmentAsync(segment)` ends a segment for retention. It stores a `Final` checkpoint, publishes it, then deletes every document of the segment and marks the head expired, so the remaining segments still verify and the final checkpoint proves what the deleted segment held. A retry after a failed publish republishes the same checkpoint identifier and finishes the deletion. Appending to an expired segment throws.
+
+Existing chains written before the scheme name was stored verify unchanged as `sha256-v1`.
 
 ## Tenant Sessions
 
@@ -105,21 +136,35 @@ services.AddSingleton(options);
 public sealed class PostEntryCommandHandler : ICommandHandler<PostEntryCommand>
 {
     private readonly MartenTenantSessionFactory _sessions;
+    private readonly IDocumentSession _session;
 
-    public PostEntryCommandHandler(MartenTenantSessionFactory sessions) => _sessions = sessions;
+    public PostEntryCommandHandler(MartenTenantSessionFactory sessions, IDocumentSession session)
+    {
+        _sessions = sessions;
+        _session = session;
+    }
 
     public async Task HandleAsync(PostEntryCommand command, CancellationToken cancellationToken = default)
     {
-        using var session = _sessions.OpenSession();
-        session.Store(new LedgerEntry(command.WorkspaceId, command.Draft));
-        await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        using var readSession = _sessions.OpenQuerySession();
+        var duplicate = await readSession
+            .Query<LedgerEntry>()
+            .AnyAsync(entry => entry.EntryId == command.EntryId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!duplicate)
+        {
+            _session.Store(new LedgerEntry(command.WorkspaceId, command.Draft));
+        }
     }
 }
 ```
 
 The factory reads the ambient execution identity and opens a lightweight session for its tenant, so handlers work on tenant-filtered documents without resolving the tenant themselves. `OpenQuerySession` opens a read-only query session the same way, and the static `ResolveTenantId` returns the ambient tenant for code that needs the identifier rather than a session. Without an ambient mediation, or when the mediation runs outside any tenant, the factory opens a default session instead. See [Tenancy](../concepts/tenancy.md) for where the ambient tenant comes from.
 
-The application must configure Marten for conjoined tenancy, with `options.Policies.AllDocumentsAreMultiTenanted()` and a multi-tenancy source such as `options.MultiTenantedWithSingleServer(...)`. On a store without tenancy, opening a tenant session fails in Marten rather than filtering silently.
+The returned sessions sit outside the mediation unit of work: each call opens a new lightweight session the caller owns and disposes, while command handlers commit through the scoped session the unit of work saves. A handler that writes through a tenant session would commit outside the mediation transaction and split the unit of work. Handlers keep writing through the scoped session and use the factory only for tenant-filtered reads.
+
+The application must configure Marten for conjoined tenancy, with `options.Policies.AllDocumentsAreMultiTenanted()` and no separate-database tenancy source. A source such as `options.MultiTenantedWithSingleServer(...)` keeps each tenant in its own database and disables the default tenant, so the default session the factory opens outside any tenant would fail. On a store without tenancy, opening a tenant session fails in Marten rather than filtering silently.
 
 ## Concurrency Conflicts as Refusals
 

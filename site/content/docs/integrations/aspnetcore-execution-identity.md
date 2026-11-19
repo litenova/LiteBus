@@ -55,6 +55,58 @@ services.AddLiteBusExecutionIdentity(options =>
 
 A blank claim type throws `ArgumentException` from `AddLiteBusExecutionIdentity` rather than on the first request.
 
+## Dispatch Scope and Request-Scoped Services
+
+The mediator resolves the provider from the dispatch scope, which is a sibling of the request scope rather than a child of it. A service the request scope holds, such as a principal holder the application fills during authentication, resolves as a fresh instance with no state inside the provider. An implementation that reads such a holder compiles and always observes the default, so every request silently resolves as `Anonymous`.
+
+This registration bridges through `IHttpContextAccessor` instead: the provider reads the principal from `HttpContext.User` and the tenant from the claim named by `TenantClaimType`, both of which stay available outside the request scope. An application that keeps the caller in its own request-scoped holder stamps the same values onto claims or the HTTP context so the provider reads them there, rather than reading the holder from the provider.
+
+## Transient Principals on Sign-In Paths
+
+The provider passes `HttpContext.User` through unfiltered, including a transient principal the request carries only during sign-in, such as the principal on an OpenID Connect callback path. A mediation started from such an endpoint would attribute the work to that transient caller, so those endpoints pass an explicit identity on the mediation settings instead:
+
+```csharp
+endpoints.MapPost("/sign-in/complete", async (HttpContext context, ICommandMediator mediator, CompleteSignInCommand command, CancellationToken cancellationToken) =>
+{
+    var settings = new CommandMediationSettings { Identity = ExecutionIdentity.Anonymous };
+    var result = await mediator.TrySendAsync(command, settings, cancellationToken).ConfigureAwait(false);
+    return result.ToHttpResult(context, () => Results.Ok());
+});
+```
+
+Forgetting the explicit identity is silent: the mediation runs as the transient caller with no error.
+
+## Tenants From More Than One Claim
+
+`TenantClaimType` names one claim and the shipped provider reads exactly it. A host that accepts a tenant from either of two claims, such as a session claim for cookie requests and a token claim for bearer requests, either stamps one normalized claim first so the provider keeps reading one name, or registers a custom provider that tries the claim types in order:
+
+```csharp
+public sealed class FallbackTenantIdentityProvider : IExecutionIdentityProvider
+{
+    private readonly IHttpContextAccessor _httpContextAccessor;
+
+    public FallbackTenantIdentityProvider(IHttpContextAccessor httpContextAccessor) =>
+        _httpContextAccessor = httpContextAccessor;
+
+    public ExecutionIdentity GetCurrentIdentity()
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+
+        if (user is null)
+        {
+            return ExecutionIdentity.Anonymous;
+        }
+
+        var tenantId = user.FindFirst("tenant_id")?.Value
+            ?? user.FindFirst("workspace_id")?.Value;
+
+        return ExecutionIdentity.For(user, tenantId);
+    }
+}
+```
+
+A custom provider still bridges through `IHttpContextAccessor` and claims, for the reason above.
+
 ## Refusal Mapping
 
 `ToHttpResult` maps the `TrySendAsync` outcome to a response in one call. A mediation that ran or was answered from the store runs the `onSuccess` callback. A refusal resolves its code through an `IRefusalProblemCatalog` to a status code and title, and is written as an RFC 9457 problem carrying the reason the pipeline reported and a stable `urn:litebus:` type derived from the code, so one client handler reads every refusal the same way. Problem responses use the same shape as the management endpoints. They carry a stable `urn:litebus:` type, the request path as instance, and the request trace identifier as `traceId`.

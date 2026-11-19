@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Authorization;
+using LiteBus.Messaging.Abstractions.Tenancy;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -61,6 +63,35 @@ public sealed class MessagePolicyTests : LiteBusTestBase
     }
 
     /// <summary>
+    ///     Verifies that a mediation running in a tenant passes the tenant policy.
+    /// </summary>
+    [Fact]
+    public async Task Tenant_allows_when_the_mediation_runs_in_a_tenant()
+    {
+        var verdict = await MessagePolicy.Tenant()
+            .EvaluateAsync(ContextFor(new PolicySubjectMessage("subject-1"), TenantIdentity()), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeFalse();
+    }
+
+    /// <summary>
+    ///     Verifies that a mediation running in no tenant fails the tenant policy with the stable code.
+    /// </summary>
+    [Fact]
+    public async Task Tenant_denies_without_a_tenant_with_the_stable_code()
+    {
+        var verdict = await MessagePolicy.Tenant()
+            .EvaluateAsync(ContextFor(new PolicySubjectMessage("subject-1"), SignedInIdentity()), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeTrue();
+        verdict.Code.Should().Be(TenancyRefusalCodes.TenantRequired);
+        verdict.Reason.Should().Contain("PolicySubjectMessage");
+        TenancyRefusalCodes.TenantRequired.Should().Be("tenancy.required");
+    }
+
+    /// <summary>
     ///     Verifies that a held permission passes the permission policy.
     /// </summary>
     [Fact]
@@ -110,8 +141,9 @@ public sealed class MessagePolicyTests : LiteBusTestBase
             .ConfigureAwait(false);
 
         verdict.IsDenied.Should().BeTrue();
-        verdict.Code.Should().Be("authorization.permission-lookup-missing");
+        verdict.Code.Should().Be(AuthorizationPolicyRefusalCodes.PermissionLookupMissing);
         verdict.Reason.Should().Contain("vaults.open");
+        AuthorizationPolicyRefusalCodes.PermissionLookupMissing.Should().Be("authorization.permission-lookup-missing");
     }
 
     /// <summary>
@@ -226,7 +258,7 @@ public sealed class MessagePolicyTests : LiteBusTestBase
     }
 
     /// <summary>
-    ///     Verifies that a principal without a sign-in instant fails the recent sign-in policy.
+    ///     Verifies that a principal without a sign-in instant fails the recent sign-in policy with the stable code.
     /// </summary>
     [Fact]
     public async Task RecentSignIn_denies_a_principal_without_a_sign_in_instant()
@@ -236,7 +268,8 @@ public sealed class MessagePolicyTests : LiteBusTestBase
             .ConfigureAwait(false);
 
         verdict.IsDenied.Should().BeTrue();
-        verdict.Code.Should().Be(AuthorizationPolicyRefusalCodes.Forbidden);
+        verdict.Code.Should().Be(AuthorizationPolicyRefusalCodes.SignInInstantUnknown);
+        AuthorizationPolicyRefusalCodes.SignInInstantUnknown.Should().Be("authorization.sign-in-instant-unknown");
     }
 
     /// <summary>
@@ -251,6 +284,202 @@ public sealed class MessagePolicyTests : LiteBusTestBase
 
         verdict.IsDenied.Should().BeTrue();
         verdict.Code.Should().Be(AuthorizationPolicyRefusalCodes.NotSignedIn);
+    }
+
+    /// <summary>
+    ///     Verifies that an unparsable sign-in instant fails the recent sign-in policy with the stable code.
+    /// </summary>
+    [Fact]
+    public async Task RecentSignIn_denies_an_unparsable_sign_in_instant()
+    {
+        var identity = SignedInIdentity(new Claim("auth_time", "not-a-number"));
+
+        var verdict = await MessagePolicy.RecentSignIn(TimeSpan.FromMinutes(30))
+            .EvaluateAsync(ContextFor(new PolicySubjectMessage("subject-1"), identity), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeTrue();
+        verdict.Code.Should().Be(AuthorizationPolicyRefusalCodes.SignInInstantUnknown);
+    }
+
+    /// <summary>
+    ///     Verifies that a sign-in instant outside the representable range fails the recent sign-in policy.
+    /// </summary>
+    [Fact]
+    public async Task RecentSignIn_denies_an_out_of_range_sign_in_instant()
+    {
+        var identity = SignedInIdentity(new Claim("auth_time", long.MaxValue.ToString(CultureInfo.InvariantCulture)));
+
+        var verdict = await MessagePolicy.RecentSignIn(TimeSpan.FromMinutes(30))
+            .EvaluateAsync(ContextFor(new PolicySubjectMessage("subject-1"), identity), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeTrue();
+        verdict.Code.Should().Be(AuthorizationPolicyRefusalCodes.SignInInstantUnknown);
+    }
+
+    /// <summary>
+    ///     Verifies that a fresh sign-in read from the registered source passes the recent sign-in policy.
+    /// </summary>
+    [Fact]
+    public async Task RecentSignIn_allows_a_fresh_sign_in_from_the_instant_source()
+    {
+        var handledAt = TestInstant();
+
+        var verdict = await MessagePolicy.RecentSignIn(TimeSpan.FromMinutes(30))
+            .EvaluateAsync(
+                ContextFor(
+                    new PolicySubjectMessage("subject-1"),
+                    SignedInIdentity(),
+                    SourceServices(new FixedSignInInstantSource(handledAt.AddMinutes(-5))),
+                    handledAt),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeFalse();
+    }
+
+    /// <summary>
+    ///     Verifies that a stale sign-in read from the registered source fails the recent sign-in policy.
+    /// </summary>
+    [Fact]
+    public async Task RecentSignIn_denies_a_stale_sign_in_from_the_instant_source()
+    {
+        var handledAt = TestInstant();
+
+        var verdict = await MessagePolicy.RecentSignIn(TimeSpan.FromMinutes(30))
+            .EvaluateAsync(
+                ContextFor(
+                    new PolicySubjectMessage("subject-1"),
+                    SignedInIdentity(),
+                    SourceServices(new FixedSignInInstantSource(handledAt.AddHours(-2))),
+                    handledAt),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeTrue();
+        verdict.Code.Should().Be(AuthorizationPolicyRefusalCodes.Forbidden);
+    }
+
+    /// <summary>
+    ///     Verifies that an unknown instant from the registered source fails the recent sign-in policy.
+    /// </summary>
+    [Fact]
+    public async Task RecentSignIn_denies_when_the_source_returns_no_instant()
+    {
+        var handledAt = TestInstant();
+
+        var verdict = await MessagePolicy.RecentSignIn(TimeSpan.FromMinutes(30))
+            .EvaluateAsync(
+                ContextFor(
+                    new PolicySubjectMessage("subject-1"),
+                    SignedInIdentity(SignedInAt(handledAt.AddMinutes(-5))),
+                    SourceServices(new FixedSignInInstantSource(null)),
+                    handledAt),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeTrue();
+        verdict.Code.Should().Be(AuthorizationPolicyRefusalCodes.SignInInstantUnknown);
+    }
+
+    /// <summary>
+    ///     Verifies that the registered source wins over the claim when both carry an instant.
+    /// </summary>
+    [Fact]
+    public async Task RecentSignIn_prefers_the_source_over_the_claim()
+    {
+        var handledAt = TestInstant();
+        var identity = SignedInIdentity(SignedInAt(handledAt.AddHours(-2)));
+
+        var verdict = await MessagePolicy.RecentSignIn(TimeSpan.FromMinutes(30))
+            .EvaluateAsync(
+                ContextFor(
+                    new PolicySubjectMessage("subject-1"),
+                    identity,
+                    SourceServices(new FixedSignInInstantSource(handledAt.AddMinutes(-5))),
+                    handledAt),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeFalse();
+    }
+
+    /// <summary>
+    ///     Verifies that a sign-in older than a sub-second window fails, proving the age comparison keeps
+    ///     sub-second precision.
+    /// </summary>
+    [Fact]
+    public async Task RecentSignIn_denies_a_sign_in_older_than_a_sub_second_window()
+    {
+        var handledAt = TestInstant();
+
+        var verdict = await MessagePolicy.RecentSignIn(TimeSpan.FromMilliseconds(500))
+            .EvaluateAsync(
+                ContextFor(
+                    new PolicySubjectMessage("subject-1"),
+                    SignedInIdentity(),
+                    SourceServices(new FixedSignInInstantSource(handledAt.AddMilliseconds(-600))),
+                    handledAt),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeTrue();
+        verdict.Code.Should().Be(AuthorizationPolicyRefusalCodes.Forbidden);
+    }
+
+    /// <summary>
+    ///     Verifies that a sign-in within a sub-second window passes.
+    /// </summary>
+    [Fact]
+    public async Task RecentSignIn_allows_a_sign_in_within_a_sub_second_window()
+    {
+        var handledAt = TestInstant();
+
+        var verdict = await MessagePolicy.RecentSignIn(TimeSpan.FromMilliseconds(500))
+            .EvaluateAsync(
+                ContextFor(
+                    new PolicySubjectMessage("subject-1"),
+                    SignedInIdentity(),
+                    SourceServices(new FixedSignInInstantSource(handledAt.AddMilliseconds(-400))),
+                    handledAt),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeFalse();
+    }
+
+    /// <summary>
+    ///     Verifies that the claim overload reads the configured claim type.
+    /// </summary>
+    [Fact]
+    public async Task RecentSignIn_reads_the_configured_claim_type()
+    {
+        var handledAt = TestInstant();
+        var identity = SignedInIdentity(CustomSignedInAt("session_auth_time", handledAt.AddMinutes(-5)));
+
+        var verdict = await MessagePolicy.RecentSignIn(TimeSpan.FromMinutes(30), "session_auth_time")
+            .EvaluateAsync(ContextFor(new PolicySubjectMessage("subject-1"), identity, handledAt: handledAt), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeFalse();
+    }
+
+    /// <summary>
+    ///     Verifies that the claim overload ignores the default claim when another type is configured.
+    /// </summary>
+    [Fact]
+    public async Task RecentSignIn_ignores_other_claims_when_a_claim_type_is_configured()
+    {
+        var handledAt = TestInstant();
+        var identity = SignedInIdentity(SignedInAt(handledAt.AddMinutes(-5)));
+
+        var verdict = await MessagePolicy.RecentSignIn(TimeSpan.FromMinutes(30), "session_auth_time")
+            .EvaluateAsync(ContextFor(new PolicySubjectMessage("subject-1"), identity, handledAt: handledAt), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeTrue();
+        verdict.Code.Should().Be(AuthorizationPolicyRefusalCodes.SignInInstantUnknown);
     }
 
     /// <summary>
@@ -486,6 +715,32 @@ public sealed class MessagePolicyTests : LiteBusTestBase
     }
 
     /// <summary>
+    ///     Verifies that the public policy allows without a caller.
+    /// </summary>
+    [Fact]
+    public async Task Public_allows_without_a_caller()
+    {
+        var verdict = await MessagePolicy.Public()
+            .EvaluateAsync(ContextFor(new PolicySubjectMessage("subject-1"), ExecutionIdentity.Anonymous), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeFalse();
+    }
+
+    /// <summary>
+    ///     Verifies that the public policy allows a signed-in caller.
+    /// </summary>
+    [Fact]
+    public async Task Public_allows_a_signed_in_caller()
+    {
+        var verdict = await MessagePolicy.Public()
+            .EvaluateAsync(ContextFor(new PolicySubjectMessage("subject-1"), SignedInIdentity()), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeFalse();
+    }
+
+    /// <summary>
     ///     Verifies that the denying policy denies with its reason and the stable code.
     /// </summary>
     [Fact]
@@ -501,6 +756,193 @@ public sealed class MessagePolicyTests : LiteBusTestBase
     }
 
     /// <summary>
+    ///     Verifies that a registered condition answers the verdict the condition policy returns.
+    /// </summary>
+    [Fact]
+    public async Task Condition_answers_the_registered_condition_verdict()
+    {
+        var verdict = await MessagePolicy.Condition<FixedPolicyCondition>()
+            .EvaluateAsync(
+                ContextFor(
+                    new PolicySubjectMessage("subject-1"),
+                    SignedInIdentity(),
+                    ConditionServices(new FixedPolicyCondition(Verdict.Allow))),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeFalse();
+    }
+
+    /// <summary>
+    ///     Verifies that a denying condition refuses through the condition policy with its own code.
+    /// </summary>
+    [Fact]
+    public async Task Condition_returns_the_condition_denial()
+    {
+        var verdict = await MessagePolicy.Condition<FixedPolicyCondition>()
+            .EvaluateAsync(
+                ContextFor(
+                    new PolicySubjectMessage("subject-1"),
+                    SignedInIdentity(),
+                    ConditionServices(new FixedPolicyCondition(Verdict.Deny("the condition refused.", "test.condition")))),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeTrue();
+        verdict.Reason.Should().Be("the condition refused.");
+        verdict.Code.Should().Be("test.condition");
+    }
+
+    /// <summary>
+    ///     Verifies that a condition policy without a registered condition denies with the stable code.
+    /// </summary>
+    [Fact]
+    public async Task Condition_denies_with_the_stable_code_when_none_is_registered()
+    {
+        var verdict = await MessagePolicy.Condition<FixedPolicyCondition>()
+            .EvaluateAsync(ContextFor(new PolicySubjectMessage("subject-1"), SignedInIdentity()), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeTrue();
+        verdict.Code.Should().Be(AuthorizationPolicyRefusalCodes.ConditionMissing);
+        verdict.Reason.Should().Contain(nameof(FixedPolicyCondition));
+        AuthorizationPolicyRefusalCodes.ConditionMissing.Should().Be("authorization.condition-missing");
+    }
+
+    /// <summary>
+    ///     Verifies that a nested mediation whose parent handles the named message passes the sent-by policy.
+    /// </summary>
+    [Fact]
+    public async Task SentBy_allows_when_the_parent_handles_the_named_message()
+    {
+        var parent = new PolicyExecutionContext(messageType: typeof(PolicySubjectMessage));
+        var current = new PolicyExecutionContext(parent: parent);
+
+        var verdict = await MessagePolicy.SentBy<PolicySubjectMessage>()
+            .EvaluateAsync(
+                ContextFor(new PolicySubjectMessage("subject-1"), SignedInIdentity(), executionContext: current),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeFalse();
+    }
+
+    /// <summary>
+    ///     Verifies that a nested mediation whose parent message derives from the named type passes the sent-by
+    ///     policy.
+    /// </summary>
+    [Fact]
+    public async Task SentBy_allows_when_the_parent_message_is_assignable_to_the_named_type()
+    {
+        var parent = new PolicyExecutionContext(messageType: typeof(PolicySubjectMessage));
+        var current = new PolicyExecutionContext(parent: parent);
+
+        var verdict = await MessagePolicy.SentBy<object>()
+            .EvaluateAsync(
+                ContextFor(new PolicySubjectMessage("subject-1"), SignedInIdentity(), executionContext: current),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeFalse();
+    }
+
+    /// <summary>
+    ///     Verifies that a mediation with no execution context fails the sent-by policy with the stable code.
+    /// </summary>
+    [Fact]
+    public async Task SentBy_denies_without_an_execution_context()
+    {
+        var verdict = await MessagePolicy.SentBy<PolicySubjectMessage>()
+            .EvaluateAsync(ContextFor(new PolicySubjectMessage("subject-1"), SignedInIdentity()), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeTrue();
+        verdict.Code.Should().Be(AuthorizationPolicyRefusalCodes.NotSentBy);
+        AuthorizationPolicyRefusalCodes.NotSentBy.Should().Be("authorization.not-sent-by");
+    }
+
+    /// <summary>
+    ///     Verifies that a root mediation fails the sent-by policy.
+    /// </summary>
+    [Fact]
+    public async Task SentBy_denies_a_root_mediation()
+    {
+        var current = new PolicyExecutionContext(messageType: typeof(PolicySubjectMessage));
+
+        var verdict = await MessagePolicy.SentBy<PolicySubjectMessage>()
+            .EvaluateAsync(
+                ContextFor(new PolicySubjectMessage("subject-1"), SignedInIdentity(), executionContext: current),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeTrue();
+        verdict.Code.Should().Be(AuthorizationPolicyRefusalCodes.NotSentBy);
+    }
+
+    /// <summary>
+    ///     Verifies that a nested mediation whose parent handles another message fails the sent-by policy.
+    /// </summary>
+    [Fact]
+    public async Task SentBy_denies_when_the_parent_handles_another_message()
+    {
+        var parent = new PolicyExecutionContext(messageType: typeof(PolicyOtherMessage));
+        var current = new PolicyExecutionContext(parent: parent);
+
+        var verdict = await MessagePolicy.SentBy<PolicySubjectMessage>()
+            .EvaluateAsync(
+                ContextFor(new PolicySubjectMessage("subject-1"), SignedInIdentity(), executionContext: current),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeTrue();
+        verdict.Code.Should().Be(AuthorizationPolicyRefusalCodes.NotSentBy);
+        verdict.Reason.Should().Contain(nameof(PolicySubjectMessage));
+    }
+
+    /// <summary>
+    ///     Verifies that the refusal wrapper replaces the code and reason of a denial.
+    /// </summary>
+    [Fact]
+    public async Task WithRefusal_replaces_the_code_and_reason_of_a_denial()
+    {
+        var verdict = await MessagePolicy.Deny("the inner refusal").WithRefusal("product.closed", "the product refusal")
+            .EvaluateAsync(ContextFor(new PolicySubjectMessage("subject-1"), SignedInIdentity()), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeTrue();
+        verdict.Code.Should().Be("product.closed");
+        verdict.Reason.Should().Be("the product refusal");
+    }
+
+    /// <summary>
+    ///     Verifies that the refusal wrapper keeps the inner reason when none is given.
+    /// </summary>
+    [Fact]
+    public async Task WithRefusal_keeps_the_inner_reason_when_none_is_given()
+    {
+        var verdict = await MessagePolicy.Deny("the inner refusal").WithRefusal("product.closed")
+            .EvaluateAsync(ContextFor(new PolicySubjectMessage("subject-1"), SignedInIdentity()), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeTrue();
+        verdict.Code.Should().Be("product.closed");
+        verdict.Reason.Should().Be("the inner refusal");
+    }
+
+    /// <summary>
+    ///     Verifies that the refusal wrapper passes an allow through unchanged.
+    /// </summary>
+    [Fact]
+    public async Task WithRefusal_passes_an_allow_through()
+    {
+        var verdict = await MessagePolicy.Allow().WithRefusal("product.closed", "the product refusal")
+            .EvaluateAsync(ContextFor(new PolicySubjectMessage("subject-1"), SignedInIdentity()), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verdict.IsDenied.Should().BeFalse();
+    }
+
+    /// <summary>
     ///     Verifies that the refusal codes carry the documented values.
     /// </summary>
     [Fact]
@@ -510,6 +952,10 @@ public sealed class MessagePolicyTests : LiteBusTestBase
         AuthorizationPolicyRefusalCodes.MissingPermission.Should().Be("authorization.missing-permission");
         AuthorizationPolicyRefusalCodes.Forbidden.Should().Be("authorization.forbidden");
         AuthorizationPolicyRefusalCodes.UnknownPolicy.Should().Be("authorization.unknown-policy");
+        AuthorizationPolicyRefusalCodes.PermissionLookupMissing.Should().Be("authorization.permission-lookup-missing");
+        AuthorizationPolicyRefusalCodes.ConditionMissing.Should().Be("authorization.condition-missing");
+        AuthorizationPolicyRefusalCodes.SignInInstantUnknown.Should().Be("authorization.sign-in-instant-unknown");
+        AuthorizationPolicyRefusalCodes.NotSentBy.Should().Be("authorization.not-sent-by");
     }
 
     /// <summary>
@@ -605,18 +1051,66 @@ public sealed class MessagePolicyTests : LiteBusTestBase
         act.Should().Throw<ArgumentException>();
     }
 
+    /// <summary>
+    ///     Verifies that a blank refusal code is rejected where the wrapper is written.
+    /// </summary>
+    /// <param name="code">The blank code under test.</param>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void A_blank_refusal_code_is_rejected_where_it_is_written(string? code)
+    {
+        var act = () => MessagePolicy.Deny("the inner refusal").WithRefusal(code!);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    /// <summary>
+    ///     Verifies that a blank refusal reason is rejected where the wrapper is written.
+    /// </summary>
+    /// <param name="reason">The blank reason under test.</param>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void A_blank_refusal_reason_is_rejected_where_it_is_written(string? reason)
+    {
+        var act = () => MessagePolicy.Deny("the inner refusal").WithRefusal("product.closed", reason);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    /// <summary>
+    ///     Verifies that a blank sign-in claim type is rejected where it is written.
+    /// </summary>
+    /// <param name="claimType">The blank claim type under test.</param>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void A_blank_sign_in_claim_type_is_rejected_where_it_is_written(string? claimType)
+    {
+        var act = () => MessagePolicy.RecentSignIn(TimeSpan.FromMinutes(30), claimType!);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
     private static AuthorizationContext ContextFor(
         object message,
         ExecutionIdentity identity,
         IServiceProvider? services = null,
-        DateTimeOffset? handledAt = null)
+        DateTimeOffset? handledAt = null,
+        IExecutionContext? executionContext = null)
     {
         return new AuthorizationContext(
             message,
             message.GetType(),
             identity,
             services ?? new ServiceCollection().BuildServiceProvider(),
-            handledAt ?? TestInstant());
+            handledAt ?? TestInstant())
+        {
+            ExecutionContext = executionContext
+        };
     }
 
     private static ExecutionIdentity SignedInIdentity(params Claim[] claims)
@@ -624,9 +1118,19 @@ public sealed class MessagePolicyTests : LiteBusTestBase
         return ExecutionIdentity.For(new ClaimsPrincipal(new ClaimsIdentity(claims, "test")));
     }
 
+    private static ExecutionIdentity TenantIdentity(params Claim[] claims)
+    {
+        return ExecutionIdentity.For(new ClaimsPrincipal(new ClaimsIdentity(claims, "test")), "tenant-1");
+    }
+
     private static Claim SignedInAt(DateTimeOffset instant)
     {
         return new Claim("auth_time", instant.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture));
+    }
+
+    private static Claim CustomSignedInAt(string claimType, DateTimeOffset instant)
+    {
+        return new Claim(claimType, instant.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture));
     }
 
     private static DateTimeOffset TestInstant()
@@ -640,5 +1144,123 @@ public sealed class MessagePolicyTests : LiteBusTestBase
             .AddSingleton(options)
             .AddSingleton<IPermissionLookup, FakePermissionLookup>()
             .BuildServiceProvider();
+    }
+
+    private static IServiceProvider ConditionServices(FixedPolicyCondition condition)
+    {
+        return new ServiceCollection()
+            .AddSingleton(condition)
+            .BuildServiceProvider();
+    }
+
+    private static IServiceProvider SourceServices(ISignInInstantSource source)
+    {
+        return new ServiceCollection()
+            .AddSingleton(source)
+            .BuildServiceProvider();
+    }
+
+    /// <summary>
+    ///     Answers a fixed verdict, so the condition policy tests control what the named condition decides.
+    /// </summary>
+    private sealed class FixedPolicyCondition : IAuthorizationCondition
+    {
+        /// <summary>
+        ///     The verdict this condition answers.
+        /// </summary>
+        private readonly Verdict _verdict;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="FixedPolicyCondition" /> class.
+        /// </summary>
+        /// <param name="verdict">The verdict this condition answers.</param>
+        public FixedPolicyCondition(Verdict verdict)
+        {
+            _verdict = verdict;
+        }
+
+        /// <inheritdoc />
+        public ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
+        {
+            return new ValueTask<Verdict>(_verdict);
+        }
+    }
+
+    /// <summary>
+    ///     Answers a fixed sign-in instant, so the recent sign-in tests control what the source reads.
+    /// </summary>
+    private sealed class FixedSignInInstantSource : ISignInInstantSource
+    {
+        /// <summary>
+        ///     The instant this source answers, or <see langword="null" /> when it is unknown.
+        /// </summary>
+        private readonly DateTimeOffset? _instant;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="FixedSignInInstantSource" /> class.
+        /// </summary>
+        /// <param name="instant">The instant this source answers, or <see langword="null" /> when it is unknown.</param>
+        public FixedSignInInstantSource(DateTimeOffset? instant)
+        {
+            _instant = instant;
+        }
+
+        /// <inheritdoc />
+        public ValueTask<DateTimeOffset?> GetSignInInstantAsync(
+            AuthorizationContext context,
+            CancellationToken cancellationToken)
+        {
+            return new ValueTask<DateTimeOffset?>(_instant);
+        }
+    }
+
+    /// <summary>
+    ///     Carries a chosen message type and parent, so the sent-by policy tests control the mediation lineage.
+    /// </summary>
+    private sealed class PolicyExecutionContext : IExecutionContext
+    {
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="PolicyExecutionContext" /> class.
+        /// </summary>
+        /// <param name="messageType">The runtime type of the message this mediation handles.</param>
+        /// <param name="parent">The execution context of the enclosing mediation.</param>
+        public PolicyExecutionContext(Type? messageType = null, IExecutionContext? parent = null)
+        {
+            MessageType = messageType;
+            Parent = parent;
+        }
+
+        /// <inheritdoc />
+        public CancellationToken CancellationToken => CancellationToken.None;
+
+        /// <inheritdoc />
+        public DateTimeOffset HandledAt { get; } = DateTimeOffset.UtcNow;
+
+        /// <inheritdoc />
+        public Type? MessageType { get; }
+
+        /// <inheritdoc />
+        public IExecutionContext? Parent { get; }
+
+        /// <inheritdoc />
+        public IDictionary<string, object> Items { get; } = new Dictionary<string, object>();
+
+        /// <inheritdoc />
+        public IHandleContextData Data { get; } = new HandleContextData();
+
+        /// <inheritdoc />
+        public IReadOnlyCollection<string> Tags { get; } = [];
+
+        /// <inheritdoc />
+        public object? MessageResult { get; set; }
+
+        /// <inheritdoc />
+        public bool PostHandlersSuppressed { get; private set; }
+
+        /// <inheritdoc />
+        public void SuppressPostHandlers()
+        {
+            PostHandlersSuppressed = true;
+        }
     }
 }

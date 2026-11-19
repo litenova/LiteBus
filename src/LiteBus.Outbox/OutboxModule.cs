@@ -5,6 +5,7 @@ using System.Reflection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.DomainEvents;
 using LiteBus.Outbox.ImmediateDispatch;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -179,6 +180,10 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(OutboxEnqueueOptions),
             _builder.CollectEnqueueOptions()));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(DomainEventAccessors),
+            new DomainEventAccessors(_builder.CollectDomainEventAccessors())));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxEnvelopeFactory),

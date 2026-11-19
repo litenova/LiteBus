@@ -18,6 +18,17 @@ namespace LiteBus.Extensions.AspNetCore;
 ///         authorization policies observe the caller rather than a filtered copy. A principal is never persisted: only
 ///         the tenant travels onto durable envelopes.
 ///     </para>
+///     <para>
+///         The principal passes through unfiltered, including a transient principal the request carries only during
+///         sign-in, such as the principal on an OpenID Connect callback path. A mediation started from such an
+///         endpoint would attribute the work to that transient caller, so those endpoints pass an explicit identity
+///         on the mediation settings instead.
+///     </para>
+///     <code><![CDATA[
+/// await commandMediator.SendAsync(
+///     command,
+///     new CommandMediationSettings { Identity = ExecutionIdentity.Anonymous }).ConfigureAwait(false);
+/// ]]></code>
 /// </remarks>
 public sealed class HttpContextExecutionIdentityProvider : IExecutionIdentityProvider
 {

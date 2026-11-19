@@ -18,6 +18,10 @@ The constant half of a record is declared once per message, with `[Audited]` and
 
 The variable half, such as an identifier the handler generated, is pushed at runtime through `IAuditScope`. When the value can be read from the message itself, it is declared with a target or reason selector instead: `AuditedDeclaration.WithTargetFrom<TMessage>` and `WithReasonFrom<TMessage>` project `TargetId` and `Reason` from the message. Selectors are delegates, so attributes cannot carry them. A message that reads its target or reason from itself needs a definition.
 
+The completion context carries the identity the mediation ran for as `MessageCompletionContext.Identity`, copied from `IExecutionContext.Identity` when the context is built. The writer and the documented `IAuditActorResolver` read the caller from there rather than from ambient state. When no resolver is registered, the writer falls back to the principal on the completion identity, reading the identifier from the `NameIdentifier` claim and then the `sub` claim; when the principal carries no usable claim, the record keeps no actor.
+
+Tamper evidence below the record is a set of replaceable chain pieces with LiteBus defaults: the stored document (`IAuditRecordMapper<TDocument>`), the segmenting (`IAuditSegmenter<TDocument>`), the canonical bytes (`IAuditCanonicalizer<TDocument>`), the link rule (`IAuditLinkRule`), the hasher (`IAuditHasher`), the checkpoint policy (`ICheckpointPolicy`), the signer (`ICheckpointSigner`), and the publisher (`ICheckpointPublisher`). Each record stores the name of the `AuditHashScheme<TDocument>` it was written with, and `IAuditChain` verifies, checkpoints, and expires segments. See [Auditing](../../concepts/auditing.md#hash-chained-audit-storage).
+
 ## Public Surface
 
 ```csharp
@@ -45,7 +49,8 @@ services.AddLiteBus(registry =>
 | `AuditRecord` / `AuditOutcome` | The record handed to the trail |
 | `AuditActor` | Who acted: a required `Id` and `Kind`, plus `DisplayName` and `OnBehalfOf`. Factories `User(id)`, `System(processName)`, `For(kind, id)`. A display name is added with `with` |
 | `IAuditRecordWriter` | The whole contract between the pipeline and auditing. Replace it to own the record shape |
-| `IAuditActorResolver` | Application-supplied attribution, reading the message at the completion stage |
+| `IAuditActorResolver` | Application-supplied attribution, reading the message and `MessageCompletionContext.Identity` at the completion stage |
+| `MessageCompletionContext.Identity` | The identity the mediation ran for, copied from `IExecutionContext.Identity`; `ExecutionIdentity.Anonymous` until set on a hand-built context. Both generic views expose the same value |
 | `IAuditTrail` | Application-supplied sink |
 | `MessageModuleBuilder.AddAuditing(Action<AuditingBuilder>)` | Configures the trail, the actor resolver, the outcome mapper, and the axes |
 | `AuditingBuilder` | `UseTrail`, `UseTrailInstance`, `UseActorResolver`, `UseActorResolverInstance`, `UseOutcomeMapper`, `UseOutcomeMapperInstance`, `UseRecordWriter`, `UseRecordWriterInstance`, `ForCommands`, `ForQueries`, `ForEvents`, `ForAllAxes` |
@@ -62,6 +67,21 @@ services.AddLiteBus(registry =>
 | `IMessageCatalog` | Registered as a Singleton, so the declarations are readable at runtime as well as at composition |
 | `AuditCatalogueRow` / `AuditCatalogue.ToRows` / `AuditCatalogue.ToMarkdown` | The audit catalogue, derived from the declarations |
 | `CommandModuleBuilder` / `QueryModuleBuilder` / `EventModuleBuilder` `.EnableAuditing` | Registers the writer and the probe on one axis |
+| `IAuditChainDocument` | The chain fields every stored audit document carries: `Segment`, `Sequence`, `PreviousHash`, `Hash`, `HashScheme` |
+| `IAuditRecordMapper<TDocument>` | Maps an `AuditRecord` to the stored document type |
+| `IAuditSegmenter<TDocument>` | Names the segment per document; `CreateGenesis` opens a segment with a genesis record, or `null` for none |
+| `IAuditCanonicalizer<TDocument>` | Produces the exact bytes hashed; excludes `Hash` |
+| `IAuditLinkRule` / `AuditLinkInput` | Combines canonical bytes with segment, sequence, and previous hash into the bytes hashed |
+| `IAuditHasher` | Computes the hash: `Sha256AuditHasher`, or `HmacSha256AuditHasher` with a fixed key or a per-operation key provider |
+| `AuditHashScheme<TDocument>` | A named combination of canonicalizer, link rule, and hasher; each record stores the name it was written with |
+| `ICheckpointPolicy` / `AuditCheckpointCandidate` | Decides when a checkpoint is due; `IsTimeBased` marks a policy the chain also asks on a schedule. `CheckpointPolicies.EveryRecords`, `Every`, `Any` |
+| `AuditCheckpoint` / `AuditCheckpointKind` / `AuditCheckpointSignature` | The anchored position, hash, count, and signature; `Regular` or `Final` |
+| `ICheckpointSigner` | Signs checkpoints and verifies their signatures |
+| `ICheckpointPublisher` | Publishes checkpoints to an independent store |
+| `ICheckpointSource` | Reads the latest checkpoint of a segment for verification |
+| `AuditChainVerification` / `AuditChainBreak` / `AuditChainBreakKind` | The verify result: every break in sequence order, the head, and the checkpoint comparison |
+| `IAuditChain` | `VerifyAsync`, `CutCheckpointAsync`, `ExpireSegmentAsync` |
+| `AuditChainVerifier<TDocument>` | The storage-free verifier every store reuses |
 
 ## Packages
 
@@ -93,6 +113,10 @@ services.AddLiteBus(registry =>
 - The writer consults the scope first and runs a target or reason selector only when the scope is silent, so a handler-supplied value wins. For the reason, the pipeline decision sits between the two, because a guard denial or an answer explanation describes the ending while the selector describes the intent.
 - A selector result that is null or blank means the message carries no value, and `ReasonRequired` applies to the final value, so a required reason may come from the scope or the selector alike. A selector that throws fails the record write.
 - An audited event writes one record per publish, not one per handler.
+- The completion identity is copied from the mediation execution context, defaults to `ExecutionIdentity.Anonymous`, and reads the same on both generic views. With no resolver registered, the writer attributes from the principal on that identity (`NameIdentifier`, then `sub`); an explicit resolver result is never replaced by the fallback.
+- Each chained record stores the name of the scheme it was written with, and verification picks the scheme per record, so a scheme change from a date onward verifies without rewriting history.
+- Verification collects every break, in sequence order, and compares the segment against its latest checkpoint, so a rewritten suffix fails the checkpoint hash and count comparison even when its links are consistent.
+- A chain that shares one scheme name between two different schemes fails at build time.
 
 ## Non-Goals
 
@@ -132,6 +156,64 @@ No audit-specific meter or activity source. The record itself carries `Duration`
 | `A_required_reason_satisfied_by_a_selector_passes` | `LiteBus.Mediator.UnitTests` |
 | `A_required_reason_missing_from_the_selector_fails_like_a_missing_scope_reason` | `LiteBus.Mediator.UnitTests` |
 | `A_throwing_selector_fails_the_record_write` | `LiteBus.Mediator.UnitTests` |
+| `Completion_carries_the_settings_identity` | `LiteBus.Mediator.UnitTests` |
+| `Completion_defaults_to_anonymous_when_no_identity_is_resolved` | `LiteBus.Mediator.UnitTests` |
+| `Typed_completion_views_expose_the_same_identity` | `LiteBus.Mediator.UnitTests` |
+| `An_actor_resolver_sees_the_request_identity` | `LiteBus.Mediator.UnitTests` |
+| `A_manually_built_completion_context_defaults_to_anonymous` | `LiteBus.Mediator.UnitTests` |
+| `An_intact_chain_verifies_with_no_breaks` | `LiteBus.Mediator.UnitTests` |
+| `An_empty_segment_verifies_intact` | `LiteBus.Mediator.UnitTests` |
+| `A_missing_sequence_is_reported_as_a_gap` | `LiteBus.Mediator.UnitTests` |
+| `A_repeated_sequence_is_reported_as_a_duplicate` | `LiteBus.Mediator.UnitTests` |
+| `A_misplaced_sequence_is_reported_as_a_duplicate` | `LiteBus.Mediator.UnitTests` |
+| `A_tampered_document_is_reported_as_a_hash_mismatch` | `LiteBus.Mediator.UnitTests` |
+| `A_rewritten_previous_hash_is_reported` | `LiteBus.Mediator.UnitTests` |
+| `An_unknown_scheme_is_reported` | `LiteBus.Mediator.UnitTests` |
+| `A_document_naming_no_scheme_is_reported` | `LiteBus.Mediator.UnitTests` |
+| `Two_schemes_in_one_segment_verify` | `LiteBus.Mediator.UnitTests` |
+| `A_chain_missing_one_of_its_schemes_reports_unknown_scheme` | `LiteBus.Mediator.UnitTests` |
+| `A_matching_checkpoint_compares_equal` | `LiteBus.Mediator.UnitTests` |
+| `A_rewritten_checkpoint_hash_is_reported` | `LiteBus.Mediator.UnitTests` |
+| `A_checkpoint_count_above_the_segment_is_reported` | `LiteBus.Mediator.UnitTests` |
+| `A_missing_covered_record_breaks_the_checkpoint_count` | `LiteBus.Mediator.UnitTests` |
+| `A_checkpoint_for_a_missing_sequence_breaks_the_checkpoint_hash` | `LiteBus.Mediator.UnitTests` |
+| `A_signed_checkpoint_verifies` | `LiteBus.Mediator.UnitTests` |
+| `A_tampered_signed_checkpoint_is_reported` | `LiteBus.Mediator.UnitTests` |
+| `An_unsigned_checkpoint_with_a_signer_is_reported_as_an_invalid_signature` | `LiteBus.Mediator.UnitTests` |
+| `Without_a_signer_an_unsigned_checkpoint_leaves_validity_unknown` | `LiteBus.Mediator.UnitTests` |
+| `Every_break_is_reported_not_only_the_first` | `LiteBus.Mediator.UnitTests` |
+| `An_empty_segment_misses_its_checkpoint` | `LiteBus.Mediator.UnitTests` |
+| `A_lookup_with_a_null_scheme_is_rejected` | `LiteBus.Mediator.UnitTests` |
+| `Schemes_with_a_repeated_name_are_rejected` | `LiteBus.Mediator.UnitTests` |
+| `A_blank_segment_is_rejected` | `LiteBus.Mediator.UnitTests` |
+| `EveryRecords_rejects_a_non_positive_interval` | `LiteBus.Mediator.UnitTests` |
+| `EveryRecords_is_due_once_the_interval_is_reached` | `LiteBus.Mediator.UnitTests` |
+| `EveryRecords_is_not_time_based` | `LiteBus.Mediator.UnitTests` |
+| `Every_rejects_a_non_positive_interval` | `LiteBus.Mediator.UnitTests` |
+| `Every_rejects_a_negative_interval` | `LiteBus.Mediator.UnitTests` |
+| `Every_is_due_once_the_interval_has_passed` | `LiteBus.Mediator.UnitTests` |
+| `Every_is_due_for_records_without_a_checkpoint` | `LiteBus.Mediator.UnitTests` |
+| `Every_is_never_due_without_records` | `LiteBus.Mediator.UnitTests` |
+| `Every_is_time_based` | `LiteBus.Mediator.UnitTests` |
+| `Any_is_due_when_any_policy_is_due` | `LiteBus.Mediator.UnitTests` |
+| `Any_without_policies_is_never_due` | `LiteBus.Mediator.UnitTests` |
+| `Any_is_time_based_when_any_policy_is` | `LiteBus.Mediator.UnitTests` |
+| `Any_rejects_a_null_entry` | `LiteBus.Mediator.UnitTests` |
+| `The_same_key_and_bytes_hash_to_the_same_value` | `LiteBus.Mediator.UnitTests` |
+| `Different_keys_hash_differently` | `LiteBus.Mediator.UnitTests` |
+| `The_keyed_hash_differs_from_the_plain_digest` | `LiteBus.Mediator.UnitTests` |
+| `The_key_provider_supplies_the_key` | `LiteBus.Mediator.UnitTests` |
+| `The_provider_is_asked_per_operation_so_a_rotation_takes_effect` | `LiteBus.Mediator.UnitTests` |
+| `An_empty_key_is_rejected` | `LiteBus.Mediator.UnitTests` |
+| `A_null_provider_is_rejected` | `LiteBus.Mediator.UnitTests` |
+| `A_provider_returning_no_key_fails_the_hash` | `LiteBus.Mediator.UnitTests` |
+| `A_cancelled_token_throws` | `LiteBus.Mediator.UnitTests` |
+| `The_canonical_bytes_pass_through_unchanged` | `LiteBus.Mediator.UnitTests` |
+| `A_null_input_is_rejected` | `LiteBus.Mediator.UnitTests` |
+| `The_same_bytes_hash_to_the_same_value` | `LiteBus.Mediator.UnitTests` |
+| `Different_bytes_hash_differently` | `LiteBus.Mediator.UnitTests` |
+| `The_hash_matches_the_published_SHA256_vector` | `LiteBus.Mediator.UnitTests` |
+| `The_hash_is_lowercase_hex_of_64_characters` | `LiteBus.Mediator.UnitTests` |
 
 ### Untested
 
@@ -148,3 +230,4 @@ No audit-specific meter or activity source. The record itself carries `Duration`
 - [Auditing](../../concepts/auditing.md)
 - [Message definitions](../../concepts/message-definitions.md)
 - [The handler pipeline](../../concepts/handler-pipeline.md)
+- [Commands Marten Adapter](../storage/storage.commands.adapter.marten.md)

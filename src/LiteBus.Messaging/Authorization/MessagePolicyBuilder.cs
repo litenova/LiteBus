@@ -36,9 +36,19 @@ public sealed class MessagePolicyBuilder
     private readonly List<Type> _conditionTypes = [];
 
     /// <summary>
+    ///     The policy-scoped condition implementation types collected so far, in registration order.
+    /// </summary>
+    private readonly List<Type> _registeredConditionTypes = [];
+
+    /// <summary>
     ///     The permission lookup implementation type, or <see langword="null" /> when none was chosen.
     /// </summary>
     private Type? _permissionLookupType;
+
+    /// <summary>
+    ///     The sign-in instant source implementation type, or <see langword="null" /> when none was chosen.
+    /// </summary>
+    private Type? _signInInstantSourceType;
 
     /// <summary>
     ///     Gets the named policies collected so far.
@@ -51,9 +61,19 @@ public sealed class MessagePolicyBuilder
     internal IReadOnlyList<Type> ConditionTypes => _conditionTypes;
 
     /// <summary>
+    ///     Gets the policy-scoped condition implementation types collected so far, in registration order.
+    /// </summary>
+    internal IReadOnlyList<Type> RegisteredConditionTypes => _registeredConditionTypes;
+
+    /// <summary>
     ///     Gets the permission lookup implementation type, or <see langword="null" /> when none was chosen.
     /// </summary>
     internal Type? PermissionLookupType => _permissionLookupType;
+
+    /// <summary>
+    ///     Gets the sign-in instant source implementation type, or <see langword="null" /> when none was chosen.
+    /// </summary>
+    internal Type? SignInInstantSourceType => _signInInstantSourceType;
 
     /// <summary>
     ///     Registers a policy under the name messages declare.
@@ -100,18 +120,91 @@ public sealed class MessagePolicyBuilder
     }
 
     /// <summary>
+    ///     Registers a condition a policy names, resolved from the dispatch scope where the policy runs it.
+    /// </summary>
+    /// <typeparam name="TCondition">The condition implementation, constructed from the dispatch scope.</typeparam>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     The type is registered as itself, scoped, without joining the global conditions: it runs only where a
+    ///     policy names it through <c>MessagePolicy.Condition</c>, unlike <c>AddCondition</c>, which runs for every
+    ///     authorized message. Registering the same condition type twice keeps one registration.
+    /// </remarks>
+    /// <example>
+    ///     <code><![CDATA[
+    /// registry.AddMessaging(messaging => messaging.AddAuthorizationPolicies(policies => policies
+    ///     .Add("invoicing.sales-invoice-access", MessagePolicy.Condition<SalesInvoiceAccessCondition>())
+    ///     .RegisterCondition<SalesInvoiceAccessCondition>()));
+    /// ]]></code>
+    /// </example>
+    public MessagePolicyBuilder RegisterCondition<TCondition>()
+        where TCondition : class, IAuthorizationCondition
+    {
+        var conditionType = typeof(TCondition);
+
+        if (!_registeredConditionTypes.Contains(conditionType))
+        {
+            _registeredConditionTypes.Add(conditionType);
+        }
+
+        return this;
+    }
+
+    /// <summary>
     ///     Registers the lookup permission policies read through.
     /// </summary>
     /// <typeparam name="TLookup">The lookup implementation, constructed from the dispatch scope.</typeparam>
     /// <returns>The current builder.</returns>
+    /// <exception cref="LiteBusConfigurationException">A different lookup is already registered.</exception>
     /// <remarks>
-    ///     Only one lookup serves a composition; calling this twice keeps the last call. Without a lookup, a
-    ///     permission policy denies with <c>authorization.permission-lookup-missing</c>.
+    ///     Only one lookup serves a composition, so a second call naming another type fails composition; repeating
+    ///     the same type is harmless, which is what repeated <c>AddAuthorizationPolicies</c> calls from several
+    ///     assemblies produce. Without a lookup, a permission policy denies with
+    ///     <see cref="AuthorizationPolicyRefusalCodes.PermissionLookupMissing" />.
     /// </remarks>
     public MessagePolicyBuilder UsePermissionLookup<TLookup>()
         where TLookup : class, IPermissionLookup
     {
+        if (_permissionLookupType is not null && _permissionLookupType != typeof(TLookup))
+        {
+            throw new LiteBusConfigurationException(
+                $"An authorization permission lookup '{_permissionLookupType.Name}' is already registered. Register "
+                + $"one permission lookup per composition; '{typeof(TLookup).Name}' conflicts with it.");
+        }
+
         _permissionLookupType = typeof(TLookup);
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers the source recent sign-in policies read the sign-in instant through.
+    /// </summary>
+    /// <typeparam name="TSource">The source implementation, constructed from the dispatch scope.</typeparam>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="LiteBusConfigurationException">A different source is already registered.</exception>
+    /// <remarks>
+    ///     Only one source serves a composition, so a second call naming another type fails composition; repeating
+    ///     the same type is harmless. Without a source, a recent sign-in policy reads the sign-in instant from the
+    ///     <c>auth_time</c> claim instead.
+    /// </remarks>
+    /// <example>
+    ///     <code><![CDATA[
+    /// registry.AddMessaging(messaging => messaging.AddAuthorizationPolicies(policies => policies
+    ///     .Add("vaults.seal", MessagePolicy.RecentSignIn(TimeSpan.FromMinutes(5)))
+    ///     .UseSignInInstantSource<SessionSignInInstantSource>()));
+    /// ]]></code>
+    /// </example>
+    public MessagePolicyBuilder UseSignInInstantSource<TSource>()
+        where TSource : class, ISignInInstantSource
+    {
+        if (_signInInstantSourceType is not null && _signInInstantSourceType != typeof(TSource))
+        {
+            throw new LiteBusConfigurationException(
+                $"An authorization sign-in instant source '{_signInInstantSourceType.Name}' is already registered. "
+                + $"Register one sign-in instant source per composition; '{typeof(TSource).Name}' conflicts with it.");
+        }
+
+        _signInInstantSourceType = typeof(TSource);
 
         return this;
     }

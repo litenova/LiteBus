@@ -29,6 +29,12 @@ namespace LiteBus.Messaging.Tenancy;
 ///         <c>RequireDeclaration&lt;TenancyDeclaration&gt;()</c> so composition fails for a message that states no
 ///         position.
 ///     </para>
+///     <para>
+///         The guard runs at <see cref="HandlerPriorities.Tenancy" />, after the authorization guard at
+///         <see cref="HandlerPriorities.Authorization" />, so a signed-out caller receives the authorization refusal
+///         before the tenancy one. An application that wants the tenant checked before a permission puts a tenant
+///         check inside its authorization policy instead of reordering the guards.
+///     </para>
 /// </remarks>
 /// <example>
 ///     <code><![CDATA[
@@ -37,6 +43,7 @@ namespace LiteBus.Messaging.Tenancy;
 ///     .RequireDeclaration<TenancyDeclaration>());
 /// ]]></code>
 /// </example>
+[HandlerPriority(HandlerPriorities.Tenancy)]
 public sealed class TenancyGuard<TMessage> : DeclarationGuard<TMessage, TenancyDeclaration>
     where TMessage : notnull
 {

@@ -42,7 +42,7 @@ services.AddLiteBus(liteBus =>
 });
 ```
 
-Discovery registers every non-abstract public or internal class implementing `IApplicationModule` that has a parameterless constructor, in type-name order. A class without a parameterless constructor is skipped: register it by instance instead. Type-name order keeps the composition deterministic no matter how the runtime enumerates the assembly.
+Discovery registers every non-abstract public or internal class implementing `IApplicationModule` that has a parameterless constructor, in type-name order. A top-level type passes when it is public or internal. A nested type passes only when it is nested public or nested internal and every declaring type also passes. A private nested class is skipped, as are abstract classes and classes without a parameterless constructor: register a class without a parameterless constructor by instance instead. Type-name order keeps the composition deterministic no matter how the runtime enumerates the assembly.
 
 Each registration runs the module's `Configure` against the builder immediately, so by the time `AddLiteBus` validates the module graph, every contribution is already part of the composition.
 
@@ -62,6 +62,69 @@ services.AddLiteBus(liteBus =>
 All three calls add to the same command module: the two application modules register their assemblies first, and the host's own call adds a third. A child a repeated call declares, such as a storage or dispatch adapter registered inside a repeated `AddInbox`, joins the same parent module through the normal composite membership.
 
 Registering the same module type twice through `Modules.Register` directly still throws `LiteBusConfigurationException` at compose time. The repeated-configure behavior belongs to the `Add*` extensions only. Configuration after `BuildOrder` freezes the registry throws as before, so application modules run during composition, never after the host has started.
+
+## Overlapping Assembly Scans Are Safe
+
+Two contributions may scan the same assembly. The host keeps central `RegisterFromAssembly` calls while modules add their own `RegisterFromAssembly` calls for the assemblies they own, so during the move each assembly is scanned twice. That overlap is safe. The message registry skips a type it already processed, so scanning it again registers nothing, throws nothing, and creates no duplicate descriptors.
+
+Move the scans in this order. Add a `Configure` method per module that scans its own assembly first. Keep the central scans while the per-module scans land. Remove the central scans last, once every assembly contributes its own. The composition passes through overlap in the middle, and the registry deduplication is what makes that middle state valid.
+
+```csharp
+// During the move: the host scan and the module scan cover LedgerModule.Assembly twice.
+services.AddLiteBus(liteBus =>
+{
+    liteBus.AddApplicationModule<LedgerModule>();
+    liteBus.AddApplicationModule<BillingModule>();
+    liteBus.AddCommands(commands => commands.RegisterFromAssembly(typeof(LedgerModule).Assembly));
+});
+```
+
+```csharp
+public sealed class LedgerModule : IApplicationModule
+{
+    public void Configure(ILiteBusBuilder liteBus)
+    {
+        liteBus.AddCommands(commands => commands.RegisterFromAssembly(typeof(LedgerModule).Assembly));
+    }
+}
+```
+
+Removing the host scan before the module scans land leaves handlers unregistered. Adding the module scans first keeps every handler registered at every step.
+
+## Resolving an IModule Name Collision
+
+An application that already defines its own module contract named `IModule` meets a name collision on its first `Configure`. Adding `using LiteBus.Runtime.Abstractions;`, which is needed for `IApplicationModule` and `ILiteBusBuilder`, makes the `IModule` reference ambiguous (CS0104) between `LiteBus.Runtime.Abstractions.IModule` and the application's own contract, for example `Application.Platform.Modules.IModule`. `IModule` is the natural name for an application's module entry contract, so a modular monolith that adopts application modules often meets this in every module file.
+
+Qualify the application's contract in the declaration:
+
+```csharp
+using LiteBus.Runtime.Abstractions;
+
+public sealed class LedgerModule : Application.Platform.Modules.IModule, IApplicationModule
+{
+    public void Configure(ILiteBusBuilder liteBus)
+    {
+        liteBus.AddCommands(commands => commands.RegisterFromAssembly(typeof(LedgerModule).Assembly));
+    }
+}
+```
+
+Or alias one of the two names at the top of the file:
+
+```csharp
+using AppModule = Application.Platform.Modules.IModule;
+using LiteBus.Runtime.Abstractions;
+
+public sealed class LedgerModule : AppModule, IApplicationModule
+{
+    public void Configure(ILiteBusBuilder liteBus)
+    {
+        liteBus.AddCommands(commands => commands.RegisterFromAssembly(typeof(LedgerModule).Assembly));
+    }
+}
+```
+
+Either form keeps both contracts visible. The page's own example shows a module implementing `IApplicationModule` only because it assumes no prior contract exists.
 
 ## Next
 

@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Messaging.Registry;
 
@@ -13,6 +14,10 @@ namespace LiteBus.Messaging.Registry;
 /// <param name="ScopeDescription">
 ///     What the scope is, in the words the composition error uses. "every command" and
 ///     "every command implementing IActingAccountCommand" read as a policy; a predicate cannot describe itself.
+/// </param>
+/// <param name="Enforcement">
+///     What happens when a message in scope states no position: fail composition, or report the message through the
+///     <c>litebus.declarations</c> probe while composition succeeds.
 /// </param>
 /// <remarks>
 ///     <para>
@@ -30,7 +35,8 @@ namespace LiteBus.Messaging.Registry;
 internal sealed record DeclarationRequirement(
     Type ValueType,
     Func<Type, bool>? Scope,
-    string ScopeDescription)
+    string ScopeDescription,
+    DeclarationEnforcement Enforcement = DeclarationEnforcement.Fail)
 {
     /// <summary>
     ///     Determines whether a registered message type is in this requirement's scope.

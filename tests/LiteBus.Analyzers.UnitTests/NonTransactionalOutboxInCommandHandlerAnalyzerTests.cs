@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.CodeAnalysis;
 
 namespace LiteBus.Analyzers.UnitTests;
@@ -68,7 +69,8 @@ public sealed class NonTransactionalOutboxInCommandHandlerAnalyzerTests
             source,
             DiagnosticDescriptors.NonTransactionalOutboxInCommandHandler,
             0,
-            "CreateUserCommandHandler");
+            "CreateUserCommandHandler",
+            "ITransactionalOutbox<TContext>");
     }
 
     /// <summary>
@@ -108,7 +110,8 @@ public sealed class NonTransactionalOutboxInCommandHandlerAnalyzerTests
             source,
             DiagnosticDescriptors.NonTransactionalOutboxInCommandHandler,
             0,
-            "AddUserCommandHandler");
+            "AddUserCommandHandler",
+            "ITransactionalOutbox<TContext>");
     }
 
     /// <summary>
@@ -329,5 +332,147 @@ public sealed class NonTransactionalOutboxInCommandHandlerAnalyzerTests
                               """;
 
         return AnalyzerTest.VerifyNoDiagnosticsAsync<NonTransactionalOutboxInCommandHandlerAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies that a command handler injecting <c>IOutbox</c> suggests the non-generic transactional outbox when
+    ///     the Marten outbox storage resolves.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandHandlerInjectingOutboxWithMartenStorage_SuggestsNonGenericOutbox()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Outbox.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserCommandHandler : ICommandHandler<CreateUserCommand>
+                              {
+                                  public CreateUserCommandHandler(IOutbox {|#0:outbox|})
+                                  {
+                                  }
+
+                                  public Task HandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
+                                      => Task.CompletedTask;
+                              }
+
+                              namespace LiteBus.Outbox.Storage.Marten
+                              {
+                                  public static class PostgreSqlOutboxModuleBuilderMartenExtensions
+                                  {
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<NonTransactionalOutboxInCommandHandlerAnalyzer>(
+            source,
+            DiagnosticDescriptors.NonTransactionalOutboxInCommandHandler,
+            0,
+            "CreateUserCommandHandler",
+            "ITransactionalOutbox");
+    }
+
+    /// <summary>
+    ///     Verifies that a command handler injecting <c>IOutbox</c> suggests the non-generic transactional outbox when
+    ///     the PostgreSQL outbox storage resolves.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandHandlerInjectingOutboxWithPostgreSqlStorage_SuggestsNonGenericOutbox()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Outbox.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserCommandHandler : ICommandHandler<CreateUserCommand>
+                              {
+                                  public CreateUserCommandHandler(IOutbox {|#0:outbox|})
+                                  {
+                                  }
+
+                                  public Task HandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
+                                      => Task.CompletedTask;
+                              }
+
+                              namespace LiteBus.Outbox.Storage.PostgreSql
+                              {
+                                  public static class OutboxModuleBuilderPostgreSqlExtensions
+                                  {
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<NonTransactionalOutboxInCommandHandlerAnalyzer>(
+            source,
+            DiagnosticDescriptors.NonTransactionalOutboxInCommandHandler,
+            0,
+            "CreateUserCommandHandler",
+            "ITransactionalOutbox");
+    }
+
+    /// <summary>
+    ///     Verifies that a command handler injecting <c>IOutbox</c> suggests the generic transactional outbox when both
+    ///     the Entity Framework Core and Marten outbox storages resolve.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandHandlerInjectingOutboxWithSeveralStorages_SuggestsGenericOutbox()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Outbox.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserCommandHandler : ICommandHandler<CreateUserCommand>
+                              {
+                                  public CreateUserCommandHandler(IOutbox {|#0:outbox|})
+                                  {
+                                  }
+
+                                  public Task HandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
+                                      => Task.CompletedTask;
+                              }
+
+                              namespace LiteBus.Outbox.Storage.EntityFrameworkCore
+                              {
+                                  public static class OutboxModuleBuilderEfCoreExtensions
+                                  {
+                                  }
+                              }
+
+                              namespace LiteBus.Outbox.Storage.Marten
+                              {
+                                  public static class PostgreSqlOutboxModuleBuilderMartenExtensions
+                                  {
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<NonTransactionalOutboxInCommandHandlerAnalyzer>(
+            source,
+            DiagnosticDescriptors.NonTransactionalOutboxInCommandHandler,
+            0,
+            "CreateUserCommandHandler",
+            "ITransactionalOutbox<TContext>");
+    }
+
+    /// <summary>
+    ///     Verifies that the message carries the suggested transactional outbox type as its second argument.
+    /// </summary>
+    [Fact]
+    public void Descriptor_MessageFormatTakesSuggestedOutboxType()
+    {
+        Assert.Contains("{1}", DiagnosticDescriptors.NonTransactionalOutboxInCommandHandler.MessageFormat.ToString(CultureInfo.InvariantCulture));
     }
 }

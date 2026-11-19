@@ -37,6 +37,11 @@ public sealed class MessageCompletionContext<TMessage, TMessageResult>
     public TMessage Message => (TMessage) _context.Message;
 
     /// <summary>
+    ///     Gets the identity the mediation ran for.
+    /// </summary>
+    public ExecutionIdentity Identity => _context.Identity;
+
+    /// <summary>
     ///     Gets the outcome that describes how the mediation ended.
     /// </summary>
     public MediationOutcome Outcome => _context.Outcome;

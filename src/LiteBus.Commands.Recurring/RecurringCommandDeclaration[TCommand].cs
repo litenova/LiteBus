@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Messaging.Abstractions;
 
 namespace LiteBus.Commands.Recurring;
 
@@ -18,14 +19,24 @@ public sealed class RecurringCommandDeclaration<TCommand>
     /// </summary>
     /// <param name="commandFactory">Produces the command instance sent on each pass.</param>
     /// <param name="hostOptions">The lifecycle and timing settings for the loop.</param>
-    /// <exception cref="ArgumentNullException">An argument is <see langword="null" />.</exception>
-    public RecurringCommandDeclaration(Func<TCommand> commandFactory, RecurringCommandHostOptions hostOptions)
+    /// <param name="identityOf">
+    ///     Computes the identity one pass sends for from the command it built, or <see langword="null" /> to send
+    ///     without an identity.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="commandFactory" /> or <paramref name="hostOptions" /> is <see langword="null" />.
+    /// </exception>
+    public RecurringCommandDeclaration(
+        Func<TCommand> commandFactory,
+        RecurringCommandHostOptions hostOptions,
+        Func<TCommand, ExecutionIdentity>? identityOf = null)
     {
         ArgumentNullException.ThrowIfNull(commandFactory);
         ArgumentNullException.ThrowIfNull(hostOptions);
 
         CommandFactory = commandFactory;
         HostOptions = hostOptions;
+        IdentityOf = identityOf;
     }
 
     /// <summary>
@@ -41,4 +52,14 @@ public sealed class RecurringCommandDeclaration<TCommand>
     ///     Gets the lifecycle and timing settings for the loop.
     /// </summary>
     public RecurringCommandHostOptions HostOptions { get; }
+
+    /// <summary>
+    ///     Gets the function that computes the identity one pass sends for from the command it built.
+    /// </summary>
+    /// <value>
+    ///     The function, or <see langword="null" /> when passes send without an identity and the mediation resolves it
+    ///     from the registered <see cref="IExecutionIdentityProvider" /> or falls back to
+    ///     <see cref="ExecutionIdentity.Anonymous" />.
+    /// </value>
+    public Func<TCommand, ExecutionIdentity>? IdentityOf { get; }
 }

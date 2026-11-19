@@ -34,4 +34,25 @@ public static class AuthorizationPolicyRefusalCodes
     ///     The code reported when the message declares a policy name no composition registered.
     /// </summary>
     public const string UnknownPolicy = "authorization.unknown-policy";
+
+    /// <summary>
+    ///     The code reported when a permission policy is evaluated with no permission lookup registered.
+    /// </summary>
+    public const string PermissionLookupMissing = "authorization.permission-lookup-missing";
+
+    /// <summary>
+    ///     The code reported when a policy names a condition type the dispatch scope did not register.
+    /// </summary>
+    public const string ConditionMissing = "authorization.condition-missing";
+
+    /// <summary>
+    ///     The code reported when the sign-in instant is missing or unparsable, so a recent sign-in cannot be
+    ///     confirmed.
+    /// </summary>
+    public const string SignInInstantUnknown = "authorization.sign-in-instant-unknown";
+
+    /// <summary>
+    ///     The code reported when the enclosing mediation does not handle the message type the policy requires.
+    /// </summary>
+    public const string NotSentBy = "authorization.not-sent-by";
 }

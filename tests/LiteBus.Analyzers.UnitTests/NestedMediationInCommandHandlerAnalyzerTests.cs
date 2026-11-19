@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.CodeAnalysis;
 
 namespace LiteBus.Analyzers.UnitTests;
@@ -685,6 +686,190 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
     }
 
     /// <summary>
+    ///     Verifies that a command pre-handler sending another command produces LB1023.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandPreHandlerSendingCommand_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+                              public sealed record AuditUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserCommandPreHandler : ICommandPreHandler<CreateUserCommand>
+                              {
+                                  private readonly ICommandMediator _commandMediator;
+
+                                  public CreateUserCommandPreHandler(ICommandMediator commandMediator)
+                                  {
+                                      _commandMediator = commandMediator;
+                                  }
+
+                                  public Task PreHandleAsync(CreateUserCommand message, CancellationToken cancellationToken = default)
+                                      => {|#0:_commandMediator.SendAsync(new AuditUserCommand(message.Name), cancellationToken: cancellationToken)|};
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<NestedMediationInCommandHandlerAnalyzer>(
+            source,
+            DiagnosticDescriptors.NestedMediationInCommandHandler,
+            0,
+            "CreateUserCommandPreHandler",
+            "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync");
+    }
+
+    /// <summary>
+    ///     Verifies that a command post-handler sending another command produces LB1023.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandPostHandlerSendingCommand_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+                              public sealed record AuditUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserCommandPostHandler : ICommandPostHandler<CreateUserCommand>
+                              {
+                                  private readonly ICommandMediator _commandMediator;
+
+                                  public CreateUserCommandPostHandler(ICommandMediator commandMediator)
+                                  {
+                                      _commandMediator = commandMediator;
+                                  }
+
+                                  public Task PostHandleAsync(CreateUserCommand message, object? messageResult, CancellationToken cancellationToken = default)
+                                      => {|#0:_commandMediator.SendAsync(new AuditUserCommand(message.Name), cancellationToken: cancellationToken)|};
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<NestedMediationInCommandHandlerAnalyzer>(
+            source,
+            DiagnosticDescriptors.NestedMediationInCommandHandler,
+            0,
+            "CreateUserCommandPostHandler",
+            "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync");
+    }
+
+    /// <summary>
+    ///     Verifies that a messaging-level pre-handler for a command produces LB1023.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task MessagingPreHandlerForCommand_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+                              public sealed record AuditUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserMessagePreHandler : IMessagePreHandler<CreateUserCommand>
+                              {
+                                  private readonly ICommandMediator _commandMediator;
+
+                                  public CreateUserMessagePreHandler(ICommandMediator commandMediator)
+                                  {
+                                      _commandMediator = commandMediator;
+                                  }
+
+                                  public Task PreHandleAsync(CreateUserCommand message, CancellationToken cancellationToken = default)
+                                      => {|#0:_commandMediator.SendAsync(new AuditUserCommand(message.Name), cancellationToken: cancellationToken)|};
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<NestedMediationInCommandHandlerAnalyzer>(
+            source,
+            DiagnosticDescriptors.NestedMediationInCommandHandler,
+            0,
+            "CreateUserMessagePreHandler",
+            "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync");
+    }
+
+    /// <summary>
+    ///     Verifies that a messaging-level pre-handler for a query produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task MessagingPreHandlerForQuery_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+                              public sealed record AuditUserCommand(int UserId) : ICommand;
+
+                              public sealed class GetUserMessagePreHandler : IMessagePreHandler<GetUserQuery>
+                              {
+                                  private readonly ICommandMediator _commandMediator;
+
+                                  public GetUserMessagePreHandler(ICommandMediator commandMediator)
+                                  {
+                                      _commandMediator = commandMediator;
+                                  }
+
+                                  public Task PreHandleAsync(GetUserQuery message, CancellationToken cancellationToken = default)
+                                  {
+                                      _ = _commandMediator.SendAsync(new AuditUserCommand(message.UserId), cancellationToken: cancellationToken);
+                                      return Task.CompletedTask;
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<NestedMediationInCommandHandlerAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies that a command pre-handler reading through <c>IQueryMediator</c> produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandPreHandlerQuerying_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed record CreateUserCommand(int UserId) : ICommand;
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+
+                              public sealed class CreateUserCommandPreHandler : ICommandPreHandler<CreateUserCommand>
+                              {
+                                  private readonly IQueryMediator _queryMediator;
+
+                                  public CreateUserCommandPreHandler(IQueryMediator queryMediator)
+                                  {
+                                      _queryMediator = queryMediator;
+                                  }
+
+                                  public async Task PreHandleAsync(CreateUserCommand message, CancellationToken cancellationToken = default)
+                                  {
+                                      _ = await _queryMediator.QueryAsync(new GetUserQuery(message.UserId), cancellationToken).ConfigureAwait(false);
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<NestedMediationInCommandHandlerAnalyzer>(source);
+    }
+
+    /// <summary>
     ///     Verifies that the rule is a warning in <c>LiteBus.Handlers</c> that stays off until enabled.
     /// </summary>
     [Fact]
@@ -693,5 +878,14 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
         Assert.Equal("LiteBus.Handlers", DiagnosticDescriptors.NestedMediationInCommandHandler.Category);
         Assert.Equal(DiagnosticSeverity.Warning, DiagnosticDescriptors.NestedMediationInCommandHandler.DefaultSeverity);
         Assert.False(DiagnosticDescriptors.NestedMediationInCommandHandler.IsEnabledByDefault);
+    }
+
+    /// <summary>
+    ///     Verifies that the description names the runtime counterpart that forbids nested commands.
+    /// </summary>
+    [Fact]
+    public void Descriptor_DescriptionNamesForbidNestedCommands()
+    {
+        Assert.Contains("ForbidNestedCommands()", DiagnosticDescriptors.NestedMediationInCommandHandler.Description.ToString(CultureInfo.InvariantCulture));
     }
 }

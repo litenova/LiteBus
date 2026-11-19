@@ -42,6 +42,23 @@ public sealed class MessageModuleBuilder
     private readonly List<DeclarationRequirement> _requiredDeclarations = [];
 
     /// <summary>
+    ///     The metadata conventions collected from this builder, in the order they were added.
+    /// </summary>
+    private readonly List<MessageDeclarationConvention> _conventions = [];
+
+    /// <summary>
+    ///     Whether the convention build step was registered; <see cref="DeclareConvention{TValue}" /> registers it once
+    ///     for every convention.
+    /// </summary>
+    private bool _conventionsRegistered;
+
+    /// <summary>
+    ///     Whether the declaration report build step was registered; the first report-mode requirement registers it once
+    ///     for every report-mode requirement.
+    /// </summary>
+    private bool _reportRegistered;
+
+    /// <summary>
     ///     The fault refusal classifier implementation types and pre-created instances, in registration order.
     /// </summary>
     private readonly List<object> _faultRefusalClassifiers = [];
@@ -119,6 +136,11 @@ public sealed class MessageModuleBuilder
     ///     exemption from it.
     /// </summary>
     /// <typeparam name="TValue">The metadata value type each message must state a position on.</typeparam>
+    /// <param name="enforcement">
+    ///     <see cref="DeclarationEnforcement.Fail" /> fails composition, naming every offender.
+    ///     <see cref="DeclarationEnforcement.Report" /> lets composition succeed and lists the offenders through the
+    ///     <c>litebus.declarations</c> probe instead, so positions are adopted message by message.
+    /// </param>
     /// <returns>The current builder.</returns>
     /// <remarks>
     ///     <para>
@@ -149,10 +171,15 @@ public sealed class MessageModuleBuilder
     ///         registered from an assembly the analyzer never saw.
     ///     </para>
     /// </remarks>
-    public MessageModuleBuilder RequireDeclaration<TValue>()
+    public MessageModuleBuilder RequireDeclaration<TValue>(
+        DeclarationEnforcement enforcement = DeclarationEnforcement.Fail)
         where TValue : notnull
     {
-        return AddRequirement(new DeclarationRequirement(typeof(TValue), Scope: null, "every registered message"));
+        return AddRequirement(new DeclarationRequirement(
+            typeof(TValue),
+            Scope: null,
+            "every registered message",
+            enforcement));
     }
 
     /// <summary>
@@ -164,6 +191,11 @@ public sealed class MessageModuleBuilder
     ///     The axis contract or marker interface that decides the scope, such as <c>ICommand</c> or an application's
     ///     own <c>IActingAccountCommand</c>.
     /// </typeparam>
+    /// <param name="enforcement">
+    ///     <see cref="DeclarationEnforcement.Fail" /> fails composition, naming every offender.
+    ///     <see cref="DeclarationEnforcement.Report" /> lets composition succeed and lists the offenders through the
+    ///     <c>litebus.declarations</c> probe instead, so positions are adopted message by message.
+    /// </param>
     /// <returns>The current builder.</returns>
     /// <remarks>
     ///     <para>
@@ -184,13 +216,15 @@ public sealed class MessageModuleBuilder
     ///         makes a half-configured policy possible.
     ///     </para>
     /// </remarks>
-    public MessageModuleBuilder RequireDeclaration<TValue, TScope>()
+    public MessageModuleBuilder RequireDeclaration<TValue, TScope>(
+        DeclarationEnforcement enforcement = DeclarationEnforcement.Fail)
         where TValue : notnull
     {
         return AddRequirement(new DeclarationRequirement(
             typeof(TValue),
             static messageType => typeof(TScope).IsAssignableFrom(messageType),
-            $"every {typeof(TScope).Name}"));
+            $"every {typeof(TScope).Name}",
+            enforcement));
     }
 
     /// <summary>
@@ -204,6 +238,11 @@ public sealed class MessageModuleBuilder
     ///     module</c>. A predicate cannot describe itself, and an error that cannot name the policy it enforces is one
     ///     nobody can act on.
     /// </param>
+    /// <param name="enforcement">
+    ///     <see cref="DeclarationEnforcement.Fail" /> fails composition, naming every offender.
+    ///     <see cref="DeclarationEnforcement.Report" /> lets composition succeed and lists the offenders through the
+    ///     <c>litebus.declarations</c> probe instead, so positions are adopted message by message.
+    /// </param>
     /// <returns>The current builder.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="scope" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException"><paramref name="scopeDescription" /> is null, empty, or whitespace.</exception>
@@ -212,13 +251,16 @@ public sealed class MessageModuleBuilder
     ///     the compiler then tracks membership. Use this for a rule no type captures, such as one keyed on an attribute
     ///     the application defines.
     /// </remarks>
-    public MessageModuleBuilder RequireDeclaration<TValue>(Func<Type, bool> scope, string scopeDescription)
+    public MessageModuleBuilder RequireDeclaration<TValue>(
+        Func<Type, bool> scope,
+        string scopeDescription,
+        DeclarationEnforcement enforcement = DeclarationEnforcement.Fail)
         where TValue : notnull
     {
         ArgumentNullException.ThrowIfNull(scope);
         ArgumentException.ThrowIfNullOrWhiteSpace(scopeDescription);
 
-        return AddRequirement(new DeclarationRequirement(typeof(TValue), scope, scopeDescription));
+        return AddRequirement(new DeclarationRequirement(typeof(TValue), scope, scopeDescription, enforcement));
     }
 
     /// <summary>
@@ -238,7 +280,36 @@ public sealed class MessageModuleBuilder
             _requiredDeclarations.Add(requirement);
         }
 
+        if (requirement.Enforcement == DeclarationEnforcement.Report && !_reportRegistered)
+        {
+            _reportRegistered = true;
+            AddBuildStep(RegisterDeclarationReport);
+        }
+
         return this;
+    }
+
+    /// <summary>
+    ///     Registers the declaration report and its diagnostic probe for report-mode requirements.
+    /// </summary>
+    /// <param name="configuration">The module configuration receiving the registration.</param>
+    /// <remarks>
+    ///     The report holds the requirements; the probe reads the message catalog at check time, so the list reflects
+    ///     every message the host composed rather than only the ones registered before this call. Registered once for
+    ///     every report-mode requirement, because one probe lists every requirement's offenders.
+    /// </remarks>
+    private void RegisterDeclarationReport(IModuleConfiguration configuration)
+    {
+        var reported = _requiredDeclarations
+            .Where(requirement => requirement.Enforcement == DeclarationEnforcement.Report)
+            .ToList();
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(DeclarationReport),
+            new DeclarationReport(reported)));
+        configuration.RegisterDiagnosticCheck(
+            typeof(DeclarationReportDiagnosticCheck),
+            DeclarationReportDiagnosticCheck.CheckName);
     }
 
     /// <summary>
@@ -422,6 +493,155 @@ public sealed class MessageModuleBuilder
     }
 
     /// <summary>
+    ///     Produces a metadata value from the message type itself, for every message that states no value of type
+    ///     <typeparamref name="TValue" /> through a definition, an attribute, or a default.
+    /// </summary>
+    /// <typeparam name="TValue">The metadata value type the convention produces.</typeparam>
+    /// <param name="convention">
+    ///     Produces the value for a message type, or <see langword="null" /> when the convention does not apply to
+    ///     it.
+    /// </param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="convention" /> is <see langword="null" />.</exception>
+    /// <exception cref="PipelineContractException">
+    ///     A convention for <typeparamref name="TValue" /> is already declared. One value type has one convention.
+    /// </exception>
+    /// <remarks>
+    ///     <para>
+    ///         A default says what a family declares; a convention says how a value is derived. An idempotency key
+    ///         read from an interface every command implements, or an audit action derived from the type name, is
+    ///         stated once here instead of repeated on every message, and a message that states its own position keeps
+    ///         it: precedence stays definition, then attribute, then default, then convention.
+    ///     </para>
+    ///     <para>
+    ///         A message that records an exemption from <typeparamref name="TValue" /> is left alone. An exemption is
+    ///         a decision that the message deliberately states nothing, and a derived value would silently overturn it.
+    ///     </para>
+    ///     <para>
+    ///         The function observes the message type only. It runs once per registered message at composition, after
+    ///         every module has registered its messages and before the declaration requirements are checked, so a
+    ///         convention value satisfies a requirement. Keep it a pure function of the type: it cannot resolve
+    ///         services, and a function that throws fails composition.
+    ///     </para>
+    /// </remarks>
+    /// <example>
+    ///     <code><![CDATA[
+    /// registry.AddMessaging(messaging => messaging
+    ///     .DeclareConvention<IdempotencyDeclaration>(messageType =>
+    ///         typeof(IHasIdempotencyKey).IsAssignableFrom(messageType)
+    ///             ? IdempotencyDeclaration.KeyedBy<IHasIdempotencyKey>(message => message.IdempotencyKey)
+    ///             : null)
+    ///     .DeclareConvention<AuditDeclaration>(messageType =>
+    ///         AuditDeclaration.Audited("commands." + messageType.Name)));
+    /// ]]></code>
+    /// </example>
+    public MessageModuleBuilder DeclareConvention<TValue>(Func<Type, TValue?> convention)
+        where TValue : class
+    {
+        ArgumentNullException.ThrowIfNull(convention);
+
+        foreach (var existing in _conventions)
+        {
+            if (existing.ValueType == typeof(TValue))
+            {
+                throw new PipelineContractException(
+                    $"A convention for '{typeof(TValue).Name}' is already declared. One value type has one "
+                    + "convention, because two functions producing the value would leave nothing saying which one "
+                    + "applies; combine them into one function that returns the value or null.");
+            }
+        }
+
+        _conventions.Add(new MessageDeclarationConvention(typeof(TValue), type => convention(type)));
+
+        if (!_conventionsRegistered)
+        {
+            _conventionsRegistered = true;
+            AddBuildStep(ApplyConventions);
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers the composition validation that applies conventions to messages stating no value of their type.
+    /// </summary>
+    /// <param name="configuration">The module configuration receiving the validation.</param>
+    /// <remarks>
+    ///     Registered as a build step rather than applied here because the axis modules register their messages after
+    ///     the messaging module builds. Build steps run before the requirement validation is registered, so the
+    ///     conventions land before the requirements are checked.
+    /// </remarks>
+    private void ApplyConventions(IModuleConfiguration configuration)
+    {
+        var registry = configuration.GetContext<IMessageRegistry>();
+        var conventions = _conventions.ToList();
+
+        configuration.RegisterCompositionValidation(() => ApplyConventions(registry, conventions));
+    }
+
+    /// <summary>
+    ///     Applies every convention to every concrete message that states no value of the convention's type and
+    ///     records no exemption from it.
+    /// </summary>
+    /// <param name="reader">The registry holding every registered message descriptor.</param>
+    /// <param name="conventions">The conventions to apply, in registration order.</param>
+    private static void ApplyConventions(IMessageReader reader, IReadOnlyList<MessageDeclarationConvention> conventions)
+    {
+        foreach (var descriptor in reader)
+        {
+            if (descriptor.MessageType.IsAbstract || descriptor.MessageType.IsInterface)
+            {
+                continue;
+            }
+
+            foreach (var convention in conventions)
+            {
+                if (StatesValue(descriptor.Metadata, convention.ValueType)
+                    || IsExempt(descriptor.Metadata, convention.ValueType))
+                {
+                    continue;
+                }
+
+                var value = convention.Convention(descriptor.MessageType);
+
+                if (value is null)
+                {
+                    continue;
+                }
+
+                // The messaging module always pairs this builder with MessageRegistry, whose descriptors carry
+                // MessageMetadata, so the cast holds for every descriptor this validation sees.
+                ((MessageMetadata)descriptor.Metadata).TryApplyConvention(
+                    convention.ValueType,
+                    value,
+                    descriptor.MessageType);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether the metadata holds a value of the convention's type.
+    /// </summary>
+    /// <param name="metadata">The metadata resolved for one message.</param>
+    /// <param name="valueType">The metadata value type the convention produces.</param>
+    /// <returns><see langword="true" /> when a value of that type is present.</returns>
+    private static bool StatesValue(IMessageMetadata metadata, Type valueType)
+    {
+        return metadata.Values.Any(valueType.IsInstanceOfType);
+    }
+
+    /// <summary>
+    ///     Determines whether the message deliberately states nothing for the convention's type.
+    /// </summary>
+    /// <param name="metadata">The metadata resolved for one message.</param>
+    /// <param name="valueType">The metadata value type the convention produces.</param>
+    /// <returns><see langword="true" /> when an exemption covers that type.</returns>
+    private static bool IsExempt(IMessageMetadata metadata, Type valueType)
+    {
+        return metadata.TryGet<DeclarationExemptions>(out var exemptions) && exemptions.Covers(valueType);
+    }
+
+    /// <summary>
     ///     Declares a metadata value for every message assignable to <typeparamref name="TScope" />, unless the
     ///     message states its own position.
     /// </summary>
@@ -449,6 +669,10 @@ public sealed class MessageModuleBuilder
     ///         string a refactoring tool moves without telling anyone, so a default keyed on one silently stops
     ///         applying when a folder is renamed. For an authorization default, that failure is a command that used to
     ///         be guarded and now is not.
+    ///     </para>
+    ///     <para>
+    ///         A default applies only to messages assignable to its scope and never satisfies another scope's
+    ///         requirement.
     ///     </para>
     ///     <para>
     ///         Two defaults for the same scope and value type are a configuration error, because one of them would
@@ -481,7 +705,8 @@ public sealed class MessageModuleBuilder
     /// <exception cref="ArgumentNullException"><paramref name="declaration" /> is <see langword="null" />.</exception>
     /// <remarks>
     ///     The generic overload is the one to reach for. This exists for composition code that builds its declarations
-    ///     from configuration, where the types are values rather than something the call site can name.
+    ///     from configuration, where the types are values rather than something the call site can name. A default
+    ///     applies only to messages assignable to its scope and never satisfies another scope's requirement.
     /// </remarks>
     public MessageModuleBuilder DeclareDefault(MessageDeclarationItem declaration)
     {

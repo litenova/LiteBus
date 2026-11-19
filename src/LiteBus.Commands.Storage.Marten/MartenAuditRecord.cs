@@ -24,11 +24,11 @@ namespace LiteBus.Commands.Storage.Marten;
 ///     <para>
 ///         When the trail hash chain is enabled, every record also carries its <see cref="Segment" />, its
 ///         <see cref="Sequence" /> number inside the segment, the <see cref="PreviousHash" /> of its predecessor,
-///         and its own <see cref="Hash" />. Records written without the chain leave the segment and the hashes empty
-///         and the sequence at zero.
+///         its own <see cref="Hash" />, and the <see cref="HashScheme" /> the hash was computed with. Records written
+///         without the chain leave the segment and the hashes empty and the sequence at zero.
 ///     </para>
 /// </remarks>
-public sealed class MartenAuditRecord
+public sealed class MartenAuditRecord : IAuditChainDocument
 {
     /// <summary>
     ///     Gets or sets the document identity, assigned when the record is written.
@@ -143,4 +143,14 @@ public sealed class MartenAuditRecord
     ///     when the record was written without the hash chain.
     /// </summary>
     public string? Hash { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the name of the hash scheme the hash was computed with, or <see langword="null" /> for
+    ///     records written without the hash chain and for records written before schemes existed.
+    /// </summary>
+    /// <value>
+    ///     The scheme name, which verification uses to pick the canonical form, link rule, and hasher per record.
+    ///     Records that carry <see langword="null" /> were hashed with the default scheme.
+    /// </value>
+    public string? HashScheme { get; set; }
 }

@@ -47,6 +47,23 @@ await appDbContext.SaveChangesAsync(cancellationToken);
 
 When `EnableSaveChangesInterceptor()` is set, the module also registers the non-generic `ITransactionalOutbox` over `ITransactionalOutbox<TContext>`, so `StageCollectedEvents()` drains collected domain events into the ambient EF transaction.
 
+## Harvesting Domain Events
+
+`HarvestDomainEvents()` on the Entity Framework Core storage builder registers `EfCoreDomainEventHarvester<TContext>` as the harvester for the configured `DbContext`. The staging completion handler runs the harvester before it drains the collector, so domain events buffered on tracked entities stage with the same `SaveChanges` call:
+
+```csharp
+builder.AddOutbox(outbox =>
+{
+    outbox.StageCollectedEvents();
+    outbox.UseEntityFrameworkCoreStorage(ef => ef
+        .UseDbContext<AppDbContext>()
+        .EnableSaveChangesInterceptor()
+        .HarvestDomainEvents());
+});
+```
+
+The harvester reads the `ChangeTracker` entries of the scoped context in every state: a loaded aggregate that raises an event without touching a mapped property stays `Unchanged`, and its events still harvest. Entities implementing `IHasDomainEvents` harvest by default; entities with their own event storage configure accessor pairs with `OutboxModuleBuilder.HarvestDomainEvents<TAggregate>`. The harvester clears the events it moved from each entity, so each event stages once. Harvesters run only when the mediation completed with `MediationOutcome.Succeeded`. See [Domain Events and Unit of Work](../reliable-messaging/domain-events-and-unit-of-work.md) for the harvesting contract.
+
 ## Default Table and Columns
 
 | Setting | Default |

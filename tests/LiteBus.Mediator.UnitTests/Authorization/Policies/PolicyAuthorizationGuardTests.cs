@@ -8,6 +8,7 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Authorization;
 using LiteBus.Messaging.Authorization;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -67,27 +68,22 @@ public sealed class PolicyAuthorizationGuardTests : LiteBusTestBase
     }
 
     /// <summary>
-    ///     Verifies that a declared policy no composition registered denies with the stable code.
+    ///     Verifies that a declared policy no composition registered fails composition, naming the policy, so the
+    ///     typo surfaces at startup rather than as a per-request denial.
     /// </summary>
     [Fact]
-    public async Task An_unknown_policy_denies_with_the_stable_code()
+    public void An_unknown_policy_fails_composition_naming_the_policy()
     {
-        var provider = BuildProvider(
+        var act = () => BuildProvider(
             new PolicyEvaluationRecorder(),
             new PolicyTestOptions(),
             policies => policies.Add("vaults.open", MessagePolicy.Allow()),
             typeof(UnknownPolicyVaultCommand),
             typeof(UnknownPolicyVaultCommandHandler));
-        var command = new UnknownPolicyVaultCommand();
 
-        var result = await provider.GetRequiredService<ICommandMediator>()
-            .TrySendAsync(command).ConfigureAwait(false);
-
-        result.Outcome.Should().Be(MediationOutcome.Denied);
-        result.Code.Should().Be(AuthorizationPolicyRefusalCodes.UnknownPolicy);
-        result.Reason.Should().Contain("vaults.unmapped");
+        act.Should().Throw<LiteBusConfigurationException>()
+            .Which.Message.Should().Contain("vaults.unmapped");
         AuthorizationPolicyRefusalCodes.UnknownPolicy.Should().Be("authorization.unknown-policy");
-        command.HandlerRan.Should().BeFalse();
     }
 
     /// <summary>

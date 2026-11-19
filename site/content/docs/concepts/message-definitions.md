@@ -201,7 +201,7 @@ registry.AddCommands(builder =>
 });
 ```
 
-Two sources populate message metadata, and both contribute values of the same type. An attribute is metadata only if it implements `IMessageDeclarationSource`, which states the value type it declares and converts itself to it:
+Four sources populate message metadata, and all contribute values keyed by the same value type. An attribute is metadata only if it implements `IMessageDeclarationSource`, which states the value type it declares and converts itself to it:
 
 ```csharp
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
@@ -217,10 +217,12 @@ public sealed class RequiresPermissionAttribute : Attribute, IMessageDeclaration
 }
 ```
 
-Requiring that is what keeps metadata bounded. A message type carries attributes for serialization, diagnostics and source generators, and collecting all of them would make `Metadata.Contains<T>()` answer questions outside what LiteBus defines. It also puts both sources on one key, so the precedence rule below resolves genuine conflicts:
+Requiring that is what keeps metadata bounded. A message type carries attributes for serialization, diagnostics and source generators, and collecting all of them would make `Metadata.Contains<T>()` answer questions outside what LiteBus defines. It also puts every source on one key, so the precedence rule below resolves genuine conflicts:
 
-1. **Attributes** that declare metadata are applied first, each converted to the value type it names.
-2. **Definitions** are applied second, so a definition always wins over an attribute declaring the same value type.
+1. **Definitions** win over every other source, so a definition always wins over an attribute declaring the same value type.
+2. **Attributes** that declare metadata come next, each converted to the value type it names.
+3. **Defaults** declared with `DeclareDefault` cover a family of messages through a shared base type or marker interface, unless the message states its own value. See [Declaring a Family Default](#declaring-a-family-default).
+4. **Conventions** declared with `DeclareConvention` derive a value from the message type itself for every message that states nothing through the first three sources. See [Deriving a Value From the Message Type](#deriving-a-value-from-the-message-type).
 
 That is the same arrangement LiteBus already uses for durable message contracts, where an attribute and an explicit registration can both express the contract and the analyzer keeps them consistent.
 
@@ -272,6 +274,8 @@ listed were never meant to be in its scope.
 
 As a rule, scope on a type rather than a namespace. A namespace is a string that a refactoring tool can move without updating the requirement, so a requirement keyed on one silently stops applying when a folder is renamed. For an authorization rule that failure leaves a command silently unguarded.
 
+Every `RequireDeclaration` overload takes an optional `DeclarationEnforcement` parameter, `Fail` by default. `Fail` fails composition as above. `Report` lets composition succeed and lists the undeclared messages through the `litebus.declarations` diagnostic probe instead, so positions are adopted message by message. See [Listing Undeclared Messages Without Failing Composition](#listing-undeclared-messages-without-failing-composition).
+
 ### Declaring a Family Default
 
 A rule that holds for a whole family is worth stating once. Declaring it on each of a hundred commands states it a hundred times, and gives it a hundred places to drift:
@@ -284,11 +288,89 @@ registry.AddMessaging(messaging => messaging
 
 Every command implementing `IOrganizationCommand` declares that permission, and one that states its own keeps it. A declaration resolves to the one written closest to the message, which is the same rule a definition written for a base type follows. The default states the permission without a definition file.
 
-Defaults and a scoped requirement work together. The requirement forces every message in the family to state a position. The default states it for the ones with nothing special to say. For a large family that is the difference between a hundred declarations and a handful of overrides.
+A default applies only to messages assignable to its scope and never satisfies another scope's requirement. An `IEvent`-scoped authorization default does not satisfy an `ICommand`-scoped requirement, even in the same composition.
+
+An interface scope works the same way. A default declared against an interface carrying a key reaches the concrete commands beneath it:
+
+```csharp
+public interface IHasIdempotencyKey
+{
+    string IdempotencyKey { get; }
+}
+
+registry.AddMessaging(messaging => messaging
+    .DeclareDefault<IHasIdempotencyKey, IdempotencyDeclaration>(
+        IdempotencyDeclaration.KeyedBy<IHasIdempotencyKey>(message => message.IdempotencyKey)));
+```
+
+A concrete command implementing `IHasIdempotencyKey` is then keyed by its own `IdempotencyKey` property, because the selector runs against the concrete command. See [In-Process Idempotency](idempotency.md) for the key behavior that declaration enables.
+
+Defaults and a scoped requirement work together. The requirement forces every message in the family to state a position. The default states it for the ones with nothing special to say. For a large family that is the difference between a hundred declarations and a handful of overrides. Declaring the default first and then adding the scoped requirement is also the rollout for a family whose members gain their own declarations over time: the default holds the family while overrides land one by one.
 
 The scope is a type rather than a namespace for the same reason a scoped requirement's is. A namespace is a string that a refactoring tool can move without updating the default, so a default keyed on one silently stops applying when a folder is renamed. For an authorization default that failure leaves a command unguarded.
 
 Two defaults for one scope and value type are a configuration error, as are a default and a definition both declared against the same message. One of them would have to be discarded, and nothing says which.
+
+### Deriving a Value From the Message Type
+
+A default states what a family declares. A convention states how a value is derived from the message type itself, for every registered message that has no definition, attribute, or `DeclareDefault` value for that value type:
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .DeclareConvention<IdempotencyDeclaration>(messageType =>
+        typeof(IHasIdempotencyKey).IsAssignableFrom(messageType)
+            ? IdempotencyDeclaration.KeyedBy<IHasIdempotencyKey>(message => message.IdempotencyKey)
+            : null)
+    .DeclareConvention<AuditDeclaration>(messageType =>
+        AuditDeclaration.Audited("commands." + messageType.Name)));
+```
+
+The first convention keys only the commands carrying a key: it returns a keyed declaration for a message implementing `IHasIdempotencyKey` and null otherwise. The second derives an audit action from the type name for every message that states no audit position. Returning null is how a convention states that it does not apply to a message, and the message stays undeclared for that value type.
+
+Precedence stays definition, then attribute, then default, then convention. A message that states its own position through any of the first three keeps it, and the convention never runs for it. A message that records an exemption from the value type is left alone as well: an exemption is a decision that the message deliberately states nothing, and a derived value would silently overturn it.
+
+One value type has one convention. Declaring a second convention for the same value type fails composition, because one of them would have to be discarded and nothing states which. Combine the two derivations into one function that returns the value or null.
+
+The function observes the message type only. It runs once per registered concrete message at composition, after every module has registered its messages and before the declaration requirements are checked, so a convention value satisfies a requirement. Keep it a pure function of the type: it cannot resolve services, and a function that throws fails composition.
+
+### Listing Undeclared Messages Without Failing Composition
+
+A failing requirement can only land atomically with the last declaration, because the first missing position fails the whole composition. For a family gaining positions message by message, report the gap instead of failing it:
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .RequireDeclaration<RequiredPermission, ICommand>(DeclarationEnforcement.Report));
+```
+
+`Report` does not fail composition. It registers an `IDiagnosticCheck` named `litebus.declarations` that reports `Degraded` listing every undeclared message, grouped by the omitted declaration and the scope of the requirement it violated:
+
+```text
+2 registered messages state no position on a reported declaration:
+  RequiredPermission (every ICommand) is not declared by: DraftScheduleCommand, WithdrawScheduleCommand
+Declare the value with an attribute or a definition class, or record why the message does not need it with [DeclarationExempt(typeof(TValue), "rationale")]. Narrow the requirement instead if the messages listed were never meant to be in its scope.
+```
+
+The probe reports `Healthy` once every message in scope states a position. Its result data carries `undeclaredCount` and the `undeclared` message names, so a dashboard reads the count without parsing the description. One probe lists every report-mode requirement's offenders. A fail-mode requirement in the same composition still fails composition when its own scope is unmet.
+
+The same list is available to composition code through `IMessageCatalog`:
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .RequireDeclaration<RequiredPermission, ICommand>(DeclarationEnforcement.Report)
+    .ValidateComposition(catalog =>
+    {
+        var missing = catalog.MissingDeclaration(typeof(RequiredPermission), messageType => typeof(ICommand).IsAssignableFrom(messageType));
+
+        foreach (var entry in missing)
+        {
+            Console.WriteLine(entry.MessageType.FullName);
+        }
+    }));
+```
+
+`MissingDeclaration` returns one entry per concrete message in scope that neither declares the value nor records an exemption from it, in registration order. Abstract types and interfaces are skipped: they are shapes rather than messages, which is the same rule the declaration requirements apply.
+
+Adopt positions in this order. Add the requirement in `Report` mode first. Declare positions or record exemptions message by message until the probe reports healthy. Change the requirement to `Fail` once the list is empty, so a later message that forgets its position fails composition again. For a family that shares one position, the shorter path is the declare-default-then-require rollout from the previous section: declare the default for the family scope, add the scoped requirement in `Fail` mode, and let overrides land one by one.
 
 ### Custom Convention Checks
 

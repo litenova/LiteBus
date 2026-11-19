@@ -32,4 +32,26 @@ public interface IRefusalProblemCatalog
     /// <param name="code">The refusal code, or <see langword="null" /> when the decision supplied none.</param>
     /// <returns>The matching mapping, or the fallback mapping when nothing matches.</returns>
     RefusalProblemMap Resolve(string? code);
+
+    /// <summary>
+    ///     Tries to resolve the mapping for a refusal code, reporting whether a mapping matches.
+    /// </summary>
+    /// <param name="code">The refusal code, or <see langword="null" /> when the decision supplied none.</param>
+    /// <param name="map">The matching mapping, or the fallback mapping when nothing matches.</param>
+    /// <returns><see langword="true" /> when a mapping matches; otherwise, <see langword="false" />.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         The default implementation calls <see cref="Resolve" /> and returns <see langword="true" /> when
+    ///         <paramref name="code" /> is not <see langword="null" />. It cannot tell a fallback from a match, so an
+    ///         application that answers an unmapped code as a server error uses
+    ///         <see cref="RefusalProblemCatalog" />, whose override returns <see langword="false" /> for the fallback
+    ///         path.
+    ///     </para>
+    /// </remarks>
+    bool TryResolve(string? code, out RefusalProblemMap map)
+    {
+        map = Resolve(code);
+
+        return code is not null;
+    }
 }

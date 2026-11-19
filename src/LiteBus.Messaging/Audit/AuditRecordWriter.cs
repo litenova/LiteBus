@@ -142,7 +142,7 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
     /// <summary>
     ///     Resolves who the action is attributed to.
     /// </summary>
-    /// <param name="context">How the mediation ended, carrying the message the resolver reads.</param>
+    /// <param name="context">How the mediation ended, carrying the message and the identity the resolver reads.</param>
     /// <param name="scope">The scope state the handler pushed, when it pushed any.</param>
     /// <returns>The actor, or <see langword="null" /> when nothing established one.</returns>
     /// <remarks>
@@ -150,7 +150,7 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
     ///     that called <see cref="IAuditScope.WithActor" /> knows something the rule does not, so overriding is the
     ///     only precedence that makes the call worth having. A resolver that throws is not caught here: an attribution
     ///     bug that silently produces unattributed evidence is worse than a failed mediation. When the application
-    ///     registered no resolver, the principal carried on the ambient execution identity supplies the actor.
+    ///     registered no resolver, the principal carried on the completion identity supplies the actor.
     /// </remarks>
     private AuditActor? ResolveActor(MessageCompletionContext context, AuditScopeState? scope)
     {
@@ -164,23 +164,28 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
             return _actorResolver.Resolve(context);
         }
 
-        return ResolveActorFromPrincipal();
+        return ResolveActorFromPrincipal(context.Identity);
     }
 
     /// <summary>
-    ///     Resolves the actor from the principal carried on the ambient execution identity.
+    ///     Resolves the actor from the principal carried on the completion identity.
     /// </summary>
+    /// <param name="identity">The identity the mediation ran for, copied onto the completion context.</param>
     /// <returns>The actor, or <see langword="null" /> when no principal or no usable identifier claim is present.</returns>
     /// <remarks>
-    ///     The identifier is read from the <see cref="ClaimTypes.NameIdentifier" /> claim, falling back to the
-    ///     <c>sub</c> claim, and reported as <see cref="AuditActor.User" /> with the display name read from the
-    ///     <see cref="ClaimTypes.Name" /> claim. This fallback applies only when the application registered no
-    ///     <see cref="IAuditActorResolver" />: an explicit resolver states the attribution rule, and a principal-derived
-    ///     actor must not silently replace an attribution the resolver deliberately left absent.
+    ///     The principal is read from the completion context identity, which the pipeline copied from the mediation
+    ///     execution context, rather than from ambient state. The identifier is read from the
+    ///     <see cref="ClaimTypes.NameIdentifier" /> claim, falling back to the <c>sub</c> claim, and reported as
+    ///     <see cref="AuditActor.User" /> with the display name read from the <see cref="ClaimTypes.Name" /> claim.
+    ///     This fallback applies only when the application registered no <see cref="IAuditActorResolver" />: an
+    ///     explicit resolver states the attribution rule, and a principal-derived actor must not silently replace an
+    ///     attribution the resolver deliberately left absent.
     /// </remarks>
-    private static AuditActor? ResolveActorFromPrincipal()
+    private static AuditActor? ResolveActorFromPrincipal(ExecutionIdentity identity)
     {
-        var principal = AmbientExecutionContext.GetCurrentOrDefault()?.Identity.Principal;
+        ArgumentNullException.ThrowIfNull(identity);
+
+        var principal = identity.Principal;
 
         if (principal is null)
         {

@@ -101,6 +101,16 @@ A message that declares nothing is allowed, so an application adopts tenancy dec
 
 Guards that need the caller read it from the same identity the tenancy guard checks. `AuthorizationGuard<TMessage>` exposes it as `CurrentIdentity`, which returns `ExecutionIdentity.Anonymous` outside a mediation. See [Execution Context](execution-context.md) for the resolution order.
 
+### Guard Order
+
+The authorization guard runs before the tenancy guard. `PolicyAuthorizationGuard<TMessage>` carries `[HandlerPriority(HandlerPriorities.Authorization)]` (`ReservedFloor + 10`) and `TenancyGuard<TMessage>` carries `[HandlerPriority(HandlerPriorities.Tenancy)]` (`ReservedFloor + 20`), and both values are stable across releases. A signed-out caller on a tenant route therefore receives the authorization refusal (401) before the tenancy one, and an anonymous `POST` that requires sign-in answers `authorization.not-signed-in` rather than `tenancy.required`. An application that wants the tenant checked before a permission puts a tenant check inside its authorization policy instead of reordering the guards.
+
+### One Code for Two Missing-Tenant Cases
+
+`TenancyGuard` denies with the single code `tenancy.required` whether the caller is anonymous or signed in without a tenant. The guard cannot tell the two apart from the identity alone, and neither can a refusal mapper without re-reading the principal. Keep the single code and split the cases with a sign-in check first: the authorization guard or the endpoint answers a principal-less caller with its own sign-in code and status (401), and only a signed-in caller without a tenant reaches the tenancy denial (403).
+
+Composition requires the declaration, but nothing checks that every dispatch path can supply a tenant. A tenant-required message dispatched from a path with no ambient identity, such as a worker without an explicit identity or a recurring factory that builds a bare command, fails only at runtime with a denial when that path runs. Pass an explicit identity on those paths with `CommandMediationSettings.ForTenant(tenantId)` so the tenant is present before the guard runs.
+
 ## Ambient Tenant on Durable Envelopes
 
 Envelopes staged inside a tenant should carry that tenant without each call site repeating it. `UseAmbientTenant` on the outbox and inbox builders stamps the tenant of the ambient execution identity onto envelopes whose items carry no explicit tenant, beside `UseAmbientTrace`:

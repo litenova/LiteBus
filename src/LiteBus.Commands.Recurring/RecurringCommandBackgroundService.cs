@@ -49,6 +49,11 @@ public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundSer
     private readonly Func<TCommand> _commandFactory;
 
     /// <summary>
+    ///     Computes the identity one pass sends for from the command it built, or null to send without an identity.
+    /// </summary>
+    private readonly Func<TCommand, ExecutionIdentity>? _identityOf;
+
+    /// <summary>
     ///     The lifecycle and timing settings for this loop.
     /// </summary>
     private readonly RecurringCommandHostOptions _options;
@@ -86,6 +91,7 @@ public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundSer
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         _commandFactory = declaration.CommandFactory;
+        _identityOf = declaration.IdentityOf;
         _options = declaration.HostOptions;
         _scopeFactory = scopeFactory;
         _timeProvider = timeProvider;
@@ -136,6 +142,11 @@ public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundSer
     {
         ArgumentNullException.ThrowIfNull(mediator);
         var command = _commandFactory();
+        var identity = _identityOf?.Invoke(command);
+
+        CommandMediationSettings? settings = identity is null
+            ? null
+            : new CommandMediationSettings { Identity = identity };
 
         // ICommand<TResult> derives from ICommand, so the result-bearing contract has to be tested first or every
         // command would take the no-result overload and its report would be thrown away.
@@ -150,12 +161,12 @@ public sealed class RecurringCommandBackgroundService<TCommand> : IBackgroundSer
                     + "ICommand nor ICommand<TCommandResult>.");
             }
 
-            await mediator.SendAsync(plainCommand, cancellationToken: cancellationToken).ConfigureAwait(false);
+            await mediator.SendAsync(plainCommand, settings, cancellationToken).ConfigureAwait(false);
             return false;
         }
 
         var result = await RecurringCommandContracts
-            .SendAsync(mediator, command, resultContract, cancellationToken)
+            .SendAsync(mediator, command, resultContract, settings, cancellationToken)
             .ConfigureAwait(false);
 
         return result is IRecurringWorkReport { HasMoreWork: true };

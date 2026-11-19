@@ -74,6 +74,7 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Saga` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga.Abstractions` | none |
 | `LiteBus.Saga.Abstractions` | `LiteBus.Commands.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Saga.InboxIntegration` | `LiteBus.Commands.Abstractions`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Saga` | none |
+| `LiteBus.Saga.Storage.Marten` | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga`, `LiteBus.Saga.Abstractions` | `Marten`, `Npgsql` |
 | `LiteBus.Saga.Storage.PostgreSql` | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga`, `LiteBus.Saga.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
 | `LiteBus.Storage.EntityFrameworkCore` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions` | `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Relational` |
 | `LiteBus.Storage.PostgreSql` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions` | `Npgsql` |

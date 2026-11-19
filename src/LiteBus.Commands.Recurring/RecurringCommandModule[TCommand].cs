@@ -11,7 +11,7 @@ namespace LiteBus.Commands.Recurring;
 /// <typeparam name="TCommand">The command type sent on each pass.</typeparam>
 /// <remarks>
 ///     Declared as a child of <see cref="CommandModule" /> through
-///     <see cref="CommandModuleBuilderRecurringExtensions.AddRecurring{TCommand}(CommandModuleBuilder, System.Func{TCommand}, System.Action{RecurringCommandHostOptions})" />, so the loop is composed inside
+///     <see cref="CommandModuleBuilderRecurringExtensions.AddRecurring{TCommand}(CommandModuleBuilder, System.Func{TCommand}, System.Action{RecurringCommandHostOptions}, System.Func{TCommand, LiteBus.Messaging.Abstractions.ExecutionIdentity})" />, so the loop is composed inside
 ///     <c>AddCommands</c> and cannot be registered without the axis that mediates it.
 /// </remarks>
 public sealed class RecurringCommandModule<TCommand> : IModule, IRequires<CommandModule>

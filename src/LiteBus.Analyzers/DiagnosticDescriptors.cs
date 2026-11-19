@@ -25,7 +25,7 @@ public static class DiagnosticDescriptors
     internal static readonly DiagnosticDescriptor QueryHandlerImpurity = new(
         DiagnosticIds.QueryHandlerImpurity,
         "Query handler impurity",
-        "Query handler '{0}' depends on '{1}'. Query handlers should be side-effect free and must not use command, event, query, inbox, outbox, or transport publisher APIs.",
+        "Query handler '{0}' depends on '{1}'. Query handlers should be side-effect free and must not use command, event, inbox, outbox, or transport publisher APIs.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Warning,
         true);
@@ -262,7 +262,7 @@ public static class DiagnosticDescriptors
         "LiteBus.Handlers",
         DiagnosticSeverity.Warning,
         false,
-        description: "Reads through IQueryMediator are not reported: queries are side-effect free by contract, so nesting a read nests no unit of work. EvaluateAsync guard checks are not reported either, because they decide without acting.");
+        description: "Reads through IQueryMediator are not reported: queries are side-effect free by contract, so nesting a read nests no unit of work. EvaluateAsync guard checks are not reported either, because they decide without acting. The runtime counterpart is CommandModuleBuilder.ForbidNestedCommands(), which throws NestedMediationException before the inner pipeline starts.");
 
     /// <summary>
     ///     A command handler injects an external side-effect type through its constructor.
@@ -287,11 +287,11 @@ public static class DiagnosticDescriptors
     internal static readonly DiagnosticDescriptor NonTransactionalOutboxInCommandHandler = new(
         DiagnosticIds.NonTransactionalOutboxInCommandHandler,
         "Non-transactional outbox in command handler",
-        "Command handler '{0}' injects IOutbox, which commits the outbox row in its own transaction. Inject ITransactionalOutbox<TContext> so the row commits with the domain write.",
+        "Command handler '{0}' injects IOutbox, which commits the outbox row in its own transaction. Inject {1} so the row commits with the domain write.",
         "LiteBus.Outbox",
         DiagnosticSeverity.Warning,
         true,
-        description: "Inside a unit of work, IOutbox.EnqueueAsync writes and commits the envelope at once, so a later rollback of the domain write still leaves a published event. ITransactionalOutbox<TContext> stages the envelope in the same DbContext transaction.");
+        description: "Inside a unit of work, IOutbox.EnqueueAsync writes and commits the envelope at once, so a later rollback of the domain write still leaves a published event. ITransactionalOutbox<TContext> stages the envelope in the same DbContext transaction when the Entity Framework Core outbox storage resolves; ITransactionalOutbox stages it in the ambient session when the Marten or PostgreSQL outbox storage resolves.");
 
     /// <summary>
     ///     Reports a transactional outbox injected for a context that no outbox storage call in the compilation configures.
@@ -342,5 +342,6 @@ public static class DiagnosticDescriptors
         "LiteBus.Contracts",
         DiagnosticSeverity.Warning,
         true,
-        description: "MessageContractsRegisteredIn makes consuming compilations trust the named assembly for every type here, and LB1017 checks only attributed types. An unattributed durable message type would therefore never be checked anywhere. Attributing every durable type keeps the registration verifiable.");
+        description: "MessageContractsRegisteredIn makes consuming compilations trust the named assembly for every type here, and LB1017 checks only attributed types. An unattributed durable message type would therefore never be checked anywhere. Attributing every durable type keeps the registration verifiable.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 }

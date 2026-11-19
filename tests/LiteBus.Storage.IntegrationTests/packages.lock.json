@@ -1434,6 +1434,17 @@
           "LiteBus.Saga": "[8.0.0, )"
         }
       },
+      "litebus.saga.storage.marten": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Saga": "[8.0.0, )",
+          "LiteBus.Saga.Abstractions": "[8.0.0, )",
+          "Marten": "[9.57.0, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
       "litebus.saga.storage.postgresql": {
         "type": "Project",
         "dependencies": {

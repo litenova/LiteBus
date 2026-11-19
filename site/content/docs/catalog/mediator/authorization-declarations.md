@@ -14,6 +14,10 @@ A position takes four shapes: the `[Authorized]` and `[AuthorizationExempt]` att
 
 Enforcement is a guard derived from `AuthorizationGuard<TMessage>`, registered once as an open generic. The guard reads the declaration for the runtime message type, allows what is exempt, and calls `AuthorizeAsync` with the declared policy on everything else. A message that declares nothing is denied with the `declaration.missing` code. For a declaration of any other value type, `DeclarationGuard<TMessage, TValue>` applies the same shape. A declared value reaches the typed `DecideAsync`, a recorded exemption allows without calling it, and an undeclared message reaches `DecideUndeclaredAsync`.
 
+Events are exempt by default. The event module declares a default `AuthorizationExemptDeclaration` for the `IEvent` scope, so a composition with authorization policies publishes undeclared events, including events replayed from durable storage. An explicit per-event declaration still applies, because a declaration written closer to the message overrides the family default. A composition that already states its own `IEvent` authorization default keeps it.
+
+A composition that calls `AddAuthorizationPolicies` fails at startup for a declared policy name no call registered, with a `LiteBusConfigurationException` that names every unknown policy name and the messages that use it. The authorization guard runs before the tenancy guard: `PolicyAuthorizationGuard<TMessage>` carries the `HandlerPriorities.Authorization` priority and `TenancyGuard<TMessage>` carries `HandlerPriorities.Tenancy`, both stable across releases, so a signed-out caller sees the authorization refusal before the tenancy one whatever order the two calls were registered in.
+
 ## Public Surface
 
 ```csharp
@@ -74,6 +78,9 @@ registry.AddCommands(builder => builder.Register(typeof(VaultAuthorizationGuard<
 - A recorded exemption allows without calling the typed decision method.
 - An undeclared message is denied with the `declaration.missing` code unless `DecideUndeclaredAsync` is overridden. Pair the guard with `RequireDeclaration` so the override becomes unreachable once every message states its position.
 - Scope a requirement on a type rather than a namespace, so a refactoring cannot silently stop the rule from applying.
+- A default applies only to messages assignable to its scope and never satisfies another scope's requirement: the `IEvent`-scoped exemption does not satisfy an `ICommand`-scoped requirement.
+- Undeclared events publish under the event module's `IEvent`-scoped exemption default; an explicit per-event declaration overrides it.
+- With `AddAuthorizationPolicies` called, composition fails for every declared policy name no call registered, naming each name and the messages that use it.
 - LiteBus never interprets the policy string. Evaluation stays in the application's `AuthorizeAsync`.
 
 ## Non-Goals
@@ -107,6 +114,13 @@ Operational alternatives:
 | `The_declared_policy_reaches_AuthorizeAsync` | `LiteBus.Mediator.UnitTests` |
 | `A_denial_from_AuthorizeAsync_refuses_the_message` | `LiteBus.Mediator.UnitTests` |
 | `One_open_generic_guard_covers_authorized_and_exempt_commands` | `LiteBus.Mediator.UnitTests` |
+| `An_undeclared_event_publishes_with_authorization_policies_registered` | `LiteBus.Mediator.UnitTests` |
+| `An_undeclared_event_declares_the_module_exempt_position` | `LiteBus.Mediator.UnitTests` |
+| `An_explicit_authorized_declaration_on_an_event_still_applies` | `LiteBus.Mediator.UnitTests` |
+| `An_explicit_exempt_declaration_on_an_event_publishes_beside_the_module_default` | `LiteBus.Mediator.UnitTests` |
+| `A_composition_declared_event_default_is_kept_over_the_module_default` | `LiteBus.Mediator.UnitTests` |
+| `Unknown_policy_names_fail_composition_naming_every_name_and_each_message` | `LiteBus.Mediator.UnitTests` |
+| `Registered_policy_names_compose` | `LiteBus.Mediator.UnitTests` |
 
 ### Untested
 
@@ -121,6 +135,7 @@ Operational alternatives:
 ## References
 
 - [Authorization declarations](../../concepts/authorization-declarations.md)
+- [Authorization policies](../../concepts/authorization-policies.md)
 - [Message definitions](../../concepts/message-definitions.md)
 - [The handler pipeline](../../concepts/handler-pipeline.md)
 - [Required declarations](../analyzers/required-declarations.md)

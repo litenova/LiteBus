@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Outbox.DomainEvents;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -24,6 +25,11 @@ public sealed class OutboxModuleBuilder
     ///     Consumer-owned diagnostic probes registered for this outbox.
     /// </summary>
     private readonly List<DiagnosticCheckRegistration> _diagnosticChecks = [];
+
+    /// <summary>
+    ///     The configured domain event accessor pairs in registration order.
+    /// </summary>
+    private readonly List<DomainEventAccessor> _domainEventAccessors = [];
 
     /// <summary>
     ///     The configured dispatcher sub-module, if any.
@@ -300,6 +306,46 @@ public sealed class OutboxModuleBuilder
     }
 
     /// <summary>
+    ///     Configures which tracked entities the storage harvesters read when they stage domain events.
+    /// </summary>
+    /// <typeparam name="TAggregate">The aggregate type the accessors read.</typeparam>
+    /// <param name="events">Reads the buffered domain events of one aggregate instance.</param>
+    /// <param name="clear">Removes the buffered domain events of one aggregate instance after harvesting.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Aggregates that implement <see cref="IHasDomainEvents" /> are harvested by default once a storage
+    ///         harvester is registered, without calling this method. Call it for aggregate shapes with their own event
+    ///         storage, so the harvesters can read and clear them.
+    ///     </para>
+    ///     <para>
+    ///         Registering the same aggregate type twice replaces the previous pair, so repeated composition keeps the
+    ///         latest configuration. A configured accessor wins over the <see cref="IHasDomainEvents" /> default for
+    ///         its aggregate type.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder HarvestDomainEvents<TAggregate>(Func<TAggregate, IEnumerable<object>> events, Action<TAggregate> clear)
+        where TAggregate : class
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(clear);
+
+        var accessor = DomainEventAccessor.Create(events, clear);
+
+        for (var index = 0; index < _domainEventAccessors.Count; index++)
+        {
+            if (_domainEventAccessors[index].AggregateType == typeof(TAggregate))
+            {
+                _domainEventAccessors[index] = accessor;
+                return this;
+            }
+        }
+
+        _domainEventAccessors.Add(accessor);
+        return this;
+    }
+
+    /// <summary>
     ///     Stamps trace metadata from the ambient execution context onto enqueued envelopes whose items carry none.
     /// </summary>
     /// <returns>The current builder.</returns>
@@ -468,6 +514,15 @@ public sealed class OutboxModuleBuilder
     internal IReadOnlyList<DiagnosticCheckRegistration> CollectDiagnosticChecks()
     {
         return _diagnosticChecks;
+    }
+
+    /// <summary>
+    ///     Collects the configured domain event accessor pairs in registration order.
+    /// </summary>
+    /// <returns>The accessor pairs declared on this builder.</returns>
+    internal IReadOnlyList<DomainEventAccessor> CollectDomainEventAccessors()
+    {
+        return [.. _domainEventAccessors];
     }
 
     /// <summary>

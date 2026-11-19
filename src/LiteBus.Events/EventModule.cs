@@ -6,6 +6,7 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Audit;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Events;
 
@@ -64,6 +65,8 @@ public sealed class EventModule : IModule, IRequires<MessageModule>
             configure(moduleBuilder);
         }
 
+        DeclareEventAuthorizationDefault(messageRegistry);
+
         // AddAuditing on the messaging module selects the axes, so a consumer configures the feature once instead of
         // repeating the decision here. EnableAuditing stays the primitive, and registering the same handler twice is a
         // no-op in the registry.
@@ -86,6 +89,39 @@ public sealed class EventModule : IModule, IRequires<MessageModule>
         }
 
         ModuleRegistration.RegisterNewHandlers(configuration, messageRegistry, startIndex);
+    }
+
+    /// <summary>
+    ///     Declares that events are exempt from authorization unless an event states its own position.
+    /// </summary>
+    /// <param name="messageRegistry">The message registry shared across LiteBus modules.</param>
+    /// <remarks>
+    ///     <para>
+    ///         Publishing an event notifies subscribers that something already happened, so it asks nothing of the
+    ///         caller: an undeclared event must publish even when the composition registers authorization policies.
+    ///         Without this default, the policy guard would deny every undeclared event with
+    ///         <c>declaration.missing</c>, including events replayed from durable storage.
+    ///     </para>
+    ///     <para>
+    ///         An explicit per-event declaration still applies, because a declaration written closer to the message
+    ///         overrides this family default. A composition that already states its own <c>IEvent</c>
+    ///         authorization default keeps it: the duplicate is the application's explicit choice, not a conflict.
+    ///     </para>
+    /// </remarks>
+    private static void DeclareEventAuthorizationDefault(IMessageRegistry messageRegistry)
+    {
+        ArgumentNullException.ThrowIfNull(messageRegistry);
+
+        try
+        {
+            messageRegistry.AddDeclaration(MessageDeclarationItem.For<IEvent, AuthorizationDeclaration>(
+                AuthorizationDeclaration.Exempt(
+                    "events record facts that already happened, so there is no request to authorize")));
+        }
+        catch (PipelineContractException)
+        {
+            // The composition already states its own IEvent authorization default, and the explicit one stands.
+        }
     }
 
     /// <summary>

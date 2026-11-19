@@ -583,6 +583,7 @@ public static class MessageContextExtensions
         var context = new MessageCompletionContext
         {
             Message = message,
+            Identity = executionContext.Identity,
             Outcome = outcome,
 
             // A post-handler may have replaced what the caller receives, and the completion stage should see what the

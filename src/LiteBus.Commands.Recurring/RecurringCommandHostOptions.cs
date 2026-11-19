@@ -9,9 +9,11 @@ namespace LiteBus.Commands.Recurring;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         This is a poll loop, not a scheduler. It has no cron expression, no wall-clock alignment, no missed-run
-///         catch-up, and no notion of a run that was due while the host was down. If the work must happen at a
-///         particular time rather than regularly, use a scheduler.
+///         By default this is a poll loop, not a scheduler: it waits <see cref="Interval" /> between passes, with no
+///         missed-run catch-up and no notion of a run that was due while the host was down. Set
+///         <see cref="Schedule" /> to align passes to wall-clock occurrences, such as every day at nine o'clock,
+///         instead. A scheduled loop still catches up nothing it missed while down: it waits for the next occurrence
+///         after the current time, including before the first pass.
 ///     </para>
 ///     <para>
 ///         <strong>By default the loop runs on every host instance.</strong> A deployment of three replicas sends the
@@ -38,6 +40,28 @@ public sealed class RecurringCommandHostOptions
     /// </summary>
     /// <value>The default is one minute. Must be positive.</value>
     public TimeSpan Interval { get; set; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    ///     Gets or sets the schedule that decides when passes run.
+    /// </summary>
+    /// <value>
+    ///     The schedule, or <see langword="null" /> to wait <see cref="Interval" /> between passes. The default is
+    ///     <see langword="null" />.
+    /// </value>
+    /// <remarks>
+    ///     <para>
+    ///         When set, the loop waits for the next occurrence from
+    ///         <see cref="IRecurringSchedule.GetNextOccurrence" /> before the first pass and between passes, instead of
+    ///         waiting <see cref="Interval" />. A pass that reports more work through
+    ///         <see cref="IRecurringWorkReport" /> still starts the next pass at once, and a pass that fails still waits
+    ///         <see cref="ErrorBackoff" />. When the schedule reports no further occurrence, the loop ends.
+    ///     </para>
+    ///     <para>
+    ///         The built-in schedules live on <see cref="RecurringSchedules" />. An application with cron expressions
+    ///         implements <see cref="IRecurringSchedule" /> over its cron library and sets it here.
+    ///     </para>
+    /// </remarks>
+    public IRecurringSchedule? Schedule { get; set; }
 
     /// <summary>
     ///     Gets or sets the delay after host start before the first send.
@@ -67,7 +91,8 @@ public sealed class RecurringCommandHostOptions
     ///     Because the loop runs on every host instance, two instances sending the command at the same time can both
     ///     reach the same record, and the one that loses the race gets a conflict for work the other already did. That is
     ///     a normal outcome, not a fault: a send classified as a conflict is logged at Information and the loop waits
-    ///     <see cref="Interval" /> rather than <see cref="ErrorBackoff" />.
+    ///     the normal wait (<see cref="Interval" />, or the next occurrence when <see cref="Schedule" /> is set)
+    ///     rather than <see cref="ErrorBackoff" />.
     /// </remarks>
     public Func<Exception, bool>? IsConcurrencyConflict { get; set; } = IsConcurrencyOrDatabaseConflict;
 
@@ -77,7 +102,7 @@ public sealed class RecurringCommandHostOptions
     /// <value>
     ///     The default is <see langword="false" />. When <see langword="true" />, each pass tries
     ///     <see cref="IRecurringCommandLease" /> before sending: a pass that cannot acquire the lease is skipped and
-    ///     logged at Debug, and the loop waits <see cref="Interval" />. Composition fails when no
+    ///     logged at Debug, and the loop waits the normal wait. Composition fails when no
     ///     <see cref="IRecurringCommandLease" /> is registered.
     /// </value>
     /// <remarks>

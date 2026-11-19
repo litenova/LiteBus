@@ -8,6 +8,8 @@
 
     <ItemGroup>
         <PackageReference Include="Marten"/>
+        <!-- Pins Npgsql to the central version: Marten alone resolves an Npgsql build that does not support net10.0. -->
+        <PackageReference Include="Npgsql"/>
     </ItemGroup>
 
     <ItemGroup>

@@ -18,6 +18,16 @@ public sealed class MessageCompletionContext
     public required object Message { get; init; }
 
     /// <summary>
+    ///     Gets the identity the mediation ran for.
+    /// </summary>
+    /// <remarks>
+    ///     The pipeline copies it from <see cref="IExecutionContext.Identity" /> when the completion context is built,
+    ///     so completion handlers and audit actor resolution read the caller from here rather than from ambient state.
+    ///     A context built by hand carries <see cref="ExecutionIdentity.Anonymous" /> until set.
+    /// </remarks>
+    public ExecutionIdentity Identity { get; init; } = ExecutionIdentity.Anonymous;
+
+    /// <summary>
     ///     Gets the outcome that describes how the mediation ended.
     /// </summary>
     public required MediationOutcome Outcome { get; init; }

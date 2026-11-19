@@ -7,8 +7,9 @@ namespace LiteBus.Commands.Recurring;
 ///     already logged why, and the loop should wait <see cref="RecurringCommandHostOptions.ErrorBackoff" />.
 /// </summary>
 /// <remarks>
-///     A recurring batch whose command is refused rolls back and raises it, so a command refused on every pass waits
-///     the error backoff instead of spinning, and the loop does not log the refusal a second time as a fault.
+///     A recurring batch with failed items, or a tenant sweep with failed tenants, raises it after logging each
+///     failure, so a command refused on every pass waits the error backoff instead of spinning, and the loop does not
+///     log the failures a second time as faults.
 /// </remarks>
 internal sealed class RecurringPassBackoffException : Exception
 {

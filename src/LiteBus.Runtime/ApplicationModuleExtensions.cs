@@ -125,8 +125,22 @@ public static class ApplicationModuleExtensions
     /// </summary>
     /// <param name="type">The candidate type.</param>
     /// <returns><see langword="true" /> when the type is public or internal; otherwise, <see langword="false" />.</returns>
+    /// <remarks>
+    ///     Top-level types pass when they are public or internal. Nested types pass only when they are
+    ///     nested public or nested internal and every declaring type is also public or internal.
+    /// </remarks>
     private static bool IsPublicOrInternal(Type type)
     {
-        return type.IsPublic || type.IsNotPublic || type.IsNestedPublic || type.IsNestedAssembly;
+        if (type.IsNested)
+        {
+            if (!type.IsNestedPublic && !type.IsNestedAssembly)
+            {
+                return false;
+            }
+
+            return type.DeclaringType is not null && IsPublicOrInternal(type.DeclaringType);
+        }
+
+        return type.IsPublic || type.IsNotPublic;
     }
 }

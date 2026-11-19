@@ -35,6 +35,37 @@ public sealed class ApplyPaymentCommandDefinition : IIdempotencyDefinition<Apply
 
 The first delivery stores the fingerprint with its claim. A repeat with a matching fingerprint is answered as already applied. A repeat with a different one is denied with `idempotency.fingerprint-mismatch`, so the caller learns the key is taken rather than receiving another request's answer. Without a fingerprint, any repeat of the key is answered as already applied.
 
+## Declaring Keys for a Family of Commands
+
+A definition per command states the key once per command. When every command in a family carries its key in the same place, state it once for the family. Declare an interface for the key, then a default against it:
+
+```csharp
+public interface IHasIdempotencyKey
+{
+    string IdempotencyKey { get; }
+}
+
+registry.AddMessaging(messaging => messaging
+    .DeclareDefault<IHasIdempotencyKey, IdempotencyDeclaration>(
+        IdempotencyDeclaration.KeyedBy<IHasIdempotencyKey>(message => message.IdempotencyKey)));
+```
+
+A concrete command implementing `IHasIdempotencyKey` is then keyed by its own `IdempotencyKey` property, because the selector runs against the concrete command. A default applies only to messages assignable to its scope, so commands outside the family stay undeclared. A command that states its own idempotency position keeps it: precedence stays definition, then attribute, then default, then convention.
+
+A convention derives the same key from the message type instead of stating it for a scope:
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .DeclareConvention<IdempotencyDeclaration>(messageType =>
+        typeof(IHasIdempotencyKey).IsAssignableFrom(messageType)
+            ? IdempotencyDeclaration.KeyedBy<IHasIdempotencyKey>(message => message.IdempotencyKey)
+            : null));
+```
+
+It returns a keyed declaration for a message implementing the interface and null otherwise. Returning null is how a convention states that it does not apply, and the message stays undeclared. A message that records an exemption from `IdempotencyDeclaration` is left alone, because an exemption is a decision that the message deliberately states nothing. The convention runs once per registered message at composition, after every module has registered its messages and before declaration requirements are checked, so a derived key satisfies a requirement.
+
+Use a default when the family shares one selector. Use a convention when the derivation checks the type first, or when some messages in the scanned set carry no key. See [Message Definitions](message-definitions.md#deriving-a-value-from-the-message-type) for the full precedence and the audit-action convention beside this one.
+
 ## Keys That Need Services
 
 Some keys cannot be projected from the message. A processor webhook carries a raw body and a signature and nothing else, deliberately, so that nothing unverified reaches a decision. Its deduplication key is the provider's event id, which can only be known after the signature is checked and the body is parsed. That is a lookup, and a lookup needs services.

@@ -55,6 +55,45 @@ public sealed class ApplicationModuleExtensionsTests
     }
 
     [Fact]
+    public void AddApplicationModulesFromAssembly_ShouldSkipPrivateNestedModule()
+    {
+        ApplicationModuleOrderRecorder.Entries.Clear();
+        var builder = new LiteBusBuilder(new ModuleRegistry());
+        var assembly = new FakeApplicationModuleAssembly(typeof(PrivateTestModule));
+
+        builder.AddApplicationModulesFromAssembly(assembly);
+
+        ApplicationModuleOrderRecorder.Entries.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AddApplicationModulesFromAssembly_ShouldIncludeNestedVisibleModules()
+    {
+        ApplicationModuleOrderRecorder.Entries.Clear();
+        var builder = new LiteBusBuilder(new ModuleRegistry());
+        var assembly = new FakeApplicationModuleAssembly(
+            typeof(NestedPublicTestModule),
+            typeof(NestedInternalTestModule));
+
+        builder.AddApplicationModulesFromAssembly(assembly);
+
+        ApplicationModuleOrderRecorder.Entries.Should().Equal("NestedInternal", "NestedPublic");
+    }
+
+    [Fact]
+    public void AddApplicationModulesFromAssembly_ShouldSkipNestedModuleWithPrivateDeclaringType()
+    {
+        ApplicationModuleOrderRecorder.Entries.Clear();
+        var builder = new LiteBusBuilder(new ModuleRegistry());
+        var assembly = new FakeApplicationModuleAssembly(
+            typeof(OuterPrivateTestModuleContainer.NestedPublicInPrivateTestModule));
+
+        builder.AddApplicationModulesFromAssembly(assembly);
+
+        ApplicationModuleOrderRecorder.Entries.Should().BeEmpty();
+    }
+
+    [Fact]
     public void AddApplicationModule_Generic_WithNullBuilder_ShouldThrow()
     {
         ILiteBusBuilder builder = null!;
@@ -89,6 +128,33 @@ public sealed class ApplicationModuleExtensionsTests
         public void Configure(ILiteBusBuilder liteBus)
         {
             ApplicationModuleOrderRecorder.Entries.Add("Private");
+        }
+    }
+
+    public sealed class NestedPublicTestModule : IApplicationModule
+    {
+        public void Configure(ILiteBusBuilder liteBus)
+        {
+            ApplicationModuleOrderRecorder.Entries.Add("NestedPublic");
+        }
+    }
+
+    internal sealed class NestedInternalTestModule : IApplicationModule
+    {
+        public void Configure(ILiteBusBuilder liteBus)
+        {
+            ApplicationModuleOrderRecorder.Entries.Add("NestedInternal");
+        }
+    }
+
+    private sealed class OuterPrivateTestModuleContainer
+    {
+        public sealed class NestedPublicInPrivateTestModule : IApplicationModule
+        {
+            public void Configure(ILiteBusBuilder liteBus)
+            {
+                ApplicationModuleOrderRecorder.Entries.Add("NestedInPrivate");
+            }
         }
     }
 

@@ -150,6 +150,18 @@ public async Task SettleAsync(
 
 Inject `ICommandBatchMediator` and call `SendManyAsync` when several commands must commit together or not at all. The batch runs them one at a time in list order through one scope and commits the unit of work once after all of them; the first denial, validation failure, fault, or cancellation stops the batch and rolls back. When a refusal is a routine branch rather than a fault, call `TrySendManyAsync` and read the `CommandBatchResult` instead of catching an exception. See [Command batches](../catalog/mediator/command-batches.md) for the execution order, the idempotency and audit behavior, the telemetry names, and the test double.
 
+## Forbidding Nested Commands
+
+```csharp
+builder.AddCommands(commands => commands
+    .RegisterFromAssembly(typeof(PlaceOrderCommand).Assembly)
+    .ForbidNestedCommands());
+```
+
+Each command commits in its own pipeline, so a nested send commits before the outer command finishes: when the outer command then fails, the inner change is already stored with nothing to undo it. With `ForbidNestedCommands()`, sending a command while the enclosing mediation already handles a command throws `NestedMediationException` naming both message types, before the inner pipeline starts. A query nested in a command stays allowed. An event published in process from a command is allowed, but a command sent from that event's handler is denied, because the command ancestor is found through the chain. Durable dispatch has no enclosing mediation, so outbox and inbox delivery are never nesting.
+
+The exception carries `OuterMessageType`, `InnerMessageType`, a human-readable `Reason`, and the code `commands.nested-command` a boundary can switch on. The check runs as an `IMediationNestingRule` evaluated before the inner pipeline starts, so an application adds its own rules, such as an exemption that allows a named inner command under a named outer one, by registering them for collection resolution. Analyzer LB1023 reports a command handler that takes `ICommandMediator` at build time; this setting is its runtime counterpart. See [Execution Context](execution-context.md) for the `Parent` chain the rule reads.
+
 ## Defer a Command to the Inbox
 
 ```csharp
