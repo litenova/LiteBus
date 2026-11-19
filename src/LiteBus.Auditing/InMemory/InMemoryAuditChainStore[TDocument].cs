@@ -237,6 +237,36 @@ public sealed class InMemoryAuditChainStore<TDocument> : IAuditChainStore<TDocum
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     Segments stream ordered by segment key.
+    /// </remarks>
+    public IAsyncEnumerable<string> ListUnlinkedSegmentsAsync(
+        TimeSpan? olderThan,
+        CancellationToken cancellationToken)
+    {
+        if (olderThan.HasValue)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(olderThan.Value, TimeSpan.Zero);
+        }
+
+        List<string> snapshot;
+
+        lock (_sync)
+        {
+            var cutoff = olderThan.HasValue ? _clock.GetUtcNow() - olderThan.Value : (DateTimeOffset?) null;
+
+            snapshot = _segments
+                .Where(entry => entry.Value.Unlinked
+                    .Any(staged => cutoff is null || staged.StagedAt <= cutoff.Value))
+                .Select(entry => entry.Key)
+                .OrderBy(segment => segment, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        return new SnapshotAsyncEnumerable<string>(snapshot, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public IAsyncEnumerable<TDocument> ReadSegmentAsync(
         string segment,
         long fromSequence,

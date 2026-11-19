@@ -1,6 +1,5 @@
 using System;
 using LiteBus.Auditing.Abstractions;
-using System.Linq.Expressions;
 using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -403,15 +402,7 @@ public static class AuditEntityFrameworkCoreModelExtensions
             .HasColumnName("staged_at")
             .ConfigureUtcTimestampColumn(provider);
 
-        ConfigureDocumentIndex(
-            entity,
-            document => new
-            {
-                document.Segment,
-                document.Sequence,
-                StagedAt = EF.Property<DateTimeOffset>(document, AuditStoreJson.StagedAtPropertyName),
-            },
-            provider);
+        ConfigureDocumentIndex(entity, provider);
     }
 
     /// <summary>
@@ -481,27 +472,29 @@ public static class AuditEntityFrameworkCoreModelExtensions
     /// </summary>
     /// <typeparam name="TDocument">The stored audit document type the application maps.</typeparam>
     /// <param name="entity">The entity type builder.</param>
-    /// <param name="index">
-    ///     The index expression over the segment, sequence, and staged-at shadow property.
-    /// </param>
     /// <param name="provider">
     ///     An optional storage provider used to choose a filtered unique index where the provider supports
     ///     one.
     /// </param>
+    /// <remarks>
+    ///     The index is built from property names rather than member access, because the staged-at value is a
+    ///     shadow property and EF Core accepts only simple member access in an index expression.
+    /// </remarks>
     private static void ConfigureDocumentIndex<TDocument>(
         EntityTypeBuilder<TDocument> entity,
-        Expression<Func<TDocument, object?>> index,
         EfCoreStorageProvider? provider)
         where TDocument : class, IAuditChainDocument
     {
+        var index = entity.HasIndex(
+            nameof(IAuditChainDocument.Segment),
+            nameof(IAuditChainDocument.Sequence),
+            AuditStoreJson.StagedAtPropertyName);
+
         if (provider is null or EfCoreStorageProvider.PostgreSql or EfCoreStorageProvider.SqlServer or EfCoreStorageProvider.Sqlite)
         {
-            entity.HasIndex(index)
+            index
                 .IsUnique()
                 .HasFilter("sequence > 0");
-            return;
         }
-
-        entity.HasIndex(index);
     }
 }

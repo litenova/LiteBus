@@ -65,6 +65,7 @@ public static class AuditingModuleBuilderEntityFrameworkCoreExtensions
         options.StoreDefaultDocumentType = typeof(EfCoreAuditRecord);
         options.StoreDefaultMapperType = typeof(EfCoreAuditRecordMapper);
         options.StoreDefaultSegmenterType = typeof(EfCoreAuditRecordSegmenter);
+        options.StoreDefaultCanonicalizerType = typeof(EfCoreAuditRecordCanonicalizer);
 
         return builder;
     }

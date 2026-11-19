@@ -92,7 +92,12 @@ public sealed class MartenAuditChainBackgroundServiceTests : IClassFixture<Postg
         publisher.Published.Should().OnlyContain(checkpoint => checkpoint.Segment == segment);
 
         var stored = await FindCheckpointsAsync(documentStore, segment).ConfigureAwait(false);
-        stored.Count.Should().Be(publisher.Published.Count);
+
+        // Delivery is at least once: stopping the loop can abort the publish mark after the publisher
+        // ran, so the final publish above can deliver the same checkpoint again. Compare identities.
+        stored.Select(checkpoint => checkpoint.Id)
+            .Should()
+            .BeEquivalentTo(publisher.Published.Select(checkpoint => checkpoint.Id).Distinct());
     }
 
     [SkippableFact]

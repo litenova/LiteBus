@@ -231,7 +231,8 @@ public sealed class AuditingModuleTests
     {
         var module = new AuditingModule(auditing => auditing
             .UsePostgreSqlStore(postgres => postgres
-                .UseConnectionString("Host=localhost;Username=auditing;Password=auditing;Database=auditing")));
+                .UseConnectionString("Host=localhost;Username=auditing;Password=auditing;Database=auditing"))
+            .UseHashChain(_ => { }));
 
         List<IModule> children = [];
         module.DeclareChildren(children.Add);
@@ -246,7 +247,8 @@ public sealed class AuditingModuleTests
         var registry = configuration.DependencyRegistry;
         registry.Should().Contain(descriptor => descriptor.DependencyType == typeof(IAuditTrail));
         registry.Should().Contain(descriptor => descriptor.DependencyType == typeof(PostgreSqlAuditStoreRegistration));
-        registry.Should().Contain(descriptor => descriptor.DependencyType == typeof(IAuditCanonicalizer<PostgreSqlAuditRecord>));
+        registry.Should().Contain(descriptor =>
+            descriptor.DependencyType == typeof(IAuditCanonicalizer<PostgreSqlAuditRecord>) && descriptor.IsLiteBusDefault);
         configuration.StartupTasks.Should().Contain(typeof(PostgreSqlAuditSchemaInitializer));
         configuration.DiagnosticChecks.Should().Contain(
             check => check.ImplementationType == typeof(PostgreSqlAuditSchemaDiagnosticCheck));

@@ -738,6 +738,23 @@ public sealed class AuditSegmentManagerTests
             }
         }
 
+        public async IAsyncEnumerable<string> ListUnlinkedSegmentsAsync(
+            TimeSpan? olderThan,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask.ConfigureAwait(false);
+
+            foreach (var entry in _documents.ToArray())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (entry.Value.Any(document => document.Sequence == 0))
+                {
+                    yield return entry.Key;
+                }
+            }
+        }
+
         public async IAsyncEnumerable<FakeAuditDocument> ReadSegmentAsync(
             string segment,
             long fromSequence,

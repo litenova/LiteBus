@@ -33,12 +33,15 @@ Changes since [v8.0.0-preview.2](https://github.com/litenova/LiteBus/releases/ta
 - An identical repeated `DeclareDefault`, policy or refusal mapping is a no-op; a conflicting one fails.
 - Audit success records commit with the business change by default and are linked to the chain after commit.
 - Checkpoints are published by a background retrier, never inside an append, and verification compares against every registered checkpoint source.
+- A LiteBus default registration yields to an explicit registration of the same service made earlier, so a store module that binds its own port keeps it.
+- Each audit store package registers the canonicalizer for its own record type as a replaceable default, and host startup fails when the chain's write scheme cannot be built.
 
 ### Fixed
 
 - A publisher that threw a concurrency exception made the checkpoint retry loop spin forever.
 - The checkpoint scan swallowed failures without logging them.
-- A segment that never checkpointed verified clean.
+- A segment that never checkpointed verified clean once its checkpoint policy was due. A segment younger than its first checkpoint still verifies clean.
+- Records staged in a business transaction were never linked when the link sweep looked only at segment heads; every store now lists segments with unlinked records.
 - `IRefusalProblemCatalog.TryResolve` reported every code as mapped by default.
 - An invalid result's status depended on its number of failures.
 
@@ -171,6 +174,7 @@ This release makes identity and tenancy part of the pipeline, adds composable au
 - LB1008 and LB1009 skip a contracts assembly marked `MessageContractsRegisteredIn` and check its messages in the named handler assembly instead.
 - LB1023 also covers command pre-handlers and post-handlers, and its description names `ForbidNestedCommands()` as the runtime counterpart. The LB1025 message names `ITransactionalOutbox<TContext>` for EF Core storage and `ITransactionalOutbox` for Marten or PostgreSQL storage.
 - `RecentSignIn` compares the sign-in age as a `TimeSpan`, so windows below a second behave as written.
+- A LiteBus default registration yields to an explicit registration of the same service made earlier; a conflicting explicit registration still fails composition unless it calls `Replace`.
 
 ### Breaking
 

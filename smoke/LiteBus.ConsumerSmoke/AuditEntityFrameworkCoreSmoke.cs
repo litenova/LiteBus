@@ -9,6 +9,8 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.ConsumerSmoke;
@@ -30,9 +32,11 @@ internal static class AuditEntityFrameworkCoreSmoke
     /// <returns>A task that completes when the scenario has passed.</returns>
     internal static async Task RunAsync(string connectionString)
     {
+        // EnsureCreated does nothing once the database holds any table, and the earlier scenarios share this
+        // database, so the audit tables are created directly. The scenario expects a fresh database, as in CI.
         await using (var setup = AuditSmokeDbContext.Create(connectionString))
         {
-            await setup.Database.EnsureCreatedAsync().ConfigureAwait(false);
+            await setup.GetService<IRelationalDatabaseCreator>().CreateTablesAsync().ConfigureAwait(false);
         }
 
         var recorder = new SmokeRecorder();

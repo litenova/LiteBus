@@ -2,6 +2,7 @@ using LiteBus.Auditing.Storage.EntityFrameworkCore;
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Storage.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
@@ -12,11 +13,12 @@ namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore;
 ///     staged documents in commit order, sequence paging, head filtering, checkpoint publish state, and
 ///     erasure.
 /// </summary>
-public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFixture>
+public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFixture>, IDisposable
 {
     private static readonly DateTimeOffset OpenedAt = new(2026, 5, 4, 12, 0, 0, TimeSpan.Zero);
 
     private readonly SqliteDatabaseFixture _fixture;
+    private string? _customDatabasePath;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="EfCoreAuditChainStoreTests" /> class.
@@ -1429,6 +1431,17 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         }
     }
 
+    /// <summary>
+    ///     Deletes the custom audit database file backing the custom document test.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_customDatabasePath is not null && File.Exists(_customDatabasePath))
+        {
+            File.Delete(_customDatabasePath);
+        }
+    }
+
     private async Task<EfCoreAuditTestDbContext> CreatePreparedContextAsync()
     {
         var context = new EfCoreAuditTestDbContext(
@@ -1446,9 +1459,22 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
 
     private async Task<CustomAuditDbContext> CreatePreparedCustomContextAsync()
     {
+        // The custom document model needs its own tables, and EnsureCreated creates nothing when the
+        // database file already exists. The fixture file already holds the audit tables by the time this
+        // test runs, so the custom contexts share a database file of their own where EnsureCreated
+        // creates the full custom schema.
+        _customDatabasePath ??= Path.Combine(Path.GetTempPath(), $"litebus-audit-custom-{Guid.NewGuid():N}.db");
+        var connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = _customDatabasePath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Cache = SqliteCacheMode.Shared,
+            DefaultTimeout = 30,
+            Pooling = false
+        }.ToString();
         var context = new CustomAuditDbContext(
             new DbContextOptionsBuilder<CustomAuditDbContext>()
-                .UseSqlite(_fixture.ConnectionString)
+                .UseSqlite(connectionString)
                 .Options);
 
         await context.Database.EnsureCreatedAsync().ConfigureAwait(false);

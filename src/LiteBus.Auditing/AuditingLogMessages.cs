@@ -45,6 +45,15 @@ internal static class AuditingLogMessages
             "The checkpoint publish pass failed; the next pass runs after a backoff delay.");
 
     /// <summary>
+    ///     The delegate that writes the after-commit link failed event.
+    /// </summary>
+    private static readonly Action<ILogger, string, Exception?> AfterCommitLinkFailedMessage =
+        LoggerMessage.Define<string>(
+            LogLevel.Warning,
+            new EventId(2705, nameof(AfterCommitLinkFailed)),
+            "Linking the staged audit records of segment '{Segment}' after commit failed; the records stay staged and the link sweep retries them.");
+
+    /// <summary>
     ///     Logs that a checkpoint cut retries because the segment moved while it was cut.
     /// </summary>
     /// <param name="logger">The logger receiving the event.</param>
@@ -92,5 +101,16 @@ internal static class AuditingLogMessages
     internal static void CheckpointPublishPassFailed(ILogger logger, Exception exception)
     {
         CheckpointPublishPassFailedMessage(logger, exception);
+    }
+
+    /// <summary>
+    ///     Logs that linking staged records after commit failed and the link sweep retries them.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    /// <param name="segment">The segment whose staged records failed to link.</param>
+    /// <param name="exception">The exception the linker threw.</param>
+    internal static void AfterCommitLinkFailed(ILogger logger, string segment, Exception exception)
+    {
+        AfterCommitLinkFailedMessage(logger, segment, exception);
     }
 }

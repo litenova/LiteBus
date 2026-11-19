@@ -60,7 +60,9 @@ public sealed class AuditLinkerTests
         var linker = NewLinker(store, FirstSegment);
 
         await store.StageAsync(FirstSegment, new LinkTestDocument { Action = "a" }, CancellationToken.None).ConfigureAwait(false);
+        await linker.LinkPendingAsync(FirstSegment, CancellationToken.None).ConfigureAwait(false);
         store.MarkExpired(FirstSegment);
+        await store.StageAsync(FirstSegment, new LinkTestDocument { Action = "b" }, CancellationToken.None).ConfigureAwait(false);
 
         var act = () => linker.LinkPendingAsync(FirstSegment, CancellationToken.None).AsTask();
 
@@ -88,6 +90,32 @@ public sealed class AuditLinkerTests
         var linked = store.Linked(FirstSegment);
         linked[0].Action.Should().Be("a");
         linked[1].Action.Should().Be("b");
+    }
+
+    [Fact]
+    public async Task Sweep_links_a_staged_only_segment_that_has_no_head()
+    {
+        var store = new LinkTestStore();
+        var linker = NewLinker(store, FirstSegment);
+
+        await store.StageAsync(FirstSegment, new LinkTestDocument { Action = "a" }, CancellationToken.None).ConfigureAwait(false);
+
+        var headBefore = await store.ReadHeadAsync(FirstSegment, CancellationToken.None).ConfigureAwait(false);
+        headBefore.Should().BeNull();
+
+        var linkedCount = await linker.SweepAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+
+        linkedCount.Should().Be(1);
+        store.UnlinkedCount(FirstSegment).Should().Be(0);
+        var linked = store.Linked(FirstSegment);
+        linked.Should().ContainSingle();
+        linked[0].Action.Should().Be("a");
+        linked[0].Sequence.Should().Be(1);
+
+        var headAfter = await store.ReadHeadAsync(FirstSegment, CancellationToken.None).ConfigureAwait(false);
+        headAfter.Should().NotBeNull();
+        headAfter!.LastSequence.Should().Be(1);
+        headAfter.Version.Should().Be(1);
     }
 
     [Fact]
@@ -129,9 +157,11 @@ public sealed class AuditLinkerTests
         var store = new LinkTestStore();
         var linker = NewLinker(store, FirstSegment);
 
+        await store.StageAsync(FirstSegment, new LinkTestDocument { Action = "old" }, CancellationToken.None).ConfigureAwait(false);
+        await linker.LinkPendingAsync(FirstSegment, CancellationToken.None).ConfigureAwait(false);
+        store.MarkExpired(FirstSegment);
         await store.StageAsync(FirstSegment, new LinkTestDocument { Action = "a" }, CancellationToken.None).ConfigureAwait(false);
         await store.StageAsync(SecondSegment, new LinkTestDocument { Action = "b" }, CancellationToken.None).ConfigureAwait(false);
-        store.MarkExpired(FirstSegment);
 
         var linkedCount = await linker.SweepAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
 

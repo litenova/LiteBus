@@ -90,10 +90,6 @@ public sealed class PostgreSqlAuditModule : IModule
             },
             InstanceLifetime.Singleton));
 
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IAuditCanonicalizer<PostgreSqlAuditRecord>),
-            new PostgreSqlAuditRecordCanonicalizer()));
-
         if (moduleBuilder.IsSchemaInitializationEnabled)
         {
             configuration.DependencyRegistry.Register(new DependencyDescriptor(

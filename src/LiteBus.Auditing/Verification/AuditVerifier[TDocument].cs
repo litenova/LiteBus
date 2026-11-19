@@ -3,6 +3,7 @@ using LiteBus.Auditing.Abstractions;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Auditing.Checkpoints;
 using LiteBus.Auditing.Engine;
 using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -144,7 +145,7 @@ internal sealed class AuditVerifier<TDocument> : IAuditVerifier
         await ReportUnlinkedAsync(segment, unlinkedAfter, chain.Breaks, cancellationToken).ConfigureAwait(false);
         await ReportUnpublishedAsync(segment, chain.Breaks, cancellationToken).ConfigureAwait(false);
         ReportStale(segment, staleAfter, chain, cancellationToken);
-        ReportMissing(segment, fromSequence, loaded, chain);
+        await ReportMissingAsync(segment, fromSequence, loaded, chain, cancellationToken).ConfigureAwait(false);
 
         chain.Breaks.Sort(static (left, right) =>
             left.Sequence != right.Sequence
@@ -698,21 +699,32 @@ internal sealed class AuditVerifier<TDocument> : IAuditVerifier
 
     /// <summary>
     ///     Reports a <see cref="AuditChainBreakKind.CheckpointMissing" /> break when the segment holds records but no
-    ///     reachable source holds a checkpoint.
+    ///     reachable source holds a checkpoint although the chain's checkpoint policy says one is due.
     /// </summary>
     /// <param name="segment">The segment under verification, named in the break.</param>
     /// <param name="fromSequence">The trusted sequence, or <see langword="null" /> for a whole pass.</param>
     /// <param name="loaded">The checkpoint each source holds.</param>
     /// <param name="chain">The chain pass carrying the head and the breaks collected so far.</param>
+    /// <param name="cancellationToken">The token that cancels the policy evaluation.</param>
+    /// <returns>A task that completes when the check has run.</returns>
     /// <remarks>
-    ///     A trusted suffix never reports a missing checkpoint: trusting a position means a checkpoint was cut. An
-    ///     unreachable stored source also reports nothing: the checkpoint may exist where the read cannot reach.
+    ///     <para>
+    ///         A trusted suffix never reports a missing checkpoint: trusting a position means a checkpoint was cut. An
+    ///         unreachable stored source also reports nothing: the checkpoint may exist where the read cannot reach.
+    ///     </para>
+    ///     <para>
+    ///         A segment younger than its first checkpoint is not a break. The default policy cuts every 100 records,
+    ///         so a segment of 40 records legitimately has none. The verifier asks the same policy the checkpoint
+    ///         lifecycle uses, with no previous checkpoint, and reports the break only when that policy would already
+    ///         have cut one.
+    ///     </para>
     /// </remarks>
-    private static void ReportMissing(
+    private async ValueTask ReportMissingAsync(
         string segment,
         long? fromSequence,
         IReadOnlyList<LoadedCheckpoint> loaded,
-        ChainPass chain)
+        ChainPass chain,
+        CancellationToken cancellationToken)
     {
         if (fromSequence.HasValue)
         {
@@ -735,6 +747,21 @@ internal sealed class AuditVerifier<TDocument> : IAuditVerifier
         var storedReachable = loaded.Count > 0 && !loaded[0].Unreachable;
 
         if (loaded.Count != 0 && !storedReachable)
+        {
+            return;
+        }
+
+        var candidate = new AuditCheckpointCandidate(
+            segment,
+            chain.HeadSequence ?? 0,
+            chain.RecordCount,
+            LastCheckpointSequence: null,
+            LastCheckpointAt: null,
+            _timeProvider.GetUtcNow());
+
+        var due = await ResolveCheckpointPolicy().IsDueAsync(candidate, cancellationToken).ConfigureAwait(false);
+
+        if (!due)
         {
             return;
         }
@@ -893,6 +920,26 @@ internal sealed class AuditVerifier<TDocument> : IAuditVerifier
         }
 
         return sources;
+    }
+
+    /// <summary>
+    ///     Resolves the checkpoint policy the chain cuts by, from the configured instance or type, or the
+    ///     record-count default the checkpoint lifecycle also falls back to.
+    /// </summary>
+    /// <returns>The policy that decides whether a segment should already hold a checkpoint.</returns>
+    private ICheckpointPolicy ResolveCheckpointPolicy()
+    {
+        if (_chainOptions.CheckpointPolicy is not null)
+        {
+            return _chainOptions.CheckpointPolicy;
+        }
+
+        if (_chainOptions.CheckpointPolicyType is null)
+        {
+            return CheckpointPolicies.EveryRecords(100);
+        }
+
+        return ResolveService<ICheckpointPolicy>(_chainOptions.CheckpointPolicyType, "checkpoint policy");
     }
 
     /// <summary>

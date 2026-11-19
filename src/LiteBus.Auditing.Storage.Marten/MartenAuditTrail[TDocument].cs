@@ -2,6 +2,7 @@ using System;
 using LiteBus.Auditing.Abstractions;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Auditing.Linking;
 using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.Storage.Marten;
@@ -50,15 +51,26 @@ public sealed class MartenAuditTrail<TDocument> : IAuditTrail
     private readonly IAuditSegmenter<TDocument> _segmenter;
 
     /// <summary>
+    ///     Gets the holder collecting staged segments for linking after commit, or <see langword="null" />
+    ///     when the composition registered none.
+    /// </summary>
+    private readonly AuditStagedSegments? _stagedSegments;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="MartenAuditTrail{TDocument}" /> class.
     /// </summary>
     /// <param name="store">The chain store that stages documents.</param>
     /// <param name="mapper">The mapper from an audit record to a new stored document.</param>
     /// <param name="segmenter">The segmenter that assigns a stored document to its segment.</param>
+    /// <param name="serviceProvider">
+    ///     The dispatch-scope provider the staged-segment holder is resolved from, or <see langword="null" />
+    ///     when the composition links nothing after commit.
+    /// </param>
     public MartenAuditTrail(
         MartenAuditChainStore<TDocument> store,
         IAuditRecordMapper<TDocument> mapper,
-        IAuditSegmenter<TDocument> segmenter)
+        IAuditSegmenter<TDocument> segmenter,
+        IServiceProvider? serviceProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(mapper);
@@ -67,6 +79,7 @@ public sealed class MartenAuditTrail<TDocument> : IAuditTrail
         _store = store;
         _mapper = mapper;
         _segmenter = segmenter;
+        _stagedSegments = serviceProvider?.GetService(typeof(AuditStagedSegments)) as AuditStagedSegments;
     }
 
     /// <inheritdoc />
@@ -89,6 +102,7 @@ public sealed class MartenAuditTrail<TDocument> : IAuditTrail
             // Staged, not saved: the unit-of-work completion handler runs after the audit writer and commits the
             // scoped session, so the record commits in the same SaveChangesAsync as the handler change.
             await _store.StageAsync(segment, document, cancellationToken).ConfigureAwait(false);
+            _stagedSegments?.Add(segment);
             return;
         }
 

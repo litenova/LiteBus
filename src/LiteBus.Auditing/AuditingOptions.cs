@@ -76,4 +76,15 @@ public sealed class AuditingOptions
     ///     default, regardless of call order.
     /// </remarks>
     public Type? StoreDefaultSegmenterType { get; internal set; }
+
+    /// <summary>
+    ///     Gets the default canonicalizer type supplied by the storage package for its own document, or
+    ///     <see langword="null" /> when the package supplies none.
+    /// </summary>
+    /// <remarks>
+    ///     The shipped hash schemes need a canonicalizer for the stored document. The default applies only while the
+    ///     chain stores the package's own document; an application that stores its own document with
+    ///     <see cref="AuditHashChainBuilder.StoreAs{TDocument, TMapper}" /> registers its own canonicalizer.
+    /// </remarks>
+    public Type? StoreDefaultCanonicalizerType { get; internal set; }
 }

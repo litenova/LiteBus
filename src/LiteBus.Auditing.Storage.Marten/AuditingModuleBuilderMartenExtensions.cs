@@ -57,6 +57,7 @@ public static class AuditingModuleBuilderMartenExtensions
         options.StoreDefaultDocumentType = typeof(MartenAuditRecord);
         options.StoreDefaultMapperType = typeof(MartenAuditRecordMapper);
         options.StoreDefaultSegmenterType = typeof(MartenAuditRecordSegmenter);
+        options.StoreDefaultCanonicalizerType = typeof(MartenAuditRecordCanonicalizer);
 
         return builder;
     }

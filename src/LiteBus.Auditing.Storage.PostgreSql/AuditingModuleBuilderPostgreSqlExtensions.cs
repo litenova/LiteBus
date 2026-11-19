@@ -69,6 +69,7 @@ public static class AuditingModuleBuilderPostgreSqlExtensions
         options.StoreDefaultDocumentType = typeof(PostgreSqlAuditRecord);
         options.StoreDefaultMapperType = typeof(PostgreSqlAuditRecordMapper);
         options.StoreDefaultSegmenterType = typeof(PostgreSqlAuditRecordSegmenter);
+        options.StoreDefaultCanonicalizerType = typeof(PostgreSqlAuditRecordCanonicalizer);
 
         builder.RegisterChildModule(new PostgreSqlAuditModule(configure));
 

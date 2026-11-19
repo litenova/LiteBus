@@ -237,7 +237,7 @@ public abstract class AuditChainStoreContractTests<TDocument>
         head!.LastSequence.Should().Be(5);
         head.Count.Should().Be(5);
         head.LastHash.Should().Be(documents[^1].Hash);
-        head.Version.Should().Be(5);
+        head.Version.Should().Be(3, "the head version counts head writes: the first append, the winning racer and the batch of the missing racers");
     }
 
     /// <summary>
@@ -303,8 +303,16 @@ public abstract class AuditChainStoreContractTests<TDocument>
         unlinked.Should().OnlyContain(document => document.HashScheme == null);
         unlinked.Should().OnlyContain(document => document.Segment == segment);
 
+        // A store may write an empty placeholder head when it stages, so the link sweep finds staged-only segments.
+        // The port allows either shape, but staging never advances the chain.
         var head = await store.ReadHeadAsync(segment, CancellationToken.None).ConfigureAwait(false);
-        head.Should().BeNull();
+
+        if (head is not null)
+        {
+            head.Count.Should().Be(0);
+            head.LastSequence.Should().Be(0);
+            head.LastHash.Should().BeNull();
+        }
 
         var linked = await CollectAsync(
             store.ReadSegmentAsync(segment, 1, null, CancellationToken.None),
@@ -354,6 +362,66 @@ public abstract class AuditChainStoreContractTests<TDocument>
 
         unlinked.Should().ContainSingle();
         GetMarker(unlinked[0]).Should().Be("staged-1");
+    }
+
+    /// <summary>
+    ///     Verifies that a staged-only segment is listed once no matter how many documents it holds, including a
+    ///     segment that has no head yet.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task ListUnlinkedSegmentsAsync_WhenSegmentHoldsOnlyStagedDocuments_ShouldListItOnce()
+    {
+        var store = CreateStore();
+        await store.StageAsync("orders", CreateDocument("staged-1"), CancellationToken.None).ConfigureAwait(false);
+        await store.StageAsync("orders", CreateDocument("staged-2"), CancellationToken.None).ConfigureAwait(false);
+        await store.StageAsync("payments", CreateDocument("staged-3"), CancellationToken.None).ConfigureAwait(false);
+
+        var segments = await CollectAsync(
+            store.ListUnlinkedSegmentsAsync(null, CancellationToken.None),
+            CancellationToken.None).ConfigureAwait(false);
+
+        segments.Should().BeEquivalentTo(["orders", "payments"]);
+    }
+
+    /// <summary>
+    ///     Verifies that a segment holding only linked documents is excluded from the unlinked listing.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task ListUnlinkedSegmentsAsync_WhenSegmentHoldsOnlyLinkedDocuments_ShouldExcludeIt()
+    {
+        var store = CreateStore();
+        await AppendMarkersAsync(store, "linked", ["record-1", "record-2"]).ConfigureAwait(false);
+        await store.StageAsync("staged", CreateDocument("staged-1"), CancellationToken.None).ConfigureAwait(false);
+
+        var segments = await CollectAsync(
+            store.ListUnlinkedSegmentsAsync(null, CancellationToken.None),
+            CancellationToken.None).ConfigureAwait(false);
+
+        segments.Should().BeEquivalentTo(["staged"]);
+    }
+
+    /// <summary>
+    ///     Verifies that the unlinked age filter returns every segment holding a staged document with a null age
+    ///     and no segment whose staged documents are all younger than the age.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task ListUnlinkedSegmentsAsync_WhenOlderThanExcludesRecentStages_ShouldReturnOnlyOlderSegments()
+    {
+        var store = CreateStore();
+        await store.StageAsync("orders", CreateDocument("staged-1"), CancellationToken.None).ConfigureAwait(false);
+
+        var older = await CollectAsync(
+            store.ListUnlinkedSegmentsAsync(TimeSpan.FromDays(30), CancellationToken.None),
+            CancellationToken.None).ConfigureAwait(false);
+        var all = await CollectAsync(
+            store.ListUnlinkedSegmentsAsync(null, CancellationToken.None),
+            CancellationToken.None).ConfigureAwait(false);
+
+        older.Should().BeEmpty();
+        all.Should().BeEquivalentTo(["orders"]);
     }
 
     /// <summary>

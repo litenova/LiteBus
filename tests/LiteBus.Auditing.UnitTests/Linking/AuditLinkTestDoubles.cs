@@ -2,6 +2,7 @@ using System;
 using LiteBus.Auditing.Abstractions;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -237,9 +238,10 @@ internal sealed class LinkTestTimeProvider : TimeProvider
 ///     An in-memory audit chain store with head version checks and commit-ordered staging.
 /// </summary>
 /// <remarks>
-///     Staging creates an empty version-zero head when none exists, so the sweep discovers staged-only
-///     segments through the head listing. Appends assert the expected head version and reject duplicate
-///     sequences, mirroring the conditional write and unique backstop of the durable stores.
+///     Staging creates no head, mirroring the durable stores: a staged-only segment has no head until the
+///     first append creates it, and the sweep discovers it through the unlinked listing. Appends assert the
+///     expected head version and reject duplicate sequences, mirroring the conditional write and unique
+///     backstop of the durable stores.
 /// </remarks>
 internal sealed class LinkTestStore : IAuditChainStore<LinkTestDocument>
 {
@@ -384,23 +386,6 @@ internal sealed class LinkTestStore : IAuditChainStore<LinkTestDocument>
             _commitSequence++;
             staged.Add(new StagedRecord(document, _timeProvider.GetUtcNow(), _commitSequence));
 
-            if (!_heads.ContainsKey(segment))
-            {
-                _heads[segment] = new AuditSegmentHead(
-                    new AuditSegmentInfo(
-                        segment,
-                        null,
-                        new Dictionary<string, string>(StringComparer.Ordinal),
-                        _timeProvider.GetUtcNow()),
-                    0,
-                    null,
-                    0,
-                    null,
-                    null,
-                    false,
-                    0);
-            }
-
             return ValueTask.CompletedTask;
         }
     }
@@ -439,6 +424,35 @@ internal sealed class LinkTestStore : IAuditChainStore<LinkTestDocument>
             }
 
             yield return record.Document;
+        }
+    }
+
+    /// <inheritdoc />
+    public async IAsyncEnumerable<string> ListUnlinkedSegmentsAsync(
+        TimeSpan? olderThan,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask.ConfigureAwait(false);
+
+        List<string> snapshot;
+
+        lock (_lock)
+        {
+            var now = _timeProvider.GetUtcNow();
+
+            snapshot = _unlinked
+                .Where(entry => entry.Value
+                    .Any(record => !olderThan.HasValue || now - record.StagedAt > olderThan.Value))
+                .Select(entry => entry.Key)
+                .OrderBy(segment => segment, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        foreach (var segment in snapshot)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            yield return segment;
         }
     }
 

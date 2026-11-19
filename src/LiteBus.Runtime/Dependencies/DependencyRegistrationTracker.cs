@@ -79,6 +79,13 @@ internal sealed class DependencyRegistrationTracker : IEnumerable<DependencyDesc
         if (enforceSingleRegistration &&
             _descriptorsByServiceType.TryGetValue(descriptor.DependencyType, out var existing))
         {
+            // A LiteBus default yields to whatever is already registered, so a store module that registered its own
+            // port before the feature module registers the default keeps its binding.
+            if (descriptor.IsLiteBusDefault && !existing.IsLiteBusDefault)
+            {
+                return false;
+            }
+
             RegistrationConflict.ThrowIfConflicting(
                 existing,
                 descriptor,

@@ -13,9 +13,10 @@ namespace LiteBus.Auditing.Linking;
 /// <typeparam name="TDocument">The stored audit document type.</typeparam>
 /// <remarks>
 ///     The <see cref="AuditLink.AfterCommit" /> path stages records in the business transaction and links
-///     them afterwards: the capture coordinator calls <see cref="LinkPendingAsync" /> for the committed
-///     segment right after commit, and <see cref="AuditLinkSweepBackgroundService" /> calls
-///     <see cref="SweepAsync" /> on an interval for the records a crash left behind. Positions come from
+///     them afterwards: <see cref="AuditLinkCommitListener" /> calls <see cref="LinkPendingAsync" /> for
+///     each staged segment right after the unit of work commits, and
+///     <see cref="AuditLinkSweepBackgroundService" /> calls <see cref="SweepAsync" /> on an interval for
+///     the records a crash left behind. Positions come from
 ///     <see cref="AuditChainHeadWriter{TDocument}" />, so inline linking and the sweep share the head
 ///     contention discipline of the <see cref="AuditLink.InTransaction" /> and
 ///     <see cref="AuditLink.AtWrite" /> paths.
@@ -24,7 +25,8 @@ internal sealed class AuditLinker<TDocument> : IAuditLinker
     where TDocument : class, IAuditChainDocument
 {
     /// <summary>
-    ///     The durable chain operations segment heads are listed from. Held for the life of the linker.
+    ///     The durable chain operations unlinked segments and heads are listed from. Held for the life of
+    ///     the linker.
     /// </summary>
     private readonly IAuditChainStore<TDocument> _store;
 
@@ -66,28 +68,32 @@ internal sealed class AuditLinker<TDocument> : IAuditLinker
 
     /// <inheritdoc />
     /// <remarks>
-    ///     Segments are discovered through the stored heads, so a store stages with a head for the sweep to
-    ///     find. A segment failure aborts the sweep and the background service retries it on the next
-    ///     interval, which keeps a poisoned segment visible instead of skipping past it silently.
+    ///     Segments are discovered through the unlinked listing rather than the stored heads, because staging
+    ///     creates no head: a segment whose records are all staged is found with no head at all, and linking
+    ///     it starts the head at version zero. Expired segments are skipped, because expiry deletes their
+    ///     staged records and linking them would fail. A segment failure aborts the sweep and the background
+    ///     service retries it on the next interval, which keeps a poisoned segment visible instead of
+    ///     skipping past it silently.
     /// </remarks>
     public async ValueTask<int> SweepAsync(TimeSpan olderThan, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(olderThan, TimeSpan.Zero);
 
         var linked = 0;
-        var filter = new AuditSegmentFilter(IncludeExpired: false);
 
-        await foreach (var head in _store.ListHeadsAsync(filter, cancellationToken).ConfigureAwait(false))
+        await foreach (var segment in _store.ListUnlinkedSegmentsAsync(olderThan, cancellationToken).ConfigureAwait(false))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (head.Expired)
+            var head = await _store.ReadHeadAsync(segment, cancellationToken).ConfigureAwait(false);
+
+            if (head is { Expired: true })
             {
                 continue;
             }
 
             linked += await _headWriter
-                .LinkStagedAsync(head.Info.Key, olderThan, cancellationToken)
+                .LinkStagedAsync(segment, olderThan, cancellationToken)
                 .ConfigureAwait(false);
         }
 

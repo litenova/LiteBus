@@ -72,6 +72,18 @@ public sealed class DependencyRegistryReplaceTests
     }
 
     [Fact]
+    public void Register_DefaultAfterExplicitBinding_ShouldKeepExplicitBinding()
+    {
+        var registry = new DependencyRegistry();
+        var explicitDescriptor = new DependencyDescriptor(typeof(ITestService), typeof(TestServiceB));
+
+        registry.Register(explicitDescriptor);
+        registry.Register(DependencyDescriptor.ForDefaultPort(typeof(ITestService), typeof(TestServiceA)));
+
+        registry.Should().ContainSingle().Which.Should().BeSameAs(explicitDescriptor);
+    }
+
+    [Fact]
     public void Register_WithConflictingBinding_ShouldThrowNamingBothSources()
     {
         var registry = new DependencyRegistry();

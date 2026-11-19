@@ -387,6 +387,42 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
 
     /// <inheritdoc />
     /// <remarks>
+    ///     Segments stream ordered by segment key.
+    /// </remarks>
+    public async IAsyncEnumerable<string> ListUnlinkedSegmentsAsync(
+        TimeSpan? olderThan,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        if (olderThan.HasValue)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(olderThan.Value, TimeSpan.Zero);
+        }
+
+        using var scope = await OpenScopeAsync(false, false, cancellationToken).ConfigureAwait(false);
+        using var command = scope.CreateCommand(
+            $"""
+             SELECT DISTINCT segment
+             FROM {_recordsTable}
+             WHERE sequence = 0
+               AND (@cutoff IS NULL OR staged_at <= @cutoff)
+             ORDER BY segment ASC;
+             """);
+        AddParameter(
+            command,
+            "cutoff",
+            NpgsqlDbType.TimestampTz,
+            olderThan.HasValue ? _clock.GetUtcNow() - olderThan.Value : null);
+
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            yield return reader.GetString(0);
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
     ///     Documents stream in sequence windows of <see cref="SegmentPageSize" />, so verifying a large segment
     ///     holds one page at a time. The cursor advances past the last sequence returned, which stays correct
     ///     across gaps.
@@ -946,7 +982,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
         using var scope = await OpenScopeAsync(false, joinAmbient, cancellationToken).ConfigureAwait(false);
         using var command = scope.CreateCommand(
             $"""
-             INSERT INTO {_recordsTable}
+             INSERT INTO {_recordsTable} AS existing
                  (document_key, segment, sequence, previous_hash, hash, hash_scheme, tenant_id, document, staged_at)
              VALUES (@key, @segment, 0, NULL, NULL, NULL, @tenantId, @document, @stagedAt)
              ON CONFLICT (document_key) DO UPDATE SET
@@ -954,7 +990,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
                  tenant_id = EXCLUDED.tenant_id,
                  document = EXCLUDED.document,
                  staged_at = EXCLUDED.staged_at
-             WHERE sequence = 0;
+             WHERE existing.sequence = 0;
              """);
         command.Parameters.AddWithValue("key", key);
         command.Parameters.AddWithValue("segment", segment);
@@ -1112,7 +1148,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
 
             using var command = scope.CreateCommand(
                 $"""
-                 INSERT INTO {_recordsTable}
+                 INSERT INTO {_recordsTable} AS existing
                      (document_key, segment, sequence, previous_hash, hash, hash_scheme, tenant_id, document, staged_at)
                  VALUES (@key, @segment, @sequence, @previousHash, @hash, @hashScheme, @tenantId, @document, @stagedAt)
                  ON CONFLICT (document_key) DO UPDATE SET
@@ -1123,7 +1159,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
                      hash_scheme = EXCLUDED.hash_scheme,
                      tenant_id = EXCLUDED.tenant_id,
                      document = EXCLUDED.document
-                 WHERE sequence = 0 AND segment = @segment;
+                 WHERE existing.sequence = 0 AND existing.segment = @segment;
                  """);
             command.Parameters.AddWithValue("key", key);
             command.Parameters.AddWithValue("segment", segment);

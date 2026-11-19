@@ -667,7 +667,7 @@ public sealed class WorkspaceAuditCanonicalizer : IAuditCanonicalizer<WorkspaceA
 }
 ```
 
-The scheme names the combination of canonical form, link rule, and hasher. The chain ships two schemes for every document type: `sha256-v1` keeps the pass-through `PreviousHashLinkRule`, so records written before framing verify unchanged, and `sha256-v2` binds the chain position in a `FramedLinkRule`, so the canonicalizer only ever describes the record. Both hash with `Sha256AuditHasher`, and the chain selects the write scheme by name with `UseScheme`. The canonicalizer is resolved per document type from the container: a storage package registers the default for its document, and an application with its own document registers its own. Naming a scheme the registry does not know fails composition.
+The scheme names the combination of canonical form, link rule, and hasher. The chain ships two schemes for every document type: `sha256-v1` keeps the pass-through `PreviousHashLinkRule`, so records written before framing verify unchanged, and `sha256-v2` binds the chain position in a `FramedLinkRule`, so the canonicalizer only ever describes the record. Both hash with `Sha256AuditHasher`, and the chain selects the write scheme by name with `UseScheme`. The canonicalizer is resolved per document type from the container: a storage package registers the default for its document as a replaceable LiteBus default, and an application with its own document registers its own. Naming a scheme the registry does not know fails composition, and a scheme whose canonicalizer, link rule or hasher cannot be resolved fails host startup, before any record is written unlinked.
 
 An application that must bind its hashes to a secret uses `HmacSha256AuditHasher`, with a fixed key or with a provider that returns the current key per operation so a rotation takes effect without a restart:
 
@@ -875,7 +875,7 @@ Each break names its sequence, its kind, and a sentence describing the problem f
 | `CheckpointHashMismatch` | The hash at the latest checkpoint's sequence differs from the checkpoint's hash |
 | `CheckpointCountMismatch` | The segment holds fewer documents up to the checkpoint than the checkpoint counted |
 | `CheckpointSignatureInvalid` | The latest checkpoint's signature is missing or invalid |
-| `CheckpointMissing` | No checkpoint exists where one is required, or the checkpoint `VerifyFromAsync` was asked to trust does not exist |
+| `CheckpointMissing` | The segment holds no checkpoint although its checkpoint policy would already have cut one (a segment under 100 records with the default policy has none and verifies intact), or the checkpoint `VerifyFromAsync` was asked to trust does not exist |
 | `CheckpointStale` | The last checkpoint is older than the configured age while records exist after it |
 | `CheckpointUnpublished` | A stored checkpoint still waits for publication |
 | `Unlinked` | A record was staged but remains unlinked past the configured age |

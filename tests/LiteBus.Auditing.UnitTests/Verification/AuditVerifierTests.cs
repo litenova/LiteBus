@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Auditing;
+using LiteBus.Auditing.Checkpoints;
 using LiteBus.Auditing.Verification;
 using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -80,7 +81,34 @@ public sealed class AuditVerifierTests
     }
 
     [Fact]
-    public async Task Records_with_no_checkpoint_report_checkpoint_missing()
+    public async Task Records_with_no_checkpoint_report_checkpoint_missing_once_the_policy_is_due()
+    {
+        var scheme = VerificationTestData.TestScheme("sha256-v1");
+        var timeProvider = new VerificationTestTimeProvider(DateTimeOffset.UtcNow);
+        var store = new VerificationTestStore(timeProvider);
+        var documents = await VerificationTestData.BuildChainAsync(Segment, scheme, 3).ConfigureAwait(false);
+        store.SeedLinked(Segment, documents);
+        var storedSource = new VerificationTestSource();
+        var serviceProvider = new VerificationTestServiceProvider();
+        serviceProvider.Add<VerificationTestSource>(storedSource);
+        var options = VerificationTestData.ChainOptions(
+            sourceTypes: [typeof(VerificationTestSource)],
+            checkpointPolicy: CheckpointPolicies.EveryRecords(3));
+        var verifier = new AuditVerifier<VerificationTestDocument>(
+            store, new VerificationTestSchemeRegistry([scheme]), options, serviceProvider, timeProvider);
+
+        var verification = await verifier
+            .VerifyAsync(new AuditChainVerificationRequest(Segment), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verification.IsIntact.Should().BeFalse();
+        var single = verification.Breaks.Should().ContainSingle().Subject;
+        single.Sequence.Should().Be(3);
+        single.Kind.Should().Be(AuditChainBreakKind.CheckpointMissing);
+    }
+
+    [Fact]
+    public async Task A_segment_younger_than_its_first_checkpoint_verifies_intact()
     {
         var scheme = VerificationTestData.TestScheme("sha256-v1");
         var timeProvider = new VerificationTestTimeProvider(DateTimeOffset.UtcNow);
@@ -98,10 +126,8 @@ public sealed class AuditVerifierTests
             .VerifyAsync(new AuditChainVerificationRequest(Segment), CancellationToken.None)
             .ConfigureAwait(false);
 
-        verification.IsIntact.Should().BeFalse();
-        var single = verification.Breaks.Should().ContainSingle().Subject;
-        single.Sequence.Should().Be(3);
-        single.Kind.Should().Be(AuditChainBreakKind.CheckpointMissing);
+        verification.IsIntact.Should().BeTrue("the default policy cuts the first checkpoint at 100 records");
+        verification.RecordCount.Should().Be(3);
     }
 
     [Fact]

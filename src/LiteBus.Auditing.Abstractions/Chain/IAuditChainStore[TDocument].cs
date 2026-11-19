@@ -82,6 +82,22 @@ public interface IAuditChainStore<TDocument>
         CancellationToken cancellationToken);
 
     /// <summary>
+    ///     Lists the distinct segments that hold at least one unlinked staged document.
+    /// </summary>
+    /// <param name="olderThan">
+    ///     Only segments with an unlinked document staged longer ago than this, or <see langword="null" /> for
+    ///     every segment that holds an unlinked document.
+    /// </param>
+    /// <param name="cancellationToken">The token used to cancel the listing.</param>
+    /// <returns>The distinct segments that hold unlinked staged documents.</returns>
+    /// <remarks>
+    ///     The link sweep discovers crash leftovers through this listing rather than through the stored heads,
+    ///     because a store need not create a head when it stages: a segment whose records are all staged may
+    ///     have no head yet.
+    /// </remarks>
+    IAsyncEnumerable<string> ListUnlinkedSegmentsAsync(TimeSpan? olderThan, CancellationToken cancellationToken);
+
+    /// <summary>
     ///     Reads linked documents of a segment by sequence page, in ascending sequence order.
     /// </summary>
     /// <param name="segment">The segment.</param>

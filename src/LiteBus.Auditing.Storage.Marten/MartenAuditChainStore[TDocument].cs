@@ -300,7 +300,9 @@ public sealed class MartenAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     /// <remarks>
     ///     Documents follow their staged entries in commit order. A document whose entry is missing, for example
     ///     one written before entries existed, is still returned, after the entries in storage order: the store
-    ///     never strands evidence it cannot date. An entry whose document is gone is skipped.
+    ///     never strands evidence it cannot date. An entry whose document is gone is skipped. When
+    ///     <paramref name="olderThan" /> is set, a document whose entry is younger than the cutoff is excluded
+    ///     rather than mistaken for a document without an entry.
     /// </remarks>
     public async IAsyncEnumerable<TDocument> ListUnlinkedAsync(
         string segment,
@@ -334,6 +336,21 @@ public sealed class MartenAuditChainStore<TDocument> : IAuditChainStore<TDocumen
                 .ThenBy(entry => entry.Id)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
+
+            HashSet<string>? stagedKeys = null;
+
+            if (cutoff.HasValue)
+            {
+                var keys = await session
+                    .Query<MartenAuditUnlinkedEntry>()
+                    .Where(entry => entry.Segment == segment)
+                    .Select(entry => entry.DocumentKey)
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false);
+
+                stagedKeys = new HashSet<string>(keys, StringComparer.Ordinal);
+            }
+
             var documents = await session
                 .Query<TDocument>()
                 .Where(SegmentEquals(segment))
@@ -361,11 +378,62 @@ public sealed class MartenAuditChainStore<TDocument> : IAuditChainStore<TDocumen
 
             foreach (var document in documents)
             {
-                // Add reports whether the key was absent: matched documents are skipped, entry-less ones follow.
-                if (matched.Add(DocumentKey(document)))
+                var key = DocumentKey(document);
+
+                if (matched.Contains(key))
                 {
-                    yield return document;
+                    continue;
                 }
+
+                if (stagedKeys is not null && stagedKeys.Contains(key))
+                {
+                    // The entry exists but is younger than the cutoff, so the age filter excluded it.
+                    continue;
+                }
+
+                yield return document;
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     Segments are read from the staged entries, so a segment whose records are all staged is listed even
+    ///     though staging creates no head for it. Segments stream ordered by segment key.
+    /// </remarks>
+    public async IAsyncEnumerable<string> ListUnlinkedSegmentsAsync(
+        TimeSpan? olderThan,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        if (olderThan.HasValue)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(olderThan.Value, TimeSpan.Zero);
+        }
+
+        var session = _documentStore.QuerySession();
+
+        await using (session.ConfigureAwait(false))
+        {
+            IQueryable<MartenAuditUnlinkedEntry> entriesQuery = session.Query<MartenAuditUnlinkedEntry>();
+
+            if (olderThan.HasValue)
+            {
+                var bound = _clock.GetUtcNow() - olderThan.Value;
+                entriesQuery = entriesQuery.Where(entry => entry.StagedAt <= bound);
+            }
+
+            var staged = await entriesQuery
+                .Select(entry => entry.Segment)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var segments = staged
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(candidate => candidate, StringComparer.Ordinal);
+
+            foreach (var segment in segments)
+            {
+                yield return segment;
             }
         }
     }

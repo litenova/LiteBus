@@ -126,7 +126,7 @@ public sealed class PostgreSqlAuditStoreBuilderTests : IClassFixture<PostgreSqlF
     }
 
     [SkippableFact]
-    public void Build_registers_the_data_source_owner_registration_canonicalizer_probe_and_bootstrap()
+    public void Build_registers_the_data_source_owner_registration_probe_and_bootstrap()
     {
         var configuration = new TestModuleConfiguration();
 
@@ -136,8 +136,6 @@ public sealed class PostgreSqlAuditStoreBuilderTests : IClassFixture<PostgreSqlF
             descriptor => descriptor.DependencyType == typeof(PostgreSqlDataSourceOwner<PostgreSqlAuditModule>));
         configuration.DependencyRegistry.Should().Contain(
             descriptor => descriptor.DependencyType == typeof(PostgreSqlAuditStoreRegistration));
-        configuration.DependencyRegistry.Should().Contain(
-            descriptor => descriptor.DependencyType == typeof(IAuditCanonicalizer<PostgreSqlAuditRecord>));
         configuration.DependencyRegistry.Should().Contain(
             descriptor => descriptor.DependencyType == typeof(PostgreSqlAuditSchemaInitializer));
         configuration.StartupTasks.Should().Contain(typeof(PostgreSqlAuditSchemaInitializer));

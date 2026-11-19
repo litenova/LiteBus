@@ -2,6 +2,7 @@ using System;
 using LiteBus.Auditing.Abstractions;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -325,12 +326,14 @@ internal static class VerificationTestData
     /// <param name="signerTypes">The checkpoint signer types verification verifies with.</param>
     /// <param name="unlinkedAfter">The age past which a staged record is reported, or <see langword="null" /> for the default.</param>
     /// <param name="checkpointStaleAfter">The age past which a last checkpoint is stale, or <see langword="null" /> for none.</param>
+    /// <param name="checkpointPolicy">The checkpoint policy the chain cuts by, or <see langword="null" /> for the default.</param>
     /// <returns>The chain options.</returns>
     public static AuditHashChainOptions ChainOptions(
         IReadOnlyList<Type>? sourceTypes = null,
         IReadOnlyList<Type>? signerTypes = null,
         TimeSpan? unlinkedAfter = null,
-        TimeSpan? checkpointStaleAfter = null)
+        TimeSpan? checkpointStaleAfter = null,
+        ICheckpointPolicy? checkpointPolicy = null)
     {
         return new AuditHashChainOptions
         {
@@ -338,6 +341,7 @@ internal static class VerificationTestData
             SignerTypes = signerTypes ?? [],
             UnlinkedAfter = unlinkedAfter ?? AuditHashChainOptions.DefaultUnlinkedAfter,
             CheckpointStaleAfter = checkpointStaleAfter,
+            CheckpointPolicy = checkpointPolicy,
         };
     }
 }
@@ -587,6 +591,35 @@ internal sealed class VerificationTestStore : IAuditChainStore<VerificationTestD
             }
 
             yield return record.Document;
+        }
+    }
+
+    /// <inheritdoc />
+    public async IAsyncEnumerable<string> ListUnlinkedSegmentsAsync(
+        TimeSpan? olderThan,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask.ConfigureAwait(false);
+
+        List<string> snapshot;
+
+        lock (_lock)
+        {
+            var now = _timeProvider.GetUtcNow();
+
+            snapshot = _unlinked
+                .Where(entry => entry.Value
+                    .Any(record => !olderThan.HasValue || now - record.StagedAt > olderThan.Value))
+                .Select(entry => entry.Key)
+                .OrderBy(segment => segment, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        foreach (var segment in snapshot)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            yield return segment;
         }
     }
 

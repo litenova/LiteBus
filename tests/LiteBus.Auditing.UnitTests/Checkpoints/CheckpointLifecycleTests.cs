@@ -622,6 +622,16 @@ public sealed class CheckpointLifecycleTests
         }
 
         /// <inheritdoc />
+        public async IAsyncEnumerable<string> ListUnlinkedSegmentsAsync(
+            TimeSpan? olderThan,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask.ConfigureAwait(false);
+
+            yield break;
+        }
+
+        /// <inheritdoc />
         public async IAsyncEnumerable<TestAuditDocument> ReadSegmentAsync(
             string segment,
             long fromSequence,

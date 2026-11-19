@@ -48,8 +48,8 @@ public enum AuditChainBreakKind
     CheckpointSignatureInvalid = 7,
 
     /// <summary>
-    ///     No checkpoint exists where one is required: the segment holds records but none was ever cut, or the
-    ///     checkpoint a verification was asked to trust does not exist.
+    ///     No checkpoint exists where one is required: the segment holds no checkpoint although the chain's checkpoint
+    ///     policy would already have cut one, or the checkpoint a verification was asked to trust does not exist.
     /// </summary>
     CheckpointMissing = 8,
 

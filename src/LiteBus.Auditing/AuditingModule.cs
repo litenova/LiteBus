@@ -129,6 +129,12 @@ public sealed class AuditingModule : ICompositeModule
 
         RegisterEntryTrail(configuration, options);
 
+        if (options.Chain is not null &&
+            options.Capture is AuditCapture.WithChangeCapture { Link: AuditLink.AfterCommit })
+        {
+            RegisterAfterCommitLinking(configuration);
+        }
+
         var section = new AuditingCompositionSection(options, resolution, DescribeCheckpointPolicy(options.Chain));
 
         configuration.DependencyRegistry.RegisterCollection(
@@ -263,6 +269,29 @@ public sealed class AuditingModule : ICompositeModule
         registry.Register(new DependencyDescriptor(closedTrailType, closedTrailType, InstanceLifetime.Scoped));
         registry.Register(new DependencyDescriptor(closedMapperInterface, mapperType, InstanceLifetime.Singleton));
         registry.Register(new DependencyDescriptor(closedSegmenterInterface, segmenterType, InstanceLifetime.Singleton));
+
+        // The shipped schemes resolve the canonicalizer for the stored document from the container. A storage
+        // package supplies one for its own document as a replaceable default; a custom document brings its own.
+        if (options.StoreDefaultCanonicalizerType is not null && document == options.StoreDefaultDocumentType)
+        {
+            var closedCanonicalizerInterface = typeof(IAuditCanonicalizer<>).MakeGenericType(document);
+
+            ThrowIfNotImplementation(
+                options.StoreDefaultCanonicalizerType,
+                closedCanonicalizerInterface,
+                "canonicalizer supplied by the audit store extension");
+
+            registry.Register(DependencyDescriptor.ForDefaultPort(
+                closedCanonicalizerInterface,
+                options.StoreDefaultCanonicalizerType,
+                InstanceLifetime.Singleton));
+        }
+
+        registry.Register(new DependencyDescriptor(
+            typeof(AuditHashSchemeStartupCheck),
+            provider => new AuditHashSchemeStartupCheck(provider, document, chain.SchemeName),
+            InstanceLifetime.Singleton));
+        configuration.RegisterStartupTask(typeof(AuditHashSchemeStartupCheck));
 
         RegisterNamedPieces(registry, chain);
         MoveStoreSourceFirst(chain, closedStoreType);
@@ -402,6 +431,29 @@ public sealed class AuditingModule : ICompositeModule
             provider => new AuditCaptureTrail(
                 (IAuditCaptureCoordinator) RequiredService(provider, typeof(IAuditCaptureCoordinator)),
                 options.Capture),
+            InstanceLifetime.Scoped));
+    }
+
+    /// <summary>
+    ///     Registers the staged-segment holder and the commit listener that links staged records right after
+    ///     the unit of work commits.
+    /// </summary>
+    /// <param name="configuration">The module configuration being built.</param>
+    /// <remarks>
+    ///     Registered only with the chain on and the effective capture staging with the change for linking
+    ///     after commit: the listener has nothing to link in any other mode, and the linker it calls exists
+    ///     only with the chain on.
+    /// </remarks>
+    private static void RegisterAfterCommitLinking(IModuleConfiguration configuration)
+    {
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(AuditStagedSegments),
+            typeof(AuditStagedSegments),
+            InstanceLifetime.Scoped));
+
+        configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+            typeof(IUnitOfWorkCommitListener),
+            typeof(AuditLinkCommitListener),
             InstanceLifetime.Scoped));
     }
 

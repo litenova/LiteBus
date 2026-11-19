@@ -196,7 +196,9 @@ public sealed class AuditChainHeadWriterTests
         var writer = NewWriter(store, Segment);
 
         await store.StageAsync(Segment, new LinkTestDocument { Action = "a" }, CancellationToken.None).ConfigureAwait(false);
+        await writer.LinkStagedAsync(Segment, null, CancellationToken.None).ConfigureAwait(false);
         store.MarkExpired(Segment);
+        await store.StageAsync(Segment, new LinkTestDocument { Action = "b" }, CancellationToken.None).ConfigureAwait(false);
 
         var act = () => writer.LinkStagedAsync(Segment, null, CancellationToken.None).AsTask();
 

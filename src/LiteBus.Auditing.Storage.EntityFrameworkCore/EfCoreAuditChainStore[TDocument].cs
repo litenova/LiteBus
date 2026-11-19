@@ -376,9 +376,52 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
 
         query = query.OrderBy(document => EF.Property<DateTimeOffset>(document, AuditStoreJson.StagedAtPropertyName));
 
-        await foreach (var document in query.AsAsyncEnumerable().ConfigureAwait(false))
+        await foreach (var document in query.AsAsyncEnumerable().WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             yield return document;
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     Segments stream ordered by segment key.
+    /// </remarks>
+    public async IAsyncEnumerable<string> ListUnlinkedSegmentsAsync(
+        TimeSpan? olderThan,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        if (olderThan.HasValue)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(olderThan.Value, TimeSpan.Zero);
+        }
+
+        if (_auditContext is not DbContext dbContext)
+        {
+            throw new InvalidOperationException("Listing segments with unlinked audit documents requires a DbContext-backed audit database context.");
+        }
+
+        var query = dbContext.Set<TDocument>().AsNoTracking()
+            .Where(document => document.Segment != null && document.Sequence == 0);
+
+        if (olderThan.HasValue)
+        {
+            var stagedBefore = _timeProvider.GetUtcNow() - olderThan.Value;
+            query = query.Where(document => EF.Property<DateTimeOffset>(document, AuditStoreJson.StagedAtPropertyName) <= stagedBefore);
+        }
+
+        var segments = await query
+            .Select(document => document.Segment)
+            .Distinct()
+            .OrderBy(segment => segment)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var segment in segments)
+        {
+            if (segment is not null)
+            {
+                yield return segment;
+            }
         }
     }
 
@@ -420,7 +463,7 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
 
         query = query.OrderBy(document => document.Sequence);
 
-        await foreach (var document in query.AsAsyncEnumerable().ConfigureAwait(false))
+        await foreach (var document in query.AsAsyncEnumerable().WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             yield return document;
         }
@@ -545,7 +588,7 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
             .OrderBy(checkpoint => checkpoint.CreatedAt)
             .ThenBy(checkpoint => checkpoint.Id);
 
-        await foreach (var entity in query.AsAsyncEnumerable().ConfigureAwait(false))
+        await foreach (var entity in query.AsAsyncEnumerable().WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             yield return MapCheckpoint(entity);
         }
