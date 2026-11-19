@@ -126,7 +126,7 @@ public sealed class MartenAuditTrailOptionsTests
     [Fact]
     public void Func_segmenter_rejects_a_null_delegate()
     {
-        var create = () => new MartenAuditFuncSegmenter<MartenAuditRecord>((Func<MartenAuditRecord, string>)null!);
+        var create = () => new MartenAuditFuncSegmenter<MartenAuditRecord>((Func<MartenAuditRecord, string>) null!);
         create.Should().Throw<ArgumentNullException>();
     }
 
@@ -246,7 +246,7 @@ public sealed class MartenAuditTrailOptionsTests
     {
         var options = new MartenAuditTrailOptions();
 
-        var enable = () => options.UseHashChain(builder => builder.UseScheme((AuditHashScheme<MartenAuditRecord>)null!));
+        var enable = () => options.UseHashChain(builder => builder.UseScheme((AuditHashScheme<MartenAuditRecord>) null!));
         enable.Should().Throw<ArgumentNullException>();
     }
 
@@ -255,7 +255,7 @@ public sealed class MartenAuditTrailOptionsTests
     {
         var options = new MartenAuditTrailOptions();
 
-        var enable = () => options.UseHashChain(builder => builder.AcceptScheme((AuditHashScheme<MartenAuditRecord>)null!));
+        var enable = () => options.UseHashChain(builder => builder.AcceptScheme((AuditHashScheme<MartenAuditRecord>) null!));
         enable.Should().Throw<ArgumentNullException>();
     }
 
@@ -289,7 +289,7 @@ public sealed class MartenAuditTrailOptionsTests
         var options = new MartenAuditTrailOptions();
 
         var enable = () => options.UseHashChain(builder =>
-            builder.UseScheme<MartenAuditRecord>((Func<IServiceProvider, AuditHashScheme<MartenAuditRecord>>)null!));
+            builder.UseScheme<MartenAuditRecord>((Func<IServiceProvider, AuditHashScheme<MartenAuditRecord>>) null!));
         enable.Should().Throw<ArgumentNullException>();
     }
 
@@ -299,7 +299,7 @@ public sealed class MartenAuditTrailOptionsTests
         var options = new MartenAuditTrailOptions();
 
         var enable = () => options.UseHashChain(builder =>
-            builder.AcceptScheme<MartenAuditRecord>((Func<IServiceProvider, AuditHashScheme<MartenAuditRecord>>)null!));
+            builder.AcceptScheme<MartenAuditRecord>((Func<IServiceProvider, AuditHashScheme<MartenAuditRecord>>) null!));
         enable.Should().Throw<ArgumentNullException>();
     }
 
@@ -385,7 +385,7 @@ public sealed class MartenAuditTrailOptionsTests
         var options = new MartenAuditTrailOptions();
 
         var enable = () => options.UseHashChain(builder =>
-            builder.SegmentBy<MartenAuditRecord>((IAuditSegmenter<MartenAuditRecord>)null!));
+            builder.SegmentBy<MartenAuditRecord>((IAuditSegmenter<MartenAuditRecord>) null!));
 
         enable.Should().Throw<ArgumentNullException>();
     }
@@ -396,7 +396,7 @@ public sealed class MartenAuditTrailOptionsTests
         var options = new MartenAuditTrailOptions();
 
         var enable = () => options.UseHashChain(builder =>
-            builder.SegmentBy<MartenAuditRecord>((Func<MartenAuditRecord, string>)null!));
+            builder.SegmentBy<MartenAuditRecord>((Func<MartenAuditRecord, string>) null!));
 
         enable.Should().Throw<ArgumentNullException>();
     }

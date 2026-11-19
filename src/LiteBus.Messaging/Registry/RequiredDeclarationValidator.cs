@@ -50,7 +50,7 @@ internal static class RequiredDeclarationValidator
 
         foreach (var requirement in failing)
         {
-            var missing = ((IMessageCatalog)catalog)
+            var missing = ((IMessageCatalog) catalog)
                 .MissingDeclaration(requirement.ValueType, requirement.Scope)
                 .Select(entry => entry.MessageType)
                 .ToList();

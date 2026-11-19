@@ -58,6 +58,9 @@ public sealed class MartenAuditChainBackgroundServiceTests : IClassFixture<Postg
 
         publishedAfterWrites = publisher.Published.Count;
 
+        // The setup write may publish its own checkpoint, which must not satisfy the wait for the background service.
+        checkpointed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
         using var stopping = new CancellationTokenSource();
         var service = new MartenAuditCheckpointBackgroundService(documentStore, options);
         var run = service.ExecuteAsync(stopping.Token);

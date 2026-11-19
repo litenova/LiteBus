@@ -977,7 +977,7 @@ internal sealed class MartenAuditChainConfiguration<TDocument> : MartenAuditChai
             throw new LiteBusDependencyResolutionException(implementationType);
         }
 
-        return (TService)service;
+        return (TService) service;
     }
 
     /// <summary>

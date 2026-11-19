@@ -102,7 +102,7 @@ public sealed class MartenAuditChainModuleTests
         public T GetContext<T>()
             where T : class
         {
-            return (T)_contexts[typeof(T)];
+            return (T) _contexts[typeof(T)];
         }
 
         public void SetContext<T>(T context)
@@ -116,7 +116,7 @@ public sealed class MartenAuditChainModuleTests
         {
             if (_contexts.TryGetValue(typeof(T), out var stored))
             {
-                context = (T)stored;
+                context = (T) stored;
                 return true;
             }
 
@@ -129,7 +129,7 @@ public sealed class MartenAuditChainModuleTests
         {
             if (_contexts.TryGetValue(typeof(T), out var stored))
             {
-                return (T)stored;
+                return (T) stored;
             }
 
             var created = factory();

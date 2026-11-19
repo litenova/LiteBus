@@ -53,16 +53,16 @@ public sealed class MartenAuditModule : IModule
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IAuditChain),
             serviceProvider => new MartenAuditChain(
-                (IDocumentStore)(serviceProvider.GetService(typeof(IDocumentStore)) ?? throw new LiteBusDependencyResolutionException(typeof(IDocumentStore))),
-                (MartenAuditTrailOptions?)serviceProvider.GetService(typeof(MartenAuditTrailOptions)),
-                (TimeProvider?)serviceProvider.GetService(typeof(TimeProvider)),
+                (IDocumentStore) (serviceProvider.GetService(typeof(IDocumentStore)) ?? throw new LiteBusDependencyResolutionException(typeof(IDocumentStore))),
+                (MartenAuditTrailOptions?) serviceProvider.GetService(typeof(MartenAuditTrailOptions)),
+                (TimeProvider?) serviceProvider.GetService(typeof(TimeProvider)),
                 serviceProvider),
             InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ICheckpointSource),
             serviceProvider => new MartenAuditCheckpointSource(
-                (IDocumentStore)(serviceProvider.GetService(typeof(IDocumentStore)) ?? throw new LiteBusDependencyResolutionException(typeof(IDocumentStore)))),
+                (IDocumentStore) (serviceProvider.GetService(typeof(IDocumentStore)) ?? throw new LiteBusDependencyResolutionException(typeof(IDocumentStore)))),
             InstanceLifetime.Singleton));
 
         if (!chain.CheckpointPolicy.IsTimeBased)
@@ -73,9 +73,9 @@ public sealed class MartenAuditModule : IModule
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(MartenAuditCheckpointBackgroundService),
             serviceProvider => new MartenAuditCheckpointBackgroundService(
-                (IDocumentStore)(serviceProvider.GetService(typeof(IDocumentStore)) ?? throw new LiteBusDependencyResolutionException(typeof(IDocumentStore))),
-                (MartenAuditTrailOptions)(serviceProvider.GetService(typeof(MartenAuditTrailOptions)) ?? throw new LiteBusDependencyResolutionException(typeof(MartenAuditTrailOptions))),
-                (TimeProvider?)serviceProvider.GetService(typeof(TimeProvider)),
+                (IDocumentStore) (serviceProvider.GetService(typeof(IDocumentStore)) ?? throw new LiteBusDependencyResolutionException(typeof(IDocumentStore))),
+                (MartenAuditTrailOptions) (serviceProvider.GetService(typeof(MartenAuditTrailOptions)) ?? throw new LiteBusDependencyResolutionException(typeof(MartenAuditTrailOptions))),
+                (TimeProvider?) serviceProvider.GetService(typeof(TimeProvider)),
                 serviceProvider),
             InstanceLifetime.Singleton));
 

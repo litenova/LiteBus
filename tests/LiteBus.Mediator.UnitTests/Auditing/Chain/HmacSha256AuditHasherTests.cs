@@ -106,7 +106,7 @@ public sealed class HmacSha256AuditHasherTests
     [Fact]
     public void A_null_provider_is_rejected()
     {
-        var act = () => new HmacSha256AuditHasher((Func<CancellationToken, ValueTask<byte[]>>)null!);
+        var act = () => new HmacSha256AuditHasher((Func<CancellationToken, ValueTask<byte[]>>) null!);
 
         act.Should().Throw<ArgumentNullException>();
     }

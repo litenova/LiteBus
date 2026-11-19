@@ -611,7 +611,7 @@ public sealed class MessageModuleBuilder
 
                 // The messaging module always pairs this builder with MessageRegistry, whose descriptors carry
                 // MessageMetadata, so the cast holds for every descriptor this validation sees.
-                ((MessageMetadata)descriptor.Metadata).TryApplyConvention(
+                ((MessageMetadata) descriptor.Metadata).TryApplyConvention(
                     convention.ValueType,
                     value,
                     descriptor.MessageType);

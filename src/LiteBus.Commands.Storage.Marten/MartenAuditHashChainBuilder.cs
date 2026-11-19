@@ -400,8 +400,8 @@ public sealed class MartenAuditHashChainBuilder
     private MartenAuditChainConfiguration<TDocument> BuildTyped<TDocument>()
         where TDocument : class, IAuditChainDocument
     {
-        var mapper = (IAuditRecordMapper<TDocument>?)_mapper;
-        var segmenter = (IAuditSegmenter<TDocument>?)_segmenter;
+        var mapper = (IAuditRecordMapper<TDocument>?) _mapper;
+        var segmenter = (IAuditSegmenter<TDocument>?) _segmenter;
         var writeScheme = _writeScheme as AuditHashScheme<TDocument>;
         var writeSchemeFactory = _writeScheme as Func<IServiceProvider, AuditHashScheme<TDocument>>;
 
@@ -477,9 +477,9 @@ public sealed class MartenAuditHashChainBuilder
             accepted,
             acceptedFactories,
             _policy ?? CheckpointPolicies.EveryRecords(MartenAuditTrailOptions.DefaultCheckpointInterval),
-            (ICheckpointSigner?)_signer,
+            (ICheckpointSigner?) _signer,
             _signerType,
-            (ICheckpointPublisher?)_publisher,
+            (ICheckpointPublisher?) _publisher,
             _publisherType);
     }
 
@@ -495,7 +495,7 @@ public sealed class MartenAuditHashChainBuilder
     {
         if (typeof(TDocument) == typeof(MartenAuditRecord))
         {
-            return (IAuditRecordMapper<TDocument>)(object)new MartenAuditRecordMapper();
+            return (IAuditRecordMapper<TDocument>) (object) new MartenAuditRecordMapper();
         }
 
         throw new InvalidOperationException(
@@ -515,7 +515,7 @@ public sealed class MartenAuditHashChainBuilder
     {
         if (typeof(TDocument) == typeof(MartenAuditRecord))
         {
-            return (IAuditSegmenter<TDocument>)(object)new MartenAuditRecordSegmenter();
+            return (IAuditSegmenter<TDocument>) (object) new MartenAuditRecordSegmenter();
         }
 
         throw new InvalidOperationException(
@@ -534,7 +534,7 @@ public sealed class MartenAuditHashChainBuilder
     {
         if (typeof(TDocument) == typeof(MartenAuditRecord))
         {
-            return (AuditHashScheme<TDocument>)(object)MartenAuditHashSchemes.Sha256V1;
+            return (AuditHashScheme<TDocument>) (object) MartenAuditHashSchemes.Sha256V1;
         }
 
         throw new InvalidOperationException(

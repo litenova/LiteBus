@@ -44,10 +44,10 @@ public sealed class MartenSagaModule : ISagaStorageModule
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(ISagaStore),
             serviceProvider => new MartenSagaStore(
-                (IDocumentStore)(serviceProvider.GetService(typeof(IDocumentStore)) ?? throw new LiteBusDependencyResolutionException(typeof(IDocumentStore))),
-                (IMessageSerializer)(serviceProvider.GetService(typeof(IMessageSerializer)) ?? throw new LiteBusDependencyResolutionException(typeof(IMessageSerializer))),
+                (IDocumentStore) (serviceProvider.GetService(typeof(IDocumentStore)) ?? throw new LiteBusDependencyResolutionException(typeof(IDocumentStore))),
+                (IMessageSerializer) (serviceProvider.GetService(typeof(IMessageSerializer)) ?? throw new LiteBusDependencyResolutionException(typeof(IMessageSerializer))),
                 options,
-                (TimeProvider?)serviceProvider.GetService(typeof(TimeProvider))),
+                (TimeProvider?) serviceProvider.GetService(typeof(TimeProvider))),
             InstanceLifetime.Singleton));
     }
 }

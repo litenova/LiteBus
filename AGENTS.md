@@ -500,7 +500,7 @@ Answer these questions before adding a project:
 ## Analyzers
 
 - Ship compile-time rules in `LiteBus.Analyzers` only. Take no runtime dependency on mediator or durable packages.
-- Keep the rule inventory in `site/content/docs/reference/analyzers.md` aligned with `DiagnosticIds` (LB1001-LB1028). LB1002 and LB1006 are reserved and never shipped.
+- Keep the rule inventory in `site/content/docs/reference/analyzers.md` aligned with `DiagnosticIds` (LB1001-LB1029). LB1002 and LB1006 are reserved and never shipped.
 - LB1007 covers handled durable types that miss contract registration. Honor `RegisterFromAssembly` the same as explicit `Contracts.Register`.
 - LB1017 covers attributed durable types. Match only `IContractWriter` or `IMessageContractRegistry` `Register` invocations, not unrelated `Register<T>()` methods.
 - LB1004 must cover `AcceptAsync`, `AcceptBatchAsync`, and the `ITransactionalInbox` acceptance APIs.

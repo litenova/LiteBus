@@ -368,51 +368,51 @@ public sealed class EfCoreDomainEventHarvestTests : IClassFixture<SqliteDatabase
             switch (message.Scenario)
             {
                 case HarvestScenario.DefaultContract:
-                {
-                    var aggregate = new OrderEntity { Id = message.OrderId, Total = 42m };
-                    aggregate.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
-                    _context.Orders.Add(aggregate);
-                    _probe.HarvestedAggregates.Add(aggregate);
-                    break;
-                }
+                    {
+                        var aggregate = new OrderEntity { Id = message.OrderId, Total = 42m };
+                        aggregate.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
+                        _context.Orders.Add(aggregate);
+                        _probe.HarvestedAggregates.Add(aggregate);
+                        break;
+                    }
 
                 case HarvestScenario.ConfiguredAccessor:
-                {
-                    var aggregate = new CustomOrderEntity { Id = message.OrderId, Total = 42m };
-                    aggregate.AddPendingEvent(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
-                    _context.CustomOrders.Add(aggregate);
-                    _probe.HarvestedAggregates.Add(aggregate);
-                    break;
-                }
+                    {
+                        var aggregate = new CustomOrderEntity { Id = message.OrderId, Total = 42m };
+                        aggregate.AddPendingEvent(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
+                        _context.CustomOrders.Add(aggregate);
+                        _probe.HarvestedAggregates.Add(aggregate);
+                        break;
+                    }
 
                 case HarvestScenario.Unchanged:
-                {
-                    var stored = await _context.Orders
-                        .SingleAsync(order => order.Id == message.OrderId, cancellationToken).ConfigureAwait(false);
-                    stored.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
-                    _probe.HarvestedAggregates.Add(stored);
-                    break;
-                }
+                    {
+                        var stored = await _context.Orders
+                            .SingleAsync(order => order.Id == message.OrderId, cancellationToken).ConfigureAwait(false);
+                        stored.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
+                        _probe.HarvestedAggregates.Add(stored);
+                        break;
+                    }
 
                 case HarvestScenario.Deleted:
-                {
-                    var stored = await _context.Orders
-                        .SingleAsync(order => order.Id == message.OrderId, cancellationToken).ConfigureAwait(false);
-                    stored.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
-                    _context.Remove(stored);
-                    _probe.HarvestedAggregates.Add(stored);
-                    break;
-                }
+                    {
+                        var stored = await _context.Orders
+                            .SingleAsync(order => order.Id == message.OrderId, cancellationToken).ConfigureAwait(false);
+                        stored.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
+                        _context.Remove(stored);
+                        _probe.HarvestedAggregates.Add(stored);
+                        break;
+                    }
 
                 case HarvestScenario.Modified:
-                {
-                    var stored = await _context.Orders
-                        .SingleAsync(order => order.Id == message.OrderId, cancellationToken).ConfigureAwait(false);
-                    stored.Total = 84m;
-                    stored.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
-                    _probe.HarvestedAggregates.Add(stored);
-                    break;
-                }
+                    {
+                        var stored = await _context.Orders
+                            .SingleAsync(order => order.Id == message.OrderId, cancellationToken).ConfigureAwait(false);
+                        stored.Total = 84m;
+                        stored.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
+                        _probe.HarvestedAggregates.Add(stored);
+                        break;
+                    }
 
                 default:
                     throw new InvalidOperationException($"Unknown harvest scenario '{message.Scenario}'.");

@@ -316,42 +316,42 @@ public sealed class MartenDomainEventHarvestTests : IClassFixture<PostgreSqlFixt
             switch (message.Scenario)
             {
                 case HarvestScenario.DefaultContract:
-                {
-                    var aggregate = new OrderDocument { Id = message.OrderId, Total = 42m };
-                    aggregate.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
-                    aggregate.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
-                    _session.Store(aggregate);
-                    _probe.HarvestedAggregates.Add(aggregate);
-                    break;
-                }
+                    {
+                        var aggregate = new OrderDocument { Id = message.OrderId, Total = 42m };
+                        aggregate.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
+                        aggregate.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
+                        _session.Store(aggregate);
+                        _probe.HarvestedAggregates.Add(aggregate);
+                        break;
+                    }
 
                 case HarvestScenario.ConfiguredAccessor:
-                {
-                    var aggregate = new CustomOrderDocument { Id = message.OrderId, Total = 42m };
-                    aggregate.PendingEvents.Add(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
-                    _session.Store(aggregate);
-                    _probe.HarvestedAggregates.Add(aggregate);
-                    break;
-                }
+                    {
+                        var aggregate = new CustomOrderDocument { Id = message.OrderId, Total = 42m };
+                        aggregate.PendingEvents.Add(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
+                        _session.Store(aggregate);
+                        _probe.HarvestedAggregates.Add(aggregate);
+                        break;
+                    }
 
                 case HarvestScenario.Update:
-                {
-                    var stored = await _session.LoadAsync<OrderDocument>(message.OrderId, cancellationToken).ConfigureAwait(false);
-                    stored!.Total = 84m;
-                    stored.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
-                    _session.Store(stored);
-                    _probe.HarvestedAggregates.Add(stored);
-                    break;
-                }
+                    {
+                        var stored = await _session.LoadAsync<OrderDocument>(message.OrderId, cancellationToken).ConfigureAwait(false);
+                        stored!.Total = 84m;
+                        stored.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
+                        _session.Store(stored);
+                        _probe.HarvestedAggregates.Add(stored);
+                        break;
+                    }
 
                 case HarvestScenario.Delete:
-                {
-                    var stored = await _session.LoadAsync<OrderDocument>(message.OrderId, cancellationToken).ConfigureAwait(false);
-                    stored!.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
-                    _session.Delete(stored);
-                    _probe.HarvestedAggregates.Add(stored);
-                    break;
-                }
+                    {
+                        var stored = await _session.LoadAsync<OrderDocument>(message.OrderId, cancellationToken).ConfigureAwait(false);
+                        stored!.Raise(new OrderPlacedHarvestEvent { OrderId = message.OrderId });
+                        _session.Delete(stored);
+                        _probe.HarvestedAggregates.Add(stored);
+                        break;
+                    }
 
                 default:
                     throw new InvalidOperationException($"Unknown harvest scenario '{message.Scenario}'.");
