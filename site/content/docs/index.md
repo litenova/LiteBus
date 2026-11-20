@@ -83,7 +83,7 @@ Pick the row that matches your task.
 
 ## Requirements
 
-You need the .NET 10 SDK and working knowledge of C#.
+You need the .NET 10 or .NET 11 SDK and working knowledge of C#.
 
 You need one DI container adapter. That means the Microsoft.Extensions.DependencyInjection or Autofac extension packages for the modules you use.
 

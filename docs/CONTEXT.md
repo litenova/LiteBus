@@ -1,8 +1,8 @@
 # LiteBus - Complete AI Context & Reference Guide
 
-> LiteBus is a .NET 10 library for in-process mediation (commands, queries, events) and durable messaging (inbox, outbox, saga), with pluggable relational or in-memory storage and broker transports. It serves CQRS-style application architecture where handler discovery, pipeline stages, message contracts, auditing, execution identity, tenancy declarations, authorization policies, and at-least-once delivery are declared rather than inferred. The architecture is a module graph in which each feature is an `IModule` that writes container-neutral `DependencyDescriptor` entries into an `IDependencyRegistry`, so the same composition runs on Microsoft DI and Autofac.
+> LiteBus is a .NET 10 and .NET 11 library for in-process mediation (commands, queries, events) and durable messaging (inbox, outbox, saga), with pluggable relational or in-memory storage and broker transports. It serves CQRS-style application architecture where handler discovery, pipeline stages, message contracts, auditing, execution identity, tenancy declarations, authorization policies, and at-least-once delivery are declared rather than inferred. The architecture is a module graph in which each feature is an `IModule` that writes container-neutral `DependencyDescriptor` entries into an `IDependencyRegistry`, so the same composition runs on Microsoft DI and Autofac.
 
-The version is `8.0.0`, set by the release tag. The target framework is `net10.0`. Nullable reference types are enabled. The license is MIT. All assemblies are strong-named with a shared public key.
+The version is `8.0.0`, set by the release tag. The target frameworks are `net10.0` and `net11.0`; each compiles against the .NET release-train packages of its own major (`src/Directory.Packages.props`). Nullable reference types are enabled. The license is MIT. All assemblies are strong-named with a shared public key.
 
 ---
 

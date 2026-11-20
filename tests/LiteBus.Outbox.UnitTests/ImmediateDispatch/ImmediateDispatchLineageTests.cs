@@ -71,8 +71,7 @@ public sealed class ImmediateDispatchLineageTests : LiteBusTestBase
             await listener.OnCommittedAsync(CancellationToken.None).ConfigureAwait(false);
         }
 
-        var completed = await Task.WhenAny(recorder.Delivered.Task, Task.Delay(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
-        completed.Should().Be(recorder.Delivered.Task);
+        await recorder.Delivered.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
         var observed = recorder.Observed.Should().ContainSingle().Subject;
         observed.Parent.Should().BeNull();

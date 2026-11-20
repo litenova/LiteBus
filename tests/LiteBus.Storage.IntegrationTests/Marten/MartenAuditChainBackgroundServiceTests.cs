@@ -77,8 +77,7 @@ public sealed class MartenAuditChainBackgroundServiceTests : IClassFixture<Postg
         using var stopping = new CancellationTokenSource();
         var run = service.ExecuteAsync(stopping.Token);
 
-        await Task.WhenAny(checkpointed.Task, Task.Delay(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
-        checkpointed.Task.IsCompleted.Should().BeTrue();
+        await checkpointed.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
         stopping.Cancel();
         await run.ConfigureAwait(false);
@@ -107,9 +106,8 @@ public sealed class MartenAuditChainBackgroundServiceTests : IClassFixture<Postg
         var service = new CheckpointPublishBackgroundService(provider);
         var run = service.ExecuteAsync(CancellationToken.None);
 
-        await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
+        await run.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
-        run.IsCompleted.Should().BeTrue();
         await run.ConfigureAwait(false);
     }
 

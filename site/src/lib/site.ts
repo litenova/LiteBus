@@ -27,7 +27,7 @@ export const docsBasePath = '/docs';
 export const docsContentDir = 'content/docs';
 
 /** The target framework fact the home page shows. */
-export const targetFramework = '.NET 10';
+export const targetFramework = '.NET 10 and 11';
 
 /** Git ref used for fallback links into the repository from documentation pages. */
 export const sourceRef = 'v7';
