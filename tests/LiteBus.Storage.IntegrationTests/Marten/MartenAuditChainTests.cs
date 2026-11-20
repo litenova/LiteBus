@@ -181,7 +181,7 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
     }
 
     [SkippableFact]
-    public async Task ExpireSegmentAsync_twice_throws_and_publishes_once()
+    public async Task ExpireSegmentAsync_twice_returns_the_stored_final_checkpoint_and_publishes_once()
     {
         var documentStore = CreateDocumentStore();
         await using var configuredDocumentStore = documentStore.ConfigureAwait(false);
@@ -201,9 +201,9 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         var first = await harness.Chain.ExpireSegmentAsync(segment).ConfigureAwait(false);
         first.Kind.Should().Be(AuditCheckpointKind.Final);
 
-        var again = () => harness.Chain.ExpireSegmentAsync(segment);
-        var thrown = await again.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
-        thrown.WithMessage("*expired already*");
+        var again = await harness.Chain.ExpireSegmentAsync(segment).ConfigureAwait(false);
+        again.Id.Should().Be(first.Id);
+        again.Kind.Should().Be(AuditCheckpointKind.Final);
 
         publisher.Published.Should().ContainSingle();
     }

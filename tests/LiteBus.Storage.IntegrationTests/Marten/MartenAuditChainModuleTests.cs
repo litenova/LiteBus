@@ -4,6 +4,7 @@ using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing.Checkpoints;
 using LiteBus.Auditing.Linking;
 using LiteBus.Auditing.Storage.Marten;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
@@ -58,11 +59,14 @@ public sealed class MartenAuditChainModuleTests
 
         registry.AddAuditing(auditing => auditing.ForCommands().UseMartenStore().UseHashChain(_ => { }));
 
-        registry.Modules.Should().ContainSingle().Subject.Should().BeOfType<AuditingModule>();
+        // Auditing brings the messaging module it builds on when the composition has none yet.
+        registry.Modules.Should().HaveCount(2);
+        registry.Modules.Should().ContainSingle(module => module is AuditingModule);
+        registry.Modules.Should().ContainSingle(module => module is MessageModule);
 
         registry.AddAuditing(auditing => auditing.ForCommands().UseMartenStore());
 
-        registry.Modules.Should().ContainSingle();
+        registry.Modules.Should().HaveCount(2);
     }
 
     private sealed class FakeModuleRegistry : IModuleRegistry
