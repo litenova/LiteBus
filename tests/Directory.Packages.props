@@ -14,10 +14,7 @@
         <PackageVersion Include="OpenTelemetry" Version="1.20.1"/>
         <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0"/>
         <PackageVersion Include="Npgsql" Version="10.0.3"/>
-        <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3"/>
         <PackageVersion Include="Testcontainers" Version="4.16.0"/>
-        <!-- Oracle's provider: Pomelo.EntityFrameworkCore.MySql has no EF Core 10 release yet. -->
-        <PackageVersion Include="MySql.EntityFrameworkCore" Version="10.0.12"/>
         <PackageVersion Include="Testcontainers.PostgreSql" Version="4.16.0"/>
         <PackageVersion Include="Testcontainers.MsSql" Version="4.16.0"/>
         <PackageVersion Include="Testcontainers.MySql" Version="4.16.0"/>
@@ -64,6 +61,9 @@
         <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.14"/>
         <!-- Held on 2.1.x to match the SQLitePCLRaw major that the EF Core 10 SQLite provider was built against. -->
         <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.14"/>
+        <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3"/>
+        <!-- Oracle's provider: Pomelo.EntityFrameworkCore.MySql has no EF Core 10 release yet. -->
+        <PackageVersion Include="MySql.EntityFrameworkCore" Version="10.0.12"/>
     </ItemGroup>
     <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
         <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="11.0.0"/>
@@ -80,5 +80,14 @@
         <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="11.0.0"/>
         <!-- The EF Core 11 SQLite provider is built against SQLitePCLRaw 3. -->
         <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5"/>
+        <!--
+            Pre-releases, in the tests only: neither provider has a stable release for EF Core 11 yet. No shipped package
+            references a provider. Move both to their stable 11.0 releases when they ship.
+            The PostgreSQL release candidate pins EF Core to exactly 11.0.0-rc.3; the test project's direct EF Core 11.0.0
+            reference wins, which NuGet reports as NU1608 (see LiteBus.Storage.IntegrationTests.csproj).
+        -->
+        <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="11.0.0-rc.3"/>
+        <!-- Built on EF Core 11 preview 7; Oracle has published no release candidate. -->
+        <PackageVersion Include="MySql.EntityFrameworkCore" Version="11.0.0-preview"/>
     </ItemGroup>
 </Project>
