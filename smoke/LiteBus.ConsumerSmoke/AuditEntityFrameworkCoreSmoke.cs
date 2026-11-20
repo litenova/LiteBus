@@ -41,7 +41,6 @@ internal static class AuditEntityFrameworkCoreSmoke
         var recorder = new SmokeRecorder();
         var services = new ServiceCollection();
         services.AddSingleton(recorder);
-        services.AddDbContext<AuditSmokeDbContext>(options => options.UseNpgsql(connectionString));
         services.AddDbContextFactory<AuditSmokeDbContext>(options => options.UseNpgsql(connectionString));
         services.AddSingleton<IAuditDbContextFactory, EfCoreAuditDbContextFactory<AuditSmokeDbContext>>();
         services.AddScoped<IAuditDbContext>(provider => provider.GetRequiredService<AuditSmokeDbContext>());

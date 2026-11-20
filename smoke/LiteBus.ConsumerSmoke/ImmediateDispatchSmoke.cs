@@ -53,7 +53,6 @@ internal static class ImmediateDispatchSmoke
         var services = new ServiceCollection();
         services.AddSingleton(recorder);
         services.AddSingleton(gate);
-        services.AddDbContextFactory<SmokeDbContext>(options => options.UseNpgsql(connectionString));
         services.AddLiteBus(liteBus =>
         {
             liteBus.AddMessaging(_ =>
@@ -92,7 +91,8 @@ internal static class ImmediateDispatchSmoke
                 outbox.EnableImmediateDispatch();
             });
         });
-        services.AddDbContext<SmokeDbContext>((serviceProvider, options) => options
+        // One registration: AddDbContextFactory supplies the singleton factory the stores use and the scoped context.
+        services.AddDbContextFactory<SmokeDbContext>((serviceProvider, options) => options
             .UseNpgsql(connectionString)
             .AddLiteBusOutboxInterceptor(serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
 

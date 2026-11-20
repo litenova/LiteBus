@@ -30,7 +30,6 @@ internal static class CommandBatchSmoke
     internal static async Task RunAsync(string connectionString)
     {
         var services = new ServiceCollection();
-        services.AddDbContextFactory<SmokeDbContext>(options => options.UseNpgsql(connectionString));
         services.AddLiteBus(liteBus =>
         {
             liteBus.AddMessaging(_ =>
@@ -53,7 +52,8 @@ internal static class CommandBatchSmoke
                 outbox.Contracts.Register<SmokeBatchOrderSubmittedEvent>(OrderSubmittedContract);
             });
         });
-        services.AddDbContext<SmokeDbContext>((serviceProvider, options) => options
+        // One registration: AddDbContextFactory supplies the singleton factory the stores use and the scoped context.
+        services.AddDbContextFactory<SmokeDbContext>((serviceProvider, options) => options
             .UseNpgsql(connectionString)
             .AddLiteBusOutboxInterceptor(serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
 

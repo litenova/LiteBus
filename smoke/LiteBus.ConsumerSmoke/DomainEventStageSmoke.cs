@@ -39,7 +39,6 @@ internal static class DomainEventStageSmoke
         }
 
         var services = new ServiceCollection();
-        services.AddDbContext<DomainEventStageDbContext>((provider, options) => ConfigureOptions(provider, options, connectionString));
         services.AddDbContextFactory<DomainEventStageDbContext>((provider, options) => ConfigureOptions(provider, options, connectionString));
         services.AddLiteBus(liteBus =>
         {
