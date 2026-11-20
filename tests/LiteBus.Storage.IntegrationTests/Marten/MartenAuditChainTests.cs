@@ -273,7 +273,7 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         var workspace = $"workspace-{Guid.NewGuid():N}";
         var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using var configuredBusiness = business.ConfigureAwait(false);
-        var store = new MartenAuditChainStore<WorkspaceAuditDocument>(documentStore, business);
+        var store = new MartenAuditChainStore<WorkspaceAuditDocument>(documentStore);
         var moduleBuilder = new AuditingModuleBuilder();
         moduleBuilder.UseHashChain(chain => chain
             .UseScheme("custom-v1")
@@ -292,7 +292,7 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
                 new Sha256AuditHasher()),
             "test");
         var segmenter = new MartenAuditFuncSegmenter<WorkspaceAuditDocument>(document => document.Workspace);
-        var trail = new MartenAuditTrail<WorkspaceAuditDocument>(store, new WorkspaceAuditMapper(), segmenter);
+        var trail = new MartenAuditTrail<WorkspaceAuditDocument>(store, business, new WorkspaceAuditMapper(), segmenter);
         var linker = new AuditLinker<WorkspaceAuditDocument>(store, segmenter, schemes, chainOptions);
         var lifecycle = new CheckpointLifecycle<WorkspaceAuditDocument>(store, chainOptions, provider);
         var verifier = new AuditVerifier<WorkspaceAuditDocument>(store, schemes, chainOptions, provider);
@@ -678,7 +678,7 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
             IAuditSegmenter<MartenAuditRecord>? segmenter = null)
         {
             var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, business);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
             segmenter ??= new MartenAuditRecordSegmenter();
             var moduleBuilder = new AuditingModuleBuilder();
             moduleBuilder.UseHashChain(configure);
@@ -699,7 +699,7 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
                 lifecycle,
                 segments,
                 new AuditCheckpointStore<MartenAuditRecord>(store));
-            var trail = new MartenAuditTrail<MartenAuditRecord>(store, new MartenAuditRecordMapper(), segmenter);
+            var trail = new MartenAuditTrail<MartenAuditRecord>(store, business, new MartenAuditRecordMapper(), segmenter);
 
             return new MartenChainHarness(business, provider, linker, trail, lifecycle, chain, schemes);
         }
@@ -795,9 +795,9 @@ public sealed class MartenAuditChainTests : IClassFixture<PostgreSqlFixture>
         public string? HashScheme { get; set; }
     }
 
-    private sealed class WorkspaceAuditMapper : IAuditRecordMapper<WorkspaceAuditDocument>
+    private sealed class WorkspaceAuditMapper : AuditRecordMapper<WorkspaceAuditDocument>
     {
-        public WorkspaceAuditDocument Map(AuditRecord record)
+        public override WorkspaceAuditDocument Map(AuditRecord record)
         {
             record.Properties.TryGetValue("workspace", out var workspace);
 

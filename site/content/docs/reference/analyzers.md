@@ -12,7 +12,7 @@
 
 Analyzers have no runtime dependency on LiteBus libraries.
 
-## Rule Inventory (LB1001-LB1029)
+## Rule Inventory (LB1001-LB1030)
 
 | ID | Severity | Category | Summary |
 | --- | --- | --- | --- |
@@ -45,6 +45,7 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | LB1027 | Warning | Outbox | One `[SubscriberName]` value is used by handlers of different messages |
 | LB1028 | Info | Declarations | One definition class declares more than one metadata concern |
 | LB1029 | Warning | Contracts | Durable command or event in an assembly carrying `[assembly: MessageContractsRegisteredIn]` has no `[MessageContract]` |
+| LB1030 | Warning | Contracts | Explicit `Register<TMessage>(name, version)` name or version differs from the message type's `[MessageContract]` |
 
 ## Build-Only Rules
 
@@ -112,6 +113,15 @@ dotnet_diagnostic.LB1020.severity = warning
 ```
 
 A message satisfies the rule with a definition class, with an attribute annotated `[MessageDeclaration(typeof(TValue))]`, or with `[DeclarationExempt(typeof(TValue), "rationale")]`. A declaration written for a base type or marker interface covers the messages that derive from it. With nothing configured the rule reports nothing.
+
+The tenancy attributes (`[TenantRequired]`, `[CrossTenant]`, `[NoTenant]`) declare `TenancyDeclaration`, so the build check for a composition that calls `RequireDeclaration<TenancyDeclaration>()` is this configuration:
+
+```ini
+# .editorconfig
+[*.cs]
+litebus_required_declarations = LiteBus.Messaging.Abstractions.Tenancy.TenancyDeclaration
+dotnet_diagnostic.LB1020.severity = warning
+```
 
 LB1021 reports a configured name that does not resolve, because a name that silently did nothing would disable the requirement it configures. A typo in `.editorconfig` is the usual cause.
 

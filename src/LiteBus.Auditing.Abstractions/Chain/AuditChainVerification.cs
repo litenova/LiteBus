@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace LiteBus.Auditing.Abstractions;
 
@@ -13,9 +14,22 @@ public sealed record AuditChainVerification
     public required string Segment { get; init; }
 
     /// <summary>
-    ///     Gets a value indicating whether the segment has no break.
+    ///     Gets a value indicating whether the segment has no break, including no coverage break.
     /// </summary>
+    /// <remarks>
+    ///     A coverage break such as a missing or stale checkpoint makes this value <see langword="false" /> even when
+    ///     the chain itself was not altered. Use <see cref="IsChainIntact" /> for a tamper check.
+    /// </remarks>
     public bool IsIntact => Breaks.Count == 0;
+
+    /// <summary>
+    ///     Gets a value indicating whether no break reports that the chain or a checkpoint was altered.
+    /// </summary>
+    /// <remarks>
+    ///     Coverage breaks do not affect this value. Use <see cref="IsIntact" /> when coverage must be current as
+    ///     well.
+    /// </remarks>
+    public bool IsChainIntact => Breaks.All(static item => item.Category != AuditChainBreakCategory.Integrity);
 
     /// <summary>
     ///     Gets the number of documents read from the segment.

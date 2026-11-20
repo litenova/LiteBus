@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using LiteBus.Auditing.Storage.PostgreSql;
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Storage.PostgreSql;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
 namespace LiteBus.Storage.IntegrationTests.PostgreSql;
@@ -221,10 +222,12 @@ public sealed class PostgreSqlAuditTrailTests : IClassFixture<PostgreSqlFixture>
     {
         return new PostgreSqlAuditTrail<PostgreSqlAuditRecord>(
             new PostgreSqlAuditChainStore<PostgreSqlAuditRecord>(
-                new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options),
-                provider),
+                new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options)),
             new PostgreSqlAuditRecordMapper(),
-            new PostgreSqlAuditRecordSegmenter());
+            new PostgreSqlAuditRecordSegmenter(),
+            provider is null
+                ? null
+                : new ServiceCollection().AddSingleton<IPostgreSqlTransactionProvider>(provider).BuildServiceProvider());
     }
 
     private async Task<PostgreSqlAuditRecord?> FindUnlinkedAsync(

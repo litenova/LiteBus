@@ -34,7 +34,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
 
             var head = await store
                 .ReadHeadAsync($"unknown-{Guid.NewGuid():N}", CancellationToken.None)
@@ -50,7 +50,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var segment = UniqueSegment("append");
             var expected = InitialHead(segment, "tenant-a");
             EfCoreAuditRecord[] documents =
@@ -108,7 +108,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var segment = UniqueSegment("stale");
             var expected = InitialHead(segment, "tenant-a");
             var updated = expected with { LastSequence = 1, LastHash = "hash-1", Count = 1, Version = 1 };
@@ -141,12 +141,12 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
     }
 
     [Fact]
-    public async Task AppendAsync_after_a_conflict_retries_on_the_same_scope()
+    public async Task AppendAsync_after_a_conflict_succeeds_against_the_freshly_read_winner()
     {
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var segment = UniqueSegment("retry");
             var first = InitialHead(segment, "tenant-a");
             var linked = first with { LastSequence = 1, LastHash = "hash-1", Count = 1, Version = 1 };
@@ -164,6 +164,8 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
 
             await stale.Should().ThrowAsync<AuditHeadConflictException>().ConfigureAwait(false);
 
+            // The failed append ran on a short context the store disposed, so the next read sees the stored
+            // winner and a new append against it commits the remaining document.
             var winner = await store.ReadHeadAsync(segment, CancellationToken.None).ConfigureAwait(false);
             winner.Should().NotBeNull();
             var retried = winner! with { LastSequence = 2, LastHash = "hash-2", Count = 2, Version = 2 };
@@ -190,7 +192,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var first = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (first.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(first);
+            var store = CreateStore();
             var expected = InitialHead(segment, "tenant-a");
             var updated = expected with { LastSequence = 1, LastHash = "hash-1", Count = 1, Version = 1 };
 
@@ -202,7 +204,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var second = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (second.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(second);
+            var store = CreateStore();
             var stale = InitialHead(segment, "tenant-a");
 
             var append = () => store.AppendAsync(
@@ -222,13 +224,13 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
     }
 
     [Fact]
-    public async Task AppendAsync_with_a_stale_tracked_head_throws_a_head_conflict()
+    public async Task AppendAsync_with_a_head_moved_by_another_store_throws_a_head_conflict()
     {
         var segment = UniqueSegment("tracked-stale");
         var trailing = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (trailing.ConfigureAwait(false))
         {
-            var trailingStore = new EfCoreAuditChainStore<EfCoreAuditRecord>(trailing);
+            var trailingStore = CreateStore();
             var first = InitialHead(segment, "tenant-a");
             var linked = first with { LastSequence = 1, LastHash = "hash-1", Count = 1, Version = 1 };
 
@@ -239,7 +241,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
             var leading = await CreatePreparedContextAsync().ConfigureAwait(false);
             await using (leading.ConfigureAwait(false))
             {
-                var leadingStore = new EfCoreAuditChainStore<EfCoreAuditRecord>(leading);
+                var leadingStore = CreateStore();
                 var winner = linked with { LastSequence = 2, LastHash = "hash-leading", Count = 2, Version = 2 };
 
                 await leadingStore
@@ -247,8 +249,8 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
                     .ConfigureAwait(false);
             }
 
-            // The trailing scope still tracks version 1, so its explicit check passes and the concurrency
-            // token reports the lost race on save.
+            // Each append reads the head on a fresh context, so the trailing writer's stale version fails
+            // the store's explicit head check against the version the leading writer committed.
             var conflict = () => trailingStore.AppendAsync(
                 segment,
                 linked,
@@ -270,7 +272,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var segment = UniqueSegment("expired");
             var expected = InitialHead(segment, "tenant-a");
             var linked = expected with { LastSequence = 1, LastHash = "hash-1", Count = 1, Version = 1 };
@@ -303,7 +305,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var segment = UniqueSegment("head-only");
             var expected = InitialHead(segment, "tenant-a");
             var linked = expected with { LastSequence = 1, LastHash = "hash-1", Count = 1, Version = 1 };
@@ -348,13 +350,13 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var business = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (business.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(business, clock);
+            var store = CreateStore(clock);
 
-            await store.StageAsync(segment, UnlinkedDocument("orders.place-order"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, UnlinkedDocument("orders.place-order"), CancellationToken.None).ConfigureAwait(false);
             clock.Advance(TimeSpan.FromSeconds(1));
-            await store.StageAsync(segment, UnlinkedDocument("orders.reserve-stock"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, UnlinkedDocument("orders.reserve-stock"), CancellationToken.None).ConfigureAwait(false);
             clock.Advance(TimeSpan.FromSeconds(1));
-            await store.StageAsync(segment, UnlinkedDocument("orders.charge-card"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, UnlinkedDocument("orders.charge-card"), CancellationToken.None).ConfigureAwait(false);
 
             await business.SaveChangesAsync().ConfigureAwait(false);
         }
@@ -362,7 +364,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var read = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (read.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(read, clock);
+            var store = CreateStore(clock);
             var unlinked = await CollectAsync(
                     store.ListUnlinkedAsync(segment, null, CancellationToken.None))
                 .ConfigureAwait(false);
@@ -384,16 +386,16 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var business = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (business.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(business, clock);
+            var store = CreateStore(clock);
 
-            await store.StageAsync(segment, UnlinkedDocument("orders.place-order"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, UnlinkedDocument("orders.place-order"), CancellationToken.None).ConfigureAwait(false);
             await business.SaveChangesAsync().ConfigureAwait(false);
         }
 
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context, clock);
+            var store = CreateStore(clock);
 
             var placeholder = await store.ReadHeadAsync(segment, CancellationToken.None).ConfigureAwait(false);
             placeholder.Should().NotBeNull();
@@ -431,15 +433,15 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var business = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (business.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(business);
+            var store = CreateStore();
 
-            await store.StageAsync(segment, UnlinkedDocument("orders.place-order"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, UnlinkedDocument("orders.place-order"), CancellationToken.None).ConfigureAwait(false);
         }
 
         var read = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (read.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(read);
+            var store = CreateStore();
 
             var unlinked = await CollectAsync(
                     store.ListUnlinkedAsync(segment, null, CancellationToken.None))
@@ -461,10 +463,10 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var business = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (business.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(business);
+            var store = CreateStore();
 
-            await store.StageAsync(segment, first, CancellationToken.None).ConfigureAwait(false);
-            await store.StageAsync(segment, second, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, first, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, second, CancellationToken.None).ConfigureAwait(false);
 
             await business.SaveChangesAsync().ConfigureAwait(false);
         }
@@ -472,7 +474,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var link = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (link.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(link);
+            var store = CreateStore();
             var pending = await CollectAsync(
                     store.ListUnlinkedAsync(segment, null, CancellationToken.None))
                 .ConfigureAwait(false);
@@ -522,10 +524,10 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var business = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (business.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(business);
+            var store = CreateStore();
 
-            await store.StageAsync(segment, document, CancellationToken.None).ConfigureAwait(false);
-            await store.StageAsync(segment, document, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, document, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, document, CancellationToken.None).ConfigureAwait(false);
 
             await business.SaveChangesAsync().ConfigureAwait(false);
         }
@@ -533,11 +535,11 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var restage = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (restage.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(restage);
+            var store = CreateStore();
             var redelivered = UnlinkedDocument("orders.place-order");
             redelivered.Id = document.Id;
 
-            await store.StageAsync(segment, redelivered, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(restage, segment, redelivered, CancellationToken.None).ConfigureAwait(false);
             await restage.SaveChangesAsync().ConfigureAwait(false);
 
             var unlinked = await CollectAsync(
@@ -554,10 +556,10 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var segment = UniqueSegment("linked-stage");
 
-            var stage = () => store.StageAsync(segment, LinkedDocument(segment, 1, null, "hash-1"), CancellationToken.None).AsTask();
+            var stage = () => store.StageAsync(context, segment, LinkedDocument(segment, 1, null, "hash-1"), CancellationToken.None).AsTask();
 
             var thrown = await stage.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
             thrown.WithMessage("*chain position*");
@@ -573,9 +575,10 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = new UnmappedAuditDbContext(options);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(
+                new EfCoreAuditTestContextFactory(() => new UnmappedAuditDbContext(options)));
 
-            var stage = () => store.StageAsync(UniqueSegment("unmapped"), UnlinkedDocument("orders.place-order"), CancellationToken.None).AsTask();
+            var stage = () => store.StageAsync(context, UniqueSegment("unmapped"), UnlinkedDocument("orders.place-order"), CancellationToken.None).AsTask();
 
             var thrown = await stage.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
             thrown.WithMessage("*GetModelBuilderConfiguration*");
@@ -588,7 +591,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var segment = UniqueSegment("paging");
             var expected = InitialHead(segment, "tenant-a");
             EfCoreAuditRecord[] documents =
@@ -633,7 +636,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
 
             var read = async () =>
             {
@@ -651,7 +654,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var tenant = $"tenant-{Guid.NewGuid():N}";
             var first = UniqueSegment("heads-first");
             var second = UniqueSegment("heads-second");
@@ -736,7 +739,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var segment = UniqueSegment("checkpoints");
             var checkpoint = new AuditCheckpoint(
                 Guid.NewGuid(),
@@ -801,7 +804,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var checkpoint = new AuditCheckpoint(
                 Guid.NewGuid(),
                 UniqueSegment("signatures"),
@@ -856,7 +859,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
 
             await store.StoreCheckpointAsync(checkpoint, CancellationToken.None).ConfigureAwait(false);
             await store.StoreCheckpointAsync(checkpoint with { }, CancellationToken.None).ConfigureAwait(false);
@@ -865,7 +868,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var retry = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (retry.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(retry);
+            var store = CreateStore();
 
             await store.StoreCheckpointAsync(checkpoint with { }, CancellationToken.None).ConfigureAwait(false);
 
@@ -895,7 +898,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
 
             await store.StoreCheckpointAsync(checkpoint, CancellationToken.None).ConfigureAwait(false);
         }
@@ -903,7 +906,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var retry = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (retry.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(retry);
+            var store = CreateStore();
             var changed = checkpoint with { Hash = "hash-changed" };
 
             var storeAgain = () => store.StoreCheckpointAsync(changed, CancellationToken.None).AsTask();
@@ -922,7 +925,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var unknownId = Guid.NewGuid();
 
             await store.MarkPublishedAsync(unknownId, null, CancellationToken.None).ConfigureAwait(false);
@@ -938,7 +941,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var segment = UniqueSegment("latest");
 
             await store
@@ -975,7 +978,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var business = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (business.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(business);
+            var store = CreateStore();
             var erasedHead = InitialHead(erasedSegment, erasedTenant);
             var keptHead = InitialHead(keptSegment, keptTenant);
 
@@ -996,8 +999,8 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
                     CancellationToken.None)
                 .ConfigureAwait(false);
 
-            await store.StageAsync(erasedSegment, UnlinkedDocument("orders.place-order"), CancellationToken.None).ConfigureAwait(false);
-            await store.StageAsync(keptSegment, UnlinkedDocument("orders.reserve-stock"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, erasedSegment, UnlinkedDocument("orders.place-order"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, keptSegment, UnlinkedDocument("orders.reserve-stock"), CancellationToken.None).ConfigureAwait(false);
             await business.SaveChangesAsync().ConfigureAwait(false);
 
             await store
@@ -1015,7 +1018,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var erase = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (erase.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(erase);
+            var store = CreateStore();
 
             await store
                 .EraseAsync(new AuditSegmentFilter(TenantId: erasedTenant), CancellationToken.None)
@@ -1072,21 +1075,21 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var business = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (business.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(business);
+            var store = CreateStore();
             var erased = UnlinkedDocument("orders.place-order");
             erased.TenantId = erasedTenant;
             var kept = UnlinkedDocument("orders.reserve-stock");
             kept.TenantId = keptTenant;
 
-            await store.StageAsync(erasedSegment, erased, CancellationToken.None).ConfigureAwait(false);
-            await store.StageAsync(keptSegment, kept, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, erasedSegment, erased, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, keptSegment, kept, CancellationToken.None).ConfigureAwait(false);
             await business.SaveChangesAsync().ConfigureAwait(false);
         }
 
         var erase = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (erase.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(erase);
+            var store = CreateStore();
 
             await store
                 .EraseAsync(new AuditSegmentFilter(TenantId: erasedTenant), CancellationToken.None)
@@ -1119,7 +1122,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var business = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (business.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(business);
+            var store = CreateStore();
             var expected = InitialHead(segment, tenant);
             var linked = expected with { LastSequence = 1, LastHash = "hash-1", Count = 1, Version = 1 };
 
@@ -1135,7 +1138,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var erase = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (erase.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(erase);
+            var store = CreateStore();
 
             await store
                 .EraseAsync(new AuditSegmentFilter(TenantId: tenant), CancellationToken.None)
@@ -1160,7 +1163,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var business = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (business.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(business);
+            var store = CreateStore();
             var erasedInfo = new AuditSegmentInfo(
                 erasedSegment,
                 null,
@@ -1195,7 +1198,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var erase = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (erase.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(erase);
+            var store = CreateStore();
             var filter = new Dictionary<string, string> { ["class"] = "tax" };
 
             await store
@@ -1229,7 +1232,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var business = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (business.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(business);
+            var store = CreateStore();
             var expected = InitialHead(segment, "tenant-a");
             var updated = expected with { LastSequence = 1, LastHash = "hash-1", Count = 1, Version = 1 };
 
@@ -1246,7 +1249,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var erase = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (erase.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(erase);
+            var store = CreateStore();
 
             await store
                 .EraseAsync(new AuditSegmentFilter(TenantId: $"nobody-{Guid.NewGuid():N}"), CancellationToken.None)
@@ -1272,7 +1275,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             using var cancellationSource = new CancellationTokenSource();
             await cancellationSource.CancelAsync().ConfigureAwait(false);
 
@@ -1288,7 +1291,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var segment = UniqueSegment("cancelled-append");
             using var cancellationSource = new CancellationTokenSource();
             await cancellationSource.CancelAsync().ConfigureAwait(false);
@@ -1316,7 +1319,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var segment = UniqueSegment("segment");
             var expected = InitialHead(segment, "tenant-a");
 
@@ -1338,7 +1341,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var segment = UniqueSegment("assigned");
             var expected = InitialHead(segment, "tenant-a");
             var document = UnlinkedDocument("orders.place-order");
@@ -1372,16 +1375,16 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var business = await CreatePreparedCustomContextAsync().ConfigureAwait(false);
         await using (business.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<CustomAuditDocument>(business, clock);
+            var store = CreateCustomStore(clock);
             var first = new CustomAuditDocument { Id = Guid.NewGuid(), Marker = "marker-1" };
 
-            await store.StageAsync(segment, first, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, first, CancellationToken.None).ConfigureAwait(false);
             business.Entry(first).Property("StagedAt").CurrentValue.Should().Be(OpenedAt);
 
             clock.Advance(TimeSpan.FromSeconds(1));
             var second = new CustomAuditDocument { Id = Guid.NewGuid(), Marker = "marker-2" };
 
-            await store.StageAsync(segment, second, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, second, CancellationToken.None).ConfigureAwait(false);
             business.Entry(second).Property("StagedAt").CurrentValue.Should().Be(OpenedAt.AddSeconds(1));
 
             await business.SaveChangesAsync().ConfigureAwait(false);
@@ -1390,7 +1393,7 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         var link = await CreatePreparedCustomContextAsync().ConfigureAwait(false);
         await using (link.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<CustomAuditDocument>(link, clock);
+            var store = CreateCustomStore(clock);
             var pending = await CollectAsync(
                     store.ListUnlinkedAsync(segment, null, CancellationToken.None))
                 .ConfigureAwait(false);
@@ -1441,22 +1444,72 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
         }
     }
 
-    private async Task<EfCoreAuditTestDbContext> CreatePreparedContextAsync()
+    /// <summary>
+    ///     Builds a chain store whose operations open fresh contexts on the fixture database.
+    /// </summary>
+    /// <param name="clock">The clock the store stamps staged documents with, or <see langword="null" /> for the system clock.</param>
+    /// <returns>The store.</returns>
+    private EfCoreAuditChainStore<EfCoreAuditRecord> CreateStore(TimeProvider? clock = null)
     {
-        var context = new EfCoreAuditTestDbContext(
+        return new EfCoreAuditChainStore<EfCoreAuditRecord>(
+            new EfCoreAuditTestContextFactory(() =>
+            {
+                var context = CreateContext();
+                context.Database.EnsureCreated();
+                return context;
+            }),
+            clock);
+    }
+
+    /// <summary>
+    ///     Builds a chain store for the custom document whose operations open fresh contexts on the custom database.
+    /// </summary>
+    /// <param name="clock">The clock the store stamps staged documents with, or <see langword="null" /> for the system clock.</param>
+    /// <returns>The store.</returns>
+    private EfCoreAuditChainStore<CustomAuditDocument> CreateCustomStore(TimeProvider? clock = null)
+    {
+        return new EfCoreAuditChainStore<CustomAuditDocument>(
+            new EfCoreAuditTestContextFactory(() =>
+            {
+                var context = CreateCustomContext();
+                context.Database.EnsureCreated();
+                return context;
+            }),
+            clock);
+    }
+
+    /// <summary>
+    ///     Creates an audit test context over the fixture database without creating the schema.
+    /// </summary>
+    /// <returns>The context.</returns>
+    private EfCoreAuditTestDbContext CreateContext()
+    {
+        return new EfCoreAuditTestDbContext(
             new DbContextOptionsBuilder<EfCoreAuditTestDbContext>()
                 .UseSqlite(_fixture.ConnectionString)
                 .ReplaceService<IModelCacheKeyFactory, EfCoreAuditTestDbContext.ModelCacheKeyFactory>()
                 .Options,
             new EntityFrameworkCoreAuditStoreOptions(),
             EfCoreStorageProvider.Sqlite);
+    }
 
+    /// <summary>
+    ///     Creates an audit test context over the fixture database with the audit tables created.
+    /// </summary>
+    /// <returns>The context.</returns>
+    private async Task<EfCoreAuditTestDbContext> CreatePreparedContextAsync()
+    {
+        var context = CreateContext();
         await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
 
         return context;
     }
 
-    private async Task<CustomAuditDbContext> CreatePreparedCustomContextAsync()
+    /// <summary>
+    ///     Creates a context over the custom document database without creating the schema.
+    /// </summary>
+    /// <returns>The context.</returns>
+    private CustomAuditDbContext CreateCustomContext()
     {
         // The custom document model needs its own tables, and EnsureCreated creates nothing when the
         // database file already exists. The fixture file already holds the audit tables by the time this
@@ -1471,11 +1524,19 @@ public sealed class EfCoreAuditChainStoreTests : IClassFixture<SqliteDatabaseFix
             DefaultTimeout = 30,
             Pooling = false
         }.ToString();
-        var context = new CustomAuditDbContext(
+        return new CustomAuditDbContext(
             new DbContextOptionsBuilder<CustomAuditDbContext>()
                 .UseSqlite(connectionString)
                 .Options);
+    }
 
+    /// <summary>
+    ///     Creates a context over the custom document database with the audit tables created.
+    /// </summary>
+    /// <returns>The context.</returns>
+    private async Task<CustomAuditDbContext> CreatePreparedCustomContextAsync()
+    {
+        var context = CreateCustomContext();
         await context.Database.EnsureCreatedAsync().ConfigureAwait(false);
 
         return context;

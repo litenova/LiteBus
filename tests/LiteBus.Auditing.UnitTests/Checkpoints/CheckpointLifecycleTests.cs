@@ -604,12 +604,6 @@ public sealed class CheckpointLifecycleTests
         }
 
         /// <inheritdoc />
-        public ValueTask StageAsync(string segment, TestAuditDocument document, CancellationToken cancellationToken)
-        {
-            return ValueTask.CompletedTask;
-        }
-
-        /// <inheritdoc />
         public async IAsyncEnumerable<TestAuditDocument> ListUnlinkedAsync(
             string segment,
             TimeSpan? olderThan,

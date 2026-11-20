@@ -28,12 +28,13 @@ namespace LiteBus.Auditing.Storage.Marten;
 ///         convention, so staged documents can be ordered and erased. The constructor fails when it does not.
 ///     </para>
 ///     <para>
-///         Staging joins the business unit of work: <see cref="StageAsync" /> stores the document and its
-///         <see cref="MartenAuditUnlinkedEntry" /> on the scoped <see cref="IDocumentSession" /> without saving,
-///         so both commit or roll back with the handler change. Every other operation opens its own short session
-///         from <see cref="IDocumentStore" />, so one instance serves every caller. Register this store scoped,
-///         because it captures the scoped session. The application registers Marten itself with <c>AddMarten</c>,
-///         which supplies both the scoped session and the document store; LiteBus does not register Marten.
+///         The store holds no session. Staging joins the business unit of work through the session the caller
+///         passes: <see cref="StageAsync" /> stores the document and its <see cref="MartenAuditUnlinkedEntry" /> on
+///         that session without saving, so both commit or roll back with the handler change. Every other operation
+///         opens its own short session from <see cref="IDocumentStore" />, so one instance serves every caller and
+///         the auditing module registers it as a singleton. The application registers Marten itself with
+///         <c>AddMarten</c>, which supplies both the scoped session and the document store; LiteBus does not
+///         register Marten.
 ///     </para>
 ///     <para>
 ///         Appends serialize on the segment head. The store checks the expected head version explicitly and relies
@@ -56,11 +57,6 @@ public sealed class MartenAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     private readonly IDocumentStore _documentStore;
 
     /// <summary>
-    ///     Gets the scoped document session that carries staged documents until the unit of work commits.
-    /// </summary>
-    private readonly IDocumentSession _session;
-
-    /// <summary>
     ///     Gets the clock that stamps staged entries.
     /// </summary>
     private readonly TimeProvider _clock;
@@ -80,19 +76,15 @@ public sealed class MartenAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     ///     Initializes a new instance of the <see cref="MartenAuditChainStore{TDocument}" /> class.
     /// </summary>
     /// <param name="documentStore">The application-owned Marten document store.</param>
-    /// <param name="session">The scoped document session the handler staged its documents on.</param>
     /// <param name="clock">The clock that stamps staged entries, or <see langword="null" /> for <see cref="TimeProvider.System" />.</param>
     /// <exception cref="InvalidOperationException"><typeparamref name="TDocument" /> carries no readable <c>Id</c> property.</exception>
     public MartenAuditChainStore(
         IDocumentStore documentStore,
-        IDocumentSession session,
         TimeProvider? clock = null)
     {
         ArgumentNullException.ThrowIfNull(documentStore);
-        ArgumentNullException.ThrowIfNull(session);
 
         _documentStore = documentStore;
-        _session = session;
         _clock = clock ?? TimeProvider.System;
         _identityProperty = ResolveIdentityProperty();
         _tenantProperty = ResolveTenantProperty();
@@ -206,16 +198,28 @@ public sealed class MartenAuditChainStore<TDocument> : IAuditChainStore<TDocumen
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Stages an unlinked document on the business session without saving it.
+    /// </summary>
+    /// <param name="session">The scoped business session the handler change is written on.</param>
+    /// <param name="segment">The segment the document belongs to. The store assigns the document to it.</param>
+    /// <param name="document">The document without a chain position.</param>
+    /// <param name="cancellationToken">The token used to cancel the staging.</param>
+    /// <returns>A task representing the asynchronous staging.</returns>
     /// <remarks>
-    ///     Staged, not saved: the unit-of-work completion handler commits the scoped session, so the document and
-    ///     its staged entry commit in the same <c>SaveChangesAsync</c> as the handler change. Staging the same
-    ///     document twice replaces its entry rather than duplicating it, so a redelivered record overwrites
-    ///     rather than duplicates.
+    ///     Staged, not saved: the unit-of-work completion handler commits the session, so the document and its
+    ///     staged entry commit in the same <c>SaveChangesAsync</c> as the handler change, and the linker assigns the
+    ///     document its position after commit. Staging the same document twice replaces its entry rather than
+    ///     duplicating it, so a redelivered record overwrites rather than duplicates.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The document already carries a chain position.</exception>
-    public ValueTask StageAsync(string segment, TDocument document, CancellationToken cancellationToken)
+    public ValueTask StageAsync(
+        IDocumentSession session,
+        string segment,
+        TDocument document,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(session);
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
         ArgumentNullException.ThrowIfNull(document);
 
@@ -230,10 +234,10 @@ public sealed class MartenAuditChainStore<TDocument> : IAuditChainStore<TDocumen
         }
 
         document.Segment = segment;
-        _session.Store(document);
-        _session.DeleteWhere<MartenAuditUnlinkedEntry>(
+        session.Store(document);
+        session.DeleteWhere<MartenAuditUnlinkedEntry>(
             entry => entry.Segment == segment && entry.DocumentKey == key);
-        _session.Store(new MartenAuditUnlinkedEntry
+        session.Store(new MartenAuditUnlinkedEntry
         {
             Id = Guid.NewGuid(),
             Segment = segment,
@@ -272,11 +276,6 @@ public sealed class MartenAuditChainStore<TDocument> : IAuditChainStore<TDocumen
             await StageOutOfBandAsync(session, segment, document, cancellationToken).ConfigureAwait(false);
         }
     }
-
-    /// <summary>
-    ///     Gets the scoped business session the success path stages documents on.
-    /// </summary>
-    internal IDocumentSession BusinessSession => _session;
 
     /// <summary>
     ///     Opens a short session for the out-of-band path, outside the business transaction.

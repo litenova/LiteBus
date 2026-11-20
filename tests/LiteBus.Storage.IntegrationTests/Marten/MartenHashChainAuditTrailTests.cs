@@ -103,9 +103,10 @@ public sealed class MartenHashChainAuditTrailTests : IClassFixture<PostgreSqlFix
         var segment = $"{category}/2026";
         var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using var configuredBusiness = business.ConfigureAwait(false);
-        var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, business);
+        var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
         var trail = new MartenAuditTrail<MartenAuditRecord>(
             store,
+            business,
             new MartenAuditRecordMapper(),
             new MartenAuditRecordSegmenter());
         using var provider = new ServiceCollection().BuildServiceProvider();
@@ -432,7 +433,7 @@ public sealed class MartenHashChainAuditTrailTests : IClassFixture<PostgreSqlFix
             Action<ServiceCollection>? configureServices = null)
         {
             var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, business);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
             var segmenter = new MartenAuditRecordSegmenter();
             var moduleBuilder = new AuditingModuleBuilder();
             moduleBuilder.UseHashChain(configure);
@@ -453,7 +454,7 @@ public sealed class MartenHashChainAuditTrailTests : IClassFixture<PostgreSqlFix
                 lifecycle,
                 segments,
                 new AuditCheckpointStore<MartenAuditRecord>(store));
-            var trail = new MartenAuditTrail<MartenAuditRecord>(store, new MartenAuditRecordMapper(), segmenter);
+            var trail = new MartenAuditTrail<MartenAuditRecord>(store, business, new MartenAuditRecordMapper(), segmenter);
 
             return new MartenChainHarness(business, provider, linker, trail, lifecycle, chain);
         }

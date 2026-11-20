@@ -28,7 +28,7 @@ public sealed class EfCoreAuditChainStoreContractTests
     }
 
     /// <inheritdoc />
-    protected override IAuditChainStore<EfCoreAuditRecord> CreateStore()
+    protected override IStagingAuditChainStore<EfCoreAuditRecord> CreateStore()
     {
         ResetAuditTablesAsync().GetAwaiter().GetResult();
 
@@ -74,7 +74,7 @@ public sealed class EfCoreAuditChainStoreContractTests
             EfCoreStorageProvider.Sqlite);
     }
 
-    private sealed class PerOperationEfCoreAuditChainStore : IAuditChainStore<EfCoreAuditRecord>
+    private sealed class PerOperationEfCoreAuditChainStore : IStagingAuditChainStore<EfCoreAuditRecord>
     {
         private readonly Func<EfCoreAuditTestDbContext> _createContext;
         private readonly TimeProvider _clock;
@@ -113,7 +113,7 @@ public sealed class EfCoreAuditChainStoreContractTests
             // suite has no business change, so the adapter saves after every stage to make staged
             // documents visible to the unlinked listings.
             using var context = _createContext();
-            await CreateStore(context).StageAsync(segment, document, cancellationToken).ConfigureAwait(false);
+            await CreateStore(context).StageAsync(context, segment, document, cancellationToken).ConfigureAwait(false);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -212,12 +212,30 @@ public sealed class EfCoreAuditChainStoreContractTests
 
         private EfCoreAuditChainStore<EfCoreAuditRecord> CreateStore(EfCoreAuditTestDbContext context)
         {
-            return new EfCoreAuditChainStore<EfCoreAuditRecord>(context, _clock);
+            return new EfCoreAuditChainStore<EfCoreAuditRecord>(new SingleContextFactory(context), _clock);
         }
 
         private static bool IsPlaceholder(AuditSegmentHead? head)
         {
             return head is not null && head.Version == 0 && head.Count == 0 && head.LastSequence == 0 && head.LastHash is null;
+        }
+    }
+
+    /// <summary>
+    ///     Hands the store the context the adapter opened for one operation.
+    /// </summary>
+    private sealed class SingleContextFactory : IAuditDbContextFactory
+    {
+        private readonly EfCoreAuditTestDbContext _context;
+
+        public SingleContextFactory(EfCoreAuditTestDbContext context)
+        {
+            _context = context;
+        }
+
+        public IAuditDbContext CreateDbContext()
+        {
+            return _context;
         }
     }
 

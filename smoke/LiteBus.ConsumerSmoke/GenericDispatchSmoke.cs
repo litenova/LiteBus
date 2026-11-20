@@ -53,7 +53,7 @@ internal static class GenericDispatchSmoke
                     events.Register(typeof(SmokeEntityChangedEventHandler<>));
                 });
             })
-            .BuildServiceProvider();
+            .BuildServiceProvider(Smoke.DevelopmentValidation);
 
         var list = await provider.GetRequiredService<IQueryMediator>()
             .QueryAsync(new SmokeListQuery<string>("value")).ConfigureAwait(false);

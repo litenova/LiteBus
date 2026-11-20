@@ -15,10 +15,10 @@ namespace LiteBus.Auditing.Storage.EntityFrameworkCore;
 ///     record identity, so a redelivered record overwrites rather than duplicates. The chain writer fills the
 ///     chain fields afterwards, so the mapped document leaves them empty.
 /// </remarks>
-public sealed class EfCoreAuditRecordMapper : IAuditRecordMapper<EfCoreAuditRecord>
+public sealed class EfCoreAuditRecordMapper : AuditRecordMapper<EfCoreAuditRecord>
 {
     /// <inheritdoc />
-    public EfCoreAuditRecord Map(AuditRecord record)
+    public override EfCoreAuditRecord Map(AuditRecord record)
     {
         ArgumentNullException.ThrowIfNull(record);
 

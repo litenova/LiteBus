@@ -2,6 +2,30 @@
 
 This file records the notable changes in each LiteBus release.
 
+## v8.0.0-preview.5
+
+Changes since [v8.0.0-preview.4](https://github.com/litenova/LiteBus/releases/tag/v8.0.0-preview.4). The [v8.0.0](#v800) section describes the whole 8.0.0 line. Previews of one line carry no compatibility promise between each other, so this section lists what changed without upgrade steps.
+
+### Added
+
+- Every package also targets `net11.0`, compiled against the .NET 11 releases of EF Core, `Microsoft.Extensions.*`, `Microsoft.AspNetCore.OpenApi` and `System.Security.Cryptography.Pkcs`.
+- `AuditChainBreak.Category` (`Integrity` or `Coverage`) and `AuditChainVerification.IsChainIntact`, which ignores coverage breaks such as a missing or stale checkpoint.
+- `AuditRecordMapper<TDocument>`, a base class for a mapper that needs no services and implements only `Map`.
+- `LiteBusHostValidation.Validate(IServiceCollection)` in `LiteBus.Testing.Hosting` builds a host's container with scope and build validation, resolves every manifest entry and hosted service without starting them, and reports every failure.
+- Analyzer LB1030 reports a `Register<TMessage>(name, version)` call that disagrees with the type's `[MessageContract]`.
+- `UseEntityFrameworkCoreStore<TContext>()` registers `IAuditDbContext` and `IAuditDbContextFactory` as default ports over the application context.
+
+### Changed
+
+- The audit chain stores are singletons that hold no session, context or transaction, and open their own for every operation. Each store's scoped trail stages a successful mediation's record on that mediation's business session. `IAuditChainStore<TDocument>` no longer has `StageAsync`; the stores' staging methods take the session (`MartenAuditChainStore.StageAsync(session, ...)`, `EfCoreAuditChainStore.StageAsync(businessContext, ...)`, `PostgreSqlAuditChainStore.StageAsync(..., transactionProvider, ...)`). The Entity Framework Core store takes an `IAuditDbContextFactory` instead of a context, and the PostgreSQL store no longer takes an `IPostgreSqlTransactionProvider`.
+- `IAuditRecordMapper<TDocument>` has one member, `MapAsync`.
+- The audit verifier asks the checkpoint policy with the segment head, so a segment that is not yet due for its first checkpoint under a time-based policy verifies intact.
+
+### Fixed
+
+- A host using the Marten, Entity Framework Core or PostgreSQL audit store failed to start under Development scope validation, because the audit engine singletons resolved the scoped chain store from the root provider.
+- A segment that was never checkpointed reported a `CheckpointMissing` break under a daily or weekly checkpoint policy, even on the day it opened.
+
 ## v8.0.0-preview.4
 
 Changes since [v8.0.0-preview.3](https://github.com/litenova/LiteBus/releases/tag/v8.0.0-preview.3). The [v8.0.0](#v800) section describes the whole 8.0.0 line.
@@ -204,6 +228,11 @@ This release makes identity and tenancy part of the pipeline, adds composable au
 - HTTP problem details: a separate unmapped-code policy for validation codes (`UnmappedValidationCode`), `FieldValidationErrorsWriter` for `{ field, code, message }` errors, and the `LiteBus.Extensions.AspNetCore.OpenApi` package that adds the problem members and refusal codes to the OpenAPI document.
 - `StageDomainEvent<TEvent>()` stages a domain event unchanged as its own decision; `ICompositionModel.Handlers` lists every handler with its stage, assembly, subscriber name and delivery; `ICommandBatchParticipant` is a public batch hook.
 - `RecurringCommandHostOptions.Schedule` takes any `ISchedule`, including cron schedules.
+- Each audit store splits its work by lifetime: a singleton chain store that opens its own session, context or connection per operation, shared by the linker, checkpoint lifecycle, verifier and background loops, and a scoped trail that stages a successful mediation's record on its business session. Hosts with Development scope validation start with any store. `UseEntityFrameworkCoreStore<TContext>()` registers `IAuditDbContext` and `IAuditDbContextFactory` as default ports.
+- `IAuditRecordMapper<TDocument>` has one member, `MapAsync`; `AuditRecordMapper<TDocument>` is the base class for a mapper that needs no services.
+- Audit verification reports each break's category (`Integrity` or `Coverage`) and `IsChainIntact`, so a tamper alarm ignores a checkpoint that is not cut yet. The verifier asks the checkpoint policy with the segment head, so a new segment under a time-based policy verifies intact until its first checkpoint is due.
+- `LiteBusHostValidation.Validate(IServiceCollection)` in `LiteBus.Testing.Hosting` validates a host's container in a unit test: scope and build validation, every manifest entry and hosted service resolved without starting, every failure reported.
+- Analyzer LB1030 reports a `Register<TMessage>(name, version)` call that disagrees with the type's `[MessageContract]`.
 
 ### Changed
 

@@ -49,7 +49,7 @@ internal static class AuditPostgreSqlSmoke
                 }));
         });
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider(Smoke.DevelopmentValidation);
         var hosted = await AuditSmokeHost.StartHostAsync(provider).ConfigureAwait(false);
 
         try

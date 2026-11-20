@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing.Storage.PostgreSql;
 using LiteBus.Storage.PostgreSql;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
 namespace LiteBus.Storage.IntegrationTests.PostgreSql;
@@ -125,10 +126,10 @@ public sealed class PostgreSqlAuditMapperTests : IClassFixture<PostgreSqlFixture
     {
         return new PostgreSqlAuditTrail<PostgreSqlAuditRecord>(
             new PostgreSqlAuditChainStore<PostgreSqlAuditRecord>(
-                new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options),
-                provider),
+                new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options)),
             new PseudonymizingMapper(pseudonyms),
-            new PostgreSqlAuditRecordSegmenter());
+            new PostgreSqlAuditRecordSegmenter(),
+            new ServiceCollection().AddSingleton<IPostgreSqlTransactionProvider>(provider).BuildServiceProvider());
     }
 
     /// <summary>
@@ -185,12 +186,6 @@ public sealed class PostgreSqlAuditMapperTests : IClassFixture<PostgreSqlFixture
         public PseudonymizingMapper(string pseudonyms)
         {
             _pseudonyms = pseudonyms;
-        }
-
-        /// <inheritdoc />
-        public PostgreSqlAuditRecord Map(AuditRecord record)
-        {
-            throw new InvalidOperationException("The store must call MapAsync.");
         }
 
         /// <inheritdoc />

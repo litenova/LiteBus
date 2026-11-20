@@ -29,15 +29,14 @@ namespace LiteBus.Auditing.Storage.PostgreSql;
 ///         rather than duplicates.
 ///     </para>
 ///     <para>
-///         Staging joins the business unit of work: <see cref="StageAsync" /> writes through the ambient
-///         <see cref="IPostgreSqlTransactionProvider" /> transaction when one is active, so the staged document
-///         commits or rolls back with the handler change. <see cref="AppendAsync" /> and
-///         <see cref="EraseAsync" /> join it the same way, which is what puts the segment head update inside the
-///         business transaction for <see cref="AuditLink.InTransaction" /> linking. Resolve this store per scope
-///         (transient or scoped) for that join to see the scope's provider; a singleton store only ever sees the
-///         root provider. <see cref="StageOutOfBandAsync" />, the reads, and the checkpoint methods never join the
-///         ambient transaction: a record that must survive a rollback cannot ride it, and the checkpoint lifecycle
-///         runs outside business transactions.
+///         The store holds no connection, transaction or scoped service, so the auditing module registers it as a
+///         singleton. Staging joins the business unit of work through the scoped
+///         <see cref="IPostgreSqlTransactionProvider" /> the caller passes: the audit trail passes its scope's
+///         provider, so a staged success commits or rolls back with the handler change.
+///         <see cref="StageOutOfBandAsync" />, appends, reads, erasure, expiry and the checkpoint methods run on the
+///         store's own connections: a record that must survive a rollback cannot ride the business transaction, and
+///         the linker and the checkpoint lifecycle run after commit, outside business transactions. A caller that
+///         needs those operations inside its own transaction binds the store with <see cref="UseExistingConnection" />.
 ///     </para>
 ///     <para>
 ///         Appends serialize on the segment head. The store locks the head row, checks the expected head version
@@ -97,12 +96,6 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     private readonly NpgsqlTransaction? _transaction;
 
     /// <summary>
-    ///     Supplies the ambient business transaction staged documents join, or <see langword="null" /> when the
-    ///     application registered none.
-    /// </summary>
-    private readonly IPostgreSqlTransactionProvider? _transactionProvider;
-
-    /// <summary>
     ///     The clock that stamps staged documents.
     /// </summary>
     private readonly TimeProvider _clock;
@@ -122,10 +115,6 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     ///     Initializes a new instance of the <see cref="PostgreSqlAuditChainStore{TDocument}" /> class.
     /// </summary>
     /// <param name="registration">The registered PostgreSQL audit store configuration.</param>
-    /// <param name="transactionProvider">
-    ///     The ambient transaction provider staged documents join, or <see langword="null" /> when the application
-    ///     registered none.
-    /// </param>
     /// <param name="clock">The clock that stamps staged documents, or <see langword="null" /> for <see cref="TimeProvider.System" />.</param>
     /// <exception cref="InvalidOperationException"><typeparamref name="TDocument" /> carries no readable <c>Id</c> property.</exception>
     /// <remarks>
@@ -136,7 +125,6 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     /// </remarks>
     public PostgreSqlAuditChainStore(
         PostgreSqlAuditStoreRegistration registration,
-        IPostgreSqlTransactionProvider? transactionProvider = null,
         TimeProvider? clock = null)
     {
         ArgumentNullException.ThrowIfNull(registration);
@@ -147,7 +135,6 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
         _recordsTable = PostgreSqlIdentifier.Qualify(options.SchemaName, options.TableName);
         _headsTable = PostgreSqlIdentifier.Qualify(options.SchemaName, options.HeadsTableName);
         _checkpointsTable = PostgreSqlIdentifier.Qualify(options.SchemaName, options.CheckpointsTableName);
-        _transactionProvider = transactionProvider;
         _clock = clock ?? TimeProvider.System;
         _identityProperty = ResolveIdentityProperty();
         _tenantProperty = ResolveTenantProperty();
@@ -171,7 +158,6 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
         _checkpointsTable = source._checkpointsTable;
         _transactionConnection = transactionConnection;
         _transaction = transaction;
-        _transactionProvider = source._transactionProvider;
         _clock = source._clock;
         _identityProperty = source._identityProperty;
         _tenantProperty = source._tenantProperty;
@@ -183,7 +169,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     /// <param name="connection">The existing open connection owned by the caller.</param>
     /// <param name="transaction">The transaction that should contain audit writes.</param>
     /// <returns>A store instance bound to the supplied connection and transaction.</returns>
-    public IAuditChainStore<TDocument> UseExistingConnection(NpgsqlConnection connection, NpgsqlTransaction transaction)
+    public PostgreSqlAuditChainStore<TDocument> UseExistingConnection(NpgsqlConnection connection, NpgsqlTransaction transaction)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(transaction);
@@ -206,7 +192,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
 
-        using var scope = await OpenScopeAsync(false, false, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(false, null, cancellationToken).ConfigureAwait(false);
         using var command = scope.CreateCommand(
             $"""
              SELECT segment, tenant_id, attributes::text, opened_at, last_sequence, last_hash,
@@ -261,7 +247,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
 
         ThrowIfUnexpectedDocuments(segment, documents);
 
-        using var scope = await OpenScopeAsync(true, true, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(true, null, cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -307,8 +293,20 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Stages an unlinked document, joining the business transaction <paramref name="transactionProvider" />
+    ///     reports when it has one.
+    /// </summary>
+    /// <param name="segment">The segment the document belongs to. The store assigns the document to it.</param>
+    /// <param name="document">The document without a chain position.</param>
+    /// <param name="transactionProvider">
+    ///     The scoped provider of the business transaction, or <see langword="null" /> to stage on the store's own
+    ///     connection.
+    /// </param>
+    /// <param name="cancellationToken">The token used to cancel the staging.</param>
+    /// <returns>A task representing the asynchronous staging.</returns>
     /// <remarks>
+    ///     The store is a singleton and holds no transaction, so the caller passes the provider of its own scope.
     ///     Staging the same document twice overwrites the staged row rather than duplicating it, so a redelivered
     ///     record overwrites rather than duplicates. Staging a document whose identity is already linked leaves the
     ///     linked row untouched: the record was delivered before and its chain position stands. Staging creates no
@@ -316,9 +314,13 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     ///     staged records for their known segment right after commit.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The document already carries a chain position.</exception>
-    public ValueTask StageAsync(string segment, TDocument document, CancellationToken cancellationToken)
+    public ValueTask StageAsync(
+        string segment,
+        TDocument document,
+        IPostgreSqlTransactionProvider? transactionProvider,
+        CancellationToken cancellationToken)
     {
-        return StageCoreAsync(segment, document, true, cancellationToken);
+        return StageCoreAsync(segment, document, transactionProvider, cancellationToken);
     }
 
     /// <summary>
@@ -338,7 +340,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     /// <exception cref="InvalidOperationException">The document already carries a chain position.</exception>
     public ValueTask StageOutOfBandAsync(string segment, TDocument document, CancellationToken cancellationToken)
     {
-        return StageCoreAsync(segment, document, false, cancellationToken);
+        return StageCoreAsync(segment, document, null, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -359,7 +361,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
             ArgumentOutOfRangeException.ThrowIfLessThan(olderThan.Value, TimeSpan.Zero);
         }
 
-        using var scope = await OpenScopeAsync(false, false, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(false, null, cancellationToken).ConfigureAwait(false);
         using var command = scope.CreateCommand(
             $"""
              SELECT document_key, document::text
@@ -397,7 +399,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
             ArgumentOutOfRangeException.ThrowIfLessThan(olderThan.Value, TimeSpan.Zero);
         }
 
-        using var scope = await OpenScopeAsync(false, false, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(false, null, cancellationToken).ConfigureAwait(false);
         using var command = scope.CreateCommand(
             $"""
              SELECT DISTINCT segment
@@ -447,7 +449,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
             }
         }
 
-        using var scope = await OpenScopeAsync(false, false, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(false, null, cancellationToken).ConfigureAwait(false);
         var cursor = Math.Max(fromSequence, 1);
 
         while (true)
@@ -520,7 +522,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        using var scope = await OpenScopeAsync(false, false, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(false, null, cancellationToken).ConfigureAwait(false);
 
         var sql = new StringBuilder();
         sql.Append(
@@ -601,7 +603,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
 
-        using var scope = await OpenScopeAsync(false, false, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(false, null, cancellationToken).ConfigureAwait(false);
         using var command = scope.CreateCommand(
             $"""
              INSERT INTO {_checkpointsTable}
@@ -657,7 +659,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
             throw new ArgumentException("The checkpoint identifier must not be empty.", nameof(checkpointId));
         }
 
-        using var scope = await OpenScopeAsync(false, false, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(false, null, cancellationToken).ConfigureAwait(false);
         using var command = scope.CreateCommand(
             $"""
              SELECT id, segment, sequence, document_count, hash, hash_scheme, kind, created_at,
@@ -685,7 +687,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     public async IAsyncEnumerable<AuditCheckpoint> ListUnpublishedAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using var scope = await OpenScopeAsync(false, false, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(false, null, cancellationToken).ConfigureAwait(false);
         using var command = scope.CreateCommand(
             $"""
              SELECT id, segment, sequence, document_count, hash, hash_scheme, kind, created_at,
@@ -720,7 +722,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
             throw new ArgumentException("The checkpoint identifier must not be empty.", nameof(checkpointId));
         }
 
-        using var scope = await OpenScopeAsync(false, false, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(false, null, cancellationToken).ConfigureAwait(false);
 
         if (publishError is null)
         {
@@ -772,7 +774,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        using var scope = await OpenScopeAsync(true, true, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(true, null, cancellationToken).ConfigureAwait(false);
 
         var matched = await ListMatchingSegmentsAsync(scope, filter, cancellationToken).ConfigureAwait(false);
 
@@ -841,7 +843,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
 
-        using var scope = await OpenScopeAsync(true, true, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(true, null, cancellationToken).ConfigureAwait(false);
 
         var stored = await ReadHeadForUpdateAsync(scope, segment, cancellationToken).ConfigureAwait(false);
 
@@ -889,7 +891,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
 
-        using var scope = await OpenScopeAsync(false, false, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(false, null, cancellationToken).ConfigureAwait(false);
         using var command = scope.CreateCommand(
             $"""
              SELECT id, segment, sequence, document_count, hash, hash_scheme, kind, created_at,
@@ -916,19 +918,22 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     ///     Opens the connection scope one store operation runs on.
     /// </summary>
     /// <param name="useTransaction">Whether the scope owns a transaction it commits.</param>
-    /// <param name="joinAmbient">Whether an active ambient business transaction is joined when one exists.</param>
+    /// <param name="ambient">
+    ///     The provider of the business transaction to join when it reports one, or <see langword="null" /> to run
+    ///     outside any business transaction.
+    /// </param>
     /// <param name="cancellationToken">The token used to cancel the open.</param>
     /// <returns>The scope the operation creates its commands from.</returns>
     /// <remarks>
     ///     A store bound through <see cref="UseExistingConnection" /> always runs on its bound connection and
-    ///     transaction. Otherwise an active ambient transaction is joined when <paramref name="joinAmbient" /> is
-    ///     <see langword="true" />; every other operation opens its own pooled connection, with its own
-    ///     transaction when <paramref name="useTransaction" /> is <see langword="true" />. The scope commits and
-    ///     disposes only what it owns: a bound or ambient transaction is left to its owner.
+    ///     transaction. Otherwise the transaction <paramref name="ambient" /> reports is joined when it has one;
+    ///     every other operation opens its own pooled connection, with its own transaction when
+    ///     <paramref name="useTransaction" /> is <see langword="true" />. The scope commits and disposes only what
+    ///     it owns: a bound or ambient transaction is left to its owner.
     /// </remarks>
     private async ValueTask<AuditStoreScope> OpenScopeAsync(
         bool useTransaction,
-        bool joinAmbient,
+        IPostgreSqlTransactionProvider? ambient,
         CancellationToken cancellationToken)
     {
         if (_transactionConnection is not null && _transaction is not null)
@@ -936,9 +941,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
             return AuditStoreScope.FromAmbient(_transactionConnection, _transaction);
         }
 
-        if (joinAmbient &&
-            _transactionProvider is not null &&
-            _transactionProvider.TryGetCurrent(out var connection, out var transaction))
+        if (ambient is not null && ambient.TryGetCurrent(out var connection, out var transaction))
         {
             return AuditStoreScope.FromAmbient(connection, transaction);
         }
@@ -948,24 +951,27 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     }
 
     /// <summary>
-    ///     Stages an unlinked document, joining the ambient business transaction when asked to.
+    ///     Stages an unlinked document, joining the business transaction a provider reports when it has one.
     /// </summary>
     /// <param name="segment">The segment the document belongs to. The store assigns the document to it.</param>
     /// <param name="document">The document without a chain position.</param>
-    /// <param name="joinAmbient">Whether an active ambient business transaction is joined when one exists.</param>
+    /// <param name="ambient">
+    ///     The provider of the business transaction to join, or <see langword="null" /> to stage on the store's own
+    ///     connection.
+    /// </param>
     /// <param name="cancellationToken">The token used to cancel the staging.</param>
     /// <returns>A task representing the asynchronous staging.</returns>
     /// <exception cref="InvalidOperationException">The document already carries a chain position.</exception>
     private async ValueTask StageCoreAsync(
         string segment,
         TDocument document,
-        bool joinAmbient,
+        IPostgreSqlTransactionProvider? ambient,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
         ArgumentNullException.ThrowIfNull(document);
 
-        using var scope = await OpenScopeAsync(false, joinAmbient, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(false, ambient, cancellationToken).ConfigureAwait(false);
         await StageInScopeAsync(scope, segment, document, cancellationToken).ConfigureAwait(false);
     }
 
@@ -973,16 +979,17 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
     ///     Maps a record in the scope its staged row is written in and stages the mapped document there, so anything
     ///     the mapper writes through the connection commits or rolls back with the record.
     /// </summary>
-    /// <param name="joinAmbient">
-    ///     Whether an active ambient business transaction is joined, which is the success path. The out-of-band path
-    ///     opens its own connection and transaction and commits them before returning.
+    /// <param name="ambient">
+    ///     The provider of the business transaction to join, which is the success path, or <see langword="null" />
+    ///     for the out-of-band path, which opens its own connection and transaction and commits them before
+    ///     returning.
     /// </param>
     /// <param name="map">Maps the record with the scope's connection and transaction.</param>
     /// <param name="segmentOf">Returns the segment of the mapped document.</param>
     /// <param name="cancellationToken">The token used to cancel the mapping and the staging.</param>
     /// <returns>The staged document and its segment.</returns>
     internal async ValueTask<(TDocument Document, string Segment)> MapAndStageAsync(
-        bool joinAmbient,
+        IPostgreSqlTransactionProvider? ambient,
         Func<NpgsqlConnection, NpgsqlTransaction?, ValueTask<TDocument>> map,
         Func<TDocument, string> segmentOf,
         CancellationToken cancellationToken)
@@ -990,7 +997,7 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(segmentOf);
 
-        using var scope = await OpenScopeAsync(true, joinAmbient, cancellationToken).ConfigureAwait(false);
+        using var scope = await OpenScopeAsync(true, ambient, cancellationToken).ConfigureAwait(false);
         var document = await map(scope.Connection, scope.Transaction).ConfigureAwait(false);
         var segment = segmentOf(document);
 

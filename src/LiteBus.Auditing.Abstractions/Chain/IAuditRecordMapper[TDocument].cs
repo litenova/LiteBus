@@ -1,4 +1,3 @@
-using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,17 +9,11 @@ namespace LiteBus.Auditing.Abstractions;
 /// <typeparam name="TDocument">The stored audit document type.</typeparam>
 /// <remarks>
 ///     The mapper is where an application adds its own fields, such as a retention class, a pseudonymous actor or a
-///     business time, to the stored document.
+///     business time, to the stored document. A mapper that needs no services derives from
+///     <see cref="AuditRecordMapper{TDocument}" /> and implements <see cref="AuditRecordMapper{TDocument}.Map" />.
 /// </remarks>
 public interface IAuditRecordMapper<TDocument>
 {
-    /// <summary>
-    ///     Maps one audit record to a new stored document.
-    /// </summary>
-    /// <param name="record">The audit record LiteBus produced.</param>
-    /// <returns>A new document; the chain writer fills its chain fields afterwards.</returns>
-    TDocument Map(AuditRecord record);
-
     /// <summary>
     ///     Maps one audit record to a new stored document, with access to the mediation's scope.
     /// </summary>
@@ -38,16 +31,11 @@ public interface IAuditRecordMapper<TDocument>
     ///     <para>
     ///         <see cref="AuditMappingContext.Features" /> holds the session the record is written on, so a row the
     ///         mapper writes through it commits or rolls back with the record: the business session on the success
-    ///         path, and the record's own short session on the out-of-band path. The default implementation calls
-    ///         <see cref="Map" />, so a mapper that needs no services keeps working unchanged.
+    ///         path, and the record's own short session on the out-of-band path.
     ///     </para>
     /// </remarks>
     ValueTask<TDocument> MapAsync(
         AuditRecord record,
         AuditMappingContext context,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        return ValueTask.FromResult(Map(record));
-    }
+        CancellationToken cancellationToken);
 }

@@ -150,23 +150,12 @@ public sealed class EfCoreAuditStoreTrailTests : IClassFixture<SqliteDatabaseFix
     }
 
     [Fact]
-    public async Task Failure_record_without_a_factory_throws_a_configuration_error()
+    public void Store_without_a_factory_throws_at_construction()
     {
-        var business = await CreatePreparedContextAsync().ConfigureAwait(false);
-        await using (business.ConfigureAwait(false))
-        {
-            var trail = new EfCoreAuditTrail<EfCoreAuditRecord>(
-                new EfCoreAuditChainStore<EfCoreAuditRecord>(business),
-                new EfCoreAuditRecordMapper(),
-                new EfCoreAuditRecordSegmenter());
+        Action create = () => _ = new EfCoreAuditChainStore<EfCoreAuditRecord>(null!);
 
-            var write = () => trail.WriteAsync(
-                FailedRecord($"orders.charge-card-{Guid.NewGuid():N}", "orders"),
-                CancellationToken.None);
-
-            var thrown = await write.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
-            thrown.WithMessage("*IAuditDbContextFactory*");
-        }
+        var thrown = create.Should().Throw<ArgumentNullException>();
+        thrown.WithMessage("*dbContextFactory*");
     }
 
     [Fact]
@@ -175,9 +164,10 @@ public sealed class EfCoreAuditStoreTrailTests : IClassFixture<SqliteDatabaseFix
         var business = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (business.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(business, null, new TestAuditDbContextFactory(_fixture.ConnectionString));
+            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(new TestAuditDbContextFactory(_fixture.ConnectionString));
             var trail = new EfCoreAuditTrail<EfCoreAuditRecord>(
                 store,
+                business,
                 new EfCoreAuditRecordMapper(),
                 new FuncSegmenter(_ => "  "));
 
@@ -191,7 +181,8 @@ public sealed class EfCoreAuditStoreTrailTests : IClassFixture<SqliteDatabaseFix
     private EfCoreAuditTrail<EfCoreAuditRecord> CreateTrail(EfCoreAuditTestDbContext business)
     {
         return new EfCoreAuditTrail<EfCoreAuditRecord>(
-            new EfCoreAuditChainStore<EfCoreAuditRecord>(business, null, new TestAuditDbContextFactory(_fixture.ConnectionString)),
+            new EfCoreAuditChainStore<EfCoreAuditRecord>(new TestAuditDbContextFactory(_fixture.ConnectionString)),
+            business,
             new EfCoreAuditRecordMapper(),
             new EfCoreAuditRecordSegmenter());
     }

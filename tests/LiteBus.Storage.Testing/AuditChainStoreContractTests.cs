@@ -37,7 +37,7 @@ public abstract class AuditChainStoreContractTests<TDocument>
     ///     several tasks at once. A store backed by an ambient session or connection scopes that session per
     ///     operation.
     /// </remarks>
-    protected abstract IAuditChainStore<TDocument> CreateStore();
+    protected abstract IStagingAuditChainStore<TDocument> CreateStore();
 
     /// <summary>
     ///     Creates a stored audit document carrying the given marker in its payload.

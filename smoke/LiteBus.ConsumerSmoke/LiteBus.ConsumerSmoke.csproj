@@ -39,6 +39,7 @@
         <PackageReference Include="LiteBus.Commands.Recurring.Schedules.Cron" Version="[$(LiteBusVersion)]"/>
         <PackageReference Include="LiteBus.Extensions.AspNetCore" Version="[$(LiteBusVersion)]"/>
         <PackageReference Include="LiteBus.Extensions.AspNetCore.OpenApi" Version="[$(LiteBusVersion)]"/>
+        <PackageReference Include="LiteBus.Testing.Hosting" Version="[$(LiteBusVersion)]"/>
         <!-- An ASP.NET Core package follows the target framework: its next major targets the next .NET, so it floats within net10.0. -->
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*"/>
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="*"/>

@@ -12,9 +12,15 @@ namespace LiteBus.Auditing.Abstractions;
 /// <typeparam name="TDocument">The stored audit document type.</typeparam>
 /// <remarks>
 ///     <para>
-///         One engine runs on every store through this port: the head with its version, conditional appends, staging
-///         of unlinked documents in the business transaction, reads in commit and sequence order, heads by filter,
-///         checkpoints with publish state, and deletion by filter. Each store implements the port in its own adapter.
+///         One engine runs on every store through this port: the head with its version, conditional appends, reads
+///         in commit and sequence order, heads by filter, checkpoints with publish state, and deletion by filter.
+///         Each store implements the port in its own adapter.
+///     </para>
+///     <para>
+///         The auditing module registers the store as a singleton, and the linker, checkpoint lifecycle, verifier
+///         and segment manager share it, so an implementation holds no scoped state such as a business session or
+///         database context and opens its own short sessions. Staging a record in the business transaction is not
+///         part of this port: the store's scoped audit trail stages through the session of the mediation it runs in.
 ///     </para>
 ///     <para>
 ///         An unlinked document is one staged with the business change whose chain position is not assigned yet: its
@@ -53,18 +59,6 @@ public interface IAuditChainStore<TDocument>
         IReadOnlyList<TDocument> documents,
         AuditSegmentHead updated,
         CancellationToken cancellationToken);
-
-    /// <summary>
-    ///     Stages an unlinked document in the current business transaction.
-    /// </summary>
-    /// <param name="segment">The segment the document belongs to. The store assigns the document to it.</param>
-    /// <param name="document">The document without a chain position.</param>
-    /// <param name="cancellationToken">The token used to cancel the staging.</param>
-    /// <returns>A task representing the asynchronous staging.</returns>
-    /// <remarks>
-    ///     The document commits or rolls back with the business change. The linker assigns its position after commit.
-    /// </remarks>
-    ValueTask StageAsync(string segment, TDocument document, CancellationToken cancellationToken);
 
     /// <summary>
     ///     Reads the unlinked documents of a segment in commit order.

@@ -42,7 +42,7 @@ internal static class CompositionHandlersSmoke
                 .Register<CompositionSmokeEventHandler>());
         });
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider(Smoke.DevelopmentValidation);
         var model = provider.GetRequiredService<ICompositionModel>();
 
         var eventHandler = model.Handlers.SingleOrDefault(entry => entry.HandlerType == typeof(CompositionSmokeEventHandler));

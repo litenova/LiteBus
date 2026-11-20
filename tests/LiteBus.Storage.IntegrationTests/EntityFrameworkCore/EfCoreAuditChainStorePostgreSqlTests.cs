@@ -39,7 +39,7 @@ public sealed class EfCoreAuditChainStorePostgreSqlTests : IClassFixture<Postgre
             var context = await CreatePreparedContextAsync().ConfigureAwait(false);
             await using (context.ConfigureAwait(false))
             {
-                var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+                var store = CreateStore();
                 var document = LinkedDocument(segment, 0, null, $"hash-{index}");
 
                 for (var attempt = 0; attempt < 50; attempt++)
@@ -80,7 +80,7 @@ public sealed class EfCoreAuditChainStorePostgreSqlTests : IClassFixture<Postgre
         var verify = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (verify.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(verify);
+            var store = CreateStore();
             var stored = await CollectAsync(
                     store.ReadSegmentAsync(segment, 1, null, CancellationToken.None))
                 .ConfigureAwait(false);
@@ -101,7 +101,7 @@ public sealed class EfCoreAuditChainStorePostgreSqlTests : IClassFixture<Postgre
         var context = await CreatePreparedContextAsync().ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var store = new EfCoreAuditChainStore<EfCoreAuditRecord>(context);
+            var store = CreateStore();
             var tenant = $"tenant-{Guid.NewGuid():N}";
             var segment = UniqueSegment("postgres");
             var expected = InitialHead(segment, tenant);
@@ -140,16 +140,35 @@ public sealed class EfCoreAuditChainStorePostgreSqlTests : IClassFixture<Postgre
         }
     }
 
-    private async Task<EfCoreAuditTestDbContext> CreatePreparedContextAsync()
+    /// <summary>
+    ///     Builds a chain store whose operations open fresh contexts on the fixture database.
+    /// </summary>
+    /// <returns>The store.</returns>
+    private EfCoreAuditChainStore<EfCoreAuditRecord> CreateStore()
+    {
+        return new EfCoreAuditChainStore<EfCoreAuditRecord>(
+            new EfCoreAuditTestContextFactory(() => CreateContext()));
+    }
+
+    /// <summary>
+    ///     Creates a PostgreSQL audit test context over the fixture database without creating the schema.
+    /// </summary>
+    /// <returns>The context.</returns>
+    private EfCoreAuditTestDbContext CreateContext()
     {
         var storeOptions = new EntityFrameworkCoreAuditStoreOptions { SchemaName = "ef_audit_tests" };
-        var context = new EfCoreAuditTestDbContext(
+        return new EfCoreAuditTestDbContext(
             new DbContextOptionsBuilder<EfCoreAuditTestDbContext>()
                 .UseNpgsql(_fixture.ConnectionString)
                 .ReplaceService<IModelCacheKeyFactory, EfCoreAuditTestDbContext.ModelCacheKeyFactory>()
                 .Options,
             storeOptions,
             EfCoreStorageProvider.PostgreSql);
+    }
+
+    private async Task<EfCoreAuditTestDbContext> CreatePreparedContextAsync()
+    {
+        var context = CreateContext();
 
         await context.Database.ExecuteSqlRawAsync("""CREATE SCHEMA IF NOT EXISTS "ef_audit_tests";""").ConfigureAwait(false);
         await context.Database.EnsureCreatedAsync().ConfigureAwait(false);

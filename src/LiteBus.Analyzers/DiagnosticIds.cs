@@ -140,4 +140,9 @@ internal static class DiagnosticIds
     ///     <c>[MessageContract]</c> attribute.
     /// </summary>
     internal const string UnattributedContractInRegisteredAssembly = "LB1029";
+
+    /// <summary>
+    ///     A contract registration's name or version disagrees with the message type's <c>[MessageContract]</c>.
+    /// </summary>
+    internal const string ContractRegistrationMismatch = "LB1030";
 }

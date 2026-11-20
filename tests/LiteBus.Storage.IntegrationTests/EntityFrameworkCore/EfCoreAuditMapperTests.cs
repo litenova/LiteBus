@@ -81,7 +81,8 @@ public sealed class EfCoreAuditMapperTests : IClassFixture<SqliteDatabaseFixture
     private EfCoreAuditTrail<EfCoreAuditRecord> CreateTrail(EfCoreAuditTestDbContext business, RecordingMapper mapper)
     {
         return new EfCoreAuditTrail<EfCoreAuditRecord>(
-            new EfCoreAuditChainStore<EfCoreAuditRecord>(business, null, new TestAuditDbContextFactory(_fixture.ConnectionString)),
+            new EfCoreAuditChainStore<EfCoreAuditRecord>(new TestAuditDbContextFactory(_fixture.ConnectionString)),
+            business,
             mapper,
             new EfCoreAuditRecordSegmenter());
     }
@@ -149,7 +150,7 @@ public sealed class EfCoreAuditMapperTests : IClassFixture<SqliteDatabaseFixture
     }
 
     /// <summary>
-    ///     A mapper that records the context the store offers it and refuses the synchronous form.
+    ///     A mapper that records the context the store offers it.
     /// </summary>
     private sealed class RecordingMapper : IAuditRecordMapper<EfCoreAuditRecord>
     {
@@ -162,12 +163,6 @@ public sealed class EfCoreAuditMapperTests : IClassFixture<SqliteDatabaseFixture
         ///     Gets the contexts the store offered, in order.
         /// </summary>
         public List<DbContext> OfferedContexts { get; } = [];
-
-        /// <inheritdoc />
-        public EfCoreAuditRecord Map(AuditRecord record)
-        {
-            throw new InvalidOperationException("The store must call MapAsync.");
-        }
 
         /// <inheritdoc />
         public ValueTask<EfCoreAuditRecord> MapAsync(

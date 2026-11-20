@@ -155,9 +155,10 @@ public sealed class MartenAuditStoreTrailTests : IClassFixture<PostgreSqlFixture
         var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (business.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, business);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
             var trail = new MartenAuditTrail<MartenAuditRecord>(
                 store,
+                business,
                 new MartenAuditRecordMapper(),
                 new MartenAuditFuncSegmenter<MartenAuditRecord>(_ => "  "));
 
@@ -171,7 +172,8 @@ public sealed class MartenAuditStoreTrailTests : IClassFixture<PostgreSqlFixture
     private static MartenAuditTrail<MartenAuditRecord> CreateTrail(IDocumentStore documentStore, IDocumentSession session)
     {
         return new MartenAuditTrail<MartenAuditRecord>(
-            new MartenAuditChainStore<MartenAuditRecord>(documentStore, session),
+            new MartenAuditChainStore<MartenAuditRecord>(documentStore),
+            session,
             new MartenAuditRecordMapper(),
             new MartenAuditRecordSegmenter());
     }

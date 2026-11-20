@@ -542,6 +542,16 @@ services.AddLiteBus(registry =>
 
 `AddAuditing` registers the auditing module; calling it twice configures one module instead of registering a second one. The store choice (`UseMartenStore`, `UsePostgreSqlStore`, `UseEntityFrameworkCoreStore<TContext>`) records the open-generic trail and chain store the module closes over the configured document type. Register one audit store per composition: registering a second store throws `LiteBusConfigurationException`.
 
+Each store splits its work by lifetime. The chain store is a singleton: the linker, the checkpoint lifecycle, the verifier, the segment manager and the two background loops share it, and it opens its own short session, context or connection for every operation. The trail is scoped: it stages a successful mediation's record on the business session of that mediation, so the record commits or rolls back with the change, and it writes a denial, failure or cancellation on a short session of its own. Neither part holds a session longer than one operation, so a host with the Development container validation (`ValidateScopes` and `ValidateOnBuild`) starts with any store.
+
+| Store | The trail stages on | The chain store opens |
+| --- | --- | --- |
+| Marten | The scoped `IDocumentSession` | A lightweight session from `IDocumentStore` |
+| Entity Framework Core | The scoped `IAuditDbContext` | A context from `IAuditDbContextFactory` |
+| PostgreSQL | The transaction the scope's `IPostgreSqlTransactionProvider` reports, or its own connection when none is active | A pooled connection from the audit data source |
+
+`UseEntityFrameworkCoreStore<TContext>()` registers both context ports as defaults: `IAuditDbContext` as the scope's `TContext`, and `IAuditDbContextFactory` over `IDbContextFactory<TContext>`. Register the context with `AddDbContextFactory<TContext>()`, which supplies both; an explicit registration of either port wins over the default.
+
 Without `UseHashChain`, auditing writes plain records with no sequence numbers and no hash chain. With it, every piece below has a default, so a chain that needs nothing special writes no further code: `sha256-v2` framing, a checkpoint every 100 records, and an `Unlinked` report past five minutes. The composition model reports the requested and effective capture, the selection reason, the linking mode, and every chain piece under the `auditing` section, so a build can show which capture the store forced and which ports were replaced.
 
 ### Chain Pieces and Defaults
@@ -580,9 +590,9 @@ public sealed class WorkspaceAuditDocument : IAuditChainDocument
     public string? HashScheme { get; set; }
 }
 
-public sealed class WorkspaceAuditMapper : IAuditRecordMapper<WorkspaceAuditDocument>
+public sealed class WorkspaceAuditMapper : AuditRecordMapper<WorkspaceAuditDocument>
 {
-    public WorkspaceAuditDocument Map(AuditRecord record)
+    public override WorkspaceAuditDocument Map(AuditRecord record)
     {
         ArgumentNullException.ThrowIfNull(record);
 
@@ -600,7 +610,7 @@ public sealed class WorkspaceAuditMapper : IAuditRecordMapper<WorkspaceAuditDocu
 }
 ```
 
-`Map` above is enough when mapping needs no services. When it does, such as creating a pseudonym for the actor or reading a tenant's time zone, implement `MapAsync(record, AuditMappingContext, cancellationToken)`. Every audit store awaits `MapAsync`, on the success path and on the out-of-band path that records denials, failures and cancellations. The mapper is registered scoped and resolved from the mediation's scope, so its constructor may take scoped services. The context describes the mediation through `Evaluation` (its message, identity, clock and execution context), with `Services` and `Identity` repeated for direct reads.
+`IAuditRecordMapper<TDocument>` has one member, `MapAsync(record, AuditMappingContext, cancellationToken)`. A mapper that needs no services derives from `AuditRecordMapper<TDocument>` and implements only the synchronous `Map`, as above. When mapping needs services, such as creating a pseudonym for the actor or reading a tenant's time zone, implement `IAuditRecordMapper<TDocument>` and its `MapAsync` directly. Every audit store awaits `MapAsync`, on the success path and on the out-of-band path that records denials, failures and cancellations. The mapper is registered scoped and resolved from the mediation's scope, so its constructor may take scoped services. The context describes the mediation through `Evaluation` (its message, identity, clock and execution context), with `Services` and `Identity` repeated for direct reads.
 
 `AuditMappingContext.Features` holds the session the record is written on, so a row the mapper writes through it commits or rolls back with the record:
 
@@ -618,9 +628,6 @@ public sealed class PseudonymizingAuditMapper : IAuditRecordMapper<WorkspaceAudi
     private readonly IPseudonymRepository _pseudonyms;
 
     public PseudonymizingAuditMapper(IPseudonymRepository pseudonyms) => _pseudonyms = pseudonyms;
-
-    public WorkspaceAuditDocument Map(AuditRecord record) =>
-        throw new NotSupportedException("Mapping needs the store session; LiteBus calls MapAsync.");
 
     public async ValueTask<WorkspaceAuditDocument> MapAsync(
         AuditRecord record,
@@ -873,7 +880,7 @@ Resolve `IAuditChain` and verify a segment, then read the comparison against its
 var chain = provider.GetRequiredService<IAuditChain>();
 var verification = await chain.VerifyAsync("workspace-a/2026", cancellationToken).ConfigureAwait(false);
 
-if (!verification.IsIntact)
+if (!verification.IsChainIntact)
 {
     foreach (var @break in verification.Breaks)
     {
@@ -898,7 +905,8 @@ Verification streams records by pages, so a large segment verifies without loadi
 | Field | Holds |
 | --- | --- |
 | `Segment` | The verified segment |
-| `IsIntact` | Whether the segment has no break |
+| `IsIntact` | Whether the segment has no break of either category |
+| `IsChainIntact` | Whether no break reports that the chain or a checkpoint was altered; coverage breaks do not count |
 | `RecordCount` | The number of documents read from the segment |
 | `HeadSequence`, `HeadHash` | The last document, or `null` for an empty segment |
 | `Breaks` | Every problem found, in sequence order |
@@ -907,22 +915,22 @@ Verification streams records by pages, so a large segment verifies without loadi
 | `CheckpointSignatureValid` | Whether the latest checkpoint's signature is valid, or `null` when no signer is configured or there is no checkpoint |
 | `Comparisons` | One comparison per checkpoint source the segment was checked against |
 
-Each break names its sequence, its kind, and a sentence describing the problem for an operator:
+Each break names its sequence, its kind, its category, and a sentence describing the problem for an operator. The category separates two questions: `Integrity` breaks mean the chain or a checkpoint was altered or does not match, and `Coverage` breaks mean a checkpoint, publication or link has not happened yet or stopped happening. A tamper alarm reads `IsChainIntact`; a monitor of the checkpoint loop reads the coverage breaks.
 
-| Kind | Meaning |
-| --- | --- |
-| `Gap` | A sequence number is missing |
-| `Duplicate` | A sequence number appears more than once, or out of order |
-| `PreviousHashMismatch` | The stored previous hash does not match the hash of the document before it |
-| `HashMismatch` | The stored hash does not match the hash recomputed from the document |
-| `UnknownHashScheme` | The document names a hash scheme the chain does not accept |
-| `CheckpointHashMismatch` | The hash at the latest checkpoint's sequence differs from the checkpoint's hash |
-| `CheckpointCountMismatch` | The segment holds fewer documents up to the checkpoint than the checkpoint counted |
-| `CheckpointSignatureInvalid` | The latest checkpoint's signature is missing or invalid |
-| `CheckpointMissing` | The segment holds no checkpoint although its checkpoint policy would already have cut one (a segment under 100 records with the default policy has none and verifies intact), or the checkpoint `VerifyFromAsync` was asked to trust does not exist |
-| `CheckpointStale` | The last checkpoint is older than the configured age while records exist after it |
-| `CheckpointUnpublished` | A stored checkpoint still waits for publication |
-| `Unlinked` | A record was staged but remains unlinked past the configured age |
+| Kind | Category | Meaning |
+| --- | --- | --- |
+| `Gap` | Integrity | A sequence number is missing |
+| `Duplicate` | Integrity | A sequence number appears more than once, or out of order |
+| `PreviousHashMismatch` | Integrity | The stored previous hash does not match the hash of the document before it |
+| `HashMismatch` | Integrity | The stored hash does not match the hash recomputed from the document |
+| `UnknownHashScheme` | Integrity | The document names a hash scheme the chain does not accept |
+| `CheckpointHashMismatch` | Integrity | The hash at the latest checkpoint's sequence differs from the checkpoint's hash |
+| `CheckpointCountMismatch` | Integrity | The segment holds fewer documents up to the checkpoint than the checkpoint counted |
+| `CheckpointSignatureInvalid` | Integrity | The latest checkpoint's signature is missing or invalid |
+| `CheckpointMissing` | Coverage | The segment holds no checkpoint although its checkpoint policy would already have cut one, or the checkpoint `VerifyFromAsync` was asked to trust does not exist. The verifier asks the policy with the segment head, so a segment under 100 records with the default policy, or one opened today under a daily policy, has none and verifies intact |
+| `CheckpointStale` | Coverage | The last checkpoint is older than the configured age while records exist after it |
+| `CheckpointUnpublished` | Coverage | A stored checkpoint still waits for publication |
+| `Unlinked` | Coverage | A record was staged but remains unlinked past the configured age |
 
 `AuditChainVerifier<TDocument>` runs the hash pass without any storage: the caller reads the ordered documents of one segment and its latest checkpoint, and the verifier recomputes every hash with the same canonical form, link rule, and hasher the writer used. Storage adapters for other databases reuse it. The documents must be the whole segment in ascending sequence order: a partial page reports its missing head as gaps, and an unordered list reports the misplaced documents as duplicates.
 

@@ -37,9 +37,14 @@ public sealed class MartenAuditTrail<TDocument> : IAuditTrail
     where TDocument : class, IAuditChainDocument
 {
     /// <summary>
-    ///     Gets the chain store that stages documents on the business session or out of band.
+    ///     Gets the singleton chain store that stages documents on the session it is given.
     /// </summary>
     private readonly MartenAuditChainStore<TDocument> _store;
+
+    /// <summary>
+    ///     Gets the scoped business session a record for a successful mediation is staged on.
+    /// </summary>
+    private readonly IDocumentSession _session;
 
     /// <summary>
     ///     Gets the mapper from an audit record to a new stored document.
@@ -67,6 +72,7 @@ public sealed class MartenAuditTrail<TDocument> : IAuditTrail
     ///     Initializes a new instance of the <see cref="MartenAuditTrail{TDocument}" /> class.
     /// </summary>
     /// <param name="store">The chain store that stages documents.</param>
+    /// <param name="session">The scoped business session the handler change is written on.</param>
     /// <param name="mapper">The mapper from an audit record to a new stored document.</param>
     /// <param name="segmenter">The segmenter that assigns a stored document to its segment.</param>
     /// <param name="serviceProvider">
@@ -75,15 +81,18 @@ public sealed class MartenAuditTrail<TDocument> : IAuditTrail
     /// </param>
     public MartenAuditTrail(
         MartenAuditChainStore<TDocument> store,
+        IDocumentSession session,
         IAuditRecordMapper<TDocument> mapper,
         IAuditSegmenter<TDocument> segmenter,
         IServiceProvider? serviceProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(mapper);
         ArgumentNullException.ThrowIfNull(segmenter);
 
         _store = store;
+        _session = session;
         _mapper = mapper;
         _segmenter = segmenter;
         _serviceProvider = serviceProvider;
@@ -106,12 +115,12 @@ public sealed class MartenAuditTrail<TDocument> : IAuditTrail
         {
             // Staged, not saved: the unit-of-work completion handler runs after the audit writer and commits the
             // scoped session, so the record commits in the same SaveChangesAsync as the handler change.
-            mapping.Features.Set(_store.BusinessSession);
+            mapping.Features.Set(_session);
 
             var document = await _mapper.MapAsync(record, mapping, cancellationToken).ConfigureAwait(false);
             var segment = SegmentOf(record, document);
 
-            await _store.StageAsync(segment, document, cancellationToken).ConfigureAwait(false);
+            await _store.StageAsync(_session, segment, document, cancellationToken).ConfigureAwait(false);
             _stagedSegments?.Add(segment);
             return;
         }

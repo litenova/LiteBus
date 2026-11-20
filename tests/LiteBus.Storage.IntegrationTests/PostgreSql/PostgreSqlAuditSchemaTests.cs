@@ -129,7 +129,7 @@ public sealed class PostgreSqlAuditSchemaTests : IClassFixture<PostgreSqlFixture
         var store = new PostgreSqlAuditChainStore<PostgreSqlAuditRecord>(
             new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options));
 
-        await store.StageAsync("orders", CreateRecord(), CancellationToken.None).ConfigureAwait(false);
+        await store.StageAsync("orders", CreateRecord(), null, CancellationToken.None).ConfigureAwait(false);
 
         var unlinked = await CollectAsync(
             store.ListUnlinkedAsync("orders", null, CancellationToken.None),

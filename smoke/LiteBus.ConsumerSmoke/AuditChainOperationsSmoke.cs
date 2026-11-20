@@ -72,7 +72,7 @@ internal static class AuditChainOperationsSmoke
                     .PublishCheckpointsTo<SmokeRecordingCheckpointPublisher>()));
         });
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider(Smoke.DevelopmentValidation);
 
         var model = provider.GetRequiredService<ICompositionModel>();
         using (var json = JsonDocument.Parse(model.ToJson()))

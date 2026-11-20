@@ -518,7 +518,7 @@ Answer these questions before adding a project:
 ## Analyzers
 
 - Ship compile-time rules in `LiteBus.Analyzers` only. Take no runtime dependency on mediator or durable packages.
-- Keep the rule inventory in `site/content/docs/reference/analyzers.md` aligned with `DiagnosticIds` (LB1001-LB1029). LB1002 and LB1006 are reserved and never shipped.
+- Keep the rule inventory in `site/content/docs/reference/analyzers.md` aligned with `DiagnosticIds` (LB1001-LB1030). LB1002 and LB1006 are reserved and never shipped.
 - LB1007 covers handled durable types that miss contract registration. Honor `RegisterFromAssembly` the same as explicit `Contracts.Register`.
 - LB1017 covers attributed durable types. Match only `IContractWriter` or `IMessageContractRegistry` `Register` invocations, not unrelated `Register<T>()` methods.
 - LB1004 must cover `AcceptAsync`, `AcceptBatchAsync`, and the `ITransactionalInbox` acceptance APIs.
@@ -533,6 +533,7 @@ Answer these questions before adding a project:
 
 ## Releases and changelog
 
+- Previews of one line carry no compatibility promise between each other. A preview may remove, rename or reshape anything an earlier preview of the same line shipped, with no obsolete shim, no forwarding overload and no migration section. Design each preview as if the previous one never shipped. Compatibility and migration apply from one stable release to the next: the migration guide for a major describes the move from the previous stable version, and the delta changelog section of a preview lists what changed without upgrade steps.
 - A version has one Changelog section, and every preview after the first has its own. `## v7.0.0` accumulates everything landing in 7.0.0, and it is what the first preview and the stable release publish, so each of those describes the whole line. Every later preview adds a `## v7.0.0-preview.N` section above it that holds only what changed since `preview.N-1`. The release workflow publishes that section instead. A reader moving from one preview to the next wants the difference, not the two hundred lines they already read when they took the previous preview. A reader arriving at the line for the first time wants all of it, which is what the first preview and the stable release give them.
 - A delta section names what it compares against and links to the cumulative one. Open it with a line that says which preview it is a delta against and that points at the version's own section, so the whole line stays one link away from anyone who wants it. `.github/scripts/generate-release-notes.sh` also puts that link in the pre-release banner it prepends.
 - Do not add a section for the first preview of a line. `.github/workflows/release.yml` prefers a section matching the tag and falls back to the version's own, so a `## v7.0.0-preview.1` section would turn the first preview into a delta against nothing.

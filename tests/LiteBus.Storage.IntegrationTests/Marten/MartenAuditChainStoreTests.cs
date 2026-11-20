@@ -34,7 +34,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (session.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, session);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
 
             var head = await store
                 .ReadHeadAsync($"unknown-{Guid.NewGuid():N}", CancellationToken.None)
@@ -53,7 +53,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (session.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, session);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
             var expected = InitialHead(segment, "tenant-a");
             MartenAuditRecord[] documents =
             [
@@ -101,7 +101,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (session.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, session);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
             var expected = InitialHead(segment, "tenant-a");
             var updated = expected with { LastSequence = 1, LastHash = "hash-1", Count = 1, Version = 1 };
 
@@ -134,7 +134,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
             var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
             await using (session.ConfigureAwait(false))
             {
-                var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, session);
+                var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
                 var document = LinkedDocument(segment, 0, null, $"hash-{index}");
 
                 for (var attempt = 0; attempt < 50; attempt++)
@@ -175,7 +175,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var verify = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (verify.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, verify);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
             var stored = await CollectAsync(
                     store.ReadSegmentAsync(segment, 1, null, CancellationToken.None))
                 .ConfigureAwait(false);
@@ -199,7 +199,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (session.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, session);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
             var expected = InitialHead(segment, "tenant-a");
             var linked = expected with { LastSequence = 1, LastHash = "hash-1", Count = 1, Version = 1 };
 
@@ -235,13 +235,13 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (business.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, business, clock);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, clock);
 
-            await store.StageAsync(segment, UnlinkedDocument("orders.place-order"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, UnlinkedDocument("orders.place-order"), CancellationToken.None).ConfigureAwait(false);
             clock.Advance(TimeSpan.FromSeconds(1));
-            await store.StageAsync(segment, UnlinkedDocument("orders.reserve-stock"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, UnlinkedDocument("orders.reserve-stock"), CancellationToken.None).ConfigureAwait(false);
             clock.Advance(TimeSpan.FromSeconds(1));
-            await store.StageAsync(segment, UnlinkedDocument("orders.charge-card"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, UnlinkedDocument("orders.charge-card"), CancellationToken.None).ConfigureAwait(false);
 
             await business.SaveChangesAsync().ConfigureAwait(false);
         }
@@ -249,7 +249,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var read = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (read.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, read, clock);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, clock);
             var unlinked = await CollectAsync(
                     store.ListUnlinkedAsync(segment, null, CancellationToken.None))
                 .ConfigureAwait(false);
@@ -271,9 +271,9 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (business.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, business, clock);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, clock);
 
-            await store.StageAsync(segment, UnlinkedDocument("orders.place-order"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, UnlinkedDocument("orders.place-order"), CancellationToken.None).ConfigureAwait(false);
 
             await business.SaveChangesAsync().ConfigureAwait(false);
         }
@@ -283,9 +283,9 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var later = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (later.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, later, clock);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, clock);
 
-            await store.StageAsync(segment, UnlinkedDocument("orders.reserve-stock"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(later, segment, UnlinkedDocument("orders.reserve-stock"), CancellationToken.None).ConfigureAwait(false);
 
             await later.SaveChangesAsync().ConfigureAwait(false);
         }
@@ -293,7 +293,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var read = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (read.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, read, clock);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, clock);
             var unlinked = await CollectAsync(
                     store.ListUnlinkedAsync(segment, TimeSpan.FromMinutes(5), CancellationToken.None))
                 .ConfigureAwait(false);
@@ -312,15 +312,15 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (business.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, business);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
 
-            await store.StageAsync(segment, UnlinkedDocument("orders.place-order"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, UnlinkedDocument("orders.place-order"), CancellationToken.None).ConfigureAwait(false);
         }
 
         var read = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (read.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, read);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
             var unlinked = await CollectAsync(
                     store.ListUnlinkedAsync(segment, null, CancellationToken.None))
                 .ConfigureAwait(false);
@@ -341,10 +341,10 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (business.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, business);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
 
-            await store.StageAsync(segment, first, CancellationToken.None).ConfigureAwait(false);
-            await store.StageAsync(segment, second, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, first, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, second, CancellationToken.None).ConfigureAwait(false);
 
             await business.SaveChangesAsync().ConfigureAwait(false);
         }
@@ -352,7 +352,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var link = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (link.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, link);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
             var expected = InitialHead(segment, "tenant-a");
             first.Sequence = 1;
             first.PreviousHash = null;
@@ -387,10 +387,10 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (business.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, business);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
 
-            await store.StageAsync(segment, document, CancellationToken.None).ConfigureAwait(false);
-            await store.StageAsync(segment, document, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, document, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, segment, document, CancellationToken.None).ConfigureAwait(false);
 
             await business.SaveChangesAsync().ConfigureAwait(false);
         }
@@ -398,7 +398,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var read = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (read.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, read);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
             var unlinked = await CollectAsync(
                     store.ListUnlinkedAsync(segment, null, CancellationToken.None))
                 .ConfigureAwait(false);
@@ -416,7 +416,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (session.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, session);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
             var expected = InitialHead(segment, "tenant-a");
             MartenAuditRecord[] documents =
             [
@@ -460,7 +460,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (session.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, session);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
             var firstHead = new AuditSegmentHead(
                 new AuditSegmentInfo(
                     first,
@@ -559,7 +559,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (session.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, session);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
 
             await store.StoreCheckpointAsync(checkpoint, CancellationToken.None).ConfigureAwait(false);
 
@@ -610,7 +610,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (session.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, session);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
             var checkpointId = Guid.NewGuid();
 
             var mark = () => store.MarkPublishedAsync(checkpointId, null, CancellationToken.None).AsTask();
@@ -629,7 +629,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (session.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, session);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
 
             await store
                 .StoreCheckpointAsync(
@@ -666,7 +666,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (business.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, business);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
             var erasedHead = InitialHead(erasedSegment, erasedTenant);
             var keptHead = InitialHead(keptSegment, keptTenant);
 
@@ -695,12 +695,12 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
             var staged = UnlinkedDocument("orders.place-order");
             staged.TenantId = erasedTenant;
 
-            await store.StageAsync(erasedSegment, staged, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, erasedSegment, staged, CancellationToken.None).ConfigureAwait(false);
 
             var stagedOnly = UnlinkedDocument("orders.reserve-stock");
             stagedOnly.TenantId = erasedTenant;
 
-            await store.StageAsync(stagedOnlySegment, stagedOnly, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync(business, stagedOnlySegment, stagedOnly, CancellationToken.None).ConfigureAwait(false);
 
             await business.SaveChangesAsync().ConfigureAwait(false);
         }
@@ -708,7 +708,7 @@ public sealed class MartenAuditChainStoreTests : IClassFixture<PostgreSqlFixture
         var erase = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (erase.ConfigureAwait(false))
         {
-            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, erase);
+            var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
 
             await store
                 .EraseAsync(new AuditSegmentFilter(TenantId: erasedTenant), CancellationToken.None)

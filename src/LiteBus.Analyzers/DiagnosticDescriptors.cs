@@ -344,4 +344,17 @@ public static class DiagnosticDescriptors
         true,
         description: "MessageContractsRegisteredIn makes consuming compilations trust the named assembly for every type here, and LB1017 checks only attributed types. An unattributed durable message type would therefore never be checked anywhere. Attributing every durable type keeps the registration verifiable.",
         customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     Reports a contract registration whose name or version disagrees with the message type's
+    ///     <c>[MessageContract]</c>.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor ContractRegistrationMismatch = new(
+        DiagnosticIds.ContractRegistrationMismatch,
+        "Contract registration disagrees with [MessageContract]",
+        "Contract registration for '{0}' uses name '{1}' version {2}, but its [MessageContract] declares name '{3}' version {4}. Make the registration and the attribute agree.",
+        "LiteBus.Contracts",
+        DiagnosticSeverity.Warning,
+        true,
+        description: "When an explicit registration and [MessageContract] disagree, the runtime rejects the registration with MessageContractMismatchException while the host composes, so only a running host finds the mistake. Make the two agree so the mismatch is caught at build time.");
 }

@@ -39,9 +39,14 @@ public sealed class EfCoreAuditTrail<TDocument> : IAuditTrail
     where TDocument : class, IAuditChainDocument
 {
     /// <summary>
-    ///     Gets the chain store that stages documents on the scoped context or out of band.
+    ///     Gets the singleton chain store that stages documents on the context it is given.
     /// </summary>
     private readonly EfCoreAuditChainStore<TDocument> _store;
+
+    /// <summary>
+    ///     Gets the scoped business context a record for a successful mediation is staged on.
+    /// </summary>
+    private readonly DbContext _businessContext;
 
     /// <summary>
     ///     Gets the mapper from an audit record to a new stored document.
@@ -69,6 +74,10 @@ public sealed class EfCoreAuditTrail<TDocument> : IAuditTrail
     ///     Initializes a new instance of the <see cref="EfCoreAuditTrail{TDocument}" /> class.
     /// </summary>
     /// <param name="store">The chain store that stages documents.</param>
+    /// <param name="auditContext">
+    ///     The scoped application database context the handler change is written on. It must be a
+    ///     <see cref="DbContext" />.
+    /// </param>
     /// <param name="mapper">The mapper from an audit record to a new stored document.</param>
     /// <param name="segmenter">The segmenter that assigns a stored document to its segment.</param>
     /// <param name="serviceProvider">
@@ -77,15 +86,20 @@ public sealed class EfCoreAuditTrail<TDocument> : IAuditTrail
     /// </param>
     public EfCoreAuditTrail(
         EfCoreAuditChainStore<TDocument> store,
+        IAuditDbContext auditContext,
         IAuditRecordMapper<TDocument> mapper,
         IAuditSegmenter<TDocument> segmenter,
         IServiceProvider? serviceProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(auditContext);
         ArgumentNullException.ThrowIfNull(mapper);
         ArgumentNullException.ThrowIfNull(segmenter);
 
         _store = store;
+        _businessContext = auditContext as DbContext
+            ?? throw new InvalidOperationException(
+                "The Entity Framework Core audit trail stages records on the application database context, which must derive from DbContext.");
         _mapper = mapper;
         _segmenter = segmenter;
         _serviceProvider = serviceProvider;
@@ -108,12 +122,12 @@ public sealed class EfCoreAuditTrail<TDocument> : IAuditTrail
         {
             // Staged, not saved: the unit-of-work completion handler runs after the audit writer and commits the
             // scoped context, so the record commits in the same SaveChanges as the handler change.
-            mapping.Features.Set(_store.BusinessContext);
+            mapping.Features.Set(_businessContext);
 
             var document = await _mapper.MapAsync(record, mapping, cancellationToken).ConfigureAwait(false);
             var segment = SegmentOf(record, document);
 
-            await _store.StageAsync(segment, document, cancellationToken).ConfigureAwait(false);
+            await _store.StageAsync(_businessContext, segment, document, cancellationToken).ConfigureAwait(false);
             _stagedSegments?.Add(segment);
             return;
         }

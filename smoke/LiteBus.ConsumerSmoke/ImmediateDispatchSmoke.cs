@@ -96,7 +96,7 @@ internal static class ImmediateDispatchSmoke
             .UseNpgsql(connectionString)
             .AddLiteBusOutboxInterceptor(serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider(Smoke.DevelopmentValidation);
         var mediator = provider.GetRequiredService<ICommandMediator>();
 
         var orderId = Guid.NewGuid();

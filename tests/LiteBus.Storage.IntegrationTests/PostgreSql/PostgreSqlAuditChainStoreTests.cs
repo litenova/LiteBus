@@ -27,13 +27,17 @@ public sealed class PostgreSqlAuditChainStoreTests
     }
 
     /// <inheritdoc />
-    protected override IAuditChainStore<PostgreSqlAuditRecord> CreateStore()
+    protected override IStagingAuditChainStore<PostgreSqlAuditRecord> CreateStore()
     {
         var options = CreateOptions();
         PostgreSqlAuditSchema.EnsureAsync(_fixture.DataSource, options).GetAwaiter().GetResult();
 
-        return new PostgreSqlAuditChainStore<PostgreSqlAuditRecord>(
+        var store = new PostgreSqlAuditChainStore<PostgreSqlAuditRecord>(
             new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options));
+
+        return new StagingAuditChainStore<PostgreSqlAuditRecord>(
+            store,
+            (segment, document, cancellationToken) => store.StageAsync(segment, document, null, cancellationToken));
     }
 
     /// <inheritdoc />
@@ -61,15 +65,14 @@ public sealed class PostgreSqlAuditChainStoreTests
         var provider = new TestTransactionProvider();
 
         var store = new PostgreSqlAuditChainStore<PostgreSqlAuditRecord>(
-            new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options),
-            provider);
+            new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options));
 
         using var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
 
         using (var transaction = await connection.BeginTransactionAsync().ConfigureAwait(false))
         {
             provider.Activate(connection, transaction);
-            await store.StageAsync("orders", CreateDocument("rolled-back"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync("orders", CreateDocument("rolled-back"), provider, CancellationToken.None).ConfigureAwait(false);
             provider.Deactivate();
             await transaction.RollbackAsync().ConfigureAwait(false);
         }
@@ -82,7 +85,7 @@ public sealed class PostgreSqlAuditChainStoreTests
         using (var transaction = await connection.BeginTransactionAsync().ConfigureAwait(false))
         {
             provider.Activate(connection, transaction);
-            await store.StageAsync("orders", CreateDocument("committed"), CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync("orders", CreateDocument("committed"), provider, CancellationToken.None).ConfigureAwait(false);
             provider.Deactivate();
             await transaction.CommitAsync().ConfigureAwait(false);
         }
@@ -102,8 +105,7 @@ public sealed class PostgreSqlAuditChainStoreTests
         var provider = new TestTransactionProvider();
 
         var store = new PostgreSqlAuditChainStore<PostgreSqlAuditRecord>(
-            new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options),
-            provider);
+            new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options));
 
         using var connection = await _fixture.DataSource.OpenConnectionAsync().ConfigureAwait(false);
         using var transaction = await connection.BeginTransactionAsync().ConfigureAwait(false);
@@ -133,7 +135,7 @@ public sealed class PostgreSqlAuditChainStoreTests
         using var transaction = await connection.BeginTransactionAsync().ConfigureAwait(false);
 
         var bound = store.UseExistingConnection(connection, transaction);
-        await bound.StageAsync("orders", CreateDocument("bound"), CancellationToken.None).ConfigureAwait(false);
+        await bound.StageAsync("orders", CreateDocument("bound"), null, CancellationToken.None).ConfigureAwait(false);
         await transaction.RollbackAsync().ConfigureAwait(false);
 
         var afterRollback = await CollectAsync(
@@ -163,7 +165,10 @@ public sealed class PostgreSqlAuditChainStoreTests
     [SkippableFact]
     public async Task GetLatestAsync_ShouldReturnTheHighestSequenceCheckpoint()
     {
-        var store = (PostgreSqlAuditChainStore<PostgreSqlAuditRecord>) CreateStore();
+        var options = CreateOptions();
+        await PostgreSqlAuditSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
+        var store = new PostgreSqlAuditChainStore<PostgreSqlAuditRecord>(
+            new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options));
 
         var missing = await store.GetLatestAsync("orders", CancellationToken.None).ConfigureAwait(false);
         missing.Should().BeNull();
@@ -188,7 +193,10 @@ public sealed class PostgreSqlAuditChainStoreTests
     [SkippableFact]
     public async Task AppendAsync_ToExpiredSegment_ShouldThrowAndKeepTheHead()
     {
-        var store = (PostgreSqlAuditChainStore<PostgreSqlAuditRecord>) CreateStore();
+        var options = CreateOptions();
+        await PostgreSqlAuditSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
+        var store = new PostgreSqlAuditChainStore<PostgreSqlAuditRecord>(
+            new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options));
         const string segment = "orders";
 
         var info = new AuditSegmentInfo(
@@ -227,7 +235,10 @@ public sealed class PostgreSqlAuditChainStoreTests
     [SkippableFact]
     public async Task AppendAsync_WhenDocumentIsAlreadyLinked_ShouldThrow()
     {
-        var store = (PostgreSqlAuditChainStore<PostgreSqlAuditRecord>) CreateStore();
+        var options = CreateOptions();
+        await PostgreSqlAuditSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
+        var store = new PostgreSqlAuditChainStore<PostgreSqlAuditRecord>(
+            new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options));
         const string segment = "orders";
 
         var info = new AuditSegmentInfo(
@@ -255,13 +266,16 @@ public sealed class PostgreSqlAuditChainStoreTests
     [SkippableFact]
     public async Task StageAsync_WhenDocumentCarriesAPosition_ShouldThrow()
     {
-        var store = (PostgreSqlAuditChainStore<PostgreSqlAuditRecord>) CreateStore();
+        var options = CreateOptions();
+        await PostgreSqlAuditSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
+        var store = new PostgreSqlAuditChainStore<PostgreSqlAuditRecord>(
+            new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options));
         var document = CreateDocument("record-1");
         document.Sequence = 1;
 
         var stage = async () =>
         {
-            await store.StageAsync("orders", document, CancellationToken.None).ConfigureAwait(false);
+            await store.StageAsync("orders", document, null, CancellationToken.None).ConfigureAwait(false);
         };
 
         await stage.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
@@ -270,7 +284,10 @@ public sealed class PostgreSqlAuditChainStoreTests
     [SkippableFact]
     public async Task AppendAsync_ConcurrentFirstAppends_ShouldLeaveOneWinner()
     {
-        var store = (PostgreSqlAuditChainStore<PostgreSqlAuditRecord>) CreateStore();
+        var options = CreateOptions();
+        await PostgreSqlAuditSchema.EnsureAsync(_fixture.DataSource, options).ConfigureAwait(false);
+        var store = new PostgreSqlAuditChainStore<PostgreSqlAuditRecord>(
+            new PostgreSqlAuditStoreRegistration(_fixture.DataSource, options));
         const string segment = "orders";
 
         var info = new AuditSegmentInfo(

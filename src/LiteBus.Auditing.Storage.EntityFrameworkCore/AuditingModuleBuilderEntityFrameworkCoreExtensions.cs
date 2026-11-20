@@ -31,8 +31,11 @@ public static class AuditingModuleBuilderEntityFrameworkCoreExtensions
     ///         records commit or roll back with the handler change. The application registers its context
     ///         itself and maps the audit tables by calling
     ///         <see cref="AuditEntityFrameworkCoreModelExtensions.GetModelBuilderConfiguration" /> from
-    ///         <c>OnModelCreating</c>; LiteBus registers neither the context nor the factory that opens
-    ///         isolated contexts for records written outside the business transaction.
+    ///         <c>OnModelCreating</c>. The store registers <see cref="IAuditDbContext" /> as the scoped context and
+    ///         <see cref="IAuditDbContextFactory" /> over <c>IDbContextFactory&lt;TContext&gt;</c> as default ports
+    ///         (see <see cref="EfCoreAuditStoreModule{TContext}" />), so the application registers its context with
+    ///         <c>AddDbContextFactory&lt;TContext&gt;</c>. The chain store is a singleton that opens a short context
+    ///         from the factory for every operation.
     ///     </para>
     /// </remarks>
     /// <exception cref="LiteBusConfigurationException">Another audit store is already registered.</exception>
@@ -66,6 +69,8 @@ public static class AuditingModuleBuilderEntityFrameworkCoreExtensions
         options.StoreDefaultMapperType = typeof(EfCoreAuditRecordMapper);
         options.StoreDefaultSegmenterType = typeof(EfCoreAuditRecordSegmenter);
         options.StoreDefaultCanonicalizerType = typeof(EfCoreAuditRecordCanonicalizer);
+
+        builder.RegisterChildModule(new EfCoreAuditStoreModule<TContext>());
 
         return builder;
     }

@@ -41,7 +41,7 @@ public sealed class MartenAuditChainBackgroundServiceTests : IClassFixture<Postg
 
         var business = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using var configuredBusiness = business.ConfigureAwait(false);
-        var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, business);
+        var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore);
         var segmenter = new MartenAuditRecordSegmenter();
         var moduleBuilder = new AuditingModuleBuilder();
         moduleBuilder.UseHashChain(chain => chain
@@ -56,7 +56,7 @@ public sealed class MartenAuditChainBackgroundServiceTests : IClassFixture<Postg
         var provider = services.BuildServiceProvider();
         await using var configuredProvider = provider.ConfigureAwait(false);
 
-        var trail = new MartenAuditTrail<MartenAuditRecord>(store, new MartenAuditRecordMapper(), segmenter);
+        var trail = new MartenAuditTrail<MartenAuditRecord>(store, business, new MartenAuditRecordMapper(), segmenter);
         await trail.WriteAsync(FailedRecord("orders.place-order", category)).ConfigureAwait(false);
         var linker = new AuditLinker<MartenAuditRecord>(
             store,

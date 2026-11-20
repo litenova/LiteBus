@@ -15,10 +15,10 @@ namespace LiteBus.Auditing.Storage.PostgreSql;
 ///     record delivered twice overwrites rather than duplicates. The chain writer fills the chain fields afterwards,
 ///     so the mapped document leaves them empty.
 /// </remarks>
-public sealed class PostgreSqlAuditRecordMapper : IAuditRecordMapper<PostgreSqlAuditRecord>
+public sealed class PostgreSqlAuditRecordMapper : AuditRecordMapper<PostgreSqlAuditRecord>
 {
     /// <inheritdoc />
-    public PostgreSqlAuditRecord Map(AuditRecord record)
+    public override PostgreSqlAuditRecord Map(AuditRecord record)
     {
         ArgumentNullException.ThrowIfNull(record);
 

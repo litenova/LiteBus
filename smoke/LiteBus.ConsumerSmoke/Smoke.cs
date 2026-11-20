@@ -9,6 +9,7 @@ using LiteBus.Outbox.Storage.EntityFrameworkCore;
 using LiteBus.Storage.EntityFrameworkCore;
 using Marten;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.ConsumerSmoke;
 
@@ -35,6 +36,17 @@ internal static class Smoke
     /// </summary>
     /// <param name="condition">The expectation.</param>
     /// <param name="message">What was expected.</param>
+    /// <summary>
+    ///     Gets the container validation a host applies in the Development environment: scope validation and
+    ///     build validation. Every scenario builds its provider with it, so a singleton that captures a scoped
+    ///     service fails the smoke the way it fails a consumer's Development host.
+    /// </summary>
+    internal static ServiceProviderOptions DevelopmentValidation => new()
+    {
+        ValidateScopes = true,
+        ValidateOnBuild = true
+    };
+
     internal static void Expect(bool condition, string message)
     {
         if (!condition)

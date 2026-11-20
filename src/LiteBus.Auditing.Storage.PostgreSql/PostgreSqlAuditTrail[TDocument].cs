@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Auditing.Linking;
 using LiteBus.Auditing.Recording;
+using LiteBus.Storage.PostgreSql;
 using Npgsql;
 
 namespace LiteBus.Auditing.Storage.PostgreSql;
@@ -15,8 +16,8 @@ namespace LiteBus.Auditing.Storage.PostgreSql;
 /// <typeparam name="TDocument">The stored audit document type.</typeparam>
 /// <remarks>
 ///     <para>
-///         A record for a successful mediation is staged through the ambient <see cref="LiteBus.Storage.PostgreSql.IPostgreSqlTransactionProvider" /> transaction when one is active,
-///         so the record commits or rolls back with the handler change. The chain linker assigns the staged record
+///         A record for a successful mediation is staged in the transaction the scope's <see cref="IPostgreSqlTransactionProvider" />
+///         reports when one is active, so the record commits or rolls back with the handler change. The chain linker assigns the staged record
 ///         its position after commit, in commit order.
 ///     </para>
 ///     <para>
@@ -28,7 +29,7 @@ namespace LiteBus.Auditing.Storage.PostgreSql;
 ///     <para>
 ///         Registered through <c>AuditingModuleBuilder.UsePostgreSqlStore</c>, which records this trail as the open
 ///         generic the auditing module closes over the configured document type. The application registers an
-///         <see cref="LiteBus.Storage.PostgreSql.IPostgreSqlTransactionProvider" /> when its business data lives on the same
+///         <see cref="IPostgreSqlTransactionProvider" /> when its business data lives on the same
 ///         PostgreSQL transaction; without one, every record commits on its own connection.
 ///     </para>
 /// </remarks>
@@ -69,8 +70,9 @@ public sealed class PostgreSqlAuditTrail<TDocument> : IAuditTrail
     /// <param name="mapper">The mapper from an audit record to a new stored document.</param>
     /// <param name="segmenter">The segmenter that assigns a stored document to its segment.</param>
     /// <param name="serviceProvider">
-    ///     The dispatch-scope provider the staged-segment holder is resolved from, or <see langword="null" />
-    ///     when the composition links nothing after commit.
+    ///     The dispatch-scope provider the staged-segment holder and the business transaction provider are resolved
+    ///     from, or <see langword="null" /> when the composition links nothing after commit and stages outside any
+    ///     business transaction.
     /// </param>
     public PostgreSqlAuditTrail(
         PostgreSqlAuditChainStore<TDocument> store,
@@ -102,11 +104,14 @@ public sealed class PostgreSqlAuditTrail<TDocument> : IAuditTrail
         var mapping = AuditMappingScope.Resolve(record, _serviceProvider);
         var succeeded = record.Outcome == AuditOutcome.Succeeded;
 
-        // A success joins the ambient business transaction when one is active, so it commits or rolls back with the
-        // handler change. Any other outcome is rolled back by the unit of work, so it is written on its own
+        // A success joins the business transaction the scope's transaction provider reports, so it commits or rolls
+        // back with the handler change. Any other outcome is rolled back by the unit of work, so it is written on its own
         // connection and transaction and committed immediately.
+        var ambient = succeeded
+            ? _serviceProvider?.GetService(typeof(IPostgreSqlTransactionProvider)) as IPostgreSqlTransactionProvider
+            : null;
         var (_, segment) = await _store.MapAndStageAsync(
-            succeeded,
+            ambient,
             (connection, transaction) =>
             {
                 mapping.Features.Set(connection);

@@ -423,9 +423,9 @@ public sealed class AuditingModuleTests
         public string? HashScheme { get; set; }
     }
 
-    private sealed class ChainTestMapper : IAuditRecordMapper<ChainTestDocument>
+    private sealed class ChainTestMapper : AuditRecordMapper<ChainTestDocument>
     {
-        public ChainTestDocument Map(AuditRecord record)
+        public override ChainTestDocument Map(AuditRecord record)
         {
             ArgumentNullException.ThrowIfNull(record);
 

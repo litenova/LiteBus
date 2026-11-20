@@ -42,7 +42,7 @@ internal static class RecurringCronSmoke
             });
         });
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider(Smoke.DevelopmentValidation);
         var hosted = provider.GetRequiredService<IHostedService>();
         await hosted.StartAsync(CancellationToken.None).ConfigureAwait(false);
 

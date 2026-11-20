@@ -45,6 +45,7 @@ await Smoke.RunAsync("PostgreSQL audit store", () => AuditPostgreSqlSmoke.RunAsy
 await Smoke.RunAsync("Entity Framework Core audit store", () => AuditEntityFrameworkCoreSmoke.RunAsync(connectionString)).ConfigureAwait(false);
 await Smoke.RunAsync("Audit record mapper in the mediation scope", () => AuditMapperSmoke.RunAsync(connectionString)).ConfigureAwait(false);
 await Smoke.RunAsync("Audit chain operations", () => AuditChainOperationsSmoke.RunAsync(connectionString)).ConfigureAwait(false);
+await Smoke.RunAsync("Audit host under Development container validation", () => AuditHostValidationSmoke.RunAsync(connectionString)).ConfigureAwait(false);
 await Smoke.RunAsync("Domain events staged unchanged", () => DomainEventStageSmoke.RunAsync(connectionString)).ConfigureAwait(false);
 
 Console.WriteLine("Consumer smoke test passed.");

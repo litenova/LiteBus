@@ -45,7 +45,7 @@ public sealed class MartenAuditChainStoreContractTests
     }
 
     /// <inheritdoc />
-    protected override IAuditChainStore<MartenAuditRecord> CreateStore()
+    protected override IStagingAuditChainStore<MartenAuditRecord> CreateStore()
     {
         var documentStore = DocumentStore.For(options =>
         {
@@ -53,7 +53,7 @@ public sealed class MartenAuditChainStoreContractTests
             options.DatabaseSchemaName = "marten_audit_contract_" + Guid.NewGuid().ToString("N");
         });
         var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-        var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, session, new TickingClock(BaseTime));
+        var store = new MartenAuditChainStore<MartenAuditRecord>(documentStore, new TickingClock(BaseTime));
         _stores.Add(new TrackedMartenStore(documentStore, session));
 
         return new CommittingMartenAuditChainStore(store, session);
@@ -78,12 +78,12 @@ public sealed class MartenAuditChainStoreContractTests
         return document.Action;
     }
 
-    private sealed class CommittingMartenAuditChainStore : IAuditChainStore<MartenAuditRecord>
+    private sealed class CommittingMartenAuditChainStore : IStagingAuditChainStore<MartenAuditRecord>
     {
-        private readonly IAuditChainStore<MartenAuditRecord> _inner;
+        private readonly MartenAuditChainStore<MartenAuditRecord> _inner;
         private readonly IDocumentSession _session;
 
-        public CommittingMartenAuditChainStore(IAuditChainStore<MartenAuditRecord> inner, IDocumentSession session)
+        public CommittingMartenAuditChainStore(MartenAuditChainStore<MartenAuditRecord> inner, IDocumentSession session)
         {
             _inner = inner;
             _session = session;
@@ -106,10 +106,10 @@ public sealed class MartenAuditChainStoreContractTests
 
         public async ValueTask StageAsync(string segment, MartenAuditRecord document, CancellationToken cancellationToken)
         {
-            // The store stages onto the scoped session without saving, so staged documents commit with
+            // The store stages onto the given session without saving, so staged documents commit with
             // the business change. The suite has no business change, so the adapter saves after every
             // stage to make staged documents visible to the unlinked listings.
-            await _inner.StageAsync(segment, document, cancellationToken).ConfigureAwait(false);
+            await _inner.StageAsync(_session, segment, document, cancellationToken).ConfigureAwait(false);
             await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 

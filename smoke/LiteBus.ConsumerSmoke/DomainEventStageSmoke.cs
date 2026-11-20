@@ -67,7 +67,7 @@ internal static class DomainEventStageSmoke
             });
         });
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider(Smoke.DevelopmentValidation);
         var orderId = Guid.NewGuid();
 
         await provider.GetRequiredService<ICommandMediator>()

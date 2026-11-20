@@ -149,9 +149,16 @@ public sealed class InMemoryAuditChainStore<TDocument> : IAuditChainStore<TDocum
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Stages an unlinked document, which the linker positions later.
+    /// </summary>
+    /// <param name="segment">The segment the document belongs to. The store assigns the document to it.</param>
+    /// <param name="document">The document without a chain position.</param>
+    /// <param name="cancellationToken">The token used to cancel the staging.</param>
+    /// <returns>A task representing the asynchronous staging.</returns>
     /// <remarks>
-    ///     A segment with no head gains a placeholder head carrying no linked documents, so the linker sweep
+    ///     The in-memory store has no business transaction, so its trail stages through this method directly. A
+    ///     segment with no head gains a placeholder head carrying no linked documents, so the linker sweep
     ///     discovers the segment through the stored heads. Staging the same instance twice replaces its entry
     ///     rather than duplicating it.
     /// </remarks>

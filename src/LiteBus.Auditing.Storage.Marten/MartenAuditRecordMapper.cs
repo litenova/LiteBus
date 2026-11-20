@@ -15,10 +15,10 @@ namespace LiteBus.Auditing.Storage.Marten;
 ///     record delivered twice overwrites rather than duplicates. The chain writer fills the chain fields afterwards,
 ///     so the mapped document leaves them empty.
 /// </remarks>
-public sealed class MartenAuditRecordMapper : IAuditRecordMapper<MartenAuditRecord>
+public sealed class MartenAuditRecordMapper : AuditRecordMapper<MartenAuditRecord>
 {
     /// <inheritdoc />
-    public MartenAuditRecord Map(AuditRecord record)
+    public override MartenAuditRecord Map(AuditRecord record)
     {
         ArgumentNullException.ThrowIfNull(record);
 

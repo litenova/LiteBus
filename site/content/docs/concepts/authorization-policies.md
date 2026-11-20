@@ -293,6 +293,8 @@ public sealed class BusinessHoursCondition : IAuthorizationCondition
 }
 ```
 
+The factories return the derived result types: `PolicyResult.Allow` is a `PolicyAllow`, `Deny` returns a `PolicyDeny`, and `Fault` returns a `PolicyFault`. `Task.FromResult(PolicyResult.Allow)` is therefore a `Task<PolicyAllow>`, and a conditional or switch expression whose arms mix it with a `Task<PolicyResult>` does not infer a common type. Name the result type where you wrap it: `new ValueTask<PolicyResult>(...)` as above, or `Task.FromResult<PolicyResult>(...)`.
+
 A condition observes the same `AuthorizationContext` the named policy does. It must stay free of effects a caller would not want from a "may I" question, because the guard stage also runs when the pipeline is asked to evaluate a message without performing it.
 
 A condition that belongs to one policy rather than every message is named by that policy with `Condition<TCondition>()` and registered with `RegisterCondition<TCondition>()`, which registers the type as itself, scoped, without making it global:

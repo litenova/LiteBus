@@ -11,7 +11,7 @@ namespace LiteBus.Auditing.UnitTests.InMemory;
 public sealed class InMemoryAuditChainStoreContractTests : AuditChainStoreContractTests<InMemoryAuditChainStoreContractTests.ContractTestDocument>
 {
     /// <inheritdoc />
-    protected override IAuditChainStore<ContractTestDocument> CreateStore()
+    protected override IStagingAuditChainStore<ContractTestDocument> CreateStore()
     {
         return new PlaceholderHidingStore(new InMemoryAuditChainStore<ContractTestDocument>());
     }
@@ -54,11 +54,11 @@ public sealed class InMemoryAuditChainStoreContractTests : AuditChainStoreContra
         public string? HashScheme { get; set; }
     }
 
-    private sealed class PlaceholderHidingStore : IAuditChainStore<ContractTestDocument>
+    private sealed class PlaceholderHidingStore : IStagingAuditChainStore<ContractTestDocument>
     {
-        private readonly IAuditChainStore<ContractTestDocument> _inner;
+        private readonly InMemoryAuditChainStore<ContractTestDocument> _inner;
 
-        public PlaceholderHidingStore(IAuditChainStore<ContractTestDocument> inner)
+        public PlaceholderHidingStore(InMemoryAuditChainStore<ContractTestDocument> inner)
         {
             _inner = inner;
         }

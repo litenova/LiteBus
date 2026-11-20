@@ -313,15 +313,14 @@ public sealed class AuditingModule : ICompositeModule, IRequires<MessageModule>
         ThrowIfNotImplementation(mapperType, closedMapperInterface, "record mapper registered through StoreAs");
         ThrowIfNotImplementation(segmenterType, closedSegmenterInterface, "segmenter registered through SegmentBy");
 
-        var storeLifetime = StoreLifetime(options);
         var registry = configuration.DependencyRegistry;
 
         registry.Register(new DependencyDescriptor(typeof(AuditHashChainOptions), chain));
-        registry.Register(new DependencyDescriptor(closedStoreInterface, closedStoreType, storeLifetime));
+        registry.Register(new DependencyDescriptor(closedStoreInterface, closedStoreType, InstanceLifetime.Singleton));
         registry.Register(new DependencyDescriptor(
             closedStoreType,
             provider => RequiredService(provider, closedStoreInterface),
-            storeLifetime));
+            InstanceLifetime.Singleton));
         registry.Register(new DependencyDescriptor(closedTrailType, closedTrailType, InstanceLifetime.Scoped));
         registry.Register(new DependencyDescriptor(closedMapperInterface, mapperType, InstanceLifetime.Scoped));
         registry.Register(chain.SegmenterInstance is { } segmenterInstance
@@ -394,7 +393,7 @@ public sealed class AuditingModule : ICompositeModule, IRequires<MessageModule>
                 registry.Register(new DependencyDescriptor(
                     closedStoreType,
                     closedStoreType,
-                    StoreLifetime(options)));
+                    InstanceLifetime.Singleton));
             }
 
             RegisterCaptureCoordinator(registry, trailType);
@@ -416,13 +415,12 @@ public sealed class AuditingModule : ICompositeModule, IRequires<MessageModule>
                 documentType,
                 closedStoreInterface,
                 "audit chain store");
-            var storeLifetime = StoreLifetime(options);
 
-            registry.Register(new DependencyDescriptor(closedStoreInterface, closedStoreType, storeLifetime));
+            registry.Register(new DependencyDescriptor(closedStoreInterface, closedStoreType, InstanceLifetime.Singleton));
             registry.Register(new DependencyDescriptor(
                 closedStoreType,
                 provider => RequiredService(provider, closedStoreInterface),
-                storeLifetime));
+                InstanceLifetime.Singleton));
         }
 
         if (options.StoreDefaultMapperType is not null)
@@ -952,22 +950,6 @@ public sealed class AuditingModule : ICompositeModule, IRequires<MessageModule>
         }
 
         return "default: every 100 records";
-    }
-
-    /// <summary>
-    ///     Reads the store lifetime from what the store can do.
-    /// </summary>
-    /// <param name="options">The auditing configuration carrying the store capabilities.</param>
-    /// <returns>Scoped when the store joins the business transaction; otherwise, Singleton.</returns>
-    /// <remarks>
-    ///     A store that joins the business transaction captures the scoped session, so it is scoped with it. A
-    ///     store that cannot join runs on its own sessions, so one shared instance serves every caller.
-    /// </remarks>
-    private static InstanceLifetime StoreLifetime(AuditingOptions options)
-    {
-        return options.StoreCapabilities!.JoinsBusinessTransaction
-            ? InstanceLifetime.Scoped
-            : InstanceLifetime.Singleton;
     }
 
     /// <summary>

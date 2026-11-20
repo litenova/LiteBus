@@ -130,6 +130,62 @@ public sealed class AuditVerifierTests
     }
 
     [Fact]
+    public async Task A_fresh_segment_under_a_daily_policy_reports_no_missing_checkpoint()
+    {
+        var openedAt = new DateTimeOffset(2026, 11, 19, 0, 0, 30, TimeSpan.Zero);
+        var scheme = VerificationTestData.TestScheme("sha256-v1");
+        var timeProvider = new VerificationTestTimeProvider(openedAt);
+        var store = new VerificationTestStore(timeProvider);
+        var documents = await VerificationTestData.BuildChainAsync(Segment, scheme, 3).ConfigureAwait(false);
+        store.SeedLinked(Segment, documents);
+        var storedSource = new VerificationTestSource();
+        var serviceProvider = new VerificationTestServiceProvider();
+        serviceProvider.Add<VerificationTestSource>(storedSource);
+        var options = VerificationTestData.ChainOptions(
+            sourceTypes: [typeof(VerificationTestSource)],
+            checkpointPolicy: CheckpointPolicies.DailyAt(TimeOnly.MinValue));
+        var verifier = new AuditVerifier<VerificationTestDocument>(
+            store, new VerificationTestSchemeRegistry([scheme]), options, serviceProvider, timeProvider);
+
+        var verification = await verifier
+            .VerifyAsync(new AuditChainVerificationRequest(Segment), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        verification.Breaks.Should().NotContain(breakItem => breakItem.Kind == AuditChainBreakKind.CheckpointMissing);
+        verification.IsIntact.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_segment_past_its_daily_checkpoint_time_reports_one_missing_checkpoint()
+    {
+        var openedAt = new DateTimeOffset(2026, 11, 19, 0, 0, 30, TimeSpan.Zero);
+        var scheme = VerificationTestData.TestScheme("sha256-v1");
+        var timeProvider = new VerificationTestTimeProvider(openedAt);
+        var store = new VerificationTestStore(timeProvider);
+        var documents = await VerificationTestData.BuildChainAsync(Segment, scheme, 3).ConfigureAwait(false);
+        store.SeedLinked(Segment, documents);
+        timeProvider.Advance(TimeSpan.FromDays(2));
+        var storedSource = new VerificationTestSource();
+        var serviceProvider = new VerificationTestServiceProvider();
+        serviceProvider.Add<VerificationTestSource>(storedSource);
+        var options = VerificationTestData.ChainOptions(
+            sourceTypes: [typeof(VerificationTestSource)],
+            checkpointPolicy: CheckpointPolicies.DailyAt(TimeOnly.MinValue));
+        var verifier = new AuditVerifier<VerificationTestDocument>(
+            store, new VerificationTestSchemeRegistry([scheme]), options, serviceProvider, timeProvider);
+
+        var verification = await verifier
+            .VerifyAsync(new AuditChainVerificationRequest(Segment), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var single = verification.Breaks.Should().ContainSingle().Subject;
+        single.Kind.Should().Be(AuditChainBreakKind.CheckpointMissing);
+        single.Category.Should().Be(AuditChainBreakCategory.Coverage);
+        verification.IsIntact.Should().BeFalse();
+        verification.IsChainIntact.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Two_sources_in_agreement_verify_with_two_comparisons()
     {
         var scheme = VerificationTestData.TestScheme("sha256-v1");

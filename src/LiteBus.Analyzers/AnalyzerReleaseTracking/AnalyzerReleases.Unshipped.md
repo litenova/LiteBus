@@ -28,3 +28,4 @@
 | LB1026  | LiteBus.Outbox        | Warning  | Transactional outbox context not configured
 | LB1027  | LiteBus.Outbox        | Warning  | Subscriber name reused
 | LB1028  | LiteBus.Declarations  | Info     | Definition mixes concerns
+| LB1030  | LiteBus.Contracts     | Warning  | Contract registration disagrees with [MessageContract]

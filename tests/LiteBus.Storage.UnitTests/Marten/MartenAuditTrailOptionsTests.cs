@@ -217,9 +217,9 @@ public sealed class MartenAuditTrailOptionsTests
         public string? HashScheme { get; set; }
     }
 
-    private sealed class CustomAuditDocumentMapper : IAuditRecordMapper<CustomAuditDocument>
+    private sealed class CustomAuditDocumentMapper : AuditRecordMapper<CustomAuditDocument>
     {
-        public CustomAuditDocument Map(AuditRecord record)
+        public override CustomAuditDocument Map(AuditRecord record)
         {
             return new CustomAuditDocument { Action = record.Action };
         }

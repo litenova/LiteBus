@@ -714,8 +714,9 @@ internal sealed class AuditVerifier<TDocument> : IAuditVerifier
     ///     <para>
     ///         A segment younger than its first checkpoint is not a break. The default policy cuts every 100 records,
     ///         so a segment of 40 records legitimately has none. The verifier asks the same policy the checkpoint
-    ///         lifecycle uses, with no previous checkpoint, and reports the break only when that policy would already
-    ///         have cut one.
+    ///         lifecycle uses and builds the candidate from the stored segment head, so a time-based schedule measures
+    ///         from when the segment opened or the last checkpoint was cut. It reports the break only when that policy
+    ///         would already have cut one.
     ///     </para>
     /// </remarks>
     private async ValueTask ReportMissingAsync(
@@ -750,14 +751,16 @@ internal sealed class AuditVerifier<TDocument> : IAuditVerifier
             return;
         }
 
+        var head = await _store.ReadHeadAsync(segment, cancellationToken).ConfigureAwait(false);
+
         var candidate = new AuditCheckpointCandidate(
             segment,
             chain.HeadSequence ?? 0,
             chain.RecordCount,
-            LastCheckpointSequence: null,
-            LastCheckpointAt: null,
+            LastCheckpointSequence: head?.LastCheckpointSequence,
+            LastCheckpointAt: head?.LastCheckpointAt,
             _timeProvider.GetUtcNow(),
-            SegmentInfo: null,
+            SegmentInfo: head?.Info,
             Services: _serviceProvider);
 
         var due = await ResolveCheckpointPolicy().IsDueAsync(candidate, cancellationToken).ConfigureAwait(false);

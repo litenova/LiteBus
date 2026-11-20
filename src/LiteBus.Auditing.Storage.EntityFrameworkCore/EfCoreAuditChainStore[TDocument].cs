@@ -14,16 +14,17 @@ using Microsoft.EntityFrameworkCore.Metadata;
 namespace LiteBus.Auditing.Storage.EntityFrameworkCore;
 
 /// <summary>
-///     Entity Framework Core audit chain store that implements the chain port over the scoped business
-///     context.
+///     Entity Framework Core audit chain store that implements the chain port on short database contexts, and
+///     stages records on the business context the audit trail passes.
 /// </summary>
 /// <typeparam name="TDocument">The stored audit document type.</typeparam>
 /// <remarks>
 ///     <para>
-///         Every operation runs on the <see cref="IAuditDbContext" /> resolved from the mediation scope, so
-///         staged documents commit or roll back with the business change. Staging adds without saving: the
-///         unit of work commits. Every other operation saves, which joins the ambient transaction when one is
-///         in flight and commits on its own otherwise.
+///         The store holds no database context, so the auditing module registers it as a singleton. Every
+///         operation of the chain port opens a short context from the <see cref="IAuditDbContextFactory" /> and
+///         disposes it when the operation ends. <see cref="StageAsync" /> runs on the business context the
+///         caller passes, which the audit trail resolves from the mediation scope, and adds without saving, so
+///         the staged document commits or rolls back with the business change.
 ///     </para>
 ///     <para>
 ///         Appends assert the expected head version against the stored head before writing, and the head
@@ -53,20 +54,14 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     private static readonly SemaphoreSlim InMemoryAppendLock = new(1, 1);
 
     /// <summary>
-    ///     The audit database context of the current scope that every operation runs on.
-    /// </summary>
-    private readonly IAuditDbContext _auditContext;
-
-    /// <summary>
     ///     The clock that stamps staged documents and opened segments.
     /// </summary>
     private readonly TimeProvider _timeProvider;
 
     /// <summary>
-    ///     The factory that opens the isolated contexts out-of-band staging saves on, or <see langword="null" />
-    ///     when the application registered none.
+    ///     The factory that opens the short context each operation runs on.
     /// </summary>
-    private readonly IAuditDbContextFactory? _dbContextFactory;
+    private readonly IAuditDbContextFactory _dbContextFactory;
 
     /// <summary>
     ///     The readable tenant property of the stored document type, or <see langword="null" /> when the type
@@ -77,25 +72,19 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     /// <summary>
     ///     Initializes a new instance of the <see cref="EfCoreAuditChainStore{TDocument}" /> class.
     /// </summary>
-    /// <param name="auditContext">The audit database context of the current scope.</param>
+    /// <param name="dbContextFactory">The factory that opens the short context each operation runs on.</param>
     /// <param name="timeProvider">
     ///     The clock that stamps staged documents and opened segments, or <see langword="null" /> for
     ///     <see cref="TimeProvider.System" />.
     /// </param>
-    /// <param name="dbContextFactory">
-    ///     The factory that opens the isolated contexts <see cref="StageOutOfBandAsync" /> saves on, or
-    ///     <see langword="null" /> when out-of-band staging is not used.
-    /// </param>
     public EfCoreAuditChainStore(
-        IAuditDbContext auditContext,
-        TimeProvider? timeProvider = null,
-        IAuditDbContextFactory? dbContextFactory = null)
+        IAuditDbContextFactory dbContextFactory,
+        TimeProvider? timeProvider = null)
     {
-        ArgumentNullException.ThrowIfNull(auditContext);
+        ArgumentNullException.ThrowIfNull(dbContextFactory);
 
-        _auditContext = auditContext;
-        _timeProvider = timeProvider ?? TimeProvider.System;
         _dbContextFactory = dbContextFactory;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _tenantProperty = ResolveTenantProperty();
     }
 
@@ -108,10 +97,8 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
 
-        if (_auditContext is not DbContext dbContext)
-        {
-            throw new InvalidOperationException("Reading the latest audit checkpoint requires a DbContext-backed audit database context.");
-        }
+        var dbContext = OpenContext();
+        await using var dbContextLease = dbContext.ConfigureAwait(false);
 
         var entity = await dbContext.Set<AuditCheckpointEntity>().AsNoTracking()
             .Where(checkpoint => checkpoint.Segment == segment)
@@ -129,10 +116,8 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
 
-        if (_auditContext is not DbContext dbContext)
-        {
-            throw new InvalidOperationException("Reading audit segment heads requires a DbContext-backed audit database context.");
-        }
+        var dbContext = OpenContext();
+        await using var dbContextLease = dbContext.ConfigureAwait(false);
 
         var entity = await dbContext.Set<AuditSegmentHeadEntity>().AsNoTracking()
             .SingleOrDefaultAsync(head => head.Segment == segment, cancellationToken)
@@ -184,10 +169,8 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
                 $"The updated audit head targets segment '{updated.Info.Key}' but the append targets '{segment}'.");
         }
 
-        if (_auditContext is not DbContext dbContext)
-        {
-            throw new InvalidOperationException("Appending audit documents requires a DbContext-backed audit database context.");
-        }
+        var dbContext = OpenContext();
+        await using var dbContextLease = dbContext.ConfigureAwait(false);
 
         foreach (var document in documents)
         {
@@ -215,7 +198,14 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
         await AppendCoreAsync(dbContext, segment, expected, documents, updated, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     Stages an unlinked document on the business context without saving it.
+    /// </summary>
+    /// <param name="businessContext">The scoped business context the handler change is written on.</param>
+    /// <param name="segment">The segment the document belongs to. The store assigns the document to it.</param>
+    /// <param name="document">The document without a chain position.</param>
+    /// <param name="cancellationToken">The token used to cancel the staging.</param>
+    /// <returns>A task representing the asynchronous staging.</returns>
     /// <remarks>
     ///     <para>
     ///         Staging writes a placeholder head when the segment has none, so the background sweep discovers
@@ -234,8 +224,13 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     ///     </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">The document already carries a chain position.</exception>
-    public async ValueTask StageAsync(string segment, TDocument document, CancellationToken cancellationToken)
+    public async ValueTask StageAsync(
+        DbContext businessContext,
+        string segment,
+        TDocument document,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(businessContext);
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
         ArgumentNullException.ThrowIfNull(document);
 
@@ -244,10 +239,7 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
             throw new InvalidOperationException($"The audit document for segment '{segment}' already carries a chain position, so it cannot be staged as unlinked.");
         }
 
-        if (_auditContext is not DbContext dbContext)
-        {
-            throw new InvalidOperationException("Staging audit documents requires a DbContext-backed audit database context.");
-        }
+        var dbContext = businessContext;
 
         AssignSegment(segment, document);
         ThrowIfDocumentNotConfigured(dbContext);
@@ -284,10 +276,7 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     ///     winner, because staging is idempotent; the retry stages nothing new when the winner stored the
     ///     same document.
     /// </remarks>
-    /// <exception cref="InvalidOperationException">
-    ///     The document already carries a chain position, or no <see cref="IAuditDbContextFactory" /> is
-    ///     configured.
-    /// </exception>
+    /// <exception cref="InvalidOperationException">The document already carries a chain position.</exception>
     public async ValueTask StageOutOfBandAsync(string segment, TDocument document, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
@@ -298,13 +287,6 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     }
 
     /// <summary>
-    ///     Gets the scoped business context the success path stages documents on.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The audit database context is not a <see cref="DbContext" />.</exception>
-    internal DbContext BusinessContext => _auditContext as DbContext
-        ?? throw new InvalidOperationException("Staging audit documents requires a DbContext-backed audit database context.");
-
-    /// <summary>
     ///     Maps a record on an isolated context, stages the mapped document there, and saves the context, so anything
     ///     the mapper added to it commits with the document, outside the business transaction.
     /// </summary>
@@ -312,9 +294,7 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     /// <param name="segmentOf">Returns the segment of the mapped document.</param>
     /// <param name="cancellationToken">The token used to cancel the mapping and the staging.</param>
     /// <returns>The segment the document was staged in.</returns>
-    /// <exception cref="InvalidOperationException">
-    ///     The document already carries a chain position, or no <see cref="IAuditDbContextFactory" /> is configured.
-    /// </exception>
+    /// <exception cref="InvalidOperationException">The document already carries a chain position.</exception>
     internal async ValueTask<string> StageOutOfBandCoreAsync(
         Func<DbContext, ValueTask<TDocument>> map,
         Func<TDocument, string> segmentOf,
@@ -322,12 +302,6 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(segmentOf);
-
-        if (_dbContextFactory is null)
-        {
-            throw new InvalidOperationException(
-                "Staging an audit document outside the business transaction requires an IAuditDbContextFactory. Register EfCoreAuditDbContextFactory<TContext> for the application database context so denials, failures, cancellations, and invalid messages persist when the business change rolls back.");
-        }
 
         var created = _dbContextFactory.CreateDbContext();
 
@@ -346,11 +320,9 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
                 throw new InvalidOperationException($"The audit document for segment '{segment}' already carries a chain position, so it cannot be staged as unlinked.");
             }
 
-            var outOfBand = new EfCoreAuditChainStore<TDocument>(created, _timeProvider);
-
             try
             {
-                await outOfBand.StageAsync(segment, document, cancellationToken).ConfigureAwait(false);
+                await StageAsync(isolated, segment, document, cancellationToken).ConfigureAwait(false);
                 await isolated.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (DbUpdateException exception) when (EfCoreUniqueViolation.IsUniqueViolation(exception))
@@ -358,7 +330,7 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
                 // Only the audit rows raced; whatever the mapper added stays added and saves with the retry.
                 DetachAddedAuditEntries(isolated);
 
-                await outOfBand.StageAsync(segment, document, cancellationToken).ConfigureAwait(false);
+                await StageAsync(isolated, segment, document, cancellationToken).ConfigureAwait(false);
                 await isolated.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             }
 
@@ -375,6 +347,18 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
                 disposable.Dispose();
             }
         }
+    }
+
+    /// <summary>
+    ///     Opens the short context one store operation runs on.
+    /// </summary>
+    /// <returns>The context; the caller disposes it when the operation ends.</returns>
+    /// <exception cref="InvalidOperationException">The factory returned a context that is not a <see cref="DbContext" />.</exception>
+    private DbContext OpenContext()
+    {
+        return _dbContextFactory.CreateDbContext() as DbContext
+            ?? throw new InvalidOperationException(
+                "The IAuditDbContextFactory returned an audit database context that is not a DbContext. The Entity Framework Core audit store runs on DbContext-backed contexts.");
     }
 
     /// <summary>
@@ -411,10 +395,8 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
             ArgumentOutOfRangeException.ThrowIfLessThan(olderThan.Value, TimeSpan.Zero);
         }
 
-        if (_auditContext is not DbContext dbContext)
-        {
-            throw new InvalidOperationException("Listing unlinked audit documents requires a DbContext-backed audit database context.");
-        }
+        var dbContext = OpenContext();
+        await using var dbContextLease = dbContext.ConfigureAwait(false);
 
         var query = dbContext.Set<TDocument>()
             .Where(document => document.Segment == segment && document.Sequence == 0);
@@ -446,10 +428,8 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
             ArgumentOutOfRangeException.ThrowIfLessThan(olderThan.Value, TimeSpan.Zero);
         }
 
-        if (_auditContext is not DbContext dbContext)
-        {
-            throw new InvalidOperationException("Listing segments with unlinked audit documents requires a DbContext-backed audit database context.");
-        }
+        var dbContext = OpenContext();
+        await using var dbContextLease = dbContext.ConfigureAwait(false);
 
         var query = dbContext.Set<TDocument>().AsNoTracking()
             .Where(document => document.Segment != null && document.Sequence == 0);
@@ -498,10 +478,8 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
             }
         }
 
-        if (_auditContext is not DbContext dbContext)
-        {
-            throw new InvalidOperationException("Reading audit segments requires a DbContext-backed audit database context.");
-        }
+        var dbContext = OpenContext();
+        await using var dbContextLease = dbContext.ConfigureAwait(false);
 
         var query = dbContext.Set<TDocument>().AsNoTracking()
             .Where(document => document.Segment == segment && document.Sequence > 0 && document.Sequence >= fromSequence);
@@ -531,10 +509,8 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        if (_auditContext is not DbContext dbContext)
-        {
-            throw new InvalidOperationException("Listing audit segment heads requires a DbContext-backed audit database context.");
-        }
+        var dbContext = OpenContext();
+        await using var dbContextLease = dbContext.ConfigureAwait(false);
 
         var heads = await ListMatchingHeadEntitiesAsync(dbContext, filter, honorExpiry: true, cancellationToken).ConfigureAwait(false);
 
@@ -554,10 +530,8 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
 
-        if (_auditContext is not DbContext dbContext)
-        {
-            throw new InvalidOperationException("Storing audit checkpoints requires a DbContext-backed audit database context.");
-        }
+        var dbContext = OpenContext();
+        await using var dbContextLease = dbContext.ConfigureAwait(false);
 
         var tracked = dbContext.Set<AuditCheckpointEntity>().Local.FirstOrDefault(entity => entity.Id == checkpoint.Id);
 
@@ -611,10 +585,8 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
             throw new ArgumentException("The checkpoint identifier must not be empty.", nameof(checkpointId));
         }
 
-        if (_auditContext is not DbContext dbContext)
-        {
-            throw new InvalidOperationException("Reading audit checkpoints requires a DbContext-backed audit database context.");
-        }
+        var dbContext = OpenContext();
+        await using var dbContextLease = dbContext.ConfigureAwait(false);
 
         var entity = await ReadCheckpointEntityAsync(dbContext, checkpointId, cancellationToken).ConfigureAwait(false);
 
@@ -629,10 +601,8 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     public async IAsyncEnumerable<AuditCheckpoint> ListUnpublishedAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        if (_auditContext is not DbContext dbContext)
-        {
-            throw new InvalidOperationException("Listing unpublished audit checkpoints requires a DbContext-backed audit database context.");
-        }
+        var dbContext = OpenContext();
+        await using var dbContextLease = dbContext.ConfigureAwait(false);
 
         var query = dbContext.Set<AuditCheckpointEntity>().AsNoTracking()
             .Where(checkpoint => checkpoint.PublishState == CheckpointPublishState.Pending)
@@ -653,10 +623,8 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     /// </remarks>
     public async ValueTask MarkPublishedAsync(Guid checkpointId, string? publishError, CancellationToken cancellationToken)
     {
-        if (_auditContext is not DbContext dbContext)
-        {
-            throw new InvalidOperationException("Recording audit checkpoint publication requires a DbContext-backed audit database context.");
-        }
+        var dbContext = OpenContext();
+        await using var dbContextLease = dbContext.ConfigureAwait(false);
 
         var publishState = publishError is null ? CheckpointPublishState.Published : CheckpointPublishState.Pending;
 
@@ -709,10 +677,8 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        if (_auditContext is not DbContext dbContext)
-        {
-            throw new InvalidOperationException("Erasing audit segments requires a DbContext-backed audit database context.");
-        }
+        var dbContext = OpenContext();
+        await using var dbContextLease = dbContext.ConfigureAwait(false);
 
         var heads = await ListMatchingHeadEntitiesAsync(dbContext, filter, honorExpiry: false, cancellationToken).ConfigureAwait(false);
 
@@ -762,10 +728,8 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
 
-        if (_auditContext is not DbContext dbContext)
-        {
-            throw new InvalidOperationException("Expiring audit segments requires a DbContext-backed audit database context.");
-        }
+        var dbContext = OpenContext();
+        await using var dbContextLease = dbContext.ConfigureAwait(false);
 
         var head = await dbContext.Set<AuditSegmentHeadEntity>().FindAsync([segment], cancellationToken).ConfigureAwait(false);
 
@@ -836,10 +800,7 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
 
             foreach (var document in documents)
             {
-                if (dbContext.Entry(document).State == EntityState.Detached)
-                {
-                    dbContext.Set<TDocument>().Add(document);
-                }
+                await TrackForAppendAsync(dbContext, segment, document, cancellationToken).ConfigureAwait(false);
             }
 
             await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -1093,12 +1054,33 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
     /// </remarks>
     private static async ValueTask<bool> HasStoredDocumentAsync(DbContext dbContext, TDocument document, CancellationToken cancellationToken)
     {
+        var keyValues = KeyValuesOf(dbContext, document);
+
+        if (keyValues is null)
+        {
+            return false;
+        }
+
+        return await dbContext.Set<TDocument>().FindAsync(keyValues, cancellationToken).ConfigureAwait(false) is not null;
+    }
+
+    /// <summary>
+    ///     Reads the primary key values of a document.
+    /// </summary>
+    /// <param name="dbContext">The database context whose model defines the key.</param>
+    /// <param name="document">The document.</param>
+    /// <returns>
+    ///     The key values in key property order, or <see langword="null" /> when the document type has no primary
+    ///     key or a key property has no value yet.
+    /// </returns>
+    private static object?[]? KeyValuesOf(DbContext dbContext, TDocument document)
+    {
         var entry = dbContext.Entry(document);
         var primaryKey = entry.Metadata.FindPrimaryKey();
 
         if (primaryKey is null)
         {
-            return false;
+            return null;
         }
 
         var keyValues = new object?[primaryKey.Properties.Count];
@@ -1108,12 +1090,64 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
             keyValues[index] = entry.Property(primaryKey.Properties[index].Name).CurrentValue;
         }
 
-        if (keyValues.Any(static value => value is null))
+        return keyValues.Any(static value => value is null) ? null : keyValues;
+    }
+
+    /// <summary>
+    ///     Tracks one document of an append on the append's context: a staged document becomes an update of its
+    ///     stored row, and a new document becomes an insert.
+    /// </summary>
+    /// <param name="dbContext">The short context the append runs on.</param>
+    /// <param name="segment">The segment of the append, named in a conflict.</param>
+    /// <param name="document">The document carrying its assigned chain position.</param>
+    /// <param name="cancellationToken">The token used to cancel the lookup.</param>
+    /// <returns>A task representing the asynchronous tracking.</returns>
+    /// <remarks>
+    ///     The linker reads staged documents on one operation's context and appends them on another, so a staged
+    ///     document arrives detached. Its stored row is loaded by primary key and receives the chain fields the
+    ///     linker assigned, which updates only those columns. A document with no stored row, such as a genesis
+    ///     document, is inserted. A stored row that is already linked means another linker positioned the same
+    ///     document first, which is reported as a head conflict so the caller retries against the winner.
+    /// </remarks>
+    /// <exception cref="AuditHeadConflictException">The stored row of the document is already linked.</exception>
+    private static async ValueTask TrackForAppendAsync(
+        DbContext dbContext,
+        string segment,
+        TDocument document,
+        CancellationToken cancellationToken)
+    {
+        if (dbContext.Entry(document).State != EntityState.Detached)
         {
-            return false;
+            return;
         }
 
-        return await dbContext.Set<TDocument>().FindAsync(keyValues, cancellationToken).ConfigureAwait(false) is not null;
+        var keyValues = KeyValuesOf(dbContext, document);
+        var stored = keyValues is null
+            ? null
+            : await dbContext.Set<TDocument>().FindAsync(keyValues, cancellationToken).ConfigureAwait(false);
+
+        if (stored is null)
+        {
+            dbContext.Set<TDocument>().Add(document);
+            return;
+        }
+
+        if (ReferenceEquals(stored, document))
+        {
+            return;
+        }
+
+        if (stored.Sequence != 0)
+        {
+            throw new AuditHeadConflictException(
+                $"The audit document staged in segment '{segment}' was already linked at sequence {stored.Sequence} by another writer.");
+        }
+
+        stored.Segment = document.Segment;
+        stored.Sequence = document.Sequence;
+        stored.PreviousHash = document.PreviousHash;
+        stored.Hash = document.Hash;
+        stored.HashScheme = document.HashScheme;
     }
 
     /// <summary>

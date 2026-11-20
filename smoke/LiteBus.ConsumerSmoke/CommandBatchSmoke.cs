@@ -57,7 +57,7 @@ internal static class CommandBatchSmoke
             .UseNpgsql(connectionString)
             .AddLiteBusOutboxInterceptor(serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>()));
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider(Smoke.DevelopmentValidation);
         var batches = provider.GetRequiredService<ICommandBatchMediator>();
 
         var firstId = Guid.NewGuid();

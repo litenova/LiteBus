@@ -68,7 +68,7 @@ internal static class AuditMapperSmoke
                 .UseHashChain(chain => chain.StoreAs<MartenAuditRecord, PseudonymizingAuditMapper>()));
         });
 
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider(Smoke.DevelopmentValidation);
         var hosted = await AuditSmokeHost.StartHostAsync(provider).ConfigureAwait(false);
 
         try
@@ -198,12 +198,6 @@ internal sealed class PseudonymizingAuditMapper : IAuditRecordMapper<MartenAudit
     {
         ArgumentNullException.ThrowIfNull(marker);
         _marker = marker;
-    }
-
-    /// <inheritdoc />
-    public MartenAuditRecord Map(AuditRecord record)
-    {
-        throw new InvalidOperationException("The audit store must call MapAsync, which this smoke scenario proves.");
     }
 
     /// <inheritdoc />

@@ -187,7 +187,8 @@ public sealed class MartenAuditTrailTests : IClassFixture<PostgreSqlFixture>
     private static MartenAuditTrail<MartenAuditRecord> CreateTrail(IDocumentStore documentStore, IDocumentSession session)
     {
         return new MartenAuditTrail<MartenAuditRecord>(
-            new MartenAuditChainStore<MartenAuditRecord>(documentStore, session),
+            new MartenAuditChainStore<MartenAuditRecord>(documentStore),
+            session,
             new MartenAuditRecordMapper(),
             new MartenAuditRecordSegmenter());
     }
