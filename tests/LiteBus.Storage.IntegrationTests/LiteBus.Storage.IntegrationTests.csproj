@@ -5,11 +5,6 @@
              a signed assembly referencing an unsigned one. It is suppressed here rather than globally so the
              constraint still applies to every shipped package. -->
         <NoWarn>$(NoWarn);CS8002</NoWarn>
-        <!-- On net11.0 the PostgreSQL provider is a release candidate that pins EF Core to exactly 11.0.0-rc.3. This
-             project references EF Core 11.0.0 directly, so NuGet resolves 11.0.0 and reports NU1608. Restore applies
-             NoWarn per project, not per framework. Remove this when the provider ships its stable 11.0 release
-             (tests/Directory.Packages.props). -->
-        <NoWarn>$(NoWarn);NU1608</NoWarn>
     </PropertyGroup>
 
 
