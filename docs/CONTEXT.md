@@ -37,7 +37,7 @@ The version is `8.0.0`, set by the release tag. The target frameworks are `net10
 | **Lease / fencing token** | `LeaseOwner`, monotonic `LeaseGeneration`, and `LeaseExpiresAt` on envelopes. `ILeaseRenewable.RenewLeaseAsync` sends heartbeats, and `ReleaseLeaseAsync` returns a cancelled dispatch to the queue with its attempt refunded. |
 | **Discriminated union via sealed record hierarchies** | `MessageIdentity`, `Idempotency`, `MessageVisibility`, `MessageTrace`, `TenantScope`, `PublicationTarget`, `AuditDeclaration`, `AuthorizationDeclaration`, `TenancyDeclaration`, `AzureServiceBusDiagnosticTarget`. |
 | **Result objects instead of exceptions** | `Verdict`, `Validity`, `Shortcut`, `Shortcut<T>`, `Refusal`, `PipelineDecision`, `MediationDecision`, `MediationOutcome`, `PersistResult`, `ProcessorPassResult`. |
-| **Roslyn analyzers** | 27 diagnostic rules (`LB1001` to `LB1029`, with `LB1002` and `LB1006` reserved and never shipped) that enforce composition invariants at compile time. |
+| **Roslyn analyzers** | 28 diagnostic rules (`LB1001` to `LB1030`, with `LB1002` and `LB1006` reserved and never shipped) that enforce composition invariants at compile time. |
 
 ### 1.2 Key interfaces and their primary implementations
 
@@ -242,7 +242,7 @@ The async execution model runs `Task`-based code with `ConfigureAwait(false)` on
 | `LiteBus.Extensions.Diagnostics.HealthChecks` | `IHealthChecksBuilder.AddLiteBus(...)` |
 | `LiteBus.Messaging.Extensions.OpenTelemetry`, `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, `LiteBus.Transport.Extensions.OpenTelemetry`, `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | OpenTelemetry registration helpers. |
 | `LiteBus.Testing`, `LiteBus.Testing.Mediation`, `LiteBus.Testing.Hosting`, `LiteBus.Testing.Transport`, `LiteBus.Testing.DurableMessaging` | Test doubles and fixtures. |
-| `LiteBus.Analyzers` | Roslyn analyzers `LB1001` to `LB1029` (`LB1002` and `LB1006` reserved, never shipped). |
+| `LiteBus.Analyzers` | Roslyn analyzers `LB1001` to `LB1030` (`LB1002` and `LB1006` reserved, never shipped). |
 
 ---
 ## 2. Global Setup & Dependency Injection
@@ -4509,6 +4509,7 @@ Ship `LiteBus.Analyzers` as an analyzer package reference. Rules with the `Compi
 | `LB1027` | Subscriber name reused | `LiteBus.Outbox` | Warning | Yes (CompilationEnd) | Handlers with `[SubscriberName("...")]`, grouped by name; reported when one name is used by handlers of different message types. |
 | `LB1028` | Definition mixes concerns | `LiteBus.Declarations` | Info | Yes | A class implementing two or more distinct `IMessageDefinition<TMessage, TValue>` value types, through `IAuditDefinition<>`, `IAuthorizationDefinition<>`, `ITenancyDefinition<>`, `IIdempotencyDefinition<>` or `IMessageDefinition<,>` directly. The message lists the concern names and suggests a name such as `<Message>AuthorizationDefinition`. |
 | `LB1029` | Durable message type has no contract attribute | `LiteBus.Contracts` | Warning | Yes | A durable message type without `[MessageContract]` in an assembly marked `[assembly: MessageContractsRegisteredIn(...)]`. Consuming compilations trust the named assembly and LB1017 checks only attributed types, so the attribute keeps every durable type checked. |
+| `LB1030` | Contract registration disagrees with `[MessageContract]` | `LiteBus.Contracts` | Warning | Yes | A `Register<TMessage>(name, version)` call whose constant name or version differs from the `[MessageContract]` on `TMessage`. |
 
 `LB1003` analyzes classes implementing `IQueryHandler<,>` or `IStreamQueryHandler<,>`. It inspects constructor parameters, fields, and properties on all hierarchy levels (ordinary method parameters are not dependencies and are not scanned), reporting each impure dependency once. `LB1011` collects handler occurrences by symbol, so a partial handler with two declarations reports once, at its first location.
 
@@ -5144,7 +5145,7 @@ These are the repository-relative paths to the canonical SQL files shipped in `L
 
 #### Analyzer diagnostic ids (`LiteBus.Analyzers.DiagnosticIds`, internal)
 
-`LB1001` DuplicateCommandHandler, `LB1003` QueryHandlerImpurity, `LB1004` CommandWithResultScheduledToInbox, `LB1005` UnsupportedOpenGenericHandler, `LB1007` MissingMessageContractRegistration, `LB1008` MissingCommandHandler, `LB1009` MissingQueryHandler, `LB1010` DuplicateQueryHandler, `LB1011` OrphanHandlerTag, `LB1012` DuplicateHandlerAcrossAssemblies, `LB1013` TransactionalOutboxWithoutDbContext, `LB1014` ProcessorEnabledWithoutDispatcher, `LB1015` TransactionalStorageWithoutInterceptor, `LB1016` TransactionalInboxWithoutDbContext, `LB1017` ExplicitMessageContractRegistration, `LB1018` MissingAuditDeclaration, `LB1019` UntypedShortcutOnResultMessage, `LB1020` MissingDeclaration, `LB1021` UnresolvedRequiredDeclaration, `LB1022` ReservedHandlerPriority, `LB1023` NestedMediationInCommandHandler, `LB1024` ExternalSideEffectInCommandHandler, `LB1025` NonTransactionalOutboxInCommandHandler, `LB1026` TransactionalOutboxContextNotConfigured, `LB1027` SubscriberNameReused, `LB1028` DefinitionMixesConcerns, `LB1029` UnattributedContractInRegisteredAssembly. (`LB1002` and `LB1006` are reserved and are never shipped.)
+`LB1001` DuplicateCommandHandler, `LB1003` QueryHandlerImpurity, `LB1004` CommandWithResultScheduledToInbox, `LB1005` UnsupportedOpenGenericHandler, `LB1007` MissingMessageContractRegistration, `LB1008` MissingCommandHandler, `LB1009` MissingQueryHandler, `LB1010` DuplicateQueryHandler, `LB1011` OrphanHandlerTag, `LB1012` DuplicateHandlerAcrossAssemblies, `LB1013` TransactionalOutboxWithoutDbContext, `LB1014` ProcessorEnabledWithoutDispatcher, `LB1015` TransactionalStorageWithoutInterceptor, `LB1016` TransactionalInboxWithoutDbContext, `LB1017` ExplicitMessageContractRegistration, `LB1018` MissingAuditDeclaration, `LB1019` UntypedShortcutOnResultMessage, `LB1020` MissingDeclaration, `LB1021` UnresolvedRequiredDeclaration, `LB1022` ReservedHandlerPriority, `LB1023` NestedMediationInCommandHandler, `LB1024` ExternalSideEffectInCommandHandler, `LB1025` NonTransactionalOutboxInCommandHandler, `LB1026` TransactionalOutboxContextNotConfigured, `LB1027` SubscriberNameReused, `LB1028` DefinitionMixesConcerns, `LB1029` UnattributedContractInRegisteredAssembly, `LB1030` ContractRegistrationMismatch. (`LB1002` and `LB1006` are reserved and are never shipped.)
 
 #### Log event ids
 
