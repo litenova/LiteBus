@@ -42,9 +42,13 @@
         <PackageReference Include="LiteBus.Testing.Hosting" Version="[$(LiteBusVersion)]"/>
         <!-- An ASP.NET Core package follows the target framework: its next major targets the next .NET, so it floats within net10.0. -->
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*"/>
-        <!-- The EF Core provider follows the target framework: its next major targets the next .NET, so it floats within net10.0. -->
+        <!--
+            The EF Core provider follows the target framework: its next major targets the next .NET, so it floats within
+            net10.0. Npgsql follows the provider's major: provider 10 calls NpgsqlConnectionStringBuilder.Multiplexing,
+            which Npgsql 11 removed, so an application on provider 10 runs Npgsql 10.
+        -->
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.*"/>
-        <PackageReference Include="Npgsql" Version="*"/>
+        <PackageReference Include="Npgsql" Version="10.*"/>
         <PackageReference Include="Marten" Version="*"/>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="*"/>
     </ItemGroup>
