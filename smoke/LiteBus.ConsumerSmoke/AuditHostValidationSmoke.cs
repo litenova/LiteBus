@@ -1,5 +1,6 @@
 using LiteBus.Auditing;
 using LiteBus.Auditing.Abstractions;
+using LiteBus.Auditing.Checkpoints;
 using LiteBus.Auditing.Storage.Marten;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
