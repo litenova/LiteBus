@@ -23,7 +23,20 @@ $evaluatedProjects = $projectFiles | ForEach-Object -Parallel {
         throw "MSBuild evaluation failed for '$projectPath': $($output -join [Environment]::NewLine)"
     }
 
-    $evaluation = ($output -join [Environment]::NewLine) | ConvertFrom-Json
+    # MSBuild can print a line ahead of the JSON, such as a first-run or workload notice, so parse from the first
+    # opening brace and report the raw output when that still fails.
+    $text = $output -join [Environment]::NewLine
+    $start = $text.IndexOf('{')
+    try {
+        if ($start -lt 0) {
+            throw "no JSON object in the output"
+        }
+
+        $evaluation = $text.Substring($start) | ConvertFrom-Json
+    }
+    catch {
+        throw "MSBuild evaluation of '$projectPath' did not return JSON ($($_.Exception.Message)). Output:$([Environment]::NewLine)$text"
+    }
     $packageId = [string] $evaluation.Properties.PackageId
 
     if ([string]::IsNullOrWhiteSpace($packageId)) {
