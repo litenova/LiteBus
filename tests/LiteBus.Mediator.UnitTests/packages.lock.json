@@ -175,6 +175,8 @@
       "litebus": {
         "type": "Project",
         "dependencies": {
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
           "LiteBus.Commands": "[8.0.0, )",
           "LiteBus.Commands.Abstractions": "[8.0.0, )",
           "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
@@ -188,6 +190,22 @@
           "LiteBus.Outbox.Abstractions": "[8.0.0, )",
           "LiteBus.Queries": "[8.0.0, )",
           "LiteBus.Queries.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.auditing": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Events.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Queries.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "litebus.auditing.abstractions": {

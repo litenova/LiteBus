@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.Anchors.AzureBlob;
 

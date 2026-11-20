@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Auditing.Engine;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -134,7 +134,7 @@ internal sealed class CheckpointLifecycle<TDocument> : ICheckpointLifecycle
 
             var schemeName = await ReadCoveredSchemeAsync(segment, head, cancellationToken).ConfigureAwait(false);
             var unsigned = new AuditCheckpoint(
-                Guid.NewGuid(),
+                kind == AuditCheckpointKind.Final ? FinalCheckpointId.For(segment) : Guid.NewGuid(),
                 segment,
                 head.LastSequence,
                 head.Count,
@@ -241,6 +241,13 @@ internal sealed class CheckpointLifecycle<TDocument> : ICheckpointLifecycle
     public async ValueTask CutDueAsync(CancellationToken cancellationToken)
     {
         var policy = ResolvePolicy();
+
+        // A policy reads ports such as the tenant metadata provider when it decides, so each pass runs in its own
+        // dispatch scope and hands those services to the policy through the candidate.
+        using var scope = _serviceProvider?.GetService(typeof(IMessageDispatchScopeFactory)) is IMessageDispatchScopeFactory factory
+            ? factory.CreateScope()
+            : null;
+        var services = scope?.ServiceProvider ?? _serviceProvider;
         var now = _timeProvider.GetUtcNow();
         var policyLabel = (policy as ILabeledCheckpointPolicy)?.Label;
 
@@ -260,7 +267,8 @@ internal sealed class CheckpointLifecycle<TDocument> : ICheckpointLifecycle
                 head.LastCheckpointSequence,
                 head.LastCheckpointAt,
                 now,
-                head.Info);
+                head.Info,
+                services);
 
 #pragma warning disable CA1031 // One segment whose policy evaluation or cut fails must not skip the remaining segments; the error is logged with the segment and the scan continues.
             try

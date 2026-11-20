@@ -15,7 +15,7 @@ namespace LiteBus.Extensions.AspNetCore;
 ///         Both <see cref="MediationResultHttpExtensions" /> and <see cref="LiteBusExceptionHandler" /> write through
 ///         this factory, so the two paths cannot drift: the catalog status and title, the detail sentence, the problem
 ///         type, the request path as the instance, the trace identifier, the refusal code, and the validation errors
-///         extension are built once, and the unmapped-code policy applies on both paths.
+///         extension are built once, and the per-outcome unmapped-code policy applies on both paths.
 ///     </para>
 /// </remarks>
 internal static class RefusalProblemDetailsFactory
@@ -140,7 +140,7 @@ internal static class RefusalProblemDetailsFactory
     }
 
     /// <summary>
-    ///     Resolves the mapping for a refusal, applying the unmapped-code policy.
+    ///     Resolves the mapping for a refusal, applying the per-outcome unmapped-code policy.
     /// </summary>
     /// <param name="code">The machine-readable code the decision supplied.</param>
     /// <param name="outcome">How the mediation ended.</param>
@@ -168,9 +168,13 @@ internal static class RefusalProblemDetailsFactory
 
         var isMapped = catalog.TryResolve(code, outcome, out var mapping);
 
+        var treatAsServerError = outcome == MediationOutcome.Invalid
+            ? options.UnmappedValidationCode == UnmappedValidationCode.TreatAsServerError
+            : options.UnmappedRefusalCode == UnmappedRefusalCode.TreatAsServerError;
+
         if (!string.IsNullOrWhiteSpace(code)
             && !isMapped
-            && options.UnmappedRefusalCode == UnmappedRefusalCode.TreatAsServerError)
+            && treatAsServerError)
         {
             unmappedServerError = true;
 

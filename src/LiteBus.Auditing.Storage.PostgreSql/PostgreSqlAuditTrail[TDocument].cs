@@ -3,7 +3,8 @@ using LiteBus.Auditing.Abstractions;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Auditing.Linking;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Recording;
+using Npgsql;
 
 namespace LiteBus.Auditing.Storage.PostgreSql;
 
@@ -56,6 +57,12 @@ public sealed class PostgreSqlAuditTrail<TDocument> : IAuditTrail
     private readonly AuditStagedSegments? _stagedSegments;
 
     /// <summary>
+    ///     Gets the dispatch-scope provider the record mapper resolves services from when no mediation context is
+    ///     current, or <see langword="null" />.
+    /// </summary>
+    private readonly IServiceProvider? _serviceProvider;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="PostgreSqlAuditTrail{TDocument}" /> class.
     /// </summary>
     /// <param name="store">The chain store that stages documents.</param>
@@ -78,15 +85,57 @@ public sealed class PostgreSqlAuditTrail<TDocument> : IAuditTrail
         _store = store;
         _mapper = mapper;
         _segmenter = segmenter;
+        _serviceProvider = serviceProvider;
         _stagedSegments = serviceProvider?.GetService(typeof(AuditStagedSegments)) as AuditStagedSegments;
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     The mapper runs through <see cref="IAuditRecordMapper{TDocument}.MapAsync" /> on the connection and
+    ///     transaction the record is staged on, offered as <see cref="NpgsqlConnection" /> and
+    ///     <see cref="NpgsqlTransaction" /> features, so a row the mapper writes commits or rolls back with the record.
+    /// </remarks>
     public async Task WriteAsync(AuditRecord record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
 
-        var document = _mapper.Map(record);
+        var mapping = AuditMappingScope.Resolve(record, _serviceProvider);
+        var succeeded = record.Outcome == AuditOutcome.Succeeded;
+
+        // A success joins the ambient business transaction when one is active, so it commits or rolls back with the
+        // handler change. Any other outcome is rolled back by the unit of work, so it is written on its own
+        // connection and transaction and committed immediately.
+        var (_, segment) = await _store.MapAndStageAsync(
+            succeeded,
+            (connection, transaction) =>
+            {
+                mapping.Features.Set(connection);
+
+                if (transaction is not null)
+                {
+                    mapping.Features.Set(transaction);
+                }
+
+                return _mapper.MapAsync(record, mapping, cancellationToken);
+            },
+            document => SegmentOf(record, document),
+            cancellationToken).ConfigureAwait(false);
+
+        if (succeeded)
+        {
+            _stagedSegments?.Add(segment);
+        }
+    }
+
+    /// <summary>
+    ///     Gets the segment of a mapped document.
+    /// </summary>
+    /// <param name="record">The record the document was mapped from, named in the error.</param>
+    /// <param name="document">The mapped document.</param>
+    /// <returns>The segment.</returns>
+    /// <exception cref="InvalidOperationException">The segmenter returned no segment.</exception>
+    private string SegmentOf(AuditRecord record, TDocument document)
+    {
         var segment = _segmenter.SegmentOf(document);
 
         if (string.IsNullOrWhiteSpace(segment))
@@ -96,17 +145,6 @@ public sealed class PostgreSqlAuditTrail<TDocument> : IAuditTrail
                 "Return a stable segment name from the configured segmenter.");
         }
 
-        if (record.Outcome == AuditOutcome.Succeeded)
-        {
-            // Staged, not saved: the record joins the ambient business transaction when one is active, so it
-            // commits or rolls back with the handler change.
-            await _store.StageAsync(segment, document, cancellationToken).ConfigureAwait(false);
-            _stagedSegments?.Add(segment);
-            return;
-        }
-
-        // The unit of work rolls the business transaction back on this path, so staging there would lose the
-        // record. Its own connection commits it immediately instead.
-        await _store.StageOutOfBandAsync(segment, document, cancellationToken).ConfigureAwait(false);
+        return segment;
     }
 }

@@ -6,7 +6,6 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Commands.Storage.Marten;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions.Auditing;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -46,10 +45,10 @@ internal static class AuditMartenSmoke
             {
                 commands.Register<AuditMartenCommand>();
                 commands.Register<AuditMartenCommandHandler>();
-                commands.EnableAuditing();
                 commands.UseMartenUnitOfWork();
             });
             liteBus.Modules.AddAuditing(auditing => auditing
+                .ForCommands()
                 .UseMartenStore()
                 .UseHashChain(_ =>
                 {

@@ -399,12 +399,10 @@ A requirement covers "did this message state a position". `ValidateComposition` 
 
 ```csharp
 registry.AddMessaging(messaging => messaging
-    .RequireUniqueAuditActions()
-    .RequireAuditActionFormat()
     .ValidateComposition(model =>
     {
         var wrong = model.Messages.Audited()
-            .Where(entry => entry.Audit!.Category is null)
+            .Where(entry => entry.GetAudit()!.Category is null)
             .Select(entry => entry.MessageType.Name)
             .ToList();
 
@@ -415,7 +413,7 @@ registry.AddMessaging(messaging => messaging
     }));
 ```
 
-The callback receives an `ICompositionModel` over everything the host composed, at the same point a requirement runs: the message catalog (`Messages`), the declaration source of every value, the declared and registered policy names, the contract registrations, the resolved port implementations, and the sections features contributed. Checks run in registration order, and the first to throw ends composition. Throw from the callback to fail composition, and name every offender in one message rather than the first, so a convention turned on for an existing codebase is fixed in one pass rather than one restart at a time.
+The callback receives an `ICompositionModel` over everything the host composed, at the same point a requirement runs: the message catalog (`Messages`), the declaration source of every value, the declared and registered policy names, the contract registrations, the resolved port implementations, the handlers (`Handlers`), and the sections features contributed. Checks run in registration order, and the first to throw ends composition. Throw from the callback to fail composition, and name every offender in one message rather than the first, so a convention turned on for an existing codebase is fixed in one pass rather than one restart at a time.
 
 Policy names are one check the model makes possible. A message declaring a policy name nothing registered is a typo that mediation would otherwise report on every request:
 
@@ -437,7 +435,7 @@ registry.AddMessaging(messaging => messaging
 
 `AddAuthorizationPolicies` already registers that check: composition fails naming each unknown name and the messages declaring it, so a typo fails once at startup instead of faulting every mediation. See [Authorization Policies](authorization-policies.md).
 
-`RequireUniqueAuditActions()` and `RequireAuditActionFormat(pattern)` ship because every audited application needs both and getting either wrong corrupts the trail rather than breaking the build. Two messages under one action code make the trail unqueryable by use case, and an inconsistent code is written and stored exactly like a consistent one.
+`RequireUniqueActions()` and `RequireActionFormat(pattern)` on the auditing builder ship because every audited application needs both and getting either wrong corrupts the trail rather than breaking the build. Two messages under one action code make the trail unqueryable by use case, and an inconsistent code is written and stored exactly like a consistent one.
 
 At compile time, with `LB1020`:
 
@@ -532,6 +530,27 @@ The document carries a `schemaVersion` field, the messages with their per-messag
 Keys sort ordinally at every level, so the output is byte-identical across runs and process restarts for the same composition. Types are full names, which stay stable across assembly versions and precise across namespaces. Values render as invariant strings rather than structure, because a value is an application object of arbitrary shape, sometimes holding a function no serializer accepts. Retain the export per release as the compliance artifact built from source records, and diff it between builds in CI: exemptions carry the rationales auditors read, deliberate overrides are searchable `Replace` call sites rather than silent overwrites, and `LiteBusCompositionSummary.ToString()` keeps logging the same startup line it always has.
 
 Ports name the resolved implementation of every port and whether it is still the framework default. The model resolved from the container reports the effective implementations, including replacements the application registered directly with its own container after LiteBus composed; the model handed to `ValidateComposition` checks reports ports as LiteBus composed them. Features outside messaging join the export without a table change: each contributes one named section through an `ICompositionSectionContributor` instance, so refusal mappings, recurring registrations, and other feature-owned composition arrive under their own section names.
+
+`Handlers` lists every handler linked to a registered message: the message type, the handler type, the assembly that defines it, the stage it runs in (`pre`, `handler`, `post`, `completion` or `error`), its subscriber name, its delivery (`immediate` for a handler carrying `[DispatchImmediately]`), its priority, and whether it is linked through a base type or interface. A rule a product enforces over its handlers reads it instead of scanning assemblies:
+
+```csharp
+registry.AddMessaging(messaging => messaging.ValidateComposition(model =>
+{
+    var unnamed = model.Handlers
+        .Where(entry => entry.Stage == "handler"
+                        && typeof(IEvent).IsAssignableFrom(entry.MessageType)
+                        && entry.SubscriberName is null)
+        .Select(entry => entry.HandlerType.Name)
+        .ToList();
+
+    if (unnamed.Count > 0)
+    {
+        throw new InvalidOperationException($"Event handlers without a subscriber name: {string.Join(", ", unnamed)}");
+    }
+}));
+```
+
+`ToJson()` includes the list under `handlers`.
 
 ### Recording an Exemption
 

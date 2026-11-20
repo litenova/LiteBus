@@ -39,7 +39,7 @@ public sealed class DefinitionMixesConcernsAnalyzerTests
         const string source = """
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
-                              using LiteBus.Messaging.Abstractions.Auditing;
+                              using LiteBus.Auditing.Abstractions;
 
                               public sealed record PlaceOrderCommand : ICommand;
 
@@ -70,7 +70,7 @@ public sealed class DefinitionMixesConcernsAnalyzerTests
         const string source = """
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
-                              using LiteBus.Messaging.Abstractions.Auditing;
+                              using LiteBus.Auditing.Abstractions;
                               using LiteBus.Messaging.Abstractions.Tenancy;
 
                               public sealed record PlaceOrderCommand : ICommand;
@@ -106,7 +106,7 @@ public sealed class DefinitionMixesConcernsAnalyzerTests
     {
         const string source = """
                               using LiteBus.Commands.Abstractions;
-                              using LiteBus.Messaging.Abstractions.Auditing;
+                              using LiteBus.Auditing.Abstractions;
 
                               public sealed record CreateUserCommand : ICommand;
 
@@ -132,7 +132,7 @@ public sealed class DefinitionMixesConcernsAnalyzerTests
         const string source = """
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
-                              using LiteBus.Messaging.Abstractions.Auditing;
+                              using LiteBus.Auditing.Abstractions;
 
                               public sealed record PlaceOrderCommand : ICommand;
 
@@ -157,7 +157,7 @@ public sealed class DefinitionMixesConcernsAnalyzerTests
         const string source = """
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
-                              using LiteBus.Messaging.Abstractions.Auditing;
+                              using LiteBus.Auditing.Abstractions;
 
                               public sealed record PlaceOrderCommand : ICommand;
 

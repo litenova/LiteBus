@@ -220,32 +220,20 @@ registry.AddCommands(commands => commands
 
 A local time inside a daylight-saving gap resolves forward to the next valid instant, and a local time inside a fall-back overlap resolves to the earlier occurrence. A scheduled loop records each occurrence it runs and, by default, waits for the next occurrence after the current time; set `MissedOccurrencePolicy` to fire one catch-up pass for a recent miss, as described in [Catching Up Missed Occurrences](#catching-up-missed-occurrences).
 
-`IRecurringSchedule` is the replaceable port behind `Schedule`, with the single method `DateTimeOffset? GetNextOccurrence(DateTimeOffset after)`. An application with cron expressions references `LiteBus.Commands.Recurring.Schedules.Cron` and adapts its shared schedule, as described in [Scheduling with Cron Expressions](#scheduling-with-cron-expressions). Implementations must be thread-safe and free of side effects, because the loop calls them on every wait.
+`Schedule` takes any `ISchedule`, the shared schedule contract in `LiteBus.Runtime.Abstractions.Scheduling` with the single method `DateTimeOffset? GetNextOccurrence(DateTimeOffset after)`. `IRecurringSchedule` extends it, so an existing implementation still assigns. An application with cron expressions references `LiteBus.Commands.Recurring.Schedules.Cron` and assigns its schedule directly, as described in [Scheduling with Cron Expressions](#scheduling-with-cron-expressions). Implementations must be thread-safe and free of side effects, because the loop calls them on every wait.
 
 ## Scheduling with Cron Expressions
 
-`LiteBus.Commands.Recurring.Schedules.Cron` builds schedules from cron expressions, parsed by the Cronos library when the schedule is created. The shared form returns `ISchedule` for one zone, and a shared loop adapts it to `IRecurringSchedule` with a one-method wrapper:
+`LiteBus.Commands.Recurring.Schedules.Cron` builds schedules from cron expressions, parsed by the Cronos library when the schedule is created. The shared form returns `ISchedule` for one zone, which a single loop takes directly:
 
 ```csharp
-public sealed class CronRecurringSchedule : IRecurringSchedule
-{
-    private readonly ISchedule _schedule;
-
-    public CronRecurringSchedule(ISchedule schedule)
-    {
-        _schedule = schedule;
-    }
-
-    public DateTimeOffset? GetNextOccurrence(DateTimeOffset after) => _schedule.GetNextOccurrence(after);
-}
-
 registry.AddCommands(commands => commands
     .RegisterFromAssembly(typeof(SendDueRemindersCommand).Assembly)
     .AddRecurring(
         () => new SendDueRemindersCommand { BatchSize = 50 },
-        host => host.Schedule = new CronRecurringSchedule(CronSchedules.FromExpression(
+        host => host.Schedule = CronSchedules.FromExpression(
             "0 9 * * *",
-            TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin")))));
+            TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin"))));
 ```
 
 The tenant form returns `ITenantSchedule` and adapts directly to a sweep through `AsRecurringSchedule`, as described in [Running Each Tenant on Its Own Schedule](#running-each-tenant-on-its-own-schedule):

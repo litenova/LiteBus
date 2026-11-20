@@ -11,7 +11,7 @@ using LiteBus.Auditing.Storage.PostgreSql;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -31,7 +31,7 @@ public sealed class AuditingModuleTests
     {
         var configuration = new FakeModuleConfiguration();
 
-        var act = () => new AuditingModule(_ => { }).Build(configuration);
+        var act = () => new AuditingModule(auditing => auditing.ForCommands()).Build(configuration);
 
         act.Should().Throw<AuditConfigurationException>().WithMessage("*UseInMemoryStore*");
     }
@@ -42,6 +42,7 @@ public sealed class AuditingModuleTests
         var configuration = new FakeModuleConfiguration();
 
         var act = () => new AuditingModule(auditing => auditing
+            .ForCommands()
             .UseInMemoryStore<ChainTestDocument>()
             .UseHashChain(_ => { })).Build(configuration);
 
@@ -55,6 +56,7 @@ public sealed class AuditingModuleTests
         var configuration = new FakeModuleConfiguration();
 
         var act = () => new AuditingModule(auditing => auditing
+            .ForCommands()
             .UseInMemoryStore<ChainTestDocument>()
             .UseHashChain(chain => chain
                 .StoreAs<ChainTestDocument, ChainTestMapper>())).Build(configuration);
@@ -68,6 +70,7 @@ public sealed class AuditingModuleTests
         var configuration = new FakeModuleConfiguration();
 
         var act = () => new AuditingModule(auditing => auditing
+            .ForCommands()
             .UseInMemoryStore<ChainTestDocument>()
             .UseHashChain(chain => chain
                 .StoreAs<ChainTestDocument, ChainTestMapper>()
@@ -82,6 +85,7 @@ public sealed class AuditingModuleTests
         var configuration = new FakeModuleConfiguration();
 
         var act = () => new AuditingModule(auditing => auditing
+            .ForCommands()
             .Capture(AuditCapture.WithChange(AuditLink.AtWrite))
             .UseInMemoryStore<ChainTestDocument>()).Build(configuration);
 
@@ -94,6 +98,7 @@ public sealed class AuditingModuleTests
         var configuration = new FakeModuleConfiguration();
 
         var act = () => new AuditingModule(auditing => auditing
+            .ForCommands()
             .UseInMemoryStore<ChainTestDocument>()
             .UseHashChain(chain => chain
                 .StoreAs<ChainTestDocument, ChainTestMapper>()
@@ -109,6 +114,7 @@ public sealed class AuditingModuleTests
         var configuration = new FakeModuleConfiguration();
 
         var act = () => new AuditingModule(auditing => auditing
+            .ForCommands()
             .UseInMemoryStore<ChainTestDocument>()
             .UseHashChain(chain => chain
                 .StoreAs<ChainTestDocument, ChainTestMapper>()
@@ -195,6 +201,7 @@ public sealed class AuditingModuleTests
         var configuration = new FakeModuleConfiguration();
 
         new AuditingModule(auditing => auditing
+            .ForCommands()
             .UseInMemoryStore<ChainTestDocument>()).Build(configuration);
 
         var registry = configuration.DependencyRegistry;
@@ -216,6 +223,7 @@ public sealed class AuditingModuleTests
     {
         var configuration = new FakeModuleConfiguration();
         var module = new AuditingModule(auditing => auditing
+            .ForCommands()
             .Capture(AuditCapture.BeforeAndOutcome()));
 
         module.Configure(auditing => auditing.UseInMemoryStore<ChainTestDocument>(), _ => { });
@@ -230,6 +238,7 @@ public sealed class AuditingModuleTests
     public void UsePostgreSqlStore_ShouldRegisterThePostgreSqlModuleAsAChild()
     {
         var module = new AuditingModule(auditing => auditing
+            .ForCommands()
             .UsePostgreSqlStore(postgres => postgres
                 .UseConnectionString("Host=localhost;Username=auditing;Password=auditing;Database=auditing"))
             .UseHashChain(_ => { }));
@@ -306,6 +315,7 @@ public sealed class AuditingModuleTests
         var configuration = new FakeModuleConfiguration();
 
         var act = () => new AuditingModule(auditing => auditing
+            .ForCommands()
             .UseInMemoryStore<ChainTestDocument>()
             .UseInMemoryStore<ChainTestDocument>()).Build(configuration);
 
@@ -318,6 +328,7 @@ public sealed class AuditingModuleTests
         var configuration = new FakeModuleConfiguration();
 
         var act = () => new AuditingModule(auditing => auditing
+            .ForCommands()
             .UseInMemoryStore<ChainTestDocument>()
             .UseInMemoryStore<OtherChainTestDocument>()).Build(configuration);
 
@@ -334,6 +345,7 @@ public sealed class AuditingModuleTests
             {
                 registry.AddMessaging(_ => { });
                 registry.Modules.AddAuditing(auditing => auditing
+                    .ForCommands()
                     .UseInMemoryStore<ChainTestDocument>()
                     .UseHashChain(chain => chain
                         .StoreAs<ChainTestDocument, ChainTestMapper>()
@@ -359,6 +371,7 @@ public sealed class AuditingModuleTests
     private static void BuildChainedModule(FakeModuleConfiguration configuration)
     {
         new AuditingModule(auditing => auditing
+            .ForCommands()
             .UseInMemoryStore<ChainTestDocument>()
             .UseHashChain(chain => chain
                 .StoreAs<ChainTestDocument, ChainTestMapper>()
@@ -453,6 +466,7 @@ public sealed class AuditingModuleTests
         public FakeModuleConfiguration()
         {
             DependencyRegistry = new DependencyRegistry();
+            SetContext<IMessageRegistry>(MessageRegistryFactory.Create());
         }
 
         public IDependencyRegistry DependencyRegistry { get; }

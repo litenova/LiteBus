@@ -10,7 +10,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using JasperFx;
-using LiteBus.Messaging.Abstractions.Auditing;
 using Marten;
 using Marten.Exceptions;
 using Npgsql;
@@ -266,6 +265,48 @@ public sealed class MartenAuditChainStore<TDocument> : IAuditChainStore<TDocumen
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
         ArgumentNullException.ThrowIfNull(document);
 
+        var session = OpenOutOfBandSession();
+
+        await using (session.ConfigureAwait(false))
+        {
+            await StageOutOfBandAsync(session, segment, document, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Gets the scoped business session the success path stages documents on.
+    /// </summary>
+    internal IDocumentSession BusinessSession => _session;
+
+    /// <summary>
+    ///     Opens a short session for the out-of-band path, outside the business transaction.
+    /// </summary>
+    /// <returns>The session; the caller disposes it.</returns>
+    internal IDocumentSession OpenOutOfBandSession()
+    {
+        return _documentStore.LightweightSession(IsolationLevel.ReadCommitted);
+    }
+
+    /// <summary>
+    ///     Stages an unlinked document on a short out-of-band session and saves the session, so anything else written
+    ///     on it, such as a row the record mapper created, commits with the document.
+    /// </summary>
+    /// <param name="session">The out-of-band session from <see cref="OpenOutOfBandSession" />.</param>
+    /// <param name="segment">The segment the document belongs to. The store assigns the document to it.</param>
+    /// <param name="document">The document without a chain position.</param>
+    /// <param name="cancellationToken">The token used to cancel the staging.</param>
+    /// <returns>A task representing the asynchronous staging.</returns>
+    /// <exception cref="InvalidOperationException">The document already carries a chain position.</exception>
+    internal async ValueTask StageOutOfBandAsync(
+        IDocumentSession session,
+        string segment,
+        TDocument document,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentException.ThrowIfNullOrWhiteSpace(segment);
+        ArgumentNullException.ThrowIfNull(document);
+
         var key = DocumentKey(document);
 
         if (document.Sequence != 0)
@@ -275,25 +316,19 @@ public sealed class MartenAuditChainStore<TDocument> : IAuditChainStore<TDocumen
         }
 
         document.Segment = segment;
-
-        var session = _documentStore.LightweightSession(IsolationLevel.ReadCommitted);
-
-        await using (session.ConfigureAwait(false))
+        session.Store(document);
+        session.DeleteWhere<MartenAuditUnlinkedEntry>(
+            entry => entry.Segment == segment && entry.DocumentKey == key);
+        session.Store(new MartenAuditUnlinkedEntry
         {
-            session.Store(document);
-            session.DeleteWhere<MartenAuditUnlinkedEntry>(
-                entry => entry.Segment == segment && entry.DocumentKey == key);
-            session.Store(new MartenAuditUnlinkedEntry
-            {
-                Id = Guid.NewGuid(),
-                Segment = segment,
-                DocumentKey = key,
-                TenantId = DocumentTenant(document),
-                StagedAt = _clock.GetUtcNow()
-            });
+            Id = Guid.NewGuid(),
+            Segment = segment,
+            DocumentKey = key,
+            TenantId = DocumentTenant(document),
+            StagedAt = _clock.GetUtcNow()
+        });
 
-            await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
+        await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

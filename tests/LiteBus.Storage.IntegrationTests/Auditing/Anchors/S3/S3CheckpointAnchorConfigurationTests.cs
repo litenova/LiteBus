@@ -4,7 +4,6 @@ using System.Text;
 using Amazon.S3;
 using LiteBus.Auditing;
 using LiteBus.Auditing.Anchors.S3;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 

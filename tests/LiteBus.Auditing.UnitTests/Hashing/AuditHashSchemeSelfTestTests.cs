@@ -1,7 +1,6 @@
 using System.Text;
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing.Hashing;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Auditing.UnitTests.Hashing;

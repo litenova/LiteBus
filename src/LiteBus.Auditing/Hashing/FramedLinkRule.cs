@@ -2,7 +2,6 @@ using System;
 using LiteBus.Auditing.Abstractions;
 using System.Buffers.Binary;
 using System.Text;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.Hashing;
 

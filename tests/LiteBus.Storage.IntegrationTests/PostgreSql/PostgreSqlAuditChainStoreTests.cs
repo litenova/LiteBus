@@ -1,7 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using LiteBus.Auditing.Storage.PostgreSql;
 using LiteBus.Auditing.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Storage.PostgreSql;
 using LiteBus.Storage.Testing;
 using Npgsql;

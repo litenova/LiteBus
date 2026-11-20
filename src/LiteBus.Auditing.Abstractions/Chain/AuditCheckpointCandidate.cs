@@ -1,5 +1,4 @@
 using System;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.Abstractions;
 
@@ -18,6 +17,11 @@ namespace LiteBus.Auditing.Abstractions;
 ///     The identity and queryable metadata of the segment, or <see langword="null" /> when the caller did not supply
 ///     it.
 /// </param>
+/// <param name="Services">
+///     The services of the scope the decision runs in, so a policy resolves the ports it reads, such as a tenant's time
+///     zone, when it decides rather than when the chain is composed. <see langword="null" /> when the caller has no
+///     scope.
+/// </param>
 public sealed record AuditCheckpointCandidate(
     string Segment,
     long Sequence,
@@ -25,4 +29,5 @@ public sealed record AuditCheckpointCandidate(
     long? LastCheckpointSequence,
     DateTimeOffset? LastCheckpointAt,
     DateTimeOffset Now,
-    AuditSegmentInfo? SegmentInfo = null);
+    AuditSegmentInfo? SegmentInfo = null,
+    IServiceProvider? Services = null);

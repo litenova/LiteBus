@@ -3,7 +3,6 @@ using LiteBus.Auditing.Abstractions;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Events.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.Capture;
 

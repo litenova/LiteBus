@@ -45,18 +45,6 @@ internal sealed class MessageCatalog : IMessageCatalog
     public int Count => _entries.Count;
 
     /// <inheritdoc />
-    public IEnumerable<MessageCatalogEntry> Audited()
-    {
-        foreach (var entry in _entries)
-        {
-            if (entry.Audit is not null)
-            {
-                yield return entry;
-            }
-        }
-    }
-
-    /// <inheritdoc />
     public IEnumerator<MessageCatalogEntry> GetEnumerator()
     {
         return _entries.GetEnumerator();

@@ -1,18 +1,20 @@
 namespace LiteBus.Extensions.AspNetCore;
 
 /// <summary>
-///     Decides how refusal rendering answers a refusal code with no catalog mapping.
+///     Decides how denied refusal rendering answers a refusal code with no catalog mapping.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         The policy applies on both the result path in <see cref="MediationResultHttpExtensions" /> and the exception
-///         path in <see cref="LiteBusExceptionHandler" />, so the two answers cannot drift.
+///         path in <see cref="LiteBusExceptionHandler" />, so the two answers cannot drift. Invalid refusals follow
+///         <see cref="UnmappedValidationCode" /> instead, so a host stays strict about denials while answering
+///         per-validator codes with the invalid default.
 ///     </para>
 /// </remarks>
 public enum UnmappedRefusalCode
 {
     /// <summary>
-    ///     Answer the outcome default with the refusal detail.
+    ///     Answer the denied default with the refusal detail.
     /// </summary>
     UseFallback = 0,
 

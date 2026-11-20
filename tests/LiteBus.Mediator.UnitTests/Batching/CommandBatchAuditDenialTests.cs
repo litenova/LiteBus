@@ -1,3 +1,4 @@
+using LiteBus.Auditing;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
@@ -5,7 +6,7 @@ using LiteBus.Mediator.UnitTests.Auditing;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Batching;
 
@@ -25,17 +26,17 @@ public sealed class CommandBatchAuditDenialTests
     {
         var trail = new RecordingAuditTrail();
         var services = new ServiceCollection();
-        services.AddSingleton<IAuditTrail>(trail);
 
         var provider = services.AddLiteBus(registry =>
         {
-            registry.AddMessaging(_ => { });
+            registry.AddAuditing(auditing => auditing
+                .UseTrailInstance(trail)
+                .ForCommands());
             registry.AddCommands(builder =>
             {
                 builder.Register<ApproveRefundCommand>();
                 builder.Register<ApproveRefundCommandGuard>();
                 builder.Register<ApproveRefundCommandHandler>();
-                builder.EnableAuditing();
             });
         }).BuildServiceProvider();
 

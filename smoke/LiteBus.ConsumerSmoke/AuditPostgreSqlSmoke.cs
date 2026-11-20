@@ -5,7 +5,6 @@ using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions.Auditing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.ConsumerSmoke;
@@ -39,9 +38,9 @@ internal static class AuditPostgreSqlSmoke
             {
                 commands.Register<AuditPostgreSqlCommand>();
                 commands.Register<AuditPostgreSqlCommandHandler>();
-                commands.EnableAuditing();
             });
             liteBus.Modules.AddAuditing(auditing => auditing
+                .ForCommands()
                 .UsePostgreSqlStore(postgres => postgres
                     .UseConnectionString(connectionString)
                     .UseOptions(new PostgreSqlAuditStoreOptions { SchemaName = "litebus_smoke_audit_pg" }))

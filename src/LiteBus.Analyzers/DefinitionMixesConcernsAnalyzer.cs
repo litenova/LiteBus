@@ -36,7 +36,7 @@ public sealed class DefinitionMixesConcernsAnalyzer : DiagnosticAnalyzer
     /// <summary>
     ///     The metadata name of the audit declaration value type.
     /// </summary>
-    private const string AuditDeclarationMetadataName = "LiteBus.Messaging.Abstractions.Auditing.AuditDeclaration";
+    private const string AuditDeclarationMetadataName = "LiteBus.Auditing.Abstractions.AuditDeclaration";
 
     /// <summary>
     ///     The metadata name of the tenancy declaration value type.

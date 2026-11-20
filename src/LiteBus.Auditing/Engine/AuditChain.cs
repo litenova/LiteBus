@@ -3,7 +3,6 @@ using LiteBus.Auditing.Abstractions;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.Engine;
 
@@ -159,6 +158,20 @@ public sealed class AuditChain : IAuditChain
 
         return await _checkpoints
             .CutAsync(segment, null, AuditCheckpointKind.Regular, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<AuditCheckpoint> CutCheckpointAsync(
+        string segment,
+        string label,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(segment);
+        ArgumentException.ThrowIfNullOrWhiteSpace(label);
+
+        return await _checkpoints
+            .CutAsync(segment, label, AuditCheckpointKind.Regular, cancellationToken)
             .ConfigureAwait(false);
     }
 

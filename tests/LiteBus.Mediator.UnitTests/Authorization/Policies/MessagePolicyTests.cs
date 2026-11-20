@@ -1081,7 +1081,7 @@ public sealed class MessagePolicyTests : LiteBusTestBase
                 ContextFor(
                     new PolicySubjectMessage("subject-1"),
                     SignedInIdentity(),
-                    ConditionServices(new FixedPolicyCondition(Verdict.Allow))),
+                    ConditionServices(new FixedPolicyCondition(PolicyResult.Allow))),
                 CancellationToken.None)
             .ConfigureAwait(false);
 
@@ -1099,33 +1099,14 @@ public sealed class MessagePolicyTests : LiteBusTestBase
                 ContextFor(
                     new PolicySubjectMessage("subject-1"),
                     SignedInIdentity(),
-                    ConditionServices(new FixedPolicyCondition(Verdict.Deny("the condition refused.", "test.condition")))),
+                    ConditionServices(new FixedPolicyCondition(
+                        PolicyResult.Deny("test.condition", "the condition refused.")))),
                 CancellationToken.None)
             .ConfigureAwait(false);
 
         var deny = result.Should().BeOfType<PolicyDeny>().Subject;
         deny.Reason.Should().Be("the condition refused.");
         deny.Code.Should().Be("test.condition");
-    }
-
-    /// <summary>
-    ///     Verifies that a condition denial without a code is reported with the stable code.
-    /// </summary>
-    [Fact]
-    public async Task Condition_maps_a_denial_without_a_code_to_forbidden()
-    {
-        var result = await MessagePolicy.Condition<FixedPolicyCondition>()
-            .EvaluateAsync(
-                ContextFor(
-                    new PolicySubjectMessage("subject-1"),
-                    SignedInIdentity(),
-                    ConditionServices(new FixedPolicyCondition(Verdict.Deny("the condition refused.")))),
-                CancellationToken.None)
-            .ConfigureAwait(false);
-
-        var deny = result.Should().BeOfType<PolicyDeny>().Subject;
-        deny.Reason.Should().Be("the condition refused.");
-        deny.Code.Should().Be(AuthorizationPolicyRefusalCodes.Forbidden);
     }
 
     /// <summary>
@@ -1774,28 +1755,28 @@ public sealed class MessagePolicyTests : LiteBusTestBase
     }
 
     /// <summary>
-    ///     Answers a fixed verdict, so the condition policy tests control what the named condition decides.
+    ///     Answers a fixed policy result, so the condition policy tests control what the named condition decides.
     /// </summary>
     private sealed class FixedPolicyCondition : IAuthorizationCondition
     {
         /// <summary>
-        ///     The verdict this condition answers.
+        ///     The result this condition answers.
         /// </summary>
-        private readonly Verdict _verdict;
+        private readonly PolicyResult _result;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="FixedPolicyCondition" /> class.
         /// </summary>
-        /// <param name="verdict">The verdict this condition answers.</param>
-        public FixedPolicyCondition(Verdict verdict)
+        /// <param name="result">The result this condition answers.</param>
+        public FixedPolicyCondition(PolicyResult result)
         {
-            _verdict = verdict;
+            _result = result;
         }
 
         /// <inheritdoc />
-        public ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
+        public ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
         {
-            return new ValueTask<Verdict>(_verdict);
+            return new ValueTask<PolicyResult>(_result);
         }
     }
 

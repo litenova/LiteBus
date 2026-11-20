@@ -24,7 +24,9 @@ namespace LiteBus.Extensions.AspNetCore;
 ///         Resolution order is the exact code mapping, then the longest prefix mapping, then the outcome-kind default
 ///         set by <see cref="MapInvalid" /> or <see cref="MapDenied" />, then the fallback. Both outcome defaults start
 ///         as the fallback answer, so an unmapped refusal answers <c>400 Bad Request</c> unless the host sets an
-///         outcome default or maps the code.
+///         outcome default or maps the code. An outcome-kind default still reports unmapped from
+///         <see cref="TryResolve(string?, MediationOutcome, out RefusalProblemMap)" />, so the per-outcome
+///         unmapped-code policy in <see cref="RefusalProblemOptions" /> applies to codes with no explicit mapping.
 ///     </para>
 ///     <para>
 ///         <see cref="Default" /> is shared by the process: map on a catalog built by <see cref="CreateDefault" /> and

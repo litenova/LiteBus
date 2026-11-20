@@ -1,4 +1,3 @@
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -16,8 +15,8 @@ namespace LiteBus.Messaging.Abstractions;
 ///         It is separate from <see cref="IMessageDeclarationSource" /> because the two aggregate differently. A
 ///         declaration maps one attribute to one metadata value and the last one wins; several exemptions have to
 ///         collapse into one set, so the registry collects them instead of letting them overwrite each other. An
-///         attribute may implement both: <see cref="AuditExemptAttribute" /> does, because an audit-exempt message
-///         both takes a position on <see cref="AuditDeclaration" /> and records an exemption from declaring one.
+///         attribute may implement both: <c>AuditExemptAttribute</c> does, because an audit-exempt message
+///         both takes a position on <c>AuditDeclaration</c> and records an exemption from declaring one.
 ///     </para>
 /// </remarks>
 public interface IMessageDeclarationExemptionSource

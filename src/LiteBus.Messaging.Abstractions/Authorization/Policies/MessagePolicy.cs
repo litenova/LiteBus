@@ -335,12 +335,12 @@ public abstract record MessagePolicy
     /// <typeparam name="TCondition">The condition type resolved from the dispatch scope.</typeparam>
     /// <returns>The condition policy.</returns>
     /// <remarks>
-    ///     Resolves <typeparamref name="TCondition" /> from the dispatch scope and answers its verdict, so the check
+    ///     Resolves <typeparamref name="TCondition" /> from the dispatch scope and answers its result, so the check
     ///     runs only where a policy names it. A condition registered with the composition runs for every authorized
     ///     message; this combinator names one condition for one policy. When the condition type is not registered,
     ///     the policy faults with <see cref="AuthorizationPolicyRefusalCodes.ConditionMissing" /> rather than
-    ///     guessing. A condition denial without a code is reported with
-    ///     <see cref="AuthorizationPolicyRefusalCodes.Forbidden" />.
+    ///     guessing. A fault the condition reports passes through unchanged, so the policy guard raises
+    ///     <see cref="MessageFaultException" /> carrying the fault code rather than reporting a refusal.
     /// </remarks>
     public static MessagePolicy Condition<TCondition>()
         where TCondition : class, IAuthorizationCondition
@@ -993,13 +993,7 @@ public abstract record MessagePolicy
                     $"No '{typeof(TCondition).Name}' condition is registered, so the policy cannot be evaluated.");
             }
 
-            var verdict = await condition.EvaluateAsync(context, cancellationToken).ConfigureAwait(false);
-
-            return verdict.IsDenied
-                ? PolicyResult.Deny(
-                    verdict.Code ?? AuthorizationPolicyRefusalCodes.Forbidden,
-                    verdict.Reason!)
-                : PolicyResult.Allow;
+            return await condition.EvaluateAsync(context, cancellationToken).ConfigureAwait(false);
         }
     }
 

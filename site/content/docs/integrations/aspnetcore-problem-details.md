@@ -132,6 +132,31 @@ services.AddSingleton(new RefusalProblemOptions
 });
 ```
 
+A client that renders a message and branches on a code per field reads `FieldValidationErrorsWriter`, which writes one object per failure under `fields` with `field`, `code` and `message` members. `FieldValidationErrorsWriterOptions` renames the extension and each member to match an existing client contract:
+
+```csharp
+services.AddSingleton(new RefusalProblemOptions
+{
+    ValidationErrors = new FieldValidationErrorsWriter(new FieldValidationErrorsWriterOptions
+    {
+        ExtensionName = "fields",
+        FieldMemberName = "field",
+        CodeMemberName = "code",
+        MessageMemberName = "message",
+    }),
+});
+```
+
+```json
+{
+  "status": 400,
+  "code": "client-required",
+  "fields": [
+    { "field": "ClientId", "code": "client-required", "message": "A client is required." }
+  ]
+}
+```
+
 ## Application Content
 
 `IProblemDetailsEnricher` adds application-specific content to a problem response, such as localized titles or projected members. It runs after the catalog status and title, the detail sentence, the problem type, the refusal code, and the validation errors are written, so it can replace or project any of them. The `ProblemDetailsEnrichmentContext` it receives carries the request context, the mediation outcome, the refusal code, and the reason. `NullProblemDetailsEnricher`, the default, leaves every response unchanged. LiteBus ships no string tables: localization belongs to the application behind this port, for example an enricher that reads `Accept-Language` from the request context and replaces the title.
@@ -203,7 +228,7 @@ A `MessageFaultException` reports a configuration or dependency failure an opera
 
 ## Unmapped Codes
 
-A refusal code with no exact or prefix mapping follows the unmapped-code policy on both the result path and the exception path. `UseFallback`, the default, answers the outcome default with the refusal detail. `TreatAsServerError` answers `500 Internal Server Error` with the `about:blank` problem type and logs the unmapped code at error level, for an application whose contract fails fast on missing product mappings. The refusal detail and the `code` extension stay on the response either way.
+A refusal code with no exact or prefix mapping follows the unmapped-code policy of its outcome on both the result path and the exception path: `UnmappedRefusalCode` for a denial and `UnmappedValidationCode` for an invalid result. `UseFallback`, the default of both, answers the outcome default with the refusal detail. `TreatAsServerError` answers `500 Internal Server Error` with the `about:blank` problem type and logs the unmapped code at error level, for an application whose contract fails fast on missing product mappings. The refusal detail and the `code` extension stay on the response either way.
 
 ```csharp
 services.AddLiteBusExceptionHandler(options =>
@@ -212,11 +237,28 @@ services.AddLiteBusExceptionHandler(options =>
 });
 ```
 
-`RefusalProblemOptions` registered in request services governs both paths; `LiteBusExceptionHandlerOptions.UnmappedRefusalCode` applies only when none is registered, and `AddLiteBusExceptionHandler` seeds the shared options so the result path and the exception path answer unmapped codes with one policy. A refusal without a code always uses the outcome default, because there is no mapping to miss.
+The two policies are separate because the codes differ in kind. A denial code names a product rule, so a strict product answers an unmapped one as a missing mapping. Validation codes are per field and per validator, such as `client-required` and `amount-positive`, and no catalog maps each of them, so a product that is strict about denials keeps `UnmappedValidationCode.UseFallback` and answers every invalid result with the invalid default. Set `options.UnmappedValidationCode = UnmappedValidationCode.TreatAsServerError` only when every validation code is mapped.
+
+`RefusalProblemOptions` registered in request services governs both paths; `LiteBusExceptionHandlerOptions.UnmappedRefusalCode` and `UnmappedValidationCode` apply only when none is registered, and `AddLiteBusExceptionHandler` seeds the shared options so the result path and the exception path answer unmapped codes with one policy. A refusal without a code always uses the outcome default, because there is no mapping to miss.
 
 ## Catalog Export and Diagnostics
 
 `Export` returns every registered mapping with its contributor plus the invalid and denied defaults as a `RefusalProblemCatalogExport`, and `ExportJson` serializes it with the web serializer defaults, for OpenAPI response examples, documentation tooling, and compliance pipelines that consume the full error list. `RefusalProblemCatalogDiagnosticCheck`, reported as `litebus.problem-catalog`, carries the mapping count, the mapped patterns, the contributors, and both outcome defaults, so composition explains which module owns each answer. A host that registered no catalog answers from the shared default catalog, which the probe reports instead of failing.
+
+## OpenAPI Problem Schema
+
+The OpenAPI document ASP.NET Core generates describes `ProblemDetails` with `type`, `title`, `status`, `detail` and `instance` only, so a generated client misses the members LiteBus always sends. The `LiteBus.Extensions.AspNetCore.OpenApi` package adds a document transformer that adds `code`, `traceId` and `errors` to the problem schemas, and with `IncludeRefusalCodes` lists each status's refusal codes from the catalog on the problem responses:
+
+```csharp
+services.AddLiteBusProblemSchema(schema =>
+{
+    schema.IncludeRefusalCodes = true;
+});
+
+app.MapOpenApi();
+```
+
+`AddLiteBusProblemSchema` registers the transformer through `AddOpenApi`. `ProblemSchemaNames` names the component schemas it enriches (`ProblemDetails` and `HttpValidationProblemDetails` by default), and `RefusalCatalog` overrides the catalog the codes are read from; by default it is the catalog registered in the container, or `RefusalProblemCatalog.Default`.
 
 ## Limitations
 

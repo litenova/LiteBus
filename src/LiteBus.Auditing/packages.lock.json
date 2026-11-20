@@ -61,6 +61,12 @@
           "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
+      "litebus.commands.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )"
+        }
+      },
       "litebus.durablemessaging.abstractions": {
         "type": "Project",
         "dependencies": {
@@ -95,6 +101,12 @@
           "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
           "LiteBus.Messaging.Abstractions": "[8.0.0, )",
           "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.queries.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.runtime": {

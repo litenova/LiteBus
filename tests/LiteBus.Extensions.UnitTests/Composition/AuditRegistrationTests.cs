@@ -1,14 +1,13 @@
+using LiteBus.Auditing;
+using LiteBus.Auditing.Abstractions;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
-using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Audit;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Extensions.UnitTests.Composition;
 
@@ -42,25 +41,21 @@ public sealed class AuditRegistrationTests
     }
 
     [Fact]
-    public void Resolving_the_writer_without_a_trail_names_the_fix()
+    public void Composing_an_axis_with_no_receiver_names_the_fix()
     {
         var services = new ServiceCollection();
 
-        services.AddLiteBus(liteBus =>
+        var compose = () => services.AddLiteBus(liteBus =>
         {
             liteBus.AddMessaging(_ => { });
-            liteBus.AddCommands(commands => commands.Register<AuditProbeCommand>().EnableAuditing());
+            liteBus.AddCommands(commands => commands.Register<AuditProbeCommand>());
+            liteBus.Modules.AddAuditing(auditing => auditing.ForCommands());
         });
 
-        using var provider = services.BuildServiceProvider();
-        using var scope = provider.CreateScope();
-
-        // Deferring the trail lookup to resolution time must not turn a missing registration into a null reference on
-        // the completion path, where faults are deliberately kept away from the caller.
-        var resolve = () => scope.ServiceProvider.GetRequiredService<IAuditRecordWriter>();
-
-        resolve.Should().Throw<LiteBusConfigurationException>()
-            .WithMessage("*UseAuditTrail*");
+        // A module with no store and no application trail cannot write a record, so composition rejects it before the
+        // first mediation reaches the completion stage, where faults are deliberately kept away from the caller.
+        compose.Should().Throw<AuditConfigurationException>()
+            .WithMessage("*UseInMemoryStore*");
     }
 
     [Fact]
@@ -70,8 +65,11 @@ public sealed class AuditRegistrationTests
 
         services.AddLiteBus(liteBus =>
         {
-            liteBus.AddMessaging(messaging => messaging.UseAuditTrail<AuditProbeTrail>());
-            liteBus.AddCommands(commands => commands.Register<AuditProbeCommand>().EnableAuditing());
+            liteBus.AddMessaging(_ => { });
+            liteBus.AddCommands(commands => commands.Register<AuditProbeCommand>());
+            liteBus.Modules.AddAuditing(auditing => auditing
+                .ForCommands()
+                .UseTrail<AuditProbeTrail>());
         });
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions
@@ -87,26 +85,6 @@ public sealed class AuditRegistrationTests
     }
 
     [Fact]
-    public void A_trail_registered_with_the_application_container_still_reaches_the_writer()
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<IAuditTrail, AuditProbeTrail>();
-
-        services.AddLiteBus(liteBus =>
-        {
-            liteBus.AddMessaging(_ => { });
-            liteBus.AddCommands(commands => commands.Register<AuditProbeCommand>().EnableAuditing());
-        });
-
-        using var provider = services.BuildServiceProvider();
-        using var scope = provider.CreateScope();
-
-        // The builder overload is the documented route, but registering the trail directly has to keep working: it is
-        // what every application on the first release of auditing does.
-        scope.ServiceProvider.GetRequiredService<IAuditRecordWriter>().Should().NotBeNull();
-    }
-
-    [Fact]
     public void The_outcome_mapper_defaults_when_the_application_registers_none()
     {
         var services = new ServiceCollection();
@@ -115,6 +93,9 @@ public sealed class AuditRegistrationTests
         {
             liteBus.AddMessaging(_ => { });
             liteBus.AddCommands(commands => commands.Register<AuditProbeCommand>());
+            liteBus.Modules.AddAuditing(auditing => auditing
+                .ForCommands()
+                .UseTrail<AuditProbeTrail>());
         });
 
         using var provider = services.BuildServiceProvider();
@@ -125,7 +106,7 @@ public sealed class AuditRegistrationTests
     [Fact]
     public void A_trail_type_is_scoped_by_default()
     {
-        using var provider = BuildProvider(messaging => messaging.UseAuditTrail<SessionBoundTrail>());
+        using var provider = BuildProvider(auditing => auditing.UseTrail<SessionBoundTrail>());
 
         using var first = provider.CreateScope();
         using var second = provider.CreateScope();
@@ -139,8 +120,8 @@ public sealed class AuditRegistrationTests
     [Fact]
     public void A_trail_type_registered_as_a_singleton_says_so_at_the_call_site()
     {
-        using var provider = BuildProvider(messaging =>
-            messaging.UseAuditTrail<AuditProbeTrail>(InstanceLifetime.Singleton));
+        using var provider = BuildProvider(auditing =>
+            auditing.UseTrail<AuditProbeTrail>(InstanceLifetime.Singleton));
 
         using var first = provider.CreateScope();
         using var second = provider.CreateScope();
@@ -153,7 +134,7 @@ public sealed class AuditRegistrationTests
     public void A_pre_created_trail_instance_is_a_singleton()
     {
         var instance = new AuditProbeTrail();
-        using var provider = BuildProvider(messaging => messaging.UseAuditTrailInstance(instance));
+        using var provider = BuildProvider(auditing => auditing.UseTrailInstance(instance));
 
         using var scope = provider.CreateScope();
 
@@ -164,8 +145,8 @@ public sealed class AuditRegistrationTests
     [Fact]
     public async Task The_probe_reports_whether_the_trail_is_a_singleton()
     {
-        using var scoped = BuildProvider(messaging => messaging.UseAuditTrail<SessionBoundTrail>());
-        using var singleton = BuildProvider(messaging => messaging.UseAuditTrailInstance(new AuditProbeTrail()));
+        using var scoped = BuildProvider(auditing => auditing.UseTrail<SessionBoundTrail>());
+        using var singleton = BuildProvider(auditing => auditing.UseTrailInstance(new AuditProbeTrail()));
 
         var scopedResult = await ProbeAsync(scoped).ConfigureAwait(false);
         var singletonResult = await ProbeAsync(singleton).ConfigureAwait(false);
@@ -177,19 +158,24 @@ public sealed class AuditRegistrationTests
     }
 
     /// <summary>
-    ///     Builds a provider with auditing enabled on the command axis and the given messaging configuration.
+    ///     Builds a provider with auditing enabled on the command axis and the given auditing configuration.
     /// </summary>
-    /// <param name="configureMessaging">The messaging configuration under test.</param>
+    /// <param name="configureAuditing">The auditing configuration under test.</param>
     /// <returns>The built service provider.</returns>
-    private static ServiceProvider BuildProvider(Action<MessageModuleBuilder> configureMessaging)
+    private static ServiceProvider BuildProvider(Action<AuditingModuleBuilder> configureAuditing)
     {
         var services = new ServiceCollection();
         services.AddScoped<FakeSession>();
 
         services.AddLiteBus(liteBus =>
         {
-            liteBus.AddMessaging(configureMessaging);
-            liteBus.AddCommands(commands => commands.Register<AuditProbeCommand>().EnableAuditing());
+            liteBus.AddMessaging(_ => { });
+            liteBus.AddCommands(commands => commands.Register<AuditProbeCommand>());
+            liteBus.Modules.AddAuditing(auditing =>
+            {
+                auditing.ForCommands();
+                configureAuditing(auditing);
+            });
         });
 
         return services.BuildServiceProvider(new ServiceProviderOptions

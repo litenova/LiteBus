@@ -4,7 +4,6 @@ using System.Reflection;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Messaging.Registry.Descriptors;
 

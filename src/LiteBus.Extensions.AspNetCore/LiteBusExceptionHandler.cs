@@ -26,15 +26,17 @@ namespace LiteBus.Extensions.AspNetCore;
 ///     <para>
 ///         The catalog is read from request services with <see cref="RefusalProblemCatalog.Default" /> as the fallback.
 ///         The rendering options are read from request services with a default instance as the fallback; when no
-///         <see cref="RefusalProblemOptions" /> is registered, the unmapped-code policy falls back to
-///         <see cref="LiteBusExceptionHandlerOptions.UnmappedRefusalCode" />. The problem is written through
+///         <see cref="RefusalProblemOptions" /> is registered, the denied policy falls back to
+///         <see cref="LiteBusExceptionHandlerOptions.UnmappedRefusalCode" /> and the invalid policy falls back to
+///         <see cref="LiteBusExceptionHandlerOptions.UnmappedValidationCode" />. The problem is written through
 ///         <see cref="IProblemDetailsService" /> when the host registered it with <c>AddProblemDetails</c>; otherwise
 ///         it is written directly with the same shape.
 ///     </para>
 ///     <para>
-///         A refusal code with no mapping follows the unmapped-code policy: the outcome default, or <c>500 Internal
-///         Server Error</c> with a generic server-error type, logged at error level. A refusal without a code always
-///         uses the outcome default.
+///         A refusal code with no mapping follows the per-outcome unmapped-code policy: a denied code follows
+///         <see cref="UnmappedRefusalCode" /> and an invalid code follows <see cref="UnmappedValidationCode" />,
+///         answering the outcome default, or <c>500 Internal Server Error</c> with a generic server-error type,
+///         logged at error level. A refusal without a code always uses the outcome default.
 ///     </para>
 ///     <code><![CDATA[
 /// services.AddLiteBusExceptionHandler(options =>
@@ -55,7 +57,7 @@ public sealed class LiteBusExceptionHandler : IExceptionHandler
             "Mediation failed with fault {Code}: {Reason}.");
 
     /// <summary>
-    ///     Decides how a refusal code with no catalog mapping is answered.
+    ///     Decides how a denied refusal code with no catalog mapping is answered.
     /// </summary>
     private readonly LiteBusExceptionHandlerOptions _options;
 
@@ -67,7 +69,7 @@ public sealed class LiteBusExceptionHandler : IExceptionHandler
     /// <summary>
     ///     Initializes a new instance of the <see cref="LiteBusExceptionHandler" /> class.
     /// </summary>
-    /// <param name="options">Decides how a refusal code with no catalog mapping is answered.</param>
+    /// <param name="options">Decides how a denied refusal code with no catalog mapping is answered.</param>
     /// <param name="logger">Records mediation faults and unmapped refusal codes reported as server errors.</param>
     public LiteBusExceptionHandler(LiteBusExceptionHandlerOptions options, ILogger<LiteBusExceptionHandler> logger)
     {
@@ -214,8 +216,8 @@ public sealed class LiteBusExceptionHandler : IExceptionHandler
     /// </summary>
     /// <param name="httpContext">The current HTTP request context.</param>
     /// <returns>
-    ///     The request-services options, or default options carrying this handler's unmapped-code policy when none is
-    ///     registered.
+    ///     The request-services options, or default options carrying this handler's denied policy with a lenient
+    ///     invalid policy when none is registered.
     /// </returns>
     private RefusalProblemOptions ResolveOptions(HttpContext httpContext)
     {
@@ -224,6 +226,10 @@ public sealed class LiteBusExceptionHandler : IExceptionHandler
             return registered;
         }
 
-        return new RefusalProblemOptions { UnmappedRefusalCode = _options.UnmappedRefusalCode };
+        return new RefusalProblemOptions
+        {
+            UnmappedRefusalCode = _options.UnmappedRefusalCode,
+            UnmappedValidationCode = _options.UnmappedValidationCode
+        };
     }
 }

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Audit;
 using LiteBus.Messaging.Registry;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Runtime.Abstractions;
@@ -63,19 +62,6 @@ public sealed class QueryModule : IModule, IRequires<MessageModule>
         foreach (var configure in _builders)
         {
             configure(moduleBuilder);
-        }
-
-        // AddAuditing on the messaging module selects the axes, so a consumer configures the feature once instead of
-        // repeating the decision here. EnableAuditing stays the primitive, and registering the same handler twice is a
-        // no-op in the registry.
-        if (configuration.TryGetContext<AuditingComposition>(out var auditing) && auditing?.Queries == true)
-        {
-            moduleBuilder.EnableAuditing();
-        }
-
-        if (moduleBuilder.AuditingEnabled)
-        {
-            configuration.RegisterDiagnosticCheck(typeof(AuditTrailDiagnosticCheck), AuditTrailDiagnosticCheck.CheckName);
         }
 
         RegisterQueryServices(configuration, moduleBuilder.UnitOfWorkType);

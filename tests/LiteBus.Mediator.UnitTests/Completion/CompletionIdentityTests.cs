@@ -1,11 +1,12 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
+using LiteBus.Auditing;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -149,17 +150,15 @@ public sealed class CompletionIdentityTests : LiteBusTestBase
         ActorIdentityRecorder actorIdentities)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IAuditTrail>(trail);
         services.AddSingleton(actorIdentities);
 
         return services
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging =>
-                {
-                    messaging.UseAuditActorResolver<IdentityReadingAuditActorResolver>();
-                    messaging.AddAuditing(auditing => auditing.ForCommands());
-                });
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(trail)
+                    .UseActorResolver<IdentityReadingAuditActorResolver>()
+                    .ForCommands());
 
                 registry.AddCommands(builder =>
                 {

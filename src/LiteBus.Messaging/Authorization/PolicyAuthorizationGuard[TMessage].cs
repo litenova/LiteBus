@@ -17,8 +17,9 @@ namespace LiteBus.Messaging.Authorization;
 ///         Registered once as an open generic by <c>AddAuthorizationPolicies</c>, so it covers every message. A
 ///         message declaring <see cref="AuthorizedDeclaration" /> reaches one fixed evaluation order: every registered
 ///         <see cref="IAuthorizationCondition" /> in registration order, then the policy registered under
-///         <see cref="AuthorizedDeclaration.Policy" />. The first deny wins. A name no composition registered is a
-///         configuration fault, so the guard raises <see cref="MessageFaultException" /> carrying
+///         <see cref="AuthorizedDeclaration.Policy" />. The first deny wins, and a condition fault raises
+///         <see cref="MessageFaultException" /> carrying the fault code, reason, and cause. A name no composition
+///         registered is a configuration fault, so the guard raises <see cref="MessageFaultException" /> carrying
 ///         <see cref="AuthorizationPolicyRefusalCodes.UnknownPolicy" /> rather than passing a message whose rule is
 ///         missing; composition normally fails on the name before any mediation runs.
 ///     </para>
@@ -106,11 +107,16 @@ public sealed class PolicyAuthorizationGuard<TMessage> : AuthorizationGuard<TMes
 
         foreach (var condition in ResolveConditions())
         {
-            var conditionVerdict = await condition.EvaluateAsync(context, cancellationToken).ConfigureAwait(false);
+            var conditionResult = await condition.EvaluateAsync(context, cancellationToken).ConfigureAwait(false);
 
-            if (conditionVerdict.IsDenied)
+            if (conditionResult is PolicyDeny conditionDeny)
             {
-                return conditionVerdict;
+                return Verdict.Deny(conditionDeny.Reason, conditionDeny.Code);
+            }
+
+            if (conditionResult is PolicyFault conditionFault)
+            {
+                throw CreateFaultException(context.MessageType, conditionFault);
             }
         }
 
@@ -136,9 +142,23 @@ public sealed class PolicyAuthorizationGuard<TMessage> : AuthorizationGuard<TMes
 
         var fault = (PolicyFault) result;
 
-        throw fault.Cause is null
-            ? new MessageFaultException(context.MessageType, fault.Code, fault.Reason)
-            : new MessageFaultException(context.MessageType, fault.Code, fault.Reason, fault.Cause);
+        throw CreateFaultException(context.MessageType, fault);
+    }
+
+    /// <summary>
+    ///     Creates the pipeline fault a fault result raises.
+    /// </summary>
+    /// <param name="messageType">The type of the message being mediated when the fault surfaced.</param>
+    /// <param name="fault">The fault result the evaluation reported.</param>
+    /// <returns>The fault that ends the mediation as a fault.</returns>
+    private static MessageFaultException CreateFaultException(Type messageType, PolicyFault fault)
+    {
+        ArgumentNullException.ThrowIfNull(messageType);
+        ArgumentNullException.ThrowIfNull(fault);
+
+        return fault.Cause is null
+            ? new MessageFaultException(messageType, fault.Code, fault.Reason)
+            : new MessageFaultException(messageType, fault.Code, fault.Reason, fault.Cause);
     }
 
     /// <summary>

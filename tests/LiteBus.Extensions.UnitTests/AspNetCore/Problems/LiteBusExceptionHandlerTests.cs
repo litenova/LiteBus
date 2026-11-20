@@ -216,7 +216,7 @@ public sealed class LiteBusExceptionHandlerTests
     {
         var logger = new CapturingLogger();
         var handler = new LiteBusExceptionHandler(
-            new LiteBusExceptionHandlerOptions { UnmappedRefusalCode = UnmappedRefusalCode.TreatAsServerError }, logger);
+            new LiteBusExceptionHandlerOptions { UnmappedValidationCode = UnmappedValidationCode.TreatAsServerError }, logger);
         var httpContext = CreateHttpContext();
         IReadOnlyList<ValidationFailure> failures = [new ValidationFailure("Amount must be positive", "Amount", "billing.unpaid")];
         var exception = new LiteBusMessageInvalidException(typeof(object), failures);

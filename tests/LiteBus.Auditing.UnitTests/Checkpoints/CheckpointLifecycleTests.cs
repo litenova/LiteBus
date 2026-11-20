@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing;
 using LiteBus.Auditing.Checkpoints;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.UnitTests.Checkpoints;
 

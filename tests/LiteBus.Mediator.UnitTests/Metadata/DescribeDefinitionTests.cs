@@ -1,3 +1,5 @@
+using LiteBus.Auditing;
+using LiteBus.Auditing.InMemory;
 using LiteBus.Commands;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
@@ -7,7 +9,7 @@ using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using ICommand = LiteBus.Commands.Abstractions.ICommand;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Metadata;
 
@@ -154,7 +156,7 @@ public sealed class DescribeDefinitionTests : LiteBusTestBase
         {
             foreach (var entry in model.Messages.Audited())
             {
-                seen.Add(entry.Audit!.Action);
+                seen.Add(entry.GetAudit()!.Action);
             }
         }));
 
@@ -182,19 +184,20 @@ public sealed class DescribeDefinitionTests : LiteBusTestBase
         // this exists to build.
         audited.Select(entry => entry.MessageType).Should().NotContain(typeof(PingCommand));
         audited.Select(entry => entry.MessageType).Should().NotContain(typeof(SweepStaleLocksCommand));
-        audited.Should().AllSatisfy(entry => entry.Audit.Should().NotBeNull());
+        audited.Should().AllSatisfy(entry => entry.GetAudit().Should().NotBeNull());
     }
 
     [Fact]
     public void Duplicate_audit_actions_are_reported_at_composition()
     {
         var act = () => Build(
-            messaging => messaging.RequireUniqueAuditActions(),
+            _ => { },
             commands =>
             {
                 commands.Register<ClashingActionCommand>();
                 commands.Register<ClashingActionCommandHandler>();
-            });
+            },
+            auditing => auditing.RequireUniqueActions());
 
         // Two use cases under one action code make the trail unqueryable by use case, and nothing else reports it.
         act.Should().Throw<LiteBusConfigurationException>()
@@ -205,12 +208,13 @@ public sealed class DescribeDefinitionTests : LiteBusTestBase
     public void An_audit_action_breaking_the_format_is_reported_at_composition()
     {
         var act = () => Build(
-            messaging => messaging.RequireAuditActionFormat(),
+            _ => { },
             commands =>
             {
                 commands.Register<BadlyNamedCommand>();
                 commands.Register<BadlyNamedCommandHandler>();
-            });
+            },
+            auditing => auditing.RequireActionFormat());
 
         act.Should().Throw<LiteBusConfigurationException>()
             .WithMessage("*Money_TransferFundsBadly*");
@@ -219,7 +223,7 @@ public sealed class DescribeDefinitionTests : LiteBusTestBase
     [Fact]
     public void The_default_audit_action_format_accepts_the_documented_convention()
     {
-        var act = () => Build(messaging => messaging.RequireAuditActionFormat());
+        var act = () => Build(_ => { }, auditing: auditing => auditing.RequireActionFormat());
 
         act.Should().NotThrow();
     }
@@ -238,10 +242,12 @@ public sealed class DescribeDefinitionTests : LiteBusTestBase
     /// </summary>
     /// <param name="messaging">The extra messaging configuration.</param>
     /// <param name="commands">The extra command registrations.</param>
+    /// <param name="auditing">The auditing composition checks to apply, when auditing is under test.</param>
     /// <returns>The configured service provider.</returns>
     private static ServiceProvider Build(
         Action<MessageModuleBuilder> messaging,
-        Action<CommandModuleBuilder>? commands = null)
+        Action<CommandModuleBuilder>? commands = null,
+        Action<AuditingModuleBuilder>? auditing = null)
     {
         return new ServiceCollection()
             .AddLiteBus(registry =>
@@ -266,6 +272,15 @@ public sealed class DescribeDefinitionTests : LiteBusTestBase
                     builder.Register<ListAccountsQuery>();
                     builder.Register<ListAccountsQueryHandler>();
                 });
+
+                if (auditing is not null)
+                {
+                    registry.AddAuditing(builder =>
+                    {
+                        builder.UseTrailInstance(new InMemoryAuditTrail()).ForCommands();
+                        auditing(builder);
+                    });
+                }
             })
             .BuildServiceProvider();
     }

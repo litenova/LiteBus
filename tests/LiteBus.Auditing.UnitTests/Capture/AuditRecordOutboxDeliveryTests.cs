@@ -1,7 +1,6 @@
 using LiteBus.Auditing.Capture;
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.UnitTests.Capture;
 

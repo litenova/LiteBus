@@ -4,7 +4,8 @@ using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing.Checkpoints;
 using LiteBus.Auditing.Linking;
 using LiteBus.Auditing.Storage.Marten;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 
@@ -21,6 +22,7 @@ public sealed class MartenAuditChainModuleTests
         var configuration = new TestModuleConfiguration();
 
         new AuditingModule(auditing => auditing
+            .ForCommands()
             .UseMartenStore()
             .UseHashChain(chain => chain.CheckpointWhen(CheckpointPolicies.Every(TimeSpan.FromMinutes(1)))))
             .Build(configuration);
@@ -41,7 +43,7 @@ public sealed class MartenAuditChainModuleTests
     {
         var configuration = new TestModuleConfiguration();
 
-        new AuditingModule(auditing => auditing.UseMartenStore()).Build(configuration);
+        new AuditingModule(auditing => auditing.ForCommands().UseMartenStore()).Build(configuration);
 
         configuration.BackgroundServices.Should().BeEmpty();
         configuration.DependencyRegistry.Should().NotContain(descriptor => descriptor.DependencyType == typeof(IAuditChain));
@@ -54,11 +56,11 @@ public sealed class MartenAuditChainModuleTests
     {
         var registry = new FakeModuleRegistry();
 
-        registry.AddAuditing(auditing => auditing.UseMartenStore().UseHashChain(_ => { }));
+        registry.AddAuditing(auditing => auditing.ForCommands().UseMartenStore().UseHashChain(_ => { }));
 
         registry.Modules.Should().ContainSingle().Subject.Should().BeOfType<AuditingModule>();
 
-        registry.AddAuditing(auditing => auditing.UseMartenStore());
+        registry.AddAuditing(auditing => auditing.ForCommands().UseMartenStore());
 
         registry.Modules.Should().ContainSingle();
     }
@@ -99,6 +101,15 @@ public sealed class MartenAuditChainModuleTests
         private readonly List<DiagnosticCheckDescriptor> _diagnosticChecks = [];
         private readonly List<Action> _compositionValidations = [];
         private readonly Dictionary<Type, object> _contexts = [];
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="TestModuleConfiguration" /> class with an empty message
+        ///     registry, which the auditing module needs to register its completion handlers.
+        /// </summary>
+        public TestModuleConfiguration()
+        {
+            SetContext<IMessageRegistry>(MessageRegistryFactory.Create());
+        }
 
         public IDependencyRegistry DependencyRegistry { get; } = new TestDependencyRegistry();
 

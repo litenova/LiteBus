@@ -3,16 +3,17 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Events;
 using LiteBus.Events.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Auditing;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Audit;
+using LiteBus.Auditing.Recording;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Auditing;
 
@@ -112,10 +113,9 @@ public sealed class AuditActorTests : LiteBusTestBase
         var trail = new RecordingAuditTrail();
 
         var provider = new ServiceCollection()
-            .AddSingleton<IAuditTrail>(trail)
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing.ForCommands()));
+                registry.AddAuditing(auditing => auditing.UseTrailInstance(trail).ForCommands());
                 registry.AddCommands(builder =>
                 {
                     builder.Register<ExpireSessionsCommand>();
@@ -147,12 +147,12 @@ public sealed class AuditActorTests : LiteBusTestBase
         var trail = new RecordingAuditTrail();
 
         var provider = new ServiceCollection()
-            .AddSingleton<IAuditTrail>(trail)
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(trail)
                     .UseActorResolver<TestAuditActorResolver>()
-                    .ForEvents()));
+                    .ForEvents());
 
                 registry.AddEvents(builder =>
                 {
@@ -180,13 +180,13 @@ public sealed class AuditActorTests : LiteBusTestBase
         var trail = new RecordingAuditTrail();
 
         var provider = new ServiceCollection()
-            .AddSingleton<IAuditTrail>(trail)
             .AddLiteBus(registry =>
             {
                 // One decision, rather than a trail here and a switch on each axis builder.
-                registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(trail)
                     .UseActorResolver<TestAuditActorResolver>()
-                    .ForAllAxes()));
+                    .ForAllAxes());
 
                 registry.AddCommands(builder =>
                 {
@@ -211,11 +211,10 @@ public sealed class AuditActorTests : LiteBusTestBase
     public void AddAuditing_with_no_axis_selected_is_reported_at_composition()
     {
         var act = () => new ServiceCollection()
-            .AddSingleton<IAuditTrail>(new RecordingAuditTrail())
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging => messaging.AddAuditing(auditing =>
-                    auditing.UseActorResolver<TestAuditActorResolver>()));
+                registry.AddAuditing(auditing =>
+                    auditing.UseActorResolver<TestAuditActorResolver>());
 
                 registry.AddCommands(builder =>
                 {
@@ -247,14 +246,14 @@ public sealed class AuditActorTests : LiteBusTestBase
     private static ServiceProvider BuildProvider(RecordingAuditTrail trail, Type? resolver = null)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IAuditTrail>(trail);
 
         return services
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging => messaging
-                    .UseAuditActorResolver(resolver ?? typeof(TestAuditActorResolver), InstanceLifetime.Scoped)
-                    .AddAuditing(auditing => auditing.ForCommands()));
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(trail)
+                    .UseActorResolver(resolver ?? typeof(TestAuditActorResolver), InstanceLifetime.Scoped)
+                    .ForCommands());
 
                 registry.AddCommands(builder =>
                 {

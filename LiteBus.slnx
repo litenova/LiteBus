@@ -37,6 +37,7 @@
         <Project Path="src/LiteBus.Saga.Storage.PostgreSql/LiteBus.Saga.Storage.PostgreSql.csproj"/>
         <Project Path="src/LiteBus.Saga.Storage.Marten/LiteBus.Saga.Storage.Marten.csproj"/>
         <Project Path="src/LiteBus.Extensions.AspNetCore/LiteBus.Extensions.AspNetCore.csproj"/>
+        <Project Path="src/LiteBus.Extensions.AspNetCore.OpenApi/LiteBus.Extensions.AspNetCore.OpenApi.csproj"/>
         <Project
                 Path="src/LiteBus.Extensions.Diagnostics.HealthChecks/LiteBus.Extensions.Diagnostics.HealthChecks.csproj"/>
         <Project Path="src/LiteBus.Analyzers/LiteBus.Analyzers.csproj"/>

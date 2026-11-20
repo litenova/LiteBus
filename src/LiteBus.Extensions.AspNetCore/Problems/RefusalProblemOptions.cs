@@ -9,6 +9,10 @@ namespace LiteBus.Extensions.AspNetCore;
 ///         <see cref="LiteBusExceptionHandler" /> read these options from request services, falling back to a default
 ///         instance when none is registered, so the two answers cannot drift.
 ///     </para>
+///     <para>
+///         Denied and invalid refusals follow separate unmapped-code policies, so a host stays strict about denials
+///         while answering per-validator codes with the invalid default.
+///     </para>
 /// </remarks>
 public sealed class RefusalProblemOptions
 {
@@ -31,10 +35,16 @@ public sealed class RefusalProblemOptions
     public IProblemDetailsEnricher Enricher { get; set; } = NullProblemDetailsEnricher.Default;
 
     /// <summary>
-    ///     Gets or sets how a refusal code with no catalog mapping is answered.
+    ///     Gets or sets how a denied refusal code with no catalog mapping is answered.
     /// </summary>
     /// <value>The default is <see cref="UnmappedRefusalCode.UseFallback" />.</value>
     public UnmappedRefusalCode UnmappedRefusalCode { get; set; } = UnmappedRefusalCode.UseFallback;
+
+    /// <summary>
+    ///     Gets or sets how an invalid refusal code with no catalog mapping is answered.
+    /// </summary>
+    /// <value>The default is <see cref="UnmappedValidationCode.UseFallback" />.</value>
+    public UnmappedValidationCode UnmappedValidationCode { get; set; } = UnmappedValidationCode.UseFallback;
 
     /// <summary>
     ///     Gets or sets a value indicating whether the refusal code is written as the <c>code</c> extension.

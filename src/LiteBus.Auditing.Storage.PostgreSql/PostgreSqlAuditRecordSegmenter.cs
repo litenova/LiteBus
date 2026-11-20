@@ -2,7 +2,6 @@ using System;
 using LiteBus.Auditing.Abstractions;
 using System.Collections.Generic;
 using System.Globalization;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.Storage.PostgreSql;
 

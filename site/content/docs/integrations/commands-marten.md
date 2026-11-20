@@ -25,7 +25,6 @@ services.AddLiteBus(builder =>
     builder.AddCommands(commands =>
     {
         commands.RegisterFromAssembly(typeof(PlaceOrderCommand).Assembly);
-        commands.EnableAuditing();
         commands.EnableIdempotency();
         commands.UseMartenUnitOfWork();
         commands.UseMartenIdempotencyStore(marten =>
@@ -56,7 +55,7 @@ Two concurrent claims never both grant. A new-key race fails the loser with a un
 
 ## Audit Records
 
-Audit records leave this package for `LiteBus.Auditing.Storage.Marten`, because queries and events are audited as well as commands. `commands.EnableAuditing()` stays the per-axis switch that produces records; `AddAuditing` with `UseMartenStore` stores them:
+Audit records leave this package for `LiteBus.Auditing.Storage.Marten`, because queries and events are audited as well as commands. `AddAuditing` selects the audited axes with `ForCommands()` and stores the records with `UseMartenStore()`:
 
 ```csharp
 services.AddLiteBus(builder =>
@@ -64,10 +63,10 @@ services.AddLiteBus(builder =>
     builder.AddCommands(commands =>
     {
         commands.RegisterFromAssembly(typeof(PlaceOrderCommand).Assembly);
-        commands.EnableAuditing();
         commands.UseMartenUnitOfWork();
     });
-    builder.AddAuditing(auditing => auditing
+    builder.Modules.AddAuditing(auditing => auditing
+        .ForCommands()
         .UseMartenStore()
         .UseHashChain(chain => chain
             .CheckpointWhen(CheckpointPolicies.EveryRecords(100))));

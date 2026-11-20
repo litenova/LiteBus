@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Auditing.InMemory;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Testing;
 
 namespace LiteBus.Auditing.UnitTests.Engine;

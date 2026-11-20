@@ -6,7 +6,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Storage.EntityFrameworkCore;
 using LiteBus.Storage.EntityFrameworkCore.Stores;
 using Microsoft.EntityFrameworkCore;
@@ -294,15 +293,40 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
         ArgumentNullException.ThrowIfNull(document);
 
-        if (document.Sequence != 0 || document.PreviousHash is not null || document.Hash is not null || document.HashScheme is not null)
-        {
-            throw new InvalidOperationException($"The audit document for segment '{segment}' already carries a chain position, so it cannot be staged as unlinked.");
-        }
+        await StageOutOfBandCoreAsync(_ => ValueTask.FromResult(document), _ => segment, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Gets the scoped business context the success path stages documents on.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The audit database context is not a <see cref="DbContext" />.</exception>
+    internal DbContext BusinessContext => _auditContext as DbContext
+        ?? throw new InvalidOperationException("Staging audit documents requires a DbContext-backed audit database context.");
+
+    /// <summary>
+    ///     Maps a record on an isolated context, stages the mapped document there, and saves the context, so anything
+    ///     the mapper added to it commits with the document, outside the business transaction.
+    /// </summary>
+    /// <param name="map">Maps the record with the isolated context.</param>
+    /// <param name="segmentOf">Returns the segment of the mapped document.</param>
+    /// <param name="cancellationToken">The token used to cancel the mapping and the staging.</param>
+    /// <returns>The segment the document was staged in.</returns>
+    /// <exception cref="InvalidOperationException">
+    ///     The document already carries a chain position, or no <see cref="IAuditDbContextFactory" /> is configured.
+    /// </exception>
+    internal async ValueTask<string> StageOutOfBandCoreAsync(
+        Func<DbContext, ValueTask<TDocument>> map,
+        Func<TDocument, string> segmentOf,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        ArgumentNullException.ThrowIfNull(segmentOf);
 
         if (_dbContextFactory is null)
         {
             throw new InvalidOperationException(
-                $"Staging an audit document for segment '{segment}' outside the business transaction requires an IAuditDbContextFactory. Register EfCoreAuditDbContextFactory<TContext> for the application database context so denials, failures, cancellations, and invalid messages persist when the business change rolls back.");
+                "Staging an audit document outside the business transaction requires an IAuditDbContextFactory. Register EfCoreAuditDbContextFactory<TContext> for the application database context so denials, failures, cancellations, and invalid messages persist when the business change rolls back.");
         }
 
         var created = _dbContextFactory.CreateDbContext();
@@ -314,6 +338,14 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
                 throw new InvalidOperationException("Staging audit documents outside the business transaction requires a DbContext-backed audit database context.");
             }
 
+            var document = await map(isolated).ConfigureAwait(false);
+            var segment = segmentOf(document);
+
+            if (document.Sequence != 0 || document.PreviousHash is not null || document.Hash is not null || document.HashScheme is not null)
+            {
+                throw new InvalidOperationException($"The audit document for segment '{segment}' already carries a chain position, so it cannot be staged as unlinked.");
+            }
+
             var outOfBand = new EfCoreAuditChainStore<TDocument>(created, _timeProvider);
 
             try
@@ -323,11 +355,14 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
             }
             catch (DbUpdateException exception) when (EfCoreUniqueViolation.IsUniqueViolation(exception))
             {
-                DetachAddedEntries(isolated);
+                // Only the audit rows raced; whatever the mapper added stays added and saves with the retry.
+                DetachAddedAuditEntries(isolated);
 
                 await outOfBand.StageAsync(segment, document, cancellationToken).ConfigureAwait(false);
                 await isolated.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             }
+
+            return segment;
         }
         finally
         {
@@ -339,6 +374,22 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
             {
                 disposable.Dispose();
             }
+        }
+    }
+
+    /// <summary>
+    ///     Detaches the audit document and segment head entries a failed save added, so a retry stages them again
+    ///     against the row that won the race, and leaves every other added entry in place.
+    /// </summary>
+    /// <param name="dbContext">The context whose added audit entries are detached.</param>
+    private static void DetachAddedAuditEntries(DbContext dbContext)
+    {
+        foreach (var entry in dbContext.ChangeTracker.Entries()
+                     .Where(entry => entry.State == EntityState.Added &&
+                                     entry.Entity is TDocument or AuditSegmentHeadEntity)
+                     .ToList())
+        {
+            entry.State = EntityState.Detached;
         }
     }
 
@@ -948,19 +999,6 @@ public sealed class EfCoreAuditChainStore<TDocument> : IAuditChainStore<TDocumen
             {
                 dbContext.Entry(document).State = EntityState.Detached;
             }
-        }
-    }
-
-    /// <summary>
-    ///     Detaches every added entry of an isolated context after a creation race, so one retry stages
-    ///     against the winner.
-    /// </summary>
-    /// <param name="dbContext">The isolated database context.</param>
-    private static void DetachAddedEntries(DbContext dbContext)
-    {
-        foreach (var entry in dbContext.ChangeTracker.Entries().Where(entry => entry.State == EntityState.Added))
-        {
-            entry.State = EntityState.Detached;
         }
     }
 

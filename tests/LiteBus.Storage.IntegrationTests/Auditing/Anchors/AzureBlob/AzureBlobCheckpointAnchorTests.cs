@@ -1,7 +1,6 @@
 using Azure.Storage.Blobs;
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing.Anchors.AzureBlob;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Storage.IntegrationTests.Auditing.Anchors.AzureBlob;
 

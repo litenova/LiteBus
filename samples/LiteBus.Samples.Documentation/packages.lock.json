@@ -29,6 +29,13 @@
           "Microsoft.EntityFrameworkCore": "10.0.14"
         }
       },
+      "litebus.auditing.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
       "litebus.commands": {
         "type": "Project",
         "dependencies": {

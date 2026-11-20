@@ -1,4 +1,5 @@
 using System.Globalization;
+using LiteBus.Auditing;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
@@ -8,7 +9,7 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using LiteBus.Testing.Mediation;
 using Microsoft.Extensions.DependencyInjection;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Idempotency;
 
@@ -42,15 +43,17 @@ public sealed class IdempotencyDenialTests : LiteBusTestBase
             services.AddSingleton(recorder);
         }
 
-        if (trail is not null)
-        {
-            services.AddSingleton<IAuditTrail>(trail);
-        }
-
         return services
             .AddLiteBus(registry =>
             {
                 registry.AddMessaging(_ => { });
+
+                if (trail is not null)
+                {
+                    registry.AddAuditing(auditing => auditing
+                        .UseTrailInstance(trail)
+                        .ForCommands());
+                }
 
                 registry.AddCommands(builder =>
                 {
@@ -75,7 +78,6 @@ public sealed class IdempotencyDenialTests : LiteBusTestBase
                         builder.Register<ApplyPaymentAuditDefinition>();
                         builder.Register<RepeatablePaymentAuditDefinition>();
                         builder.Register<WireTransferAuditDefinition>();
-                        builder.EnableAuditing();
                     }
                 });
             })

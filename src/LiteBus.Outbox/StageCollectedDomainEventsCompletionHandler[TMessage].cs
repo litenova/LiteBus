@@ -37,10 +37,11 @@ namespace LiteBus.Outbox;
 ///     </para>
 ///     <para>
 ///         Each drained event is matched by exact runtime type against the registered per-type decisions: translate
-///         through a registered translator, drop without staging, or publish in process after the commit. Translated
-///         messages are published messages and stage directly without a further decision. An event type with no
-///         decision follows the configured <see cref="UndecidedDomainEventPolicy" />. Every decision fault throws
-///         before the commit, so the business write never commits without its declared consequences.
+///         through a registered translator, drop without staging, publish in process after the commit, or stage
+///         unchanged. Translated messages are published messages and stage directly without a further decision. An
+///         event type with no decision follows the configured <see cref="UndecidedDomainEventPolicy" />. Every
+///         decision fault throws before the commit, so the business write never commits without its declared
+///         consequences.
 ///     </para>
 ///     <para>
 ///         Events that publish in process are recorded for the commit listener when a commit will notify one, which is
@@ -149,6 +150,12 @@ internal sealed class StageCollectedDomainEventsCompletionHandler<TMessage> : IM
                 continue;
             }
 
+            if (decisions is not null && decisions.IsStaged(eventType))
+            {
+                toStage.Add(domainEvent);
+                continue;
+            }
+
             if (decisions is not null && decisions.TryGetTranslator(eventType, out var registration))
             {
                 var translated = await registration.TranslateAsync(domainEvent, translationContext, cancellationToken).ConfigureAwait(false);
@@ -192,7 +199,7 @@ internal sealed class StageCollectedDomainEventsCompletionHandler<TMessage> : IM
                     typeof(TMessage),
                     DomainEventFaultCodes.UndecidedDomainEvent,
                     $"Domain event '{eventType.FullName}' has no registered decision, and RequireDomainEventDecision is set. " +
-                    "Declare what the event does: translate it, ignore it, or publish it in process.");
+                    "Declare what the event does: translate it, ignore it, publish it in process, or stage it unchanged.");
             }
 
             toStage.Add(domainEvent);

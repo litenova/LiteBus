@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Messaging;
 using LiteBus.Runtime.Abstractions;
 
 namespace LiteBus.Auditing;
@@ -17,6 +18,8 @@ public static class ModuleRegistryExtensions
     /// <remarks>
     ///     Calling this twice configures one module instead of registering a second one, so several application
     ///     modules can add to one composition.
+    ///     The messaging module is registered too when the composition has none yet, because auditing reads the message
+    ///     registry; a later <c>AddMessaging</c> call configures that same module.
     /// </remarks>
     public static ILiteBusBuilder AddAuditing(
         this ILiteBusBuilder builder,
@@ -45,6 +48,15 @@ public static class ModuleRegistryExtensions
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(configure);
+
+        // Auditing builds on the message registry, so it brings the messaging module when the application has not
+        // added it yet; a later AddMessaging call configures that same module.
+        if (moduleRegistry.Find<MessageModule>() is null)
+        {
+            moduleRegistry.AddMessageModule(_ =>
+            {
+            });
+        }
 
         var existing = moduleRegistry.Find<AuditingModule>();
 

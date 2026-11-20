@@ -350,6 +350,13 @@
       "litebus.analyzers": {
         "type": "Project"
       },
+      "litebus.auditing.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
       "litebus.commands.abstractions": {
         "type": "Project",
         "dependencies": {

@@ -2,8 +2,7 @@ using System;
 using LiteBus.Auditing.Abstractions;
 using System.Collections.Generic;
 using LiteBus.Auditing.Engine;
-using LiteBus.Messaging.Abstractions.Auditing;
-using LiteBus.Messaging.Audit;
+using LiteBus.Auditing.Recording;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
@@ -140,11 +139,35 @@ internal sealed class AuditHashSchemeRegistry : IAuditHashSchemeRegistry
                 return (AuditHashScheme<TDocument>) existing.Scheme;
             }
 
-            var built = BuildShippedScheme<TDocument>(schemeName);
-            _schemes[key] = new RegisteredScheme(built, ShippedSource);
+            var (built, source) = BuildScheme<TDocument>(schemeName);
+            _schemes[key] = new RegisteredScheme(built, source);
 
             return built;
         }
+    }
+
+    /// <summary>
+    ///     Builds a scheme the application defined on the chain builder, or a shipped one.
+    /// </summary>
+    /// <typeparam name="TDocument">The stored audit document type.</typeparam>
+    /// <param name="schemeName">The scheme name.</param>
+    /// <returns>The scheme and the registration source it is recorded under.</returns>
+    private (AuditHashScheme<TDocument> Scheme, string Source) BuildScheme<TDocument>(string schemeName)
+        where TDocument : class, IAuditChainDocument
+    {
+        if (_serviceProvider.GetService(typeof(AuditHashChainOptions)) is AuditHashChainOptions chain &&
+            chain.CustomSchemes.TryGetValue(schemeName, out var definition))
+        {
+            var scheme = new AuditHashScheme<TDocument>(
+                schemeName,
+                RequireCanonicalizer<TDocument>(schemeName),
+                definition.LinkRule ?? new FramedLinkRule(schemeName),
+                definition.Hasher);
+
+            return (scheme, "AuditHashChainBuilder.AddScheme");
+        }
+
+        return (BuildShippedScheme<TDocument>(schemeName), ShippedSource);
     }
 
     /// <summary>
@@ -167,27 +190,35 @@ internal sealed class AuditHashSchemeRegistry : IAuditHashSchemeRegistry
         {
             throw new LiteBusConfigurationException(
                 $"Unknown audit hash scheme '{schemeName}' for '{typeof(TDocument).Name}'. The shipped schemes are " +
-                $"'{AuditHashSchemeNames.Sha256V1}' and '{AuditHashSchemeNames.Sha256V2}'; register any other scheme " +
-                "explicitly before resolving it.");
+                $"'{AuditHashSchemeNames.Sha256V1}' and '{AuditHashSchemeNames.Sha256V2}'; define any other scheme " +
+                "with AddScheme on the hash chain builder before writing with it.");
         }
 
-        var canonicalizer = _serviceProvider.GetService(typeof(IAuditCanonicalizer<TDocument>))
-            as IAuditCanonicalizer<TDocument>;
-
-        if (canonicalizer is null)
-        {
-            throw new LiteBusConfigurationException(
-                $"Audit hash scheme '{schemeName}' for '{typeof(TDocument).Name}' needs an " +
-                $"'{typeof(IAuditCanonicalizer<TDocument>).Name}' registered with the application container. A " +
-                "storage package registers the default for its document; an application with its own document " +
-                "registers its own.");
-        }
+        var canonicalizer = RequireCanonicalizer<TDocument>(schemeName);
 
         IAuditLinkRule linkRule = isV1
             ? new PreviousHashLinkRule()
             : new FramedLinkRule(schemeName);
 
         return new AuditHashScheme<TDocument>(schemeName, canonicalizer, linkRule, new Sha256AuditHasher());
+    }
+
+    /// <summary>
+    ///     Resolves the canonicalizer registered for the stored document type.
+    /// </summary>
+    /// <typeparam name="TDocument">The stored audit document type.</typeparam>
+    /// <param name="schemeName">The scheme being built, named in the error.</param>
+    /// <returns>The canonicalizer.</returns>
+    /// <exception cref="LiteBusConfigurationException">No canonicalizer is registered for the document type.</exception>
+    private IAuditCanonicalizer<TDocument> RequireCanonicalizer<TDocument>(string schemeName)
+        where TDocument : class, IAuditChainDocument
+    {
+        return _serviceProvider.GetService(typeof(IAuditCanonicalizer<TDocument>)) as IAuditCanonicalizer<TDocument>
+               ?? throw new LiteBusConfigurationException(
+                   $"Audit hash scheme '{schemeName}' for '{typeof(TDocument).Name}' needs an " +
+                   $"'{typeof(IAuditCanonicalizer<TDocument>).Name}' registered with the application container. A " +
+                   "storage package registers the default for its document; an application with its own document " +
+                   "registers its own.");
     }
 
     /// <summary>

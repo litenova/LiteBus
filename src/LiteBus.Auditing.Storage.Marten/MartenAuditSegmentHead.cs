@@ -1,7 +1,6 @@
 using System;
 using LiteBus.Auditing.Abstractions;
 using System.Collections.Generic;
-using LiteBus.Messaging.Abstractions.Auditing;
 using Marten.Schema;
 
 namespace LiteBus.Auditing.Storage.Marten;

@@ -4,7 +4,6 @@ using System.Security.Cryptography.Pkcs;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using LiteBus.Auditing.Anchors.Timestamping;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.UnitTests.Anchors;
 

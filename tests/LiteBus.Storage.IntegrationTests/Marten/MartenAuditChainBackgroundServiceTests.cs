@@ -6,7 +6,6 @@ using LiteBus.Auditing.Engine;
 using LiteBus.Auditing.Hashing;
 using LiteBus.Auditing.Linking;
 using LiteBus.Auditing.Storage.Marten;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Storage.IntegrationTests.PostgreSql;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;

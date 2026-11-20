@@ -89,38 +89,6 @@ public sealed class LiteBusCompositionSummary
     public IReadOnlyList<DuplicateStageCoverage> DuplicateStageCoverages => _duplicateStageCoverages;
 
     /// <summary>
-    ///     Gets a value indicating whether any axis produces audit records.
-    /// </summary>
-    public bool AuditingEnabled { get; internal set; }
-
-    /// <summary>
-    ///     Gets the registered audit trail implementation name, when the messaging builder registered one.
-    /// </summary>
-    /// <value>
-    ///     The trail type name and its lifetime, or <see langword="null" /> when the application registered the trail
-    ///     with its own container instead. The <c>litebus.audit.trail</c> probe reports the trail either way.
-    /// </value>
-    public string? AuditTrail { get; internal set; }
-
-    /// <summary>
-    ///     Gets the audit record writer that replaced the built-in one, or null when the built-in writer is in use.
-    /// </summary>
-    /// <value>
-    ///     The writer type name and its lifetime, such as <c>EntroAuditRecordWriter (Scoped)</c>, or
-    ///     <see langword="null" /> when the built-in writer builds the records.
-    /// </value>
-    /// <remarks>
-    ///     Reported because replacing the writer replaces the whole of record building, and nothing else in the
-    ///     composition would say so. A misregistration otherwise looks exactly like auditing working.
-    /// </remarks>
-    public string? AuditRecordWriter { get; internal set; }
-
-    /// <summary>
-    ///     Gets a value indicating whether an audit actor resolver is registered through the messaging builder.
-    /// </summary>
-    public bool AuditActorResolverRegistered { get; internal set; }
-
-    /// <summary>
     ///     Gets the number of application composition checks the host runs.
     /// </summary>
     public int CompositionChecks { get; internal set; }
@@ -183,19 +151,6 @@ public sealed class LiteBusCompositionSummary
                   .Append(", indirect ")
                   .Append(duplicate.IndirectContractType.Name)
                   .Append(')');
-        }
-
-        report.Append("; auditing ").Append(AuditingEnabled ? "on" : "off");
-
-        if (AuditingEnabled)
-        {
-            report.Append(", trail ").Append(AuditTrail ?? "registered by the application");
-            report.Append(", actor resolver ").Append(AuditActorResolverRegistered ? "registered" : "missing");
-
-            if (AuditRecordWriter is not null)
-            {
-                report.Append(", record writer ").Append(AuditRecordWriter);
-            }
         }
 
         if (_requiredDeclarations.Count > 0)

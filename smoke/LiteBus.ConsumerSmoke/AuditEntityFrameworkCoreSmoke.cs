@@ -6,7 +6,6 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -55,10 +54,10 @@ internal static class AuditEntityFrameworkCoreSmoke
             {
                 commands.Register<AuditEntityFrameworkCoreCommand>();
                 commands.Register<AuditEntityFrameworkCoreCommandHandler>();
-                commands.EnableAuditing();
                 commands.UseUnitOfWork<AuditSmokeUnitOfWork>();
             });
             liteBus.Modules.AddAuditing(auditing => auditing
+                .ForCommands()
                 .UseEntityFrameworkCoreStore<AuditSmokeDbContext>()
                 .UseHashChain(_ =>
                 {

@@ -1,6 +1,5 @@
 using System;
 using LiteBus.Auditing.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.Linking;
 

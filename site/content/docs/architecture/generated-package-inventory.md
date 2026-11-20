@@ -4,9 +4,9 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 
 | Package | Direct project references | Direct package references |
 | --- | --- | --- |
-| `LiteBus` | `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Events`, `LiteBus.Events.Abstractions`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Queries`, `LiteBus.Queries.Abstractions` | none |
+| `LiteBus` | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Events`, `LiteBus.Events.Abstractions`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Queries`, `LiteBus.Queries.Abstractions` | none |
 | `LiteBus.Analyzers` | none | `Microsoft.CodeAnalysis.Analyzers (private)`, `Microsoft.CodeAnalysis.CSharp (private)`, `System.Collections.Immutable (private)` |
-| `LiteBus.Auditing` | `LiteBus.Auditing.Abstractions`, `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Auditing` | `LiteBus.Auditing.Abstractions`, `LiteBus.Commands.Abstractions`, `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Runtime`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
 | `LiteBus.Auditing.Abstractions` | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Auditing.Anchors.AzureBlob` | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Azure.Storage.Blobs`, `Microsoft.Extensions.Logging.Abstractions` |
 | `LiteBus.Auditing.Anchors.S3` | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `AWSSDK.S3`, `Microsoft.Extensions.Logging.Abstractions` |
@@ -31,6 +31,7 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Events.Extensions.Autofac` | `LiteBus.Events`, `LiteBus.Runtime.Extensions.Autofac` | none |
 | `LiteBus.Events.Extensions.Microsoft.DependencyInjection` | `LiteBus.Events`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | none |
 | `LiteBus.Extensions.AspNetCore` | `LiteBus.Commands.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Extensions.AspNetCore.OpenApi` | `LiteBus.Extensions.AspNetCore`, `LiteBus.Messaging.Abstractions` | `Microsoft.AspNetCore.OpenApi` |
 | `LiteBus.Extensions.Diagnostics.HealthChecks` | `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Diagnostics.HealthChecks` |
 | `LiteBus.Extensions.Microsoft.DependencyInjection` | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection`, `LiteBus.Events.Extensions.Microsoft.DependencyInjection`, `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection`, `LiteBus.Queries.Extensions.Microsoft.DependencyInjection` | none |
 | `LiteBus.Inbox` | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |

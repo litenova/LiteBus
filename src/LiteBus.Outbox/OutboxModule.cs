@@ -513,7 +513,7 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
     }
 
     /// <summary>
-    ///     Registers the default scoped domain event collector, the per-type domain event decisions, the in-process publication buffer and listener, and the open generic staging completion handler.
+    ///     Registers the default scoped domain event collector, the per-type domain event decisions and their composition section, the in-process publication buffer and listener, and the open generic staging completion handler.
     /// </summary>
     /// <param name="configuration">The module configuration receiving the staging registrations.</param>
     /// <remarks>
@@ -534,6 +534,10 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(DomainEventDecisions),
             decisions));
+
+        configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+            typeof(ICompositionSectionContributor),
+            new OutboxDomainEventCompositionSection(decisions)));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(StagedInProcessDomainEvents),

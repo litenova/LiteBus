@@ -1,7 +1,6 @@
 using LiteBus.Auditing.Checkpoints;
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing.Engine;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.UnitTests.Checkpoints;
 

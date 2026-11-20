@@ -1,5 +1,4 @@
 using LiteBus.Auditing.Hashing;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing.Checkpoints;
 using LiteBus.Auditing.Verification;

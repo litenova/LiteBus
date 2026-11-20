@@ -2,7 +2,8 @@ using System;
 using LiteBus.Auditing.Abstractions;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Messaging.Abstractions.Tenancy;
+using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Abstractions.Scheduling;
 using LiteBus.Runtime.Scheduling;
 
@@ -203,6 +204,59 @@ public static class CheckpointPolicies
         }
 
         return new ScheduleCheckpointPolicy(Schedules.WeeklyOn(day, time, zone), label);
+    }
+
+    /// <summary>
+    ///     Returns a policy that cuts once a day at a fixed local time read in each tenant's own time zone, taken from
+    ///     the registered <see cref="ITenantMetadataProvider" /> when the policy decides.
+    /// </summary>
+    /// <param name="time">The local time each checkpoint is due at, such as midnight.</param>
+    /// <param name="label">The label a due cut stores on its checkpoint, or <see langword="null" /> for none.</param>
+    /// <returns>A time-based policy that follows each tenant's daily schedule from its last checkpoint.</returns>
+    /// <exception cref="ArgumentException"><paramref name="label" /> is empty or whitespace.</exception>
+    /// <remarks>
+    ///     <para>
+    ///         The tenant is the one the segmenter describes on the segment head. The zone is read each time the policy
+    ///         decides, from the <see cref="ITenantMetadataProvider" /> in the scope of that pass, so a tenant that
+    ///         changes its zone is followed without a restart. A tenant whose metadata names no zone reads the local
+    ///         time as UTC, and a segment with no tenant is cut once, like <see cref="OnTenantSchedule" /> does.
+    ///     </para>
+    ///     <para>
+    ///         A pass with no <see cref="ITenantMetadataProvider" /> available fails with an
+    ///         <see cref="AuditConfigurationException" />, which the checkpoint loop logs per segment, instead of
+    ///         silently reading every tenant as UTC.
+    ///     </para>
+    /// </remarks>
+    public static ICheckpointPolicy DailyInTenantZone(TimeOnly time, string? label = "daily")
+    {
+        if (label is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(label);
+        }
+
+        return new TenantMetadataZoneCheckpointPolicy(zoneOf => Schedules.DailyAt(time, zoneOf), label);
+    }
+
+    /// <summary>
+    ///     Returns a policy that cuts once a week at a fixed local time read in each tenant's own time zone, taken from
+    ///     the registered <see cref="ITenantMetadataProvider" /> when the policy decides.
+    /// </summary>
+    /// <param name="day">The weekday each checkpoint is due on.</param>
+    /// <param name="time">The local time each checkpoint is due at.</param>
+    /// <param name="label">The label a due cut stores on its checkpoint, or <see langword="null" /> for none.</param>
+    /// <returns>A time-based policy that follows each tenant's weekly schedule from its last checkpoint.</returns>
+    /// <exception cref="ArgumentException"><paramref name="label" /> is empty or whitespace.</exception>
+    /// <remarks>
+    ///     The zone is read as <see cref="DailyInTenantZone" /> reads it.
+    /// </remarks>
+    public static ICheckpointPolicy WeeklyInTenantZone(DayOfWeek day, TimeOnly time, string? label = "weekly")
+    {
+        if (label is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(label);
+        }
+
+        return new TenantMetadataZoneCheckpointPolicy(zoneOf => Schedules.WeeklyOn(day, time, zoneOf), label);
     }
 
     /// <summary>
@@ -587,6 +641,84 @@ public static class CheckpointPolicies
             }
 
             return candidate.Now >= next.Value;
+        }
+    }
+    /// <summary>
+    ///     A per-tenant calendar policy whose zones come from the tenant metadata provider of the deciding pass.
+    /// </summary>
+    private sealed class TenantMetadataZoneCheckpointPolicy : ILabeledCheckpointPolicy
+    {
+        /// <summary>
+        ///     Builds the tenant schedule from a zone resolver bound to the pass's metadata provider.
+        /// </summary>
+        private readonly Func<Func<string, CancellationToken, ValueTask<TimeZoneInfo?>>, ITenantSchedule> _schedule;
+
+        /// <summary>
+        ///     The label a due cut stores, or <see langword="null" />.
+        /// </summary>
+        private readonly string? _label;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="TenantMetadataZoneCheckpointPolicy" /> class.
+        /// </summary>
+        /// <param name="schedule">Builds the tenant schedule from a zone resolver.</param>
+        /// <param name="label">The label a due cut stores, or <see langword="null" />.</param>
+        public TenantMetadataZoneCheckpointPolicy(
+            Func<Func<string, CancellationToken, ValueTask<TimeZoneInfo?>>, ITenantSchedule> schedule,
+            string? label)
+        {
+            _schedule = schedule;
+            _label = label;
+        }
+
+        /// <inheritdoc />
+        public string? Label => _label;
+
+        /// <inheritdoc />
+        public bool IsTimeBased => true;
+
+        /// <inheritdoc />
+        public bool IsDue(AuditCheckpointCandidate candidate)
+        {
+            ArgumentNullException.ThrowIfNull(candidate);
+
+            return false;
+        }
+
+        /// <inheritdoc />
+        /// <exception cref="AuditConfigurationException">No tenant metadata provider is available to the pass.</exception>
+        public ValueTask<bool> IsDueAsync(AuditCheckpointCandidate candidate, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(candidate);
+
+            var provider = candidate.Services?.GetService(typeof(ITenantMetadataProvider)) as ITenantMetadataProvider
+                           ?? throw new AuditConfigurationException(
+                               $"The checkpoint policy for segment '{candidate.Segment}' reads each tenant's time zone "
+                               + "from ITenantMetadataProvider, but none is available to the checkpoint pass. Register a "
+                               + "tenant metadata provider, or use DailyAt with a fixed zone.");
+
+            var schedule = _schedule((tenantId, token) => ZoneOfAsync(provider, tenantId, token));
+
+            return new TenantScheduleCheckpointPolicy(schedule, _label).IsDueAsync(candidate, cancellationToken);
+        }
+
+        /// <summary>
+        ///     Reads a tenant's zone from its metadata.
+        /// </summary>
+        /// <param name="provider">The tenant metadata provider of the pass.</param>
+        /// <param name="tenantId">The tenant.</param>
+        /// <param name="cancellationToken">The token used to cancel the read.</param>
+        /// <returns>The tenant's zone, or <see langword="null" /> when its metadata names none.</returns>
+        private static async ValueTask<TimeZoneInfo?> ZoneOfAsync(
+            ITenantMetadataProvider provider,
+            string tenantId,
+            CancellationToken cancellationToken)
+        {
+            var found = await provider.GetManyAsync([tenantId], cancellationToken).ConfigureAwait(false);
+
+            return found.TryGetValue(tenantId, out var metadata) && !string.IsNullOrWhiteSpace(metadata.TimeZoneId)
+                ? TimeZoneInfo.FindSystemTimeZoneById(metadata.TimeZoneId)
+                : null;
         }
     }
 }

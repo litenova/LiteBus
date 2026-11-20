@@ -1,6 +1,7 @@
 using System;
 using LiteBus.Auditing.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Checkpoints;
+using LiteBus.Auditing.Linking;
 
 namespace LiteBus.Auditing;
 
@@ -13,6 +14,16 @@ namespace LiteBus.Auditing;
 /// </remarks>
 public sealed class AuditingOptions
 {
+    /// <summary>
+    ///     Gets the settings of the background loop that links staged records the after-commit listener missed.
+    /// </summary>
+    public AuditLinkSweepHostOptions LinkSweep { get; } = new();
+
+    /// <summary>
+    ///     Gets the settings of the background loop that publishes pending checkpoints and cuts due ones.
+    /// </summary>
+    public CheckpointPublishHostOptions CheckpointPublishing { get; } = new();
+
     /// <summary>
     ///     Gets when and where audit records are written, relative to the business commit.
     /// </summary>
@@ -72,7 +83,7 @@ public sealed class AuditingOptions
     ///     <see langword="null" /> when the package supplies none.
     /// </summary>
     /// <remarks>
-    ///     An explicit <see cref="AuditHashChainBuilder.SegmentBy{TSegmenter}" /> call always wins over this
+    ///     An explicit <see cref="AuditHashChainBuilder.SegmentBy{TSegmenter}()" /> call always wins over this
     ///     default, regardless of call order.
     /// </remarks>
     public Type? StoreDefaultSegmenterType { get; internal set; }

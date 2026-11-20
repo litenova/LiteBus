@@ -3,7 +3,6 @@ using LiteBus.Auditing.Abstractions;
 using Azure.Storage.Blobs;
 using LiteBus.Auditing;
 using LiteBus.Auditing.Anchors.AzureBlob;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 

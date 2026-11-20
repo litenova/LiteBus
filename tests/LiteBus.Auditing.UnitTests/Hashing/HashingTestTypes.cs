@@ -1,7 +1,6 @@
 using System.Globalization;
 using LiteBus.Auditing.Abstractions;
 using System.Text;
-using LiteBus.Messaging.Abstractions.Auditing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Auditing.UnitTests.Hashing;

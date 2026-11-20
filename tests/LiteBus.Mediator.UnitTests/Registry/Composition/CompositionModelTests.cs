@@ -1,3 +1,5 @@
+using LiteBus.Auditing;
+using LiteBus.Auditing.InMemory;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
@@ -5,10 +7,10 @@ using LiteBus.Mediator.UnitTests.Authorization;
 using LiteBus.Mediator.UnitTests.Metadata;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 using LiteBus.Messaging.Abstractions.Authorization;
 using LiteBus.Messaging.Abstractions.Tenancy;
-using LiteBus.Messaging.Audit;
+using LiteBus.Auditing.Recording;
 using LiteBus.Messaging.Authorization;
 using LiteBus.Messaging.Tenancy;
 using LiteBus.Runtime.Abstractions;
@@ -307,7 +309,30 @@ public sealed class CompositionModelTests : LiteBusTestBase
                 typeof(IMessageSerializer),
                 typeof(SystemTextJsonMessageSerializer),
                 true));
-        model.Ports.Should().ContainSingle(port => port.PortType == typeof(IAuditOutcomeMapper))
+    }
+
+    [Fact]
+    public void Auditing_reports_its_framework_default_outcome_mapper()
+    {
+        ICompositionModel? captured = null;
+
+        new ServiceCollection()
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessaging(messaging => messaging.ValidateComposition(model => captured = model));
+                registry.AddCommands(commands =>
+                {
+                    commands.Register<DraftScheduleCommand>();
+                    commands.Register<DraftScheduleCommandHandler>();
+                });
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(new InMemoryAuditTrail())
+                    .ForCommands());
+            })
+            .BuildServiceProvider();
+
+        captured.Should().NotBeNull();
+        captured!.Ports.Should().ContainSingle(port => port.PortType == typeof(IAuditOutcomeMapper))
             .Which.Should().Be(new CompositionPortEntry(
                 typeof(IAuditOutcomeMapper),
                 typeof(DefaultAuditOutcomeMapper),

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Messaging.Registry;
 
@@ -53,31 +52,6 @@ internal sealed class MessageDeclarationCollector : IMessageDeclarations
     {
         ArgumentNullException.ThrowIfNull(value);
         Add(typeof(TValue), value);
-        return this;
-    }
-
-    /// <inheritdoc />
-    public IMessageDeclarations Audited(
-        string action,
-        string? category = null,
-        string? targetKind = null,
-        bool reasonRequired = false)
-    {
-        var declaration = AuditDeclaration.Audited(action, category, targetKind, reasonRequired);
-
-        Add(typeof(AuditDeclaration), declaration);
-        return this;
-    }
-
-    /// <inheritdoc />
-    public IMessageDeclarations NotAudited(string rationale)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(rationale);
-
-        // Both halves, for the same reason [AuditExempt] records both: the declaration is what the record writer
-        // reads to know the message is exempt, and the exemption is what every requirement and catalogue reads.
-        Add(typeof(AuditDeclaration), AuditDeclaration.Exempt(rationale));
-        _exemptions.Add(new DeclarationExemption(typeof(AuditDeclaration), rationale));
         return this;
     }
 

@@ -8,20 +8,17 @@ For integration events that must commit with aggregate persistence, map domain f
 
 ## Domain Event Contracts
 
-```csharp
-public interface IDomainEvent
-{
-    DateTime OccurredAtUtc { get; }
-}
+LiteBus reads events from aggregates through `IHasDomainEvents`, which carries them as plain objects so an application keeps its own event base type:
 
+```csharp
 public interface IHasDomainEvents
 {
-    IReadOnlyCollection<IDomainEvent> DomainEvents { get; }
+    IReadOnlyCollection<object> DomainEvents { get; }
     void ClearDomainEvents();
 }
 ```
 
-Aggregates can expose read-only events and keep mutation methods private.
+Aggregates can expose read-only events and keep mutation methods private. An application's own event contract, such as an `IDomainEvent` with an `OccurredAtUtc`, stays the application's; the harvester only needs the events as objects.
 
 ```csharp
 public abstract class AggregateRoot : IHasDomainEvents
@@ -173,11 +170,12 @@ registry.AddOutbox(outbox => outbox
     .StageCollectedEvents()
     .TranslateDomainEvent<OrderPlacedDomainEvent>(
         static e => [new OrderSubmittedIntegrationEvent(e.OrderId)])
+    .StageDomainEvent<OrderShippedEvent>()
     .IgnoreDomainEvent<LineTotalRecalculatedDomainEvent>()
     .RequireDomainEventDecision());
 ```
 
-`TranslateDomainEvent` maps one domain event to zero or more messages to stage. `IgnoreDomainEvent` drops an event consumed inside the mediation, such as by a post-handler, that must never be published. `RequireDomainEventDecision` fails staging before the commit when a drained event has no registered decision, so an unregistered event type throws instead of publishing an internal event. A translation that needs scoped services uses the translator overload with an `IDomainEventTranslator<TEvent>` implementation:
+`TranslateDomainEvent` maps one domain event to zero or more messages to stage. `StageDomainEvent` stages an event unchanged, for an event whose domain shape is already the published contract; it reads as its own decision, so a reader tells "publish as-is" from a translation that returns its input, and the outbox composition section lists it with the `Stage` kind. `IgnoreDomainEvent` drops an event consumed inside the mediation, such as by a post-handler, that must never be published. `RequireDomainEventDecision` fails staging before the commit when a drained event has no registered decision, so an unregistered event type throws instead of publishing an internal event. A translation that needs scoped services uses the translator overload with an `IDomainEventTranslator<TEvent>` implementation:
 
 ```csharp
 registry.AddOutbox(outbox => outbox

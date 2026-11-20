@@ -6,8 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Auditing.Hashing;
 using LiteBus.Auditing.Verification;
-using LiteBus.Messaging.Abstractions.Auditing;
-using LiteBus.Messaging.Audit;
+using LiteBus.Auditing.Recording;
 
 namespace LiteBus.Auditing.UnitTests.Verification;
 

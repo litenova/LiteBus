@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using LiteBus.Auditing.Capture;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox.Abstractions;
 

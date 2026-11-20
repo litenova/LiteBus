@@ -13,6 +13,17 @@ namespace LiteBus.Auditing.Checkpoints;
 public sealed class CheckpointPublishHostOptions
 {
     /// <summary>
+    ///     Gets or sets a value indicating whether the checkpoint publish and cut loop runs in this host.
+    /// </summary>
+    /// <value>The default is <see langword="true" />.</value>
+    /// <remarks>
+    ///     Turn it off in every host but one when several hosts compose the same modules, such as a web host and a
+    ///     worker host, so the time-based cutter and the publish retrier run once. Explicit cuts, expiry and
+    ///     verification are unaffected. The composition model's <c>auditing</c> section shows the setting.
+    /// </remarks>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
     ///     The default delay between passes that succeed.
     /// </summary>
     public static readonly TimeSpan DefaultPollInterval = TimeSpan.FromMinutes(1);

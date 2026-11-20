@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing.Storage.EntityFrameworkCore;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Storage.EntityFrameworkCore;
 using LiteBus.Storage.Testing;
 using Microsoft.EntityFrameworkCore;

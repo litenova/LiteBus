@@ -1,10 +1,11 @@
 using System.Security.Claims;
+using LiteBus.Auditing;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -142,19 +143,20 @@ public sealed class PrincipalAuditActorTests : LiteBusTestBase
     private static ServiceProvider BuildProvider(IdentityRecordingAuditTrail trail, bool useResolver = false)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IAuditTrail>(trail);
 
         return services
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging =>
+                registry.AddAuditing(auditing =>
                 {
+                    auditing.UseTrailInstance(trail);
+
                     if (useResolver)
                     {
-                        messaging.UseAuditActorResolver<FixedAuditActorResolver>();
+                        auditing.UseActorResolver<FixedAuditActorResolver>();
                     }
 
-                    messaging.AddAuditing(auditing => auditing.ForCommands());
+                    auditing.ForCommands();
                 });
 
                 registry.AddCommands(builder =>

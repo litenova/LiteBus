@@ -8,7 +8,7 @@
 
 ## What It Does
 
-`AddAuditing` configures the trail, the actor resolver, the outcome mapper, and which axes produce records. Selecting an axis registers a completion handler there. When a mediation ends, the handler reads the message's `AuditDeclaration` from message metadata, combines it with the resolved actor and the detail the handler pushed through `IAuditScope`, and hands an `AuditRecord` to the application's `IAuditTrail`.
+`AddAuditing` on the auditing module (`LiteBus.Auditing`) configures the trail or store, the actor resolver, the outcome mapper, and which axes produce records. Selecting an axis registers a completion handler for every message of that axis; the command, query and event modules carry no audit code. When a mediation ends, the handler reads the message's `AuditDeclaration` from message metadata, combines it with the resolved actor and the detail the handler pushed through `IAuditScope`, and hands an `AuditRecord` to the application's `IAuditTrail`.
 
 Because the writer runs at the completion stage, refusals, failures, and cancellations produce records in the same way successes do. That is the difference between an audit trail and a changelog. An audit answers who attempted something and was stopped. A handler-written record can never capture that, because authorization refuses before the handler reaches its audit line.
 
@@ -30,11 +30,11 @@ public sealed record PlaceOrderCommand(Guid CartId) : ICommand<OrderId>;
 
 services.AddLiteBus(registry =>
 {
-    registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
-        .UseTrail<PostgresAuditTrail>()
-        .UseActorResolver<RequestActorResolver>()
+    registry.Modules.AddAuditing(auditing => auditing
         .ForCommands()
-        .ForQueries()));
+        .ForQueries()
+        .UseTrail<PostgresAuditTrail>()
+        .UseActorResolver<RequestActorResolver>());
 });
 ```
 
@@ -52,30 +52,23 @@ services.AddLiteBus(registry =>
 | `IAuditActorResolver` | Application-supplied attribution, reading the message and `MessageCompletionContext.Identity` at the completion stage |
 | `MessageCompletionContext.Identity` | The identity the mediation ran for, copied from `IExecutionContext.Identity`; `ExecutionIdentity.Anonymous` until set on a hand-built context. Both generic views expose the same value |
 | `IAuditTrail` | Application-supplied sink |
-| `MessageModuleBuilder.AddAuditing(Action<AuditingBuilder>)` | Configures the trail, the actor resolver, the outcome mapper, and the axes |
-| `AuditingBuilder` | `UseTrail`, `UseTrailInstance`, `UseActorResolver`, `UseActorResolverInstance`, `UseOutcomeMapper`, `UseOutcomeMapperInstance`, `UseRecordWriter`, `UseRecordWriterInstance`, `ForCommands`, `ForQueries`, `ForEvents`, `ForAllAxes` |
-| `MessageModuleBuilder.UseAuditRecordWriter<T>(lifetime)` / `UseAuditRecordWriterInstance` | Replaces the record building. The probe then reports the writer instead of demanding a trail |
-| `MessageModuleBuilder.UseAuditTrail<T>(lifetime)` | The primitive `AddAuditing` composes. Scoped by default |
-| `MessageModuleBuilder.UseAuditTrailInstance(trail)` | Registers a trail you already hold, as a singleton |
-| `MessageModuleBuilder.UseAuditActorResolver<T>(lifetime)` / `UseAuditActorResolverInstance` | The attribution primitives |
-| `MessageModuleBuilder.UseAuditOutcomeMapper<T>()` / `UseAuditOutcomeMapper(instance)` | Classifies an application refusal exception as a denial rather than a failure |
-| `MessageModuleBuilder.RequireUniqueAuditActions()` | Fails composition when two messages share an action code |
-| `MessageModuleBuilder.RequireAuditActionFormat(pattern)` | Fails composition when an action breaks the house naming convention. The default pattern is `MessageModuleBuilder.DefaultAuditActionPattern` |
+| `ModuleRegistryExtensions.AddAuditing` (`registry.Modules.AddAuditing`) | Registers or configures the auditing module |
+| `AuditingModuleBuilder` | `ForCommands`, `ForQueries`, `ForEvents`, `ForAllAxes`; `UseTrail`, `UseTrailInstance`; `UseActorResolver`, `UseActorResolverInstance`; `UseOutcomeMapper`; `UseRecordWriter`, `UseRecordWriterInstance`; `RequireUniqueActions`, `RequireActionFormat` (default pattern `AuditingModuleBuilder.DefaultActionPattern`); `Capture`, `UseHashChain`, `ConfigureCheckpointPublishing`, `ConfigureLinkSweep`; the store choice (`UseMartenStore`, `UsePostgreSqlStore`, `UseEntityFrameworkCoreStore<TContext>`, `UseInMemoryStore`) comes from the storage package |
+| `MessageDeclarationsAuditExtensions` | `Audited` and `NotAudited` on `IMessageDeclarations` inside a `Describe` body |
+| `MessageCatalogAuditExtensions` | `Audited()` on `IMessageCatalog` and `GetAudit()` on `MessageCatalogEntry` for composition checks |
 | `IAuditOutcomeMapper` / `DefaultAuditOutcomeMapper` | Classifies a refusal that arrived as an exception as denied rather than failed |
 | `AuditReasonMissingException` | Raised when a reason-required action supplies none |
 | `AuditTrailDiagnosticCheck` | Probe reporting `litebus.audit.trail`. It reports unhealthy with no trail and degraded with no actor resolver |
 | `IMessageCatalog` | Registered as a Singleton, so the declarations are readable at runtime as well as at composition |
 | `AuditCatalogueRow` / `AuditCatalogue.ToRows` / `AuditCatalogue.ToMarkdown` | The audit catalogue, derived from the declarations |
-| `CommandModuleBuilder` / `QueryModuleBuilder` / `EventModuleBuilder` `.EnableAuditing` | Registers the writer and the probe on one axis |
 | `AuditCapture` | When and where a record is written: `WithChange(link)`, `AfterCommitThroughOutbox()`, `BeforeAndOutcome()`. Set with `AuditingModuleBuilder.Capture` |
 | `AuditLink` | When the chain position is assigned: `AfterCommit`, `InTransaction`, `AtWrite`. Applies only with the chain on |
 | `AuditCaptureDeclaration` / `IAuditCaptureDefinition<TMessage>` | Per-message capture override from a definition class; no attribute form |
-| `AuditingModuleBuilder` | `Capture`, `UseHashChain`; the store choice (`UseMartenStore`, `UsePostgreSqlStore`, `UseEntityFrameworkCoreStore<TContext>`) comes from the storage package |
-| `AuditHashChainBuilder` | `StoreAs`, `SegmentBy`, `UseScheme`, `CheckpointWhen`, `SignCheckpointsWith`, `PublishCheckpointsTo`, `VerifyAgainst`, `UnlinkedAfter`, `CheckpointStaleAfter`, `PublishErasureNotices` |
+| `AuditHashChainBuilder` | `StoreAs`, `SegmentBy` (a segmenter type or a delegate), `UseScheme`, `AddScheme`, `CheckpointWhen`, `SignCheckpointsWith`, `PublishCheckpointsTo`, `VerifyAgainst`, `UnlinkedAfter`, `CheckpointStaleAfter`, `PublishErasureNotices` |
 | `IAuditChainStore<TDocument>` | The durable port the chain engine runs on: heads, conditional appends, staging, reads, checkpoints with publish state, erasure |
 | `IAuditChainDocument` | The chain fields every stored audit document carries: `Segment`, `Sequence`, `PreviousHash`, `Hash`, `HashScheme` |
-| `IAuditRecordMapper<TDocument>` | Maps an `AuditRecord` to the stored document type; `MapAsync(record, AuditMappingContext, ct)` runs in the mediation scope before commit |
-| `AuditMappingContext` | The evaluation the mapping runs in: the mediation scope on `Services`, the caller on `Identity` |
+| `IAuditRecordMapper<TDocument>` | Maps an `AuditRecord` to the stored document type; every store awaits `MapAsync(record, AuditMappingContext, ct)` with the mapper resolved from the mediation scope |
+| `AuditMappingContext` / `AuditMappingFeatures` | The evaluation the mapping runs in (scope on `Services`, caller on `Identity`) and the store's write session on `Features` |
 | `IAuditSegmenter<TDocument>` | Names the segment per document; `CreateGenesis` opens a segment with a genesis record, or `null` for none; `DescribeSegment` records the head metadata |
 | `AuditSegmentInfo` / `AuditSegmentHead` / `AuditSegmentSummary` | The stored segment identity (key, tenant, attributes, opened-at), the head with its position and version, and the listed state |
 | `AuditSegmentFilter` | Selects segments by tenant, attributes, age, and whether expired segments are included |
@@ -83,7 +76,7 @@ services.AddLiteBus(registry =>
 | `IAuditLinkRule` / `AuditLinkInput` | Combines canonical bytes with segment, sequence, and previous hash into the bytes hashed; `FramedLinkRule` under `sha256-v2` |
 | `IAuditHasher` | Computes the hash: `Sha256AuditHasher`, or `HmacSha256AuditHasher` with a fixed key or a per-operation key provider |
 | `AuditHashScheme<TDocument>` | A named combination of canonicalizer, link rule, and hasher; each record stores the name it was written with |
-| `ICheckpointPolicy` / `AuditCheckpointCandidate` | Decides when a checkpoint is due; `IsTimeBased` marks a policy the chain also asks on a schedule; `IsDueAsync` reads services. `CheckpointPolicies.Never`, `EveryRecords`, `Every`, `Any`, `OnSchedule`, `DailyAt`, `WeeklyOn` |
+| `ICheckpointPolicy` / `AuditCheckpointCandidate` | Decides when a checkpoint is due; `IsTimeBased` marks a policy the chain also asks on a schedule; `IsDueAsync` reads services. `CheckpointPolicies.Never`, `EveryRecords`, `Every`, `Any`, `OnSchedule`, `DailyAt`, `WeeklyOn`, `DailyInTenantZone`, `WeeklyInTenantZone` |
 | `AuditCheckpoint` / `AuditCheckpointKind` / `AuditCheckpointSignature` | The anchored position, hash, count, label, and signatures; `Regular` or `Final`; `Pending` or `Published` with attempts and last error |
 | `CheckpointPublishState` | Whether a stored checkpoint reached its publishers |
 | `ICheckpointSigner` | Signs checkpoints and verifies their signatures; every signer signs every checkpoint |
@@ -92,15 +85,16 @@ services.AddLiteBus(registry =>
 | `AuditChainVerification` / `AuditChainBreak` / `AuditChainBreakKind` | The verify result: every break in sequence order, the head, the checkpoint comparison, and one comparison per source |
 | `AuditCheckpointComparison` | The comparison against one source; `SourceUnreachable` is a warning, not a break |
 | `AuditChainVerificationRequest` | The segment and thresholds one verification runs with |
-| `IAuditChain` | `VerifyAsync`, `VerifyFromAsync`, `CutCheckpointAsync`, `ListSegmentsAsync`, `ListUnpublishedCheckpointsAsync`, `ExpireSegmentAsync`, `EraseAsync` |
+| `IAuditChain` | `VerifyAsync`, `VerifyFromAsync`, `CutCheckpointAsync` (with an optional label), `ListSegmentsAsync`, `ListUnpublishedCheckpointsAsync`, `ExpireSegmentAsync`, `EraseAsync` |
 | `AuditChainVerifier<TDocument>` | The storage-free verifier every store reuses |
 | `AuditErasureNotice` / `IErasureNoticePublisher` | The report published per erased segment when notices are on; it carries no hash |
-| `AuditLinkSweepHostOptions` / `CheckpointPublishHostOptions` | The linker sweep timing and the checkpoint publish retrier timing |
+| `AuditLinkSweepHostOptions` / `CheckpointPublishHostOptions` | The linker sweep and the checkpoint publish retrier: whether each runs in this host (`Enabled`), and their timing |
 
 ## Packages
 
 - `LiteBus.Messaging`
 - `LiteBus.Messaging.Abstractions`
+- `LiteBus.Auditing.Abstractions`
 - `LiteBus.Commands`
 - `LiteBus.Queries`
 - `LiteBus.Events`

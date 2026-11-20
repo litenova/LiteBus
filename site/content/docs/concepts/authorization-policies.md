@@ -78,7 +78,7 @@ Policies are records, so two policies built the same way are equal. That equalit
 
 `Self<TMessage>(Func<TMessage, string?> subjectId)` allows when the caller is the subject the message names. The principal's identifier is its `ClaimTypes.NameIdentifier` claim, else its `sub` claim, which is the same order the audit actor resolution reads, and the identifiers compare ordinally. A caller that is not signed in denies with `authorization.not-signed-in`. A message of another type, a message naming no subject, a principal carrying no identifier, and an identifier that differs all deny with `authorization.forbidden`: ownership that cannot be confirmed is refused rather than guessed.
 
-`Condition<TCondition>()` evaluates one authorization condition where the policy names it. It resolves `TCondition` from the dispatch scope and answers its verdict, so the check runs only for the policies that name it, unlike a condition registered with `AddCondition`, which runs for every authorized message. Register the type with `RegisterCondition<TCondition>()` on the policy builder; when the type is not registered, the policy faults with `authorization.condition-missing` rather than guessing. A condition denial without a code is reported with `authorization.forbidden`, because condition verdict codes are optional while a policy denial requires a code.
+`Condition<TCondition>()` evaluates one authorization condition where the policy names it. It resolves `TCondition` from the dispatch scope and answers its result, so the check runs only for the policies that name it, unlike a condition registered with `AddCondition`, which runs for every authorized message. Register the type with `RegisterCondition<TCondition>()` on the policy builder; when the type is not registered, the policy faults with `authorization.condition-missing` rather than guessing. A condition reports a `PolicyResult` like a policy: a denial carries its own code, and a fault, such as a port the condition reads being missing, ends the mediation as `Failed` (HTTP 500) instead of a denial.
 
 `Decide<TDecisionPoint>(string action, string? resourceKind = null, string? resourceId = null)` answers the decision an authorization decision point makes for an action. It resolves `TDecisionPoint` from the dispatch scope on every evaluation and answers whatever it decides: allow, deny, or fault when the decision cannot be made. When the decision point type is not registered, the policy faults with `authorization.decision-point-missing` rather than guessing. See [Deciding Through a Decision Point](#deciding-through-a-decision-point).
 
@@ -274,21 +274,21 @@ Each policy names its own decision point type, so one composition runs a relatio
 An `IAuthorizationCondition` is a check one feature contributes that runs for every authorized message before the named policy:
 
 ```csharp
-ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken);
+ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken);
 ```
 
-Conditions are how a module adds its own authorization rule without owning the policy vocabulary. A tenancy module denies a tenant-scoped message evaluated outside its tenant; a maintenance module denies writes while a migration runs. Each registers one condition, and the policy guard runs every registered condition, in registration order, before the policy the message declares. The first deny wins, so a condition never overrides another check that already refused.
+Conditions are how a module adds its own authorization rule without owning the policy vocabulary. A tenancy module denies a tenant-scoped message evaluated outside its tenant; a maintenance module denies writes while a migration runs. Each registers one condition, and the policy guard runs every registered condition, in registration order, before the policy the message declares. The first deny wins, so a condition never overrides another check that already refused. A condition returns `PolicyResult`: `Allow`, `Deny(code, reason)`, or `Fault(code, reason, cause)` when it cannot decide, such as when a port it reads is not registered. A fault ends the mediation as `Failed` and maps to HTTP 500, so a configuration problem never reads as a user refusal.
 
 ```csharp
 public sealed class BusinessHoursCondition : IAuthorizationCondition
 {
-    public ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
+    public ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
     {
         var hour = context.HandledAt.Hour;
 
-        return new ValueTask<Verdict>(hour is >= 9 and < 17
-            ? Verdict.Allow
-            : Verdict.Deny("writes outside business hours need an on-call approval"));
+        return new ValueTask<PolicyResult>(hour is >= 9 and < 17
+            ? PolicyResult.Allow
+            : PolicyResult.Deny("authorization.outside-business-hours", "writes outside business hours need an on-call approval"));
     }
 }
 ```

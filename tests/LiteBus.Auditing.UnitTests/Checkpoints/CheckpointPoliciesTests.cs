@@ -1,6 +1,5 @@
 using LiteBus.Auditing.Checkpoints;
 using LiteBus.Auditing.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Runtime.Abstractions.Scheduling;
 using LiteBus.Runtime.Scheduling;
 

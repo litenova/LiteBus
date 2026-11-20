@@ -2,8 +2,10 @@ using System;
 using LiteBus.Auditing.Abstractions;
 using System.Collections.Generic;
 using LiteBus.Auditing.Capture;
+using LiteBus.Auditing.Checkpoints;
+using LiteBus.Auditing.Linking;
+using LiteBus.Auditing.Recording;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing;
 
@@ -120,15 +122,32 @@ public sealed class AuditingCompositionSection : ICompositionSectionContributor
     private readonly bool? _erasureNotices;
 
     /// <summary>
+    ///     The link sweep settings, read when the section is rendered so a change before startup shows.
+    /// </summary>
+    private readonly AuditLinkSweepHostOptions _linkSweep;
+
+    /// <summary>
+    ///     The checkpoint publish settings, read when the section is rendered so a change before startup shows.
+    /// </summary>
+    private readonly CheckpointPublishHostOptions _checkpointPublishing;
+
+    /// <summary>
+    ///     The record-production settings, or <see langword="null" /> when the section was built without them.
+    /// </summary>
+    private readonly AuditRecordingOptions? _recording;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="AuditingCompositionSection" /> class.
     /// </summary>
     /// <param name="options">The auditing configuration to snapshot.</param>
     /// <param name="resolution">The requested and effective capture modes.</param>
     /// <param name="checkpointPolicy">The checkpoint policy description, or <see langword="null" /> when the chain is off.</param>
+    /// <param name="recording">The record-production settings: axes and record writer.</param>
     internal AuditingCompositionSection(
         AuditingOptions options,
         AuditCaptureResolution resolution,
-        string? checkpointPolicy)
+        string? checkpointPolicy,
+        AuditRecordingOptions? recording = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(resolution);
@@ -154,6 +173,9 @@ public sealed class AuditingCompositionSection : ICompositionSectionContributor
         _unlinkedAfterSeconds = options.Chain?.UnlinkedAfter.TotalSeconds;
         _checkpointStaleAfterSeconds = options.Chain?.CheckpointStaleAfter?.TotalSeconds;
         _erasureNotices = options.Chain?.PublishErasureNotices;
+        _linkSweep = options.LinkSweep;
+        _checkpointPublishing = options.CheckpointPublishing;
+        _recording = recording;
     }
 
     /// <inheritdoc />
@@ -182,10 +204,45 @@ public sealed class AuditingCompositionSection : ICompositionSectionContributor
             ["sources"] = _sources,
             ["store"] = _store,
             ["trail"] = _trail,
+            ["checkpointPublishingEnabled"] = _checkpointPublishing.Enabled,
+            ["linkSweepEnabled"] = _linkSweep.Enabled,
             ["unlinkedAfterSeconds"] = _unlinkedAfterSeconds,
         };
 
+        if (_recording is not null)
+        {
+            data["axes"] = Axes(_recording);
+            data["recordWriter"] = _recording.RecordWriterDescription ?? "built-in";
+        }
+
         return data;
+    }
+
+    /// <summary>
+    ///     Names the axes that produce audit records.
+    /// </summary>
+    /// <param name="recording">The record-production settings.</param>
+    /// <returns>The axis names, in command, query, event order.</returns>
+    private static List<string> Axes(AuditRecordingOptions recording)
+    {
+        List<string> axes = [];
+
+        if (recording.Commands)
+        {
+            axes.Add("commands");
+        }
+
+        if (recording.Queries)
+        {
+            axes.Add("queries");
+        }
+
+        if (recording.Events)
+        {
+            axes.Add("events");
+        }
+
+        return axes;
     }
 
     /// <summary>

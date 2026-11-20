@@ -11,7 +11,6 @@ using LiteBus.Auditing.Linking;
 using LiteBus.Auditing.Segments;
 using LiteBus.Auditing.Storage.Marten;
 using LiteBus.Auditing.Verification;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Storage.IntegrationTests.PostgreSql;
 using Marten;

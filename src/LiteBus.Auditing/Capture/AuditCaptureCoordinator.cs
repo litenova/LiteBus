@@ -3,7 +3,6 @@ using LiteBus.Auditing.Abstractions;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Auditing.Engine;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Messaging.Abstractions.DurableMessaging;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;

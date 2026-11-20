@@ -44,7 +44,11 @@ public static class LiteBusExceptionHandlerServiceCollectionExtensions
         var options = new LiteBusExceptionHandlerOptions();
         configure?.Invoke(options);
         services.AddSingleton(options);
-        services.TryAddSingleton(new RefusalProblemOptions { UnmappedRefusalCode = options.UnmappedRefusalCode });
+        services.TryAddSingleton(new RefusalProblemOptions
+        {
+            UnmappedRefusalCode = options.UnmappedRefusalCode,
+            UnmappedValidationCode = options.UnmappedValidationCode
+        });
         services.AddExceptionHandler<LiteBusExceptionHandler>();
 
         return services;

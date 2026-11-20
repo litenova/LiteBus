@@ -1,6 +1,5 @@
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing.InMemory;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Storage.Testing;
 
 namespace LiteBus.Auditing.UnitTests.InMemory;

@@ -300,6 +300,7 @@ Put ergonomic aliases in documentation and samples, not in wider default depende
 - Vertical domain packages (durable messaging, saga, and semantic mediators) must not reference each other or broker or ORM SDKs unless the dependency rule table in `site/content/docs/architecture/dependency-graph.md` explicitly allows it.
 - Horizontal platform packages (runtime and transport) must not reference vertical domain abstractions.
 - Put mapping between axes in feature bridges, not in platform core. This covers domain envelopes to wire format and store rows to contracts.
+- Messaging owns the concerns that decide how a mediation ends: authorization, validation, tenancy and refusal mapping. A feature that only observes how a mediation ended, such as auditing, lives in its own package family and reaches the pipeline through generic seams: completion handlers registered in the message registry, generic declarations through `IMessageDeclarations.Declare`, and `ICommandBatchParticipant`. `LiteBus.Messaging` and `LiteBus.Messaging.Abstractions` hold no audit type.
 
 ### Abstract package rules
 

@@ -7,7 +7,6 @@ using LiteBus.Commands.Idempotency;
 using LiteBus.Commands.UnitOfWork;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Audit;
 using LiteBus.Messaging.Idempotency;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
@@ -109,22 +108,9 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
 
         moduleBuilder.ApplyContracts(contractRegistry);
 
-        // AddAuditing on the messaging module selects the axes, so a consumer configures the feature once instead of
-        // repeating the decision here. EnableAuditing stays the primitive, and registering the same handler twice is a
-        // no-op in the registry.
-        if (configuration.TryGetContext<AuditingComposition>(out var auditing) && auditing?.Commands == true)
-        {
-            moduleBuilder.EnableAuditing();
-        }
-
         // Applied after every source of registrations has run, including the axis selection above, because the
         // builder now queues registrations rather than writing them straight through to the registry.
         moduleBuilder.ApplyRegistrations(messageRegistry);
-
-        if (moduleBuilder.AuditingEnabled)
-        {
-            configuration.RegisterDiagnosticCheck(typeof(AuditTrailDiagnosticCheck), AuditTrailDiagnosticCheck.CheckName);
-        }
 
         if (moduleBuilder.IdempotencyEnabled)
         {
@@ -198,22 +184,6 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
                 typeof(ICommandBatchParticipant),
                 serviceProvider => serviceProvider.GetService(typeof(CommandBatchIdempotencyParticipant))
                     ?? throw new LiteBusDependencyResolutionException(typeof(CommandBatchIdempotencyParticipant)),
-                InstanceLifetime.Scoped));
-        }
-
-        if (moduleBuilder.AuditingEnabled)
-        {
-            // The concrete registration is the one instance per batch scope; the completion handlers add to it and the
-            // batch reads it through the participant collection, so both must resolve the same object.
-            configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(CommandBatchAuditParticipant),
-                typeof(CommandBatchAuditParticipant),
-                InstanceLifetime.Scoped));
-
-            configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
-                typeof(ICommandBatchParticipant),
-                serviceProvider => serviceProvider.GetService(typeof(CommandBatchAuditParticipant))
-                    ?? throw new LiteBusDependencyResolutionException(typeof(CommandBatchAuditParticipant)),
                 InstanceLifetime.Scoped));
         }
 

@@ -55,11 +55,11 @@ internal sealed class FirstCompositionCondition : IAuthorizationCondition
     }
 
     /// <inheritdoc />
-    public ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
+    public ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
     {
         _recorder.Steps.Add("first-condition");
 
-        return new ValueTask<Verdict>(Verdict.Allow);
+        return new ValueTask<PolicyResult>(PolicyResult.Allow);
     }
 }
 
@@ -85,11 +85,11 @@ internal sealed class SecondCompositionCondition : IAuthorizationCondition
     }
 
     /// <inheritdoc />
-    public ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
+    public ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
     {
         _recorder.Steps.Add("second-condition");
 
-        return new ValueTask<Verdict>(Verdict.Allow);
+        return new ValueTask<PolicyResult>(PolicyResult.Allow);
     }
 }
 
@@ -115,11 +115,11 @@ internal sealed class NamedCompositionCondition : IAuthorizationCondition
     }
 
     /// <inheritdoc />
-    public ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
+    public ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
     {
         _recorder.Steps.Add("named-condition");
 
-        return new ValueTask<Verdict>(Verdict.Allow);
+        return new ValueTask<PolicyResult>(PolicyResult.Allow);
     }
 }
 
@@ -129,9 +129,9 @@ internal sealed class NamedCompositionCondition : IAuthorizationCondition
 internal sealed class UnregisteredCompositionCondition : IAuthorizationCondition
 {
     /// <inheritdoc />
-    public ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
+    public ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
     {
-        return new ValueTask<Verdict>(Verdict.Allow);
+        return new ValueTask<PolicyResult>(PolicyResult.Allow);
     }
 }
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Commands.Abstractions;
 using LiteBus.Commands.Batching;
 using LiteBus.Messaging.Abstractions;
 using Microsoft.Extensions.Logging;

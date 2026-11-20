@@ -2,7 +2,6 @@ using System.Collections;
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing;
 using LiteBus.Auditing.Storage.PostgreSql;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;

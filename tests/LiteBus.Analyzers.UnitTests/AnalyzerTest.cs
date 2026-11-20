@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using LiteBus.Auditing.Abstractions;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Events.Abstractions;
 using LiteBus.Inbox.Abstractions;
@@ -186,6 +187,9 @@ internal static class AnalyzerTest
         test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(
             typeof(ITransportPublisher).Assembly.Location));
 
+        test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(
+            typeof(AuditedAttribute).Assembly.Location));
+
         return test;
     }
 
@@ -323,7 +327,8 @@ internal static class AnalyzerTest
         var liteBusReferences = new[]
             {
                 typeof(ICommand), typeof(IEvent), typeof(IQuery<>), typeof(IInbox), typeof(IOutbox),
-                typeof(HandlerPriorityAttribute), typeof(MessageContractAttribute), typeof(ITransportPublisher)
+                typeof(HandlerPriorityAttribute), typeof(MessageContractAttribute), typeof(ITransportPublisher),
+                typeof(AuditedAttribute)
             }
             .Select(type => type.Assembly.Location)
             .Distinct(StringComparer.OrdinalIgnoreCase)

@@ -1,7 +1,6 @@
 using System.Data;
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing.Storage.Marten;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Storage.IntegrationTests.PostgreSql;
 using Marten;
 

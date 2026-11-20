@@ -118,8 +118,8 @@ public interface IRefusalProblemCatalog
     /// <param name="map">The matching mapping, the outcome-kind default, or the fallback mapping.</param>
     /// <returns>
     ///     <see langword="true" /> when an exact or prefix mapping matches; otherwise, <see langword="false" />. An
-    ///     outcome-kind default still reports <see langword="false" />, so the unmapped-code policy applies to codes
-    ///     with no explicit mapping.
+    ///     outcome-kind default still reports <see langword="false" />, so the per-outcome unmapped-code policy in
+    ///     <see cref="RefusalProblemOptions" /> applies to codes with no explicit mapping.
     /// </returns>
     /// <remarks>
     ///     <para>

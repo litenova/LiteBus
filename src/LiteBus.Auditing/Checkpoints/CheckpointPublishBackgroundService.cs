@@ -71,6 +71,12 @@ public sealed class CheckpointPublishBackgroundService : IBackgroundService
     /// <inheritdoc />
     public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!_options.Enabled)
+        {
+            AuditingLogMessages.CheckpointPublishDisabled(_logger);
+            return;
+        }
+
         var lifecycle = (ICheckpointLifecycle?) _serviceProvider.GetService(typeof(ICheckpointLifecycle));
 
         if (lifecycle is null)

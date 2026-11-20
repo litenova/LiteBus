@@ -8,10 +8,11 @@ using LiteBus.Auditing.Checkpoints;
 using LiteBus.Auditing.Engine;
 using LiteBus.Auditing.Hashing;
 using LiteBus.Auditing.Linking;
+using LiteBus.Auditing.Recording;
 using LiteBus.Auditing.Segments;
 using LiteBus.Auditing.Verification;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -47,7 +48,7 @@ namespace LiteBus.Auditing;
 ///         container constructs them.
 ///     </para>
 /// </remarks>
-public sealed class AuditingModule : ICompositeModule
+public sealed class AuditingModule : ICompositeModule, IRequires<MessageModule>
 {
     /// <summary>
     ///     The module builder callback invoked during <see cref="DeclareChildren" />.
@@ -108,6 +109,25 @@ public sealed class AuditingModule : ICompositeModule
 
         ThrowIfChildrenWereNeverDeclared(moduleBuilder);
 
+        var recording = moduleBuilder.Recording;
+
+        // A trail with no axis selected is the whole feature wired and inert, which no probe can report as unhealthy
+        // because nothing ever fails at runtime. It is only detectable here, where the intent to audit is visible.
+        if (!recording.AnyAxis)
+        {
+            throw new AuditConfigurationException(
+                "AddAuditing configured auditing but selected no axis, so no message would ever produce a record. Call "
+                + "ForCommands, ForQueries, ForEvents, or ForAllAxes on the auditing builder to say what to audit.");
+        }
+
+        AuditRecordingRegistration.Register(configuration, recording);
+
+        if (recording.Trail is not null)
+        {
+            BuildApplicationTrail(configuration, moduleBuilder.Options, recording);
+            return;
+        }
+
         var options = moduleBuilder.Options;
         var capabilities = RequireStoreCapabilities(options);
         var resolution = AuditCaptureResolver.ResolveDefault(options.Capture, capabilities);
@@ -135,10 +155,46 @@ public sealed class AuditingModule : ICompositeModule
             RegisterAfterCommitLinking(configuration);
         }
 
-        var section = new AuditingCompositionSection(options, resolution, DescribeCheckpointPolicy(options.Chain));
+        var section = new AuditingCompositionSection(options, resolution, DescribeCheckpointPolicy(options.Chain), recording);
 
         configuration.DependencyRegistry.RegisterCollection(
             DependencyDescriptor.ForCollection(typeof(ICompositionSectionContributor), section));
+    }
+
+    /// <summary>
+    ///     Registers the application's own trail as the receiver of audit records, in place of an audit store.
+    /// </summary>
+    /// <param name="configuration">The module configuration.</param>
+    /// <param name="options">The auditing options, checked for a store or chain configured alongside the trail.</param>
+    /// <param name="recording">The record-production settings holding the application trail.</param>
+    /// <exception cref="AuditConfigurationException">
+    ///     An audit store or the hash chain is configured as well, so two receivers would compete for the records.
+    /// </exception>
+    private static void BuildApplicationTrail(
+        IModuleConfiguration configuration,
+        AuditingOptions options,
+        AuditRecordingOptions recording)
+    {
+        if (options.TrailType is not null || options.ChainStoreType is not null)
+        {
+            throw new AuditConfigurationException(
+                $"Auditing names both the application trail '{recording.TrailDescription}' and the audit store trail "
+                + $"'{options.TrailType?.Name ?? options.ChainStoreType?.Name}', and only one of them can receive the "
+                + "records. Remove UseTrail to write through the store, or remove the store to keep the application trail.");
+        }
+
+        if (options.Chain is not null)
+        {
+            throw new AuditConfigurationException(
+                $"Auditing enables the hash chain with the application trail '{recording.TrailDescription}', but the "
+                + "chain needs an audit store to link records. Configure a store such as UseMartenStore instead of UseTrail.");
+        }
+
+        configuration.DependencyRegistry.Register(recording.Trail switch
+        {
+            Type trailType => new DependencyDescriptor(typeof(IAuditTrail), trailType, recording.TrailLifetime),
+            var instance => new DependencyDescriptor(typeof(IAuditTrail), instance!)
+        });
     }
 
     /// <summary>
@@ -246,7 +302,7 @@ public sealed class AuditingModule : ICompositeModule
         var trailType = RequireTrailType(options);
 
         ThrowIfInvalidDocument(document, storeType);
-        RunSchemeSelfTest(chain.SchemeName);
+        RunSchemeSelfTest(chain);
 
         var closedStoreInterface = typeof(IAuditChainStore<>).MakeGenericType(document);
         var closedMapperInterface = typeof(IAuditRecordMapper<>).MakeGenericType(document);
@@ -267,8 +323,10 @@ public sealed class AuditingModule : ICompositeModule
             provider => RequiredService(provider, closedStoreInterface),
             storeLifetime));
         registry.Register(new DependencyDescriptor(closedTrailType, closedTrailType, InstanceLifetime.Scoped));
-        registry.Register(new DependencyDescriptor(closedMapperInterface, mapperType, InstanceLifetime.Singleton));
-        registry.Register(new DependencyDescriptor(closedSegmenterInterface, segmenterType, InstanceLifetime.Singleton));
+        registry.Register(new DependencyDescriptor(closedMapperInterface, mapperType, InstanceLifetime.Scoped));
+        registry.Register(chain.SegmenterInstance is { } segmenterInstance
+            ? new DependencyDescriptor(closedSegmenterInterface, segmenterInstance)
+            : new DependencyDescriptor(closedSegmenterInterface, segmenterType, InstanceLifetime.Singleton));
 
         // The shipped schemes resolve the canonicalizer for the stored document from the container. A storage
         // package supplies one for its own document as a replaceable default; a custom document brings its own.
@@ -296,7 +354,7 @@ public sealed class AuditingModule : ICompositeModule
         RegisterNamedPieces(registry, chain);
         MoveStoreSourceFirst(chain, closedStoreType);
         RegisterEngine(registry, chain, document, closedStoreInterface, closedSegmenterInterface, closedTrailType);
-        RegisterBackgroundWork(configuration);
+        RegisterBackgroundWork(configuration, options);
     }
 
     /// <summary>
@@ -379,7 +437,7 @@ public sealed class AuditingModule : ICompositeModule
             registry.Register(new DependencyDescriptor(
                 closedMapperInterface,
                 options.StoreDefaultMapperType,
-                InstanceLifetime.Singleton));
+                InstanceLifetime.Scoped));
         }
 
         if (options.StoreDefaultSegmenterType is not null)
@@ -554,13 +612,14 @@ public sealed class AuditingModule : ICompositeModule
     ///     Registers the linker sweep and checkpoint publish background work through manifest entries.
     /// </summary>
     /// <param name="configuration">The module configuration being built.</param>
-    private static void RegisterBackgroundWork(IModuleConfiguration configuration)
+    /// <param name="options">The auditing options holding the two loops' settings.</param>
+    private static void RegisterBackgroundWork(IModuleConfiguration configuration, AuditingOptions options)
     {
         var registry = configuration.DependencyRegistry;
 
         registry.Register(new DependencyDescriptor(
             typeof(AuditLinkSweepHostOptions),
-            new AuditLinkSweepHostOptions()));
+            options.LinkSweep));
         registry.Register(new DependencyDescriptor(
             typeof(AuditLinkSweepBackgroundService),
             provider => new AuditLinkSweepBackgroundService(
@@ -573,7 +632,7 @@ public sealed class AuditingModule : ICompositeModule
 
         registry.Register(new DependencyDescriptor(
             typeof(CheckpointPublishHostOptions),
-            new CheckpointPublishHostOptions()));
+            options.CheckpointPublishing));
         registry.Register(new DependencyDescriptor(
             typeof(CheckpointPublishBackgroundService),
             provider => new CheckpointPublishBackgroundService(
@@ -667,16 +726,27 @@ public sealed class AuditingModule : ICompositeModule
     /// <summary>
     ///     Proves at composition that the write scheme binds the chain position into every hash.
     /// </summary>
-    /// <param name="schemeName">The scheme new records are written with.</param>
-    /// <exception cref="AuditConfigurationException">The scheme name is not one the registry ships.</exception>
+    /// <param name="chain">The hash chain configuration naming the write scheme and the application-defined schemes.</param>
+    /// <exception cref="AuditConfigurationException">
+    ///     The scheme name is neither shipped nor defined with <c>AddScheme</c>, or its link rule does not bind the
+    ///     position.
+    /// </exception>
     /// <remarks>
     ///     The first shipped scheme passes its canonical bytes through unchanged because its canonical form
     ///     already includes the chain position, so the sample-based rule check does not apply to it and it is
-    ///     skipped. Any other unknown name fails here, because the registry would fail the first resolution
-    ///     with it anyway.
+    ///     skipped. An application-defined scheme is checked with its own link rule, the framed rule by default. Any other
+    ///     unknown name fails here, because the registry would fail the first resolution with it anyway.
     /// </remarks>
-    private static void RunSchemeSelfTest(string schemeName)
+    private static void RunSchemeSelfTest(AuditHashChainOptions chain)
     {
+        var schemeName = chain.SchemeName;
+
+        if (chain.CustomSchemes.TryGetValue(schemeName, out var custom))
+        {
+            AuditHashSchemeSelfTest.VerifyPositionBinding(schemeName, custom.LinkRule ?? new FramedLinkRule(schemeName));
+            return;
+        }
+
         if (string.Equals(schemeName, AuditHashSchemeNames.Sha256V2, StringComparison.Ordinal))
         {
             AuditHashSchemeSelfTest.VerifyPositionBinding(schemeName, new FramedLinkRule(schemeName));
@@ -691,7 +761,7 @@ public sealed class AuditingModule : ICompositeModule
         throw new AuditConfigurationException(
             $"The audit hash chain names the unknown hash scheme '{schemeName}'. The shipped schemes are " +
             $"'{AuditHashSchemeNames.Sha256V1}' and '{AuditHashSchemeNames.Sha256V2}'. " +
-            "Name one of them through UseScheme.");
+            "Name one of them through UseScheme, or define the scheme first with AddScheme.");
     }
 
     /// <summary>

@@ -5,7 +5,6 @@ using System.Reflection;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Events;
 
@@ -54,38 +53,6 @@ public sealed class EventModuleBuilder
     ///     Gets the message contract writer for persisted event contracts.
     /// </summary>
     public IContractWriter Contracts { get; }
-
-    /// <summary>
-    ///     Gets a value indicating whether <see cref="EnableAuditing" /> was called.
-    /// </summary>
-    /// <remarks>
-    ///     The module reads this after the configuration action runs, so it can register the diagnostic probe that
-    ///     reports a missing <see cref="IAuditTrail" /> before the first audited publish fails inside the completion
-    ///     stage.
-    /// </remarks>
-    internal bool AuditingEnabled { get; private set; }
-
-    /// <summary>
-    ///     Registers the LiteBus event audit writer, so every event mediation produces an audit record when the message
-    ///     declares one.
-    /// </summary>
-    /// <returns>The current <see cref="EventModuleBuilder" /> instance for method chaining.</returns>
-    /// <remarks>
-    ///     <para>
-    ///         A domain fact is frequently the thing a review most wants recorded, so the event axis carries the same
-    ///         switch the command and query axes do. A message is recorded only when it declares an audited position
-    ///         through <see cref="AuditedAttribute" /> or an <c>IAuditDefinition&lt;TMessage&gt;</c>.
-    ///     </para>
-    ///     <para>
-    ///         One record per publish, not per handler: the mediation is the unit being audited, and a record per
-    ///         subscriber would turn one fact into as many entries as there happen to be reactions.
-    ///     </para>
-    /// </remarks>
-    public EventModuleBuilder EnableAuditing()
-    {
-        AuditingEnabled = true;
-        return Register<EventAuditCompletionHandler>();
-    }
 
     /// <summary>
     ///     Registers an event type for the message registry.

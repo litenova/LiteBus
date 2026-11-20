@@ -64,6 +64,16 @@ public interface ICompositionModel
     IReadOnlyList<CompositionPortEntry> Ports { get; }
 
     /// <summary>
+    ///     Gets every handler linked to a registered message, with its stage, assembly, subscriber name, delivery and
+    ///     priority.
+    /// </summary>
+    /// <value>
+    ///     The entries ordered by message type name, then stage, then priority, then handler type name. The default
+    ///     implementation returns none, for a model that does not describe handlers.
+    /// </value>
+    IReadOnlyList<CompositionHandlerEntry> Handlers => [];
+
+    /// <summary>
     ///     Gets the sections features contributed to the composition.
     /// </summary>
     /// <value>The contributors in ordinal section name order.</value>

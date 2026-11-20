@@ -21,7 +21,7 @@ The source reads in its own scope, outside the sends that follow, so commands mu
 
 `AddRecurringForEachTenant` declares a child module of `CommandModule` that registers a `RecurringTenantSweepBackgroundService<TCommand>` through the host manifest. Each pass enumerates `IRecurringTenantSource`, builds one command per tenant, and sends it with `ExecutionIdentity.ForTenant(tenant)`. The tenant identifiers are read before any command is sent. The sweep always sends one mediation per tenant, like a batch with `RecurringBatchIsolation.PerItem`. Failures stay isolated per tenant: a refused command is logged at Warning (EventId 2111) with the command type, the tenant, and the refusal code; a failure `IsConcurrencyConflict` classifies as a lost race is logged at Information (EventId 2104); and any other failure, including a blank tenant identifier, is logged at Error (EventId 2110) with the tenant. When any tenant failed or was refused, the sweep summary is logged at Warning (EventId 2112) and the pass waits `ErrorBackoff`. When no tenant failed, a command reporting more work through `IRecurringWorkReport` starts the next pass without waiting. Lease acquisition, lease loss, cancellation, and shutdown behave as in the single-command loop.
 
-When `RecurringCommandHostOptions.Schedule` is set, the loop waits for the next occurrence from `IRecurringSchedule.GetNextOccurrence` before the first pass and between passes, instead of waiting `Interval`. A pass that reports more work still starts the next pass at once, a pass that fails still waits `ErrorBackoff`, and a schedule that reports no further occurrence ends the loop. `StartupDelay` still applies after host start, before the loop aligns to its first occurrence.
+When `RecurringCommandHostOptions.Schedule` is set, the loop waits for the next occurrence from `ISchedule.GetNextOccurrence` before the first pass and between passes, instead of waiting `Interval`. A pass that reports more work still starts the next pass at once, a pass that fails still waits `ErrorBackoff`, and a schedule that reports no further occurrence ends the loop. `StartupDelay` still applies after host start, before the loop aligns to its first occurrence.
 
 Tenant and batch source reads run under `RecurringCommandHostOptions.SourceIdentity`, which defaults to `ExecutionIdentity.System` (no principal, no tenant), inside a root mediation scope, so a query a source sends inherits that identity through the enclosing-mediation rule instead of running anonymously.
 
@@ -46,7 +46,7 @@ With `RequireLease`, `RecurringLeaseScope` chooses what one lease covers on a sw
 | `CommandModuleBuilder.AddRecurringForEachTenant<TCommand>(Func<string, TCommand>, IRecurringTenantSource, Action<RecurringCommandHostOptions>?)` | Declares a sweep with a tenant source instance |
 | `CommandModuleBuilder.AddRecurringForEachTenant<TCommand, TTenantSource>(Func<string, TCommand>, Action<RecurringCommandHostOptions>?)` | Declares a sweep with a tenant source type, registered as scoped |
 | `IRecurringTenantSource.GetTenantsAsync(CancellationToken)` | Lists the tenant identifiers one sweep pass sends for |
-| `IRecurringSchedule.GetNextOccurrence(DateTimeOffset)` | Returns the next occurrence strictly after the supplied instant, or `null` when the schedule ends |
+| `ISchedule.GetNextOccurrence(DateTimeOffset)` | Returns the next occurrence strictly after the supplied instant, or `null` when the schedule ends. `Schedule` takes any `ISchedule`, including `IRecurringSchedule` and a cron schedule from `CronSchedules.FromExpression` |
 | `ITenantRecurringSchedule.GetNextOccurrenceAsync(string, DateTimeOffset, CancellationToken)` | Returns one tenant's next occurrence strictly after the supplied instant, or `null` when the schedule ends |
 | `TenantScheduleExtensions.AsRecurringSchedule` | Adapts a shared `ITenantSchedule` to `ITenantRecurringSchedule` |
 | `RecurringSchedules.Every(TimeSpan)` | A schedule that fires once per interval after the current time |
@@ -134,7 +134,7 @@ With `RequireLease`, `RecurringLeaseScope` chooses what one lease covers on a sw
 - Commands returned by a source must be registered with the command module.
 - A sweep sends one command per tenant with `ExecutionIdentity.ForTenant(tenant)`. The tenant identifiers are read before any command is sent. The sweep always sends one mediation per tenant, like a batch with `RecurringBatchIsolation.PerItem`. One failing tenant never stops the rest of the sweep.
 - A scheduled loop waits for the next occurrence before the first pass, not only between passes. A schedule with no further occurrence ends the loop.
-- `IRecurringSchedule` implementations must be thread-safe and free of side effects.
+- `ISchedule` implementations must be thread-safe and free of side effects.
 - Tenant and batch source reads run under `SourceIdentity` inside a root mediation scope; a query a source sends inherits that identity.
 - A tenant-required command without a registration identity fails composition instead of being denied on every pass.
 - A sweep with a tenant schedule sends only for due tenants; an empty sweep retries after `Interval`, and one whose every tenant schedule ended stops.

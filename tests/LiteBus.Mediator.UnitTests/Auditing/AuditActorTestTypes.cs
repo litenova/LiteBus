@@ -1,7 +1,7 @@
 using LiteBus.Commands.Abstractions;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Auditing;
 

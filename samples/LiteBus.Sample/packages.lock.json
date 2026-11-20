@@ -2,6 +2,28 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
+      "litebus.auditing": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Events.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Queries.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.auditing.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
       "litebus.commands": {
         "type": "Project",
         "dependencies": {

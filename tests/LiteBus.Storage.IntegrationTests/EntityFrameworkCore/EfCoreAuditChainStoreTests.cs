@@ -1,6 +1,5 @@
 using LiteBus.Auditing.Storage.EntityFrameworkCore;
 using LiteBus.Auditing.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Storage.EntityFrameworkCore;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;

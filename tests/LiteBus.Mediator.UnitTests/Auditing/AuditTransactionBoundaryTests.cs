@@ -1,3 +1,4 @@
+using LiteBus.Auditing;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
@@ -5,7 +6,7 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Auditing;
 
@@ -31,12 +32,13 @@ public sealed class AuditTransactionBoundaryTests : LiteBusTestBase
     {
         var services = new ServiceCollection();
         services.AddSingleton(unitOfWork);
-        services.AddSingleton<IAuditTrail>(new StagingAuditTrail(unitOfWork));
 
         return services
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(_ => { });
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(new StagingAuditTrail(unitOfWork))
+                    .ForCommands());
 
                 registry.AddCommands(builder =>
                 {
@@ -44,7 +46,6 @@ public sealed class AuditTransactionBoundaryTests : LiteBusTestBase
                     builder.Register<TransactionalCommandHandler>();
                     builder.Register<TransactionalCommandDefinition>();
                     builder.Register<UnitOfWorkCommitCompletionHandler>();
-                    builder.EnableAuditing();
                 });
             })
             .BuildServiceProvider();

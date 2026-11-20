@@ -10,8 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Auditing;
 using LiteBus.Auditing.Engine;
-using LiteBus.Messaging.Abstractions.Auditing;
-using LiteBus.Messaging.Audit;
+using LiteBus.Auditing.Recording;
 using LiteBus.Auditing.Hashing;
 
 namespace LiteBus.Auditing.UnitTests.Verification;

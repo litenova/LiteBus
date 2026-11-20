@@ -57,10 +57,10 @@ The version is `8.0.0`, set by the release tag. The target framework is `net10.0
 | `IIdempotencyStore` | `PostgreSqlIdempotencyStore` (`LiteBus.Commands.Storage.PostgreSql`) and `MartenIdempotencyStore` (`LiteBus.Commands.Storage.Marten`), with `InMemoryIdempotencyStore` in `LiteBus.Testing.Mediation` for tests | It remembers applied idempotency keys with fingerprints, in-flight answers, and claim-timeout takeover. See 4.9. |
 | `IdempotencyKeyResolver` | itself (singleton) | It resolves `"{scope}:{key}"` from a message's `IdempotencyDeclaration` (scope defaults to the message full name) and, when the mediation carries a tenant, prefixes `"{tenant}/"`. The tenant comes from the execution identity, else from the trace tenant item. Each segment escapes `\` and `:`. A blank scope or blank key throws `IdempotencyConfigurationException`. Tenant-scoped claims persist under a different key than in 7.x, which is a breaking change. |
 | `IMessageDependencies` | `MessageDependencies` (internal) | It filters descriptors by handler predicate and tag intersection, orders them by `Priority` then `RegistrationSequence`, and wraps each in a `LazyHandler`. It precomputes a bitmask of occupied pre-stages. Its members are `MainHandlers` and `IndirectMainHandlers` (`ILazyHandlerCollection<IMessageHandler, IMainHandlerDescriptor>`), `PreStageHandlers` and `IndirectPreStageHandlers` (`ILazyHandlerCollection<IMessagePreStageHandler, IPreStageHandlerDescriptor>`), `PostHandlers` and `IndirectPostHandlers` (`IMessagePostHandler`, `IPostHandlerDescriptor`), `ErrorHandlers` and `IndirectErrorHandlers` (`IMessageErrorHandler`, `IErrorHandlerDescriptor`), `RefusalMappers` and `IndirectRefusalMappers` (`IMessageRefusalMapper`, `IRefusalMapperDescriptor`), merged priority-ordered `CompletionHandlers` (`IMessageCompletionHandler`, `ICompletionHandlerDescriptor`, with no indirect split), `FaultRefusalClassifiers` (`IReadOnlyList<IFaultRefusalClassifier>`, resolved lazily from the dispatch scope and empty by default), and `bool HasPreStageHandlers(PreStage stage)` with a default implementation. |
-| `IAuditScope` | `AmbientAuditScope` (internal, singleton instance) | It stores `AuditScopeState` under execution-context item key `__LiteBus.Audit.Scope`. All audit contracts live in `LiteBus.Messaging.Abstractions.Auditing`, so applications keep their own audit type names without ambiguity. |
+| `IAuditScope` | `AmbientAuditScope` (internal, singleton instance) | It stores `AuditScopeState` under execution-context item key `__LiteBus.Audit.Scope`. All audit contracts live in `LiteBus.Auditing.Abstractions`, so applications keep their own audit type names without ambiguity. |
 | `IAuditRecordWriter` | `AuditRecordWriter` (internal, scoped) | It builds an `AuditRecord` from the message's `AuditedDeclaration`, `IAuditScope`, `IAuditOutcomeMapper`, and `TimeProvider`. When no `IAuditActorResolver` is registered it attributes the actor from the identity principal (`ClaimTypes.NameIdentifier`, else the `sub` claim, with `DisplayName` from `ClaimTypes.Name`; no principal gives a `null` actor). `AuditRecord.TenantId` falls back to the identity tenant when the trace items carry no tenant. |
 | `IAuditOutcomeMapper` | `DefaultAuditOutcomeMapper` | It maps `MediationOutcome` to `AuditOutcome` with no application knowledge. |
-| `IAuditTrail` | `MartenAuditTrail` (`LiteBus.Commands.Storage.Marten`), else application supplied | The application registers it through `MessageModuleBuilder.UseAuditTrail`. The Marten trail supports an opt-in hash chain (`MartenAuditTrailOptions.UseHashChain`, checkpoints through `ICheckpointPublisher`, `VerifyChainAsync`). |
+| `IAuditTrail` | the audit store trail (`LiteBus.Auditing.Storage.*`) behind the capture coordinator, else application supplied | The application registers its own through `AuditingModuleBuilder.UseTrail`. The Marten trail supports an opt-in hash chain (`MartenAuditTrailOptions.UseHashChain`, checkpoints through `ICheckpointPublisher`, `VerifyChainAsync`). |
 | `IMessageContractResolver` | `DeclaredTypeMessageContractResolver` (optional) | When it is unregistered, the default behaviour uses the runtime instance type. |
 | `IHandleContextData` | `HandleContextData` | It is a type-keyed store reached through `IExecutionContext.Data`, with one instance per mediation guarded by a lock. |
 | `IUnitOfWork` | application supplied. `MartenUnitOfWork` (`LiteBus.Commands.Storage.Marten`) commits the scoped Marten session | `CommitAsync` runs once per mediation that ended `Succeeded`, from a completion handler at `HandlerPriorities.UnitOfWork`. The command and query builders register it with `UseUnitOfWork<T>`. |
@@ -68,9 +68,9 @@ The version is `8.0.0`, set by the release tag. The target framework is `net10.0
 | `IFaultRefusalClassifier` | application supplied. `PostgreSqlConstraintRefusalClassifier` (`LiteBus.Storage.PostgreSql`) maps unique (23505) and exclusion (23P01) violations on configured constraints to denials. `MartenConcurrencyRefusalClassifier` (`LiteBus.Commands.Storage.Marten`) maps Marten concurrency and event-stream version conflicts to a denial with code `concurrency.conflict` | Each entry is a singleton collection item registered with `MessageModuleBuilder.UseFaultRefusalClassifier`. The first match wins, cancellation is never classified, and nothing changes when none is registered. |
 | `DeclarationGuard<TMessage, TValue>` and `AuthorizationGuard<TMessage>` | abstract base classes, subclassed by the application | They look the declaration up for the runtime message type through `IMessageMetadataAccessor`. A recorded exemption allows the message, and an undeclared message is denied with code `declaration.missing` unless `DecideUndeclaredAsync` is overridden. `AuthorizationGuard` seals the decision so an exempt message is allowed and an authorized one delegates to `AuthorizeAsync(policy, message, ct)`, and it exposes `protected static ExecutionIdentity CurrentIdentity` for the mediation in flight. |
 | `TenancyGuard<TMessage>` | itself (`LiteBus.Messaging.Tenancy`, a `DeclarationGuard<TMessage, TenancyDeclaration>`) | It denies a `TenantRequiredDeclaration` message whose execution identity has no tenant, with code `TenancyRefusalCodes.TenantRequired` (`tenancy.required`), and allows `CrossTenantDeclaration` and `NoTenantDeclaration`. An undeclared message is allowed. Register it with `MessageModuleBuilder.UseTenancy()`, which registers the open generic so it runs for every message. Messages declare with `[TenantRequired]`, `[CrossTenant("reason")]`, `[NoTenant("reason")]`, `ITenancyDefinition<TMessage>`, or `TenancyDeclaration.Required()`, `.CrossTenant(reason)`, `.None(reason)`. |
-| `MessagePolicy` | itself (abstract record, `LiteBus.Messaging.Abstractions.Authorization`) | `abstract ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)` with static combinators `SignedIn()`, `Permission(string)`, `Claim(type, value?)`, `RecentSignIn(maxAge)`, `System()`, `Self<TMessage>(subjectId)`, `All(...)`, `Any(...)`, `When(condition, inner)`, `Allow()`, `Deny(reason)`. `Permission(...)` denies with code `authorization.permission-lookup-missing` when no `IPermissionLookup` is registered. The existing `AuthorizationGuard` and `AuthorizationDeclaration` types stay in `LiteBus.Messaging.Abstractions`. |
+| `MessagePolicy` | itself (abstract record, `LiteBus.Messaging.Abstractions.Authorization`) | `abstract ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)` with static combinators `SignedIn()`, `Permission(string)`, `Claim(type, value?)`, `RecentSignIn(maxAge)`, `System()`, `Self<TMessage>(subjectId)`, `All(...)`, `Any(...)`, `When(condition, inner)`, `Allow()`, `Deny(reason)`. `Permission(...)` denies with code `authorization.permission-lookup-missing` when no `IPermissionLookup` is registered. The existing `AuthorizationGuard` and `AuthorizationDeclaration` types stay in `LiteBus.Messaging.Abstractions`. |
 | `PolicyAuthorizationGuard<TMessage>` | itself (`LiteBus.Messaging.Authorization`, an `AuthorizationGuard<TMessage>`) | Registered once as an open generic by `MessageModuleBuilder.AddAuthorizationPolicies`. For an `AuthorizedDeclaration` message it runs every registered `IAuthorizationCondition` in registration order, then the policy registered under `AuthorizedDeclaration.Policy`; the first deny wins. An unknown name denies with `AuthorizationPolicyRefusalCodes.UnknownPolicy` (`authorization.unknown-policy`). `MessagePolicyRegistry` holds the named policies (ordinal names); `AuthorizationContext` carries `Message`, `MessageType`, `Identity`, `Services`, `HandledAt`. |
-| `IAuthorizationCondition` | application supplied | `ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)`. Every registered condition runs for every authorized message before the named policy. Registered with `MessagePolicyBuilder.AddCondition<TCondition>()`. |
+| `IAuthorizationCondition` | application supplied | `ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)`. Every registered condition runs for every authorized message before the named policy. Registered with `MessagePolicyBuilder.AddCondition<TCondition>()`. |
 | `IPermissionLookup` | application supplied | `ValueTask<bool> HasPermissionAsync(ExecutionIdentity identity, string permission, AuthorizationContext context, CancellationToken cancellationToken)`. Registered with `MessagePolicyBuilder.UsePermissionLookup<TLookup>()`. |
 
 #### Semantic facades
@@ -289,7 +289,7 @@ builder.Services.AddLiteBus(liteBus =>
 });
 ```
 
-The `Add*` composition extensions live in the axis root namespaces (`LiteBus.Commands`, `LiteBus.Queries`, `LiteBus.Events`, `LiteBus.Messaging`); the handler, guard, post-handler and mediator types they configure live in the matching `.Abstractions` namespaces (`LiteBus.Commands.Abstractions`, `LiteBus.Messaging.Abstractions.Auditing` for audit types, `LiteBus.Messaging.Abstractions.Tenancy` for tenancy types). Handler files import the `.Abstractions` namespaces, so a project that references only the abstraction packages still compiles.
+The `Add*` composition extensions live in the axis root namespaces (`LiteBus.Commands`, `LiteBus.Queries`, `LiteBus.Events`, `LiteBus.Messaging`); the handler, guard, post-handler and mediator types they configure live in the matching `.Abstractions` namespaces (`LiteBus.Commands.Abstractions`, `LiteBus.Auditing.Abstractions` for audit types, `LiteBus.Messaging.Abstractions.Tenancy` for tenancy types). Handler files import the `.Abstractions` namespaces, so a project that references only the abstraction packages still compiles.
 
 ### 2.2 Autofac
 
@@ -357,7 +357,7 @@ Every `Add*` module registration extension checks `moduleRegistry.Find<TModule>(
 | `IExecutionContext` | Scoped factory (`static _ => AmbientExecutionContext.Current`) | Scoped (factory) |
 | `IAuditScope` | `AmbientAuditScope` | Singleton (instance) |
 | `IAuditOutcomeMapper` | builder value or `DefaultAuditOutcomeMapper` | Singleton (instance) |
-| `IAuditTrail` | only if `UseAuditTrail` or `UseAuditTrailInstance` was called | The lifetime passed to `UseAuditTrail<T>` (Scoped by default), or Singleton for an instance |
+| `IAuditTrail` | registered by the auditing module: the store capture trail, or the trail `UseTrail` or `UseTrailInstance` named | The lifetime passed to `UseTrail<T>` (Scoped by default), or Singleton for an instance |
 | `IAuditActorResolver` | only when a `UseAuditActorResolver*` builder call was made | The lifetime passed to `UseAuditActorResolver` (Scoped by default), or Singleton for an instance. A missing resolver is not a composition failure |
 | `IAuditRecordWriter` | `AuditRecordWriter` factory | Scoped |
 | `IdempotencyKeyResolver` | Singleton instance over the registry metadata. The `IIdempotencyStore` itself is registered by the command storage packages or the application, not here | Singleton (instance) |
@@ -369,11 +369,11 @@ Every `Add*` module registration extension checks `moduleRegistry.Find<TModule>(
 
 After the core services and scanned handlers are registered, `Build` runs every step registered through the internal `MessageModuleBuilder.AddBuildStep`. `AddAuthorizationPolicies` registers its registry, conditions and lookup there; `UseTenancy` needs no step because the guard is its only registration. Custom declaration checks run through `MessageModuleBuilder.ValidateComposition(Action<IMessageCatalog>)`, beside `RequireDeclaration<TValue>()`; both run after every module has built, so the catalog they read is complete.
 
-**`CommandModule`** registers `ICommandMediator` with implementation `CommandMediator` (Transient), `ICommandBatchMediator` with implementation `CommandBatchMediator` (Transient), and every handler type discovered in this module as Scoped. It registers `AuditTrailDiagnosticCheck` (`litebus.audit.trail`) when `EnableAuditing()` was called, and `IdempotencyStoreDiagnosticCheck` (`litebus.idempotency.store`) when idempotency was enabled. When `UseUnitOfWork<T>` was called, it registers the `TUnitOfWork` type as itself plus a first-wins `IUnitOfWork` mapping, both Scoped. Child modules registered through `RegisterChildModule` (recurring command and batch modules, the PostgreSQL idempotency store, the Marten idempotency store, the PostgreSQL recurring lease) build after the parent.
+**`CommandModule`** registers `ICommandMediator` with implementation `CommandMediator` (Transient), `ICommandBatchMediator` with implementation `CommandBatchMediator` (Transient), and every handler type discovered in this module as Scoped. It registers `IdempotencyStoreDiagnosticCheck` (`litebus.idempotency.store`) when idempotency was enabled. When `UseUnitOfWork<T>` was called, it registers the `TUnitOfWork` type as itself plus a first-wins `IUnitOfWork` mapping, both Scoped. Child modules registered through `RegisterChildModule` (recurring command and batch modules, the PostgreSQL idempotency store, the Marten idempotency store, the PostgreSQL recurring lease) build after the parent.
 
 **`QueryModule`** has the same shape with `IQueryMediator` implemented by `QueryMediator`, including the `UseUnitOfWork<T>` registration. A different unit-of-work type per axis is allowed.
 
-**`EventModule`** registers `IEventMediator` with implementation `EventMediator` (Transient) and its handlers. It registers `AuditTrailDiagnosticCheck` (`litebus.audit.trail`) when `EnableAuditing()` was called, including when `AddAuditing` selects the events axis (`AuditingComposition.Events == true`, which calls `EnableAuditing()` for the caller).
+**`EventModule`** registers `IEventMediator` with implementation `EventMediator` (Transient) and its handlers. The auditing module, not the event module, registers the event audit completion handler and the `litebus.audit.trail` probe when `AddAuditing` selects `ForEvents()`.
 
 **`RecurringCommandModule<TCommand>`** builds as follows. `Build` validates the host options, throwing `ArgumentOutOfRangeException` on bad timing and `ArgumentException` on a blank `LeaseName`. It registers the `RecurringCommandDeclaration<TCommand>` instance (Singleton) and `RecurringCommandBackgroundService<TCommand>` as its own Transient type, and calls `configuration.RegisterBackgroundService(typeof(RecurringCommandBackgroundService<TCommand>))` so the loop runs on the host. When `RequireLease` is set, it registers a composition validation that throws `LiteBusConfigurationException` when no `IRecurringCommandLease` is registered. `RecurringCommandBatchModule<TSource>` mirrors it with a Scoped `TSource` registration, a `RecurringCommandBatchDeclaration<TSource>` instance, and `RecurringCommandBatchBackgroundService<TSource>` on the host manifest.
 
@@ -1456,7 +1456,7 @@ Maps mediation refusal codes to HTTP status codes and problem titles. `Mediation
 
 ### 3.11 Auditing configuration
 
-All audit declaration and record types below live in `LiteBus.Messaging.Abstractions.Auditing`. Snippets that show a handler, guard, post-handler, or mediator import the `*.Abstractions` namespaces that hold the types they use: `LiteBus.Commands.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Events.Abstractions`, and `LiteBus.Messaging.Abstractions` with `LiteBus.Messaging.Abstractions.Auditing` for audit types and `LiteBus.Messaging.Abstractions.Tenancy` for tenancy types. A project that references only the abstraction packages fails to compile when a snippet imports the implementation namespace instead.
+All audit declaration and record types below live in `LiteBus.Auditing.Abstractions`. Snippets that show a handler, guard, post-handler, or mediator import the `*.Abstractions` namespaces that hold the types they use: `LiteBus.Commands.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Events.Abstractions`, and `LiteBus.Messaging.Abstractions` with `LiteBus.Auditing.Abstractions` for audit types and `LiteBus.Messaging.Abstractions.Tenancy` for tenancy types. A project that references only the abstraction packages fails to compile when a snippet imports the implementation namespace instead.
 
 #### `AuditedAttribute` (sealed, `AttributeTargets.Class | AttributeTargets.Struct`, `Inherited = false`)
 
@@ -1582,7 +1582,7 @@ The input one authorization policy evaluation reads: the message, who the mediat
 
 #### `MessagePolicy` (`LiteBus.Messaging.Abstractions.Authorization`, abstract record)
 
-A named authorization rule a message declares through `AuthorizedDeclaration` and the policy guard evaluates. It declares `abstract ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)`. A check the combinators cannot express is a subclass that overrides it; the guard treats a custom policy exactly like a built one.
+A named authorization rule a message declares through `AuthorizedDeclaration` and the policy guard evaluates. It declares `abstract ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)`. A check the combinators cannot express is a subclass that overrides it; the guard treats a custom policy exactly like a built one.
 
 | Factory | Signature | Description & Impact |
 | --- | --- | --- |
@@ -1606,7 +1606,7 @@ The port a permission policy reads through. LiteBus carries the permission name 
 
 #### `IAuthorizationCondition` (`LiteBus.Messaging.Abstractions.Authorization`, interface)
 
-A check one feature contributes that runs for every authorized message before the named policy. It declares `ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)`. A condition must stay free of effects a caller would not want from a "may I" question, because the guard stage also runs when the pipeline is asked to evaluate a message without performing it.
+A check one feature contributes that runs for every authorized message before the named policy. It declares `ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)`. A condition must stay free of effects a caller would not want from a "may I" question, because the guard stage also runs when the pipeline is asked to evaluate a message without performing it.
 
 Evaluation order, fixed: every registered condition in registration order, then the named policy; the first deny wins. `PolicyAuthorizationGuard<TMessage>` (an `AuthorizationGuard<TMessage>` in `LiteBus.Messaging`) runs the conditions, then the policy registered under `AuthorizedDeclaration.Policy` in `MessagePolicyRegistry`; an unknown name denies with `authorization.unknown-policy`.
 
@@ -1673,16 +1673,7 @@ Attributes (sealed, `AttributeTargets.Class | AttributeTargets.Struct`, `Inherit
 | `UseSerializer<TMessageSerializer>` | `(InstanceLifetime lifetime = Singleton) -> MessageModuleBuilder`, `TMessageSerializer : class, IMessageSerializer` | Registers a container-constructed serializer. It decides the wire format of every persisted message. |
 | `UseSerializerInstance` | `(IMessageSerializer) -> MessageModuleBuilder` | Registers a pre-created serializer, necessarily a **Singleton**. Use this overload when the serializer is configured rather than injected: `UseSerializerInstance(new SystemTextJsonMessageSerializer(options))`. |
 | `UseTelemetry` | `(MediationTelemetryOptions) -> MessageModuleBuilder` | Sets the process-wide `ActivitySource` and `Meter` options. It applies before anything mediates. |
-| `UseAuditTrail<TAuditTrail>` | `(InstanceLifetime lifetime = Scoped) -> MessageModuleBuilder`, `TAuditTrail : class, IAuditTrail` | Registers a container-constructed trail. The lifetime is an explicit parameter, not a consequence of the overload. |
-| `UseAuditTrailInstance` | `(IAuditTrail) -> MessageModuleBuilder` | Registers a pre-created trail, necessarily a **Singleton**. The method name states the lifetime, because a trail built here with a scoped session captures it for the life of the process. |
-| `UseAuditRecordWriter<TAuditRecordWriter>` | `(InstanceLifetime lifetime = Scoped) -> MessageModuleBuilder` | Replaces the built-in record writer so the application owns the record shape. |
-| `UseAuditRecordWriterInstance` | `(IAuditRecordWriter) -> MessageModuleBuilder` | Registers a pre-created record writer, necessarily a **Singleton**. |
-| `UseAuditActorResolver<TAuditActorResolver>` | `(InstanceLifetime lifetime = Scoped) -> MessageModuleBuilder` | Registers a container-constructed actor resolver. |
-| `UseAuditActorResolver` | `(Type, InstanceLifetime = Scoped) -> MessageModuleBuilder` | Registers the resolver implementation named as a `Type`, for composition code that chooses the resolver at runtime. The type must be a concrete class implementing `IAuditActorResolver`. |
-| `UseAuditActorResolverInstance` | `(IAuditActorResolver) -> MessageModuleBuilder` | Registers a pre-created actor resolver, necessarily a **Singleton**. |
-| `UseAuditOutcomeMapper` | `(IAuditOutcomeMapper) -> MessageModuleBuilder` | Overrides `DefaultAuditOutcomeMapper`. |
-| `UseAuditOutcomeMapper<T>` | `() -> MessageModuleBuilder`, `T : IAuditOutcomeMapper, new()` | Constructs and registers the mapper. |
-| `AddAuditing` | `(Action<AuditingBuilder>) -> MessageModuleBuilder` | Configures the whole auditing feature in one call, including axis selection. This is **the path to take**. It composes the per-axis primitives above. |
+| Auditing | moved | Audit configuration is on `AuditingModuleBuilder` in `LiteBus.Auditing`, reached through `registry.Modules.AddAuditing(...)`; `MessageModuleBuilder` has no audit member. See section 4.8. |
 | `UseTenancy` | `() -> MessageModuleBuilder` (extension in `LiteBus.Messaging`) | Registers the open-generic `TenancyGuard<>` so every mediated message is checked against its declared tenancy position. Pair it with `RequireDeclaration<TenancyDeclaration>()` so a message that states no position fails composition instead of passing the guard as an allowed message nobody considered. |
 | `AddAuthorizationPolicies` | `(Action<MessagePolicyBuilder>) -> MessageModuleBuilder` (extension in `LiteBus.Messaging.Authorization`) | Registers the named authorization policies, contributed conditions, and permission lookup the policy guard evaluates. The guard is registered at configure time; the collected policies, conditions, and lookup are registered when the message module builds. Call it once per composition. |
 | `UseFaultRefusalClassifier<TClassifier>` | `() -> MessageModuleBuilder`, `TClassifier : class, IFaultRefusalClassifier` | Registers a container-constructed classifier as a Singleton collection item. Several are allowed, and the first match wins. |
@@ -1690,10 +1681,8 @@ Attributes (sealed, `AttributeTargets.Class | AttributeTargets.Struct`, `Inherit
 | `RequireDeclaration<TValue>` | `() -> MessageModuleBuilder` | Every message must state a position on `TValue`. It is unscoped, so it applies to commands, queries, and events alike, which is usually wider than needed. |
 | `RequireDeclaration<TValue, TScope>` | `() -> MessageModuleBuilder` | Only messages assignable to `TScope` must declare. This is **the form to reach for**. |
 | `RequireDeclaration<TValue>` | `(Func<Type, bool> scope, string scopeDescription) -> MessageModuleBuilder` | Applies a predicate scope, with a description that LiteBus uses in the failure message. |
-| `RequireUniqueAuditActions` | `() -> MessageModuleBuilder` | Two messages sharing an action code make the trail unqueryable by use case. It raises `AuditConfigurationException`, naming each duplicate and its claimants. |
-| `RequireAuditActionFormat` | `(string pattern = DefaultAuditActionPattern) -> MessageModuleBuilder` | The pattern defaults to the `category.kebab-action` convention. It raises `AuditConfigurationException`, naming each offender and its action. |
 | `RequireExplicitOpenGenerics` | `() -> MessageModuleBuilder` | Callers must close open generic handlers explicitly instead of relying on inference. |
-| `ValidateComposition` | `(Action<IMessageCatalog>) -> MessageModuleBuilder` | Runs an application check over the composed catalog at build time. This is the startup hook for custom declaration checks; there is no separate API for them. |
+| `ValidateComposition` | `(Action<ICompositionModel>) -> MessageModuleBuilder` | Runs an application check over the composed catalog at build time. This is the startup hook for custom declaration checks; there is no separate API for them. |
 | `DeclareDefault<TScope, TValue>` | `(TValue value) -> MessageModuleBuilder` | Supplies a default declaration value for every message in scope. |
 | `DeclareDefault` | `(MessageDeclarationItem) -> MessageModuleBuilder` | This is the untyped form of the same method. |
 | `Register<T>()` / `Register(Type)` | `-> MessageModuleBuilder` | Registers any message or handler type with no axis validation. |
@@ -1704,7 +1693,6 @@ Attributes (sealed, `AttributeTargets.Class | AttributeTargets.Struct`, `Inherit
 | Member | Description & Impact |
 | --- | --- |
 | `Contracts` | `IContractWriter` for durable command/query contracts. |
-| `EnableAuditing()` | Registers `CommandAuditCompletionHandler` / `QueryAuditCompletionHandler` (priority `HandlerPriorities.Observability`) and the `litebus.audit.trail` diagnostic probe. On every axis, the `AddAuditing` selection on the messaging module implies the same call at build time. |
 | `EnableIdempotency()` | Commands only. Registers `IdempotentCommandShortcut<>` and `IdempotentCommandShortcut<,>`, `IdempotencyCompletionHandler` (priority `HandlerPriorities.Persistence`), and the `litebus.idempotency.store` probe. |
 | `UseUnitOfWork<TUnitOfWork>()` | Both axes. Registers `TUnitOfWork` (`class, IUnitOfWork`) as itself, plus an `IUnitOfWork` mapping where the first registration wins (both Scoped), and a completion handler at `HandlerPriorities.UnitOfWork` that calls `CommitAsync` only when the mediation completed successfully. It throws `LiteBusConfigurationException` when called twice on one builder. |
 | `UsePostgreSqlIdempotencyStore(...)` | Commands only, from `LiteBus.Commands.Storage.PostgreSql`. Registers the PostgreSQL `IIdempotencyStore` child module: `UseDataSource` / `UseConnectionString` (one required), `UseOptions(PostgreSqlIdempotencyStoreOptions)`, `DisableSchemaInitialization()`. |
@@ -1726,7 +1714,7 @@ A **query construct** mirrors that list with `IQueryHandler<,>`, `IQueryPreHandl
 
 #### `EventModuleBuilder`
 
-The members are `Contracts`, `EnableAuditing()`, `Register<T>()`, `Register(Type)`, and `RegisterFromAssembly(Assembly)`. `EnableAuditing()` registers `EventAuditCompletionHandler` (priority `HandlerPriorities.Observability`) and the `litebus.audit.trail` diagnostic probe. It writes one record per publish, not per handler.
+The members are `Contracts`, `Register<T>()`, `Register(Type)`, and `RegisterFromAssembly(Assembly)`. Event auditing is selected with `ForEvents()` on `AddAuditing`, which writes one record per publish, not per handler.
 
 An **event construct** is `IEvent`, `IEventHandler<>`, `IEventPreHandler`, `IEventPreHandler<>`, `IEventGuard<>`, `IEventValidator<>`, `IEventShortcut<>`, `IEventPostHandler`, `IEventPostHandler<>`, `IEventErrorHandler`, `IEventErrorHandler<>`, `IEventCompletionHandler`, `IEventCompletionHandler<>`, or `IMessageDefinition<,>` over an `IEvent`. Both `IMessageDefinition<,>` and `IMessageDefinition<>` shapes count, as do messaging-level pipeline handlers whose message type is assignable to `IEvent`. `RegisterFromAssembly` also registers an `IMessageDefinition` declared over an unmarked event handled in the same assembly, so a POCO event can carry the audit or idempotency metadata that belongs beside its handler. A POCO event type is any type that an `IEventHandler<TEvent>` names as `TEvent` without implementing `IEvent`.
 
@@ -1957,7 +1945,7 @@ A typical command, handler, and call look like this:
 
 ```csharp
 using LiteBus.Commands.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 [Audited("orders.place-order", Category = "money", TargetKind = "order")]
 public sealed record PlaceOrderCommand(Guid CartId) : ICommand<OrderId>;
@@ -2277,7 +2265,7 @@ public sealed class RequireSecondApproverGuard : ICommandGuard<ProcessPaymentCom
 
 `TenancyGuard<TMessage> : DeclarationGuard<TMessage, TenancyDeclaration>` (`LiteBus.Messaging.Tenancy`) enforces the message's tenancy position. A `TenantRequiredDeclaration` is denied with `TenancyRefusalCodes.TenantRequired` (`tenancy.required`) when the ambient execution identity has no tenant, while a `CrossTenantDeclaration` and a `NoTenantDeclaration` allow, because the message already stated it runs outside one tenant. An undeclared message is allowed, so an application adopts tenancy declaration by declaration; pair the guard with `RequireDeclaration<TenancyDeclaration>()` so composition fails for a message stating no position. `MessageModuleBuilder.UseTenancy()` registers the open-generic guard once so it runs for every message. The declarations live in `LiteBus.Messaging.Abstractions.Tenancy`: `TenancyDeclaration.Required()`, `CrossTenant(reason)`, and `None(reason)`, the `TenantRequiredDeclaration`, `CrossTenantDeclaration`, and `NoTenantDeclaration` records, `ITenancyDefinition<TMessage>`, and the `[TenantRequired]`, `[CrossTenant("reason")]`, and `[NoTenant("reason")]` attributes.
 
-For authorization rules LiteBus evaluates itself, `MessageModuleBuilder.AddAuthorizationPolicies(configure)` (`LiteBus.Messaging.Authorization`) registers `PolicyAuthorizationGuard<TMessage>`, an `AuthorizationGuard<TMessage>` that runs every registered `IAuthorizationCondition` in registration order, then the `MessagePolicy` registered under `AuthorizedDeclaration.Policy`; the first deny wins. The evaluation context is `AuthorizationContext` (`Message`, `MessageType`, `Identity`, `Services`, `HandledAt`) in `LiteBus.Messaging.Abstractions.Authorization`. `MessagePolicy` is an abstract record with `abstract ValueTask<Verdict> EvaluateAsync(AuthorizationContext, CancellationToken)` and static combinators: `SignedIn()`, `Permission(name)`, `Claim(type, value)`, `RecentSignIn(maxAge)` (reads the `auth_time` claim, Unix seconds), `System()` (no principal), `Self<TMessage>(subjectId)` (the subject equals the principal's id claim), `All(...)`, `Any(...)`, `When(condition, inner)` (the inner policy applies only when the condition holds), `Allow()`, and `Deny(reason)`. `Permission(...)` denies with `authorization.permission-lookup-missing` when no `IPermissionLookup` is registered (`ValueTask<bool> HasPermissionAsync(identity, permission, context, ct)`). Refusal codes are on `AuthorizationPolicyRefusalCodes`: `NotSignedIn` (`authorization.not-signed-in`), `MissingPermission` (`authorization.missing-permission`), `Forbidden` (`authorization.forbidden`), and `UnknownPolicy` (`authorization.unknown-policy`); an unknown policy name denies with `UnknownPolicy` rather than passing a message whose rule is missing. `MessagePolicyBuilder.Add(name, policy)`, `AddCondition<TCondition>()`, and `UsePermissionLookup<TLookup>()` build the `MessagePolicyRegistry` the guard reads. Exempt messages allow in the base guard and undeclared messages deny with `declaration.missing`, so policies only ever see authorized messages.
+For authorization rules LiteBus evaluates itself, `MessageModuleBuilder.AddAuthorizationPolicies(configure)` (`LiteBus.Messaging.Authorization`) registers `PolicyAuthorizationGuard<TMessage>`, an `AuthorizationGuard<TMessage>` that runs every registered `IAuthorizationCondition` in registration order, then the `MessagePolicy` registered under `AuthorizedDeclaration.Policy`; the first deny wins. The evaluation context is `AuthorizationContext` (`Message`, `MessageType`, `Identity`, `Services`, `HandledAt`) in `LiteBus.Messaging.Abstractions.Authorization`. `MessagePolicy` is an abstract record with `abstract ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext, CancellationToken)` and static combinators: `SignedIn()`, `Permission(name)`, `Claim(type, value)`, `RecentSignIn(maxAge)` (reads the `auth_time` claim, Unix seconds), `System()` (no principal), `Self<TMessage>(subjectId)` (the subject equals the principal's id claim), `All(...)`, `Any(...)`, `When(condition, inner)` (the inner policy applies only when the condition holds), `Allow()`, and `Deny(reason)`. `Permission(...)` denies with `authorization.permission-lookup-missing` when no `IPermissionLookup` is registered (`ValueTask<bool> HasPermissionAsync(identity, permission, context, ct)`). Refusal codes are on `AuthorizationPolicyRefusalCodes`: `NotSignedIn` (`authorization.not-signed-in`), `MissingPermission` (`authorization.missing-permission`), `Forbidden` (`authorization.forbidden`), and `UnknownPolicy` (`authorization.unknown-policy`); an unknown policy name denies with `UnknownPolicy` rather than passing a message whose rule is missing. `MessagePolicyBuilder.Add(name, policy)`, `AddCondition<TCondition>()`, and `UsePermissionLookup<TLookup>()` build the `MessagePolicyRegistry` the guard reads. Exempt messages allow in the base guard and undeclared messages deny with `declaration.missing`, so policies only ever see authorized messages.
 
 #### Validators - `IMessageValidator<in TMessage>` (`PreStage.Validator`)
 
@@ -2772,7 +2760,7 @@ Source 2b is definition classes implementing closed `IMessageDefinition<TMessage
 
 ```csharp
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 internal sealed class PlaceOrderCommandAuditDefinition : IAuditDefinition<PlaceOrderCommand>
 {
@@ -2840,7 +2828,7 @@ Applications can add their own composition checks. `MessageModuleBuilder.Validat
 messaging.ValidateComposition(catalog =>
 {
     var wrong = catalog.Audited()
-        .Where(entry => !entry.Audit!.Action.StartsWith(entry.Audit.Category + "."))
+        .Where(entry => !entry.GetAudit()!.Action.StartsWith(entry.GetAudit()!.Category + "."))
         .Select(entry => entry.MessageType.Name)
         .ToList();
 
@@ -2853,8 +2841,8 @@ messaging.ValidateComposition(catalog =>
 
 Two checks every audited application needs ship as built-ins, because getting either wrong corrupts the trail rather than breaking the build:
 
-* `RequireUniqueAuditActions()`: two messages sharing an action code make the trail unqueryable by use case, which is the one thing an action code is for. It raises `AuditConfigurationException` naming each duplicate and its claimants.
-* `RequireAuditActionFormat(pattern)` defaults to `MessageModuleBuilder.DefaultAuditActionPattern` (`^[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$`), the `category.kebab-action` convention every LiteBus example uses. It raises `AuditConfigurationException` naming each offender and its action.
+* `RequireUniqueActions()` on the auditing builder: two messages sharing an action code make the trail unqueryable by use case, which is the one thing an action code is for. It raises `AuditConfigurationException` naming each duplicate and its claimants.
+* `RequireActionFormat(pattern)` on the auditing builder defaults to `AuditingModuleBuilder.DefaultActionPattern` (`^[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$`), the `category.kebab-action` convention every LiteBus example uses. It raises `AuditConfigurationException` naming each offender and its action.
 
 The hook exists because the underlying `RegisterCompositionValidation` was public but unreachable in practice: the only way to receive an `IModuleConfiguration` is to implement `IModule`, which demands a full module implementation for a five-line assertion.
 
@@ -2877,7 +2865,7 @@ var matrix = catalog
     .Select(entry =>
     {
         entry.Metadata.TryGet<RequiredPermission>(out var permission);
-        return new { entry.MessageType.Name, permission!.Name, entry.Audit?.Action };
+        return new { entry.MessageType.Name, permission!.Name, entry.GetAudit()?.Action };
     });
 ```
 
@@ -2952,49 +2940,40 @@ The delegate is built at registration, so it can project from the message but ca
 
 ### 4.8 Auditing
 
-**Types:** `AuditDeclaration` / `AuditedDeclaration` / `AuditExemptDeclaration`, `AuditedAttribute` / `AuditExemptAttribute`, `IAuditDefinition<TMessage>`, `AuditRecord`, `AuditActor`, `AuditOutcome`, `IAuditTrail`, `IAuditScope`, `IAuditActorResolver`, `IAuditRecordWriter`, `IAuditOutcomeMapper`, `DefaultAuditOutcomeMapper`, `AuditReasonMissingException`, `AuditTrailDiagnosticCheck`, `AuditingBuilder`, `CommandAuditCompletionHandler`, `QueryAuditCompletionHandler`, `EventAuditCompletionHandler`.
+**Types:** `AuditDeclaration` / `AuditedDeclaration` / `AuditExemptDeclaration`, `AuditedAttribute` / `AuditExemptAttribute`, `IAuditDefinition<TMessage>`, `AuditRecord`, `AuditActor`, `AuditOutcome`, `IAuditTrail`, `IAuditScope`, `IAuditActorResolver`, `IAuditRecordWriter`, `IAuditOutcomeMapper`, `DefaultAuditOutcomeMapper`, `AuditReasonMissingException`, `AuditTrailDiagnosticCheck`, `AuditingModuleBuilder`, `CommandAuditCompletionHandler`, `QueryAuditCompletionHandler`, `EventAuditCompletionHandler`.
 
-All audit model types live in `LiteBus.Messaging.Abstractions.Auditing`: `AuditActor`, `AuditDeclaration`, `AuditedDeclaration`, `AuditExemptDeclaration`, `AuditOutcome`, `AuditRecord`, `AuditedAttribute`, `AuditExemptAttribute`, `AuditReasonMissingException`, `IAuditActorResolver`, `IAuditDefinition<TMessage>`, `IAuditOutcomeMapper`, `IAuditRecordWriter`, `IAuditScope`, and `IAuditTrail`. The sub-namespace keeps them from colliding with application audit models.
+All audit model types live in `LiteBus.Auditing.Abstractions`: `AuditActor`, `AuditDeclaration`, `AuditedDeclaration`, `AuditExemptDeclaration`, `AuditOutcome`, `AuditRecord`, `AuditedAttribute`, `AuditExemptAttribute`, `AuditReasonMissingException`, `IAuditActorResolver`, `IAuditDefinition<TMessage>`, `IAuditOutcomeMapper`, `IAuditRecordWriter`, `IAuditScope`, and `IAuditTrail`. The sub-namespace keeps them from colliding with application audit models.
 
-The declaration half works without the writing half. `AddMessaging` registers `IAuditScope` and `IAuditOutcomeMapper`, not `EnableAuditing()`, so both resolve whether or not any axis produces records. An application that wants the declaration model with its own writer injects `IAuditScope`, reads `AuditDeclaration` through `IMessageMetadataAccessor`, and never calls `EnableAuditing()`. In that configuration nothing consumes the scope, so pushed values are discarded. That behavior is intended. The `litebus.audit.trail` probe stays quiet because auditing was never enabled.
+All audit code lives in the auditing package family: the contracts in `LiteBus.Auditing.Abstractions`, and the auditing module, record writer, per-axis completion handlers, `IAuditScope` registration and `litebus.audit.trail` probe in `LiteBus.Auditing`. `LiteBus.Messaging` and `LiteBus.Messaging.Abstractions` hold no audit type: auditing observes how a mediation ended, so it reaches the pipeline through completion handlers registered in the message registry, generic declarations (`IMessageDeclarations.Declare`), and `ICommandBatchParticipant`.
 
 Call `AddAuditing` to configure the feature in one call:
 
 ```csharp
-liteBus.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
+liteBus.Modules.AddAuditing(auditing => auditing
+    .ForCommands()
+    .ForQueries()
     .UseTrail<SqlAuditTrail>()                        // scoped by default; pass InstanceLifetime to change it
     .UseActorResolver<RequestActorResolver>()         // who acted; see below
-    .UseOutcomeMapper<UseCaseAuditOutcomeMapper>()    // optional
-    .ForCommands()
-    .ForQueries()));
+    .UseOutcomeMapper<UseCaseAuditOutcomeMapper>());  // optional
 
 liteBus.AddCommands(commands => commands.RegisterFromAssembly(assembly));
 liteBus.AddQueries(queries => queries.RegisterFromAssembly(assembly));
 ```
 
-`AuditingBuilder` exposes `UseTrail<T>(InstanceLifetime)`, `UseTrailInstance`, `UseActorResolver<T>(InstanceLifetime)`, `UseActorResolverInstance`, `UseOutcomeMapper<T>()`, `UseOutcomeMapperInstance`, `ForCommands()`, `ForQueries()`, `ForEvents()` and `ForAllAxes()`. Configuring a trail but selecting no axis raises `AuditConfigurationException` at composition. No probe can report that state at runtime. Nothing is ever audited, so nothing ever fails. Calling `AddAuditing` twice adds to the same selection instead of replacing it. An axis that is enabled once stays enabled.
+`AuditingModuleBuilder` exposes `UseTrail<T>(InstanceLifetime)`, `UseTrailInstance`, `UseActorResolver<T>(InstanceLifetime)`, `UseActorResolverInstance`, `UseOutcomeMapper<T>()`, `UseOutcomeMapperInstance`, `ForCommands()`, `ForQueries()`, `ForEvents()` and `ForAllAxes()`. Configuring a trail but selecting no axis raises `AuditConfigurationException` at composition. No probe can report that state at runtime. Nothing is ever audited, so nothing ever fails. Calling `AddAuditing` twice adds to the same selection instead of replacing it. An axis that is enabled once stays enabled.
 
-The per-axis primitives still exist. `AddAuditing` composes them:
-
-```csharp
-liteBus.AddMessaging(messaging => messaging.UseAuditTrail<SqlAuditTrail>());
-liteBus.AddCommands(commands => commands.EnableAuditing());
-liteBus.AddQueries(queries => queries.EnableAuditing());
-liteBus.AddEvents(events => events.EnableAuditing());   // one record per publish, not per handler
-```
-
-`EnableAuditing()` registers a completion handler at priority `HandlerPriorities.Observability` for `ICommand` / `IQuery` / `IEvent` respectively, and it registers the `litebus.audit.trail` diagnostic probe. When auditing is enabled but no `IAuditTrail` is registered, the probe reports `Unhealthy`. When a trail is registered but no `IAuditActorResolver` is registered, the probe reports `Degraded`, because records then rely on the principal fallback for attribution (see below). Otherwise the probe reports `Healthy` with `component`, `trailRegistered`, `trailType`, `trailIsSingleton` and `actorResolverRegistered` data.
+Each selected axis (`ForCommands()`, `ForQueries()`, `ForEvents()`; events write one record per publish, not per handler) gets a completion handler at priority `HandlerPriorities.Observability` for `ICommand` / `IQuery` / `IEvent` respectively, and it registers the `litebus.audit.trail` diagnostic probe. When auditing is enabled but no `IAuditTrail` is registered, the probe reports `Unhealthy`. When a trail is registered but no `IAuditActorResolver` is registered, the probe reports `Degraded`, because records then rely on the principal fallback for attribution (see below). Otherwise the probe reports `Healthy` with `component`, `trailRegistered`, `trailType`, `trailIsSingleton` and `actorResolverRegistered` data.
 
 It resolves the trail through `IMessageDispatchScopeFactory` twice and compares the instances. The comparison reveals the lifetime from outside the container. Resolving through the scope factory also avoids an error. Resolving a scoped trail from a root provider fails under `ValidateScopes`. When no trail is registered, resolving `IAuditRecordWriter` throws `AuditConfigurationException`.
 
-An application that replaced the record writer is exempt from these checks. The probe first reads `LiteBusCompositionSummary.AuditRecordWriter`. When it is set, the probe reports `Healthy` with `component` and `recordWriter` and asserts nothing else. A writer that LiteBus did not build need not use an `IAuditTrail` or an `IAuditActorResolver`, so demanding either would report a correct configuration as broken. It reads the summary instead of resolving `IAuditRecordWriter`, because resolving the built-in writer with no trail registered throws. That throw is the state the probe exists to report.
+An application that replaced the record writer is exempt from these checks. The probe first reads the record writer the auditing builder recorded. When it is set, the probe reports `Healthy` with `component` and `recordWriter` and asserts nothing else. A writer that LiteBus did not build need not use an `IAuditTrail` or an `IAuditActorResolver`, so demanding either would report a correct configuration as broken. It reads the summary instead of resolving `IAuditRecordWriter`, because resolving the built-in writer with no trail registered throws. That throw is the state the probe exists to report.
 
-To own the record shape, replace the writer with `MessageModuleBuilder.UseAuditRecordWriter<TWriter>(lifetime)` or `UseAuditRecordWriterInstance`, exposed on the auditing builder as `UseRecordWriter<TWriter>` and `UseRecordWriterInstance`:
+To own the record shape, replace the writer with `UseRecordWriter<TWriter>(lifetime)` or `UseRecordWriterInstance`:
 
 ```csharp
-registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
-    .UseRecordWriter<EntroAuditRecordWriter>()
-    .ForAllAxes()));
+registry.Modules.AddAuditing(auditing => auditing
+    .ForAllAxes()
+    .UseRecordWriter<EntroAuditRecordWriter>());
 ```
 
 `AuditRecord` is a handoff to `IAuditTrail`, not a persistence schema. A different set of fields therefore needs no new abstraction here. It needs a different writer. `IAuditRecordWriter.WriteAsync(MessageCompletionContext, CancellationToken)` is the entire contract between the pipeline and auditing. The three axis completion handlers depend on nothing else. A replacement therefore keeps the completion-stage placement, the `HandlerPriorities.Observability` priority, and the per-axis selection, and it replaces only the record building.
@@ -3009,7 +2988,7 @@ A replacement takes over everything the built-in writer does. Each part of that 
 | Stamps the correlation identifier from the trace items and the tenant identifier from the trace items, falling back to `IExecutionContext.Identity.TenantId` | `AmbientExecutionContext.GetCurrentOrDefault()`, `MessageTraceContextKeys` |
 | Classifies the outcome and the failure code | `IAuditOutcomeMapper`, which is already injectable |
 
-Skipping an undeclared message is part of that contract instead of a detail. Without it, every message on the selected axes would produce a record. `LiteBusCompositionSummary.AuditRecordWriter` names the replacement in the startup line. Replacing the writer replaces all of record building, so without that startup line a misregistration would look the same as auditing working.
+Skipping an undeclared message is part of that contract instead of a detail. Without it, every message on the selected axes would produce a record. The composition model's `auditing` section names the replacement as `recordWriter`. Replacing the writer replaces all of record building, so without that startup line a misregistration would look the same as auditing working.
 
 A generic `AuditRecord<T>` or `IAuditTrail<TRecord>` would spread a type parameter through the writer, the three axis completion handlers, the probe, the builder, and `AddAuditing`. Every application that wants the default would then carry a cost that serves only the minority that does not, and the parameter would add nothing a custom writer cannot already do. The fixed shape is also a deliberate choice. It maps onto NIST SP 800-53 AU-3, PCI DSS Requirement 10, and the DMTF CADF event model, so a trail can reach a SIEM later without being remodelled.
 
@@ -3017,7 +2996,7 @@ A generic `AuditRecord<T>` or `IAuditTrail<TRecord>` would spread a type paramet
 
 ```csharp
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 internal sealed class RequestActorResolver : IAuditActorResolver
 {
@@ -3041,7 +3020,7 @@ Declare a position with one of these attributes:
 
 ```csharp
 using LiteBus.Commands.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 using LiteBus.Queries.Abstractions;
 
 [Audited("orders.place-order", Category = "money", TargetKind = "order", ReasonRequired = false)]
@@ -3070,7 +3049,7 @@ Contribute the runtime half from the handler:
 
 ```csharp
 using LiteBus.Commands.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 public sealed class PlaceOrderCommandHandler : ICommandHandler<PlaceOrderCommand, OrderId>
 {
@@ -3112,7 +3091,7 @@ Map outcomes with `DefaultAuditOutcomeMapper.MapByOutcome`:
 
 ```csharp
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 public sealed class UseCaseAuditOutcomeMapper : IAuditOutcomeMapper
 {
@@ -3140,7 +3119,7 @@ LiteBus never opens or commits a transaction, but it guarantees a position from 
 ```csharp
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 [HandlerPriority(HandlerPriorities.UnitOfWork)]
 public sealed class CommitUnitOfWork : ICommandCompletionHandler
@@ -4223,7 +4202,7 @@ An `IApplicationModule` contributes one vertical slice of the composition: `void
 | `TryGetContext<T>(out T?)` | Non-throwing probe. |
 | `GetOrCreateContext<T>(Func<T>)` | Creates on first use. A factory returning `null` throws. |
 
-`MessageModuleBuilder.ValidateComposition(Action<IMessageCatalog> validate)` is the application-facing form of the composition-validation hook for declaration checks: the callback receives the catalog of registered messages and their declarations after every module has built, and throws to fail composition. It runs at the same point `RequireDeclaration` does, so the catalog holds every message the host composed. `RequireUniqueAuditActions()` is the built-in check on top of it. `LiteBusCompositionSummary.CompositionChecks` counts the registered checks.
+`MessageModuleBuilder.ValidateComposition(Action<ICompositionModel> validate)` is the application-facing form of the composition-validation hook for declaration checks: the callback receives the composition model (its `Messages` catalog, declarations, policy names, contracts, ports, handlers and sections) over the registered messages and their declarations after every module has built, and throws to fail composition. It runs at the same point `RequireDeclaration` does, so the catalog holds every message the host composed. `RequireUniqueAuditActions()` is the built-in check on top of it. `LiteBusCompositionSummary.CompositionChecks` counts the registered checks.
 
 The composition summary, `LiteBusCompositionSummary`, is registered as a Singleton by `AddMessaging` and filled in after every module has built, because none of the counts exist before then. Resolve it and log `ToString()` once at startup:
 
@@ -4552,7 +4531,7 @@ The analyzer package stays on Roslyn 4.x (`Microsoft.CodeAnalysis.CSharp` 4.8.0)
 | `LiteBusMessageInvalidException` | same | Validators reported failures and no refusal mapper applied. Carries `MessageType?`, `Failures`, `RejectedBy` (the validator type, named in the message). |
 | `NoExecutionContextException` | same | Ambient execution context accessed outside a mediation. |
 | `HandleContextDataNotFoundException` | same | `IExecutionContext.Data.Get<T>()` asked for a slot no stage stored. Carries `DataType` and `Key` (null for an unkeyed read). Use `TryGet<T>` where the value is optional. |
-| `AuditReasonMissingException` | `LiteBus.Messaging.Abstractions.Auditing` | An audited action declares `ReasonRequired` and the handler supplied none. Carries `Action`, `MessageType`. Deliberately not a `LiteBusConfigurationException`. It is a data problem in one mediation. |
+| `AuditReasonMissingException` | `LiteBus.Auditing.Abstractions` | An audited action declares `ReasonRequired` and the handler supplied none. Carries `Action`, `MessageType`. Deliberately not a `LiteBusConfigurationException`. It is a data problem in one mediation. |
 | `MessageMetadataNotFoundException` | `LiteBus.Messaging.Abstractions` | `IMessageMetadataAccessor` asked about a type the registry does not hold. Carries `MessageType`. |
 | `MessageContractNotRegisteredException` | same | Contract lookup failed by type or by `(name, version)`. Carries `Type? MessageType`, `string? ContractName`, and `int? ContractVersion`. |
 | `MessageContractAlreadyRegisteredException` | same | Conflicting contract registration. |
@@ -4635,9 +4614,9 @@ It is a policy about fault isolation rather than about concurrency, so it applie
 
 The mode governs handlers inside one priority group and never carries across groups.
 
-#### `AuditOutcome` (`LiteBus.Messaging.Abstractions.Auditing`)
+#### `AuditOutcome` (`LiteBus.Auditing.Abstractions`)
 
-The audit types moved from `LiteBus.Messaging.Abstractions` to `LiteBus.Messaging.Abstractions.Auditing` in 8.0.0, so an application audit model with the same type names no longer collides with them.
+The audit types moved from `LiteBus.Messaging.Abstractions` to `LiteBus.Auditing.Abstractions` in 8.0.0, so an application audit model with the same type names no longer collides with them.
 
 | Member | Value | Meaning |
 | --- | --- | --- |
@@ -5667,7 +5646,7 @@ await commandMediator.SendAsync(
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.AspNetCore;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 
 // 1. Recover from a specific fault and return a fallback value.

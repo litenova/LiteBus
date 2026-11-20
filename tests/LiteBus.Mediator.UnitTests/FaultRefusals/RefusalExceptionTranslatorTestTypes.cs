@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 using LiteBus.Queries.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.FaultRefusals;

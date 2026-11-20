@@ -112,6 +112,7 @@ public sealed class PostgreSqlAuditSchemaTests : IClassFixture<PostgreSqlFixture
         {
             registry.AddMessaging(_ => { });
             registry.AddAuditing(auditing => auditing
+                .ForCommands()
                 .UsePostgreSqlStore(postgres =>
                 {
                     postgres.UseDataSource(_fixture.DataSource);

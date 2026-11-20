@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.Abstractions;
 
@@ -90,6 +89,27 @@ public interface IAuditChain
     Task<AuditCheckpoint> CutCheckpointAsync(string segment, CancellationToken cancellationToken = default);
 
     /// <summary>
+    ///     Cuts, stores, and signs a labelled checkpoint of a segment now; publication follows from the background
+    ///     retrier.
+    /// </summary>
+    /// <param name="segment">The segment to checkpoint.</param>
+    /// <param name="label">
+    ///     The label stored on the checkpoint and handed to signers and publishers, such as <c>manual</c> or
+    ///     <c>daily</c>. It must not be empty or contain a line break.
+    /// </param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The checkpoint that was cut, stored as pending.</returns>
+    /// <remarks>
+    ///     Signers and publishers switch on the label, so an application that cuts on its own rhythm, with
+    ///     <c>CheckpointPolicies.Never()</c> and explicit cuts, labels its checkpoints the way a policy would, and an
+    ///     anchor can tell an operator's manual cut from a scheduled one.
+    /// </remarks>
+    Task<AuditCheckpoint> CutCheckpointAsync(
+        string segment,
+        string label,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     Publishes a final checkpoint for a segment, then deletes the segment's documents and closes it to new writes.
     /// </summary>
     /// <param name="segment">The segment to expire.</param>
@@ -97,7 +117,9 @@ public interface IAuditChain
     /// <returns>The final checkpoint.</returns>
     /// <remarks>
     ///     Retention-driven deletion uses this so the remaining segments still verify: each segment is an independent
-    ///     chain, and the final checkpoint proves what the deleted segment held.
+    ///     chain, and the final checkpoint proves what the deleted segment held. Expiry is safe to retry: a second call on an
+    ///     expired segment returns the stored final checkpoint instead of failing, and a call after an attempt that
+    ///     stopped part-way reuses the final checkpoint that attempt stored.
     /// </remarks>
     Task<AuditCheckpoint> ExpireSegmentAsync(string segment, CancellationToken cancellationToken = default);
 }

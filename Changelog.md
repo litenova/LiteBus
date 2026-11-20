@@ -2,6 +2,43 @@
 
 This file records the notable changes in each LiteBus release.
 
+## v8.0.0-preview.4
+
+Changes since [v8.0.0-preview.3](https://github.com/litenova/LiteBus/releases/tag/v8.0.0-preview.3). The [v8.0.0](#v800) section describes the whole 8.0.0 line.
+
+### Added
+
+- `AuditMappingContext.Features` holds the audit store's write session (`IDocumentSession`, `DbContext`, or `NpgsqlConnection` and `NpgsqlTransaction`), so a row the record mapper writes commits with the record.
+- `IAuditChain.CutCheckpointAsync(segment, label)` stores a label on an explicit cut.
+- `AuditHashChainBuilder.AddScheme(name, hasher, linkRule)` defines an application record hash scheme, such as a keyed HMAC, under the one conflict rule.
+- `AuditHashChainBuilder.SegmentBy<TDocument>(Func<TDocument, string>)` for every audit store.
+- `CheckpointPolicies.DailyInTenantZone` and `WeeklyInTenantZone` read each tenant's zone from `ITenantMetadataProvider` when the policy decides; `AuditCheckpointCandidate.Services` carries the deciding pass's scope.
+- `CheckpointPublishHostOptions.Enabled`, and `AuditingModuleBuilder.ConfigureCheckpointPublishing` and `ConfigureLinkSweep`; the composition model's `auditing` section shows both loop switches, the audited axes and the record writer.
+- `RefusalProblemOptions.UnmappedValidationCode` (and on `LiteBusExceptionHandlerOptions`), a separate unmapped-code policy for invalid results.
+- `FieldValidationErrorsWriter` writes validation failures as `{ field, code, message }` objects with configurable member names.
+- The `LiteBus.Extensions.AspNetCore.OpenApi` package adds `code`, `traceId` and `errors` to the OpenAPI problem schema, and optionally each status's refusal codes from the catalog.
+- `OutboxModuleBuilder.StageDomainEvent<TEvent>()` stages an event unchanged as its own decision kind; the outbox composition section lists every domain event decision.
+- `ICompositionModel.Handlers` lists every handler with its message, stage, assembly, subscriber name, delivery and priority, and `ToJson()` includes it.
+- `ICommandBatchParticipant` is public in `LiteBus.Commands.Abstractions`, with `BeginAsync` and `CommandBatchStart` for items every command of a batch receives.
+
+### Changed
+
+- Every audit store awaits `IAuditRecordMapper.MapAsync` on the success and the out-of-band path, and the mapper is resolved from the mediation's scope.
+- Expiring an expired segment returns its stored final checkpoint; an expiry retried after a partial attempt reuses the final checkpoint that attempt stored.
+- `RecurringCommandHostOptions.Schedule` takes `ISchedule`, so a schedule from `CronSchedules.FromExpression` drives a single recurring loop.
+
+### Fixed
+
+- `IAuditRecordMapper.MapAsync` was declared and documented but never called.
+
+### Breaking
+
+- All audit types move out of `LiteBus.Messaging.Abstractions` and `LiteBus.Messaging`: the declarations, `[Audited]`, `[AuditExempt]`, `AuditRecord`, `IAuditTrail` and the other recording ports are in `LiteBus.Auditing.Abstractions` (namespace `LiteBus.Auditing.Abstractions`), and the record writer is in `LiteBus.Auditing`.
+- `messaging.AddAuditing(...)`, the `UseAudit*` and `RequireAudit*` methods on `MessageModuleBuilder`, and `EnableAuditing()` on the command, query and event builders are removed. Configure auditing with `liteBus.Modules.AddAuditing(auditing => auditing.ForCommands()...)`; the axes, `UseTrail`, `UseActorResolver`, `UseOutcomeMapper`, `UseRecordWriter`, `RequireUniqueActions` and `RequireActionFormat` are on `AuditingModuleBuilder`. Composition fails when no axis is selected.
+- `IMessageDeclarations.Audited` and `NotAudited`, `IMessageCatalog.Audited()` and `MessageCatalogEntry.Audit` become extension methods in `LiteBus.Auditing.Abstractions`; `entry.Audit` is `entry.GetAudit()`. The audit members of `LiteBusCompositionSummary` are removed.
+- `IAuthorizationCondition.EvaluateAsync` returns `ValueTask<PolicyResult>`, so a condition can report a fault (HTTP 500).
+- `IAuditRecordMapper` is registered scoped instead of singleton.
+
 ## v8.0.0-preview.3
 
 Changes since [v8.0.0-preview.2](https://github.com/litenova/LiteBus/releases/tag/v8.0.0-preview.2). The [v8.0.0](#v800) section describes the whole 8.0.0 line.
@@ -16,9 +53,9 @@ Changes since [v8.0.0-preview.2](https://github.com/litenova/LiteBus/releases/ta
 - Tenancy: `UseTenancy(tenancy => tenancy.ValidateTenant(...))` with the `tenancy.invalid` code, ordered `ExecutionIdentityOptions.TenantClaimTypes`, and the `ITenantMetadataProvider` port.
 - `ICompositionModel`, passed to `ValidateComposition` checks: declaration provenance per message, declared and registered policy names, contracts, ports and feature sections, with `ToJson()`.
 - `RegistrationConflict` and `Replace` on the dependency registry and `MessagePolicyBuilder`.
-- Domain events: `TranslateDomainEvent`, `IgnoreDomainEvent`, `PublishDomainEventInProcess`, `RequireDomainEventDecision`, and open-generic and predicate `HarvestDomainEvents` overloads. The Marten harvester reads deleted documents.
+- Domain events: `TranslateDomainEvent`, `IgnoreDomainEvent`, `PublishDomainEventInProcess`, `RequireDomainEventDecision`, an open-generic `HarvestDomainEvents` overload and the predicate form `HarvestDomainEventsWhere`. The Marten harvester reads deleted documents.
 - HTTP problem details: a `code` extension, `IProblemTypeFormatter`, `IValidationErrorsWriter` with the RFC 9457 array shape, `IProblemDetailsEnricher`, `MapInvalid` and `MapDenied`, `Replace`, and a catalog export.
-- Recurring commands: `RecurringCommandHostOptions.SourceIdentity`, per-tenant schedules (`ITenantSchedule` with a zone per tenant), occurrence keys, `LeaseScope`, `MissedOccurrencePolicy`, the `IRecurringOccurrenceStore` port with a PostgreSQL store, and the `LiteBus.Commands.Recurring.Schedules.Cron` package.
+- Recurring commands: `RecurringCommandHostOptions.SourceIdentity`, per-tenant schedules (`ITenantSchedule` with a zone per tenant), occurrence keys, `RecurringLeaseScope`, `RecurringMissedOccurrencePolicy`, the `IRecurringOccurrenceStore` port with a PostgreSQL store, and the `LiteBus.Commands.Recurring.Schedules.Cron` package.
 - `ISchedule` and the built-in schedules in `LiteBus.Runtime.Abstractions.Scheduling` and `LiteBus.Runtime.Scheduling`.
 - The auditing package family: `LiteBus.Auditing.Abstractions`, `LiteBus.Auditing`, `LiteBus.Auditing.Storage.Marten`, `.PostgreSql` and `.EntityFrameworkCore`, and the checkpoint anchors `LiteBus.Auditing.Anchors.S3`, `.AzureBlob` and `.Timestamping` (RFC 3161).
 - Audit capture modes (`AuditCapture.WithChange`, `AfterCommitThroughOutbox`, `BeforeAndOutcome`) and link modes (`AuditLink.AfterCommit`, `InTransaction`, `AtWrite`), with a per-message capture declaration.
@@ -43,11 +80,11 @@ Changes since [v8.0.0-preview.2](https://github.com/litenova/LiteBus/releases/ta
 - A segment that never checkpointed verified clean once its checkpoint policy was due. A segment younger than its first checkpoint still verifies clean.
 - Records staged in a business transaction were never linked when the link sweep looked only at segment heads; every store now lists segments with unlinked records.
 - `IRefusalProblemCatalog.TryResolve` reported every code as mapped by default.
-- An invalid result's status depended on its number of failures.
+- An invalid result's status depended on its number of failures. It now answers the invalid default (400) unless a code mapping is more specific, such as the `validation.*` mapping to 422 in `RefusalProblemCatalog.CreateDefault`.
 
 ### Breaking
 
-- Policies return `PolicyResult` instead of `Verdict`. A missing permission lookup, condition or sign-in instant is a fault (HTTP 500), not a denial.
+- Policies return `PolicyResult` instead of `Verdict`. A missing permission lookup, condition, decision point, sign-in instant or recent sign-in window, and an unknown policy name, are faults (HTTP 500), not denials.
 - The audit chain, checkpoint, segment, store and capture contracts move to `LiteBus.Auditing.Abstractions`. The Marten audit types move from `LiteBus.Commands.Storage.Marten` to `LiteBus.Auditing.Storage.Marten`, and `UseMartenAuditChain` is replaced by `AddAuditing(auditing => auditing.UseMartenStore())`.
 - `ICheckpointPolicy`, `IAuditRecordMapper` and `IAuditChain` are asynchronous and gained members.
 - `IRecurringSchedule` and `RecurringSchedules` forward to the shared `ISchedule` contract.
@@ -114,7 +151,7 @@ This release makes identity and tenancy part of the pipeline, adds composable au
 - `IExecutionContext.MessageType` and `IExecutionContext.Parent` expose the chain of mediations that led to the current one; both have defaults so custom contexts compile unchanged. `IMediationNestingRule` lets an application refuse a nested mediation before its pipeline starts, and `CommandModuleBuilder.ForbidNestedCommands()` registers the built-in rule that throws `NestedMediationException` (code `commands.nested-command`) when a command is sent while another command is being handled, directly or through an in-process event handler. Queries nested in a command stay allowed, and outbox and inbox delivery are never nested because they start a root mediation.
 - Authorization policy combinators: `MessagePolicy.Public()` for permanent public routes, `Tenant()` so a policy can order sign-in, tenant and permission checks itself, `Condition<TCondition>()` for a condition that runs only where a policy names it, `SentBy<TParent>()` to admit a call from a named enclosing use case, and `WithRefusal(code, reason)` to keep an application's own refusal codes on any combinator. `RecentSignIn` reads the sign-in instant from an `ISignInInstantSource` when one is registered, or from a claim named by `RecentSignIn(maxAge, claimType)`. `AuthorizationPolicyRefusalCodes` gains `PermissionLookupMissing`, `ConditionMissing`, `SignInInstantUnknown` and `NotSentBy`. `MessagePolicyBuilder` gains `RegisterCondition<TCondition>()` and `UseSignInInstantSource<TSource>()`, and `MessagePolicyRegistry.PolicyNames` lists the registered names.
 - `HandlerPriorities.Authorization` and `HandlerPriorities.Tenancy` fix the order of the two shipped guards: authorization first, so a signed-out caller receives the authorization refusal before the tenancy one.
-- The audit hash chain is built from replaceable pieces in `LiteBus.Messaging.Abstractions.Auditing`: `IAuditRecordMapper<TDocument>` for the stored document, `IAuditSegmenter<TDocument>` for segments and genesis documents, `IAuditCanonicalizer<TDocument>`, `IAuditLinkRule` and `IAuditHasher` combined in a named `AuditHashScheme<TDocument>`, `ICheckpointPolicy`, `ICheckpointSigner`, `ICheckpointPublisher` and `ICheckpointSource`. Each document stores the scheme it was written with, so an application can change algorithm, key or canonical form from a date onward and older documents still verify. `IAuditChain` verifies a segment and returns every break with the head and checkpoint comparison (`AuditChainVerification`), cuts a checkpoint on demand, and expires a segment by publishing a final checkpoint before deleting it, so retention-driven deletion leaves the remaining segments verifiable. `LiteBus.Messaging` ships `Sha256AuditHasher`, `HmacSha256AuditHasher`, `PreviousHashLinkRule`, `CheckpointPolicies` and the storage-free `AuditChainVerifier<TDocument>`.
+- The audit hash chain is built from replaceable pieces in `LiteBus.Auditing.Abstractions`: `IAuditRecordMapper<TDocument>` for the stored document, `IAuditSegmenter<TDocument>` for segments and genesis documents, `IAuditCanonicalizer<TDocument>`, `IAuditLinkRule` and `IAuditHasher` combined in a named `AuditHashScheme<TDocument>`, `ICheckpointPolicy`, `ICheckpointSigner`, `ICheckpointPublisher` and `ICheckpointSource`. Each document stores the scheme it was written with, so an application can change algorithm, key or canonical form from a date onward and older documents still verify. `IAuditChain` verifies a segment and returns every break with the head and checkpoint comparison (`AuditChainVerification`), cuts a checkpoint on demand, and expires a segment by publishing a final checkpoint before deleting it, so retention-driven deletion leaves the remaining segments verifiable. `LiteBus.Messaging` ships `Sha256AuditHasher`, `HmacSha256AuditHasher`, `PreviousHashLinkRule`, `CheckpointPolicies` and the storage-free `AuditChainVerifier<TDocument>`.
 - `LiteBus.Commands.Storage.Marten`: `MartenAuditTrailOptions.UseHashChain(Action<MartenAuditHashChainBuilder>)` configures the chain with `StoreAs`, `SegmentBy`, `UseScheme`, `AcceptScheme`, `CheckpointWhen`, `SignCheckpointsWith` and `PublishCheckpointsTo`, each with a LiteBus default. Checkpoints are stored as `MartenAuditCheckpoint` documents and carry a record count, and a time-based checkpoint policy is also evaluated by a background service every `CheckpointScanInterval`. Existing chains verify unchanged under the default scheme `sha256-v1`.
 - `MessageCompletionContext.Identity` carries the mediation's resolved identity, so an `IAuditActorResolver` reads the caller from its argument instead of ambient state.
 - `LiteBus.Extensions.AspNetCore`: `LiteBusExceptionHandler`, registered with `AddLiteBusExceptionHandler()`, maps `LiteBusMessageDeniedException` and `LiteBusMessageInvalidException` through `IRefusalProblemCatalog` to the same problem details `ToHttpResult` writes; `LiteBusExceptionHandlerOptions.UnmappedRefusalCode` can report an unmapped code as a logged 500. `IRefusalProblemCatalog.TryResolve` tells a mapped code from the fallback. Invalid results carry an `errors` extension keyed by member, in the shape of `ValidationProblemDetails.Errors`.
@@ -162,6 +199,10 @@ This release makes identity and tenancy part of the pipeline, adds composable au
   - the `sha256-v2` framed scheme with a composition self-test.
 
   Stores ship for Marten, PostgreSQL and EF Core, proven by shared contract tests. Checkpoint anchors ship for S3 Object Lock, Azure immutable blobs and RFC 3161 time-stamps.
+- Audit record mappers are resolved from the mediation's scope and receive the store's write session in `AuditMappingContext.Features`; `AddScheme` defines application hash schemes such as a keyed HMAC; `SegmentBy<TDocument>(Func<TDocument, string>)` works for every store; explicit cuts take a label; expiry is safe to retry; `DailyInTenantZone` and `WeeklyInTenantZone` read each tenant's zone from `ITenantMetadataProvider`; `ConfigureCheckpointPublishing` can switch the checkpoint loop off per host.
+- HTTP problem details: a separate unmapped-code policy for validation codes (`UnmappedValidationCode`), `FieldValidationErrorsWriter` for `{ field, code, message }` errors, and the `LiteBus.Extensions.AspNetCore.OpenApi` package that adds the problem members and refusal codes to the OpenAPI document.
+- `StageDomainEvent<TEvent>()` stages a domain event unchanged as its own decision; `ICompositionModel.Handlers` lists every handler with its stage, assembly, subscriber name and delivery; `ICommandBatchParticipant` is a public batch hook.
+- `RecurringCommandHostOptions.Schedule` takes any `ISchedule`, including cron schedules.
 
 ### Changed
 
@@ -178,7 +219,7 @@ This release makes identity and tenancy part of the pipeline, adds composable au
 
 ### Breaking
 
-- The audit types (`AuditActor`, `AuditDeclaration`, `AuditedDeclaration`, `AuditExemptDeclaration`, `AuditOutcome`, `AuditRecord`, `AuditedAttribute`, `AuditExemptAttribute`, `AuditReasonMissingException`, `IAuditActorResolver`, `IAuditDefinition<TMessage>`, `IAuditOutcomeMapper`, `IAuditRecordWriter`, `IAuditScope`, `IAuditTrail`) moved from `LiteBus.Messaging.Abstractions` to `LiteBus.Messaging.Abstractions.Auditing`, so an application's own `AuditOutcome` or `AuditRecord` no longer collides with them. Add `using LiteBus.Messaging.Abstractions.Auditing;` where you use them.
+- The audit types (`AuditActor`, `AuditDeclaration`, `AuditedDeclaration`, `AuditExemptDeclaration`, `AuditOutcome`, `AuditRecord`, `AuditedAttribute`, `AuditExemptAttribute`, `AuditReasonMissingException`, `IAuditActorResolver`, `IAuditDefinition<TMessage>`, `IAuditOutcomeMapper`, `IAuditRecordWriter`, `IAuditScope`, `IAuditTrail`) moved from `LiteBus.Messaging.Abstractions` to the `LiteBus.Auditing.Abstractions` package and namespace, and the record writer moved from `LiteBus.Messaging` to `LiteBus.Auditing`. Message assemblies that declare audit positions reference `LiteBus.Auditing.Abstractions` and add `using LiteBus.Auditing.Abstractions;`.
 - `InProcessOutboxDispatchOptionsBuilder.RequireHandler` has no setter. Replace `dispatch.RequireHandler = false` with `dispatch.AllowEnvelopesWithoutHandler("reason")`; the reason is logged as a warning at startup and listed in the composition summary.
 - Composition fails when immediate dispatch is enabled without per-handler delivery and a handler class carries `[DispatchImmediately]`, which was silently ignored. Call `EnablePerHandlerDelivery()` or move the attribute to the event type.
 - The EF Core outbox and inbox storage modules add a startup task that fails startup when the configured `DbContext` cannot be resolved from a scope, naming the missing `AddDbContextFactory<TContext>` registration. Resolving `ITransactionalOutbox<TContext>` for a context no `UseDbContext<TContext>()` configured throws `LiteBusConfigurationException` instead of failing on the first enqueue.
@@ -187,14 +228,16 @@ This release makes identity and tenancy part of the pipeline, adds composable au
 - Calling `AddCommands`, `AddEvents`, `AddOutbox` or another module registration twice no longer throws: the second call configures the registered module.
 - In-process dispatch of a tenant-scoped envelope now runs the handler with that tenant in `IExecutionContext.Identity`, and the idempotency key resolver prefixes the stored key with the identity's tenant. An application that registers an `IExecutionIdentityProvider` returning tenants where it previously set no tenant on its commands stores tenant-prefixed keys from then on, so a retry that spans the upgrade is not recognised as a repeat.
 - New analyzer warnings LB1025, LB1026 and LB1027 can fail builds that treat warnings as errors.
-- `AuditCheckpoint` and `ICheckpointPublisher` move from `LiteBus.Commands.Storage.Marten` to `LiteBus.Messaging.Abstractions.Auditing`, and `AuditCheckpoint` gains `Id`, `Count`, `HashScheme`, `Kind` and `Signature`. `MartenAuditTrailOptions.UseHashChain` takes an `Action<MartenAuditHashChainBuilder>`; `SegmentOf`, `CheckpointPublisher`, `CheckpointInterval` and `DefaultSegment` are removed in favour of `SegmentBy`, `PublishCheckpointsTo` and `CheckpointWhen`. `MartenAuditTrail.VerifyChainAsync` returns `AuditChainVerification` instead of the first broken sequence. These replace the 8.0.0-preview.1 API.
+- `AuditCheckpoint` and `ICheckpointPublisher` move from `LiteBus.Commands.Storage.Marten` to `LiteBus.Auditing.Abstractions`, and `AuditCheckpoint` gains `Id`, `Count`, `HashScheme`, `Kind` and `Signature`. `MartenAuditTrailOptions.UseHashChain` takes an `Action<MartenAuditHashChainBuilder>`; `SegmentOf`, `CheckpointPublisher`, `CheckpointInterval` and `DefaultSegment` are removed in favour of `SegmentBy`, `PublishCheckpointsTo` and `CheckpointWhen`. `MartenAuditTrail.VerifyChainAsync` returns `AuditChainVerification` instead of the first broken sequence. These replace the 8.0.0-preview.1 API.
 - `RecurringCommandBatch` holds `Items` (`RecurringCommandItem`) instead of `Commands`. `RecurringCommandBatch.From(IReadOnlyList<ICommand>)` still builds a batch from plain commands.
 - Application module discovery skips private nested module types, as documented. A private nested `IApplicationModule` that was picked up by accident is no longer registered.
-- `MessagePolicy.EvaluateAsync` returns `PolicyResult` instead of `Verdict`, and `WithRefusal` rewrites denials only. A missing permission lookup, condition or sign-in instant, or an unknown policy name, now raises `MessageFaultException` (HTTP 500) instead of a denial.
-- The audit chain, checkpoint, segment, store and capture contracts move to `LiteBus.Auditing.Abstractions`; the declarations, records and trail stay in `LiteBus.Messaging.Abstractions.Auditing`. The Marten audit trail and chain move to `LiteBus.Auditing.Storage.Marten`, and `UseMartenAuditChain` with `MartenAuditTrailOptions` is replaced by `AddAuditing(auditing => auditing.UseMartenStore().UseHashChain(...))`. Success records commit with the business change by default.
+- `MessagePolicy.EvaluateAsync` returns `PolicyResult` instead of `Verdict`, and `WithRefusal` rewrites denials only. A missing permission lookup, condition, decision point, sign-in instant or recent sign-in window, or an unknown policy name, now raises `MessageFaultException` (HTTP 500) instead of a denial. `IAuthorizationCondition.EvaluateAsync` returns `PolicyResult` as well, so a condition can report a fault.
+- The audit chain, checkpoint, segment, store and capture contracts move to `LiteBus.Auditing.Abstractions`, with the declarations, records and trail. The Marten audit trail and chain move to `LiteBus.Auditing.Storage.Marten`, and `UseMartenAuditChain` with `MartenAuditTrailOptions` is replaced by `AddAuditing(auditing => auditing.UseMartenStore().UseHashChain(...))`. Success records commit with the business change by default.
 - `ICheckpointPolicy.IsDueAsync`, `IAuditRecordMapper.MapAsync` and the new `IAuditChain` members replace their synchronous or narrower predecessors.
 - `RefusalProblemCatalog.Map` throws on a conflicting mapping (`Replace` overrides), `IRefusalProblemCatalog.TryResolve` returns `false` by default, and invalid results map by outcome, defaulting to 400.
 - `ValidateComposition` checks receive `ICompositionModel`; the message catalog is its `Messages` property.
+- Auditing is configured on one module: `liteBus.Modules.AddAuditing(auditing => auditing.ForCommands()...)` selects the audited axes and holds the trail, actor resolver, outcome mapper, record writer and action checks. `messaging.AddAuditing`, the `UseAudit*` and `RequireAudit*` methods on `MessageModuleBuilder`, and `EnableAuditing()` on the axis builders are removed, and composition fails when no axis is selected. `IMessageDeclarations.Audited`, `IMessageCatalog.Audited()` and `MessageCatalogEntry.Audit` are extension methods in `LiteBus.Auditing.Abstractions` (`entry.GetAudit()`).
+- `IAuditRecordMapper` is resolved from the mediation's scope, and every audit store awaits `MapAsync` with the store's write session in `AuditMappingContext.Features`.
 
 ## Earlier Releases
 

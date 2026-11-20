@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using LiteBus.Auditing;
 using LiteBus.Auditing.Checkpoints;
 using LiteBus.Auditing.Verification;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Auditing.UnitTests.Verification;

@@ -1,6 +1,5 @@
 using LiteBus.Auditing.Hashing;
 using LiteBus.Auditing.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 using Microsoft.Extensions.DependencyInjection;
 using MessagingPreviousHashLinkRule = LiteBus.Auditing.Hashing.PreviousHashLinkRule;
 using MessagingSha256AuditHasher = LiteBus.Auditing.Hashing.Sha256AuditHasher;

@@ -8,7 +8,7 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Storage.IntegrationTests.PostgreSql;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Storage.IntegrationTests.PostgreSql.Marten;
 
@@ -163,7 +163,7 @@ public sealed class MartenAuditTrailTests : IClassFixture<PostgreSqlFixture>
         services.AddLiteBus(registry =>
         {
             registry.AddMessaging(_ => { });
-            registry.Modules.AddAuditing(auditing => auditing.UseMartenStore());
+            registry.Modules.AddAuditing(auditing => auditing.ForCommands().UseMartenStore());
 
             registry.AddCommands(commands =>
             {
@@ -172,7 +172,6 @@ public sealed class MartenAuditTrailTests : IClassFixture<PostgreSqlFixture>
                 commands.Register<AuditedBlockedOrderCommand>();
                 commands.Register<AuditedBlockedOrderCommandHandler>();
                 commands.Register<AuditedBlockedOrderGuard>();
-                commands.EnableAuditing();
                 commands.UseMartenUnitOfWork();
             });
         });

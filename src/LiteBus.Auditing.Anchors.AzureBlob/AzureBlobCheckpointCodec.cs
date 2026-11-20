@@ -2,7 +2,6 @@ using System;
 using LiteBus.Auditing.Abstractions;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.Anchors.AzureBlob;
 

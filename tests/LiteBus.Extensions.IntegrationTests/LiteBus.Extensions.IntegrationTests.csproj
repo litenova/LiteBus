@@ -22,6 +22,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\LiteBus.Commands\LiteBus.Commands.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.AspNetCore\LiteBus.Extensions.AspNetCore.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Extensions.AspNetCore.OpenApi\LiteBus.Extensions.AspNetCore.OpenApi.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Diagnostics.HealthChecks\LiteBus.Extensions.Diagnostics.HealthChecks.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Extensions.OpenTelemetry\LiteBus.Inbox.Extensions.OpenTelemetry.csproj"/>

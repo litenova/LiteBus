@@ -276,6 +276,7 @@ public sealed class ArchitectureDependencyPolicyTests
                 IsTechnologyPackage(package) || package == "Microsoft.Extensions.Logging.Abstractions",
             ProjectRole.HostAdapter =>
                 package.StartsWith("Autofac", StringComparison.Ordinal) ||
+                package == "Microsoft.AspNetCore.OpenApi" ||
                 package.StartsWith("Microsoft.Extensions.", StringComparison.Ordinal) ||
                 package.StartsWith("OpenTelemetry", StringComparison.Ordinal),
             ProjectRole.ConsumerTooling =>

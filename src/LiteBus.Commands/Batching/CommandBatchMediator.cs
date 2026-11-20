@@ -10,7 +10,6 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Commands.UnitOfWork;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Audit;
 using LiteBus.Messaging.MediationStrategies;
 using LiteBus.Messaging.Pipeline;
 using LiteBus.Runtime.Abstractions;
@@ -51,7 +50,7 @@ internal sealed class CommandBatchMediator : ICommandBatchMediator
     ///     Caches the batch send path per command runtime type, so the result-contract scan and the generic method
     ///     closure happen once per type rather than once per command.
     /// </summary>
-    private static readonly ConcurrentDictionary<Type, Func<CommandBatchMediator, ICommand, CommandMediationSettings, IMessageDispatchScope, AuditRecordBuffer?, CancellationToken, Task<BatchCommandOutcome>>> Dispatchers = new();
+    private static readonly ConcurrentDictionary<Type, Func<CommandBatchMediator, ICommand, CommandMediationSettings, IMessageDispatchScope, IReadOnlyDictionary<string, object>, CancellationToken, Task<BatchCommandOutcome>>> Dispatchers = new();
 
     /// <summary>
     ///     The open generic helper closed over each result-bearing command's declared result type for the batch path.
@@ -226,7 +225,7 @@ internal sealed class CommandBatchMediator : ICommandBatchMediator
             var batchContext = scope.ServiceProvider.GetService(typeof(CommandBatchContext)) as CommandBatchContext
                 ?? throw new LiteBusDependencyResolutionException(typeof(CommandBatchContext));
             batchContext.Begin(batchId);
-            var buffer = batchContext.AuditRecords;
+            var batchItems = new Dictionary<string, object>(StringComparer.Ordinal);
 
             IUnitOfWork? unitOfWork = null;
             IUnitOfWorkBoundary? boundary = null;
@@ -261,6 +260,13 @@ internal sealed class CommandBatchMediator : ICommandBatchMediator
 #pragma warning disable CA1031 // Every failure before the commit must roll back, record telemetry and still reach the caller.
             try
             {
+                var start = new CommandBatchStart(batchId, batchItems);
+
+                foreach (var participant in participants)
+                {
+                    await participant.BeginAsync(start, cancellationToken).ConfigureAwait(false);
+                }
+
                 if (boundary is not null)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -274,7 +280,7 @@ internal sealed class CommandBatchMediator : ICommandBatchMediator
 
                     var command = commands[index];
                     var dispatcher = Dispatchers.GetOrAdd(command.GetType(), CreateDispatcher);
-                    var outcome = await dispatcher(this, command, mediation, scope, buffer, cancellationToken).ConfigureAwait(false);
+                    var outcome = await dispatcher(this, command, mediation, scope, batchItems, cancellationToken).ConfigureAwait(false);
 
                     entries.Add(new CommandBatchEntryResult(index, command.GetType(), true, outcome.Result));
 
@@ -394,14 +400,14 @@ internal sealed class CommandBatchMediator : ICommandBatchMediator
     /// <param name="command">The command to run.</param>
     /// <param name="commandMediationSettings">The settings applied to the command.</param>
     /// <param name="scope">The dispatch scope the batch shares across its commands.</param>
-    /// <param name="buffer">The audit buffer the writer adds records to, or <see langword="null" /> outside a batch.</param>
+    /// <param name="batchItems">The items the batch participants added for every command of the batch.</param>
     /// <param name="cancellationToken">The token cancelling the command.</param>
     /// <returns>The command outcome and the refusal to rethrow when the outcome stopped the batch.</returns>
     private async Task<BatchCommandOutcome> ExecuteWithoutResultAsync(
         ICommand command,
         CommandMediationSettings commandMediationSettings,
         IMessageDispatchScope scope,
-        AuditRecordBuffer? buffer,
+        IReadOnlyDictionary<string, object> batchItems,
         CancellationToken cancellationToken)
     {
         var capture = new MediationEndingCapture();
@@ -411,7 +417,7 @@ internal sealed class CommandBatchMediator : ICommandBatchMediator
             MessageMediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand>(),
             MessageResolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy(),
             Tags = commandMediationSettings.Routing.Tags,
-            Items = CopyItems(commandMediationSettings.Items, capture, buffer),
+            Items = CopyItems(commandMediationSettings.Items, capture, batchItems),
             HandlerPredicate = commandMediationSettings.Routing.HandlerPredicate,
             DispatchScope = scope
         };
@@ -444,7 +450,7 @@ internal sealed class CommandBatchMediator : ICommandBatchMediator
     /// <param name="command">The command to run.</param>
     /// <param name="commandMediationSettings">The settings applied to the command.</param>
     /// <param name="scope">The dispatch scope the batch shares across its commands.</param>
-    /// <param name="buffer">The audit buffer the writer adds records to, or <see langword="null" /> outside a batch.</param>
+    /// <param name="batchItems">The items the batch participants added for every command of the batch.</param>
     /// <param name="cancellationToken">The token cancelling the command.</param>
     /// <returns>The command outcome and the refusal to rethrow when the outcome stopped the batch.</returns>
     private static async Task<BatchCommandOutcome> ExecuteResultBearingAsync<TCommandResult>(
@@ -452,7 +458,7 @@ internal sealed class CommandBatchMediator : ICommandBatchMediator
         ICommand command,
         CommandMediationSettings commandMediationSettings,
         IMessageDispatchScope scope,
-        AuditRecordBuffer? buffer,
+        IReadOnlyDictionary<string, object> batchItems,
         CancellationToken cancellationToken)
     {
         var typedCommand = (ICommand<TCommandResult>) command;
@@ -463,7 +469,7 @@ internal sealed class CommandBatchMediator : ICommandBatchMediator
             MessageMediationStrategy = new SingleAsyncHandlerMediationStrategy<ICommand<TCommandResult>, TCommandResult>(),
             MessageResolveStrategy = new ActualTypeOrFirstAssignableTypeMessageResolveStrategy(),
             Tags = commandMediationSettings.Routing.Tags,
-            Items = CopyItems(commandMediationSettings.Items, capture, buffer),
+            Items = CopyItems(commandMediationSettings.Items, capture, batchItems),
             HandlerPredicate = commandMediationSettings.Routing.HandlerPredicate,
             DispatchScope = scope
         };
@@ -516,16 +522,16 @@ internal sealed class CommandBatchMediator : ICommandBatchMediator
     ///     the no-result path: there is no single result type to close the generic overload over, so the pipeline
     ///     runs without a result rather than guessing which contract the caller meant.
     /// </remarks>
-    private static Func<CommandBatchMediator, ICommand, CommandMediationSettings, IMessageDispatchScope, AuditRecordBuffer?, CancellationToken, Task<BatchCommandOutcome>> CreateDispatcher(Type commandType)
+    private static Func<CommandBatchMediator, ICommand, CommandMediationSettings, IMessageDispatchScope, IReadOnlyDictionary<string, object>, CancellationToken, Task<BatchCommandOutcome>> CreateDispatcher(Type commandType)
     {
         var resultType = FindSingleResultType(commandType);
 
         if (resultType is null)
         {
-            return static (mediator, command, settings, scope, buffer, cancellationToken) => mediator.ExecuteWithoutResultAsync(command, settings, scope, buffer, cancellationToken);
+            return static (mediator, command, settings, scope, batchItems, cancellationToken) => mediator.ExecuteWithoutResultAsync(command, settings, scope, batchItems, cancellationToken);
         }
 
-        return ResultBearingMethod.MakeGenericMethod(resultType).CreateDelegate<Func<CommandBatchMediator, ICommand, CommandMediationSettings, IMessageDispatchScope, AuditRecordBuffer?, CancellationToken, Task<BatchCommandOutcome>>>();
+        return ResultBearingMethod.MakeGenericMethod(resultType).CreateDelegate<Func<CommandBatchMediator, ICommand, CommandMediationSettings, IMessageDispatchScope, IReadOnlyDictionary<string, object>, CancellationToken, Task<BatchCommandOutcome>>>();
     }
 
     /// <summary>
@@ -556,11 +562,11 @@ internal sealed class CommandBatchMediator : ICommandBatchMediator
     }
 
     /// <summary>
-    ///     Copies the caller's items and adds the ending capture and the audit buffer for one command.
+    ///     Copies the caller's items and adds the ending capture and the batch participants' items for one command.
     /// </summary>
     /// <param name="items">The items the caller supplied.</param>
     /// <param name="capture">The capture the strategy fills in.</param>
-    /// <param name="buffer">The audit buffer the writer adds records to, or <see langword="null" /> to add none.</param>
+    /// <param name="batchItems">The items the batch participants added for every command of the batch.</param>
     /// <returns>The items to pass to the mediator.</returns>
     /// <remarks>
     ///     Copied rather than mutated, because the settings object is shared across every command in the batch and
@@ -570,16 +576,16 @@ internal sealed class CommandBatchMediator : ICommandBatchMediator
     private static Dictionary<string, object> CopyItems(
         IDictionary<string, object> items,
         MediationEndingCapture capture,
-        AuditRecordBuffer? buffer)
+        IReadOnlyDictionary<string, object> batchItems)
     {
         var copy = new Dictionary<string, object>(items, StringComparer.Ordinal)
         {
             [MediationEndingCapture.ItemKey] = capture
         };
 
-        if (buffer is not null)
+        foreach (var pair in batchItems)
         {
-            copy[AuditRecordBuffer.ItemKey] = buffer;
+            copy[pair.Key] = pair.Value;
         }
 
         return copy;

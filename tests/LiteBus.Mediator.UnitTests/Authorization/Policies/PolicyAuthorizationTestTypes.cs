@@ -85,11 +85,11 @@ internal sealed class FirstPolicyCondition : IAuthorizationCondition
     }
 
     /// <inheritdoc />
-    public ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
+    public ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
     {
         _recorder.Steps.Add("first-condition");
 
-        return new ValueTask<Verdict>(Verdict.Allow);
+        return new ValueTask<PolicyResult>(PolicyResult.Allow);
     }
 }
 
@@ -115,11 +115,11 @@ internal sealed class SecondPolicyCondition : IAuthorizationCondition
     }
 
     /// <inheritdoc />
-    public ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
+    public ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
     {
         _recorder.Steps.Add("second-condition");
 
-        return new ValueTask<Verdict>(Verdict.Allow);
+        return new ValueTask<PolicyResult>(PolicyResult.Allow);
     }
 }
 
@@ -145,13 +145,13 @@ internal sealed class DenyPolicyCondition : IAuthorizationCondition
     }
 
     /// <inheritdoc />
-    public ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
+    public ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
     {
         _recorder.Steps.Add("deny-condition");
 
-        return new ValueTask<Verdict>(Verdict.Deny(
-            "the deny condition refused the message.",
-            "test.condition-deny"));
+        return new ValueTask<PolicyResult>(PolicyResult.Deny(
+            "test.condition-deny",
+            "the deny condition refused the message."));
     }
 }
 
@@ -394,7 +394,7 @@ internal sealed class InvoiceStore
 internal sealed class InvoiceAccessCondition : IAuthorizationCondition
 {
     /// <inheritdoc />
-    public ValueTask<Verdict> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
+    public ValueTask<PolicyResult> EvaluateAsync(AuthorizationContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -407,7 +407,7 @@ internal sealed class InvoiceAccessCondition : IAuthorizationCondition
             execution.Data.Set(invoice);
         }
 
-        return new ValueTask<Verdict>(Verdict.Allow);
+        return new ValueTask<PolicyResult>(PolicyResult.Allow);
     }
 }
 

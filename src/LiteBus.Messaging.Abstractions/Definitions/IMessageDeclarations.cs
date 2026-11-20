@@ -1,4 +1,3 @@
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -34,37 +33,6 @@ public interface IMessageDeclarations
     /// </remarks>
     IMessageDeclarations Declare<TValue>(TValue value)
         where TValue : notnull;
-
-    /// <summary>
-    ///     Declares that the message produces an audit record.
-    /// </summary>
-    /// <param name="action">The use-case identity written to the record, such as <c>orders.place-order</c>.</param>
-    /// <param name="category">The category used to group the record for review and retention.</param>
-    /// <param name="targetKind">The kind of resource the message acts on, such as <c>order</c>.</param>
-    /// <param name="reasonRequired">
-    ///     Whether the handler must supply a reason. A mediation that succeeds without one raises
-    ///     <see cref="AuditReasonMissingException" /> before the commit, so the work is rolled back rather than
-    ///     recorded without its justification.
-    /// </param>
-    /// <returns>The collection, for chaining.</returns>
-    /// <exception cref="System.ArgumentException"><paramref name="action" /> is null, empty, or whitespace.</exception>
-    IMessageDeclarations Audited(
-        string action,
-        string? category = null,
-        string? targetKind = null,
-        bool reasonRequired = false);
-
-    /// <summary>
-    ///     Declares that the message is deliberately not audited, and records why.
-    /// </summary>
-    /// <param name="rationale">The recorded reason the message produces no audit record.</param>
-    /// <returns>The collection, for chaining.</returns>
-    /// <exception cref="System.ArgumentException"><paramref name="rationale" /> is null, empty, or whitespace.</exception>
-    /// <remarks>
-    ///     Equivalent to <c>Exempt&lt;AuditDeclaration&gt;(rationale)</c>, and recorded as that exemption too, so the
-    ///     position satisfies <c>RequireDeclaration&lt;AuditDeclaration&gt;</c> and reads back from one place.
-    /// </remarks>
-    IMessageDeclarations NotAudited(string rationale);
 
     /// <summary>
     ///     Declares that the message requires authorization under a policy.

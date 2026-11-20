@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Auditing.Checkpoints;
 using LiteBus.Auditing.Engine;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -757,7 +756,9 @@ internal sealed class AuditVerifier<TDocument> : IAuditVerifier
             chain.RecordCount,
             LastCheckpointSequence: null,
             LastCheckpointAt: null,
-            _timeProvider.GetUtcNow());
+            _timeProvider.GetUtcNow(),
+            SegmentInfo: null,
+            Services: _serviceProvider);
 
         var due = await ResolveCheckpointPolicy().IsDueAsync(candidate, cancellationToken).ConfigureAwait(false);
 

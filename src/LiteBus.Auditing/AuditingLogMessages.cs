@@ -45,6 +45,15 @@ internal static class AuditingLogMessages
             "The checkpoint publish pass failed; the next pass runs after a backoff delay.");
 
     /// <summary>
+    ///     The delegate that writes the checkpoint publish disabled event.
+    /// </summary>
+    private static readonly Action<ILogger, Exception?> CheckpointPublishDisabledMessage =
+        LoggerMessage.Define(
+            LogLevel.Information,
+            new EventId(2710, nameof(CheckpointPublishDisabled)),
+            "The checkpoint publish and cut loop is disabled in this host; another host publishes pending checkpoints and cuts due ones.");
+
+    /// <summary>
     ///     The delegate that writes the after-commit link failed event.
     /// </summary>
     private static readonly Action<ILogger, string, Exception?> AfterCommitLinkFailedMessage =
@@ -91,6 +100,15 @@ internal static class AuditingLogMessages
     internal static void DueCheckpointCutFailed(ILogger logger, string segment, Exception exception)
     {
         DueCheckpointCutFailedMessage(logger, segment, exception);
+    }
+
+    /// <summary>
+    ///     Logs that the checkpoint publish and cut loop is disabled in this host.
+    /// </summary>
+    /// <param name="logger">The logger receiving the event.</param>
+    internal static void CheckpointPublishDisabled(ILogger logger)
+    {
+        CheckpointPublishDisabledMessage(logger, null);
     }
 
     /// <summary>

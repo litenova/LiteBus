@@ -1,3 +1,5 @@
+using LiteBus.Auditing;
+using LiteBus.Auditing.Recording;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
@@ -9,7 +11,7 @@ using LiteBus.Queries;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Pipeline;
 
@@ -58,15 +60,15 @@ public sealed class CompositionSummaryTests : LiteBusTestBase
     }
 
     [Fact]
-    public void The_summary_reports_the_audit_trail_and_its_lifetime()
+    public void The_named_audit_trail_is_resolved_and_no_actor_resolver_is_registered()
     {
         var provider = new ServiceCollection()
             .AddSingleton(new CompletionRecorder())
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
+                registry.AddAuditing(auditing => auditing
                     .UseTrail<NullAuditTrail>()
-                    .ForCommands()));
+                    .ForCommands());
 
                 registry.AddCommands(builder =>
                 {
@@ -76,12 +78,12 @@ public sealed class CompositionSummaryTests : LiteBusTestBase
             })
             .BuildServiceProvider();
 
-        var summary = provider.GetRequiredService<LiteBusCompositionSummary>();
+        provider.GetRequiredService<IAuditTrail>().Should().BeOfType<NullAuditTrail>();
+        provider.GetService(typeof(IAuditActorResolver)).Should().BeNull();
 
-        summary.AuditingEnabled.Should().BeTrue();
-        summary.AuditTrail.Should().Be("NullAuditTrail (Scoped)");
-        summary.AuditActorResolverRegistered.Should().BeFalse();
-        summary.ToString().Should().Contain("actor resolver missing");
+        provider.GetRequiredService<IMessageRegistry>().Handlers
+            .Select(handler => handler.HandlerType)
+            .Should().Contain(typeof(CommandAuditCompletionHandler));
     }
 
     [Fact]

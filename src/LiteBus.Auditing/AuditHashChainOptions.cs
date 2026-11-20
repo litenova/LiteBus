@@ -1,7 +1,8 @@
 using System;
 using LiteBus.Auditing.Abstractions;
 using System.Collections.Generic;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Hashing;
+using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Auditing;
 
@@ -15,6 +16,11 @@ namespace LiteBus.Auditing;
 /// </remarks>
 public sealed class AuditHashChainOptions
 {
+    /// <summary>
+    ///     The record hash schemes the application defined, keyed by name.
+    /// </summary>
+    private readonly Dictionary<string, AuditHashSchemeDefinition> _customSchemes = new(StringComparer.Ordinal);
+
     /// <summary>
     ///     Gets the scheme new records are written with unless <see cref="AuditHashChainBuilder.UseScheme" /> names
     ///     another.
@@ -46,9 +52,57 @@ public sealed class AuditHashChainOptions
     public Type? SegmenterType { get; internal set; }
 
     /// <summary>
+    ///     Gets the segmenter instance <c>SegmentBy</c> created from a delegate, or <see langword="null" /> when the
+    ///     container constructs <see cref="SegmenterType" />.
+    /// </summary>
+    public object? SegmenterInstance { get; internal set; }
+
+    /// <summary>
     ///     Gets the scheme new records are written with.
     /// </summary>
     public string SchemeName { get; internal set; } = DefaultSchemeName;
+
+    /// <summary>
+    ///     Gets the record hash schemes the application defined with <see cref="AuditHashChainBuilder.AddScheme" />,
+    ///     keyed by name.
+    /// </summary>
+    public IReadOnlyDictionary<string, AuditHashSchemeDefinition> CustomSchemes => _customSchemes;
+
+    /// <summary>
+    ///     Records an application-defined scheme under the one registration conflict rule.
+    /// </summary>
+    /// <param name="definition">The scheme definition.</param>
+    /// <exception cref="AuditConfigurationException">
+    ///     The name is a shipped scheme, or the name is already defined with a different hasher or link rule.
+    /// </exception>
+    internal void AddScheme(AuditHashSchemeDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        if (string.Equals(definition.Name, AuditHashSchemeNames.Sha256V1, StringComparison.Ordinal) ||
+            string.Equals(definition.Name, AuditHashSchemeNames.Sha256V2, StringComparison.Ordinal))
+        {
+            throw new AuditConfigurationException(
+                $"The audit hash scheme name '{definition.Name}' belongs to a shipped scheme. Give the application's "
+                + "scheme its own name, such as 'hmac-sha256-v1'.");
+        }
+
+        if (_customSchemes.TryGetValue(definition.Name, out var existing))
+        {
+            if (existing.IsSameAs(definition))
+            {
+                return;
+            }
+
+            throw new AuditConfigurationException(
+                $"The audit hash scheme '{definition.Name}' is defined twice with different pieces: first with hasher "
+                + $"'{existing.Hasher.GetType().Name}' and link rule '{existing.LinkRule?.GetType().Name ?? "framed"}', then with "
+                + $"hasher '{definition.Hasher.GetType().Name}' and link rule '{definition.LinkRule?.GetType().Name ?? "framed"}'. "
+                + "Define each scheme once.");
+        }
+
+        _customSchemes[definition.Name] = definition;
+    }
 
     /// <summary>
     ///     Gets the checkpoint policy instance, or <see langword="null" /> when the policy comes from

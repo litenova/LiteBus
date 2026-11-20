@@ -3,7 +3,6 @@ using LiteBus.Auditing.Abstractions;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Auditing.Hashing;

@@ -63,6 +63,7 @@ The formatter is selected by `RefusalProblemOptions.TypeFormatter` for both path
 - `void WriteErrors(ProblemDetails problem, IReadOnlyList<ValidationFailure> failures)` on `IValidationErrorsWriter`
 - `DictionaryValidationErrorsWriter` (default): `errors` as `IDictionary<string, string[]>` keyed by member with message-level failures under an empty key, plus `errorCodes` keyed by the same members with each failure code aligned by index to its message
 - `ArrayValidationErrorsWriter`: `errors` as one `ValidationErrorEntry` per failure, carrying the message as `detail`, the member as a JSON pointer, and the failure code
+- `FieldValidationErrorsWriter`: one `{ field, code, message }` object per failure under `fields`, with the extension and member names set through `FieldValidationErrorsWriterOptions`
 - `ValidationErrorEntry(string Detail, string? pointer, string? Code)`: a message-level failure carries a `null` pointer, and an uncoded failure carries a `null` code
 
 The writer is selected by `RefusalProblemOptions.ValidationErrors` for both paths, and runs only for an `Invalid` outcome that carries failures. The shape of `errors` under the default writer matches ASP.NET Core's `ValidationProblemDetails.Errors`.
@@ -101,13 +102,15 @@ Translators are scoped and asynchronous, resolved from the dispatch scope in reg
 - `RefusalProblemOptions.TypeFormatter` (default `UrnProblemTypeFormatter.Default`)
 - `RefusalProblemOptions.ValidationErrors` (default `DictionaryValidationErrorsWriter.Default`)
 - `RefusalProblemOptions.Enricher` (default `NullProblemDetailsEnricher.Default`)
-- `RefusalProblemOptions.UnmappedRefusalCode` (default `UnmappedRefusalCode.UseFallback`)
+- `RefusalProblemOptions.UnmappedRefusalCode` (default `UnmappedRefusalCode.UseFallback`), applied to denied refusals
+- `RefusalProblemOptions.UnmappedValidationCode` (default `UnmappedValidationCode.UseFallback`), applied to invalid refusals, so a host strict about denial codes can stay lenient about per-field validation codes
 - `RefusalProblemOptions.IncludeRefusalCode` (default `true`)
 - `LiteBusExceptionHandlerOptions.UnmappedRefusalCode` (default `UnmappedRefusalCode.UseFallback`)
+- `LiteBusExceptionHandlerOptions.UnmappedValidationCode` (default `UnmappedValidationCode.UseFallback`)
 - `UnmappedRefusalCode.UseFallback`: answer the outcome default with the refusal detail
 - `UnmappedRefusalCode.TreatAsServerError`: answer `500 Internal Server Error` with the `about:blank` problem type and log the unmapped code at error level
 
-`RefusalProblemOptions` registered in request services governs both paths; `LiteBusExceptionHandlerOptions.UnmappedRefusalCode` applies only when none is registered, and `AddLiteBusExceptionHandler` seeds the shared options with the configured policy. A refusal without a code always uses the outcome default, because there is no mapping to miss. A `Failed` outcome bypasses the catalog and answers `500 Internal Server Error` on both paths.
+`RefusalProblemOptions` registered in request services governs both paths; `LiteBusExceptionHandlerOptions.UnmappedRefusalCode` and `UnmappedValidationCode` apply only when none is registered, and `AddLiteBusExceptionHandler` seeds the shared options with the configured policies. The `LiteBus.Extensions.AspNetCore.OpenApi` package adds the problem members and the catalog's refusal codes to the OpenAPI document through `AddLiteBusProblemSchema`. A refusal without a code always uses the outcome default, because there is no mapping to miss. A `Failed` outcome bypasses the catalog and answers `500 Internal Server Error` on both paths.
 
 ## Packages
 

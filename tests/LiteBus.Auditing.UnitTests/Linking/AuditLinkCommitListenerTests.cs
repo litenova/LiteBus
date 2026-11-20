@@ -9,7 +9,6 @@ using LiteBus.Auditing.Engine;
 using LiteBus.Auditing.InMemory;
 using LiteBus.Auditing.Linking;
 using LiteBus.Auditing.UnitTests.Capture;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.UnitTests.Linking;
 

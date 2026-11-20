@@ -1,3 +1,4 @@
+using LiteBus.Auditing;
 using LiteBus.Events;
 using LiteBus.Queries;
 using LiteBus.Commands;
@@ -10,7 +11,7 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.FaultRefusals;
 
@@ -43,11 +44,6 @@ public sealed class RefusalExceptionTranslatorTests : LiteBusTestBase
         services.AddSingleton(calls);
         services.AddSingleton(completions);
 
-        if (trail is not null)
-        {
-            services.AddSingleton<IAuditTrail>(trail);
-        }
-
         configureTranslators(services);
 
         return services
@@ -57,6 +53,13 @@ public sealed class RefusalExceptionTranslatorTests : LiteBusTestBase
                 {
                     configureMessaging?.Invoke(messaging);
                 });
+
+                if (trail is not null)
+                {
+                    registry.AddAuditing(auditing => auditing
+                        .UseTrailInstance(trail)
+                        .ForCommands());
+                }
 
                 registry.AddCommands(configureCommands);
             })
@@ -825,7 +828,6 @@ public sealed class RefusalExceptionTranslatorTests : LiteBusTestBase
             {
                 commands.Register<AuditedConflictCommand>();
                 commands.Register<AuditedConflictCommandHandler>();
-                commands.EnableAuditing();
             },
             new FaultRefusalRecorder(),
             new CompletionRecorder(),
@@ -855,7 +857,6 @@ public sealed class RefusalExceptionTranslatorTests : LiteBusTestBase
             {
                 commands.Register<AuditedFaultCommand>();
                 commands.Register<AuditedFaultCommandHandler>();
-                commands.EnableAuditing();
             },
             new FaultRefusalRecorder(),
             new CompletionRecorder(),

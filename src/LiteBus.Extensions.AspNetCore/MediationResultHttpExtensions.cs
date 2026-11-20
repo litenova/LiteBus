@@ -25,8 +25,10 @@ public static class MediationResultHttpExtensions
     ///     <para>
     ///         The catalog maps the refusal code to its status code and title: a missing declaration, an
     ///         authorization denial, and a missing tenant answer <c>403 Forbidden</c>; a caller that is not signed in
-    ///         answers <c>401 Unauthorized</c>; a validation failure answers <c>422 Unprocessable Content</c>; a
-    ///         concurrency conflict answers <c>409 Conflict</c>; and anything else answers the outcome default. The
+    ///         answers <c>401 Unauthorized</c>; a refusal whose code starts with <c>validation.</c> answers
+    ///         <c>422 Unprocessable Content</c>; a concurrency conflict answers <c>409 Conflict</c>; and anything else,
+    ///         including an invalid result whose code has no mapping, answers the outcome default, 400 unless the host
+    ///         changed it. The
     ///         problem carries the reason the pipeline reported, the refusal code, and a stable problem type, so one
     ///         client handler reads every refusal the same way.
     ///     </para>

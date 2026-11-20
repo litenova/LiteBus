@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using LiteBus.Events.Abstractions;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Audit;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
 
@@ -65,19 +64,6 @@ public sealed class EventModule : IModule, IRequires<MessageModule>
         }
 
         DeclareEventAuthorizationDefault(messageRegistry);
-
-        // AddAuditing on the messaging module selects the axes, so a consumer configures the feature once instead of
-        // repeating the decision here. EnableAuditing stays the primitive, and registering the same handler twice is a
-        // no-op in the registry.
-        if (configuration.TryGetContext<AuditingComposition>(out var auditing) && auditing?.Events == true)
-        {
-            moduleBuilder.EnableAuditing();
-        }
-
-        if (moduleBuilder.AuditingEnabled)
-        {
-            configuration.RegisterDiagnosticCheck(typeof(AuditTrailDiagnosticCheck), AuditTrailDiagnosticCheck.CheckName);
-        }
 
         RegisterEventServices(configuration);
         // Recorded for the composition summary. Only this module knows how many messages belong to its axis, because

@@ -3,12 +3,11 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Messaging.Abstractions.Authorization;
 using LiteBus.Messaging.Abstractions.Tenancy;
-using LiteBus.Messaging.Audit;
 using LiteBus.Messaging.Authorization;
 using LiteBus.Messaging.Registry;
 using LiteBus.Messaging.Tenancy;
@@ -85,10 +84,6 @@ internal sealed class CompositionModel : ICompositionModel
         new Dictionary<Type, Type?>
         {
             [typeof(IMessageSerializer)] = typeof(SystemTextJsonMessageSerializer),
-            [typeof(IAuditOutcomeMapper)] = typeof(DefaultAuditOutcomeMapper),
-            [typeof(IAuditRecordWriter)] = typeof(AuditRecordWriter),
-            [typeof(IAuditTrail)] = null,
-            [typeof(IAuditActorResolver)] = null,
             [typeof(IPermissionLookup)] = null,
             [typeof(ISignInInstantSource)] = null,
             [typeof(ITenantMetadataProvider)] = typeof(DefaultTenantMetadataProvider),
@@ -131,6 +126,11 @@ internal sealed class CompositionModel : ICompositionModel
     private readonly IReadOnlyList<CompositionPortEntry> _ports;
 
     /// <summary>
+    ///     The handler entries, ordered for a stable snapshot.
+    /// </summary>
+    private readonly IReadOnlyList<CompositionHandlerEntry> _handlers;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="CompositionModel" /> class.
     /// </summary>
     /// <param name="messages">Every registered message and what it declares.</param>
@@ -140,6 +140,7 @@ internal sealed class CompositionModel : ICompositionModel
     /// <param name="contracts">The contract registrations the composition holds.</param>
     /// <param name="ports">The resolved implementation of every port.</param>
     /// <param name="sections">The sections features contributed to the composition.</param>
+    /// <param name="handlers">The handler entries, ordered for a stable snapshot.</param>
     private CompositionModel(
         IMessageCatalog messages,
         IReadOnlyDictionary<Type, IReadOnlyList<MessageDeclarationRecord>> declarations,
@@ -147,7 +148,8 @@ internal sealed class CompositionModel : ICompositionModel
         IReadOnlyCollection<string> registeredPolicies,
         IReadOnlyList<ContractRegistration> contracts,
         IReadOnlyList<CompositionPortEntry> ports,
-        IReadOnlyList<ICompositionSectionContributor> sections)
+        IReadOnlyList<ICompositionSectionContributor> sections,
+        IReadOnlyList<CompositionHandlerEntry> handlers)
     {
         ArgumentNullException.ThrowIfNull(messages);
         ArgumentNullException.ThrowIfNull(declarations);
@@ -164,6 +166,7 @@ internal sealed class CompositionModel : ICompositionModel
         _contracts = contracts;
         _ports = ports;
         _sections = sections;
+        _handlers = handlers;
     }
 
     /// <inheritdoc />
@@ -180,6 +183,9 @@ internal sealed class CompositionModel : ICompositionModel
 
     /// <inheritdoc />
     public IReadOnlyList<CompositionPortEntry> Ports => _ports;
+
+    /// <inheritdoc />
+    public IReadOnlyList<CompositionHandlerEntry> Handlers => _handlers;
 
     /// <inheritdoc />
     public IReadOnlyList<ICompositionSectionContributor> Sections => _sections;
@@ -274,7 +280,8 @@ internal sealed class CompositionModel : ICompositionModel
             RegisteredPolicyNamesFor(descriptors),
             ContractsFor(contracts),
             ports,
-            SectionsFor(descriptors));
+            SectionsFor(descriptors),
+            HandlersFor(reader));
     }
 
     /// <inheritdoc />
@@ -296,6 +303,7 @@ internal sealed class CompositionModel : ICompositionModel
             ["registeredPolicies"] = _registeredPolicies.ToList(),
             ["contracts"] = ContractsForJson(),
             ["ports"] = PortsForJson(),
+            ["handlers"] = HandlersForJson(),
             ["sections"] = SectionsForJson(),
         };
 
@@ -924,5 +932,128 @@ internal sealed class CompositionModel : ICompositionModel
     private static string ValueText(object value)
     {
         return string.Format(CultureInfo.InvariantCulture, "{0}", value);
+    }
+    /// <summary>
+    ///     Builds the handler entries of every registered message.
+    /// </summary>
+    /// <param name="reader">The registry holding every registered message descriptor.</param>
+    /// <returns>The entries ordered by message type name, then stage, then priority, then handler type name.</returns>
+    private static List<CompositionHandlerEntry> HandlersFor(IMessageReader reader)
+    {
+        List<CompositionHandlerEntry> entries = [];
+
+        foreach (var descriptor in reader)
+        {
+            AddHandlers(entries, descriptor.MessageType, "handler", descriptor.Handlers, false);
+            AddHandlers(entries, descriptor.MessageType, "handler", descriptor.IndirectHandlers, true);
+            AddHandlers(entries, descriptor.MessageType, "pre", descriptor.PreStageHandlers, false);
+            AddHandlers(entries, descriptor.MessageType, "pre", descriptor.IndirectPreStageHandlers, true);
+            AddHandlers(entries, descriptor.MessageType, "post", descriptor.PostHandlers, false);
+            AddHandlers(entries, descriptor.MessageType, "post", descriptor.IndirectPostHandlers, true);
+            AddHandlers(entries, descriptor.MessageType, "completion", descriptor.CompletionHandlers, false);
+            AddHandlers(entries, descriptor.MessageType, "completion", descriptor.IndirectCompletionHandlers, true);
+            AddHandlers(entries, descriptor.MessageType, "error", descriptor.ErrorHandlers, false);
+            AddHandlers(entries, descriptor.MessageType, "error", descriptor.IndirectErrorHandlers, true);
+        }
+
+        return entries
+            .OrderBy(static entry => TypeName(entry.MessageType), StringComparer.Ordinal)
+            .ThenBy(static entry => StageOrder(entry.Stage))
+            .ThenBy(static entry => entry.Priority)
+            .ThenBy(static entry => TypeName(entry.HandlerType), StringComparer.Ordinal)
+            .ThenBy(static entry => entry.Indirect)
+            .ToList();
+    }
+
+    /// <summary>
+    ///     Adds the entries of one stage of one message.
+    /// </summary>
+    /// <param name="entries">The list to add to.</param>
+    /// <param name="messageType">The message the handlers are linked to.</param>
+    /// <param name="stage">The stage name.</param>
+    /// <param name="handlers">The handler descriptors of the stage.</param>
+    /// <param name="indirect">Whether the handlers are registered for a base type or interface of the message.</param>
+    private static void AddHandlers(
+        List<CompositionHandlerEntry> entries,
+        Type messageType,
+        string stage,
+        IEnumerable<IHandlerDescriptor> handlers,
+        bool indirect)
+    {
+        foreach (var handler in handlers)
+        {
+            var handlerType = handler.HandlerType;
+
+            entries.Add(new CompositionHandlerEntry(
+                messageType,
+                handlerType,
+                handlerType.Assembly.GetName().Name ?? handlerType.Assembly.FullName ?? string.Empty,
+                stage,
+                SubscriberNameOf(handlerType),
+                handlerType.IsDefined(typeof(DispatchImmediatelyAttribute), inherit: true) ? "immediate" : "default",
+                handler.Priority,
+                indirect));
+        }
+    }
+
+    /// <summary>
+    ///     Reads the subscriber name a handler type declares, without constructing the attribute.
+    /// </summary>
+    /// <param name="handlerType">The handler type.</param>
+    /// <returns>The declared name, or <see langword="null" /> when the type declares none.</returns>
+    /// <remarks>
+    ///     The attribute rejects a blank name in its constructor. Reading the attribute data instead keeps the handler
+    ///     list from failing composition before the subscriber name check reports the blank name with its context.
+    /// </remarks>
+    private static string? SubscriberNameOf(Type handlerType)
+    {
+        foreach (var attribute in handlerType.GetCustomAttributesData())
+        {
+            if (attribute.AttributeType == typeof(SubscriberNameAttribute) &&
+                attribute.ConstructorArguments.Count == 1)
+            {
+                return attribute.ConstructorArguments[0].Value as string;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Gets the position of a stage in pipeline order.
+    /// </summary>
+    /// <param name="stage">The stage name.</param>
+    /// <returns>The stage position.</returns>
+    private static int StageOrder(string stage)
+    {
+        return stage switch
+        {
+            "pre" => 0,
+            "handler" => 1,
+            "post" => 2,
+            "error" => 3,
+            _ => 4
+        };
+    }
+
+    /// <summary>
+    ///     Renders the handler entries for <see cref="ToJson" />.
+    /// </summary>
+    /// <returns>One object per handler entry, in the entries' order.</returns>
+    private List<object?> HandlersForJson()
+    {
+        return _handlers
+            .Select(handler => (object?) new SortedDictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["message"] = TypeName(handler.MessageType),
+                ["handler"] = TypeName(handler.HandlerType),
+                ["assembly"] = handler.Assembly,
+                ["stage"] = handler.Stage,
+                ["subscriberName"] = handler.SubscriberName,
+                ["delivery"] = handler.Delivery,
+                ["priority"] = handler.Priority,
+                ["indirect"] = handler.Indirect,
+            })
+            .ToList();
     }
 }

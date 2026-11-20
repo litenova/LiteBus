@@ -1,6 +1,5 @@
 using LiteBus.Auditing;
 using LiteBus.Auditing.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Storage.Testing;
 

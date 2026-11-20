@@ -4,8 +4,8 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Auditing.Checkpoints;
 using LiteBus.Auditing.Engine;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.Segments;
 
@@ -117,7 +117,8 @@ internal sealed class AuditSegmentManager<TDocument> : IAuditSegmentManager
     /// <inheritdoc />
     /// <remarks>
     ///     The final checkpoint is cut and stored before anything is published or deleted, so a failed expiry keeps
-    ///     every record. Publishing flushes every pending checkpoint rather than only the final one, because pending
+    ///     every record. Expiry is safe to retry: a second call on an expired segment returns the stored final
+    ///     checkpoint, and a call after a failed attempt reuses the final checkpoint that attempt stored. Publishing flushes every pending checkpoint rather than only the final one, because pending
     ///     checkpoints are published as one pass.
     /// </remarks>
     public async ValueTask<AuditCheckpoint> ExpireAsync(string segment, CancellationToken cancellationToken)
@@ -132,13 +133,19 @@ internal sealed class AuditSegmentManager<TDocument> : IAuditSegmentManager
                 $"The audit segment '{segment}' holds no records, so it cannot expire.");
         }
 
+        // A retried expiry finds the final checkpoint an earlier attempt stored by its derived identifier, so a
+        // retention job that stopped after the cut, or after the head was marked expired, completes instead of failing.
+        var stored = await _store.ReadCheckpointAsync(FinalCheckpointId.For(segment), cancellationToken)
+            .ConfigureAwait(false);
+
         if (head.Expired)
         {
-            throw new InvalidOperationException(
-                $"The audit segment '{segment}' has expired already, so it cannot expire again.");
+            return stored ?? throw new InvalidOperationException(
+                $"The audit segment '{segment}' has expired, but its final checkpoint is not stored, so it cannot be "
+                + "returned. The segment was expired before final checkpoints had a derived identifier.");
         }
 
-        var checkpoint = await _checkpoints
+        var checkpoint = stored ?? await _checkpoints
             .CutAsync(segment, null, AuditCheckpointKind.Final, cancellationToken)
             .ConfigureAwait(false);
 

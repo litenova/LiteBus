@@ -9,7 +9,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Storage.PostgreSql;
 using Npgsql;
 using NpgsqlTypes;
@@ -966,6 +965,59 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
         ArgumentNullException.ThrowIfNull(document);
 
+        using var scope = await OpenScopeAsync(false, joinAmbient, cancellationToken).ConfigureAwait(false);
+        await StageInScopeAsync(scope, segment, document, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Maps a record in the scope its staged row is written in and stages the mapped document there, so anything
+    ///     the mapper writes through the connection commits or rolls back with the record.
+    /// </summary>
+    /// <param name="joinAmbient">
+    ///     Whether an active ambient business transaction is joined, which is the success path. The out-of-band path
+    ///     opens its own connection and transaction and commits them before returning.
+    /// </param>
+    /// <param name="map">Maps the record with the scope's connection and transaction.</param>
+    /// <param name="segmentOf">Returns the segment of the mapped document.</param>
+    /// <param name="cancellationToken">The token used to cancel the mapping and the staging.</param>
+    /// <returns>The staged document and its segment.</returns>
+    internal async ValueTask<(TDocument Document, string Segment)> MapAndStageAsync(
+        bool joinAmbient,
+        Func<NpgsqlConnection, NpgsqlTransaction?, ValueTask<TDocument>> map,
+        Func<TDocument, string> segmentOf,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        ArgumentNullException.ThrowIfNull(segmentOf);
+
+        using var scope = await OpenScopeAsync(true, joinAmbient, cancellationToken).ConfigureAwait(false);
+        var document = await map(scope.Connection, scope.Transaction).ConfigureAwait(false);
+        var segment = segmentOf(document);
+
+        await StageInScopeAsync(scope, segment, document, cancellationToken).ConfigureAwait(false);
+        await scope.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+        return (document, segment);
+    }
+
+    /// <summary>
+    ///     Stages an unlinked document on an open scope.
+    /// </summary>
+    /// <param name="scope">The scope to write on.</param>
+    /// <param name="segment">The segment the document belongs to. The store assigns the document to it.</param>
+    /// <param name="document">The document without a chain position.</param>
+    /// <param name="cancellationToken">The token used to cancel the staging.</param>
+    /// <returns>A task representing the asynchronous staging.</returns>
+    /// <exception cref="InvalidOperationException">The document already carries a chain position.</exception>
+    private async ValueTask StageInScopeAsync(
+        AuditStoreScope scope,
+        string segment,
+        TDocument document,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(segment);
+        ArgumentNullException.ThrowIfNull(document);
+
         var key = DocumentKey(document);
 
         if (document.Sequence != 0 ||
@@ -979,7 +1031,6 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
 
         document.Segment = segment;
 
-        using var scope = await OpenScopeAsync(false, joinAmbient, cancellationToken).ConfigureAwait(false);
         using var command = scope.CreateCommand(
             $"""
              INSERT INTO {_recordsTable} AS existing
@@ -1622,6 +1673,16 @@ public sealed class PostgreSqlAuditChainStore<TDocument> : IAuditChainStore<TDoc
 
             return new AuditStoreScope(connection, transaction, connection, transaction);
         }
+
+        /// <summary>
+        ///     Gets the connection the scope runs on.
+        /// </summary>
+        public NpgsqlConnection Connection => _connection;
+
+        /// <summary>
+        ///     Gets the transaction the scope runs in, or <see langword="null" /> when it runs without one.
+        /// </summary>
+        public NpgsqlTransaction? Transaction => _transaction;
 
         /// <summary>
         ///     Creates a command on the scope connection and transaction.

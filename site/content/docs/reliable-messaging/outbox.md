@@ -347,9 +347,12 @@ Between harvest and stage, the staging handler decides what each drained event d
 | --- | --- | --- |
 | Translate with a function | `TranslateDomainEvent<TEvent>(e => [...])` | Maps one domain event to zero or more messages to stage. An empty list stages nothing. |
 | Translate with a translator | `TranslateDomainEvent<TEvent, TTranslator>()` | Resolves `IDomainEventTranslator<TEvent>` from the dispatch scope, so the translator reads scoped services. |
+| Stage unchanged | `StageDomainEvent<TEvent>()` | Stages the event as it is, for an event whose domain shape is the published contract. The event needs a contract registration like any staged message. |
 | Ignore | `IgnoreDomainEvent<TEvent>()` | Drops the event without staging it. Ignored events need no contract registration. |
 | Publish in process | `PublishDomainEventInProcess<TEvent>()` | Publishes the event through `IEventMediator` after the commit, as a root mediation with a cause. |
 | Undecided policy | `RequireDomainEventDecision()` | Fails staging before the commit when a drained event has no registered decision. |
+
+The outbox composition section lists every decided event type with its decision kind (`Translate`, `Ignore`, `PublishInProcess` or `Stage`) and the undecided policy, so a composition check or a reviewer reads which events leave the process and how.
 
 ```csharp
 builder.AddOutbox(outbox => outbox
@@ -358,6 +361,7 @@ builder.AddOutbox(outbox => outbox
         static e => [WorkspaceErasureRequestedModuleEvent.From(e)])
     .TranslateDomainEvent<DiagnosisRecordedDomainEvent, DiagnosisRecordedTranslator>()
     .IgnoreDomainEvent<ChartOfAccountsChangedDomainEvent>()
+    .StageDomainEvent<InvoiceIssuedEvent>()
     .PublishDomainEventInProcess<OrderShippedDomainEvent>()
     .RequireDomainEventDecision());
 ```

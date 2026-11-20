@@ -2,6 +2,7 @@ using System;
 using System.Data.Common;
 using System.Reflection;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Runtime.Abstractions.Scheduling;
 
 namespace LiteBus.Commands.Recurring;
 
@@ -53,7 +54,7 @@ public sealed class RecurringCommandHostOptions
     /// <remarks>
     ///     <para>
     ///         When set, the loop waits for the next occurrence from
-    ///         <see cref="IRecurringSchedule.GetNextOccurrence" /> before the first pass and between passes, instead of
+    ///         <see cref="ISchedule.GetNextOccurrence" /> before the first pass and between passes, instead of
     ///         waiting <see cref="Interval" />. A pass that reports more work through
     ///         <see cref="IRecurringWorkReport" /> still starts the next pass at once, and a pass that fails still waits
     ///         <see cref="ErrorBackoff" />. When the schedule reports no further occurrence, the loop ends. Each
@@ -61,12 +62,14 @@ public sealed class RecurringCommandHostOptions
     ///         <see cref="MissedOccurrencePolicy" /> reads to find a miss.
     ///     </para>
     ///     <para>
-    ///         The built-in schedules live on <see cref="RecurringSchedules" />. An application with cron expressions
-    ///         implements <see cref="IRecurringSchedule" /> over its cron library and sets it here. A tenant sweep
-    ///         with <see cref="TenantSchedule" /> set reads that schedule instead of this one.
+    ///         The built-in schedules live on <see cref="RecurringSchedules" />. Cron schedules built by
+    ///         <c>CronSchedules.FromExpression</c> in the cron schedules package assign directly, and existing
+    ///         <see cref="IRecurringSchedule" /> implementations stay assignable because that contract extends
+    ///         <see cref="ISchedule" />. A tenant sweep with <see cref="TenantSchedule" /> set reads that schedule
+    ///         instead of this one.
     ///     </para>
     /// </remarks>
-    public IRecurringSchedule? Schedule { get; set; }
+    public ISchedule? Schedule { get; set; }
 
     /// <summary>
     ///     Gets or sets the per-tenant schedule that decides when a sweep's passes run.

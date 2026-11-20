@@ -1,7 +1,6 @@
 using System.Text.Json;
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing.Capture;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.UnitTests.Capture;
 

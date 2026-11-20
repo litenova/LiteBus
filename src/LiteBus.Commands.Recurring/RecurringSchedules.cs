@@ -10,8 +10,8 @@ namespace LiteBus.Commands.Recurring;
 ///     Builds the recurring schedules LiteBus ships for <see cref="RecurringCommandHostOptions.Schedule" />.
 /// </summary>
 /// <remarks>
-///     An application with cron expressions implements <see cref="IRecurringSchedule" /> over its cron library instead
-///     of using these.
+///     An application with cron expressions assigns an <c>ISchedule</c> from
+///     <c>CronSchedules.FromExpression</c> in the <c>LiteBus.Commands.Recurring.Schedules.Cron</c> package instead.
 /// </remarks>
 /// <example>
 ///     <code><![CDATA[

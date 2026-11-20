@@ -25,7 +25,7 @@ The registry accepts one class implementing several definitions, so the rule is 
 ```csharp
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 public sealed record PlaceOrderCommand : ICommand;
 
@@ -47,7 +47,7 @@ Expected diagnostic:
 ```csharp
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 public sealed record PlaceOrderCommand : ICommand;
 

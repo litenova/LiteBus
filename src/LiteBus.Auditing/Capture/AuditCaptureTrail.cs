@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Auditing.Engine;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Auditing.Capture;

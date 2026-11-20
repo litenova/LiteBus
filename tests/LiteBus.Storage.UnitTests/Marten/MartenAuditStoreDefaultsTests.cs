@@ -1,7 +1,6 @@
 using LiteBus.Auditing.Storage.Marten;
 using LiteBus.Auditing.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
-using LiteBus.Messaging.Audit;
+using LiteBus.Auditing.Recording;
 using LiteBus.Auditing.Hashing;
 
 namespace LiteBus.Storage.UnitTests.Marten;

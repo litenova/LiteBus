@@ -42,7 +42,7 @@ public static class PostgreSqlOutboxModuleBuilderMartenExtensions
     }
 
     /// <summary>
-    ///     Harvests domain events from the pending inserts and updates of the scoped Marten document session before collected events stage.
+    ///     Harvests domain events from the pending inserts, updates and deletions of the scoped Marten document session before collected events stage.
     /// </summary>
     /// <param name="builder">The PostgreSQL outbox module builder.</param>
     /// <returns>The PostgreSQL outbox module builder for chaining.</returns>

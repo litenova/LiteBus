@@ -1,7 +1,6 @@
 using System.Threading;
 using LiteBus.Auditing.Abstractions;
 using System.Threading.Tasks;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.Engine;
 

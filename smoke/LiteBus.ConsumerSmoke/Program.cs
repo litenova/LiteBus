@@ -17,6 +17,9 @@ using Microsoft.EntityFrameworkCore;
 // PostgreSQL, and Entity Framework Core audit stores with their hash chains) on a real PostgreSQL server, so a
 // dependency release that removes or changes one of those APIs fails here with the exception an application would see.
 await Smoke.RunAsync("Generic message dispatch", GenericDispatchSmoke.RunAsync).ConfigureAwait(false);
+await Smoke.RunAsync("Recurring command on a cron schedule", RecurringCronSmoke.RunAsync).ConfigureAwait(false);
+await Smoke.RunAsync("OpenAPI problem schema", OpenApiProblemSchemaSmoke.RunAsync).ConfigureAwait(false);
+await Smoke.RunAsync("Composition model handler list", CompositionHandlersSmoke.RunAsync).ConfigureAwait(false);
 
 var connectionString = Environment.GetEnvironmentVariable("LITEBUS_SMOKE_POSTGRES")
                        ?? throw new InvalidOperationException("Set LITEBUS_SMOKE_POSTGRES to a PostgreSQL connection string.");
@@ -40,5 +43,8 @@ await Smoke.RunAsync("Marten idempotency settlement", () => IdempotencySettlemen
 await Smoke.RunAsync("Marten audit store", () => AuditMartenSmoke.RunAsync(connectionString)).ConfigureAwait(false);
 await Smoke.RunAsync("PostgreSQL audit store", () => AuditPostgreSqlSmoke.RunAsync(connectionString)).ConfigureAwait(false);
 await Smoke.RunAsync("Entity Framework Core audit store", () => AuditEntityFrameworkCoreSmoke.RunAsync(connectionString)).ConfigureAwait(false);
+await Smoke.RunAsync("Audit record mapper in the mediation scope", () => AuditMapperSmoke.RunAsync(connectionString)).ConfigureAwait(false);
+await Smoke.RunAsync("Audit chain operations", () => AuditChainOperationsSmoke.RunAsync(connectionString)).ConfigureAwait(false);
+await Smoke.RunAsync("Domain events staged unchanged", () => DomainEventStageSmoke.RunAsync(connectionString)).ConfigureAwait(false);
 
 Console.WriteLine("Consumer smoke test passed.");

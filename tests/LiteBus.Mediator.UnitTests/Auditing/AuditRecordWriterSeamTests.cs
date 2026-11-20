@@ -1,15 +1,16 @@
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
+using LiteBus.Auditing;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Audit;
+using LiteBus.Auditing.Recording;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Auditing;
 
@@ -32,12 +33,12 @@ public sealed class AuditRecordWriterSeamTests : LiteBusTestBase
         var writer = new ShapeOfItsOwnAuditRecordWriter();
 
         var provider = new ServiceCollection()
-            .AddSingleton<IAuditTrail>(trail)
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(trail)
                     .UseRecordWriterInstance(writer)
-                    .ForCommands()));
+                    .ForCommands());
 
                 registry.AddCommands(builder =>
                 {
@@ -65,9 +66,10 @@ public sealed class AuditRecordWriterSeamTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(new RecordingAuditTrail())
                     .UseRecordWriter<CountingAuditRecordWriter>(InstanceLifetime.Singleton)
-                    .ForCommands()));
+                    .ForCommands());
 
                 registry.AddCommands(builder =>
                 {
@@ -88,14 +90,15 @@ public sealed class AuditRecordWriterSeamTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task The_probe_reports_the_writer_instead_of_demanding_a_trail()
+    public async Task The_probe_reports_the_writer_instead_of_assessing_the_trail()
     {
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(new RecordingAuditTrail())
                     .UseRecordWriter<CountingAuditRecordWriter>(InstanceLifetime.Singleton)
-                    .ForCommands()));
+                    .ForCommands());
 
                 registry.AddCommands(builder =>
                 {
@@ -112,21 +115,22 @@ public sealed class AuditRecordWriterSeamTests : LiteBusTestBase
         var audit = diagnostics.Probes
             .Should().ContainSingle(probe => probe.Name == AuditTrailDiagnosticCheck.CheckName).Subject;
 
-        // No IAuditTrail is registered anywhere, which for the built-in writer is unhealthy and correct. A writer
-        // LiteBus did not build may never touch a trail, so demanding one reports a working configuration as broken.
+        // The trail has no actor resolver, which makes the built-in writer degraded. A writer LiteBus did not build
+        // may never touch a trail or an actor resolver, so the probe names that writer instead of assessing them.
         audit.Status.Should().Be(DiagnosticStatus.Healthy);
         audit.Data!["recordWriter"].Should().Be("CountingAuditRecordWriter (Singleton)");
     }
 
     [Fact]
-    public void The_summary_names_the_writer_that_replaced_the_built_in_one()
+    public void A_replacement_writer_is_resolved_instead_of_the_framework_default()
     {
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(new RecordingAuditTrail())
                     .UseRecordWriter<CountingAuditRecordWriter>(InstanceLifetime.Singleton)
-                    .ForCommands()));
+                    .ForCommands());
 
                 registry.AddCommands(builder =>
                 {
@@ -136,20 +140,23 @@ public sealed class AuditRecordWriterSeamTests : LiteBusTestBase
             })
             .BuildServiceProvider();
 
-        var summary = provider.GetRequiredService<LiteBusCompositionSummary>();
+        provider.GetRequiredService<IAuditRecordWriter>().Should().BeOfType<CountingAuditRecordWriter>();
 
-        summary.AuditRecordWriter.Should().Be("CountingAuditRecordWriter (Singleton)");
-        summary.ToString().Should().Contain("record writer CountingAuditRecordWriter (Singleton)");
+        // The composition model reports only framework defaults and replacements of known ports. A writer LiteBus
+        // did not build leaves no default entry, because there is no default product left to name.
+        provider.GetRequiredService<ICompositionModel>().Ports
+            .Should().NotContain(port => port.PortType == typeof(IAuditRecordWriter));
     }
 
     [Fact]
-    public void The_summary_says_nothing_about_the_writer_when_the_built_in_one_is_in_use()
+    public void The_built_in_writer_is_the_one_the_container_resolves()
     {
         var provider = new ServiceCollection()
-            .AddSingleton<IAuditTrail>(new RecordingAuditTrail())
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing.ForCommands()));
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(new RecordingAuditTrail())
+                    .ForCommands());
 
                 registry.AddCommands(builder =>
                 {
@@ -159,9 +166,10 @@ public sealed class AuditRecordWriterSeamTests : LiteBusTestBase
             })
             .BuildServiceProvider();
 
-        var summary = provider.GetRequiredService<LiteBusCompositionSummary>();
+        provider.GetRequiredService<IAuditRecordWriter>().Should().BeOfType<AuditRecordWriter>();
 
-        summary.AuditRecordWriter.Should().BeNull();
-        summary.ToString().Should().NotContain("record writer");
+        provider.GetRequiredService<ICompositionModel>().Ports
+            .Should().ContainSingle(port => port.PortType == typeof(IAuditRecordWriter))
+            .Which.ImplementationType.Should().Be<AuditRecordWriter>();
     }
 }

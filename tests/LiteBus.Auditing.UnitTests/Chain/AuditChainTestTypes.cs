@@ -2,7 +2,6 @@ using System.Globalization;
 using LiteBus.Auditing.Abstractions;
 using System.Security.Cryptography;
 using System.Text;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Auditing.Checkpoints;
 using LiteBus.Auditing.Verification;
 using LiteBus.Auditing.Hashing;

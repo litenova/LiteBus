@@ -251,7 +251,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               using System.Threading.Tasks;
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
-                              using LiteBus.Messaging.Abstractions.Auditing;
+                              using LiteBus.Auditing.Abstractions;
 
                               public sealed record CreateUserCommand(string Name) : ICommand;
                               public sealed record AuditUserCommand(string Name) : ICommand;
@@ -297,7 +297,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               using System.Threading.Tasks;
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
-                              using LiteBus.Messaging.Abstractions.Auditing;
+                              using LiteBus.Auditing.Abstractions;
                               using LiteBus.Queries.Abstractions;
 
                               public sealed record CreateUserCommand(string Name) : ICommand;
@@ -480,7 +480,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               using System.Threading.Tasks;
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
-                              using LiteBus.Messaging.Abstractions.Auditing;
+                              using LiteBus.Auditing.Abstractions;
 
                               public sealed record CreateUserCommand(string Name) : ICommand;
                               public sealed record AuditUserCommand(string Name) : ICommand;
@@ -517,7 +517,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               using System.Threading.Tasks;
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
-                              using LiteBus.Messaging.Abstractions.Auditing;
+                              using LiteBus.Auditing.Abstractions;
                               using LiteBus.Queries.Abstractions;
 
                               public sealed record GetUserQuery(int UserId) : IQuery<string>;

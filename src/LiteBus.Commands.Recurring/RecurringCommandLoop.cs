@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
+using LiteBus.Runtime.Abstractions.Scheduling;
 using Microsoft.Extensions.Logging;
 
 namespace LiteBus.Commands.Recurring;
@@ -231,7 +232,7 @@ internal sealed class RecurringCommandLoop
         }
         else if (schedule is not null && occurrenceStore is not null)
         {
-            IRecurringSchedule activeSchedule = schedule;
+            ISchedule activeSchedule = schedule;
 
             // A scheduled loop aligns to wall-clock occurrences from the start: the first pass waits for the first
             // occurrence instead of running right after the startup delay, unless a recent miss is owed a catch-up.
@@ -461,7 +462,7 @@ internal sealed class RecurringCommandLoop
                 }
                 else if (schedule is not null && occurrenceStore is not null)
                 {
-                    IRecurringSchedule activeSchedule = schedule;
+                    ISchedule activeSchedule = schedule;
 
                     var basis = _timeProvider.GetUtcNow();
                     var plan = await RecurringOccurrencePlanner.PlanAsync(

@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.Capture;
 

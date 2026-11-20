@@ -1,7 +1,6 @@
 using System;
 using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing.Checkpoints;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Auditing.Anchors.S3;
 

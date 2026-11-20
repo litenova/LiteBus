@@ -3,7 +3,8 @@ using LiteBus.Auditing.Abstractions;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Auditing.Linking;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Recording;
+using Microsoft.EntityFrameworkCore;
 
 namespace LiteBus.Auditing.Storage.EntityFrameworkCore;
 
@@ -59,6 +60,12 @@ public sealed class EfCoreAuditTrail<TDocument> : IAuditTrail
     private readonly AuditStagedSegments? _stagedSegments;
 
     /// <summary>
+    ///     Gets the dispatch-scope provider the record mapper resolves services from when no mediation context is
+    ///     current, or <see langword="null" />.
+    /// </summary>
+    private readonly IServiceProvider? _serviceProvider;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="EfCoreAuditTrail{TDocument}" /> class.
     /// </summary>
     /// <param name="store">The chain store that stages documents.</param>
@@ -81,15 +88,57 @@ public sealed class EfCoreAuditTrail<TDocument> : IAuditTrail
         _store = store;
         _mapper = mapper;
         _segmenter = segmenter;
+        _serviceProvider = serviceProvider;
         _stagedSegments = serviceProvider?.GetService(typeof(AuditStagedSegments)) as AuditStagedSegments;
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     The mapper runs through <see cref="IAuditRecordMapper{TDocument}.MapAsync" /> with the context the record is
+    ///     written on, offered as the <see cref="DbContext" /> feature, so an entity the mapper adds commits or rolls
+    ///     back with the record.
+    /// </remarks>
     public async Task WriteAsync(AuditRecord record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);
 
-        var document = _mapper.Map(record);
+        var mapping = AuditMappingScope.Resolve(record, _serviceProvider);
+
+        if (record.Outcome == AuditOutcome.Succeeded)
+        {
+            // Staged, not saved: the unit-of-work completion handler runs after the audit writer and commits the
+            // scoped context, so the record commits in the same SaveChanges as the handler change.
+            mapping.Features.Set(_store.BusinessContext);
+
+            var document = await _mapper.MapAsync(record, mapping, cancellationToken).ConfigureAwait(false);
+            var segment = SegmentOf(record, document);
+
+            await _store.StageAsync(segment, document, cancellationToken).ConfigureAwait(false);
+            _stagedSegments?.Add(segment);
+            return;
+        }
+
+        // The unit of work rolls the scoped context back on this path, so staging there would lose the record.
+        // An isolated context saves it immediately instead, with whatever the mapper added to it.
+        await _store.StageOutOfBandCoreAsync(
+            context =>
+            {
+                mapping.Features.Set(context);
+                return _mapper.MapAsync(record, mapping, cancellationToken);
+            },
+            document => SegmentOf(record, document),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Gets the segment of a mapped document.
+    /// </summary>
+    /// <param name="record">The record the document was mapped from, named in the error.</param>
+    /// <param name="document">The mapped document.</param>
+    /// <returns>The segment.</returns>
+    /// <exception cref="InvalidOperationException">The segmenter returned no segment.</exception>
+    private string SegmentOf(AuditRecord record, TDocument document)
+    {
         var segment = _segmenter.SegmentOf(document);
 
         if (string.IsNullOrWhiteSpace(segment))
@@ -99,17 +148,6 @@ public sealed class EfCoreAuditTrail<TDocument> : IAuditTrail
                 "Return a stable segment name from the configured segmenter.");
         }
 
-        if (record.Outcome == AuditOutcome.Succeeded)
-        {
-            // Staged, not saved: the unit-of-work completion handler runs after the audit writer and commits the
-            // scoped context, so the record commits in the same SaveChanges as the handler change.
-            await _store.StageAsync(segment, document, cancellationToken).ConfigureAwait(false);
-            _stagedSegments?.Add(segment);
-            return;
-        }
-
-        // The unit of work rolls the scoped context back on this path, so staging there would lose the record.
-        // An isolated context saves it immediately instead.
-        await _store.StageOutOfBandAsync(segment, document, cancellationToken).ConfigureAwait(false);
+        return segment;
     }
 }

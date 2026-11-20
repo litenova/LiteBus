@@ -3,7 +3,6 @@ using LiteBus.Auditing.Abstractions;
 using LiteBus.Auditing;
 using LiteBus.Auditing.Engine;
 using LiteBus.Auditing.Segments;
-using LiteBus.Messaging.Abstractions.Auditing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LiteBus.Auditing.UnitTests.Segments;
@@ -226,7 +225,7 @@ public sealed class AuditSegmentManagerTests
         var act = async () => await manager.ExpireAsync("workspace:a", CancellationToken.None).ConfigureAwait(false);
 
         var thrown = await act.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
-        thrown.WithMessage("*has expired already*");
+        thrown.WithMessage("*has expired*final checkpoint is not stored*");
         lifecycle.CutCalls.Should().BeEmpty();
         lifecycle.PublishPendingCalls.Should().Be(0);
     }

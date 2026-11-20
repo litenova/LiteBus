@@ -1,3 +1,4 @@
+using LiteBus.Auditing;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
@@ -5,7 +6,7 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Auditing;
 
@@ -24,12 +25,13 @@ public sealed class AuditSelectorTests : LiteBusTestBase
     private static ServiceProvider BuildProvider(RecordingAuditTrail trail)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IAuditTrail>(trail);
 
         return services
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(_ => { });
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(trail)
+                    .ForCommands());
 
                 registry.AddCommands(builder =>
                 {
@@ -45,7 +47,6 @@ public sealed class AuditSelectorTests : LiteBusTestBase
                     builder.Register<ThrowingSelectorWithScopeCommand>();
                     builder.Register<ThrowingSelectorWithScopeCommandHandler>();
                     builder.Register<ThrowingSelectorWithScopeCommandDefinition>();
-                    builder.EnableAuditing();
                 });
             })
             .BuildServiceProvider();

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -26,16 +25,6 @@ public interface IMessageCatalog : IEnumerable<MessageCatalogEntry>
     ///     Gets the number of registered messages in the catalog.
     /// </summary>
     int Count { get; }
-
-    /// <summary>
-    ///     Gets every audited message and the action it declares.
-    /// </summary>
-    /// <returns>One entry per message declaring an <see cref="AuditedDeclaration" />.</returns>
-    /// <remarks>
-    ///     The audit catalogue is the compliance artifact teams most often maintain by hand and keep wrong, and it is a
-    ///     pure function of the declarations. This is the traversal to build it from.
-    /// </remarks>
-    IEnumerable<MessageCatalogEntry> Audited();
 
     /// <summary>
     ///     Gets every message in scope that states no position on a metadata value type.

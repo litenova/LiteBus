@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Analyzers.UnitTests;
 
@@ -66,7 +66,7 @@ internal static class LiteBusSourceGenerator
         builder.AppendLine("using LiteBus.Events.Abstractions;");
         builder.AppendLine("using LiteBus.Inbox.Abstractions;");
         builder.AppendLine("using LiteBus.Messaging.Abstractions;");
-        builder.AppendLine("using LiteBus.Messaging.Abstractions.Auditing;");
+        builder.AppendLine("using LiteBus.Auditing.Abstractions;");
         builder.AppendLine("using LiteBus.Outbox.Abstractions;");
         builder.AppendLine("using LiteBus.Queries.Abstractions;");
         builder.AppendLine("using LiteBus.Inbox.Storage.EntityFrameworkCore;");

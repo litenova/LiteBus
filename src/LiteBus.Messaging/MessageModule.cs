@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Audit;
 using LiteBus.Messaging.Composition;
 using LiteBus.Messaging.Idempotency;
 using LiteBus.Messaging.Mediator;
@@ -10,7 +9,6 @@ using LiteBus.Messaging.Pipeline;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
-using LiteBus.Messaging.Abstractions.Auditing;
 
 namespace LiteBus.Messaging;
 
@@ -85,36 +83,12 @@ public sealed class MessageModule : IModule
             moduleBuilder.TimeProvider,
             moduleBuilder.Serializer,
             moduleBuilder.SerializerLifetime,
-            moduleBuilder.AuditOutcomeMapper,
-            moduleBuilder.AuditTrail,
-            moduleBuilder.AuditTrailLifetime,
-            moduleBuilder.AuditActorResolver,
-            moduleBuilder.AuditActorResolverLifetime,
-            moduleBuilder.AuditRecordWriter,
-            moduleBuilder.AuditRecordWriterLifetime,
             moduleBuilder.FaultRefusalClassifiers);
         ModuleRegistration.RegisterNewHandlers(configuration, messageRegistry, startIndex);
 
         foreach (var step in moduleBuilder.BuildSteps)
         {
             step(configuration);
-        }
-
-        // Published for the axis modules, which build after this one because they declare IRequires<MessageModule>.
-        // AddAuditing decides the axes here so the consumer does not repeat the decision on each axis builder.
-        if (moduleBuilder.Auditing is not null)
-        {
-            configuration.SetContext(moduleBuilder.Auditing);
-
-            // A trail with no axis selected is the whole feature wired and inert, which no probe can report as
-            // unhealthy because nothing is wrong at runtime: no message is ever audited, so nothing ever fails. It is
-            // only detectable here, where the intent to audit is visible next to the absence of anything to audit.
-            if (!moduleBuilder.Auditing.AnyAxis)
-            {
-                throw new AuditConfigurationException(
-                    "AddAuditing configured the audit trail but selected no axis, so no message would ever produce a "
-                    + "record. Call ForCommands, ForQueries, ForEvents, or ForAllAxes to say what to audit.");
-            }
         }
 
         // Registered now and filled in after every module has built, because none of the counts exist yet. Sharing
@@ -198,7 +172,7 @@ public sealed class MessageModule : IModule
     /// </summary>
     /// <param name="summary">The summary registered during build.</param>
     /// <param name="reader">The registry holding every registered message and open generic closure.</param>
-    /// <param name="moduleBuilder">The messaging builder, read for the audit and declaration configuration.</param>
+    /// <param name="moduleBuilder">The messaging builder, read for the declaration configuration.</param>
     /// <remarks>
     ///     Runs as a composition validation rather than during build, because the message count, the axis counts and
     ///     the open generic closures are all only complete after the last axis module has registered its types.
@@ -209,23 +183,7 @@ public sealed class MessageModule : IModule
         MessageModuleBuilder moduleBuilder)
     {
         summary.MessageCount = reader.Count;
-        summary.AuditingEnabled = moduleBuilder.Auditing?.AnyAxis == true;
-        summary.AuditActorResolverRegistered = moduleBuilder.AuditActorResolver is not null;
         summary.CompositionChecks = moduleBuilder.CompositionChecks.Count;
-
-        summary.AuditTrail = moduleBuilder.AuditTrail switch
-        {
-            Type trailType => $"{trailType.Name} ({moduleBuilder.AuditTrailLifetime})",
-            null => null,
-            var instance => $"{instance.GetType().Name} (Singleton)"
-        };
-
-        summary.AuditRecordWriter = moduleBuilder.AuditRecordWriter switch
-        {
-            Type writerType => $"{writerType.Name} ({moduleBuilder.AuditRecordWriterLifetime})",
-            null => null,
-            var instance => $"{instance.GetType().Name} (Singleton)"
-        };
 
         foreach (var (handlerType, closures) in reader.OpenGenericClosures)
         {
@@ -357,13 +315,6 @@ public sealed class MessageModule : IModule
     /// <param name="timeProvider">The optional time provider registered for messaging services.</param>
     /// <param name="messageSerializer">The serializer instance or implementation type, or null for the built-in one.</param>
     /// <param name="messageSerializerLifetime">The lifetime a serializer implementation type is registered with.</param>
-    /// <param name="auditOutcomeMapper">The optional audit outcome mapper registered for the audit writer.</param>
-    /// <param name="auditTrail">The audit trail registered through the builder, when the application supplied one there.</param>
-    /// <param name="auditTrailLifetime">The lifetime an audit trail implementation type is registered with.</param>
-    /// <param name="auditActorResolver">The audit actor resolver registered through the builder, when there is one.</param>
-    /// <param name="auditActorResolverLifetime">The lifetime an actor resolver implementation type is registered with.</param>
-    /// <param name="auditRecordWriter">The audit record writer registered through the builder, or null for the built-in one.</param>
-    /// <param name="auditRecordWriterLifetime">The lifetime an audit record writer implementation type is registered with.</param>
     /// <param name="faultRefusalClassifiers">The classifier implementation types and instances, in registration order.</param>
     private static void RegisterMessagingServices(
         IModuleConfiguration configuration,
@@ -372,13 +323,6 @@ public sealed class MessageModule : IModule
         TimeProvider? timeProvider,
         object? messageSerializer,
         InstanceLifetime messageSerializerLifetime,
-        IAuditOutcomeMapper? auditOutcomeMapper,
-        object? auditTrail,
-        InstanceLifetime auditTrailLifetime,
-        object? auditActorResolver,
-        InstanceLifetime auditActorResolverLifetime,
-        object? auditRecordWriter,
-        InstanceLifetime auditRecordWriterLifetime,
         IReadOnlyList<object> faultRefusalClassifiers)
     {
         // Register message registry as singleton.
@@ -450,24 +394,6 @@ public sealed class MessageModule : IModule
             static _ => AmbientExecutionContext.Current,
             InstanceLifetime.Scoped));
 
-        // The audit scope is stateless: it reads and writes the ambient execution context, so a singleton is correct
-        // and remains safe under concurrency because two mediations never share an execution context.
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IAuditScope),
-            new AmbientAuditScope()));
-
-        // Applications supply their own mapper to record a refusal exception as a denial rather than a failure.
-        // The built-in mapper registers as the port default, so the composition model reports whether the
-        // application replaced it.
-        configuration.DependencyRegistry.Register(auditOutcomeMapper is null
-            ? DependencyDescriptor.ForDefaultPort(typeof(IAuditOutcomeMapper), new DefaultAuditOutcomeMapper())
-            : new DependencyDescriptor(typeof(IAuditOutcomeMapper), auditOutcomeMapper));
-
-        RegisterAuditTrail(configuration, auditTrail, auditTrailLifetime);
-        RegisterAuditActorResolver(configuration, auditActorResolver, auditActorResolverLifetime);
-
-        RegisterAuditRecordWriter(configuration, auditRecordWriter, auditRecordWriterLifetime);
-
         // The key resolver reads a declaration resolved once at registration, so it holds no state and a singleton is
         // correct. The store itself is application-supplied and is not registered here.
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -512,148 +438,6 @@ public sealed class MessageModule : IModule
                     entry));
             }
         }
-    }
-
-    /// <summary>
-    ///     Registers the audit trail the builder was given, when it was given one.
-    /// </summary>
-    /// <param name="configuration">The module configuration.</param>
-    /// <param name="auditTrail">The trail instance or implementation type, or null when the application registers it itself.</param>
-    /// <param name="lifetime">The lifetime an implementation type is registered with; an instance is always a singleton.</param>
-    /// <remarks>
-    ///     An application may register the trail with its own container instead, which is what the
-    ///     <c>litebus.audit.trail</c> probe checks for. Configuring it here keeps the whole feature on one builder.
-    /// </remarks>
-    private static void RegisterAuditTrail(
-        IModuleConfiguration configuration,
-        object? auditTrail,
-        InstanceLifetime lifetime)
-    {
-        switch (auditTrail)
-        {
-            case null:
-                return;
-
-            case Type trailType:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    typeof(IAuditTrail),
-                    trailType,
-                    lifetime));
-                return;
-
-            default:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    typeof(IAuditTrail),
-                    auditTrail));
-                return;
-        }
-    }
-
-    /// <summary>
-    ///     Registers the audit record writer: the application's, when it replaced it, and otherwise the built-in one.
-    /// </summary>
-    /// <param name="configuration">The module configuration.</param>
-    /// <param name="auditRecordWriter">The writer implementation type, the writer instance, or null for the built-in one.</param>
-    /// <param name="lifetime">The lifetime a writer implementation type is registered with.</param>
-    /// <remarks>
-    ///     The built-in writer is registered through a factory rather than by type on purpose. It needs an
-    ///     <see cref="IAuditTrail" /> that only an application auditing its messages registers, and a by-type
-    ///     registration makes a container running <c>ValidateOnBuild</c> fail at startup for every application that is
-    ///     not auditing at all. The factory defers the lookup to the first audited mediation and names the fix when it
-    ///     is missing; the <c>litebus.audit.trail</c> probe reports it earlier still. A replacement is registered
-    ///     normally, because what it depends on is the application's business.
-    /// </remarks>
-    private static void RegisterAuditRecordWriter(
-        IModuleConfiguration configuration,
-        object? auditRecordWriter,
-        InstanceLifetime lifetime)
-    {
-        switch (auditRecordWriter)
-        {
-            case Type writerType:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    typeof(IAuditRecordWriter),
-                    writerType,
-                    lifetime));
-                return;
-
-            case not null:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    typeof(IAuditRecordWriter),
-                    auditRecordWriter));
-                return;
-
-            default:
-                configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
-                    typeof(IAuditRecordWriter),
-                    CreateAuditRecordWriter,
-                    InstanceLifetime.Scoped));
-                return;
-        }
-    }
-
-    /// <summary>
-    ///     Registers the audit actor resolver the builder was given, when it was given one.
-    /// </summary>
-    /// <param name="configuration">The module configuration.</param>
-    /// <param name="auditActorResolver">
-    ///     The resolver instance or implementation type, or null when the application registers it itself or does not
-    ///     attribute its records.
-    /// </param>
-    /// <param name="lifetime">The lifetime an implementation type is registered with; an instance is always a singleton.</param>
-    /// <remarks>
-    ///     A missing resolver is not a composition failure. Auditing without attribution is a poorer trail rather than
-    ///     a broken one, and an application may register the resolver with its own container; the
-    ///     <c>litebus.audit.trail</c> probe reports the gap either way.
-    /// </remarks>
-    private static void RegisterAuditActorResolver(
-        IModuleConfiguration configuration,
-        object? auditActorResolver,
-        InstanceLifetime lifetime)
-    {
-        switch (auditActorResolver)
-        {
-            case null:
-                return;
-
-            case Type resolverType:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    typeof(IAuditActorResolver),
-                    resolverType,
-                    lifetime));
-                return;
-
-            default:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    typeof(IAuditActorResolver),
-                    auditActorResolver));
-                return;
-        }
-    }
-
-    /// <summary>
-    ///     Creates the audit record writer, reporting a missing trail as configuration rather than a null reference.
-    /// </summary>
-    /// <param name="serviceProvider">The scope the writer is being resolved from.</param>
-    /// <returns>The writer bound to the registered trail.</returns>
-    /// <exception cref="AuditConfigurationException">
-    ///     Auditing is enabled but no <see cref="IAuditTrail" /> is registered.
-    /// </exception>
-    private static AuditRecordWriter CreateAuditRecordWriter(IServiceProvider serviceProvider)
-    {
-        var trail = (IAuditTrail?) serviceProvider.GetService(typeof(IAuditTrail))
-                    ?? throw new AuditConfigurationException(
-                        "Auditing is enabled but no IAuditTrail is registered, so audit records cannot be written. "
-                        + "Register one with UseAuditTrail on the messaging module builder, or with the application "
-                        + "container. The litebus.audit.trail diagnostic check reports this before the first message "
-                        + "arrives.");
-
-        return new AuditRecordWriter(
-            trail,
-            (IMessageRegistry) serviceProvider.GetService(typeof(IMessageRegistry))!,
-            (IAuditOutcomeMapper) serviceProvider.GetService(typeof(IAuditOutcomeMapper))!,
-            (TimeProvider) serviceProvider.GetService(typeof(TimeProvider))!,
-            (IAuditActorResolver?) serviceProvider.GetService(typeof(IAuditActorResolver)));
     }
 
     /// <summary>

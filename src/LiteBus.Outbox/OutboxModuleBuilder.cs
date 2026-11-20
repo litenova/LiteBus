@@ -47,6 +47,11 @@ public sealed class OutboxModuleBuilder
     private readonly HashSet<Type> _inProcessDomainEvents = [];
 
     /// <summary>
+    ///     The domain event types staged unchanged.
+    /// </summary>
+    private readonly HashSet<Type> _stagedDomainEvents = [];
+
+    /// <summary>
     ///     What the staging handler does with a domain event type that has no registered decision.
     /// </summary>
     private UndecidedDomainEventPolicy _undecidedDomainEventPolicy = UndecidedDomainEventPolicy.StageAsIs;
@@ -569,6 +574,34 @@ public sealed class OutboxModuleBuilder
     }
 
     /// <summary>
+    ///     Stages one domain event type unchanged, in its collected shape.
+    /// </summary>
+    /// <typeparam name="TEvent">The closed domain event type to stage unchanged.</typeparam>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Staged events reach the transactional outbox in their collected shape, so the event type needs a
+    ///         contract registration. Use this for events whose collected shape is already the published contract,
+    ///         so the decision reads as intent instead of an identity translation. A staged event type counts as
+    ///         decided under <see cref="RequireDomainEventDecision" />.
+    ///     </para>
+    ///     <para>
+    ///         A domain event type declares one decision. Staging the same event type twice is a no-op; a different
+    ///         decision for the same event type fails composition and names both.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder StageDomainEvent<TEvent>()
+        where TEvent : notnull
+    {
+        var eventType = DomainEventTranslatorRegistration.ThrowIfOpenEventType(typeof(TEvent));
+
+        ThrowIfDomainEventDecided(eventType, $"StageDomainEvent<{eventType.FullName}>");
+
+        _stagedDomainEvents.Add(eventType);
+        return this;
+    }
+
+    /// <summary>
     ///     Fails staging before the commit when a drained domain event has no registered decision.
     /// </summary>
     /// <returns>The current builder.</returns>
@@ -608,7 +641,7 @@ public sealed class OutboxModuleBuilder
 
             throw new LiteBusConfigurationException(
                 $"Domain event '{eventType.FullName}' already declares {translator.Description}, so {decision} conflicts with it. " +
-                "Declare one decision per domain event type: translate, ignore, or publish in process.");
+                "Declare one decision per domain event type: translate, ignore, publish in process, or stage.");
         }
 
         if (_ignoredDomainEvents.Contains(eventType))
@@ -622,7 +655,7 @@ public sealed class OutboxModuleBuilder
 
             throw new LiteBusConfigurationException(
                 $"Domain event '{eventType.FullName}' already declares {existing}, so {decision} conflicts with it. " +
-                "Declare one decision per domain event type: translate, ignore, or publish in process.");
+                "Declare one decision per domain event type: translate, ignore, publish in process, or stage.");
         }
 
         if (_inProcessDomainEvents.Contains(eventType))
@@ -636,7 +669,21 @@ public sealed class OutboxModuleBuilder
 
             throw new LiteBusConfigurationException(
                 $"Domain event '{eventType.FullName}' already declares {existing}, so {decision} conflicts with it. " +
-                "Declare one decision per domain event type: translate, ignore, or publish in process.");
+                "Declare one decision per domain event type: translate, ignore, publish in process, or stage.");
+        }
+
+        if (_stagedDomainEvents.Contains(eventType))
+        {
+            var existing = $"StageDomainEvent<{eventType.FullName}>";
+
+            if (string.Equals(existing, decision, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            throw new LiteBusConfigurationException(
+                $"Domain event '{eventType.FullName}' already declares {existing}, so {decision} conflicts with it. " +
+                "Declare one decision per domain event type: translate, ignore, publish in process, or stage.");
         }
     }
 
@@ -830,6 +877,7 @@ public sealed class OutboxModuleBuilder
             new Dictionary<Type, DomainEventTranslatorRegistration>(_domainEventTranslators),
             new HashSet<Type>(_ignoredDomainEvents),
             new HashSet<Type>(_inProcessDomainEvents),
+            new HashSet<Type>(_stagedDomainEvents),
             _undecidedDomainEventPolicy);
     }
 

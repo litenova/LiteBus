@@ -4,7 +4,6 @@ using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
 using LiteBus.Auditing.Anchors.S3;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 
 namespace LiteBus.Storage.IntegrationTests.Auditing.Anchors.S3;

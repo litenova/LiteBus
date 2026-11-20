@@ -1,5 +1,5 @@
 // <docs-snippet audit-definition-with-target>
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Samples.Documentation.Auditing;
 

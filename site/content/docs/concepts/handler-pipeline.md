@@ -449,7 +449,7 @@ The three axes do not carry identical contracts, and the gaps are deliberate:
 | Shortcut | `ICommandShortcut<T>` and `ICommandShortcut<T, TResult>` | `IQueryShortcut<T, TResult>` and `IStreamQueryShortcut<T, TResult>` | `IEventShortcut<T>` |
 | Refusal mapper | yes | yes, including the stream form | no |
 | Completion handler | yes | yes | yes |
-| `EnableAuditing()` | yes | yes | yes, one record per publish |
+| Auditing (`ForCommands`, `ForQueries`, `ForEvents` on `AddAuditing`) | yes | yes | yes, one record per publish |
 
 One rule produces every gap in that table: **a contract that names a result exists only where the axis has one.** A query always produces a result, so it has no untyped shortcut. An event never produces one, so it has no typed shortcut and no refusal mapper. There is no value a mapper could return, and a denied event raises instead.
 
@@ -670,7 +670,7 @@ A completion handler observes how the mediation ended, and the audit record writ
 
 <!-- snippet-source: samples/LiteBus.Samples.Documentation/Auditing/CancelOrderCommandAuditDefinition.cs#audit-definition-with-target -->
 ```csharp
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Samples.Documentation.Auditing;
 

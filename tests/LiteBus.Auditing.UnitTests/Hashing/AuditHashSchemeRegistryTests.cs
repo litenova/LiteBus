@@ -1,6 +1,5 @@
 using LiteBus.Auditing.Hashing;
 using LiteBus.Auditing.Abstractions;
-using LiteBus.Messaging.Abstractions.Auditing;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
 

@@ -1,7 +1,8 @@
 using System;
 using LiteBus.Auditing.Abstractions;
 using System.Linq;
-using LiteBus.Messaging.Abstractions.Auditing;
+using LiteBus.Auditing.Hashing;
+using LiteBus.Auditing.Segments;
 
 namespace LiteBus.Auditing;
 
@@ -72,6 +73,32 @@ public sealed class AuditHashChainBuilder
         where TSegmenter : class
     {
         _options.SegmenterType = typeof(TSegmenter);
+        _options.SegmenterInstance = null;
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Assigns stored documents to chain segments with a delegate, opening each segment without a genesis
+    ///     document.
+    /// </summary>
+    /// <typeparam name="TDocument">The stored audit document type, which must be the chain's document type.</typeparam>
+    /// <param name="segmentOf">Returns the segment of a document, such as its workspace and year.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="segmentOf" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     Works with every audit store. A segmenter that opens segments with a genesis document, or that describes a
+    ///     segment's tenant and attributes for <c>ListSegmentsAsync</c>, implements
+    ///     <see cref="IAuditSegmenter{TDocument}" /> and is registered with <see cref="SegmentBy{TSegmenter}()" />.
+    /// </remarks>
+    public AuditHashChainBuilder SegmentBy<TDocument>(Func<TDocument, string> segmentOf)
+        where TDocument : class, IAuditChainDocument
+    {
+        ArgumentNullException.ThrowIfNull(segmentOf);
+
+        var segmenter = new AuditFuncSegmenter<TDocument>(segmentOf);
+        _options.SegmenterType = segmenter.GetType();
+        _options.SegmenterInstance = segmenter;
 
         return this;
     }
@@ -86,6 +113,41 @@ public sealed class AuditHashChainBuilder
         ArgumentException.ThrowIfNullOrWhiteSpace(schemeName);
 
         _options.SchemeName = schemeName;
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Defines a record hash scheme of the application's own, such as a keyed hasher, under a name the chain can
+    ///     write with through <see cref="UseScheme" />.
+    /// </summary>
+    /// <param name="schemeName">The scheme name stored on every record hashed with it, such as <c>hmac-sha256-v1</c>.</param>
+    /// <param name="hasher">The hasher, such as <see cref="HmacSha256AuditHasher" />.</param>
+    /// <param name="linkRule">
+    ///     The rule that binds each record to its position, or <see langword="null" /> for the framed rule the shipped
+    ///     <c>sha256-v2</c> scheme uses, which binds the scheme name, the segment, the sequence and the previous hash.
+    /// </param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="hasher" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException"><paramref name="schemeName" /> is null, empty, or whitespace.</exception>
+    /// <remarks>
+    ///     <para>
+    ///         The scheme reads documents through the canonicalizer registered for the stored document, like the
+    ///         shipped schemes. Each record stores its scheme name, so records written before a switch keep verifying
+    ///         with their own scheme, and a key rotation is a new scheme name.
+    ///     </para>
+    ///     <para>
+    ///         Defining a name twice with the same hasher and link rule instances is a no-op; defining it with different
+    ///         pieces, or reusing a shipped name, fails composition. The startup check builds the scheme the chain
+    ///         writes with, so a scheme that cannot be built fails at startup instead of at the first record.
+    ///     </para>
+    /// </remarks>
+    public AuditHashChainBuilder AddScheme(string schemeName, IAuditHasher hasher, IAuditLinkRule? linkRule = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(schemeName);
+        ArgumentNullException.ThrowIfNull(hasher);
+
+        _options.AddScheme(new AuditHashSchemeDefinition(schemeName, hasher, linkRule));
 
         return this;
     }

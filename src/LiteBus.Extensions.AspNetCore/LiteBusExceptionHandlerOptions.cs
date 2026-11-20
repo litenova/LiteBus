@@ -5,8 +5,8 @@ namespace LiteBus.Extensions.AspNetCore;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         When request services hold a <see cref="RefusalProblemOptions" /> instance, its unmapped-code policy governs
-///         the exception path. This policy applies only when none is registered.
+///         When request services hold a <see cref="RefusalProblemOptions" /> instance, its unmapped-code policies govern
+///         the exception path. These policies apply only when none is registered.
 ///     </para>
 /// </remarks>
 public sealed class LiteBusExceptionHandlerOptions
@@ -16,4 +16,10 @@ public sealed class LiteBusExceptionHandlerOptions
     /// </summary>
     /// <value>The default is <see cref="UnmappedRefusalCode.UseFallback" />.</value>
     public UnmappedRefusalCode UnmappedRefusalCode { get; set; } = UnmappedRefusalCode.UseFallback;
+
+    /// <summary>
+    ///     Gets or sets how an invalid result's validation code with no catalog mapping is answered.
+    /// </summary>
+    /// <value>The default is <see cref="UnmappedValidationCode.UseFallback" />.</value>
+    public UnmappedValidationCode UnmappedValidationCode { get; set; } = UnmappedValidationCode.UseFallback;
 }
