@@ -306,7 +306,7 @@ Packages follow the pattern `LiteBus.Transport.Kafka`, `LiteBus.Outbox.Dispatch.
 
 ### Observability
 
-`LiteBus.Messaging.Extensions.OpenTelemetry`, `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, `LiteBus.Transport.Extensions.OpenTelemetry`, and `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` register traces and metrics for mediation, processors, and brokers.
+`LiteBus.Messaging.Extensions.OpenTelemetry`, `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, `LiteBus.Auditing.Extensions.OpenTelemetry`, `LiteBus.Transport.Extensions.OpenTelemetry`, and `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` register traces and metrics for mediation, processors, and brokers.
 
 ### Tooling
 

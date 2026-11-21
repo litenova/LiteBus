@@ -154,7 +154,7 @@ Retention deletes terminal rows by finish time, not by accept time. Cleanup call
 
 ### OpenTelemetry Metric Catalog
 
-Instrument names are stable public constants on `LiteBusMediationTelemetry`, `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, `LiteBusInboxIngressTelemetry`, and `LiteBusTransportTelemetry`. Register meters with `AddLiteBusMediationMetrics()`, `AddLiteBusInboxMetrics()`, `AddLiteBusOutboxMetrics()`, and `AddLiteBusTransportMetrics()` from the matching `*.Extensions.OpenTelemetry` packages.
+Instrument names are stable public constants on `LiteBusMediationTelemetry`, `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, `LiteBusInboxIngressTelemetry`, `LiteBusTransportTelemetry`, and `LiteBusAuditingTelemetry`. Register meters with `AddLiteBusMediationMetrics()`, `AddLiteBusInboxMetrics()`, `AddLiteBusOutboxMetrics()`, `AddLiteBusTransportMetrics()`, and `AddLiteBusAuditingMetrics()` from the matching `*.Extensions.OpenTelemetry` packages.
 
 Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, so `AddLiteBusInboxMetrics()` exports both. LiteBus records transport circuit breaker gauges on the shared `LiteBus.Transport` meter, with the `litebus.transport.broker` dimension identifying the active adapter (`amqp`, `kafka`, `sqs`, `azure_service_bus`, `inmemory`). `AddLiteBusAmqpMetrics()` registers the same shared meter for backward compatibility.
 
@@ -190,6 +190,7 @@ Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, 
 | `LiteBus.Outbox` | `litebus.outbox.processor.dispatch_duration` | `LiteBusOutboxTelemetry.ProcessorDispatchDurationInstrumentName` | Histogram in milliseconds per publication attempt |
 | `LiteBus.Outbox` | `litebus.outbox.processor.leases_acquired` | `LiteBusOutboxTelemetry.ProcessorLeasesAcquiredInstrumentName` | Sum of outbox messages leased at the start of a pass |
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_rejected` | `LiteBusOutboxTelemetry.ProcessorPersistRejectedInstrumentName` | Terminal persist rejected an update because the lease was lost |
+| `LiteBus.Auditing` | `litebus.audit.write.failures` | `LiteBusAuditingTelemetry.WriteFailuresInstrumentName` | Counter of audit records that could not be written, unit `{record}`, with tags `litebus.audit.outcome` and `litebus.audit.action` |
 | `LiteBus.Transport` | `litebus.transport.circuit_breaker.open` | `LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName` | `1` when any publisher circuit is open or half-open, with tag `litebus.transport.broker` |
 | `LiteBus.Transport` | `litebus.transport.circuit_breaker.failure_count` | `LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName` | Current failure sum across publisher destinations, with tag `litebus.transport.broker` |
 | `LiteBus.Transport` | `litebus.transport.circuit_breaker.failure_recorded` | `LiteBusTransportTelemetry.CircuitBreakerFailureRecordedInstrumentName` | One per failure recorded while the circuit is closed, with no tags |

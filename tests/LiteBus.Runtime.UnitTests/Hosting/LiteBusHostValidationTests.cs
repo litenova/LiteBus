@@ -2,6 +2,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Runtime.Abstractions;
+using LiteBus.Runtime.Abstractions.Hosting;
+using LiteBus.Runtime.Extensions.Microsoft.Hosting;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -88,6 +90,66 @@ public sealed class LiteBusHostValidationTests
             failure.Contains(nameof(IMissingFirstDependency), StringComparison.Ordinal));
         failures.Should().Contain(failure =>
             failure.Contains(nameof(IMissingSecondDependency), StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    ///     Confirms validation of an already built provider with scope validation enabled accepts a valid composition.
+    /// </summary>
+    [Fact]
+    public void ValidateLiteBusHost_ValidCompositionWithValidateScopes_ShouldNotThrow()
+    {
+        var services = new ServiceCollection();
+        services.AddLiteBus(registry => registry.Modules.Register(
+            new RegistrationModule(configuration =>
+                configuration.RegisterBackgroundService(typeof(ValidBackgroundService)))));
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+
+        var act = () => provider.ValidateLiteBusHost();
+
+        act.Should().NotThrow();
+    }
+
+    /// <summary>
+    ///     Confirms validation of an already built provider names a background service's unregistered dependency.
+    /// </summary>
+    [Fact]
+    public void ValidateLiteBusHost_BackgroundServiceWithUnregisteredDependency_ShouldReportThatDependency()
+    {
+        var services = new ServiceCollection();
+        services.AddLiteBus(registry => registry.Modules.Register(new RegistrationModule(configuration =>
+            configuration.RegisterBackgroundService(typeof(MissingDependencyBackgroundService)))));
+
+        using var provider = services.BuildServiceProvider();
+
+        var act = () => provider.ValidateLiteBusHost();
+
+        var exception = act.Should().Throw<LiteBusHostValidationException>().Which;
+        exception.Failures.Should().Contain(failure =>
+            failure.Contains(nameof(IMissingDependency), StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    ///     Confirms repeated validation leaves the provider usable and does not dispose it.
+    /// </summary>
+    [Fact]
+    public void ValidateLiteBusHost_CalledTwice_ShouldPassAndLeaveProviderUsable()
+    {
+        var services = new ServiceCollection();
+        services.AddLiteBus(registry => registry.Modules.Register(
+            new RegistrationModule(configuration =>
+                configuration.RegisterBackgroundService(typeof(ValidBackgroundService)))));
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+
+        var firstAct = () => provider.ValidateLiteBusHost();
+        var secondAct = () => provider.ValidateLiteBusHost();
+
+        firstAct.Should().NotThrow();
+        secondAct.Should().NotThrow();
+
+        var manifest = (LiteBusHostManifest) provider.GetService(typeof(LiteBusHostManifest))!;
+        manifest.BackgroundServices.Should().Contain(typeof(ValidBackgroundService));
     }
 
     /// <summary>

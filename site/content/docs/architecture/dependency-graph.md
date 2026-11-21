@@ -198,6 +198,7 @@ The Direct project references and Direct package references columns repeat [Gene
 | `LiteBus.Messaging.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Messaging` | `OpenTelemetry` |
 | `LiteBus.Inbox.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Inbox` | `OpenTelemetry` |
 | `LiteBus.Outbox.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Outbox` | `OpenTelemetry` |
+| `LiteBus.Auditing.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Auditing` | `OpenTelemetry` |
 | `LiteBus.Transport.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Transport` | `OpenTelemetry` |
 | `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Transport.Amqp` | `OpenTelemetry` |
 | `LiteBus.Storage.PostgreSql` | Technology adapter | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions` | `Npgsql` |

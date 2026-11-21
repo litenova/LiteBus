@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace LiteBus.Testing;
+namespace LiteBus.Runtime.Extensions.Microsoft.Hosting;
 
 /// <summary>
 ///     Thrown when a LiteBus host composition fails validation because one or more of its registrations cannot be built

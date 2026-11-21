@@ -240,7 +240,7 @@ The async execution model runs `Task`-based code with `ConfigureAwait(false)` on
 | `LiteBus.Saga[.Abstractions]`, `LiteBus.Saga.InboxIntegration`, `LiteBus.Saga.Storage.PostgreSql` | Saga orchestration. |
 | `LiteBus.Extensions.AspNetCore` | Operator management HTTP endpoints, the idempotency-key endpoint filter (`WithIdempotencyKey`, `IdempotencyKeyGuard`), the execution-identity provider (`HttpContextExecutionIdentityProvider`, `AddLiteBusExecutionIdentity`), and the refusal-to-problem-details catalog (`IRefusalProblemCatalog`, `MediationResultHttpExtensions.ToHttpResult`, RFC 9457). |
 | `LiteBus.Extensions.Diagnostics.HealthChecks` | `IHealthChecksBuilder.AddLiteBus(...)` |
-| `LiteBus.Messaging.Extensions.OpenTelemetry`, `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, `LiteBus.Transport.Extensions.OpenTelemetry`, `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | OpenTelemetry registration helpers. |
+| `LiteBus.Messaging.Extensions.OpenTelemetry`, `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, `LiteBus.Auditing.Extensions.OpenTelemetry`, `LiteBus.Transport.Extensions.OpenTelemetry`, `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | OpenTelemetry registration helpers. |
 | `LiteBus.Testing`, `LiteBus.Testing.Mediation`, `LiteBus.Testing.Hosting`, `LiteBus.Testing.Transport`, `LiteBus.Testing.DurableMessaging` | Test doubles and fixtures. |
 | `LiteBus.Analyzers` | Roslyn analyzers `LB1001` to `LB1030` (`LB1002` and `LB1006` reserved, never shipped). |
 

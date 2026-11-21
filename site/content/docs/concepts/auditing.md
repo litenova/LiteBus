@@ -441,6 +441,52 @@ The commit belongs in the completion stage rather than in a post-handler. A post
 
 Plan for two consequences. A record for a refusal or a failure has to be written out of band, as above. That write has to survive whatever caused the failure. Anything your commit handler does after the commit, such as dispatching the domain events the aggregates recorded, runs with `CancellationToken.None`, because the completion stage is not cancellable.
 
+## When a Record Cannot Be Written
+
+A record can fail to write: the audit store is unreachable, or a record mapper's query throws. LiteBus logs the failure at error level (event id 2720) with the action, outcome and tenant, and counts it on the `litebus.audit.write.failures` counter of the `LiteBus.Auditing` meter, with the outcome and action as attributes.
+
+By default the mediation's own ending stands. A denied command still reaches the caller as a denial, and a successful command still commits, without its record. A broken audit store does not take the application down or change the answer a caller receives. Alert on the counter, because every count is a gap in the trail.
+
+When an action that is not on record must not happen, require the record:
+
+```csharp
+registry.Modules.AddAuditing(auditing => auditing
+    .ForCommands()
+    .UseMartenStore()
+    .RequireRecord());
+```
+
+With `RequireRecord()`, a successful mediation whose record cannot be written ends as a fault (`MessageFaultException` with the code `audit.record-not-written`, answered as HTTP 500), and the unit of work does not commit its change. A denial, failure or cancellation changed nothing, so its record failing cannot undo anything: it is logged and counted, and the caller still receives the original denial or failure. A replaced record writer (`UseRecordWriter`) applies its own policy.
+
+Register the meter with `AddLiteBusAuditingMetrics()` from `LiteBus.Auditing.Extensions.OpenTelemetry`, or with `AddMeter(LiteBusAuditingTelemetry.MeterName)` on any meter provider.
+
+## Writing a Record From Application Code
+
+Some events are not the result of one mediation, such as an operator correcting data in a tool or a retention job deleting a segment. Inject `IAuditTrail` and write an `AuditRecord`. It goes through the configured store and capture mode, so the code does not depend on one store's classes:
+
+```csharp
+public sealed class SegmentRetention
+{
+    private readonly IAuditTrail _trail;
+
+    public SegmentRetention(IAuditTrail trail) => _trail = trail;
+
+    public Task RecordDeletionAsync(string segment, string tenantId, CancellationToken cancellationToken) =>
+        _trail.WriteAsync(new AuditRecord
+        {
+            Id = Guid.NewGuid(),
+            Action = "retention.segment-deleted",
+            Outcome = AuditOutcome.Succeeded,
+            OccurredAt = DateTimeOffset.UtcNow,
+            TenantId = tenantId,
+            TargetKind = "audit-segment",
+            TargetId = segment
+        }, cancellationToken);
+}
+```
+
+`IAuditTrail` is scoped. A `Succeeded` record is staged on the scope's business session, so it commits when the application saves that session; any other outcome is written at once on a short session of its own. The record mapper and segmenter apply as they do to every record. Outside a unit of work that links after commit, the link sweep positions the record.
+
 ## Auditing Command Batches
 
 When commands run through `ICommandBatchMediator`, each command's record is built exactly as above but buffered instead of written. The audit writer adds the record to the batch's buffer rather than calling `IAuditTrail.WriteAsync`, and every buffered record carries the property `litebus.batch.id` with the batch identifier, a GUID string generated once per batch. That property lets a review group the records one batch produced:

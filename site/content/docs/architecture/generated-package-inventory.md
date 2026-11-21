@@ -13,6 +13,7 @@ This file is generated from evaluated MSBuild metadata by `scripts/Get-PackageIn
 | `LiteBus.Auditing.Anchors.Timestamping` | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions`, `System.Security.Cryptography.Pkcs` |
 | `LiteBus.Auditing.Extensions.Autofac` | `LiteBus.Auditing`, `LiteBus.Runtime.Extensions.Autofac` | none |
 | `LiteBus.Auditing.Extensions.Microsoft.DependencyInjection` | `LiteBus.Auditing`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | none |
+| `LiteBus.Auditing.Extensions.OpenTelemetry` | `LiteBus.Auditing` | `OpenTelemetry` |
 | `LiteBus.Auditing.Storage.EntityFrameworkCore` | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.EntityFrameworkCore` | `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Relational`, `Microsoft.Extensions.Logging.Abstractions` |
 | `LiteBus.Auditing.Storage.Marten` | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Marten`, `Microsoft.Extensions.Logging.Abstractions`, `Npgsql` |
 | `LiteBus.Auditing.Storage.PostgreSql` | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Microsoft.Extensions.Logging.Abstractions`, `Npgsql` |

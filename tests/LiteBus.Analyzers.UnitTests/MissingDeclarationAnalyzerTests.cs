@@ -1,4 +1,7 @@
 using LiteBus.Auditing.Abstractions;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Testing;
+using Microsoft.CodeAnalysis.Testing;
 
 namespace LiteBus.Analyzers.UnitTests;
 
@@ -14,6 +17,14 @@ public sealed class MissingDeclarationAnalyzerTests
                                              is_global = true
                                              litebus_required_declarations = App.RequiredPermission
                                              """;
+
+    /// <summary>
+    ///     An <c>.editorconfig</c> naming a declaration type that does not resolve.
+    /// </summary>
+    private const string UnresolvableName = """
+                                            is_global = true
+                                            litebus_required_declarations = App.TypoedPermision
+                                            """;
 
     /// <summary>
     ///     The using directives every case shares, kept first so appended source stays compilable.
@@ -259,15 +270,67 @@ public sealed class MissingDeclarationAnalyzerTests
                               public sealed record CreateUserCommand(string Name) : ICommand;
                               """;
 
-        const string editorConfig = """
-                                    is_global = true
-                                    litebus_required_declarations = App.TypoedPermision
-                                    """;
+        return AnalyzerTest.VerifyUnlocatedWithEditorConfigAsync<MissingDeclarationAnalyzer>(
+            source,
+            UnresolvableName,
+            DiagnosticDescriptors.UnresolvedRequiredDeclaration,
+            "App.TypoedPermision");
+    }
+
+    /// <summary>
+    ///     Verifies that an unresolvable configured name is reported in a compilation that references the message
+    ///     contracts, using the same name as the case without those references.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task UnresolvableRequiredTypeWithMessageMarkers_ProducesConfigurationDiagnostic()
+    {
+        const string source = """
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed record ReadUserQuery : IQuery<string>;
+                              """;
 
         return AnalyzerTest.VerifyUnlocatedWithEditorConfigAsync<MissingDeclarationAnalyzer>(
             source,
-            editorConfig,
+            UnresolvableName,
             DiagnosticDescriptors.UnresolvedRequiredDeclaration,
             "App.TypoedPermision");
+    }
+
+    /// <summary>
+    ///     Verifies that an unresolvable configured name is not reported in a compilation that references no LiteBus
+    ///     message contracts and declares no messages.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task UnresolvableRequiredTypeWithoutMessageMarkers_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              namespace App;
+
+                              public sealed record DomainType(string Name);
+                              """;
+
+        return VerifyWithoutMessageMarkersAsync(source, UnresolvableName);
+    }
+
+    /// <summary>
+    ///     Verifies that the analyzer reports nothing for source compiled without the LiteBus contract references.
+    /// </summary>
+    /// <param name="source">The source under test, free of LiteBus types.</param>
+    /// <param name="editorConfig">The <c>.editorconfig</c> content applied to the compilation.</param>
+    /// <returns>A task that completes when verification finishes.</returns>
+    private static Task VerifyWithoutMessageMarkersAsync(string source, string editorConfig)
+    {
+        var test = new CSharpAnalyzerTest<MissingDeclarationAnalyzer, DefaultVerifier>
+        {
+            ReferenceAssemblies = AnalyzerTest.Net10ReferenceAssemblies
+        };
+
+        test.TestState.Sources.Add(("/0/Test0.cs", source));
+        test.TestState.AnalyzerConfigFiles.Add(("/.editorconfig", editorConfig));
+
+        return test.RunAsync(CancellationToken.None);
     }
 }

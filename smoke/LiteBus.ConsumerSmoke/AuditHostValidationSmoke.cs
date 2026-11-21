@@ -7,6 +7,7 @@ using LiteBus.Commands.Abstractions;
 using LiteBus.Commands.Storage.Marten;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
+using LiteBus.Runtime.Extensions.Microsoft.Hosting;
 using LiteBus.Testing;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,6 +41,7 @@ internal static class AuditHostValidationSmoke
 
         var services = Compose(connectionString);
         await using var provider = services.BuildServiceProvider(Smoke.DevelopmentValidation);
+        provider.ValidateLiteBusHost();
         var hosted = await AuditSmokeHost.StartHostAsync(provider).ConfigureAwait(false);
 
         try

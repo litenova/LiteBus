@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Auditing.Abstractions;
 using Microsoft.Extensions.Logging;
 
 namespace LiteBus.Auditing;
@@ -52,6 +53,15 @@ internal static class AuditingLogMessages
             LogLevel.Information,
             new EventId(2710, nameof(CheckpointPublishDisabled)),
             "The checkpoint publish and cut loop is disabled in this host; another host publishes pending checkpoints and cuts due ones.");
+
+    /// <summary>
+    ///     The delegate that writes the audit record write failed event.
+    /// </summary>
+    private static readonly Action<ILogger, string, AuditOutcome, string, Exception?> AuditRecordWriteFailedMessage =
+        LoggerMessage.Define<string, AuditOutcome, string>(
+            LogLevel.Error,
+            new EventId(2720, nameof(AuditRecordWriteFailed)),
+            "The audit record for action '{Action}' with outcome {Outcome} in tenant '{TenantId}' could not be written; the record is missing from the audit trail.");
 
     /// <summary>
     ///     The delegate that writes the after-commit link failed event.
@@ -130,5 +140,23 @@ internal static class AuditingLogMessages
     internal static void AfterCommitLinkFailed(ILogger logger, string segment, Exception exception)
     {
         AfterCommitLinkFailedMessage(logger, segment, exception);
+    }
+
+    /// <summary>
+    ///     Writes the event for an audit record that could not be written.
+    /// </summary>
+    /// <param name="logger">The logger to write to.</param>
+    /// <param name="action">The audited action of the record.</param>
+    /// <param name="outcome">The outcome the record describes.</param>
+    /// <param name="tenantId">The tenant of the record, or <see langword="null" /> when it has none.</param>
+    /// <param name="exception">The exception the write failed with.</param>
+    internal static void AuditRecordWriteFailed(
+        ILogger logger,
+        string action,
+        AuditOutcome outcome,
+        string? tenantId,
+        Exception exception)
+    {
+        AuditRecordWriteFailedMessage(logger, action, outcome, tenantId ?? "(none)", exception);
     }
 }

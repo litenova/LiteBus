@@ -36,7 +36,7 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | LB1018 | Warning (disabled by default) | Auditing | Command or query type declares neither `[Audited]` nor `[AuditExempt]` and has no `IAuditDefinition`. This rule is LB1020 with `AuditDeclaration` already configured |
 | LB1019 | Warning | Handlers | Shortcut implements `IMessageShortcut<TMessage>` for a message that produces a result |
 | LB1020 | Warning (disabled by default) | Declarations | Command or query type states no position on a metadata value type named in `litebus_required_declarations` |
-| LB1021 | Warning | Declarations | `litebus_required_declarations` names a type that does not resolve in the compilation |
+| LB1021 | Warning | Declarations | `litebus_required_declarations` names a type that does not resolve in a compilation that references the LiteBus message contracts |
 | LB1022 | Warning | Handlers | `[HandlerPriority]` value falls inside the range LiteBus reserves for its own handlers |
 | LB1023 | Warning | Handlers | Command handler, pre-handler, or post-handler sends or publishes another message through a mediator inside its handle method; reports only when `litebus_forbid_nested_commands` is `true` |
 | LB1024 | Warning (disabled by default) | Handlers | Command handler injects an external side-effect type through its constructor |
@@ -123,7 +123,7 @@ litebus_required_declarations = LiteBus.Messaging.Abstractions.Tenancy.TenancyDe
 dotnet_diagnostic.LB1020.severity = warning
 ```
 
-LB1021 reports a configured name that does not resolve, because a name that silently did nothing would disable the requirement it configures. A typo in `.editorconfig` is the usual cause.
+LB1021 reports a configured name that does not resolve in a compilation that references the LiteBus message contracts, the same condition the analyzer uses to look for messages. A name that silently did nothing would disable the requirement it configures, and a typo in `.editorconfig` is the usual cause. In a project with no message contracts and no messages, the rule reports nothing, so a shared configuration cannot raise it there.
 
 `RequireDeclaration<TValue>()` on the messaging module enforces the same rule at composition time, which also covers a message registered from an assembly outside this compilation. LB1020 checks what the message states itself: a definition, a declaring attribute, or an exemption. Defaults, conventions, and Report or Fail enforcement are composition checks. Event requirements are composition-only; LB1020 does not check events. See [Required Declarations](../catalog/analyzers/required-declarations.md).
 

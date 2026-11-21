@@ -71,6 +71,8 @@
         <Project Path="src/LiteBus.Inbox.Extensions.OpenTelemetry/LiteBus.Inbox.Extensions.OpenTelemetry.csproj"/>
         <Project Path="src/LiteBus.Outbox.Extensions.OpenTelemetry/LiteBus.Outbox.Extensions.OpenTelemetry.csproj"/>
         <Project
+                Path="src/LiteBus.Auditing.Extensions.OpenTelemetry/LiteBus.Auditing.Extensions.OpenTelemetry.csproj"/>
+        <Project
                 Path="src/LiteBus.Transport.Extensions.OpenTelemetry/LiteBus.Transport.Extensions.OpenTelemetry.csproj"/>
         <Project
                 Path="src/LiteBus.Transport.Amqp.Extensions.OpenTelemetry/LiteBus.Transport.Amqp.Extensions.OpenTelemetry.csproj"/>

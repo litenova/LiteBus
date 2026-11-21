@@ -2,6 +2,26 @@
 
 This file records the notable changes in each LiteBus release.
 
+## v8.0.0-preview.6
+
+Changes since [v8.0.0-preview.5](https://github.com/litenova/LiteBus/releases/tag/v8.0.0-preview.5). The [v8.0.0](#v800) section describes the whole 8.0.0 line. Previews of one line carry no compatibility promise between each other, so this section lists what changed without upgrade steps.
+
+### Added
+
+- `AuditingModuleBuilder.RequireRecord()` fails a successful mediation whose audit record cannot be written (`MessageFaultException`, code `audit.record-not-written`), so its change does not commit.
+- The `LiteBus.Auditing` meter with the `litebus.audit.write.failures` counter, named on `LiteBusAuditingTelemetry`, and the `LiteBus.Auditing.Extensions.OpenTelemetry` package with `AddLiteBusAuditingMetrics()`.
+- `IServiceProvider.ValidateLiteBusHost()` in `LiteBus.Runtime.Extensions.Microsoft.Hosting` validates a built host's own container without starting it; `LiteBusHostValidationException` moves to that package.
+
+### Changed
+
+- A failed audit write is logged at error level (event 2720) and counted, and no longer replaces the mediation's ending: a denial whose record cannot be written still reaches the caller as a denial.
+- LB1021 reports only in a compilation that references the LiteBus message contracts.
+
+### Fixed
+
+- A denial whose audit record failed to write reached the caller as the trail's exception, and nothing logged the missing record.
+- A shared `.editorconfig` with `litebus_required_declarations` raised LB1021 in projects that declare no messages.
+
 ## v8.0.0-preview.5
 
 Changes since [v8.0.0-preview.4](https://github.com/litenova/LiteBus/releases/tag/v8.0.0-preview.4). The [v8.0.0](#v800) section describes the whole 8.0.0 line. Previews of one line carry no compatibility promise between each other, so this section lists what changed without upgrade steps.
@@ -233,6 +253,8 @@ This release makes identity and tenancy part of the pipeline, adds composable au
 - Audit verification reports each break's category (`Integrity` or `Coverage`) and `IsChainIntact`, so a tamper alarm ignores a checkpoint that is not cut yet. The verifier asks the checkpoint policy with the segment head, so a new segment under a time-based policy verifies intact until its first checkpoint is due.
 - `LiteBusHostValidation.Validate(IServiceCollection)` in `LiteBus.Testing.Hosting` validates a host's container in a unit test: scope and build validation, every manifest entry and hosted service resolved without starting, every failure reported.
 - Analyzer LB1030 reports a `Register<TMessage>(name, version)` call that disagrees with the type's `[MessageContract]`.
+- A failed audit write is logged at error level and counted on the `litebus.audit.write.failures` counter of the `LiteBus.Auditing` meter (`LiteBus.Auditing.Extensions.OpenTelemetry` registers it), and the mediation's ending stands. `RequireRecord()` makes a successful mediation fail instead when its record cannot be written. Application code writes its own records through the scoped `IAuditTrail`.
+- `IServiceProvider.ValidateLiteBusHost()` validates a built host's container without starting it, for a startup check such as `--validate-composition`; `LiteBusHostValidation.Validate(IServiceCollection)` in `LiteBus.Testing.Hosting` does the same in a unit test.
 
 ### Changed
 

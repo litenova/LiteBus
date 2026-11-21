@@ -38,6 +38,7 @@ Modules register host work through `IModuleConfiguration`. `AddLiteBus` exposes 
 | `IModuleConfiguration.RegisterDiagnosticCheck` | Manifest entry used by module `Build` methods | `LiteBus.Runtime` |
 | `LiteBusHostManifest` | Resolved manifest after module build | `LiteBus.Runtime.Abstractions` |
 | Generic host bridge | Maps manifest entries to one `IHostedService` orchestrator | `LiteBus.Runtime.Extensions.Hosting`, `LiteBus.Runtime.Extensions.Microsoft.Hosting`, `LiteBus.Runtime.Extensions.Autofac.Hosting` |
+| `ValidateLiteBusHost()` | Resolves manifest entries and hosted services from a built provider without starting it | `LiteBus.Runtime.Extensions.Microsoft.Hosting` |
 
 Compose through parent module builders. Register storage, dispatch, and ingress inside `AddInbox` or `AddOutbox` with `Use*` extensions. Do not register host framework types directly from core or adapter packages.
 

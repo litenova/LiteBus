@@ -339,6 +339,32 @@ public sealed class AuditingModuleBuilder
     }
 
     /// <summary>
+    ///     Fails a successful mediation whose audit record cannot be written, instead of committing the change
+    ///     without its record.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         By default a failed audit write is logged at error level and counted on
+    ///         <see cref="LiteBusAuditingTelemetry.WriteFailuresInstrumentName" />, and the mediation's own ending
+    ///         stands. With this setting, a success whose record cannot be written ends as a fault
+    ///         (<see cref="LiteBus.Messaging.Abstractions.MessageFaultException" /> with the code
+    ///         <c>audit.record-not-written</c>), and the unit of work does not commit its change. Use it when an
+    ///         action that is not on record must not happen.
+    ///     </para>
+    ///     <para>
+    ///         A denial, failure or cancellation changed nothing, so its record failing cannot undo anything: it is
+    ///         logged and counted, and the caller still receives the original denial or failure. A replaced record
+    ///         writer applies its own policy.
+    ///     </para>
+    /// </remarks>
+    public AuditingModuleBuilder RequireRecord()
+    {
+        _recording.RequireRecord = true;
+        return this;
+    }
+
+    /// <summary>
     ///     Requires every audited message to declare an action code no other message declares.
     /// </summary>
     /// <returns>The current builder.</returns>

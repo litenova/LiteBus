@@ -63,6 +63,12 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
     private readonly IServiceProvider? _services;
 
     /// <summary>
+    ///     Gets the guard that applies the composition's policy when a record cannot be written, or
+    ///     <see langword="null" /> to let a failed write propagate.
+    /// </summary>
+    private readonly AuditRecordWriteGuard? _guard;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="AuditRecordWriter" /> class.
     /// </summary>
     /// <param name="trail">The trail that receives produced records.</param>
@@ -78,13 +84,18 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
     ///     The mediation's scope, which the record mapper of an audit store resolves services from, or
     ///     <see langword="null" /> to map with the store trail's own scope.
     /// </param>
+    /// <param name="guard">
+    ///     The guard that applies the composition's policy when a record cannot be written, or
+    ///     <see langword="null" /> to let a failed write propagate.
+    /// </param>
     public AuditRecordWriter(
         IAuditTrail trail,
         IMessageRegistry registry,
         IAuditOutcomeMapper outcomeMapper,
         TimeProvider timeProvider,
         IAuditActorResolver? actorResolver = null,
-        IServiceProvider? services = null)
+        IServiceProvider? services = null,
+        AuditRecordWriteGuard? guard = null)
     {
         ArgumentNullException.ThrowIfNull(trail);
         ArgumentNullException.ThrowIfNull(registry);
@@ -97,6 +108,7 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
         _timeProvider = timeProvider;
         _actorResolver = actorResolver;
         _services = services;
+        _guard = guard;
     }
 
     /// <inheritdoc />
@@ -152,6 +164,29 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
             return;
         }
 
+        if (_guard is null)
+        {
+            await WriteToTrailAsync(record, mapping, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await _guard.WriteAsync(
+                record,
+                messageType,
+                token => WriteToTrailAsync(record, mapping, token),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Hands a record to the trail inside its mediation's mapping scope.
+    /// </summary>
+    /// <param name="record">The record to write.</param>
+    /// <param name="mapping">The mapping context the trail's mapper reads, or <see langword="null" />.</param>
+    /// <param name="cancellationToken">The token that cancels the write.</param>
+    /// <returns>A task that completes when the trail has the record.</returns>
+    private async Task WriteToTrailAsync(AuditRecord record, AuditMappingContext? mapping, CancellationToken cancellationToken)
+    {
         if (mapping is null)
         {
             await _trail.WriteAsync(record, cancellationToken).ConfigureAwait(false);

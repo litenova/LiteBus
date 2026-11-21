@@ -26,7 +26,7 @@ dotnet_diagnostic.LB1020.severity = warning
 
 Use the full metadata name of each value type. Separate several with commas or semicolons. When nothing is configured the rule reports nothing, so referencing the analyzer package changes no existing build.
 
-`LB1021` reports a configured name that does not resolve in the compilation. A name that silently did nothing would disable the requirement it configures, and a typo in `.editorconfig` is exactly how that happens.
+`LB1021` reports a configured name that does not resolve in the compilation, but only when the project references the LiteBus message contracts, the same condition the analyzer uses to look for messages. A name that silently did nothing would disable the requirement it configures, and a typo in `.editorconfig` is exactly how that happens. In a project with no message contracts and no messages, the rule reports nothing, so a shared configuration cannot raise it there.
 
 ## Trigger Conditions
 

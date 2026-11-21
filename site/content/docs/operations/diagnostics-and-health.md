@@ -30,6 +30,7 @@ Each probe implements `IDiagnosticCheck`, which requires `Task<DiagnosticResult>
 | `LiteBus.Extensions.Diagnostics.HealthChecks` | `AddLiteBus()` health check through `DiagnosticCheckRunner` |
 | `LiteBus.Inbox.Extensions.OpenTelemetry` | Inbox activity source and meter registration |
 | `LiteBus.Outbox.Extensions.OpenTelemetry` | Outbox activity source and meter registration |
+| `LiteBus.Auditing.Extensions.OpenTelemetry` | Auditing meter registration |
 | `LiteBus.Transport.Extensions.OpenTelemetry` | Shared transport activity source and meter registration |
 | `LiteBus.Extensions.AspNetCore` | Management routes and `GET /litebus/health` through `DiagnosticCheckRunner` |
 

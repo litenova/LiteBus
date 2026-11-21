@@ -22,6 +22,11 @@ internal sealed class AuditRecordingOptions
     private readonly List<Action<ICompositionModel>> _checks = [];
 
     /// <summary>
+    ///     Gets or sets a value indicating whether a successful mediation whose audit record cannot be written fails.
+    /// </summary>
+    public bool RequireRecord { get; set; }
+
+    /// <summary>
     ///     Gets or sets a value indicating whether commands produce audit records.
     /// </summary>
     public bool Commands { get; set; }

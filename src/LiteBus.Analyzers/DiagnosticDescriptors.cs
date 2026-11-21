@@ -219,7 +219,7 @@ public static class DiagnosticDescriptors
         "LiteBus.Declarations",
         DiagnosticSeverity.Warning,
         true,
-        description: "A name that does not resolve would silently disable the requirement it configures, so it is reported rather than skipped.",
+        description: "In a project that references the LiteBus message contracts, a name that does not resolve is reported rather than skipped, because skipping it would silently disable the requirement it configures.",
         customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>

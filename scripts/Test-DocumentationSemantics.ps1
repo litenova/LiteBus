@@ -365,7 +365,8 @@ $telemetrySources = @(
     'src/LiteBus.Inbox/LiteBusInboxTelemetry.cs',
     'src/LiteBus.Outbox/LiteBusOutboxTelemetry.cs',
     'src/LiteBus.Inbox.Ingress/LiteBusInboxIngressTelemetry.cs',
-    'src/LiteBus.Transport/LiteBusTransportTelemetry.cs'
+    'src/LiteBus.Transport/LiteBusTransportTelemetry.cs',
+    'src/LiteBus.Auditing/LiteBusAuditingTelemetry.cs'
 )
 
 $implementedInstruments = New-OrdinalSet

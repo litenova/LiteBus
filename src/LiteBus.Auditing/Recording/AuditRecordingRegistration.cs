@@ -8,6 +8,7 @@ using LiteBus.Messaging.Registry;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
+using Microsoft.Extensions.Logging;
 
 namespace LiteBus.Auditing.Recording;
 
@@ -50,6 +51,12 @@ internal static class AuditRecordingRegistration
             : new DependencyDescriptor(typeof(IAuditOutcomeMapper), recording.OutcomeMapper));
 
         RegisterActorResolver(registry, recording);
+        registry.Register(new DependencyDescriptor(
+            typeof(AuditRecordWriteGuard),
+            provider => new AuditRecordWriteGuard(
+                (ILogger<AuditRecordWriteGuard>?) provider.GetService(typeof(ILogger<AuditRecordWriteGuard>)),
+                recording.RequireRecord),
+            InstanceLifetime.Singleton));
         RegisterRecordWriter(registry, recording);
 
         if (recording.Commands)
@@ -60,7 +67,9 @@ internal static class AuditRecordingRegistration
             // participant collection, so both must resolve the same object.
             registry.Register(new DependencyDescriptor(
                 typeof(CommandBatchAuditParticipant),
-                provider => new CommandBatchAuditParticipant((IAuditTrail?) provider.GetService(typeof(IAuditTrail))),
+                provider => new CommandBatchAuditParticipant(
+                    (IAuditTrail?) provider.GetService(typeof(IAuditTrail)),
+                    (AuditRecordWriteGuard?) provider.GetService(typeof(AuditRecordWriteGuard))),
                 InstanceLifetime.Scoped));
 
             registry.RegisterCollection(DependencyDescriptor.ForCollection(
@@ -178,6 +187,7 @@ internal static class AuditRecordingRegistration
             (IAuditOutcomeMapper) serviceProvider.GetService(typeof(IAuditOutcomeMapper))!,
             (TimeProvider) serviceProvider.GetService(typeof(TimeProvider))!,
             (IAuditActorResolver?) serviceProvider.GetService(typeof(IAuditActorResolver)),
-            serviceProvider);
+            serviceProvider,
+            (AuditRecordWriteGuard?) serviceProvider.GetService(typeof(AuditRecordWriteGuard)));
     }
 }

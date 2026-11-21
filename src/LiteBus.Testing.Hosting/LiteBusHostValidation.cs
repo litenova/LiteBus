@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using LiteBus.Runtime.Abstractions.Hosting;
+using LiteBus.Runtime.Extensions.Microsoft.Hosting;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace LiteBus.Testing;
 
@@ -29,6 +27,17 @@ public static class LiteBusHostValidation
     ///     registration from the root provider.
     /// </summary>
     /// <param name="services">The service collection holding the LiteBus composition to validate.</param>
+    /// <remarks>
+    ///     <para>
+    ///         This method builds and disposes its own provider, so call it on a composition built only for the test,
+    ///         never on a collection the host builds afterwards. A provider that holds state from the composition breaks
+    ///         the host's own build when it is disposed first.
+    ///     </para>
+    ///     <para>
+    ///         Inside a host, call <see cref="LiteBusHostValidationExtensions.ValidateLiteBusHost" /> on the built host's
+    ///         <c>Services</c> instead.
+    ///     </para>
+    /// </remarks>
     /// <exception cref="ArgumentNullException">
     ///     Thrown when <paramref name="services" /> is <see langword="null" />.
     /// </exception>
@@ -68,66 +77,9 @@ public static class LiteBusHostValidation
 
         using (provider)
         {
-            LiteBusHostManifest? manifest = null;
-
-            Resolve(failures, "host manifest", () => manifest = provider.GetRequiredService<LiteBusHostManifest>());
-
-            if (manifest is not null)
-            {
-                foreach (var startupTaskType in manifest.StartupTasks)
-                {
-                    Resolve(
-                        failures,
-                        $"startup task '{startupTaskType.FullName ?? startupTaskType.Name}'",
-                        () => provider.GetRequiredService(startupTaskType));
-                }
-
-                foreach (var backgroundServiceType in manifest.BackgroundServices)
-                {
-                    Resolve(
-                        failures,
-                        $"background service '{backgroundServiceType.FullName ?? backgroundServiceType.Name}'",
-                        () => provider.GetRequiredService(backgroundServiceType));
-                }
-
-                foreach (var descriptor in manifest.DiagnosticChecks)
-                {
-                    var implementationType = descriptor.ImplementationType;
-                    Resolve(
-                        failures,
-                        $"diagnostic check '{implementationType.FullName ?? implementationType.Name}'",
-                        () => provider.GetRequiredService(implementationType));
-                }
-            }
-
-            Resolve(failures, "hosted services", () => _ = provider.GetServices<IHostedService>().ToList());
-        }
-
-        if (failures.Count > 0)
-        {
-            throw new LiteBusHostValidationException(failures);
+            provider.ValidateLiteBusHost();
         }
     }
-
-#pragma warning disable CA1031 // A validation helper records failures of every type so one call reports all problems.
-    /// <summary>
-    ///     Runs one resolution and records its exception without stopping the remaining resolutions.
-    /// </summary>
-    /// <param name="failures">The failure messages collected so far.</param>
-    /// <param name="description">The description of the target being resolved.</param>
-    /// <param name="resolve">The resolution to run.</param>
-    private static void Resolve(List<string> failures, string description, Action resolve)
-    {
-        try
-        {
-            resolve();
-        }
-        catch (Exception exception)
-        {
-            failures.Add(FormatFailure(description, exception));
-        }
-    }
-#pragma warning restore CA1031
 
     /// <summary>
     ///     Formats one failure with the target description, the exception type, and the exception message.

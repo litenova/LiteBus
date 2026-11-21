@@ -37,14 +37,25 @@ internal sealed class CommandBatchAuditParticipant : ICommandBatchParticipant
     private readonly IAuditTrail? _trail;
 
     /// <summary>
+    ///     Applies the composition's policy when a flushed record cannot be written, or <see langword="null" /> to let a
+    ///     failed write propagate.
+    /// </summary>
+    private readonly AuditRecordWriteGuard? _guard;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="CommandBatchAuditParticipant" /> class.
     /// </summary>
     /// <param name="trail">
     ///     The trail that receives the flushed records, or <see langword="null" /> when auditing is not enabled.
     /// </param>
-    public CommandBatchAuditParticipant(IAuditTrail? trail = null)
+    /// <param name="guard">
+    ///     Applies the composition's policy when a flushed record cannot be written, or <see langword="null" /> to let a
+    ///     failed write propagate.
+    /// </param>
+    public CommandBatchAuditParticipant(IAuditTrail? trail = null, AuditRecordWriteGuard? guard = null)
     {
         _trail = trail;
+        _guard = guard;
     }
 
     /// <inheritdoc />
@@ -71,7 +82,7 @@ internal sealed class CommandBatchAuditParticipant : ICommandBatchParticipant
 
         foreach (var record in buffer.Records)
         {
-            await WriteAsync(trail, buffer, record, cancellationToken).ConfigureAwait(false);
+            await GuardedWriteAsync(trail, buffer, record, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -94,8 +105,40 @@ internal sealed class CommandBatchAuditParticipant : ICommandBatchParticipant
 
         foreach (var record in buffer.RewriteForRollback())
         {
-            await WriteAsync(trail, buffer, record, cancellationToken).ConfigureAwait(false);
+            await GuardedWriteAsync(trail, buffer, record, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    ///     Writes one flushed record through the guard when the composition registered one.
+    /// </summary>
+    /// <param name="trail">The trail that receives the record.</param>
+    /// <param name="buffer">The buffer holding the record's mapping context.</param>
+    /// <param name="record">The record to write.</param>
+    /// <param name="cancellationToken">The token that cancels the write.</param>
+    /// <returns>A task that completes when the record is written or its failure is handled.</returns>
+    /// <remarks>
+    ///     A batch record carries its message type as a name only, so a required record that fails is reported as a fault
+    ///     of <see cref="AuditRecord" />.
+    /// </remarks>
+    private async Task GuardedWriteAsync(
+        IAuditTrail trail,
+        AuditRecordBuffer buffer,
+        AuditRecord record,
+        CancellationToken cancellationToken)
+    {
+        if (_guard is null)
+        {
+            await WriteAsync(trail, buffer, record, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await _guard.WriteAsync(
+                record,
+                typeof(AuditRecord),
+                token => WriteAsync(trail, buffer, record, token),
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
